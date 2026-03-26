@@ -1208,3 +1208,11 @@ Set via CloudFront Response Headers Policy. Challenges with SPAs:
 - Test thoroughly — overly strict CSP breaks functionality
 
 Start with `Content-Security-Policy-Report-Only` to monitor before enforcing.
+
+---
+
+## References
+
+- [AWS CloudFront Developer Guide](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide) — CDN documentation
+- [AWS S3 Static Hosting](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html) — S3 website hosting guide
+- [AWS Amplify Documentation](https://docs.amplify.aws) — Full-stack deployment platform

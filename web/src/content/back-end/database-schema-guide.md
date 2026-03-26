@@ -1766,3 +1766,11 @@ Key implementation: connection pooling per tenant database, centralized schema m
 ---
 
 *This guide covers schema design patterns for both MongoDB and relational databases. The key principle: always design your schema around your access patterns, not just your data model. Understand your read/write ratios, query patterns, and scale requirements before choosing between embedding and referencing, normalization and denormalization.*
+
+---
+
+## References
+
+- [MongoDB Data Modeling](https://www.mongodb.com/docs/manual/data-modeling) — Official schema design guide
+- [MongoDB Schema Design Patterns](https://www.mongodb.com/blog/post/building-with-patterns-a-summary) — Common schema patterns blog series
+- [Mongoose Schema Guide](https://mongoosejs.com/docs/guide.html) — Defining schemas with Mongoose

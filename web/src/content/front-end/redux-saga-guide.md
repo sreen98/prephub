@@ -1279,3 +1279,10 @@ Choose sagas when you need:
 6. **Long-running processes**: Background polling, sync, etc.
 
 For simple fetch-dispatch patterns, thunks or React Query are sufficient and simpler.
+
+---
+
+## References
+
+- [Redux-Saga Documentation](https://redux-saga.js.org) — Official docs with API reference
+- [Redux-Saga GitHub](https://github.com/redux-saga/redux-saga) — Source code and examples

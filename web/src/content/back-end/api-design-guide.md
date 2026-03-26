@@ -2165,3 +2165,11 @@ For database migrations that affect the API: deploy code that handles both schem
 ---
 
 *This guide covers the essential patterns and practices for designing, building, and maintaining production APIs. Focus on consistency, simplicity, and security — a well-designed API should be intuitive for consumers while being robust and maintainable on the server side.*
+
+---
+
+## References
+
+- [OpenAPI Specification](https://swagger.io/specification) — Industry standard for REST API definitions
+- [REST API Tutorial](https://restfulapi.net) — Comprehensive REST design guide
+- [HTTP Status Codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status) — MDN reference for all status codes

@@ -5,6 +5,10 @@
 - [1. What is React?](#1-what-is-react)
 - [2. JSX](#2-jsx)
 - [3. Components](#3-components)
+  - [3.1 Function Components](#31-function-components-standard)
+  - [3.2 Class Components](#32-class-components)
+  - [3.3 Component Composition](#33-component-composition)
+  - [3.4 Component Organization](#34-component-organization)
 - [4. Props](#4-props)
 - [5. State](#5-state)
 - [6. Hooks](#6-hooks)
@@ -83,6 +87,8 @@ return (
 
 ### 3.1 Function Components (Standard)
 
+Function components are the standard way to write React components. They are plain JavaScript functions that accept props and return JSX.
+
 ```tsx
 function Greeting({ name }: { name: string }) {
   return <h1>Hello, {name}!</h1>;
@@ -97,7 +103,216 @@ const Greeting = ({ name }: { name: string }) => {
 <Greeting name="Alice" />
 ```
 
-### 3.2 Component Composition
+### 3.2 Class Components
+
+Class components are the older way of writing React components using ES6 classes. While function components with hooks are the modern standard, class components are still found in legacy codebases and are required for error boundaries. Understanding them is important for interviews and maintaining existing code.
+
+#### Basic Class Component
+
+A class component extends `React.Component`, must implement a `render()` method, and accesses props via `this.props`.
+
+```tsx
+import React from 'react';
+
+interface GreetingProps {
+  name: string;
+  age?: number;
+}
+
+class Greeting extends React.Component<GreetingProps> {
+  render() {
+    return (
+      <div>
+        <h1>Hello, {this.props.name}!</h1>
+        {this.props.age && <p>Age: {this.props.age}</p>}
+      </div>
+    );
+  }
+}
+
+// Usage
+<Greeting name="Alice" age={30} />
+```
+
+#### State in Class Components
+
+State is initialized in the constructor or as a class field. Use `this.setState()` to update it — never mutate `this.state` directly. `setState` accepts either an object (shallow merged) or a function for updates that depend on previous state. React batches multiple `setState` calls for performance.
+
+```tsx
+interface CounterState {
+  count: number;
+  lastUpdated: string;
+}
+
+class Counter extends React.Component<{}, CounterState> {
+  // Class field syntax (no constructor needed)
+  state: CounterState = {
+    count: 0,
+    lastUpdated: new Date().toISOString(),
+  };
+
+  // Arrow function to avoid 'this' binding issues
+  increment = () => {
+    // Object form — merged with current state
+    this.setState({ count: this.state.count + 1 });
+
+    // Functional form — use when update depends on previous state
+    this.setState((prevState) => ({
+      count: prevState.count + 1,
+      lastUpdated: new Date().toISOString(),
+    }));
+
+    // setState with callback (runs after state is applied)
+    this.setState(
+      (prev) => ({ count: prev.count + 1 }),
+      () => console.log('State updated:', this.state.count)
+    );
+  };
+
+  render() {
+    return (
+      <div>
+        <p>Count: {this.state.count}</p>
+        <button onClick={this.increment}>Increment</button>
+      </div>
+    );
+  }
+}
+```
+
+#### Lifecycle Methods
+
+Class components have lifecycle methods that run at specific points during a component's existence. These cover mounting, updating, and unmounting phases.
+
+```tsx
+interface DataFetcherProps {
+  userId: string;
+}
+
+interface DataFetcherState {
+  data: User | null;
+  prevUserId: string | null;
+}
+
+class DataFetcher extends React.Component<DataFetcherProps, DataFetcherState> {
+  // 1. Called before render on mount and update. Return new state or null.
+  static getDerivedStateFromProps(
+    props: DataFetcherProps,
+    state: DataFetcherState
+  ) {
+    if (props.userId !== state.prevUserId) {
+      return { prevUserId: props.userId, data: null };
+    }
+    return null;
+  }
+
+  constructor(props: DataFetcherProps) {
+    super(props); // Always call super(props)
+    this.state = { data: null, prevUserId: null };
+  }
+
+  // 2. Runs after first render — fetch data, set up subscriptions
+  componentDidMount() {
+    this.fetchData(this.props.userId);
+    window.addEventListener('resize', this.handleResize);
+  }
+
+  // 3. Return false to skip re-render (performance optimization)
+  shouldComponentUpdate(nextProps: DataFetcherProps, nextState: DataFetcherState) {
+    return nextProps.userId !== this.props.userId || nextState.data !== this.state.data;
+  }
+
+  // 4. Called right before DOM update; return value passed to componentDidUpdate
+  getSnapshotBeforeUpdate(prevProps: DataFetcherProps, prevState: DataFetcherState) {
+    return { scrollPosition: document.documentElement.scrollTop };
+  }
+
+  // 5. Runs after every update — compare prev props/state to decide actions
+  componentDidUpdate(
+    prevProps: DataFetcherProps,
+    prevState: DataFetcherState,
+    snapshot: { scrollPosition: number }
+  ) {
+    if (prevProps.userId !== this.props.userId) {
+      this.fetchData(this.props.userId);
+    }
+    // Use snapshot from getSnapshotBeforeUpdate
+    console.log('Scroll was at:', snapshot.scrollPosition);
+  }
+
+  // 6. Cleanup — runs before component is removed from DOM
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.handleResize);
+  }
+
+  handleResize = () => { /* ... */ };
+  fetchData = async (userId: string) => { /* ... */ };
+
+  render() {
+    return this.state.data ? <UserCard data={this.state.data} /> : <p>Loading...</p>;
+  }
+}
+
+// Error Boundary — only possible with class components
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback?: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null };
+
+  // Update state when a child throws
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  // Log the error (e.g., to an error reporting service)
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('Error caught:', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? <h2>Something went wrong.</h2>;
+    }
+    return this.props.children;
+  }
+}
+```
+
+#### Lifecycle Diagram
+
+```
+Mounting                     Updating                          Unmounting
+────────                     ────────                          ──────────
+constructor                  getDerivedStateFromProps
+    ↓                             ↓
+getDerivedStateFromProps     shouldComponentUpdate
+    ↓                             ↓ (if true)
+render                       render
+    ↓                             ↓
+componentDidMount            getSnapshotBeforeUpdate           componentWillUnmount
+                                  ↓
+                             componentDidUpdate
+
+Error Handling (any phase):  getDerivedStateFromError → render → componentDidCatch
+```
+
+#### Class vs Function Components
+
+| Feature | Class Components | Function Components |
+|---------|-----------------|-------------------|
+| Syntax | `class Foo extends React.Component` | `function Foo()` or `const Foo = () =>` |
+| State | `this.state` / `this.setState()` | `useState()` hook |
+| Lifecycle | Lifecycle methods (`componentDidMount`, etc.) | `useEffect()` hook |
+| Hooks support | No | Yes |
+| `this` binding | Required (arrow fns or `.bind()`) | Not needed |
+| Error boundaries | Yes (`componentDidCatch`) | Not supported (must use class) |
+| Code verbosity | More boilerplate | Concise |
+| Modern usage | Legacy / error boundaries only | Recommended standard |
+
+### 3.3 Component Composition
+
+Composition is React's primary pattern for code reuse. Components can accept `children` as a prop to wrap other components, creating flexible and reusable UI containers.
 
 ```tsx
 function Card({ children }: { children: React.ReactNode }) {
@@ -114,7 +329,9 @@ function UserCard({ user }: { user: User }) {
 }
 ```
 
-### 3.3 Component Organization
+### 3.4 Component Organization
+
+Follow a consistent file structure to keep your codebase maintainable. One component per file with named exports is the most common convention.
 
 ```
 // One component per file, named export
@@ -178,6 +395,8 @@ function Button({ variant, ...rest }: ButtonProps & React.ButtonHTMLAttributes<H
 
 ### 5.1 useState
 
+`useState` is the primary hook for adding state to function components. It returns a state value and a setter function that triggers a re-render when called.
+
 ```tsx
 function Counter() {
   const [count, setCount] = useState(0);
@@ -193,6 +412,8 @@ function Counter() {
 ```
 
 ### 5.2 State Update Rules
+
+State updates in React have specific rules you must follow to avoid bugs. Understanding batching, immutability, and functional updates is critical.
 
 ```tsx
 // 1. State updates are asynchronous (batched)
@@ -224,6 +445,8 @@ setItems(items.map(item => item === 'old' ? 'new' : item)); // update
 ```
 
 ### 5.3 useReducer (Complex State)
+
+`useReducer` is an alternative to `useState` for complex state logic with multiple sub-values or when the next state depends on the previous one. It follows the Redux reducer pattern.
 
 ```tsx
 type State = { count: number; step: number };
@@ -273,6 +496,8 @@ function Counter() {
 
 ### 6.2 Built-in Hooks Reference
 
+React provides several built-in hooks for different purposes. Here is a quick reference of all hooks available in React 19.
+
 ```tsx
 // State
 const [state, setState] = useState(initialValue);
@@ -314,6 +539,8 @@ const deferredValue = useDeferredValue(value);
 ```
 
 ### 6.3 Custom Hooks
+
+Custom hooks let you extract and reuse stateful logic across components. A custom hook is simply a function that starts with `use` and can call other hooks inside it.
 
 ```tsx
 // Custom hook for fetching data
@@ -377,6 +604,8 @@ function useDebounce<T>(value: T, delay: number): T {
 
 ### 7.1 useEffect
 
+`useEffect` lets you run side effects (data fetching, subscriptions, DOM manipulation) after React has updated the DOM. The dependency array controls when the effect re-runs.
+
 ```tsx
 // Runs after every render
 useEffect(() => {
@@ -411,6 +640,8 @@ useEffect(() => {
 
 ### 7.2 Lifecycle Mapping (Class -> Hooks)
 
+If you're coming from class components, here's how lifecycle methods map to hooks.
+
 ```
 componentDidMount     -> useEffect(() => { ... }, [])
 componentDidUpdate    -> useEffect(() => { ... }, [deps])
@@ -419,6 +650,8 @@ shouldComponentUpdate -> React.memo()
 ```
 
 ### 7.3 Common Pitfalls
+
+These are the most common mistakes developers make with `useEffect`. Understanding them will save hours of debugging.
 
 ```tsx
 // 1. Missing dependency
@@ -458,6 +691,8 @@ useEffect(() => {
 ---
 
 ## 8. Event Handling
+
+React uses synthetic events that wrap native browser events for cross-browser consistency. Event handlers are written in camelCase (`onClick`, not `onclick`) and receive a `SyntheticEvent` object.
 
 ```tsx
 function EventExamples() {
@@ -506,6 +741,8 @@ function EventExamples() {
 
 ### 9.1 Conditional Rendering
 
+React doesn't have built-in directives like `v-if` or `ngIf`. Instead, you use standard JavaScript expressions — ternaries, logical operators, and early returns.
+
 ```tsx
 // Ternary
 {isLoggedIn ? <Dashboard /> : <Login />}
@@ -529,6 +766,8 @@ return statusComponents[status] ?? <FallBack />;
 ```
 
 ### 9.2 Lists
+
+Render lists by mapping over arrays in JSX. Every list item must have a unique `key` prop so React can efficiently track changes.
 
 ```tsx
 // Map over array
@@ -554,6 +793,8 @@ function UserList({ users }: { users: User[] }) {
 ## 10. Forms
 
 ### 10.1 Controlled Components
+
+In a controlled component, React state is the single source of truth for form values. Every input change flows through a state update.
 
 ```tsx
 function LoginForm() {
@@ -585,6 +826,8 @@ function LoginForm() {
 
 ### 10.2 Uncontrolled Components (useRef)
 
+Uncontrolled components let the DOM handle form state. Use `useRef` to read values when needed, typically on form submission.
+
 ```tsx
 function SearchForm() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -604,6 +847,8 @@ function SearchForm() {
 ```
 
 ### 10.3 React Hook Form + Zod
+
+For complex forms with validation, a form library reduces boilerplate. React Hook Form with Zod provides type-safe validation with minimal re-renders.
 
 ```tsx
 import { useForm } from 'react-hook-form';
@@ -711,6 +956,8 @@ function Header() {
 
 ## 12. Refs
 
+Refs provide a way to access DOM nodes or persist mutable values across renders without causing re-renders. They're useful for managing focus, measuring elements, and storing timers.
+
 ```tsx
 // 1. DOM reference
 function InputFocus() {
@@ -771,6 +1018,8 @@ function Parent() {
 
 ### 13.1 React.memo
 
+`React.memo` is a higher-order component that memoizes the rendered output. It skips re-rendering when props haven't changed (shallow comparison by default).
+
 ```tsx
 // Memoize component — only re-renders when props change
 const UserCard = React.memo(function UserCard({ name, age }: Props) {
@@ -786,6 +1035,8 @@ const UserCard = React.memo(
 
 ### 13.2 useMemo and useCallback
 
+`useMemo` memoizes expensive computed values, while `useCallback` memoizes function references. Both prevent unnecessary recalculations or child re-renders.
+
 ```tsx
 // useMemo — memoize expensive computation
 const sortedUsers = useMemo(() => {
@@ -799,6 +1050,8 @@ const handleDelete = useCallback((id: string) => {
 ```
 
 ### 13.3 Code Splitting (Lazy Loading)
+
+Code splitting with `React.lazy` and `Suspense` lets you load components on demand, reducing the initial bundle size.
 
 ```tsx
 import { lazy, Suspense } from 'react';
@@ -820,6 +1073,8 @@ function App() {
 ```
 
 ### 13.4 Virtualization (Large Lists)
+
+For rendering thousands of items, virtualization renders only the visible items in the viewport. This prevents DOM bloat and keeps scrolling smooth.
 
 ```tsx
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -856,6 +1111,8 @@ function VirtualList({ items }: { items: Item[] }) {
 
 ### 13.5 Performance Rules
 
+Follow these rules of thumb to keep your React app fast.
+
 ```
 1. Don't optimize prematurely — React is fast by default
 2. Profile first — use React DevTools Profiler to find bottlenecks
@@ -872,6 +1129,8 @@ function VirtualList({ items }: { items: Item[] }) {
 ## 14. Patterns and Best Practices
 
 ### 14.1 Compound Components
+
+The compound component pattern lets related components share implicit state. It's how libraries like Radix UI and Headless UI work.
 
 ```tsx
 function Tabs({ children }: { children: React.ReactNode }) {
@@ -918,6 +1177,8 @@ Tabs.Panel = function TabPanel({ index, children }: { index: number; children: R
 
 ### 14.2 Render Props
 
+Render props is a pattern where a component accepts a function as a prop and calls it to determine what to render. It enables flexible code reuse.
+
 ```tsx
 interface MousePosition { x: number; y: number }
 
@@ -938,6 +1199,8 @@ function MouseTracker({ render }: { render: (pos: MousePosition) => React.ReactN
 ```
 
 ### 14.3 Custom Hook Pattern (Preferred over Render Props)
+
+Custom hooks have largely replaced render props and HOCs as the preferred way to share stateful logic between components.
 
 ```tsx
 function useMousePosition() {
@@ -1363,3 +1626,11 @@ class ErrorBoundary extends React.Component<
 ```
 
 Error boundaries must be class components (no hook equivalent yet). They catch rendering errors, lifecycle errors, and constructor errors — but NOT event handler errors, async errors, or SSR errors.
+
+---
+
+## References
+
+- [React Documentation](https://react.dev) — Official React docs with interactive examples
+- [React API Reference](https://react.dev/reference/react) — Complete hooks and components API
+- [React GitHub](https://github.com/facebook/react) — Source code and issue tracker

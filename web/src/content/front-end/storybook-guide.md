@@ -1263,3 +1263,11 @@ Chromatic is the easiest — it's built by the Storybook team and requires minim
      render: (args, { loaded: { users } }) => <UserList users={users} />,
    };
    ```
+
+---
+
+## References
+
+- [Storybook Documentation](https://storybook.js.org/docs) — Official docs and tutorials
+- [Storybook Addons](https://storybook.js.org/addons) — Browse the addon ecosystem
+- [Storybook GitHub](https://github.com/storybookjs/storybook) — Source code and community

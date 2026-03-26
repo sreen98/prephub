@@ -1207,3 +1207,11 @@ extraReducers: (builder) => {
 ```
 
 `addCase` for specific actions. `addMatcher` for patterns. `addDefaultCase` for everything else. The builder pattern ensures type safety and correct ordering.
+
+---
+
+## References
+
+- [Redux Toolkit Documentation](https://redux-toolkit.js.org) — Official RTK docs and tutorials
+- [Redux Essentials Tutorial](https://redux.js.org/tutorials/essentials/part-1-overview-concepts) — Step-by-step Redux learning path
+- [Redux Toolkit GitHub](https://github.com/reduxjs/redux-toolkit) — Source code and examples

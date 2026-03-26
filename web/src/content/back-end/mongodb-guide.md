@@ -1378,3 +1378,11 @@ Use cases:
 - Event sourcing / audit trails
 
 Requires replica set. Uses the oplog internally.
+
+---
+
+## References
+
+- [MongoDB Manual](https://www.mongodb.com/docs/manual) — Official documentation
+- [MongoDB University](https://learn.mongodb.com) — Free courses and certifications
+- [Mongoose Documentation](https://mongoosejs.com/docs) — ODM library for Node.js

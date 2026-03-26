@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7,8 +7,33 @@ import 'highlight.js/styles/github-dark-dimmed.min.css';
 import {
   Menu, X, Sun, Moon, ChevronDown, BookOpen,
   Monitor, Braces, Server, Layers, Search, Sparkles,
-  Copy, Check, ArrowUp, ExternalLink
+  Copy, Check, ArrowUp, Play, Zap, Terminal, List,
+  PanelLeftClose, PanelLeftOpen, ExternalLink, Type, Clock,
+  Link2, Bookmark, BookmarkCheck, Flame, GraduationCap,
+  RotateCcw, FileText, Volume2, VolumeX, CheckCircle, Circle,
+  ScrollText
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useDarkMode } from './hooks/useDarkMode';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { contentFiles, menuStructure, slugify, getTextContent, extractHeadings, escapeRegex, estimateReadingTime, cheatSheets, extractProseText, getAllQuestions } from './data';
+import { useReadingPrefs } from './hooks/useReadingPrefs';
+import { useProgress } from './hooks/useProgress';
+import { useBookmarks } from './hooks/useBookmarks';
+import { useSpacedRepetition } from './hooks/useSpacedRepetition';
+import { useStudyStats } from './hooks/useStudyStats';
+import { useTextToSpeech } from './hooks/useTextToSpeech';
+import QuizMode from './components/QuizMode';
+import CodePlayground from './components/CodePlayground';
+import MermaidBlock from './components/MermaidBlock';
+import BookmarksPage from './components/BookmarksPage';
+import ReviewPage from './components/ReviewPage';
+import InterviewSimulator from './components/InterviewSimulator';
+import CheatSheetsIndex from './components/CheatSheetsIndex';
+import StreakCelebration from './components/StreakCelebration';
+import Toast from './components/Toast';
+import TTSControls from './components/TTSControls';
 
 const GithubIcon = ({ size = 16, ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -16,80 +41,15 @@ const GithubIcon = ({ size = 16, ...props }) => (
     <path d="M9 18c-4.51 2-5-2-7-2"/>
   </svg>
 );
-import { motion, AnimatePresence } from 'framer-motion';
-import { useDarkMode } from './hooks/useDarkMode';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-const contentFiles = import.meta.glob('./content/**/*.md', { query: '?raw', import: 'default', eager: true });
-
-const menuStructure = [
-  { name: 'Introduction', path: '/', file: './content/README.md' },
-  {
-    name: 'Front End',
-    icon: Monitor,
-    gradient: 'from-blue-500 to-cyan-400',
-    lightBg: 'bg-blue-50',
-    darkBg: 'dark:bg-blue-950/30',
-    accent: 'text-blue-600 dark:text-blue-400',
-    description: 'React, Redux, TanStack Query, Storybook & AWS',
-    items: [
-      { name: 'React Guide', path: '/frontend/react', file: './content/front-end/react-guide.md' },
-      { name: 'Redux Toolkit', path: '/frontend/redux-toolkit', file: './content/front-end/redux-toolkit-guide.md' },
-      { name: 'Redux Saga', path: '/frontend/redux-saga', file: './content/front-end/redux-saga-guide.md' },
-      { name: 'TanStack Query', path: '/frontend/tanstack-query', file: './content/front-end/tanstack-query-guide.md' },
-      { name: 'Storybook', path: '/frontend/storybook', file: './content/front-end/storybook-guide.md' },
-      { name: 'AWS Deployment', path: '/frontend/aws-deployment', file: './content/front-end/aws-frontend-deployment-guide.md' },
-    ]
-  },
-  {
-    name: 'JS & TS',
-    icon: Braces,
-    gradient: 'from-amber-500 to-orange-400',
-    lightBg: 'bg-amber-50',
-    darkBg: 'dark:bg-amber-950/30',
-    accent: 'text-amber-600 dark:text-amber-400',
-    description: 'JavaScript, TypeScript & tricky interview problems',
-    items: [
-      { name: 'JavaScript Guide', path: '/javascript/guide', file: './content/javascript-and-typescript/javascript-guide.md' },
-      { name: 'TypeScript Guide', path: '/javascript/typescript', file: './content/javascript-and-typescript/typescript-guide.md' },
-      { name: 'Interview Prep', path: '/javascript/prep', file: './content/javascript-and-typescript/js_interview_prep.md' },
-    ]
-  },
-  {
-    name: 'Back End',
-    icon: Server,
-    gradient: 'from-emerald-500 to-teal-400',
-    lightBg: 'bg-emerald-50',
-    darkBg: 'dark:bg-emerald-950/30',
-    accent: 'text-emerald-600 dark:text-emerald-400',
-    description: 'Node.js, Express, MongoDB, API Design & Lambda',
-    items: [
-      { name: 'Node.js Guide', path: '/backend/nodejs', file: './content/back-end/nodejs-guide.md' },
-      { name: 'Express.js Guide', path: '/backend/expressjs', file: './content/back-end/expressjs-guide.md' },
-      { name: 'MongoDB Guide', path: '/backend/mongodb', file: './content/back-end/mongodb-guide.md' },
-      { name: 'API Design', path: '/backend/api-design', file: './content/back-end/api-design-guide.md' },
-      { name: 'Database Schema', path: '/backend/database-schema', file: './content/back-end/database-schema-guide.md' },
-      { name: 'AWS Lambda', path: '/backend/aws-lambda', file: './content/back-end/aws-lambda-guide.md' },
-    ]
-  },
-  {
-    name: 'System Design',
-    icon: Layers,
-    gradient: 'from-violet-500 to-purple-400',
-    lightBg: 'bg-violet-50',
-    darkBg: 'dark:bg-violet-950/30',
-    accent: 'text-violet-600 dark:text-violet-400',
-    description: 'Scalability, distributed systems & architecture',
-    items: [
-      { name: 'System Design Guide', path: '/system-design/guide', file: './content/system-design/system-design-guide.md' },
-    ]
-  }
-];
+// Strip the markdown "## Table of Contents" section (the app generates its own TOC)
+function stripMarkdownToc(md) {
+  return md.replace(/^## Table of Contents\n[\s\S]*?(?=\n---\s*\n|\n## )/m, '');
+}
 
 // ==================== Reading Progress ====================
 
@@ -124,6 +84,7 @@ const ReadingProgress = () => {
 const PreBlock = ({ children }) => {
   const [copied, setCopied] = useState(false);
   const ref = useRef(null);
+  const navigate = useNavigate();
 
   let language = '';
   React.Children.forEach(children, child => {
@@ -132,6 +93,8 @@ const PreBlock = ({ children }) => {
       if (match) language = match[1];
     }
   });
+
+  const isRunnable = ['js', 'javascript', 'jsx', 'ts', 'typescript', 'tsx'].includes(language);
 
   const handleCopy = async () => {
     const text = ref.current?.textContent || '';
@@ -142,20 +105,158 @@ const PreBlock = ({ children }) => {
     } catch { /* clipboard may not be available */ }
   };
 
+  const handleTryIt = () => {
+    const text = ref.current?.textContent || '';
+    sessionStorage.setItem('playground-code', text);
+    navigate('/playground');
+  };
+
   return (
     <div className="code-block group">
       <div className="code-block-header">
         <span className="code-lang">{language || 'code'}</span>
-        <button onClick={handleCopy} className="copy-btn">
-          {copied
-            ? <><Check size={12} /><span>Copied!</span></>
-            : <><Copy size={12} /><span>Copy</span></>
-          }
-        </button>
+        <div className="flex items-center gap-2">
+          {isRunnable && (
+            <button onClick={handleTryIt} className="try-btn">
+              <Play size={12} /><span>Try it</span>
+            </button>
+          )}
+          <button onClick={handleCopy} className="copy-btn">
+            {copied
+              ? <><Check size={12} /><span>Copied!</span></>
+              : <><Copy size={12} /><span>Copy</span></>
+            }
+          </button>
+        </div>
       </div>
       <pre ref={ref} className="code-block-body">
         {children}
       </pre>
+    </div>
+  );
+};
+
+// ==================== Table of Contents ====================
+
+const TableOfContents = ({ content }) => {
+  const [activeId, setActiveId] = useState('');
+
+  const headings = useMemo(() => {
+    return extractHeadings(content).filter(h => h.level >= 2 && h.level <= 3);
+  }, [content]);
+
+  useEffect(() => {
+    if (headings.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActiveId(entry.target.id);
+            break;
+          }
+        }
+      },
+      { rootMargin: '-80px 0px -75% 0px' }
+    );
+
+    const timer = setTimeout(() => {
+      headings.forEach(h => {
+        const el = document.getElementById(h.id);
+        if (el) observer.observe(el);
+      });
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [headings]);
+
+  if (headings.length < 4) return null;
+
+  return (
+    <aside className="hidden xl:block w-56 fixed top-0 right-0 h-screen overflow-y-auto pt-8 pb-8 pl-4 pr-4 sidebar-scroll">
+      <div className="border-l-2 border-slate-200 dark:border-slate-800 pl-4">
+        <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
+          On this page
+        </h4>
+        <nav className="space-y-0.5">
+          {headings.map((heading) => (
+            <button
+              key={heading.id}
+              onClick={() => {
+                const el = document.getElementById(heading.id);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className={cn(
+                "block w-full text-left text-[12px] leading-snug py-1.5 transition-colors truncate",
+                heading.level === 3 && "pl-3",
+                activeId === heading.id
+                  ? "text-indigo-600 dark:text-indigo-400 font-semibold"
+                  : "text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
+              )}
+              title={heading.text}
+            >
+              {heading.text}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </aside>
+  );
+};
+
+// Mobile TOC toggle
+const MobileToc = ({ content }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const headings = useMemo(() => {
+    return extractHeadings(content).filter(h => h.level >= 2 && h.level <= 3);
+  }, [content]);
+
+  if (headings.length < 4) return null;
+
+  return (
+    <div className="xl:hidden mb-6">
+      <button
+        onClick={() => setIsOpen(o => !o)}
+        className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+      >
+        <List size={16} />
+        Table of Contents
+        <ChevronDown size={14} className={cn("transition-transform", isOpen && "rotate-180")} />
+      </button>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <nav className="mt-3 pl-4 border-l-2 border-slate-200 dark:border-slate-800 space-y-1 max-h-60 overflow-y-auto">
+              {headings.map((heading) => (
+                <button
+                  key={heading.id}
+                  onClick={() => {
+                    const el = document.getElementById(heading.id);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "block w-full text-left text-sm py-1 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors",
+                    heading.level === 3 && "pl-3 text-xs"
+                  )}
+                >
+                  {heading.text}
+                </button>
+              ))}
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -202,7 +303,8 @@ const SearchModal = ({ isOpen, onClose }) => {
   }, [query]);
 
   const handleSelect = (path) => {
-    navigate(path);
+    const url = query.trim().length >= 2 ? `${path}?q=${encodeURIComponent(query.trim())}` : path;
+    navigate(url);
     onClose();
   };
 
@@ -294,6 +396,11 @@ const HomePage = () => {
   const navigate = useNavigate();
   const categories = menuStructure.filter(s => s.items);
   const allGuides = menuStructure.flatMap(s => s.items || []);
+  const totalReadTime = allGuides.reduce((sum, g) => sum + estimateReadingTime(contentFiles[g.file] || ''), 0);
+  const { getOverallStats, getCategoryStats, getStatus } = useProgress();
+  const { getStats } = useStudyStats();
+  const overallStats = getOverallStats(allGuides);
+  const studyStats = getStats();
 
   const handleRandomTopic = () => {
     const random = allGuides[Math.floor(Math.random() * allGuides.length)];
@@ -303,7 +410,7 @@ const HomePage = () => {
   return (
     <div className="px-6 py-12 md:px-12 max-w-5xl mx-auto">
       {/* Hero */}
-      <div className="text-center mb-16 relative">
+      <div className="text-center mb-14 relative">
         <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-gradient-to-r from-indigo-400/20 via-purple-400/20 to-pink-400/20 dark:from-indigo-400/10 dark:via-purple-400/10 dark:to-pink-400/10 rounded-full blur-3xl pointer-events-none" />
 
         <motion.div
@@ -329,124 +436,453 @@ const HomePage = () => {
             {allGuides.length} comprehensive guides covering full-stack development.
             From React to System Design — everything you need to ace it.
           </p>
-
-          <button
-            onClick={handleRandomTopic}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0"
-          >
-            <Sparkles size={16} />
-            Surprise me — random topic
-          </button>
         </motion.div>
       </div>
 
+      {/* Quick Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.15 }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-14"
+      >
+        <button
+          onClick={handleRandomTopic}
+          className="flex flex-col items-center gap-2.5 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 hover:shadow-lg hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 group"
+        >
+          <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/40 transition-shadow">
+            <Sparkles size={20} className="text-white" />
+          </div>
+          <span className="text-sm font-semibold">Random Topic</span>
+          <span className="text-[11px] text-slate-400">Feeling lucky?</span>
+        </button>
+
+        <Link
+          to="/quiz"
+          className="flex flex-col items-center gap-2.5 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1 transition-all duration-300 group"
+        >
+          <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 transition-shadow">
+            <Zap size={20} className="text-white" />
+          </div>
+          <span className="text-sm font-semibold">Quiz Mode</span>
+          <span className="text-[11px] text-slate-400">Test yourself</span>
+        </Link>
+
+        <Link
+          to="/playground"
+          className="flex flex-col items-center gap-2.5 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 group"
+        >
+          <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow">
+            <Terminal size={20} className="text-white" />
+          </div>
+          <span className="text-sm font-semibold">Playground</span>
+          <span className="text-[11px] text-slate-400">Run JS code</span>
+        </Link>
+
+        <Link
+          to="/interview"
+          className="flex flex-col items-center gap-2.5 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 hover:shadow-lg hover:shadow-violet-500/10 hover:-translate-y-1 transition-all duration-300 group"
+        >
+          <div className="p-3 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 shadow-lg shadow-violet-500/20 group-hover:shadow-violet-500/40 transition-shadow">
+            <GraduationCap size={20} className="text-white" />
+          </div>
+          <span className="text-sm font-semibold">Interview Sim</span>
+          <span className="text-[11px] text-slate-400">Mock interview</span>
+        </Link>
+      </motion.div>
+
+      {/* Stats Bar */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="flex justify-center gap-6 sm:gap-10 mb-14 py-5 px-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800"
+      >
+        {studyStats.currentStreak > 0 && (
+          <div className="text-center">
+            <div className="text-xl sm:text-2xl font-extrabold text-orange-500 flex items-center justify-center gap-1">
+              <Flame size={20} /> {studyStats.currentStreak}
+            </div>
+            <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">Day Streak</div>
+          </div>
+        )}
+        <div className="text-center">
+          <div className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+            {overallStats.completed}/{overallStats.total}
+          </div>
+          <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">Completed</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+            {studyStats.totalQuestionsReviewed}
+          </div>
+          <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">Reviewed</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xl sm:text-2xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+            {allGuides.length}
+          </div>
+          <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">Guides</div>
+        </div>
+      </motion.div>
+
+      {/* Section Header */}
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Study Guides</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Pick a category and start learning</p>
+      </div>
+
       {/* Category Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-16">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         {categories.map((cat, i) => {
           const Icon = cat.icon;
+          const catReadTime = cat.items.reduce((sum, g) => sum + estimateReadingTime(contentFiles[g.file] || ''), 0);
           return (
             <motion.div
               key={cat.name}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.1 + i * 0.1 }}
+              transition={{ duration: 0.4, delay: 0.1 + i * 0.08 }}
               className="group relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 dark:hover:shadow-black/20 transition-all duration-300 hover:-translate-y-1"
             >
               <div className={`h-1 bg-gradient-to-r ${cat.gradient}`} />
-
               <div className="p-6">
                 <div className="flex items-start gap-4 mb-4">
                   <div className={cn("p-3 rounded-xl shrink-0", cat.lightBg, cat.darkBg)}>
                     <Icon className={cat.accent} size={22} />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold mb-1">{cat.name}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{cat.description}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-lg font-bold">{cat.name}</h3>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                          {getCategoryStats(cat.items).completed}/{cat.items.length}
+                        </span>
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                          <Clock size={11} />
+                          {catReadTime}m
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">{cat.description}</p>
                   </div>
                 </div>
-
                 <div className="flex flex-wrap gap-2">
-                  {cat.items.map(item => (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all font-medium border border-transparent hover:border-slate-200 dark:hover:border-slate-600"
-                    >
-                      {item.name}
-                    </Link>
-                  ))}
+                  {cat.items.map(item => {
+                    const s = getStatus(item.path);
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all font-medium border border-transparent hover:border-slate-200 dark:hover:border-slate-600 inline-flex items-center gap-1.5"
+                      >
+                        {s === 'completed' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
+                        {s === 'in-progress' && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+                        {item.name}
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                          {estimateReadingTime(contentFiles[item.file] || '')}m
+                        </span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             </motion.div>
           );
         })}
       </div>
+    </div>
+  );
+};
 
-      {/* Stats */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-        className="flex justify-center gap-12 md:gap-16 text-center pb-8"
-      >
-        {[
-          { value: '16', label: 'Guides', gradient: 'from-indigo-600 to-blue-600 dark:from-indigo-400 dark:to-blue-400' },
-          { value: '4', label: 'Categories', gradient: 'from-purple-600 to-violet-600 dark:from-purple-400 dark:to-violet-400' },
-          { value: '22K+', label: 'Lines of Content', gradient: 'from-pink-600 to-rose-600 dark:from-pink-400 dark:to-rose-400' },
-        ].map(stat => (
-          <div key={stat.label}>
-            <div className={`text-3xl md:text-4xl font-extrabold bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent`}>
-              {stat.value}
-            </div>
-            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">{stat.label}</div>
-          </div>
-        ))}
-      </motion.div>
+// ==================== Official Docs Bar ====================
+
+const OfficialDocsBar = ({ filePath }) => {
+  const guide = useMemo(() => {
+    for (const section of menuStructure) {
+      if (!section.items) continue;
+      const item = section.items.find(i => i.file === filePath);
+      if (item) return item;
+    }
+    return null;
+  }, [filePath]);
+
+  if (!guide?.officialDocs?.length) return null;
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 mb-6 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200/50 dark:border-indigo-800/30 text-sm flex-wrap">
+      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 shrink-0">
+        <BookOpen size={15} className="text-indigo-500 dark:text-indigo-400" />
+        <span>Official docs:</span>
+      </div>
+      {guide.officialDocs.map((doc, i) => (
+        <a
+          key={i}
+          href={doc.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium hover:underline"
+        >
+          {doc.label}
+          <ExternalLink size={12} />
+        </a>
+      ))}
     </div>
   );
 };
 
 // ==================== Content Page ====================
 
-const ContentPage = ({ filePath }) => {
-  const content = contentFiles[filePath] || '# Not Found\n\nThe requested content could not be found.';
+const ContentPage = ({ filePath, guidePath, guideName }) => {
+  const rawContent = contentFiles[filePath] || '# Not Found\n\nThe requested content could not be found.';
+  const content = useMemo(() => stripMarkdownToc(rawContent), [rawContent]);
+  const location = useLocation();
+  const searchQuery = new URLSearchParams(location.search).get('q');
+  const containerRef = useRef(null);
+  const [highlightCount, setHighlightCount] = useState(0);
+  const [toastMsg, setToastMsg] = useState(null);
+  const { getStatus, markInProgress, toggleComplete } = useProgress();
+  const { isBookmarked, toggleBookmark } = useBookmarks();
+  const { recordGuideCompleted } = useStudyStats();
+  const tts = useTextToSpeech();
+  const proseParagraphs = useMemo(() => extractProseText(content), [content]);
+  const guideStatus = guidePath ? getStatus(guidePath) : null;
+
+  // Auto-mark in-progress on visit
+  useEffect(() => {
+    if (guidePath) markInProgress(guidePath);
+  }, [guidePath, markInProgress]);
+
+  // TTS paragraph highlighting
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const paragraphs = containerRef.current.querySelectorAll('p');
+    paragraphs.forEach(p => p.classList.remove('tts-speaking'));
+    if (tts.currentIndex >= 0 && tts.currentIndex < paragraphs.length) {
+      paragraphs[tts.currentIndex]?.classList.add('tts-speaking');
+    }
+  }, [tts.currentIndex]);
+
+  // Stop TTS on navigation
+  useEffect(() => { tts.stop(); }, [filePath]);
+
+  const handleToggleComplete = () => {
+    if (guidePath) {
+      toggleComplete(guidePath);
+      if (guideStatus !== 'completed') recordGuideCompleted();
+    }
+  };
+
+  // Search highlighting
+  useEffect(() => {
+    if (!searchQuery || !containerRef.current) {
+      setHighlightCount(0);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const regex = new RegExp(`(${escapeRegex(searchQuery)})`, 'gi');
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (!node.parentElement.closest('pre, code, .code-block, .code-block-header')) {
+          textNodes.push(node);
+        }
+      }
+
+      let count = 0;
+      let firstMark = null;
+
+      for (const node of textNodes) {
+        if (regex.test(node.textContent)) {
+          regex.lastIndex = 0;
+          const span = document.createElement('span');
+          span.innerHTML = node.textContent.replace(regex, '<mark class="search-hl">$1</mark>');
+          node.parentNode.replaceChild(span, node);
+          const mark = span.querySelector('mark');
+          if (mark && !firstMark) firstMark = mark;
+          count += (node.textContent.match(regex) || []).length;
+        }
+      }
+
+      setHighlightCount(count);
+
+      if (firstMark) {
+        setTimeout(() => firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+      containerRef.current?.querySelectorAll('mark.search-hl').forEach(m => {
+        const parent = m.parentNode;
+        parent.replaceChild(document.createTextNode(m.textContent), m);
+        parent.normalize();
+      });
+    };
+  }, [searchQuery, filePath]);
+
+  const createHeading = useCallback((level) => {
+    const Tag = `h${level}`;
+    return function HeadingComponent({ children, ...props }) {
+      const text = getTextContent(children);
+      const id = slugify(text);
+      const bookmarkId = guidePath ? `${guidePath.replace(/\//g, '-').slice(1)}__${id}` : null;
+      const isMarked = bookmarkId ? isBookmarked(bookmarkId) : false;
+
+      return (
+        <Tag id={id} className="group relative" {...props}>
+          {children}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const url = `${window.location.origin}${window.location.pathname}#${id}`;
+              navigator.clipboard.writeText(url).then(() => setToastMsg('Link copied!'));
+            }}
+            className="heading-anchor"
+            aria-label="Copy link"
+          >
+            <Link2 size={level <= 2 ? 20 : 18} />
+          </button>
+          {bookmarkId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleBookmark({ id: bookmarkId, guidePath, guideName: guideName || '', headingId: id, headingText: text, type: 'heading' });
+              }}
+              className={cn("heading-bookmark", isMarked && "bookmarked")}
+              aria-label={isMarked ? "Remove bookmark" : "Bookmark section"}
+            >
+              {isMarked ? <BookmarkCheck size={level <= 2 ? 20 : 18} /> : <Bookmark size={level <= 2 ? 20 : 18} />}
+            </button>
+          )}
+        </Tag>
+      );
+    };
+  }, [guidePath, guideName, isBookmarked, toggleBookmark]);
 
   return (
-    <motion.div
-      key={filePath}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="prose-container px-6 py-8 md:px-12 md:py-12 max-w-4xl mx-auto"
-    >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
-        components={{
-          pre({ children }) {
-            return <PreBlock>{children}</PreBlock>;
-          },
-          code({ className, children, node, ...props }) {
-            if (className?.includes('language-') || className?.includes('hljs')) {
-              return <code className={className} {...props}>{children}</code>;
-            }
-            return <code className="inline-code" {...props}>{children}</code>;
-          },
-          table({ children }) {
-            return (
-              <div className="overflow-x-auto my-6 rounded-xl border border-slate-200 dark:border-slate-700">
-                <table>{children}</table>
-              </div>
-            );
-          },
-          a({ href, children, ...props }) {
-            return <a href={href} className="content-link" {...props}>{children}</a>;
-          }
-        }}
+    <div className="flex">
+      <motion.div
+        key={filePath}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex-1 min-w-0 px-6 py-8 md:px-12 md:py-12 max-w-4xl"
       >
-        {content}
-      </ReactMarkdown>
-    </motion.div>
+        {/* Search highlight banner */}
+        {searchQuery && highlightCount > 0 && (
+          <div className="flex items-center justify-between px-4 py-2.5 mb-6 rounded-xl bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 text-sm">
+            <span className="text-yellow-800 dark:text-yellow-300">
+              Found <strong>{highlightCount}</strong> match{highlightCount !== 1 ? 'es' : ''} for &ldquo;{searchQuery}&rdquo;
+            </span>
+            <Link
+              to={location.pathname}
+              className="text-yellow-600 dark:text-yellow-400 hover:underline text-xs font-medium"
+            >
+              Clear
+            </Link>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 mb-4 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
+          <span className="inline-flex items-center gap-1.5">
+            <Clock size={14} />
+            ~{estimateReadingTime(content)} min read
+          </span>
+          {guidePath && (
+            <button
+              onClick={handleToggleComplete}
+              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors", guideStatus === 'completed' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}
+            >
+              {guideStatus === 'completed' ? <CheckCircle size={13} /> : <Circle size={13} />}
+              {guideStatus === 'completed' ? 'Completed' : 'Mark Complete'}
+            </button>
+          )}
+          <button
+            onClick={() => tts.isPlaying ? tts.stop() : tts.speak(proseParagraphs)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+          >
+            {tts.isPlaying ? <VolumeX size={13} /> : <Volume2 size={13} />}
+            {tts.isPlaying ? 'Stop' : 'Read Aloud'}
+          </button>
+          {tts.isPlaying && (
+            <TTSControls
+              isPlaying={tts.isPlaying}
+              isPaused={tts.isPaused}
+              rate={tts.rate}
+              onPause={tts.pause}
+              onResume={tts.resume}
+              onStop={tts.stop}
+              onSetRate={tts.setRate}
+            />
+          )}
+        </div>
+
+        <OfficialDocsBar filePath={filePath} />
+
+        <MobileToc content={content} />
+
+        <div ref={containerRef} className="prose-container">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}
+            components={{
+              h1: createHeading(1),
+              h2: createHeading(2),
+              h3: createHeading(3),
+              h4: createHeading(4),
+              pre({ children }) {
+                // Detect mermaid code blocks
+                const child = React.Children.toArray(children)[0];
+                if (React.isValidElement(child) && child.props?.className?.includes('language-mermaid')) {
+                  const code = typeof child.props.children === 'string' ? child.props.children : '';
+                  return <MermaidBlock chart={code} />;
+                }
+                return <PreBlock>{children}</PreBlock>;
+              },
+              code({ className, children, node, ...props }) {
+                if (className?.includes('language-') || className?.includes('hljs')) {
+                  return <code className={className} {...props}>{children}</code>;
+                }
+                return <code className="inline-code" {...props}>{children}</code>;
+              },
+              table({ children }) {
+                return (
+                  <div className="overflow-x-auto my-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <table>{children}</table>
+                  </div>
+                );
+              },
+              a({ href, children, ...props }) {
+                const isExternal = href?.startsWith('http://') || href?.startsWith('https://');
+                return (
+                  <a
+                    href={href}
+                    className="content-link"
+                    {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                    {...props}
+                  >
+                    {children}
+                    {isExternal && <ExternalLink size={12} className="inline ml-1 -mt-0.5" />}
+                  </a>
+                );
+              }
+            }}
+          >
+            {content}
+          </ReactMarkdown>
+        </div>
+      </motion.div>
+
+      <TableOfContents content={content} />
+      <Toast message={toastMsg} onClose={() => setToastMsg(null)} />
+    </div>
   );
 };
 
@@ -480,14 +916,40 @@ const BackToTop = () => {
 
 // ==================== Main App ====================
 
+const CHANGELOG_VERSION = '2026-03';
+
 export default function App() {
   const { theme, toggleTheme } = useDarkMode();
+  const { fontSize, cycleFontSize, sizeLabel } = useReadingPrefs();
+  const progressHook = useProgress();
+  const bookmarksHook = useBookmarks();
+  const srHook = useSpacedRepetition();
+  const statsHook = useStudyStats();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({});
+  const [milestone, setMilestone] = useState(null);
   const location = useLocation();
+  const isContentPage = location.pathname !== '/' && location.pathname !== '/quiz' && location.pathname !== '/playground' && location.pathname !== '/changelog' && location.pathname !== '/bookmarks' && location.pathname !== '/review' && location.pathname !== '/interview' && !location.pathname.startsWith('/cheatsheets');
+  const hasUnreadChangelog = localStorage.getItem('lastSeenChangelog') !== CHANGELOG_VERSION;
+  const allGuides = useMemo(() => menuStructure.flatMap(s => s.items || []), []);
+  const dueCount = useMemo(() => srHook.getDueCount(getAllQuestions()), [srHook]);
 
-  // Auto-expand section containing the active route
+  // Record visit + check streak milestone
+  useEffect(() => {
+    statsHook.recordVisit();
+    const m = statsHook.checkMilestone();
+    if (m) setMilestone(m);
+  }, []);
+
+  // Mark changelog as seen
+  useEffect(() => {
+    if (location.pathname === '/changelog') {
+      localStorage.setItem('lastSeenChangelog', CHANGELOG_VERSION);
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
     const currentSection = menuStructure.find(s =>
       s.items?.some(i => i.path === location.pathname)
@@ -497,13 +959,11 @@ export default function App() {
     }
   }, [location.pathname]);
 
-  // Close sidebar on route change (mobile)
   useEffect(() => {
     setIsSidebarOpen(false);
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  // Cmd+K for search
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -524,13 +984,11 @@ export default function App() {
       <ReadingProgress />
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       <BackToTop />
+      <StreakCelebration milestone={milestone} onClose={() => setMilestone(null)} />
 
-      {/* ===== Mobile Header ===== */}
+      {/* Mobile Header */}
       <header className="fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between px-4 z-50 md:hidden">
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-        >
+        <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
           <Menu size={20} />
         </button>
         <Link to="/" className="flex items-center gap-2 font-bold">
@@ -540,22 +998,20 @@ export default function App() {
           <span className="text-base">PrepHub</span>
         </Link>
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setIsSearchOpen(true)}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
+          <button onClick={() => setIsSearchOpen(true)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <Search size={18} />
           </button>
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
+          <button onClick={cycleFontSize} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative" title={`Font size: ${fontSize}`}>
+            <Type size={18} />
+            <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded px-0.5">{sizeLabel}</span>
+          </button>
+          <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </div>
       </header>
 
-      {/* ===== Sidebar Overlay ===== */}
+      {/* Sidebar Overlay */}
       <AnimatePresence>
         {isSidebarOpen && (
           <motion.div
@@ -568,12 +1024,23 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ===== Sidebar ===== */}
+      {/* Sidebar expand button (desktop, when collapsed) */}
+      {isSidebarCollapsed && (
+        <button
+          onClick={() => setIsSidebarCollapsed(false)}
+          className="hidden md:flex fixed top-1/2 -translate-y-1/2 left-0 z-[55] py-3 px-1 rounded-r-lg bg-slate-200/80 dark:bg-slate-800/80 border border-l-0 border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700 hover:px-2 transition-all"
+          title="Expand sidebar"
+        >
+          <PanelLeftOpen size={14} className="text-slate-500 dark:text-slate-400" />
+        </button>
+      )}
+
+      {/* Sidebar */}
       <aside className={cn(
-        "fixed md:sticky top-0 left-0 h-screen w-72 bg-white/95 dark:bg-[#0c0c14]/95 backdrop-blur-xl border-r border-slate-200/80 dark:border-slate-800/80 z-[70] transition-transform duration-300 md:translate-x-0 flex flex-col",
-        !isSidebarOpen && "-translate-x-full"
+        "fixed md:sticky top-0 left-0 h-screen w-72 bg-white/95 dark:bg-[#0c0c14]/95 backdrop-blur-xl border-r border-slate-200/80 dark:border-slate-800/80 z-[70] transition-all duration-300 flex flex-col",
+        !isSidebarOpen && "-translate-x-full",
+        isSidebarCollapsed ? "md:-translate-x-full md:w-0 md:border-0 md:overflow-hidden" : "md:translate-x-0"
       )}>
-        {/* Sidebar Header */}
         <div className="p-5 border-b border-slate-100 dark:border-slate-800/50">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2.5 font-bold text-lg group">
@@ -583,37 +1050,33 @@ export default function App() {
               <span>PrepHub</span>
             </Link>
             <div className="flex items-center gap-1">
-              <button
-                onClick={toggleTheme}
-                className="hidden md:flex p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-              >
+              <button onClick={cycleFontSize} className="hidden md:flex p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative" title={`Font size: ${fontSize}`}>
+                <Type size={16} />
+                <span className="absolute -bottom-0.5 -right-0.5 text-[7px] font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded px-0.5">{sizeLabel}</span>
+              </button>
+              <button onClick={toggleTheme} className="hidden md:flex p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                 {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
               </button>
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-              >
+              <button onClick={() => setIsSidebarCollapsed(true)} className="hidden md:flex p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Collapse sidebar">
+                <PanelLeftClose size={16} />
+              </button>
+              <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                 <X size={18} />
               </button>
             </div>
           </div>
 
-          {/* Search Trigger */}
           <button
             onClick={() => setIsSearchOpen(true)}
             className="mt-4 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 transition-all"
           >
             <Search size={14} />
             <span className="flex-1 text-left">Search...</span>
-            <kbd className="hidden sm:inline-flex text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono">
-              ⌘K
-            </kbd>
+            <kbd className="hidden sm:inline-flex text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono">⌘K</kbd>
           </button>
         </div>
 
-        {/* Sidebar Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 sidebar-scroll">
-          {/* Home */}
           <Link
             to="/"
             className={cn(
@@ -623,11 +1086,9 @@ export default function App() {
                 : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"
             )}
           >
-            <BookOpen size={16} />
-            Home
+            <BookOpen size={16} /> Home
           </Link>
 
-          {/* Category Sections */}
           {menuStructure.filter(s => s.items).map((section) => {
             const Icon = section.icon;
             const isExpanded = expandedSections[section.name];
@@ -646,13 +1107,7 @@ export default function App() {
                 >
                   <Icon size={16} className={cn(hasActiveChild && section.accent)} />
                   <span className="flex-1 text-left">{section.name}</span>
-                  <ChevronDown
-                    size={14}
-                    className={cn(
-                      "transition-transform duration-200",
-                      isExpanded && "rotate-180"
-                    )}
-                  />
+                  <ChevronDown size={14} className={cn("transition-transform duration-200", isExpanded && "rotate-180")} />
                 </button>
 
                 <AnimatePresence initial={false}>
@@ -686,9 +1141,66 @@ export default function App() {
               </div>
             );
           })}
+
+          {/* Cheat Sheets */}
+          <div className="pt-2">
+            <button
+              onClick={() => toggleSection('Cheat Sheets')}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all",
+                location.pathname.startsWith('/cheatsheets')
+                  ? "text-slate-900 dark:text-white"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900"
+              )}
+            >
+              <ScrollText size={16} className={cn(location.pathname.startsWith('/cheatsheets') && "text-rose-500")} />
+              <span className="flex-1 text-left">Cheat Sheets</span>
+              <ChevronDown size={14} className={cn("transition-transform duration-200", expandedSections['Cheat Sheets'] && "rotate-180")} />
+            </button>
+            <AnimatePresence initial={false}>
+              {expandedSections['Cheat Sheets'] && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                  <div className="ml-4 pl-3 border-l-2 border-slate-100 dark:border-slate-800 space-y-0.5 py-1">
+                    {cheatSheets.map(cs => (
+                      <Link key={cs.path} to={cs.path} className={cn("flex items-center px-3 py-2 rounded-lg text-[13px] font-medium transition-all", location.pathname === cs.path ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900")}>
+                        {cs.name}
+                      </Link>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Tools */}
+          <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3">Tools</span>
+            <div className="mt-2 space-y-0.5">
+              <Link to="/quiz" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === '/quiz' ? "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900")}>
+                <Zap size={16} /> Quiz Mode
+              </Link>
+              <Link to="/review" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === '/review' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900")}>
+                <RotateCcw size={16} /> Daily Review
+                {dueCount > 0 && <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold">{dueCount}</span>}
+              </Link>
+              <Link to="/interview" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === '/interview' ? "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900")}>
+                <GraduationCap size={16} /> Interview Sim
+              </Link>
+              <Link to="/playground" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === '/playground' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900")}>
+                <Terminal size={16} /> Playground
+              </Link>
+              <Link to="/bookmarks" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === '/bookmarks' ? "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900")}>
+                <Bookmark size={16} /> Bookmarks
+                {bookmarksHook.bookmarks.length > 0 && <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">{bookmarksHook.bookmarks.length}</span>}
+              </Link>
+              <Link to="/changelog" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === '/changelog' ? "bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900")}>
+                <Sparkles size={16} /> What's New
+                {hasUnreadChangelog && <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse ml-auto" />}
+              </Link>
+            </div>
+          </div>
         </nav>
 
-        {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800/50">
           <a
             href="https://github.com/sreen98/interview-prep"
@@ -702,15 +1214,25 @@ export default function App() {
         </div>
       </aside>
 
-      {/* ===== Main Content ===== */}
+      {/* Main Content */}
       <main className="flex-1 w-full min-w-0 pt-14 md:pt-0">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/quiz" element={<QuizMode />} />
+          <Route path="/review" element={<ReviewPage />} />
+          <Route path="/interview" element={<InterviewSimulator />} />
+          <Route path="/playground" element={<CodePlayground />} />
+          <Route path="/bookmarks" element={<BookmarksPage />} />
+          <Route path="/changelog" element={<ContentPage filePath="./content/changelog.md" />} />
+          <Route path="/cheatsheets" element={<CheatSheetsIndex />} />
+          {cheatSheets.map(cs => (
+            <Route key={cs.path} path={cs.path} element={<ContentPage filePath={cs.file} />} />
+          ))}
           {menuStructure.flatMap(section => section.items || []).map(item => (
             <Route
               key={item.path}
               path={item.path}
-              element={<ContentPage filePath={item.file} />}
+              element={<ContentPage filePath={item.file} guidePath={item.path} guideName={item.name} />}
             />
           ))}
           <Route path="*" element={<Navigate to="/" replace />} />

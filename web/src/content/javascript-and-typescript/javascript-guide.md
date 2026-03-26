@@ -17,6 +17,7 @@
 - [13. DOM Manipulation](#13-dom-manipulation)
 - [14. Design Patterns](#14-design-patterns)
 - [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [16. Tricky Output Questions](#16-tricky-output-questions)
 
 ---
 
@@ -36,6 +37,8 @@ Key characteristics:
 ## 2. Data Types
 
 ### 2.1 Primitive Types (7)
+
+Primitives are the most basic data types in JavaScript. They are immutable (cannot be changed in place) and stored by value, meaning assigning one variable to another copies the value rather than creating a shared reference.
 
 ```js
 // 1. String
@@ -68,6 +71,8 @@ console.log(id === id2);                 // false (always unique)
 
 ### 2.2 Reference Types
 
+Reference types (objects, arrays, functions) are stored by reference, meaning variables hold a pointer to the data in memory rather than the data itself. This means multiple variables can point to the same object, and mutations through one reference are visible through all of them.
+
 ```js
 // Object
 const user = { name: 'Alice', age: 30 };
@@ -83,6 +88,8 @@ const greet = function() { return 'hi'; };
 
 ### 2.3 typeof Quirks
 
+The `typeof` operator returns a string indicating the type of a value, but it has several well-known quirks that interviewers love to ask about. Understanding these edge cases helps you avoid subtle bugs in type-checking code.
+
 ```js
 typeof 'hello'       // 'string'
 typeof 42            // 'number'
@@ -97,6 +104,8 @@ typeof 42n           // 'bigint'
 ```
 
 ### 2.4 Type Coercion
+
+JavaScript automatically converts values between types (implicit coercion) when operators or comparisons expect a different type. Knowing the coercion rules -- especially the difference between `==` (loose, coerces) and `===` (strict, no coercion) -- is essential for avoiding bugs and answering interview questions.
 
 ```js
 // Implicit coercion (avoid in production code)
@@ -118,6 +127,8 @@ false, 0, -0, 0n, '', null, undefined, NaN
 ## 3. Variables
 
 ### 3.1 var vs let vs const
+
+JavaScript has three variable declaration keywords. `var` is function-scoped and was the only option before ES6. `let` and `const` are block-scoped and should be preferred in modern code -- use `const` by default and `let` only when you need to reassign.
 
 ```js
 // var - function-scoped, hoisted, can be redeclared
@@ -149,6 +160,8 @@ obj.age = 30;          // OK
 
 ### 3.2 Hoisting
 
+Hoisting is JavaScript's behavior of moving declarations to the top of their scope during compilation. `var` declarations are hoisted and initialized to `undefined`, while `let`/`const` are hoisted but remain in a "Temporal Dead Zone" until their declaration is reached, causing a `ReferenceError` if accessed early.
+
 ```js
 // var is hoisted (declaration, not value)
 console.log(a);        // undefined (not ReferenceError)
@@ -173,6 +186,8 @@ var sayHi = function() { return 'hi'; };
 
 ### 4.1 Function Declarations vs Expressions
 
+Function declarations are hoisted completely (you can call them before they appear in code), while function expressions are assigned to variables and follow that variable's hoisting rules. Named function expressions are useful for recursion and clearer stack traces.
+
 ```js
 // Declaration (hoisted)
 function add(a, b) {
@@ -191,6 +206,8 @@ const factorial = function fact(n) {
 ```
 
 ### 4.2 Arrow Functions
+
+Arrow functions provide a concise syntax for writing functions and have key behavioral differences from regular functions: they do not have their own `this`, `arguments`, or `prototype`, and they cannot be used as constructors. Their lexical `this` binding makes them ideal for callbacks and methods that need to preserve the surrounding context.
 
 ```js
 // Full syntax
@@ -215,6 +232,8 @@ const makeUser = (name) => ({ name, active: true });
 ```
 
 ### 4.3 this Keyword
+
+The value of `this` in JavaScript depends on how a function is called, not where it is defined (except for arrow functions, which inherit `this` lexically). Understanding the four binding rules -- default, implicit (method call), explicit (`call`/`apply`/`bind`), and `new` -- is one of the most frequently tested interview topics.
 
 ```js
 // Global context
@@ -255,6 +274,8 @@ bound();                            // 'Charlie'
 
 ### 4.4 Default Parameters, Rest, Spread
 
+ES6 introduced these features for more flexible function signatures. Default parameters provide fallback values, rest parameters (`...args`) collect remaining arguments into an array, and spread syntax (`...`) expands arrays or objects into individual elements.
+
 ```js
 // Default parameters
 function greet(name = 'World') {
@@ -276,6 +297,8 @@ const obj2 = { ...obj1, b: 2 };     // { a: 1, b: 2 }
 ```
 
 ### 4.5 Higher-Order Functions
+
+Higher-order functions either take a function as an argument or return a function. They are a cornerstone of functional programming in JavaScript and power common patterns like `map`, `filter`, and `reduce`, enabling more declarative and composable code.
 
 ```js
 // A function that takes or returns another function
@@ -301,6 +324,8 @@ double(5);                            // 10
 ## 5. Scope and Closures
 
 ### 5.1 Scope Chain
+
+When JavaScript encounters a variable, it looks it up starting from the current scope, then moves outward through each enclosing scope until it reaches the global scope. This lookup path is called the scope chain, and understanding it is key to predicting which variable a given reference resolves to.
 
 ```js
 const global = 'I am global';
@@ -343,6 +368,8 @@ counter.getCount();                   // 2
 
 ### 5.3 Classic Closure Gotcha
 
+This is one of the most common interview questions about closures. Because `var` is function-scoped, all iterations of a loop share the same variable, so callbacks created inside the loop all see the final value. Using `let` (block-scoped) or an IIFE fixes this by giving each iteration its own copy.
+
 ```js
 // Problem: var is function-scoped, shared by all iterations
 for (var i = 0; i < 3; i++) {
@@ -370,6 +397,8 @@ for (var i = 0; i < 3; i++) {
 ## 6. Objects and Prototypes
 
 ### 6.1 Object Creation
+
+JavaScript provides several ways to create objects: object literals for simple one-off objects, `Object.create` for setting the prototype directly, constructor functions for the classic pattern, and ES6 classes as syntactic sugar. Knowing each approach and its trade-offs is important for interviews.
 
 ```js
 // Object literal
@@ -409,6 +438,8 @@ class UserClass {
 
 ### 6.2 Prototypal Inheritance
 
+Unlike classical inheritance in languages like Java, JavaScript uses prototypal inheritance: objects inherit directly from other objects via an internal `[[Prototype]]` link. When a property is not found on an object, the engine walks up the prototype chain until it finds it or reaches `null`.
+
 ```js
 // Every object has an internal [[Prototype]] link
 const animal = {
@@ -425,6 +456,8 @@ dog.eat();               // 'eating' (inherited from animal)
 ```
 
 ### 6.3 Object Methods
+
+The `Object` constructor provides several useful static methods for inspecting and manipulating objects. These are commonly used for iteration (`keys`, `values`, `entries`), merging (`assign`, spread), and immutability (`freeze`, `seal`).
 
 ```js
 const obj = { a: 1, b: 2, c: 3 };
@@ -443,6 +476,8 @@ Object.isFrozen(obj);                 // true
 ```
 
 ### 6.4 Destructuring
+
+Destructuring lets you extract values from objects and arrays into distinct variables using a concise syntax. It supports defaults, renaming, nesting, and rest patterns, and is widely used in function parameters, imports, and everyday assignments.
 
 ```js
 // Object destructuring
@@ -471,6 +506,8 @@ function greet({ name, age }) {
 ## 7. Arrays and Iteration
 
 ### 7.1 Array Methods (Non-Mutating)
+
+Non-mutating methods return a new array or value without modifying the original. These are preferred in modern JavaScript and especially in React/functional code because they avoid side effects and make data flow easier to reason about.
 
 ```js
 const nums = [1, 2, 3, 4, 5];
@@ -514,6 +551,8 @@ nums.slice(1, 3);                      // [2, 3]
 
 ### 7.2 Array Methods (Mutating)
 
+Mutating methods modify the array in place rather than returning a new one. Be cautious with these in functional or React code, where immutability is expected. Always know which methods mutate -- this is a common interview question.
+
 ```js
 const arr = [1, 2, 3];
 
@@ -528,6 +567,8 @@ arr.fill(0);                 // [0, 0, 0]
 ```
 
 ### 7.3 Iteration
+
+JavaScript offers several loop constructs: `for...of` iterates over values of any iterable (arrays, strings, Maps, Sets), `for...in` iterates over enumerable property keys (best for objects), and `forEach` is an array method that cannot be broken out of early. Choose the right one based on what you are iterating and whether you need `break`/`continue`.
 
 ```js
 // for...of (iterates values - arrays, strings, maps, sets)
@@ -552,6 +593,8 @@ for (const key in { a: 1, b: 2 }) {
 
 ### 8.1 Callbacks
 
+Callbacks were the original pattern for handling asynchronous operations in JavaScript: you pass a function to be called when the work is done. While simple in isolation, deeply nested callbacks lead to "callback hell," making code hard to read, maintain, and debug.
+
 ```js
 function fetchData(callback) {
   setTimeout(() => {
@@ -575,6 +618,8 @@ getUser(userId, (err, user) => {
 ```
 
 ### 8.2 Promises
+
+Promises provide a cleaner alternative to callbacks for managing asynchronous operations. A promise represents a value that may not be available yet and can be in one of three states: pending, fulfilled, or rejected. Promises support chaining with `.then()` and combinators like `Promise.all` for concurrent work.
 
 ```js
 // Creating a promise
@@ -620,6 +665,8 @@ Promise.any([fetchA(), fetchB()])
 
 ### 8.3 Async/Await
 
+`async`/`await` is syntactic sugar over promises that lets you write asynchronous code in a synchronous-looking style. An `async` function always returns a promise, and `await` pauses execution until the awaited promise settles, making complex async flows much easier to read and debug.
+
 ```js
 // async function always returns a promise
 async function getUser(id) {
@@ -650,6 +697,8 @@ const config = await loadConfig();
 
 ### 8.4 Microtasks vs Macrotasks
 
+The event loop processes two types of queues: microtasks (promises, `queueMicrotask`) and macrotasks (`setTimeout`, `setInterval`, I/O). Microtasks always run before the next macrotask, which is why promise callbacks execute before `setTimeout` callbacks even with a 0ms delay.
+
 ```js
 console.log('1');                           // synchronous
 
@@ -668,6 +717,8 @@ console.log('4');                           // synchronous
 ## 9. ES6+ Features
 
 ### 9.1 Template Literals
+
+Template literals use backticks instead of quotes and support embedded expressions via `${...}`, multiline strings without escape characters, and tagged templates for custom string processing. They are the preferred way to build strings in modern JavaScript.
 
 ```js
 const name = 'Alice';
@@ -688,6 +739,8 @@ highlight`Hello ${name}, you are ${30} years old`;
 
 ### 9.2 Optional Chaining and Nullish Coalescing
 
+Optional chaining (`?.`) lets you safely access deeply nested properties without checking each level for `null`/`undefined`. Nullish coalescing (`??`) provides a default value only when the left side is `null` or `undefined`, unlike `||` which also triggers on falsy values like `0` or `''`.
+
 ```js
 // Optional chaining (?.)
 const city = user?.address?.city;         // undefined if any part is null/undefined
@@ -706,6 +759,8 @@ const name = user.name ?? 'Anonymous';
 ```
 
 ### 9.3 Map, Set, WeakMap, WeakSet
+
+ES6 introduced these built-in collection types as alternatives to plain objects and arrays. `Map` allows any type as a key (not just strings), `Set` stores unique values, and their `Weak` variants hold weak references that allow garbage collection -- useful for caching and metadata without causing memory leaks.
 
 ```js
 // Map - key-value pairs (any type as key)
@@ -737,6 +792,8 @@ obj = null;                                // entry can be garbage collected
 ```
 
 ### 9.4 Iterators and Generators
+
+The iteration protocol defines how objects produce a sequence of values. Any object with a `Symbol.iterator` method is iterable and works with `for...of`, spread, and destructuring. Generator functions (`function*`) provide a simpler way to implement iterators and enable lazy evaluation, producing values on demand with `yield`.
 
 ```js
 // Iterable protocol - any object with Symbol.iterator
@@ -783,6 +840,8 @@ async function* fetchPages(url) {
 
 ### 9.5 Proxy and Reflect
 
+`Proxy` lets you intercept and customize fundamental operations on objects (property access, assignment, function calls, etc.) by defining handler traps. This is the mechanism behind reactivity systems in frameworks like Vue and is useful for validation, logging, and default values.
+
 ```js
 const handler = {
   get(target, prop) {
@@ -804,6 +863,8 @@ console.log(proxy.missing);               // 'Property missing not found'
 ---
 
 ## 10. Error Handling
+
+JavaScript uses `try`/`catch`/`finally` for synchronous error handling and `.catch()` or `try`/`catch` inside `async` functions for asynchronous errors. You can create custom error classes by extending the built-in `Error` to add domain-specific context like field names or HTTP status codes.
 
 ```js
 // try/catch/finally
@@ -905,6 +966,8 @@ console.log('5');                            // 2. sync -> call stack
 
 ### 12.1 ES Modules (ESM) — Modern Standard
 
+ES Modules are the official standard module system for JavaScript, supported in all modern browsers and Node.js. They are statically analyzed at parse time, enabling tree-shaking (dead code elimination) and top-level `await`.
+
 ```js
 // Named exports
 export const PI = 3.14;
@@ -933,6 +996,8 @@ const module = await import('./heavy-module.js');
 
 ### 12.2 CommonJS (CJS) — Node.js Legacy
 
+CommonJS is the module system that Node.js originally used. Modules are loaded synchronously at runtime with `require()`, and exports are assigned to `module.exports`. While still widely used in existing Node.js codebases, new projects generally prefer ES Modules.
+
 ```js
 // Export
 module.exports = { add, subtract };
@@ -956,6 +1021,8 @@ const { add } = require('./math');
 ---
 
 ## 13. DOM Manipulation
+
+The Document Object Model (DOM) is the browser's tree representation of an HTML page, and JavaScript can read and modify it to create dynamic user interfaces. Understanding how to select, create, modify, and remove elements -- as well as how event delegation works -- is essential for front-end interviews.
 
 ```js
 // Selecting elements
@@ -1004,6 +1071,8 @@ parent.removeChild(child);
 
 ### 14.1 Module Pattern
 
+The module pattern uses an immediately-invoked function expression (IIFE) and closures to create private state. Variables inside the IIFE are inaccessible from outside, while the returned object exposes only the intended public API.
+
 ```js
 const counter = (() => {
   let count = 0;
@@ -1015,6 +1084,8 @@ const counter = (() => {
 ```
 
 ### 14.2 Observer Pattern
+
+The observer pattern enables event-driven communication: objects subscribe to events and get notified when those events are emitted. This is the foundation of Node.js `EventEmitter`, browser DOM events, and many state management libraries.
 
 ```js
 class EventEmitter {
@@ -1033,6 +1104,8 @@ class EventEmitter {
 
 ### 14.3 Singleton
 
+The singleton pattern restricts a class to a single instance and provides a global access point to it. This is commonly used for shared resources like database connections, configuration objects, or caches.
+
 ```js
 class Database {
   static instance;
@@ -1046,6 +1119,8 @@ class Database {
 ```
 
 ### 14.4 Debounce and Throttle
+
+Debounce and throttle are rate-limiting techniques for controlling how often a function executes. Debounce waits until a pause in activity (e.g., user stops typing), while throttle ensures execution at most once per interval (e.g., scroll handler). Implementing these from scratch is a very common interview coding question.
 
 ```js
 // Debounce: execute after N ms of inactivity
@@ -1510,3 +1585,282 @@ const price = new Money(100, 'USD');
 +price;           // 100
 `${price}`;       // '100 USD'
 ```
+
+---
+
+## 16. Tricky Output Questions
+
+Practice questions testing your understanding of JavaScript quirks — type coercion, reference types, and the event loop.
+
+### Type Coercion & Comparisons
+
+---
+
+**Q1: What does `3 > 2 > 1` return?**
+
+```js
+console.log(3 > 2 > 1);
+```
+
+**Output:** `false`
+
+`3 > 2` evaluates to `true`, then `true` is coerced to `1`, and `1 > 1` is `false`.
+
+---
+
+**Q2: Why is `[] == ![]` true?**
+
+```js
+console.log([] == ![]);
+```
+
+**Output:** `true`
+
+`![]` is `false` (arrays are truthy). Then `[] == false` — both sides coerce to `0`, so `0 == 0` is `true`.
+
+---
+
+**Q3: Null comparison quirks**
+
+```js
+console.log(null >= 0);
+console.log(null > 0);
+console.log(null == 0);
+```
+
+**Output:**
+```
+true
+false
+false
+```
+
+`>=` and `>` coerce `null` to `0`, so `0 >= 0` is `true` but `0 > 0` is `false`. However, `==` has special rules — `null` only equals `undefined`, not `0`.
+
+---
+
+**Q4: NaN is not equal to itself**
+
+```js
+console.log(NaN == NaN);
+```
+
+**Output:** `false`
+
+`NaN` is the only value in JavaScript that is not equal to itself. Use `Number.isNaN()` to check for NaN.
+
+---
+
+**Q5: Array and object coercion with `+`**
+
+```js
+console.log([] + []);
+console.log([] + {});
+console.log({} + []);
+console.log(true + true);
+```
+
+**Output:**
+```
+""
+"[object Object]"
+0
+2
+```
+
+- `[] + []`: Both arrays coerce to `""`, so `"" + ""` = `""`.
+- `[] + {}`: `[]` becomes `""`, `{}` becomes `"[object Object]"`.
+- `{} + []`: `{}` is parsed as empty block, so it becomes `+[]` which is `0`.
+- `true + true`: Both coerce to `1`, so `1 + 1` = `2`.
+
+---
+
+### Reference Equality
+
+---
+
+**Q6: Objects and arrays are compared by reference**
+
+```js
+console.log({} === {});
+console.log([] === []);
+```
+
+**Output:**
+```
+false
+false
+```
+
+Two separate object/array literals create two different references in memory, so they are never equal.
+
+---
+
+### Async / Event Loop (Advanced)
+
+These questions test your understanding of the execution order between synchronous code, microtasks (Promises, await), and macrotasks (setTimeout).
+
+---
+
+**Q7: async/await execution order**
+
+```js
+async function test() {
+  console.log("A");
+  await Promise.resolve();
+  console.log("B");
+}
+test();
+console.log("C");
+```
+
+**Output:**
+```
+A
+C
+B
+```
+
+`"A"` prints synchronously. `await` pauses the function and schedules the rest as a microtask. `"C"` prints next (synchronous). Then `"B"` runs from the microtask queue.
+
+---
+
+**Q8: async function interleaved with synchronous code**
+
+```js
+async function test() {
+  console.log(1);
+  await Promise.resolve();
+  console.log(2);
+}
+
+console.log(3);
+test();
+console.log(4);
+```
+
+**Output:**
+```
+3
+1
+4
+2
+```
+
+`3` is synchronous. `test()` is called — `1` prints synchronously, then `await` pauses. `4` prints. Then `2` runs from the microtask queue.
+
+---
+
+**Q9: setTimeout with nested Promise**
+
+```js
+console.log("A");
+
+setTimeout(() => {
+  console.log("B");
+  Promise.resolve().then(() => console.log("C"));
+}, 0);
+
+Promise.resolve().then(() => console.log("D"));
+
+console.log("E");
+```
+
+**Output:**
+```
+A
+E
+D
+B
+C
+```
+
+Sync: `A`, `E`. Microtask: `D`. Macrotask: `B`, then its nested microtask: `C`.
+
+---
+
+**Q10: async function vs Promise.then ordering**
+
+```js
+async function foo() {
+  console.log("A");
+  await Promise.resolve();
+  console.log("B");
+}
+
+console.log("C");
+foo();
+Promise.resolve().then(() => console.log("D"));
+console.log("E");
+```
+
+**Output:**
+```
+C
+A
+E
+B
+D
+```
+
+Sync: `C`, `A` (foo starts synchronously), `E`. Then microtasks in order: `B` (from await), `D` (from .then).
+
+---
+
+**Q11: Complex combined scenario**
+
+```js
+console.log("1");
+
+setTimeout(() => console.log("2"), 0);
+
+async function foo() {
+  console.log("3");
+  await Promise.resolve();
+  console.log("4");
+}
+
+foo();
+
+Promise.resolve().then(() => console.log("5"));
+
+console.log("6");
+```
+
+**Output:**
+```
+1
+3
+6
+4
+5
+2
+```
+
+Sync: `1`, `3` (foo starts), `6`. Microtasks: `4` (from await), `5` (from .then). Macrotask: `2` (from setTimeout).
+
+---
+
+### Key Rules
+
+```
+Execution Order:
+1. Synchronous code (call stack)
+2. Microtasks (Promise.then, await continuation)
+3. Macrotasks (setTimeout, setInterval)
+```
+
+- `==` performs type coercion, `===` does not
+- Objects and arrays compare by reference, not value
+- `await` pauses the async function and schedules the rest as a microtask
+- `this` depends on the call site, not where the function is defined
+- `var` is function-scoped, `let`/`const` are block-scoped
+
+---
+
+## References
+
+- [MDN JavaScript Guide](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide) — Comprehensive JavaScript tutorials and reference
+- [MDN JavaScript Reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference) — Complete API reference for built-in objects
+- [ECMAScript Specification](https://tc39.es/ecma262/) — The official language specification
+- [JavaScript.info](https://javascript.info) — Modern JavaScript tutorial with detailed explanations

@@ -1399,3 +1399,11 @@ const createUserSchema = z.object({
 
 app.post('/users', validate(createUserSchema), handler);
 ```
+
+---
+
+## References
+
+- [Express.js Documentation](https://expressjs.com) — Official API reference and guides
+- [Express.js GitHub](https://github.com/expressjs/express) — Source code and middleware list
+- [Express Best Practices](https://expressjs.com/en/advanced/best-practice-security.html) — Security and performance guidelines

@@ -238,6 +238,137 @@ body {
   @apply bg-slate-50/80 dark:bg-slate-800/30;
 }
 
+/* ==================== Try It Button ==================== */
+
+.code-block-header .try-btn {
+  @apply flex items-center gap-1.5 text-xs transition-colors cursor-pointer;
+  color: #57ab5a;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.code-block-header .try-btn:hover {
+  color: #8ddb8c;
+  background: rgba(87, 171, 90, 0.15);
+}
+
+@media (hover: hover) {
+  .code-block-header .try-btn {
+    opacity: 0;
+  }
+  .code-block:hover .try-btn {
+    opacity: 1;
+  }
+}
+
+/* ==================== Search Highlighting ==================== */
+
+mark.search-hl {
+  @apply bg-yellow-200 dark:bg-yellow-700/40 text-yellow-900 dark:text-yellow-100 rounded px-0.5;
+}
+
+/* ==================== Quiz Mode ==================== */
+
+.quiz-markdown h1,
+.quiz-markdown h2,
+.quiz-markdown h3 {
+  @apply text-lg font-bold mb-2 mt-0;
+}
+
+.quiz-markdown p {
+  @apply mb-3 leading-relaxed;
+}
+
+.quiz-markdown ul {
+  @apply list-disc pl-5 mb-3;
+}
+
+.quiz-markdown ol {
+  @apply list-decimal pl-5 mb-3;
+}
+
+.quiz-markdown li {
+  @apply mb-1;
+}
+
+.quiz-markdown code {
+  @apply px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-sm font-mono text-pink-600 dark:text-pink-400;
+}
+
+.quiz-markdown pre {
+  @apply my-4 p-4 rounded-xl overflow-x-auto text-sm;
+  background: #22272e;
+}
+
+.quiz-markdown pre code {
+  @apply bg-transparent text-[#adbac7] p-0;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.quiz-markdown strong {
+  @apply font-bold text-slate-900 dark:text-white;
+}
+
+.quiz-markdown a {
+  @apply text-indigo-600 dark:text-indigo-400 underline;
+}
+
+/* ==================== Font Size Preferences ==================== */
+
+.font-size-small .prose-container {
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.font-size-medium .prose-container {
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.font-size-large .prose-container {
+  font-size: 1.125rem;
+  line-height: 1.9;
+}
+
+/* ==================== Mermaid Diagrams ==================== */
+
+.mermaid-container {
+  @apply rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 my-6 flex justify-center overflow-x-auto;
+}
+
+.mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.dark .mermaid-container svg {
+  filter: invert(0.88) hue-rotate(180deg);
+}
+
+/* ==================== Deep Section Links ==================== */
+
+.heading-anchor {
+  @apply opacity-0 group-hover:opacity-100 ml-2 inline-flex items-center text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-all cursor-pointer;
+  vertical-align: middle;
+}
+
+.heading-bookmark {
+  @apply opacity-0 group-hover:opacity-100 ml-1 inline-flex items-center text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 transition-all cursor-pointer;
+  vertical-align: middle;
+}
+
+.heading-bookmark.bookmarked {
+  @apply opacity-100 text-amber-500 dark:text-amber-400;
+}
+
+/* ==================== Text-to-Speech ==================== */
+
+.prose-container .tts-speaking {
+  @apply bg-indigo-50 dark:bg-indigo-950/30 -mx-2 px-2 py-1 rounded-lg transition-colors duration-300;
+}
+
 /* ==================== Keyboard shortcuts ==================== */
 
 kbd {

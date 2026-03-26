@@ -1459,3 +1459,11 @@ Use when:
 7. **Caching**: CloudFront, API Gateway caching, or DynamoDB DAX
 8. **Tiered storage**: S3 Intelligent-Tiering for infrequently accessed data
 9. **Compute Savings Plans**: Up to 17% discount for committed usage
+
+---
+
+## References
+
+- [AWS Lambda Developer Guide](https://docs.aws.amazon.com/lambda/latest/dg) — Official Lambda documentation
+- [Lambda API Reference](https://docs.aws.amazon.com/lambda/latest/api) — Complete API reference
+- [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide) — Serverless Application Model

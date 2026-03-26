@@ -1,99 +1,128 @@
-# 📚 Interview Preparation Repository
+# PrepHub - Interview Preparation Platform
 
-A comprehensive collection of guides covering essential topics for full-stack developer interviews. This repository is organized into focused sections to help you prepare for technical interviews across different domains.
+A comprehensive, modern web app for full-stack developer interview preparation. Built with React 19, deployed on GitHub Pages as a PWA.
 
-## 🚀 Repository Structure
+**Live site: [sreen98.github.io/interview-prep](https://sreen98.github.io/interview-prep/)**
 
-This repository is organized into the following categories:
+## Features
 
-### 📂 Back End
+### Study Content
+- **20+ Guides** across 5 categories: Front End, JS & TS, Back End, AWS, System Design
+- **6 Cheat Sheets** — condensed quick reference cards (React Hooks, JS ES6+, Git, Big-O, CSS Flexbox/Grid, HTTP Status Codes)
+- **Mermaid Diagrams** — architecture diagrams rendered as interactive visuals
+- **Syntax-highlighted code blocks** with copy and "Try it" buttons
+- **Reading time estimates** on every guide
+- **Table of Contents** — auto-generated from headings, tracks active section while scrolling
 
-Core backend technologies and concepts for server-side development:
+### Interactive Tools
+- **Quiz Mode** — flashcard-style Q&A extracted from guides, with difficulty filters (Beginner/Intermediate/Advanced)
+- **Daily Review** — spaced repetition (SM-2 algorithm) schedules questions for optimal retention
+- **Interview Simulator** — timed mock interviews with configurable question count, time limit, and category selection
+- **Code Playground** — run JavaScript and React/JSX code in-browser with live preview, 16+ templates across JS fundamentals, interview topics, React basics, and polyfills
 
-- **[Node.js Guide](Back%20End/nodejs-guide.md)** - Complete guide covering Node.js fundamentals, architecture, modules, streams, and best practices
-- **[Express.js Guide](Back%20End/expressjs-guide.md)** - Web framework essentials, middleware, routing, and API development
-- **[MongoDB Guide](Back%20End/mongodb-guide.md)** - NoSQL database concepts, queries, indexing, and data modeling
-- **[AWS Lambda Guide](Back%20End/aws-lambda-guide.md)** - Serverless computing, function lifecycle, and deployment strategies
-- **[API Design Guide](Back%20End/api-design-guide.md)** - RESTful API principles, design patterns, and best practices
-- **[Database Schema Guide](Back%20End/database-schema-guide.md)** - Database design patterns, normalization, and schema optimization
+### Study Effectiveness
+- **Progress Tracking** — guides auto-marked as in-progress on visit, manual "Mark Complete" with visual status dots
+- **Bookmarks** — bookmark any heading or quiz question, dedicated bookmarks page
+- **Study Streak** — daily visit tracking with streak counter and milestone celebrations (confetti at 7, 14, 30, 60, 100 days)
+- **Deep Section Links** — click any heading's link icon to copy a shareable URL with anchor
+- **Text-to-Speech** — read guides aloud with play/pause, speed control, and paragraph highlighting
 
-### 🎨 Front End
+### UX
+- **Dark/Light Mode** — system preference detection + manual toggle, persisted
+- **Font Size Preferences** — Small/Medium/Large toggle, persisted
+- **Full-text Search** (Cmd+K) — searches across all guide content with result snippets and search highlighting
+- **PWA** — installable, works offline, auto-updates
+- **Responsive** — mobile sidebar, collapsible desktop sidebar
 
-Modern frontend development technologies and frameworks:
+## Tech Stack
 
-- **[React Guide](Front%20End/react-guide.md)** - Comprehensive React concepts including hooks, lifecycle, performance optimization, and React 19 features
-- **[Redux Toolkit Guide](Front%20End/redux-toolkit-guide.md)** - State management with Redux Toolkit, slices, and modern patterns
-- **[Redux Saga Guide](Front%20End/redux-saga-guide.md)** - Side effect management and asynchronous flow control
-- **[TanStack Query Guide](Front%20End/tanstack-query-guide.md)** - Data fetching, caching, and synchronization strategies
-- **[Storybook Guide](Front%20End/storybook-guide.md)** - Component development environment and documentation
-- **[AWS Frontend Deployment Guide](Front%20End/aws-frontend-deployment-guide.md)** - Deployment strategies using AWS services
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19, React Router 6 |
+| Build | Vite 6 |
+| Styling | Tailwind CSS 3 |
+| Animation | Framer Motion |
+| Content | Markdown + react-markdown, remark-gfm, rehype-highlight |
+| Diagrams | Mermaid (lazy-loaded) |
+| JSX Runtime | @babel/standalone (lazy-loaded) |
+| Icons | Lucide React |
+| PWA | vite-plugin-pwa + Workbox |
+| Deployment | GitHub Pages |
 
-### 💻 JavaScript and TypeScript
+## Project Structure
 
-Core language fundamentals and advanced concepts:
+```
+interview-prep/
+  web/
+    src/
+      App.jsx                    # Main app: layout, sidebar, routes, ContentPage, HomePage
+      data.js                    # menuStructure, contentFiles, utilities, cheatSheets
+      main.jsx                   # Entry point (BrowserRouter)
+      index.css                  # Tailwind + custom styles
+      components/
+        QuizMode.jsx             # Flashcard quiz with difficulty/guide filters
+        ReviewPage.jsx           # Spaced repetition daily review
+        InterviewSimulator.jsx   # Timed mock interview (setup/interview/results)
+        CodePlayground.jsx       # JS/React code editor with template drawer
+        BookmarksPage.jsx        # Saved bookmarks listing
+        CheatSheetsIndex.jsx     # Cheat sheet card grid
+        MermaidBlock.jsx         # Lazy mermaid diagram renderer
+        StreakCelebration.jsx    # Streak milestone celebration overlay
+        Toast.jsx                # Reusable toast notification
+        TTSControls.jsx          # Text-to-speech playback controls
+      hooks/
+        useDarkMode.js           # Theme toggle (localStorage)
+        useReadingPrefs.js       # Font size S/M/L (localStorage)
+        useProgress.js           # Guide completion tracking (localStorage)
+        useBookmarks.js          # Bookmark management (localStorage)
+        useSpacedRepetition.js   # SM-2 algorithm scheduling (localStorage)
+        useStudyStats.js         # Streak & gamification stats (localStorage)
+        useTextToSpeech.js       # Web Speech API wrapper
+      content/
+        front-end/               # React, Redux, TanStack Query, Storybook guides
+        javascript-and-typescript/
+        back-end/                # Node.js, Express, MongoDB, API Design guides
+        aws/                     # IAM, EC2, S3, Lambda, CloudWatch guides
+        system-design/
+        cheatsheets/             # 6 quick reference sheets
+        changelog.md
+    public/                      # PWA icons, favicon
+    vite.config.js               # Vite + PWA plugin config
+    tailwind.config.js
+  .github/workflows/deploy.yml   # GitHub Pages CI/CD
+```
 
-- **[JavaScript Guide](Javascript%20and%20Typescript/javascript-guide.md)** - ES6+, closures, prototypes, async programming, and modern JavaScript features
-- **[TypeScript Guide](Javascript%20and%20Typescript/typescript-guide.md)** - Type system, generics, decorators, and advanced TypeScript patterns
+## Development
 
-### 🏗️ System Design
+```bash
+cd web
+npm install
+npm run dev        # Start dev server
+npm run build      # Production build
+npm run preview    # Preview production build
+```
 
-Scalable architecture and distributed systems concepts:
+## localStorage Keys
 
-- **[System Design Guide](System%20Design/system-design-guide.md)** - Comprehensive coverage of scalability, load balancing, caching, microservices, and system architecture patterns
+| Key | Purpose |
+|-----|---------|
+| `theme` | Light/dark mode |
+| `readingFontSize` | Font size preference |
+| `lastSeenChangelog` | Changelog version tracking |
+| `guide-progress` | Guide completion status |
+| `bookmarks` | Saved bookmarks |
+| `sr-schedule` | Spaced repetition schedule |
+| `study-stats` | Streak and gamification data |
+| `interview-history` | Past interview sim results |
+| `tts-prefs` | Text-to-speech speed |
 
-## 🎯 What You'll Find
+## Deployment
 
-Each guide includes:
-
-- **📖 Fundamental Concepts** - Core principles and theoretical foundations
-- **🛠️ Practical Examples** - Real-world code samples and implementations
-- **🔧 Best Practices** - Industry-standard approaches and patterns
-- **❓ Interview Questions** - Common interview questions with detailed answers
-- **📋 Quick Reference** - Key points for last-minute review
-
-## 🚦 Getting Started
-
-1. **Choose your focus area** - Select the technology or concept you want to study
-2. **Follow the table of contents** - Each guide has a detailed outline for structured learning
-3. **Practice with examples** - Work through the code samples and exercises
-4. **Test your knowledge** - Review the interview questions at the end of each section
-
-## 📖 How to Use This Repository
-
-### For Interview Preparation
-
-- Start with the fundamentals in each technology area
-- Focus on the "Interview Questions & Answers" sections
-- Practice implementing the code examples
-- Use the quick reference sections for last-minute review
-
-### For Learning New Technologies
-
-- Begin with the overview and core concepts
-- Work through examples progressively
-- Pay attention to best practices sections
-- Reference related guides for full-stack understanding
-
-### For Reference
-
-- Use the table of contents to quickly find specific topics
-- Bookmark frequently referenced sections
-- Keep guides open during coding sessions for quick lookups
-
-## 🤝 Contributing
-
-This is a personal interview preparation repository. If you find errors or have suggestions for improvements, feel free to:
-
-- Create an issue for discussion
-- Submit a pull request with improvements
-- Share additional resources or examples
-
-## 📄 License
-
-This repository is for educational and interview preparation purposes. All content is organized for learning and reference.
+Push to `main` branch triggers automatic deployment via GitHub Actions:
+1. Copies markdown content to `web/src/content/`
+2. Builds with Vite
+3. Deploys `dist/` to GitHub Pages
 
 ---
 
-**Happy Learning! 🚀**
-
-_Last updated: March 2026_
+Built for learning. Good luck with your interviews!

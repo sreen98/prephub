@@ -51,6 +51,8 @@ npx tsc --noEmit
 
 ### 2.1 Primitives
 
+TypeScript lets you annotate variables with primitive types such as `string`, `number`, `boolean`, `bigint`, and `symbol`. These annotations are checked at compile time, catching type mismatches before your code runs.
+
 ```ts
 let name: string = 'Alice';
 let age: number = 30;
@@ -60,6 +62,8 @@ let unique: symbol = Symbol('id');
 ```
 
 ### 2.2 Arrays and Tuples
+
+Arrays in TypeScript can be typed to hold elements of a specific type, while tuples let you define fixed-length arrays where each position has its own type. Both support `readonly` modifiers to prevent mutation.
 
 ```ts
 // Arrays
@@ -85,6 +89,8 @@ const okFull: Response = [200, 'OK', true];
 ```
 
 ### 2.3 Special Types
+
+TypeScript provides several special types: `any` disables type checking entirely, `unknown` is the type-safe alternative that requires narrowing before use, `void` indicates a function returns nothing, and `never` represents values that can never occur (such as functions that always throw).
 
 ```ts
 // any - opt out of type checking
@@ -124,6 +130,8 @@ let record: Record<string, unknown> = {};  // better
 
 ### 2.4 Literal Types
 
+Literal types narrow a variable to an exact value rather than a broad type. Combined with unions, they let you define precise sets of allowed values, and `as const` assertions automatically infer the narrowest literal types for objects and arrays.
+
 ```ts
 // String literals
 type Direction = 'north' | 'south' | 'east' | 'west';
@@ -149,6 +157,8 @@ const config = {
 ## 3. Interfaces and Type Aliases
 
 ### 3.1 Interfaces
+
+Interfaces define the shape of an object by specifying property names and their types. They support optional and readonly properties, extension via `extends`, declaration merging, and index signatures, making them ideal for defining contracts in your code.
 
 ```ts
 interface User {
@@ -199,6 +209,8 @@ interface Formatter {
 
 ### 3.2 Type Aliases
 
+The `type` keyword creates a named alias for any type, including primitives, unions, intersections, tuples, and mapped types. Unlike interfaces, type aliases cannot be merged but are more versatile for composing complex types.
+
 ```ts
 type ID = string | number;
 
@@ -243,6 +255,8 @@ type EventName = `on${Capitalize<string>}`;
 
 ### 4.1 Type Annotations
 
+TypeScript lets you annotate function parameters and return values to ensure callers pass the correct types and the function returns what is expected. It also supports optional parameters, default values, and rest parameters with full type safety.
+
 ```ts
 // Parameter and return types
 function add(a: number, b: number): number {
@@ -270,6 +284,8 @@ function sum(...numbers: number[]): number {
 
 ### 4.2 Function Types
 
+You can describe a function's entire signature as a type, which is useful for typing callbacks, higher-order functions, and function overloads. Function overloads let you define multiple call signatures so TypeScript can return different types based on the arguments provided.
+
 ```ts
 // Type alias for function
 type MathFn = (a: number, b: number) => number;
@@ -296,6 +312,8 @@ const input = createElement('input');   // type: HTMLInputElement
 
 ### 4.3 this Parameter
 
+TypeScript allows you to explicitly type the `this` parameter in a function or method. This prevents bugs caused by calling a method with the wrong context and is especially useful for event handlers and detached callbacks.
+
 ```ts
 interface User {
   name: string;
@@ -316,6 +334,8 @@ const user: User = {
 
 ### 5.1 Generic Functions
 
+Generics let you write functions that work with any type while preserving type information through the call. Instead of falling back to `any`, a generic type parameter `<T>` captures the actual type at each call site, so the return type stays precise.
+
 ```ts
 // Without generics (loses type info)
 function identity(value: any): any {
@@ -332,6 +352,8 @@ identity(42);                           // type: 42 (inferred)
 ```
 
 ### 5.2 Generic Interfaces and Types
+
+Interfaces and type aliases can also accept type parameters, letting you define reusable data structures like API response wrappers or nullable containers that work with any inner type.
 
 ```ts
 // Generic interface
@@ -350,6 +372,8 @@ type AsyncResult<T> = Promise<ApiResponse<T>>;
 ```
 
 ### 5.3 Generic Constraints
+
+You can constrain a generic type parameter using `extends` to limit what types are accepted. This ensures the generic has certain properties or structure, enabling you to safely access members like `.length` or specific object keys within the function body.
 
 ```ts
 // Constrain T to objects with a length property
@@ -373,6 +397,8 @@ getProperty(user, 'age');               // type: number
 ```
 
 ### 5.4 Generic Classes
+
+Classes can accept type parameters just like functions, allowing you to build type-safe data structures such as stacks, queues, or collections where the element type is specified at instantiation time.
 
 ```ts
 class Stack<T> {
@@ -398,6 +424,8 @@ numberStack.push('hello');              // Error: string is not number
 
 ### 5.5 Multiple Type Parameters
 
+Generics can accept more than one type parameter, which is useful when a function or type relates two or more independent types. You can also provide default type values so callers can omit the parameter when the default is sufficient.
+
 ```ts
 function pair<A, B>(first: A, second: B): [A, B] {
   return [first, second];
@@ -419,6 +447,8 @@ const n: Container<number> = { value: 42 };
 ## 6. Union and Intersection Types
 
 ### 6.1 Union Types
+
+A union type (`A | B`) means a value can be one of several types. You must narrow the type before using type-specific operations. Discriminated unions add a shared literal property (like `kind`) so TypeScript can narrow automatically in switch statements.
 
 ```ts
 // A value that can be one of several types
@@ -453,6 +483,8 @@ function area(shape: Shape): number {
 
 ### 6.2 Intersection Types
 
+An intersection type (`A & B`) combines multiple types into one, requiring the resulting value to satisfy all of them. This is useful for composing object shapes from smaller, reusable type building blocks.
+
 ```ts
 // Combine multiple types into one (AND)
 type HasName = { name: string };
@@ -478,6 +510,8 @@ type ErrorResponse = BaseResponse & { error: string; code: number };
 ## 7. Type Narrowing and Guards
 
 ### 7.1 Built-in Narrowing
+
+TypeScript automatically narrows types within control flow branches using checks like `typeof`, `instanceof`, the `in` operator, truthiness, and equality comparisons. After a narrowing check, TypeScript knows the more specific type and allows type-specific operations.
 
 ```ts
 function process(value: string | number | boolean) {
@@ -521,6 +555,8 @@ function move(animal: Fish | Bird) {
 
 ### 7.2 User-Defined Type Guards
 
+When built-in narrowing is not enough, you can write custom type guard functions using `is` (type predicates) or `asserts` (assertion functions). These tell TypeScript that after the check passes, the value is guaranteed to be a specific type.
+
 ```ts
 // Type predicate (is)
 function isString(value: unknown): value is string {
@@ -553,6 +589,8 @@ function calculate(input: unknown) {
 
 ### 7.3 Exhaustive Checks
 
+Assigning to a `never` type in the `default` branch of a switch statement ensures that every member of a union is handled. If a new variant is added to the union but not handled, TypeScript produces a compile error, preventing missed cases.
+
 ```ts
 type Status = 'active' | 'inactive' | 'suspended';
 
@@ -576,6 +614,8 @@ function handleStatus(status: Status): string {
 ## 8. Utility Types
 
 ### 8.1 Object Utility Types
+
+TypeScript ships with built-in utility types that transform object types without writing custom mapped types. `Partial`, `Required`, `Readonly`, `Pick`, `Omit`, and `Record` cover the most common object type transformations you will need.
 
 ```ts
 interface User {
@@ -614,6 +654,8 @@ type StringMap = Record<string, string>;
 
 ### 8.2 Union Utility Types
 
+`Exclude` removes specific members from a union, `Extract` keeps only the matching members, and `NonNullable` strips `null` and `undefined`. These are essential for filtering and refining union types.
+
 ```ts
 // Exclude<Union, Excluded> - remove types from union
 type T1 = Exclude<'a' | 'b' | 'c', 'a'>;
@@ -629,6 +671,8 @@ type T3 = NonNullable<string | null | undefined>;
 ```
 
 ### 8.3 Function Utility Types
+
+`Parameters` extracts a function's parameter types as a tuple, `ReturnType` extracts the return type, and `Awaited` unwraps `Promise` types to their resolved values. These are invaluable when you need to derive types from existing functions without duplicating definitions.
 
 ```ts
 function createUser(name: string, age: number): User {
@@ -653,6 +697,8 @@ type DeepData = Awaited<Promise<Promise<number>>>;
 
 ### 8.4 String Utility Types
 
+TypeScript provides built-in types for transforming string literal types: `Uppercase`, `Lowercase`, `Capitalize`, and `Uncapitalize`. These are especially useful when combined with template literal types for generating consistent naming conventions.
+
 ```ts
 type Upper = Uppercase<'hello'>;           // 'HELLO'
 type Lower = Lowercase<'HELLO'>;           // 'hello'
@@ -665,6 +711,8 @@ type Uncap = Uncapitalize<'Hello'>;        // 'hello'
 ## 9. Enums
 
 ### 9.1 Numeric Enums
+
+Numeric enums assign auto-incrementing numeric values to each member starting from 0 (or from a custom starting value). They also support reverse mapping, so you can look up the member name from its numeric value.
 
 ```ts
 enum Direction {
@@ -686,6 +734,8 @@ Direction[0];                              // 'Up' (reverse mapping)
 
 ### 9.2 String Enums
 
+String enums require each member to be explicitly initialized with a string value. They provide readable runtime values and are easier to debug than numeric enums, but they do not support reverse mapping.
+
 ```ts
 enum Status {
   Active = 'active',
@@ -699,6 +749,8 @@ const s: Status = Status.Active;          // 'active'
 
 ### 9.3 const Enums
 
+A `const enum` is completely erased at compile time and its values are inlined wherever they are used. This eliminates the runtime object overhead of regular enums, making them a good choice when you only need compile-time constants.
+
 ```ts
 // Inlined at compile time (no runtime object)
 const enum Color {
@@ -711,6 +763,8 @@ const c = Color.Red;                      // compiles to: const c = 'red'
 ```
 
 ### 9.4 Enums vs Union Types
+
+In modern TypeScript, string literal union types are generally preferred over enums because they produce no runtime code, are simpler to use, and tree-shake better. Use enums only when you specifically need reverse mapping or a runtime object to iterate over.
 
 ```ts
 // Enum
@@ -734,6 +788,8 @@ type Status = 'active' | 'inactive';
 ## 10. Advanced Types
 
 ### 10.1 Mapped Types
+
+Mapped types iterate over the keys of an existing type to create a new type, optionally transforming each property's type or modifier. The `as` clause allows key remapping, enabling patterns like generating getter methods or filtering properties by type.
 
 ```ts
 // Create new types by transforming properties of existing types
@@ -761,6 +817,8 @@ type OnlyStrings<T> = {
 
 ### 10.2 Conditional Types
 
+Conditional types use the syntax `T extends U ? X : Y` to choose a type based on a condition. The `infer` keyword lets you extract sub-types from within a conditional, and when applied to union type parameters, conditional types distribute over each union member automatically.
+
 ```ts
 // T extends U ? X : Y
 type IsString<T> = T extends string ? true : false;
@@ -785,6 +843,8 @@ type F = ElementOf<string[]>;             // string
 ```
 
 ### 10.3 Template Literal Types
+
+Template literal types use backtick syntax at the type level to construct string types from other string literal types. Combined with unions, they can generate large sets of allowed string patterns, which is powerful for typing event names, routes, and CSS properties.
 
 ```ts
 type EventName = `${'click' | 'focus' | 'blur'}Event`;
@@ -812,6 +872,8 @@ person.on('ageChanged', (newAge) => {});    // newAge: number
 
 ### 10.4 Recursive Types
 
+A recursive type references itself in its own definition, which is necessary for modeling tree-like or deeply nested data structures such as JSON values, file systems, or deeply partial objects.
+
 ```ts
 // JSON type
 type JSONValue =
@@ -838,6 +900,8 @@ type Path<T, Key extends keyof T = keyof T> =
 
 ### 10.5 Branded/Opaque Types
 
+TypeScript uses structural typing, so two types with the same shape are interchangeable. Branded types add a phantom property to create nominal-like distinctions, preventing you from accidentally mixing structurally identical but semantically different types like USD and EUR amounts.
+
 ```ts
 // Prevent mixing types that are structurally identical
 type Brand<T, B> = T & { __brand: B };
@@ -861,6 +925,8 @@ addUSD(dollars, dollars);                 // OK
 ## 11. Classes
 
 ### 11.1 Basic Class
+
+TypeScript enhances JavaScript classes with access modifiers (`public`, `private`, `protected`), `readonly` properties, constructor parameter shorthand for automatic property declaration, and typed getters/setters.
 
 ```ts
 class User {
@@ -900,6 +966,8 @@ class User {
 
 ### 11.2 Inheritance and Abstract Classes
 
+Abstract classes define a contract that subclasses must fulfill: abstract methods have no implementation and must be overridden, while concrete methods provide shared behavior. Abstract classes cannot be instantiated directly.
+
 ```ts
 abstract class Shape {
   abstract area(): number;                // must be implemented
@@ -932,6 +1000,8 @@ c.describe();                             // 'Area: 78.54, Perimeter: 31.42'
 
 ### 11.3 Implements
 
+The `implements` keyword ensures that a class satisfies the shape defined by one or more interfaces. This provides a compile-time check that all required properties and methods are present with the correct types.
+
 ```ts
 interface Serializable {
   serialize(): string;
@@ -955,6 +1025,8 @@ class User implements Serializable, Loggable {
 ```
 
 ### 11.4 Static Members
+
+Static properties and methods belong to the class itself rather than to instances. They are accessed via the class name and are commonly used for utility functions, constants, and patterns like singletons.
 
 ```ts
 class MathUtils {
@@ -986,6 +1058,8 @@ MathUtils.add(1, 2);                       // 3
 
 ### 12.1 Module Syntax
 
+TypeScript uses the standard ES module `import`/`export` syntax with full type support. You can export interfaces, types, functions, classes, and constants, and re-export them from barrel files to organize your public API.
+
 ```ts
 // Named exports
 export interface User { name: string; }
@@ -1004,6 +1078,8 @@ export type { User } from './user';        // type-only re-export
 
 ### 12.2 Type-Only Imports
 
+Using `import type` ensures the import is completely erased at runtime, producing no JavaScript output. This avoids importing modules solely for their types, which can reduce bundle size and prevent circular dependency issues.
+
 ```ts
 // Import only the type (erased at runtime, no bundle impact)
 import type { User } from './types';
@@ -1013,6 +1089,8 @@ import { createUser, type User } from './user';
 ```
 
 ### 12.3 Declaration Files (.d.ts)
+
+Declaration files (`.d.ts`) provide type information for JavaScript code that has no built-in types, such as third-party libraries, global variables, or ambient modules. They let TypeScript understand external code without modifying it.
 
 ```ts
 // global.d.ts - declare global types
@@ -1034,6 +1112,8 @@ declare function gtag(...args: unknown[]): void;
 
 ### 12.4 Triple-Slash Directives
 
+Triple-slash directives are special comments that instruct the compiler to include additional type files or reference other declaration files. They must appear at the top of the file and are primarily used when configuring global type references.
+
 ```ts
 /// <reference types="vite/client" />
 /// <reference path="./custom-types.d.ts" />
@@ -1044,6 +1124,8 @@ declare function gtag(...args: unknown[]): void;
 ## 13. Compiler Options
 
 ### 13.1 Key tsconfig.json Options
+
+The `tsconfig.json` file controls how the TypeScript compiler behaves, including strictness levels, module resolution strategy, output target, and path aliases. Enabling `strict: true` is strongly recommended as it activates all strict type-checking options at once.
 
 ```jsonc
 {
@@ -1092,6 +1174,8 @@ declare function gtag(...args: unknown[]): void;
 
 ### 14.1 Do's
 
+These are recommended TypeScript patterns that improve type safety, readability, and maintainability. Following them helps you get the most out of the type system while keeping your code clean.
+
 ```ts
 // 1. Use strict mode
 // tsconfig: "strict": true
@@ -1128,6 +1212,8 @@ import type { User } from './types';
 ```
 
 ### 14.2 Don'ts
+
+These are common TypeScript anti-patterns that weaken type safety or add unnecessary complexity. Avoiding them will help you write more robust code and let TypeScript's inference do the heavy lifting.
 
 ```ts
 // 1. Don't use `any` as escape hatch
@@ -1646,3 +1732,12 @@ const colors = {
 ```
 
 Use `satisfies` when you want type validation but don't want to lose type inference.
+
+---
+
+## References
+
+- [TypeScript Documentation](https://www.typescriptlang.org/docs) — Official docs and handbook
+- [TypeScript Playground](https://www.typescriptlang.org/play) — Try TypeScript in the browser
+- [TypeScript GitHub](https://github.com/microsoft/TypeScript) — Source code and issue tracker
+- [Type Challenges](https://github.com/type-challenges/type-challenges) — Practice advanced TypeScript types

@@ -49,53 +49,37 @@ Key characteristics:
 
 The event loop is the core of Node.js. It allows non-blocking I/O despite JavaScript being single-threaded.
 
+```mermaid
+graph TD
+    A["⏱ timers<br/>setTimeout, setInterval"] --> B["📋 pending callbacks<br/>I/O callbacks deferred"]
+    B --> C["⚙️ idle, prepare<br/>internal use only"]
+    C --> D["📡 poll<br/>retrieve new I/O events"]
+    D --> E["✅ check<br/>setImmediate callbacks"]
+    E --> F["🔒 close callbacks<br/>socket.on close"]
+    F --> A
+    style A fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
+    style D fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
+    style E fill:#ecfdf5,stroke:#10b981,color:#064e3b
 ```
-   ┌───────────────────────────┐
-┌─>│           timers          │  setTimeout, setInterval callbacks
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │     pending callbacks     │  I/O callbacks deferred to next loop
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │       idle, prepare       │  internal use only
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │           poll            │  retrieve new I/O events, execute callbacks
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │           check           │  setImmediate callbacks
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │      close callbacks      │  socket.on('close', ...)
-│  └─────────────┬─────────────┘
-│                │
-│  Microtask queue runs BETWEEN each phase:
-│  - process.nextTick (highest priority)
-│  - Promise callbacks
-└──────────────────────────────┘
-```
+
+> **Microtask queue** runs BETWEEN each phase: `process.nextTick` (highest priority), then Promise callbacks.
 
 ### 2.2 libuv and Thread Pool
 
+```mermaid
+graph TD
+    JS["JavaScript V8<br/>single main thread"] --> EL["Event Loop"]
+    EL --> LUV["libuv"]
+    LUV --> T1["Thread 1<br/>fs ops"]
+    LUV --> T2["Thread 2<br/>dns"]
+    LUV --> T3["Thread 3<br/>crypto"]
+    LUV --> TN["Thread N..."]
+    style JS fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    style EL fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
+    style LUV fill:#ecfdf5,stroke:#10b981,color:#064e3b
 ```
-                  Node.js Process
-┌─────────────────────────────────────────┐
-│            JavaScript (V8)               │
-│         (single main thread)             │
-│                  │                        │
-│            Event Loop                    │
-│                  │                        │
-│            ┌─────┴─────┐                 │
-│            │   libuv   │                 │
-│            └─────┬─────┘                 │
-│    ┌─────────────┼─────────────┐         │
-│    │             │             │         │
-│  Thread 1    Thread 2    Thread 3  ...   │
-│  (fs ops)    (dns)       (crypto)        │
-│                                          │
-│  Default: 4 threads (UV_THREADPOOL_SIZE) │
-└─────────────────────────────────────────┘
-```
+
+> Default: **4 threads** (configurable via `UV_THREADPOOL_SIZE`)
 
 - **Main thread**: Runs JavaScript, event loop
 - **Thread pool** (libuv): Handles I/O operations that can't be done asynchronously by the OS (fs, DNS lookups, some crypto)
@@ -1218,3 +1202,11 @@ libuv is the C library that provides Node.js's event loop and async I/O:
    - These handle network I/O without threads
 
 The distinction matters: network I/O scales to thousands of connections (OS-level), while file I/O is limited by thread pool size.
+
+---
+
+## References
+
+- [Node.js Documentation](https://nodejs.org/docs/latest/api) — Official API reference
+- [Node.js Guides](https://nodejs.org/en/learn) — Getting started and best practices
+- [Node.js GitHub](https://github.com/nodejs/node) — Source code and release notes

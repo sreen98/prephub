@@ -150,17 +150,16 @@ Cons:
 
 #### Read Replicas
 
-```
-                    ┌──────────────┐
-         writes     │   Primary    │
-        ────────>   │   Database   │
-                    └──────┬───────┘
-                           │ replication
-                    ┌──────┴───────┐
-                    │              │
-              ┌─────┴─────┐ ┌─────┴─────┐
-     reads    │  Replica 1 │ │  Replica 2 │    reads
-   <────────  └───────────┘ └───────────┘  ────────>
+```mermaid
+graph TD
+    W["Writes"] --> P["Primary Database"]
+    P -->|replication| R1["Replica 1"]
+    P -->|replication| R2["Replica 2"]
+    R1 --> RD1["Reads"]
+    R2 --> RD2["Reads"]
+    style P fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
+    style R1 fill:#ecfdf5,stroke:#10b981,color:#064e3b
+    style R2 fill:#ecfdf5,stroke:#10b981,color:#064e3b
 ```
 
 #### Sharding (Horizontal Partitioning)
@@ -569,15 +568,13 @@ Primary-Primary (Multi-Master):
 
 ### Message Queue Pattern
 
-```
-Producer → Queue → Consumer
-
-┌──────────┐    ┌─────────┐    ┌──────────┐
-│ Producer  │───>│  Queue  │───>│ Consumer │
-│ (API)     │    │ (Redis/ │    │ (Worker) │
-│           │    │  SQS/   │    │          │
-└──────────┘    │ RabbitMQ)│    └──────────┘
-                └─────────┘
+```mermaid
+graph LR
+    P["Producer<br/>(API)"] --> Q["Queue<br/>(Redis / SQS / RabbitMQ)"]
+    Q --> C["Consumer<br/>(Worker)"]
+    style P fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    style Q fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
+    style C fill:#ecfdf5,stroke:#10b981,color:#064e3b
 ```
 
 ### Use Cases
@@ -727,32 +724,32 @@ class OrderAggregate {
 
 ### Monolith vs Microservices
 
-```
-Monolith:
-┌─────────────────────────────┐
-│         Application          │
-│  ┌─────┐ ┌─────┐ ┌───────┐ │
-│  │Users│ │Jobs │ │Billing│  │
-│  └─────┘ └─────┘ └───────┘ │
-│  ┌──────────────────────┐   │
-│  │    Shared Database    │   │
-│  └──────────────────────┘   │
-└─────────────────────────────┘
+**Monolith:**
 
-Microservices:
-┌────────┐  ┌────────┐  ┌──────────┐
-│ User   │  │  Job   │  │ Billing  │
-│Service │  │Service │  │ Service  │
-│  ┌──┐  │  │  ┌──┐  │  │  ┌──┐   │
-│  │DB│  │  │  │DB│  │  │  │DB│   │
-│  └──┘  │  │  └──┘  │  │  └──┘   │
-└───┬────┘  └───┬────┘  └────┬────┘
-    │           │             │
-    └───────────┼─────────────┘
-                │
-        ┌───────┴───────┐
-        │  Message Bus  │
-        └───────────────┘
+```mermaid
+graph TD
+    subgraph Monolith["Application"]
+        U["Users"] --- J["Jobs"] --- B["Billing"]
+        DB["Shared Database"]
+    end
+    U --> DB
+    J --> DB
+    B --> DB
+    style Monolith fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    style DB fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
+```
+
+**Microservices:**
+
+```mermaid
+graph TD
+    US["User Service<br/>+ own DB"] --> MB["Message Bus"]
+    JS["Job Service<br/>+ own DB"] --> MB
+    BS["Billing Service<br/>+ own DB"] --> MB
+    style US fill:#ecfdf5,stroke:#10b981,color:#064e3b
+    style JS fill:#ecfdf5,stroke:#10b981,color:#064e3b
+    style BS fill:#ecfdf5,stroke:#10b981,color:#064e3b
+    style MB fill:#e0e7ff,stroke:#6366f1,color:#1e1b4b
 ```
 
 ### Service Communication
@@ -1995,3 +1992,11 @@ This is an open-ended question. A strong answer discusses:
 ---
 
 *This guide covers the foundational concepts for system design interviews. Practice by designing real systems end-to-end: define requirements, estimate scale, choose components, design the API, plan the data model, identify bottlenecks, and discuss trade-offs.*
+
+---
+
+## References
+
+- [System Design Primer](https://github.com/donnemartin/system-design-primer) — Comprehensive open-source study guide
+- [Designing Data-Intensive Applications](https://dataintensive.net) — Essential book by Martin Kleppmann
+- [High Scalability Blog](http://highscalability.com) — Real-world architecture case studies
