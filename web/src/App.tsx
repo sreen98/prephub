@@ -108,7 +108,7 @@ const PreBlock = ({ children }) => {
   const handleTryIt = () => {
     const text = ref.current?.textContent || '';
     sessionStorage.setItem('playground-code', text);
-    navigate('/playground');
+    window.open(`${import.meta.env.BASE_URL}playground`, '_blank');
   };
 
   return (

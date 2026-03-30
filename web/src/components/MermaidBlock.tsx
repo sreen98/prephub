@@ -14,6 +14,7 @@ async function getMermaid(): Promise<any> {
       securityLevel: 'loose',
       fontFamily: 'Inter, system-ui, sans-serif',
       flowchart: { htmlLabels: true, curve: 'basis' },
+      suppressErrorRendering: true,
     });
     mermaidReady = true;
   }
@@ -29,13 +30,14 @@ interface MermaidBlockProps {
 export default function MermaidBlock({ chart }: MermaidBlockProps) {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     const id = `mermaid-${++counter}`;
 
     getMermaid()
-      .then(mermaid => mermaid.render(id, chart.trim()))
+      .then(mermaid => mermaid.render(id, chart.trim(), containerRef.current))
       .then(({ svg: renderedSvg }: { svg: string }) => {
         if (!cancelled) {
           setSvg(renderedSvg);
@@ -47,6 +49,11 @@ export default function MermaidBlock({ chart }: MermaidBlockProps) {
           setError(err?.message || 'Failed to render diagram');
           setSvg('');
         }
+      })
+      .finally(() => {
+        // Clean up any error elements Mermaid may have injected into the DOM
+        document.querySelectorAll(`#d${id}, [id="${id}"]`).forEach(el => el.remove());
+        document.querySelectorAll('body > [id^="dmermaid-"], body > [id^="mermaid-"]').forEach(el => el.remove());
       });
 
     return () => { cancelled = true; };
@@ -66,6 +73,7 @@ export default function MermaidBlock({ chart }: MermaidBlockProps) {
   if (!svg) {
     return (
       <div className="mermaid-container">
+        <div ref={containerRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} />
         <div className="text-slate-400 text-sm">Loading diagram...</div>
       </div>
     );

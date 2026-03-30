@@ -20,12 +20,12 @@ Build must pass before pushing. The deploy workflow runs `prepare-content.js` th
 ## Architecture decisions
 
 ### Single-file vs multi-file
-- `App.jsx` is large (~1200 lines) because it contains the layout, sidebar, ContentPage, HomePage, and several inline components (ReadingProgress, PreBlock, TableOfContents, MobileToc, SearchModal, BackToTop). Larger features get their own files in `components/`.
-- Hooks follow a consistent pattern: useState + localStorage read/write + callback functions. See `useDarkMode.js` as the canonical example.
+- `App.tsx` is large (~1200 lines) because it contains the layout, sidebar, ContentPage, HomePage, and several inline components (ReadingProgress, PreBlock, TableOfContents, MobileToc, SearchModal, BackToTop). Larger features get their own files in `components/`.
+- Hooks follow a consistent pattern: useState + localStorage read/write + callback functions. See `useDarkMode.ts` as the canonical example.
 
 ### Data flow
-- `data.js` exports `menuStructure` (defines all guide categories/items), `contentFiles` (eager glob of all markdown), and utility functions. This is the single source of truth for content structure.
-- `cheatSheets` array in `data.js` defines cheat sheet routes separately from guide categories.
+- `data.ts` exports `menuStructure` (defines all guide categories/items), `contentFiles` (eager glob of all markdown), and utility functions. This is the single source of truth for content structure.
+- `cheatSheets` array in `data.ts` defines cheat sheet routes separately from guide categories.
 - All question extraction happens via `extractQuestions()` which parses two markdown patterns (JS output-style `## QN` and standard `**QN: text**`).
 
 ### Content
@@ -42,7 +42,7 @@ Build must pass before pushing. The deploy workflow runs `prepare-content.js` th
 - **Heading IDs**: `createHeading` in ContentPage generates IDs via `slugify(getTextContent(children))`. Used by TOC, deep links, and bookmarks.
 - **Code blocks**: `PreBlock` wraps all `<pre>` elements, adds copy/try-it buttons. Mermaid blocks are detected by `language-mermaid` class and routed to `MermaidBlock`.
 - **JSX in Playground**: Detected via `/<[A-Z]/.test(code) || /render\s*\(/.test(code)`. Transpiled by lazy-loaded `@babel/standalone`. React scope injected via `new Function(...keys, code)(...values)`.
-- **Spaced Repetition**: SM-2 algorithm in `useSpacedRepetition.js`. Quality 4 = "Got It", 1 = "Study Again".
+- **Spaced Repetition**: SM-2 algorithm in `useSpacedRepetition.ts`. Quality 4 = "Got It", 1 = "Study Again".
 
 ### localStorage schema
 All persistence is in localStorage. Key schemas are documented in README.md. Important: never store sensitive data — this is a public study tool.
@@ -65,3 +65,11 @@ There are no automated tests. Verify changes by:
 2. `npm run dev` and manually check the affected feature
 3. Check both light and dark mode
 4. Check mobile responsive layout
+
+## What's New (Latest Changes)
+- **TypeScript migration** — All `.jsx`/`.js` files converted to `.tsx`/`.ts` with type annotations and `tsconfig.json`
+- **Git category** — New sidebar section with Git Guide (internals, branching, rebasing, workflows) and Git Comparisons
+- **Jest & React Testing Library guide** — Added to Front End section covering Jest, RTL patterns, hooks, Redux, forms, routing
+- **Git Workflows cheat sheet** — Interactive rebase, cherry-pick, bisect, reflog, Git Flow, GitHub Flow
+- **Mermaid rendering fixes** — `suppressErrorRendering`, off-screen container ref, DOM cleanup for orphaned elements
+- **"Try it" opens in new tab** — Code playground button uses `window.open()` instead of `navigate()` to preserve reading context

@@ -72,6 +72,7 @@ export const menuStructure: MenuSection[] = [
       { name: 'Redux Saga', path: '/frontend/redux-saga', file: './content/front-end/redux-saga-guide.md', officialDocs: [{ label: 'Redux-Saga', url: 'https://redux-saga.js.org' }] },
       { name: 'TanStack Query', path: '/frontend/tanstack-query', file: './content/front-end/tanstack-query-guide.md', officialDocs: [{ label: 'TanStack Query', url: 'https://tanstack.com/query/latest' }] },
       { name: 'Storybook', path: '/frontend/storybook', file: './content/front-end/storybook-guide.md', officialDocs: [{ label: 'Storybook', url: 'https://storybook.js.org/docs' }] },
+      { name: 'Jest & React Testing Library', path: '/frontend/jest-react-testing-library', file: './content/front-end/jest-react-testing-library-guide.md', officialDocs: [{ label: 'Jest', url: 'https://jestjs.io/docs/getting-started' }, { label: 'Testing Library', url: 'https://testing-library.com/docs/react-testing-library/intro' }] },
       { name: 'React Comparisons', path: '/frontend/comparisons', file: './content/front-end/react-comparisons.md', officialDocs: [] },
     ]
   },
@@ -122,6 +123,19 @@ export const menuStructure: MenuSection[] = [
       { name: 'CloudWatch & Monitoring', path: '/aws/cloudwatch', file: './content/aws/aws-cloudwatch-guide.md', officialDocs: [{ label: 'AWS CloudWatch', url: 'https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring' }] },
       { name: 'Frontend Deployment', path: '/aws/frontend-deployment', file: './content/aws/aws-frontend-deployment-guide.md', officialDocs: [{ label: 'AWS CloudFront', url: 'https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide' }] },
       { name: 'AWS Comparisons', path: '/aws/comparisons', file: './content/aws/aws-comparisons.md', officialDocs: [] },
+    ]
+  },
+  {
+    name: 'Git',
+    icon: GitCompare,
+    gradient: 'from-slate-500 to-gray-400',
+    lightBg: 'bg-slate-50',
+    darkBg: 'dark:bg-slate-950/30',
+    accent: 'text-slate-600 dark:text-slate-400',
+    description: 'Branching, merging, rebasing, workflows & internals',
+    items: [
+      { name: 'Git Guide', path: '/git/guide', file: './content/git/git-guide.md', officialDocs: [{ label: 'Git Docs', url: 'https://git-scm.com/doc' }, { label: 'Learn Git Branching', url: 'https://learngitbranching.js.org' }] },
+      { name: 'Git Comparisons', path: '/git/comparisons', file: './content/git/git-comparisons.md', officialDocs: [] },
     ]
   },
   {
@@ -328,6 +342,7 @@ export const cheatSheets: CheatSheet[] = [
   { name: 'React Hooks', path: '/cheatsheets/react-hooks', file: './content/cheatsheets/react-hooks.md', color: 'blue', description: 'useState, useEffect, useRef, useMemo, custom hooks' },
   { name: 'JavaScript ES6+', path: '/cheatsheets/javascript-es6', file: './content/cheatsheets/javascript-es6.md', color: 'amber', description: 'Destructuring, spread, promises, modules, optional chaining' },
   { name: 'Git Commands', path: '/cheatsheets/git-commands', file: './content/cheatsheets/git-commands.md', color: 'orange', description: 'Branching, merging, rebasing, undoing, remotes' },
+  { name: 'Git Workflows & Advanced', path: '/cheatsheets/git-workflows', file: './content/cheatsheets/git-workflows.md', color: 'teal', description: 'Interactive rebase, cherry-pick, bisect, reflog, worktrees, Git Flow, GitHub Flow' },
   { name: 'Big-O Notation', path: '/cheatsheets/big-o-notation', file: './content/cheatsheets/big-o-notation.md', color: 'emerald', description: 'Time/space complexity, data structures, sorting algorithms' },
   { name: 'CSS Flexbox & Grid', path: '/cheatsheets/css-flexbox-grid', file: './content/cheatsheets/css-flexbox-grid.md', color: 'violet', description: 'Flex containers, grid layouts, common patterns' },
   { name: 'HTTP Status Codes', path: '/cheatsheets/http-status-codes', file: './content/cheatsheets/http-status-codes.md', color: 'rose', description: '2xx success, 4xx client errors, 5xx server errors, REST mapping' },

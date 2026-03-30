@@ -1,5 +1,36 @@
 # What's New
 
+## Latest (March 2026)
+
+### TypeScript Migration
+- Entire codebase migrated from JavaScript to TypeScript (`.jsx` → `.tsx`, `.js` → `.ts`)
+- All components, hooks, and data files now have full type annotations
+- Added `tsconfig.json` with strict configuration
+
+### New Content: Git Category
+- **Git Guide** — Complete guide covering internals, branching, merging, rebasing, workflows, cherry-pick, stashing, tags, and advanced topics
+- **Git Comparisons** — Merge vs rebase, reset vs revert, fetch vs pull, and more comparison tables
+- New sidebar category with `GitCompare` icon
+
+### New Content: Jest & React Testing Library Guide
+- Comprehensive guide covering Jest fundamentals, matchers, mocking, and async testing
+- React Testing Library patterns for components, hooks, Redux, React Query, forms, and routing
+- Best practices and anti-patterns section
+
+### New Cheat Sheet: Git Workflows & Advanced
+- Interactive rebase, cherry-pick, bisect, reflog, worktrees
+- Git Flow, GitHub Flow, and trunk-based development patterns
+
+### Mermaid Diagram Rendering Fixes
+- Added `suppressErrorRendering` to prevent visual glitches on failed renders
+- Diagrams now render into an off-screen container ref for cleaner DOM handling
+- Automatic cleanup of orphaned Mermaid elements from the DOM after render
+
+### "Try It" Opens in New Tab
+- Code playground "Try it" button now opens in a new browser tab instead of navigating away from the current guide
+
+---
+
 ## March 2026
 
 ### Quiz Difficulty Filters
