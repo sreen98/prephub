@@ -2,265 +2,271 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://sreen98.github.io/interview-prep/</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/quiz</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/playground</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/interview</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/review</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/bookmarks</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/cheatsheets</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/changelog</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/frontend/react</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/frontend/redux-toolkit</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/frontend/redux-saga</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/frontend/tanstack-query</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/frontend/storybook</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/frontend/jest-react-testing-library</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://sreen98.github.io/interview-prep/frontend/tooling</loc>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/frontend/comparisons</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/javascript/guide</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/javascript/typescript</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/javascript/comparisons</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/backend/nodejs</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/backend/expressjs</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/backend/mongodb</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/backend/api-design</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/backend/database-schema</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/backend/comparisons</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/aws/iam</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/aws/ec2</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/aws/s3</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/aws/lambda</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/aws/cloudwatch</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/aws/frontend-deployment</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/aws/comparisons</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/git/guide</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/git/comparisons</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/dsa/guide</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/behavioral/guide</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/system-design/guide</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/system-design/comparisons</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/cheatsheets/react-hooks</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/cheatsheets/javascript-es6</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/cheatsheets/git-commands</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/cheatsheets/git-workflows</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/cheatsheets/big-o-notation</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/cheatsheets/css-flexbox-grid</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://sreen98.github.io/interview-prep/cheatsheets/http-status-codes</loc>
-    <lastmod>2026-03-30</lastmod>
+    <lastmod>2026-04-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
