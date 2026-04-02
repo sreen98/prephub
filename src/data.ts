@@ -98,13 +98,14 @@ export const menuStructure: MenuSection[] = [
     lightBg: 'bg-emerald-50',
     darkBg: 'dark:bg-emerald-950/30',
     accent: 'text-emerald-600 dark:text-emerald-400',
-    description: 'Node.js, Express, MongoDB, API Design & Database Schema',
+    description: 'Node.js, Express, MongoDB, API Design, CORS & Database Schema',
     items: [
       { name: 'Node.js Guide', path: '/backend/nodejs', file: './content/back-end/nodejs-guide.md', officialDocs: [{ label: 'Node.js', url: 'https://nodejs.org/docs/latest/api' }] },
       { name: 'Express.js Guide', path: '/backend/expressjs', file: './content/back-end/expressjs-guide.md', officialDocs: [{ label: 'Express.js', url: 'https://expressjs.com' }] },
       { name: 'MongoDB Guide', path: '/backend/mongodb', file: './content/back-end/mongodb-guide.md', officialDocs: [{ label: 'MongoDB Manual', url: 'https://www.mongodb.com/docs/manual' }] },
       { name: 'API Design', path: '/backend/api-design', file: './content/back-end/api-design-guide.md', officialDocs: [{ label: 'OpenAPI Spec', url: 'https://swagger.io/specification' }] },
       { name: 'Database Schema', path: '/backend/database-schema', file: './content/back-end/database-schema-guide.md', officialDocs: [{ label: 'MongoDB Data Modeling', url: 'https://www.mongodb.com/docs/manual/data-modeling' }] },
+      { name: 'CORS', path: '/backend/cors', file: './content/back-end/cors-guide.md', officialDocs: [{ label: 'MDN CORS', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS' }] },
       { name: 'Backend Comparisons', path: '/backend/comparisons', file: './content/back-end/backend-comparisons.md', officialDocs: [] },
     ]
   },

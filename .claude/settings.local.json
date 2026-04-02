@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(node scripts/prepare-content.js)",
+      "Bash(npx --yes gtimeout 8 npm run dev)",
+      "Bash(find /Users/sreenathp/Documents/Mine/otherwork -name *.md -type f)",
+      "Bash(find '/Users/sreenathp/Documents/Mine/otherwork/Interview prep/interview-prep/web/src/content' -type f -name *.md)",
+      "Bash(npm install:*)",
+      "Bash(sips -s format png --resampleWidth 192 public/pwa-192x192.svg --out public/pwa-192x192.png)",
+      "Bash(sips -s format png --resampleWidth 512 public/pwa-192x192.svg --out public/pwa-512x512.png)",
+      "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(''react:'', p.dependencies.react, ''react-dom:'', p.dependencies[''react-dom'']\\)\")",
+      "WebSearch",
+      "WebFetch(domain:devprepped.com)",
+      "WebFetch(domain:stackdrill.com)",
+      "Bash(curl -s \"https://www.google.com/search?q=sreenathpreps\" -H \"User-Agent: Mozilla/5.0\")",
+      "Bash(ls /Users/sreenathp/Documents/Mine/otherwork/Interview prep/interview-prep/web/tsconfig*)",
+      "Bash(cd:*)",
+      "Bash(! ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(ls \"/Users/sreenathp/Documents/Mine/otherwork/Interview prep/interview-prep/web/src/\"*.d.ts)",
+      "Bash(ls \"/Users/sreenathp/Documents/Mine/otherwork/Interview prep/interview-prep/web/\"*.d.ts)",
+      "Bash(ls \"/Users/sreenathp/Documents/Mine/otherwork/Interview prep/interview-prep/web/src/vite-env\"*)",
+      "Bash(npx vite:*)",
+      "Bash(ls:*)",
+      "Bash(git -C /Users/sreenathp/Documents/Mine/otherwork/Interview prep/interview-prep log --all --oneline --name-only)",
+      "Bash(git -C /Users/sreenathp/Documents/Mine/otherwork/Interview prep/interview-prep log --all -p --follow -- web/src/content/front-end/jest-react-testing-library-guide.md)",
+      "Bash(find /Users/sreenathp/Documents/Mine/otherwork/Interview prep/interview-prep -type f \\\\\\(-name index.ts -o -name index.tsx -o -name index.js -o -name index.json -o -name _*.md \\\\\\) ! -path */node_modules/*)",
+      "WebFetch(domain:learngitbranching.js.org)",
+      "Bash(npm ls:*)",
+      "Bash(grep -E \"\\\\.\\(txt|xml|json|webmanifest\\)$\")",
+      "Bash(grep -E \"\\\\.tsx?$\")",
+      "Bash(cp -r web/src .)",
+      "Bash(cp -r web/public .)",
+      "Bash(cp -r web/scripts .)",
+      "Bash(cp web/index.html .)",
+      "Bash(cp web/package.json .)",
+      "Bash(rm:*)",
+      "Bash(grep -v -E '^\\(node_modules|dist|\\\\.git\\)$')"
+    ]
+  }
+}

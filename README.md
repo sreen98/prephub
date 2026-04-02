@@ -7,8 +7,8 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 ## Features
 
 ### Study Content
-- **20+ Guides** across 5 categories: Front End (React, Redux, TanStack Query, Storybook, Testing, Frontend Tooling), JS & TS, Back End, AWS, System Design
-- **6 Cheat Sheets** — condensed quick reference cards (React Hooks, JS ES6+, Git, Big-O, CSS Flexbox/Grid, HTTP Status Codes)
+- **20+ Guides** across 8 categories: Front End (React, Redux, TanStack Query, Storybook, Testing, Frontend Tooling), JS & TS, Back End (Node.js, Express, MongoDB, API Design, CORS, Database Schema), AWS, Git, DSA, Behavioral, System Design
+- **7 Cheat Sheets** — condensed quick reference cards (React Hooks, JS ES6+, Git Commands, Git Workflows, Big-O, CSS Flexbox/Grid, HTTP Status Codes)
 - **Mermaid Diagrams** — architecture diagrams rendered as interactive visuals
 - **Syntax-highlighted code blocks** with copy and "Try it" buttons
 - **Reading time estimates** on every guide
@@ -53,49 +53,51 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 
 ```
 interview-prep/
-  web/
-    src/
-      App.tsx                    # Main app: layout, sidebar, routes, ContentPage, HomePage
-      data.ts                    # menuStructure, contentFiles, utilities, cheatSheets
-      main.tsx                   # Entry point (BrowserRouter)
-      index.css                  # Tailwind + custom styles
-      components/
-        QuizMode.tsx             # Flashcard quiz with difficulty/guide filters
-        ReviewPage.tsx           # Spaced repetition daily review
-        InterviewSimulator.tsx   # Timed mock interview (setup/interview/results)
-        CodePlayground.tsx       # JS/React code editor with template drawer
-        BookmarksPage.tsx        # Saved bookmarks listing
-        CheatSheetsIndex.tsx     # Cheat sheet card grid
-        MermaidBlock.tsx         # Lazy mermaid diagram renderer
-        StreakCelebration.tsx    # Streak milestone celebration overlay
-        Toast.tsx                # Reusable toast notification
-        TTSControls.tsx          # Text-to-speech playback controls
-      hooks/
-        useDarkMode.ts           # Theme toggle (localStorage)
-        useReadingPrefs.ts       # Font size S/M/L (localStorage)
-        useProgress.ts           # Guide completion tracking (localStorage)
-        useBookmarks.ts          # Bookmark management (localStorage)
-        useSpacedRepetition.ts   # SM-2 algorithm scheduling (localStorage)
-        useStudyStats.ts         # Streak & gamification stats (localStorage)
-        useTextToSpeech.ts       # Web Speech API wrapper
-      content/
-        front-end/               # React, Redux, TanStack Query, Storybook, Testing, Frontend Tooling guides
-        javascript-and-typescript/
-        back-end/                # Node.js, Express, MongoDB, API Design guides
-        aws/                     # IAM, EC2, S3, Lambda, CloudWatch guides
-        system-design/
-        cheatsheets/             # 6 quick reference sheets
-        changelog.md
-    public/                      # PWA icons, favicon
-    vite.config.js               # Vite + PWA plugin config
-    tailwind.config.js
-  .github/workflows/deploy.yml   # GitHub Pages CI/CD
+  src/
+    App.tsx                    # Main app: layout, sidebar, routes, ContentPage, HomePage
+    data.ts                    # menuStructure, contentFiles, utilities, cheatSheets
+    main.tsx                   # Entry point (BrowserRouter)
+    index.css                  # Tailwind + custom styles
+    components/
+      QuizMode.tsx             # Flashcard quiz with difficulty/guide filters
+      ReviewPage.tsx           # Spaced repetition daily review
+      InterviewSimulator.tsx   # Timed mock interview (setup/interview/results)
+      CodePlayground.tsx       # JS/React code editor with template drawer
+      BookmarksPage.tsx        # Saved bookmarks listing
+      CheatSheetsIndex.tsx     # Cheat sheet card grid
+      MermaidBlock.tsx         # Lazy mermaid diagram renderer
+      StreakCelebration.tsx    # Streak milestone celebration overlay
+      Toast.tsx                # Reusable toast notification
+      TTSControls.tsx          # Text-to-speech playback controls
+    hooks/
+      useDarkMode.ts           # Theme toggle (localStorage)
+      useReadingPrefs.ts       # Font size S/M/L (localStorage)
+      useProgress.ts           # Guide completion tracking (localStorage)
+      useBookmarks.ts          # Bookmark management (localStorage)
+      useSpacedRepetition.ts   # SM-2 algorithm scheduling (localStorage)
+      useStudyStats.ts         # Streak & gamification stats (localStorage)
+      useTextToSpeech.ts       # Web Speech API wrapper
+    content/
+      front-end/               # React, Redux, TanStack Query, Storybook, Testing, Frontend Tooling guides
+      javascript-and-typescript/
+      back-end/                # Node.js, Express, MongoDB, API Design, CORS, Database Schema guides
+      aws/                     # IAM, EC2, S3, Lambda, CloudWatch guides
+      git/                     # Git Guide, Git Comparisons
+      dsa/                     # Data structures & algorithms
+      behavioral/              # STAR method, leadership principles
+      system-design/
+      cheatsheets/             # 7 quick reference sheets
+      changelog.md
+  scripts/                     # prepare-content.js, generate-sitemap.js
+  public/                      # PWA icons, favicon
+  vite.config.js               # Vite + PWA plugin config
+  tailwind.config.js
+  .github/workflows/deploy.yml # GitHub Pages CI/CD
 ```
 
 ## Development
 
 ```bash
-cd web
 npm install
 npm run dev        # Start dev server
 npm run build      # Production build
@@ -119,9 +121,10 @@ npm run preview    # Preview production build
 ## Deployment
 
 Push to `main` branch triggers automatic deployment via GitHub Actions:
-1. Copies markdown content to `web/src/content/`
-2. Builds with Vite
-3. Deploys `dist/` to GitHub Pages
+1. Installs dependencies
+2. Runs `prepare-content.js` (copies any root-level markdown to `src/content/`)
+3. Builds with Vite
+4. Deploys `dist/` to GitHub Pages
 
 ---
 

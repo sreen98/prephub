@@ -3,8 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(__dirname, '../../');
-const webContentDir = path.resolve(rootDir, 'web/src/content');
+const rootDir = path.resolve(__dirname, '../');
+const webContentDir = path.resolve(rootDir, 'src/content');
 
 const dirsToCopy = [
   'Back End',

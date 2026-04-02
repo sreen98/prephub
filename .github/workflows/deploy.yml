@@ -21,25 +21,18 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies 🔧
-        run: |
-          cd web
-          npm install
+        run: npm install
 
       - name: Prepare content 📝
-        run: |
-          cd web
-          node scripts/prepare-content.js
+        run: node scripts/prepare-content.js
 
       - name: Build 🏗️
-        run: |
-          cd web
-          npm run build
+        run: npm run build
 
       - name: Deploy 🚀
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./web/dist
+          publish_dir: ./dist

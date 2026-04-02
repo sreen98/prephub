@@ -4,16 +4,17 @@
 PrepHub is an interview preparation web app. It renders markdown study guides as a modern React site with interactive features (quiz, playground, spaced repetition, interview simulator). Hosted on GitHub Pages as a static PWA — no backend, all state in localStorage.
 
 ## Repository layout
-- `/web/` — the React web app (this is where all code lives)
-- Root-level markdown folders (`Back End/`, `Front End/`, etc.) — source content, copied to `web/src/content/` at build time by `web/scripts/prepare-content.js`
+- `/src/` — React app source code (components, hooks, content, styles)
+- `/scripts/` — build scripts (`prepare-content.js`, `generate-sitemap.js`)
+- `/public/` — static assets (icons, favicon, robots.txt)
+- `/src/content/` — markdown study guides loaded at build time
 - `.github/workflows/deploy.yml` — CI/CD to GitHub Pages
 
 ## Build & run
 ```bash
-cd web
 npm install
 npm run dev          # local dev server at localhost:5173
-npm run build        # production build → web/dist/
+npm run build        # production build → dist/
 ```
 Build must pass before pushing. The deploy workflow runs `prepare-content.js` then `npm run build`.
 
@@ -29,9 +30,9 @@ Build must pass before pushing. The deploy workflow runs `prepare-content.js` th
 - All question extraction happens via `extractQuestions()` which parses two markdown patterns (JS output-style `## QN` and standard `**QN: text**`).
 
 ### Content
-- Markdown files in `web/src/content/` are loaded at build time via `import.meta.glob` with eager loading. They're bundled into the JS, not served as separate files.
+- Markdown files in `src/content/` are loaded at build time via `import.meta.glob` with eager loading. They're bundled into the JS, not served as separate files.
 - Mermaid diagrams use ` ```mermaid ` code blocks in markdown. The `MermaidBlock` component lazy-loads the mermaid library.
-- The `prepare-content.js` script copies root-level markdown to `web/src/content/` with directory name transforms (e.g., "Back End" → "back-end").
+- The `prepare-content.js` script can copy root-level markdown folders to `src/content/` with directory name transforms (e.g., "Back End" → "back-end").
 
 ### Styling
 - Tailwind CSS with custom prose styles in `index.css` (not the @tailwindcss/typography plugin).
@@ -57,7 +58,7 @@ All persistence is in localStorage. Key schemas are documented in README.md. Imp
 ### Deployment
 - Base path is `/interview-prep/` (configured in `vite.config.js` and BrowserRouter basename).
 - PWA configured via `vite-plugin-pwa` with `autoUpdate` registration.
-- Icons in `web/public/` (pwa-192x192.png, pwa-512x512.png).
+- Icons in `public/` (pwa-192x192.png, pwa-512x512.png).
 
 ### Testing
 There are no automated tests. Verify changes by:
@@ -66,13 +67,16 @@ There are no automated tests. Verify changes by:
 3. Check both light and dark mode
 4. Check mobile responsive layout
 
-## After making changes
-When any changes are made to this project, update the following files if required:
-- **`CLAUDE.md`** — Update this file if the change affects architecture, patterns, content structure, or instructions (e.g., new categories, new components, new conventions).
-- **`README.md`** — Update if the change is user-facing (new features, new guides, updated counts, tech stack changes).
-- **`web/src/content/changelog.md`** — Update if the change is something the end user should see (new content, new features, UI changes, bug fixes). This powers the in-app "What's New" modal.
+## After making changes — MANDATORY
+**Every change, no matter how small, MUST check and update these three files before finishing. Do NOT wait for the user to remind you. This is a blocking requirement — do it automatically as the final step of every task.**
+
+1. **`CLAUDE.md`** — Update if the change affects architecture, patterns, content structure, or instructions (e.g., new categories, new components, new conventions, repo structure).
+2. **`README.md`** — Update if the change is user-facing (new features, new guides, updated counts, tech stack changes, project structure, dev commands).
+3. **`src/content/changelog.md`** — Update if the change is something the end user should see (new content, new features, UI changes, bug fixes). This powers the in-app "What's New" modal.
 
 ## What's New (Latest Changes)
+- **CORS guide** — New Back End guide covering Same-Origin Policy, CORS headers, preflight, credentialed requests, Express.js configuration, debugging, and 15 interview Q&A
+- **Flattened repo structure** — Moved app from `web/` subfolder to root. All configs, `src/`, `scripts/`, `public/` now live at the repo root.
 - **Frontend Tooling guide** — New Front End guide covering Webpack, Vite, npm/yarn/pnpm, bundler comparisons, package.json, npx, and 20 interview Q&A
 - **React Machine Coding challenges** — 10 new playground templates: Pagination, Search Filter, Chat App, Modal, Image Gallery + Lazy Load, Drag-and-Drop, Product List Sort & Filter, Responsive Navbar, Infinite Scroll, Notifications
 - **TypeScript migration** — All `.jsx`/`.js` files converted to `.tsx`/`.ts` with type annotations and `tsconfig.json`
