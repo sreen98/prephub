@@ -1,5 +1,23 @@
 # What's New
 
+## v1.0.2 (April 2026)
+
+### Tricky Output Questions — 7 Guides
+
+Added "Guess the Output" sections with code snippets and detailed explanations to 7 guides:
+
+- **React** (16 questions) — State batching, stale closures, useEffect timing, refs, reconciliation, hooks rules
+- **TypeScript** (16 questions) — Type inference & widening, narrowing, generics, conditional types, structural typing, `any` vs `unknown`
+- **Node.js** (12 questions) — Event loop ordering (`nextTick` vs `Promise` vs `setTimeout` vs `setImmediate`), streams, modules, circular deps
+- **Redux Saga** (10 questions) — Generator step-by-step, `call` vs `fork`, `takeLatest` cancellation, `race`, `all`, error propagation
+- **Express.js** (10 questions) — Middleware execution chain, error handling flow, `next('route')`, async errors, double response
+- **MongoDB** (10 questions) — Query behavior, dot notation vs exact match, `$push` vs `$addToSet`, aggregation pipeline order, `$unwind`, `$lookup`
+- **Redux Toolkit** (10 questions) — Immer mutations, state references, selector memoization, `createAsyncThunk` lifecycle, middleware order, serializability
+
+Each section includes a 10-rule cheat sheet summary.
+
+---
+
 ## v1.0.0 (April 2026)
 
 ### Repo Renamed to PrepHub

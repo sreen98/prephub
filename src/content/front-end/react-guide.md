@@ -22,6 +22,7 @@
 - [14. Patterns and Best Practices](#14-patterns-and-best-practices)
 - [15. React 19 Features](#15-react-19-features)
 - [16. Interview Questions & Answers](#16-interview-questions--answers)
+- [17. Tricky Output Questions](#17-tricky-output-questions)
 
 ---
 
@@ -1626,6 +1627,476 @@ class ErrorBoundary extends React.Component<
 ```
 
 Error boundaries must be class components (no hook equivalent yet). They catch rendering errors, lifecycle errors, and constructor errors — but NOT event handler errors, async errors, or SSR errors.
+
+---
+
+## 17. Tricky Output Questions
+
+Practice questions testing your understanding of React rendering behavior, hooks quirks, state batching, and closures.
+
+### State & Batching
+
+---
+
+**Q1: setState is asynchronous — what logs?**
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    setCount(count + 1);
+    setCount(count + 1);
+    setCount(count + 1);
+    console.log(count);
+  }
+
+  return <button onClick={handleClick}>{count}</button>;
+}
+```
+
+**Output:** `0` (on first click)
+
+**Rendered value:** `1`
+
+All three `setCount` calls use the same stale `count` (0) from the closure. Each call sets state to `0 + 1 = 1`, so the final state is `1`, not `3`. The `console.log` reads the stale closure value `0`.
+
+---
+
+**Q2: Functional updater — what renders?**
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    setCount(prev => prev + 1);
+    setCount(prev => prev + 1);
+    setCount(prev => prev + 1);
+  }
+
+  return <button onClick={handleClick}>{count}</button>;
+}
+```
+
+**Rendered value after first click:** `3`
+
+Unlike Q1, functional updaters receive the latest pending state. Each call chains: `0→1→2→3`. React batches all three but applies the updaters sequentially.
+
+---
+
+**Q3: Mixing direct and functional updates**
+
+```jsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    setCount(count + 1);
+    setCount(prev => prev + 1);
+    setCount(count + 1);
+  }
+
+  return <p>{count}</p>;
+}
+```
+
+**Rendered value after first click:** `1`
+
+- `setCount(0 + 1)` → pending state becomes `1`
+- `setCount(prev => prev + 1)` → `1 + 1` → pending state becomes `2`
+- `setCount(0 + 1)` → overwrites pending state back to `1`
+
+The last direct `setCount(count + 1)` uses the stale closure `count = 0`, so it resets to `1`.
+
+---
+
+**Q4: State update in a loop — how many re-renders?**
+
+```jsx
+function App() {
+  const [count, setCount] = useState(0);
+  console.log("render", count);
+
+  function handleClick() {
+    for (let i = 0; i < 5; i++) {
+      setCount(prev => prev + 1);
+    }
+  }
+
+  return <button onClick={handleClick}>{count}</button>;
+}
+```
+
+**Output on click:**
+```
+render 5
+```
+
+React batches all state updates within event handlers (React 18+). Despite 5 `setCount` calls, there is only **one** re-render with the final value `5`.
+
+---
+
+### useEffect & Lifecycle
+
+---
+
+**Q5: What order do the logs appear?**
+
+```jsx
+function App() {
+  console.log("A: render");
+
+  useEffect(() => {
+    console.log("B: effect");
+    return () => console.log("C: cleanup");
+  });
+
+  useEffect(() => {
+    console.log("D: mount effect");
+  }, []);
+
+  console.log("E: render end");
+
+  return <div>Hello</div>;
+}
+```
+
+**Output on mount:**
+```
+A: render
+E: render end
+B: effect
+D: mount effect
+```
+
+Render body runs first (A, E). Effects run after the browser paints, in declaration order (B, D). The cleanup (C) only runs on subsequent re-renders or unmount — not on mount.
+
+---
+
+**Q6: Stale closure in useEffect**
+
+```jsx
+function Timer() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      console.log(count);
+      setCount(count + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return <p>{count}</p>;
+}
+```
+
+**Console output:** `0, 0, 0, 0, ...` (repeats forever)
+
+**Rendered value:** Flickers between `0` and `1`
+
+The effect runs once (empty deps), closing over `count = 0`. Every interval tick reads stale `count` (always `0`) and sets state to `1`. Fix: use `setCount(prev => prev + 1)`.
+
+---
+
+**Q7: useEffect dependency trap**
+
+```jsx
+function App() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    console.log("effect ran");
+  }, [{ key: "value" }]);
+
+  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
+}
+```
+
+**Output:** `"effect ran"` logs on **every** render.
+
+Objects are compared by reference. `{ key: "value" }` creates a new object on every render, so React always sees the dependency as changed. This is equivalent to having no dependency array at all.
+
+---
+
+### Closures & Refs
+
+---
+
+**Q8: setTimeout captures stale state**
+
+```jsx
+function App() {
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    setCount(5);
+    setTimeout(() => {
+      console.log(count);
+    }, 1000);
+  }
+
+  return <button onClick={handleClick}>{count}</button>;
+}
+```
+
+**Console output (1s later):** `0`
+
+**Rendered value:** `5`
+
+The `setTimeout` callback closes over the `count` value at the time of the click (`0`). Even though the component re-renders with `5`, the timeout still reads the old closure. To get the latest value, use a ref.
+
+---
+
+**Q9: useRef doesn't trigger re-render**
+
+```jsx
+function App() {
+  const ref = useRef(0);
+  const [, forceRender] = useState(0);
+
+  function handleClick() {
+    ref.current += 1;
+    console.log("ref:", ref.current);
+  }
+
+  return (
+    <div>
+      <p>Ref value: {ref.current}</p>
+      <button onClick={handleClick}>Increment ref</button>
+      <button onClick={() => forceRender(n => n + 1)}>Force render</button>
+    </div>
+  );
+}
+```
+
+**After clicking "Increment ref" 3 times:**
+- Console: `ref: 1`, `ref: 2`, `ref: 3`
+- Screen shows: `Ref value: 0` (unchanged)
+
+**After then clicking "Force render":**
+- Screen shows: `Ref value: 3`
+
+Mutating `ref.current` does not trigger a re-render. The UI only updates when React re-renders for another reason.
+
+---
+
+### Rendering & Reconciliation
+
+---
+
+**Q10: Parent re-render — does child re-render?**
+
+```jsx
+function Child() {
+  console.log("Child rendered");
+  return <p>Child</p>;
+}
+
+function Parent() {
+  const [count, setCount] = useState(0);
+  console.log("Parent rendered");
+
+  return (
+    <div>
+      <button onClick={() => setCount(c => c + 1)}>Click</button>
+      <Child />
+    </div>
+  );
+}
+```
+
+**Output on each click:**
+```
+Parent rendered
+Child rendered
+```
+
+Child re-renders on **every** parent re-render even though it takes no props. React doesn't know if Child depends on context or other state. Fix: wrap with `React.memo(Child)`.
+
+---
+
+**Q11: React.memo with object props**
+
+```jsx
+const Child = React.memo(({ style }) => {
+  console.log("Child rendered");
+  return <p style={style}>Hello</p>;
+});
+
+function Parent() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div>
+      <button onClick={() => setCount(c => c + 1)}>{count}</button>
+      <Child style={{ color: "red" }} />
+    </div>
+  );
+}
+```
+
+**Output on each click:**
+```
+Child rendered
+```
+
+`React.memo` does a shallow comparison. `{ color: "red" }` is a new object every render, so the shallow compare fails and Child re-renders. Fix: memoize with `useMemo` or move the object outside the component.
+
+---
+
+**Q12: Same state — does it re-render?**
+
+```jsx
+function App() {
+  const [count, setCount] = useState(0);
+  console.log("rendered");
+
+  return <button onClick={() => setCount(0)}>Click</button>;
+}
+```
+
+**Output on first click:** `rendered`
+**Output on second click:** (nothing)
+
+On the first click, React may still re-render to verify (bail-out render). On subsequent clicks with the same value, React short-circuits and skips the render entirely.
+
+---
+
+**Q13: Key prop forces remount**
+
+```jsx
+function Input() {
+  const [text, setText] = useState("");
+  console.log("Input mounted");
+
+  return <input value={text} onChange={e => setText(e.target.value)} />;
+}
+
+function App() {
+  const [id, setId] = useState(1);
+
+  return (
+    <div>
+      <Input key={id} />
+      <button onClick={() => setId(id + 1)}>Reset</button>
+    </div>
+  );
+}
+```
+
+**On clicking "Reset":** Input field clears, console logs `Input mounted`.
+
+Changing the `key` tells React this is a completely different component instance. React unmounts the old one and mounts a new one, resetting all internal state.
+
+---
+
+### Hooks Rules & Gotchas
+
+---
+
+**Q14: Conditional hook — what happens?**
+
+```jsx
+function App({ showName }) {
+  const [count, setCount] = useState(0);
+
+  if (showName) {
+    const [name, setName] = useState("React");
+  }
+
+  const [age, setAge] = useState(25);
+
+  return <p>{count} {age}</p>;
+}
+```
+
+**Output:** Runtime error when `showName` toggles.
+
+React tracks hooks by call order. If `showName` changes from `true` to `false`, the second `useState` call now returns what was `age`'s state. React detects the mismatch and throws: "Rendered more hooks than during the previous render."
+
+---
+
+**Q15: useEffect cleanup timing**
+
+```jsx
+function App() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    console.log("setup", count);
+    return () => console.log("cleanup", count);
+  }, [count]);
+
+  return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
+}
+```
+
+**Output after mount:** `setup 0`
+
+**Output after first click:**
+```
+cleanup 0
+setup 1
+```
+
+**Output after second click:**
+```
+cleanup 1
+setup 2
+```
+
+Cleanup runs with the **previous** render's values (stale closure from when the effect was created), then setup runs with the new values.
+
+---
+
+**Q16: useState initializer runs once**
+
+```jsx
+function expensiveInit() {
+  console.log("init called");
+  return 42;
+}
+
+function App() {
+  const [value, setValue] = useState(expensiveInit);
+  console.log("render", value);
+
+  return <button onClick={() => setValue(v => v + 1)}>{value}</button>;
+}
+```
+
+**Output on mount:**
+```
+init called
+render 42
+```
+
+**Output on click:**
+```
+render 43
+```
+
+When you pass a **function** to `useState` (not `expensiveInit()` but `expensiveInit`), React calls it only on the first render. Subsequent renders skip the initializer entirely.
+
+---
+
+### Key Rules
+
+```
+React Output Cheat Sheet:
+1. setState with direct value uses the closure value (may be stale)
+2. setState with function updater gets the latest pending state
+3. React 18+ batches all state updates in event handlers
+4. useEffect runs AFTER browser paint, not during render
+5. useEffect cleanup captures values from the render it was created in
+6. Object/array deps in useEffect always trigger re-runs (reference equality)
+7. React.memo does shallow compare — new object refs bypass it
+8. Changing `key` completely remounts the component
+9. Hooks must be called in the same order every render
+10. useRef mutations don't trigger re-renders
+```
 
 ---
 

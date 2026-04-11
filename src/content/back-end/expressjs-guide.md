@@ -17,6 +17,7 @@
 - [13. Testing](#13-testing)
 - [14. Performance](#14-performance)
 - [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [16. Tricky Output Questions](#16-tricky-output-questions)
 
 ---
 
@@ -1398,6 +1399,334 @@ const createUserSchema = z.object({
 });
 
 app.post('/users', validate(createUserSchema), handler);
+```
+
+---
+
+## 16. Tricky Output Questions
+
+Practice questions testing your understanding of Express middleware execution order, error handling flow, and request/response lifecycle.
+
+### Middleware Execution Order
+
+---
+
+**Q1: What order do middlewares execute?**
+
+```js
+app.use((req, res, next) => {
+  console.log("A");
+  next();
+  console.log("B");
+});
+
+app.use((req, res, next) => {
+  console.log("C");
+  next();
+  console.log("D");
+});
+
+app.get("/", (req, res) => {
+  console.log("E");
+  res.send("OK");
+});
+```
+
+**Output for `GET /`:**
+```
+A
+C
+E
+D
+B
+```
+
+Middleware forms a call stack. `next()` passes control to the next middleware. Code **after** `next()` runs in reverse order as the stack unwinds — like an onion. This is important for logging, timing, and cleanup.
+
+---
+
+**Q2: Middleware short-circuit — what happens when next() isn't called?**
+
+```js
+app.use((req, res, next) => {
+  console.log("A");
+  next();
+});
+
+app.use((req, res, next) => {
+  console.log("B");
+  res.send("stopped");
+  // no next() call
+});
+
+app.use((req, res, next) => {
+  console.log("C");
+  next();
+});
+
+app.get("/", (req, res) => {
+  console.log("D");
+  res.send("OK");
+});
+```
+
+**Output for `GET /`:**
+```
+A
+B
+```
+
+When middleware sends a response without calling `next()`, the chain stops. `C` and `D` never execute. The response is "stopped". This is how auth middleware blocks unauthorized requests.
+
+---
+
+**Q3: Route-specific vs app-level middleware**
+
+```js
+app.use((req, res, next) => {
+  console.log("global");
+  next();
+});
+
+app.get("/api", (req, res, next) => {
+  console.log("route 1");
+  next();
+});
+
+app.get("/api", (req, res) => {
+  console.log("route 2");
+  res.send("OK");
+});
+```
+
+**Output for `GET /api`:**
+```
+global
+route 1
+route 2
+```
+
+**Output for `GET /other`:**
+```
+global
+```
+
+App-level middleware (`app.use`) runs for all routes. Multiple handlers on the same route execute in order when `next()` is called.
+
+---
+
+### Error Handling
+
+---
+
+**Q4: Error middleware — which handler catches the error?**
+
+```js
+app.get("/", (req, res, next) => {
+  console.log("A");
+  throw new Error("boom");
+});
+
+app.use((req, res, next) => {
+  console.log("B");
+  next();
+});
+
+app.use((err, req, res, next) => {
+  console.log("C:", err.message);
+  res.status(500).send("error");
+});
+```
+
+**Output for `GET /`:**
+```
+A
+C: boom
+```
+
+Synchronous errors thrown in route handlers are caught by Express and forwarded to the next **error middleware** (4 parameters). Regular middleware `B` is skipped entirely — Express jumps straight to error handlers.
+
+---
+
+**Q5: Async error — does Express catch it?**
+
+```js
+app.get("/", async (req, res) => {
+  console.log("A");
+  throw new Error("async boom");
+});
+
+app.use((err, req, res, next) => {
+  console.log("caught:", err.message);
+  res.status(500).send("error");
+});
+```
+
+**Output (Express 4):** Unhandled promise rejection — the error middleware does NOT fire.
+
+**Output (Express 5):** `A` then `caught: async boom` — Express 5 handles async errors.
+
+Express 4 does not catch rejected promises from async handlers. Fix: wrap with `next(err)` or use a wrapper: `const asyncHandler = fn => (req, res, next) => fn(req, res, next).catch(next)`.
+
+---
+
+**Q6: next('route') vs next(error)**
+
+```js
+app.get("/",
+  (req, res, next) => {
+    console.log("handler 1");
+    next("route");
+  },
+  (req, res, next) => {
+    console.log("handler 2");
+    next();
+  }
+);
+
+app.get("/", (req, res) => {
+  console.log("handler 3");
+  res.send("OK");
+});
+
+app.use((err, req, res, next) => {
+  console.log("error:", err);
+  res.status(500).send("error");
+});
+```
+
+**Output for `GET /`:**
+```
+handler 1
+handler 3
+```
+
+`next('route')` skips remaining handlers in the **current route** and jumps to the next matching route. `handler 2` is skipped, but `handler 3` (a separate `app.get`) still runs. Note: `next('route')` only works with `app.METHOD()` or `router.METHOD()`, not `app.use()`.
+
+---
+
+### Request/Response Quirks
+
+---
+
+**Q7: Double response — what happens?**
+
+```js
+app.get("/", (req, res) => {
+  res.send("first");
+  console.log("A");
+  res.send("second");
+  console.log("B");
+});
+```
+
+**Output:**
+```
+A
+Error: Cannot set headers after they are sent to the client
+```
+
+The client receives "first". After `res.send()`, the response is finished. `A` logs because `res.send()` doesn't stop execution. But the second `res.send()` throws. Always `return res.send()` or use `if/else` to prevent double responses.
+
+---
+
+**Q8: res.json() vs res.send() for objects**
+
+```js
+app.get("/", (req, res) => {
+  const data = { status: "ok", count: 0 };
+
+  res.send(data);   // A: Content-Type?
+  // vs
+  res.json(data);   // B: Content-Type?
+});
+```
+
+**Answer:**
+- A: `application/json` — `res.send()` detects objects and sets JSON content type
+- B: `application/json` — `res.json()` explicitly sets JSON content type
+
+Both produce the same result for objects. But `res.send(null)` sends an empty body, while `res.json(null)` sends the string `"null"`. Use `res.json()` for APIs for clarity.
+
+---
+
+**Q9: Middleware params — does it match?**
+
+```js
+app.param("id", (req, res, next, id) => {
+  console.log("param:", id);
+  next();
+});
+
+app.get("/users/:id", (req, res) => {
+  console.log("route:", req.params.id);
+  res.send("OK");
+});
+
+app.get("/posts/:id", (req, res) => {
+  console.log("posts:", req.params.id);
+  res.send("OK");
+});
+```
+
+**Output for `GET /users/42`:**
+```
+param: 42
+route: 42
+```
+
+**Output for `GET /posts/7`:**
+```
+param: 7
+posts: 7
+```
+
+`app.param("id")` fires for ANY route with an `:id` parameter. It runs before the route handler, making it useful for validation or loading resources.
+
+---
+
+**Q10: Middleware order matters — what's wrong?**
+
+```js
+app.use(express.json());
+
+app.post("/api", (req, res) => {
+  console.log("body:", req.body);
+  res.send("OK");
+});
+
+// vs
+
+app.post("/api", (req, res) => {
+  console.log("body:", req.body);
+  res.send("OK");
+});
+
+app.use(express.json());
+```
+
+**Output (first version):** `body: { name: "John" }` (parsed JSON)
+
+**Output (second version):** `body: undefined`
+
+Middleware registration order matters. In the second version, `express.json()` is registered AFTER the route, so `req.body` is never parsed. Always register body-parsing middleware before your routes.
+
+---
+
+### Key Rules
+
+```
+Express Output Cheat Sheet:
+1. Middleware executes in registration order — first registered, first called
+2. Code after next() runs in reverse order (stack unwinding)
+3. No next() = chain stops (short-circuit)
+4. Sync errors auto-forward to error middleware; async errors don't (Express 4)
+5. Error middleware must have exactly 4 params (err, req, res, next)
+6. next('route') skips current route's handlers, not all routes
+7. res.send() doesn't stop execution — use return
+8. app.param() fires for all routes with matching parameter
+9. Middleware order = registration order (body parser before routes)
+10. Multiple handlers on same route chain via next()
 ```
 
 ---

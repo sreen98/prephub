@@ -14,6 +14,7 @@
 - [10. Saga vs Thunk vs Listener Middleware](#10-saga-vs-thunk-vs-listener-middleware)
 - [11. Best Practices](#11-best-practices)
 - [12. Interview Questions & Answers](#12-interview-questions--answers)
+- [13. Tricky Output Questions](#13-tricky-output-questions)
 
 ---
 
@@ -1279,6 +1280,308 @@ Choose sagas when you need:
 6. **Long-running processes**: Background polling, sync, etc.
 
 For simple fetch-dispatch patterns, thunks or React Query are sufficient and simpler.
+
+---
+
+## 13. Tricky Output Questions
+
+Practice questions testing your understanding of generator execution, saga effect ordering, and concurrency helpers.
+
+### Generator Basics
+
+---
+
+**Q1: Generator step-by-step — what does each `.next()` return?**
+
+```js
+function* gen() {
+  console.log("A");
+  const x = yield 1;
+  console.log("B", x);
+  const y = yield 2;
+  console.log("C", y);
+  return 3;
+}
+
+const it = gen();
+console.log(it.next());
+console.log(it.next("hello"));
+console.log(it.next("world"));
+```
+
+**Output:**
+```
+A
+{ value: 1, done: false }
+B hello
+{ value: 2, done: false }
+C world
+{ value: 3, done: true }
+```
+
+- First `next()`: runs until first `yield`, prints `A`, yields `1`
+- `next("hello")`: resumes, `"hello"` becomes the value of `yield 1`, prints `B hello`, yields `2`
+- `next("world")`: resumes, `"world"` becomes the value of `yield 2`, prints `C world`, returns `3`
+
+The value passed to `next()` becomes the result of the `yield` expression that paused the generator.
+
+---
+
+**Q2: Generator — what happens with no argument to next()?**
+
+```js
+function* gen() {
+  const a = yield 1;
+  const b = yield 2;
+  console.log(a, b);
+}
+
+const it = gen();
+it.next();
+it.next();
+it.next();
+```
+
+**Output:** `undefined undefined`
+
+When `next()` is called without an argument, the `yield` expression evaluates to `undefined`. This is a common mistake — forgetting to pass values back into the generator.
+
+---
+
+**Q3: Generator return vs yield**
+
+```js
+function* gen() {
+  yield 1;
+  return 2;
+  yield 3;
+}
+
+const results = [...gen()];
+console.log(results);
+```
+
+**Output:** `[1]`
+
+The spread operator iterates until `done: true`. The `return 2` sets `done: true`, so the value `2` is not included in the iteration. `yield 3` is unreachable. Use `yield` for values meant to be iterated.
+
+---
+
+### Saga Effects
+
+---
+
+**Q4: What actions get dispatched and in what order?**
+
+```js
+function* saga() {
+  console.log("A");
+  yield put({ type: "FIRST" });
+  console.log("B");
+  yield call(api.fetch);
+  console.log("C");
+  yield put({ type: "SECOND" });
+  console.log("D");
+}
+```
+
+**Output (console logs and dispatched actions):**
+```
+A
+→ dispatch FIRST
+B
+(waits for api.fetch to resolve)
+C
+→ dispatch SECOND
+D
+```
+
+`put` dispatches synchronously and continues. `call` is blocking — the saga pauses until the promise/function resolves. This is why `SECOND` only dispatches after the API call completes.
+
+---
+
+**Q5: fork vs call — execution difference**
+
+```js
+function* parentSaga() {
+  console.log("1");
+  yield fork(childSaga);
+  console.log("2");
+  yield call(slowTask);
+  console.log("3");
+}
+
+function* childSaga() {
+  console.log("child start");
+  yield delay(1000);
+  console.log("child end");
+}
+```
+
+**Output:**
+```
+1
+child start
+2
+(waits for slowTask)
+3
+child end (after 1s, concurrent with parent)
+```
+
+`fork` starts the child saga **non-blocking** — the parent continues immediately. `call` is **blocking** — the parent waits. The child saga runs concurrently alongside the parent.
+
+---
+
+**Q6: takeLatest cancellation — which API call completes?**
+
+```js
+function* fetchSaga(action) {
+  console.log("fetch started:", action.id);
+  const data = yield call(api.fetch, action.id);
+  console.log("fetch completed:", action.id);
+  yield put({ type: "SUCCESS", data });
+}
+
+function* watchFetch() {
+  yield takeLatest("FETCH", fetchSaga);
+}
+
+// User dispatches rapidly:
+// dispatch({ type: "FETCH", id: 1 })  // at t=0
+// dispatch({ type: "FETCH", id: 2 })  // at t=50ms
+// dispatch({ type: "FETCH", id: 3 })  // at t=100ms
+```
+
+**Output:**
+```
+fetch started: 1
+fetch started: 2
+fetch started: 3
+fetch completed: 3
+→ dispatch SUCCESS (id: 3 data)
+```
+
+`takeLatest` cancels previous running instances when a new action arrives. Sagas for id 1 and 2 are cancelled at the `yield call` point. Only id 3 completes.
+
+---
+
+**Q7: select gets current state**
+
+```js
+// Initial state: { counter: 0 }
+
+function* saga() {
+  yield put({ type: "INCREMENT" }); // counter becomes 1
+  const count = yield select(state => state.counter);
+  console.log("count:", count);
+}
+```
+
+**Output:** `count: 1`
+
+`select` reads the state **after** previous `put` effects have been processed by reducers. Since `put` dispatches synchronously, the store is already updated when `select` runs.
+
+---
+
+### Concurrency & Race
+
+---
+
+**Q8: race — which effect wins?**
+
+```js
+function* saga() {
+  const { data, timeout } = yield race({
+    data: call(api.slowFetch),    // takes 5 seconds
+    timeout: delay(2000),          // 2 seconds
+  });
+
+  console.log("data:", data);
+  console.log("timeout:", timeout);
+}
+```
+
+**Output:**
+```
+data: undefined
+timeout: true
+```
+
+`race` resolves when the first effect completes. `delay(2000)` wins. The losing effect (`api.slowFetch`) is automatically cancelled. The winner's key gets its result, losers get `undefined`.
+
+---
+
+**Q9: all — parallel execution**
+
+```js
+function* saga() {
+  console.log("start");
+
+  const [users, posts] = yield all([
+    call(api.fetchUsers),    // takes 2s
+    call(api.fetchPosts),    // takes 3s
+  ]);
+
+  console.log("done");  // when does this log?
+}
+```
+
+**Output:**
+```
+start
+(both API calls run in parallel)
+done (after 3s, not 5s)
+```
+
+`all` runs effects in parallel and waits for ALL to complete. Total time = longest effect (3s), not sum of effects. If any effect fails, `all` is cancelled and throws.
+
+---
+
+**Q10: Error in forked task — does parent crash?**
+
+```js
+function* childSaga() {
+  yield delay(100);
+  throw new Error("child error");
+}
+
+function* parentSaga() {
+  try {
+    yield fork(childSaga);
+    console.log("parent continues");
+    yield delay(500);
+    console.log("parent done");
+  } catch (err) {
+    console.log("parent caught:", err.message);
+  }
+}
+```
+
+**Output:**
+```
+parent continues
+parent caught: child error
+```
+
+Errors in `fork`ed tasks bubble up to the parent. The parent's `try/catch` catches it. But note: `"parent done"` never logs because the error interrupts the parent at the `delay(500)`. Use `spawn` instead of `fork` for detached tasks where errors should NOT propagate.
+
+---
+
+### Key Rules
+
+```
+Redux Saga Output Cheat Sheet:
+1. yield value passed to next() becomes the result of yield expression
+2. Spread/for-of on generators ignores the return value
+3. call is blocking, fork is non-blocking
+4. put dispatches synchronously — reducers run before next yield
+5. takeLatest cancels previous saga instances
+6. race cancels the losing effects automatically
+7. all runs in parallel, waits for ALL, fails on ANY
+8. Forked task errors bubble up to parent
+9. spawn creates detached tasks (errors don't propagate)
+10. select reads state AFTER previous puts are processed
+```
 
 ---
 

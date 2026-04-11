@@ -15,6 +15,7 @@
 - [11. Performance](#11-performance)
 - [12. Security](#12-security)
 - [13. Interview Questions & Answers](#13-interview-questions--answers)
+- [14. Tricky Output Questions](#14-tricky-output-questions)
 
 ---
 
@@ -1378,6 +1379,288 @@ Use cases:
 - Event sourcing / audit trails
 
 Requires replica set. Uses the oplog internally.
+
+---
+
+## 14. Tricky Output Questions
+
+Practice questions testing your understanding of MongoDB query behavior, aggregation pipeline stages, and update operations.
+
+### Query Behavior
+
+---
+
+**Q1: What does `find` return with no matches?**
+
+```js
+const result = await db.collection('users').find({ age: 999 }).toArray();
+console.log(result);
+console.log(result.length);
+```
+
+**Output:**
+```
+[]
+0
+```
+
+`find()` returns an empty array for no matches, not `null`. This is different from `findOne()` which returns `null` when no document matches. Always check accordingly.
+
+---
+
+**Q2: findOne with multiple matches**
+
+```js
+// Collection: [{ name: "A", age: 25 }, { name: "B", age: 25 }, { name: "C", age: 25 }]
+
+const result = await db.collection('users').findOne({ age: 25 });
+console.log(result.name);
+```
+
+**Output:** `A`
+
+`findOne` returns the **first** matching document in natural order (insertion order, unless an index changes the scan order). It does NOT throw or return all matches.
+
+---
+
+**Q3: Dot notation vs nested object query**
+
+```js
+// Document: { address: { city: "NYC", zip: "10001" } }
+
+const q1 = await db.collection('users').findOne({ address: { city: "NYC" } });
+const q2 = await db.collection('users').findOne({ "address.city": "NYC" });
+
+console.log("q1:", q1);
+console.log("q2:", q2?.address.city);
+```
+
+**Output:**
+```
+q1: null
+q2: NYC
+```
+
+`{ address: { city: "NYC" } }` matches the **exact** subdocument — it requires `address` to be `{ city: "NYC" }` with NO other fields. Since the document has both `city` and `zip`, it doesn't match. Dot notation (`"address.city"`) matches the specific nested field regardless of other fields.
+
+---
+
+### Update Operations
+
+---
+
+**Q4: $set vs replacement — what's the document after update?**
+
+```js
+// Before: { _id: 1, name: "Alice", age: 25, email: "alice@test.com" }
+
+await db.collection('users').updateOne(
+  { _id: 1 },
+  { name: "Bob", age: 30 }
+);
+```
+
+**Output:** Error: the update operation document must contain atomic operators.
+
+Without `$set`, MongoDB in modern drivers treats this as invalid. In legacy MongoDB shell, this would **replace** the entire document: `{ _id: 1, name: "Bob", age: 30 }` — the `email` field would be gone. Always use `$set` for partial updates:
+
+```js
+await db.collection('users').updateOne({ _id: 1 }, { $set: { name: "Bob", age: 30 } });
+// Result: { _id: 1, name: "Bob", age: 30, email: "alice@test.com" }
+```
+
+---
+
+**Q5: $push vs $addToSet**
+
+```js
+// Document: { _id: 1, tags: ["js", "react"] }
+
+await db.collection('posts').updateOne({ _id: 1 }, { $push: { tags: "js" } });
+const after1 = await db.collection('posts').findOne({ _id: 1 });
+console.log("push:", after1.tags);
+
+// Reset to original, then:
+await db.collection('posts').updateOne({ _id: 1 }, { $addToSet: { tags: "js" } });
+const after2 = await db.collection('posts').findOne({ _id: 1 });
+console.log("addToSet:", after2.tags);
+```
+
+**Output:**
+```
+push: ["js", "react", "js"]
+addToSet: ["js", "react"]
+```
+
+`$push` always appends (allows duplicates). `$addToSet` only adds if the value doesn't already exist in the array.
+
+---
+
+**Q6: updateMany — return value**
+
+```js
+// 3 users with age: 25
+const result = await db.collection('users').updateMany(
+  { age: 25 },
+  { $set: { status: "active" } }
+);
+
+console.log(result.matchedCount);
+console.log(result.modifiedCount);
+console.log(result.upsertedCount);
+```
+
+**Output:**
+```
+3
+3
+0
+```
+
+`matchedCount` = documents matching the filter. `modifiedCount` = actually changed (would be `0` if they already had `status: "active"`). `upsertedCount` = only non-zero with `upsert: true`.
+
+---
+
+### Aggregation Pipeline
+
+---
+
+**Q7: Pipeline stage order matters**
+
+```js
+// Documents: [{ name: "A", age: 30 }, { name: "B", age: 20 }, { name: "C", age: 30 }]
+
+const result1 = await db.collection('users').aggregate([
+  { $match: { age: 30 } },
+  { $count: "total" }
+]).toArray();
+
+const result2 = await db.collection('users').aggregate([
+  { $count: "total" },
+  { $match: { age: 30 } }
+]).toArray();
+
+console.log("result1:", result1);
+console.log("result2:", result2);
+```
+
+**Output:**
+```
+result1: [{ total: 2 }]
+result2: []
+```
+
+In `result1`, `$match` filters to 2 documents, then `$count` counts them. In `result2`, `$count` reduces everything to `[{ total: 3 }]` — then `$match` looks for `age: 30` in that document, which has no `age` field. Empty result.
+
+---
+
+**Q8: $group with accumulator**
+
+```js
+// Documents:
+// { dept: "eng", salary: 100 }
+// { dept: "eng", salary: 150 }
+// { dept: "sales", salary: 80 }
+
+const result = await db.collection('employees').aggregate([
+  {
+    $group: {
+      _id: "$dept",
+      total: { $sum: "$salary" },
+      count: { $sum: 1 },
+      avg: { $avg: "$salary" }
+    }
+  },
+  { $sort: { _id: 1 } }
+]).toArray();
+
+console.log(result);
+```
+
+**Output:**
+```
+[
+  { _id: "eng", total: 250, count: 2, avg: 125 },
+  { _id: "sales", total: 80, count: 1, avg: 80 }
+]
+```
+
+`$group` groups by `_id` field value. `$sum: 1` counts documents per group. `$avg` computes the average. Results have no guaranteed order without `$sort`.
+
+---
+
+**Q9: $unwind with empty array**
+
+```js
+// Documents:
+// { name: "A", tags: ["js", "react"] }
+// { name: "B", tags: [] }
+// { name: "C", tags: ["node"] }
+
+const result = await db.collection('posts').aggregate([
+  { $unwind: "$tags" }
+]).toArray();
+
+console.log(result.length);
+console.log(result.map(r => `${r.name}:${r.tags}`));
+```
+
+**Output:**
+```
+3
+["A:js", "A:react", "C:node"]
+```
+
+`$unwind` deconstructs arrays into one document per element. Documents with empty arrays are **excluded** by default. Document B disappears entirely. To keep it, use `{ $unwind: { path: "$tags", preserveNullAndEmptyArrays: true } }`.
+
+---
+
+**Q10: $lookup result shape**
+
+```js
+// orders: [{ _id: 1, userId: 100, total: 50 }]
+// users: [{ _id: 100, name: "Alice" }]
+
+const result = await db.collection('orders').aggregate([
+  {
+    $lookup: {
+      from: "users",
+      localField: "userId",
+      foreignField: "_id",
+      as: "user"
+    }
+  }
+]).toArray();
+
+console.log(result[0].user);
+console.log(typeof result[0].user);
+```
+
+**Output:**
+```
+[{ _id: 100, name: "Alice" }]
+object
+```
+
+`$lookup` always returns an **array**, even for one-to-one relationships. To get a single object, add `{ $unwind: "$user" }` after the `$lookup`.
+
+---
+
+### Key Rules
+
+```
+MongoDB Output Cheat Sheet:
+1. find() returns [] for no matches; findOne() returns null
+2. Dot notation matches nested fields; exact object matches the whole subdocument
+3. $set does partial update; without it, the document is replaced (or errors in newer drivers)
+4. $push allows duplicates; $addToSet doesn't
+5. $unwind drops documents with empty arrays by default
+6. $lookup always returns an array (even for 1:1)
+7. Pipeline stage order changes results completely
+8. matchedCount vs modifiedCount — modified can be 0 if values are the same
+9. $group results have no guaranteed order without $sort
+10. findOne returns first match in natural/index order
+```
 
 ---
 

@@ -17,6 +17,7 @@
 - [13. Compiler Options](#13-compiler-options)
 - [14. Best Practices](#14-best-practices)
 - [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [16. Tricky Output Questions](#16-tricky-output-questions)
 
 ---
 
@@ -1929,6 +1930,371 @@ const colors = {
 ```
 
 Use `satisfies` when you want type validation but don't want to lose type inference.
+
+---
+
+## 16. Tricky Output Questions
+
+Practice questions testing your understanding of TypeScript's type inference, narrowing, generics, and compile-time behavior.
+
+### Type Inference & Widening
+
+---
+
+**Q1: What type does TypeScript infer?**
+
+```ts
+let x = "hello";
+const y = "hello";
+
+type X = typeof x;
+type Y = typeof y;
+```
+
+**Answer:**
+- `X` is `string`
+- `Y` is `"hello"` (string literal type)
+
+`let` variables are widened because they can be reassigned. `const` variables retain their literal type since they can never change.
+
+---
+
+**Q2: Array inference — mutable vs readonly**
+
+```ts
+const arr = [1, "two", true];
+type Arr = typeof arr;
+
+const tuple = [1, "two", true] as const;
+type Tuple = typeof tuple;
+```
+
+**Answer:**
+- `Arr` is `(string | number | boolean)[]`
+- `Tuple` is `readonly [1, "two", true]`
+
+Without `as const`, TypeScript widens to a union array. With `as const`, it infers a readonly tuple with literal types.
+
+---
+
+**Q3: Object property widening**
+
+```ts
+const config = {
+  mode: "production",
+  port: 3000,
+};
+
+function start(mode: "production" | "development") {}
+start(config.mode);
+```
+
+**Answer:** Compile error: `Argument of type 'string' is not assignable to parameter of type '"production" | "development"'`
+
+`config.mode` is inferred as `string` (not the literal `"production"`) because object properties are mutable. Fix with `as const` on the object or the property.
+
+---
+
+### Type Narrowing
+
+---
+
+**Q4: Narrowing with `typeof` — what's the type inside each branch?**
+
+```ts
+function process(value: string | number | boolean) {
+  if (typeof value === "string") {
+    // A: type of value here?
+    value.toUpperCase();
+  } else if (typeof value === "number") {
+    // B: type of value here?
+    value.toFixed(2);
+  } else {
+    // C: type of value here?
+    value;  // what type?
+  }
+}
+```
+
+**Answer:**
+- A: `string`
+- B: `number`
+- C: `boolean`
+
+TypeScript narrows the type at each branch. The `else` block contains whatever remains after the previous checks.
+
+---
+
+**Q5: Discriminated union — exhaustive check**
+
+```ts
+type Shape =
+  | { kind: "circle"; radius: number }
+  | { kind: "square"; side: number }
+  | { kind: "triangle"; base: number; height: number };
+
+function area(shape: Shape): number {
+  switch (shape.kind) {
+    case "circle":
+      return Math.PI * shape.radius ** 2;
+    case "square":
+      return shape.side ** 2;
+  }
+}
+```
+
+**Answer:** Compile error (with `noImplicitReturns`): not all code paths return a value.
+
+Without the `"triangle"` case, TypeScript knows the function might fall through. Adding `default: const _exhaustive: never = shape;` would also catch this at compile time — `shape` would be `{ kind: "triangle"; ... }` which isn't assignable to `never`.
+
+---
+
+**Q6: The `in` operator narrows**
+
+```ts
+type Fish = { swim: () => void };
+type Bird = { fly: () => void };
+type Pet = Fish | Bird;
+
+function move(pet: Pet) {
+  if ("swim" in pet) {
+    pet;  // what type?
+  } else {
+    pet;  // what type?
+  }
+}
+```
+
+**Answer:**
+- Inside `if`: `Fish`
+- Inside `else`: `Bird`
+
+The `in` operator acts as a type guard. TypeScript narrows based on which properties exist.
+
+---
+
+### Generics & Utility Types
+
+---
+
+**Q7: Generic constraint — does this compile?**
+
+```ts
+function getLength<T>(value: T): number {
+  return value.length;
+}
+```
+
+**Answer:** Compile error: `Property 'length' does not exist on type 'T'`
+
+`T` is unconstrained — it could be anything. Fix: `<T extends { length: number }>` or `<T extends string | any[]>`.
+
+---
+
+**Q8: Mapped type — what's the result?**
+
+```ts
+type User = {
+  name: string;
+  age: number;
+  email: string;
+};
+
+type Optional<T> = {
+  [K in keyof T]?: T[K];
+};
+
+type OptionalUser = Optional<User>;
+```
+
+**Answer:** `OptionalUser` is `{ name?: string; age?: number; email?: string; }`
+
+This is exactly what the built-in `Partial<T>` does. Mapped types iterate over each key and apply transformations.
+
+---
+
+**Q9: Conditional type — what does this resolve to?**
+
+```ts
+type IsString<T> = T extends string ? "yes" : "no";
+
+type A = IsString<string>;
+type B = IsString<number>;
+type C = IsString<"hello">;
+type D = IsString<string | number>;
+```
+
+**Answer:**
+- `A` is `"yes"`
+- `B` is `"no"`
+- `C` is `"yes"` (`"hello"` extends `string`)
+- `D` is `"yes" | "no"` (distributive!)
+
+When a union is passed to a conditional type, it **distributes** — each member is evaluated separately and the results are unioned. `IsString<string | number>` becomes `IsString<string> | IsString<number>` = `"yes" | "no"`.
+
+---
+
+**Q10: `keyof` with index signatures**
+
+```ts
+type Dict = { [key: string]: number };
+type DictKeys = keyof Dict;
+
+type NumDict = { [key: number]: string };
+type NumDictKeys = keyof NumDict;
+```
+
+**Answer:**
+- `DictKeys` is `string | number`
+- `NumDictKeys` is `number`
+
+Surprising: `keyof` of a string index signature returns `string | number` because JavaScript coerces numeric keys to strings, so both are valid.
+
+---
+
+### Structural Typing & Compatibility
+
+---
+
+**Q11: Extra properties — does this compile?**
+
+```ts
+interface Point {
+  x: number;
+  y: number;
+}
+
+const point1: Point = { x: 1, y: 2, z: 3 };
+
+const obj = { x: 1, y: 2, z: 3 };
+const point2: Point = obj;
+```
+
+**Answer:**
+- `point1`: Compile error — excess property check catches `z`
+- `point2`: Compiles fine!
+
+TypeScript only applies excess property checks on **object literals** assigned directly. When assigned from a variable, structural compatibility is used — `obj` has all required `Point` fields, so extra properties are allowed.
+
+---
+
+**Q12: Function parameter bivariance**
+
+```ts
+type Handler = (event: MouseEvent) => void;
+
+const handler1: Handler = (e: Event) => {};
+const handler2: Handler = (e: MouseEvent) => {};
+const handler3: Handler = () => {};
+```
+
+**Answer:**
+- `handler1`: Compile error (with `strictFunctionTypes`) — `Event` is wider than `MouseEvent`
+- `handler2`: Compiles fine
+- `handler3`: Compiles fine — fewer parameters are always allowed
+
+Function parameters are **contravariant** in strict mode. A handler expecting `MouseEvent` can't accept a handler that only knows about `Event` (it might miss mouse-specific properties). But a handler that ignores parameters entirely is safe.
+
+---
+
+### Tricky Edges
+
+---
+
+**Q13: `any` vs `unknown` — what compiles?**
+
+```ts
+let a: any = 10;
+let b: unknown = 10;
+
+a.foo.bar;        // A
+b.foo.bar;        // B
+
+let s1: string = a;  // C
+let s2: string = b;  // D
+```
+
+**Answer:**
+- A: Compiles (and crashes at runtime) — `any` disables all checks
+- B: Compile error — can't access properties on `unknown`
+- C: Compiles — `any` is assignable to everything
+- D: Compile error — `unknown` requires narrowing first
+
+`unknown` is the type-safe counterpart of `any`. Both accept any value, but `unknown` forces you to check before using.
+
+---
+
+**Q14: Enum values at runtime**
+
+```ts
+enum Direction {
+  Up,
+  Down,
+  Left,
+  Right,
+}
+
+console.log(Direction.Up);
+console.log(Direction[0]);
+console.log(Direction["Up"]);
+```
+
+**Output:**
+```
+0
+"Up"
+0
+```
+
+Numeric enums create a **reverse mapping**: `Direction[0]` returns the name `"Up"`. `Direction.Up` returns the numeric value `0`. This reverse mapping does NOT exist for string enums.
+
+---
+
+**Q15: `never` in unions and intersections**
+
+```ts
+type A = string | never;
+type B = string & never;
+
+type C = never extends string ? "yes" : "no";
+```
+
+**Answer:**
+- `A` is `string` — `never` disappears from unions (it's the empty set)
+- `B` is `never` — `never` absorbs intersections (intersecting with empty = empty)
+- `C` is `"never"` — wait, actually `"yes"`. `never` extends everything because it's the bottom type (a subtype of all types)
+
+---
+
+**Q16: Template literal types**
+
+```ts
+type Color = "red" | "blue";
+type Size = "sm" | "lg";
+type ClassName = `${Size}-${Color}`;
+```
+
+**Answer:** `ClassName` is `"sm-red" | "sm-blue" | "lg-red" | "lg-blue"`
+
+TypeScript distributes template literal types over unions, producing all combinations.
+
+---
+
+### Key Rules
+
+```
+TypeScript Output Cheat Sheet:
+1. `let` widens to base type, `const` preserves literal type
+2. `as const` makes everything readonly + literal
+3. Object literals get excess property checks, variables don't
+4. Conditional types distribute over unions
+5. `keyof` string index returns `string | number`
+6. `never` disappears from unions, absorbs intersections
+7. `any` bypasses all checks; `unknown` requires narrowing
+8. Function params are contravariant (strict mode)
+9. Numeric enums have reverse mapping, string enums don't
+10. Template literal types distribute over unions
+```
 
 ---
 

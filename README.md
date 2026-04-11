@@ -10,6 +10,7 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 - **20+ Guides** across 8 categories: Front End (React, Redux, TanStack Query, Storybook, Testing, Frontend Tooling), JS & TS, Back End (Node.js, Express, MongoDB, API Design, CORS, Database Schema), AWS, Git, DSA, Behavioral, System Design
 - **7 Cheat Sheets** — condensed quick reference cards (React Hooks, JS ES6+, Git Commands, Git Workflows, Big-O, CSS Flexbox/Grid, HTTP Status Codes)
 - **Mermaid Diagrams** — architecture diagrams rendered as interactive visuals
+- **Tricky Output Questions** — "Guess the Output" sections in 7 guides (React, TypeScript, Node.js, Redux Saga, Express, MongoDB, Redux Toolkit) with 84 total questions and cheat sheets
 - **Syntax-highlighted code blocks** with copy and "Try it" buttons
 - **Reading time estimates** on every guide
 - **Table of Contents** — auto-generated from headings, tracks active section while scrolling

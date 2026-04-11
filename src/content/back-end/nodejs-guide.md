@@ -16,6 +16,7 @@
 - [12. Package Management (npm)](#12-package-management-npm)
 - [13. Performance and Best Practices](#13-performance-and-best-practices)
 - [14. Interview Questions & Answers](#14-interview-questions--answers)
+- [15. Tricky Output Questions](#15-tricky-output-questions)
 
 ---
 
@@ -1202,6 +1203,355 @@ libuv is the C library that provides Node.js's event loop and async I/O:
    - These handle network I/O without threads
 
 The distinction matters: network I/O scales to thousands of connections (OS-level), while file I/O is limited by thread pool size.
+
+---
+
+## 15. Tricky Output Questions
+
+Practice questions testing your understanding of Node.js event loop phases, `process.nextTick`, `setImmediate`, streams, and async patterns.
+
+### Event Loop Ordering
+
+---
+
+**Q1: setTimeout vs setImmediate**
+
+```js
+setTimeout(() => console.log("timeout"), 0);
+setImmediate(() => console.log("immediate"));
+```
+
+**Output:** Non-deterministic — could be either order.
+
+When run in the main module, the order depends on process performance. `setTimeout(fn, 0)` is actually `setTimeout(fn, 1)` internally. If the event loop enters the timer phase before 1ms elapses, `setImmediate` fires first. If not, `setTimeout` fires first.
+
+---
+
+**Q2: setTimeout vs setImmediate inside I/O callback**
+
+```js
+const fs = require('fs');
+
+fs.readFile(__filename, () => {
+  setTimeout(() => console.log("timeout"), 0);
+  setImmediate(() => console.log("immediate"));
+});
+```
+
+**Output:**
+```
+immediate
+immediate
+```
+
+Wait — actually:
+```
+immediate
+timeout
+```
+
+Inside an I/O callback, `setImmediate` **always** fires before `setTimeout`. After the poll phase completes, the check phase (where `setImmediate` lives) runs before the event loop wraps back to timers.
+
+---
+
+**Q3: process.nextTick vs Promise vs setTimeout**
+
+```js
+console.log("1");
+
+setTimeout(() => console.log("2"), 0);
+
+Promise.resolve().then(() => console.log("3"));
+
+process.nextTick(() => console.log("4"));
+
+console.log("5");
+```
+
+**Output:**
+```
+1
+5
+4
+3
+2
+```
+
+Execution order: Synchronous (`1`, `5`) → `nextTick` queue (`4`) → microtask/Promise queue (`3`) → timer phase (`2`). `process.nextTick` always fires before Promises.
+
+---
+
+**Q4: Nested nextTick — starvation risk**
+
+```js
+setImmediate(() => console.log("immediate"));
+
+process.nextTick(() => {
+  console.log("tick 1");
+  process.nextTick(() => console.log("tick 2"));
+});
+
+console.log("sync");
+```
+
+**Output:**
+```
+sync
+tick 1
+tick 2
+immediate
+```
+
+`process.nextTick` callbacks are processed **completely** before moving to the next event loop phase — including any new nextTick calls added during processing. This can starve I/O if abused.
+
+---
+
+**Q5: Multiple timers with same delay**
+
+```js
+setTimeout(() => console.log("A"), 0);
+setTimeout(() => console.log("B"), 0);
+setTimeout(() => console.log("C"), 0);
+
+Promise.resolve().then(() => console.log("D"));
+process.nextTick(() => console.log("E"));
+```
+
+**Output:**
+```
+E
+D
+A
+B
+C
+```
+
+`nextTick` (E) runs first, then microtask/Promise (D), then all timers in FIFO order (A, B, C).
+
+---
+
+### Async Patterns
+
+---
+
+**Q6: async/await with process.nextTick**
+
+```js
+async function main() {
+  console.log("A");
+
+  await new Promise(resolve => {
+    process.nextTick(() => {
+      console.log("B");
+      resolve();
+    });
+  });
+
+  console.log("C");
+}
+
+main();
+console.log("D");
+```
+
+**Output:**
+```
+A
+D
+B
+C
+```
+
+`A` is synchronous. `await` pauses `main()`. `D` runs synchronously. `nextTick` fires `B` and resolves the promise. Then `C` runs from the microtask queue.
+
+---
+
+**Q7: Event emitter — sync or async?**
+
+```js
+const EventEmitter = require('events');
+const emitter = new EventEmitter();
+
+emitter.on('data', () => console.log("listener"));
+
+console.log("before");
+emitter.emit('data');
+console.log("after");
+```
+
+**Output:**
+```
+before
+listener
+after
+```
+
+Event emitter listeners are called **synchronously** when `emit()` is called. This surprises many people who assume Node.js events are async.
+
+---
+
+**Q8: Error event without listener**
+
+```js
+const EventEmitter = require('events');
+const emitter = new EventEmitter();
+
+console.log("before");
+
+try {
+  emitter.emit('error', new Error('boom'));
+} catch (err) {
+  console.log("caught:", err.message);
+}
+
+console.log("after");
+```
+
+**Output:**
+```
+before
+caught: boom
+after
+```
+
+If no listener is registered for `'error'` events, Node.js throws the error. Since `emit` is synchronous, the `try/catch` works. Without the `try/catch`, this would crash the process.
+
+---
+
+### Streams & Buffers
+
+---
+
+**Q9: Stream ordering — readable events**
+
+```js
+const { Readable } = require('stream');
+
+const readable = new Readable({
+  read() {
+    this.push("hello");
+    this.push(null);
+  }
+});
+
+readable.on('data', (chunk) => console.log("data:", chunk.toString()));
+readable.on('end', () => console.log("end"));
+readable.on('close', () => console.log("close"));
+
+console.log("sync");
+```
+
+**Output:**
+```
+sync
+data: hello
+end
+close
+```
+
+Stream events are emitted asynchronously (on the next tick), so `sync` prints first. Events fire in order: `data` for each chunk, `end` when no more data, `close` when the stream is fully closed.
+
+---
+
+**Q10: Buffer comparison**
+
+```js
+const buf1 = Buffer.from("abc");
+const buf2 = Buffer.from("abc");
+
+console.log(buf1 === buf2);
+console.log(buf1.equals(buf2));
+console.log(Buffer.compare(buf1, buf2));
+```
+
+**Output:**
+```
+false
+true
+0
+```
+
+`===` compares references (different Buffer objects). `.equals()` compares contents. `Buffer.compare()` returns `0` for equal, negative if first is less, positive if first is greater.
+
+---
+
+### Module System
+
+---
+
+**Q11: require caching — how many times does the module execute?**
+
+```js
+// counter.js
+let count = 0;
+count++;
+console.log("loaded, count:", count);
+module.exports = { count };
+
+// main.js
+const a = require('./counter');
+const b = require('./counter');
+console.log(a.count, b.count);
+console.log(a === b);
+```
+
+**Output:**
+```
+loaded, count: 1
+1 1
+true
+```
+
+`require()` caches modules after first load. The second `require('./counter')` returns the cached export — the module code does NOT execute again. Both `a` and `b` are the same object.
+
+---
+
+**Q12: Circular dependencies**
+
+```js
+// a.js
+console.log("a: start");
+exports.value = "A";
+const b = require('./b');
+console.log("a: b.value =", b.value);
+
+// b.js
+console.log("b: start");
+const a = require('./a');
+console.log("b: a.value =", a.value);
+exports.value = "B";
+
+// main.js
+require('./a');
+```
+
+**Output:**
+```
+a: start
+b: start
+b: a.value = A
+a: b.value = B
+```
+
+When `a.js` requires `b.js`, Node gives `b` the **partially completed** exports of `a` (which already has `value = "A"`). After `b` finishes, `a` continues and sees `b.value = "B"`.
+
+---
+
+### Key Rules
+
+```
+Node.js Output Cheat Sheet:
+1. Execution: sync → process.nextTick → Promises/microtasks → timers → I/O → setImmediate
+2. Inside I/O callbacks: setImmediate always fires before setTimeout
+3. process.nextTick drains fully before moving to next phase (starvation risk)
+4. EventEmitter.emit() is synchronous
+5. Unhandled 'error' events throw (crash the process)
+6. require() caches — modules execute once
+7. Circular dependencies get partial exports
+8. Stream events (data, end, close) fire asynchronously
+9. Buffer === compares references, .equals() compares contents
+10. setTimeout(fn, 0) is actually setTimeout(fn, 1)
+```
 
 ---
 

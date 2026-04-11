@@ -15,6 +15,7 @@
 - [11. Patterns and Best Practices](#11-patterns-and-best-practices)
 - [12. Testing](#12-testing)
 - [13. Interview Questions & Answers](#13-interview-questions--answers)
+- [14. Tricky Output Questions](#14-tricky-output-questions)
 
 ---
 
@@ -1207,6 +1208,347 @@ extraReducers: (builder) => {
 ```
 
 `addCase` for specific actions. `addMatcher` for patterns. `addDefaultCase` for everything else. The builder pattern ensures type safety and correct ordering.
+
+---
+
+## 14. Tricky Output Questions
+
+Practice questions testing your understanding of Redux reducer execution, Immer mutations, selector memoization, and thunk lifecycle.
+
+### Reducers & Immer
+
+---
+
+**Q1: Immer mutations — which pattern works?**
+
+```js
+const counterSlice = createSlice({
+  name: "counter",
+  initialState: { value: 0 },
+  reducers: {
+    // Pattern A: mutate
+    increment: (state) => {
+      state.value += 1;
+    },
+    // Pattern B: return new object
+    reset: (state) => {
+      return { value: 0 };
+    },
+    // Pattern C: mutate AND return
+    broken: (state) => {
+      state.value += 1;
+      return state;
+    },
+  },
+});
+```
+
+**Answer:**
+- Pattern A: Works — Immer tracks mutations to the draft
+- Pattern B: Works — returning a new value replaces the state entirely
+- Pattern C: Error! You cannot both mutate the draft AND return a value. Immer throws: "An immer producer returned a new value AND modified its draft."
+
+---
+
+**Q2: Are these the same state object?**
+
+```js
+const slice = createSlice({
+  name: "test",
+  initialState: { count: 0, name: "hello" },
+  reducers: {
+    increment: (state) => { state.count += 1; },
+  },
+});
+
+const store = configureStore({ reducer: slice.reducer });
+
+const before = store.getState();
+store.dispatch(slice.actions.increment());
+const after = store.getState();
+
+console.log(before === after);
+console.log(before.count, after.count);
+```
+
+**Output:**
+```
+false
+0 1
+```
+
+Redux creates a **new** state reference on every dispatch that changes state. `before` and `after` are different objects. This is how React-Redux detects changes and triggers re-renders.
+
+---
+
+**Q3: Dispatching same value — does state reference change?**
+
+```js
+const slice = createSlice({
+  name: "test",
+  initialState: { value: 5 },
+  reducers: {
+    setValue: (state, action) => { state.value = action.payload; },
+  },
+});
+
+const store = configureStore({ reducer: slice.reducer });
+
+const before = store.getState();
+store.dispatch(slice.actions.setValue(5));  // same value!
+const after = store.getState();
+
+console.log(before === after);
+```
+
+**Output:** `false`
+
+Even though the value didn't change, Immer still produces a new state object because the draft was "modified" (assigned to). Immer doesn't do deep equality checks — any write creates a new reference. To avoid unnecessary re-renders, don't dispatch if the value hasn't changed.
+
+---
+
+### Selectors & Memoization
+
+---
+
+**Q4: createSelector — when does it recompute?**
+
+```js
+const selectItems = (state) => state.items;
+const selectFilter = (state) => state.filter;
+
+const selectFilteredItems = createSelector(
+  [selectItems, selectFilter],
+  (items, filter) => {
+    console.log("recomputing");
+    return items.filter(item => item.includes(filter));
+  }
+);
+
+const store = configureStore({
+  reducer: createReducer(
+    { items: ["apple", "banana", "avocado"], filter: "a" },
+    () => {}
+  ),
+});
+
+const result1 = selectFilteredItems(store.getState());
+const result2 = selectFilteredItems(store.getState());
+
+console.log(result1 === result2);
+```
+
+**Output:**
+```
+recomputing
+true
+```
+
+`"recomputing"` logs only once. `createSelector` memoizes based on input selector results. Since `store.getState()` returns the same reference both times, the inputs haven't changed, so the cached result is returned. `result1 === result2` is `true` (same reference).
+
+---
+
+**Q5: Selector with inline function — memoization broken**
+
+```js
+// In a React component:
+const items = useSelector(state =>
+  state.items.filter(item => item.price > 10)
+);
+```
+
+**What happens on every render?** The selector creates a **new array** every time because `.filter()` always returns a new array reference. `useSelector` uses `===` comparison, so it thinks the value changed and triggers a re-render — creating an infinite re-render loop potential.
+
+Fix: use `createSelector` or `useMemo`:
+```js
+const selectExpensiveItems = createSelector(
+  state => state.items,
+  items => items.filter(item => item.price > 10)
+);
+const items = useSelector(selectExpensiveItems);
+```
+
+---
+
+### Thunks & Async
+
+---
+
+**Q6: createAsyncThunk lifecycle — what actions are dispatched?**
+
+```js
+const fetchUser = createAsyncThunk("user/fetch", async (userId) => {
+  console.log("thunk executing");
+  const response = await fetch(`/api/users/${userId}`);
+  return response.json();
+});
+
+const store = configureStore({
+  reducer: createSlice({
+    name: "user",
+    initialState: { status: "idle" },
+    extraReducers: (builder) => {
+      builder
+        .addCase(fetchUser.pending, (state) => { state.status = "loading"; })
+        .addCase(fetchUser.fulfilled, (state) => { state.status = "done"; })
+        .addCase(fetchUser.rejected, (state) => { state.status = "error"; });
+    },
+  }).reducer,
+});
+
+store.subscribe(() => console.log("state:", store.getState().status));
+store.dispatch(fetchUser(1));
+```
+
+**Output (assuming API succeeds):**
+```
+state: loading
+thunk executing
+state: done
+```
+
+`createAsyncThunk` dispatches `pending` immediately (before the async function runs), then `fulfilled` or `rejected` when the promise resolves/rejects. The subscriber logs each state change.
+
+---
+
+**Q7: Thunk return value — what does dispatch() return?**
+
+```js
+const fetchData = createAsyncThunk("data/fetch", async () => {
+  return { items: [1, 2, 3] };
+});
+
+const result = await store.dispatch(fetchData());
+
+console.log(result.type);
+console.log(result.payload);
+console.log(result.meta.requestStatus);
+```
+
+**Output:**
+```
+data/fetch/fulfilled
+{ items: [1, 2, 3] }
+fulfilled
+```
+
+`dispatch(thunk())` returns a promise that resolves to the **action object** — NOT the payload directly. The action has `type`, `payload`, and `meta`. You can use `result.payload` to access the data, or `unwrapResult(result)` which throws on rejection.
+
+---
+
+**Q8: Multiple dispatches — how many re-renders?**
+
+```js
+function MyComponent() {
+  const dispatch = useDispatch();
+  const count = useSelector(state => state.counter.value);
+  console.log("render", count);
+
+  const handleClick = () => {
+    dispatch(increment());
+    dispatch(increment());
+    dispatch(increment());
+  };
+
+  return <button onClick={handleClick}>{count}</button>;
+}
+```
+
+**Output on click:**
+```
+render 3
+```
+
+React 18 batches all synchronous state updates within event handlers — including Redux dispatches. Despite 3 dispatches, there's only **one** re-render with the final value. Each dispatch still creates a new state, but React batches the re-render.
+
+---
+
+### Middleware
+
+---
+
+**Q9: Custom middleware — what order do logs appear?**
+
+```js
+const logger1 = (store) => (next) => (action) => {
+  console.log("logger1 before");
+  const result = next(action);
+  console.log("logger1 after");
+  return result;
+};
+
+const logger2 = (store) => (next) => (action) => {
+  console.log("logger2 before");
+  const result = next(action);
+  console.log("logger2 after");
+  return result;
+};
+
+const store = configureStore({
+  reducer: counterReducer,
+  middleware: (getDefault) => [logger1, ...getDefault(), logger2],
+});
+
+store.dispatch({ type: "increment" });
+```
+
+**Output:**
+```
+logger1 before
+logger2 before
+logger2 after
+logger1 after
+```
+
+Wait — actually middleware runs left-to-right for "before" and right-to-left for "after":
+```
+logger1 before
+logger2 before
+logger2 after
+logger1 after
+```
+
+Middleware forms a chain. `logger1` calls `next()` which passes to default middleware, then to `logger2`. After the reducer runs, the stack unwinds. It's the same onion pattern as Express middleware.
+
+---
+
+**Q10: serializability check — what warning appears?**
+
+```js
+const slice = createSlice({
+  name: "test",
+  initialState: { date: null },
+  reducers: {
+    setDate: (state, action) => {
+      state.date = action.payload;
+    },
+  },
+});
+
+store.dispatch(slice.actions.setDate(new Date()));
+```
+
+**Output:** Console warning: "A non-serializable value was detected in an action."
+
+RTK includes `serializableCheck` middleware by default. `Date` objects, `Map`, `Set`, functions, and class instances trigger this warning. Store only plain serializable data (strings, numbers, arrays, plain objects). Convert dates to ISO strings: `new Date().toISOString()`.
+
+---
+
+### Key Rules
+
+```
+Redux Toolkit Output Cheat Sheet:
+1. Immer: mutate OR return, never both
+2. Every dispatch that writes to state creates a new state reference
+3. createSelector memoizes — same inputs = same output reference
+4. Inline filter/map in useSelector breaks memoization (new array every time)
+5. createAsyncThunk dispatches: pending → fulfilled/rejected
+6. dispatch(thunk()) returns a promise of the action, not the payload
+7. React 18 batches multiple synchronous dispatches into one re-render
+8. Middleware runs left-to-right (before), right-to-left (after) — onion pattern
+9. RTK warns on non-serializable values (Date, Map, Set, functions)
+10. Immer doesn't do deep equality — same value write still creates new reference
+```
 
 ---
 

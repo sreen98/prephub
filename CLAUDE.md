@@ -79,6 +79,7 @@ There are no automated tests. Verify changes by:
 - Version `1.0.0` marks the first stable release with the repo rename to `prephub`.
 
 ## What's New (Latest Changes)
+- **Tricky Output Questions** — "Guess the Output" sections added to 7 guides: React (16Q), TypeScript (16Q), Node.js (12Q), Redux Saga (10Q), Express.js (10Q), MongoDB (10Q), Redux Toolkit (10Q). Each follows the `**QN: text**` + `**Output:**` format with a cheat sheet at the end. JS guide already had this section.
 - **v1.0.0** — Repo renamed from `interview-prep` to `prephub`. Base path updated to `/prephub/` across all configs.
 - **CORS guide** — New Back End guide covering Same-Origin Policy, CORS headers, preflight, credentialed requests, Express.js configuration, debugging, and 15 interview Q&A
 - **Flattened repo structure** — Moved app from `web/` subfolder to root. All configs, `src/`, `scripts/`, `public/` now live at the repo root.
