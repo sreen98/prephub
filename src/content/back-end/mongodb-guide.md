@@ -1390,7 +1390,7 @@ Practice questions testing your understanding of MongoDB query behavior, aggrega
 
 ---
 
-**Q1: What does `find` return with no matches?**
+**Q1: When `find()` is called with a filter that matches no documents in the collection, what value and length does `.toArray()` produce, and how does this differ from `findOne()`?**
 
 ```js
 const result = await db.collection('users').find({ age: 999 }).toArray();
@@ -1404,11 +1404,15 @@ console.log(result.length);
 0
 ```
 
-`find()` returns an empty array for no matches, not `null`. This is different from `findOne()` which returns `null` when no document matches. Always check accordingly.
+**Explanation:**
+
+`find()` does not return documents directly — it returns a **cursor**, which is a lazy iterator over the matching documents. Calling `.toArray()` on that cursor drains it and materializes the results as a JavaScript array. When no documents match the filter, the cursor is simply empty, and `.toArray()` resolves to an empty array `[]` with `length === 0`. It never returns `null` or `undefined`, and it does not throw. This is a deliberate contrast with `findOne()`, which is designed to return either a single document object or `null` when nothing matches — so a `null` check is appropriate there, but an `Array.isArray(result) && result.length` check is appropriate here. A common bug is writing `if (!result)` after `find().toArray()` — that branch will never fire because `[]` is truthy in JavaScript. The correct guard is `if (result.length === 0)`.
+
+**Takeaway:** `find().toArray()` always returns an array (possibly empty); only `findOne()` can return `null`.
 
 ---
 
-**Q2: findOne with multiple matches**
+**Q2: If the `users` collection contains three documents all with `age: 25` (named "A", "B", and "C" in that insertion order), and we call `findOne({ age: 25 })`, which document is returned and why?**
 
 ```js
 // Collection: [{ name: "A", age: 25 }, { name: "B", age: 25 }, { name: "C", age: 25 }]
@@ -1419,11 +1423,15 @@ console.log(result.name);
 
 **Output:** `A`
 
-`findOne` returns the **first** matching document in natural order (insertion order, unless an index changes the scan order). It does NOT throw or return all matches.
+**Explanation:**
+
+`findOne()` is implemented under the hood as `find(filter).limit(1)` — it scans documents according to the query plan and returns the first one that matches. When no sort is specified and no index steers the scan, MongoDB walks the collection in **natural order**, which for a freshly populated collection is effectively insertion order (the on-disk physical order in the storage engine). Because "A" was inserted first, it is encountered first and returned. This behavior is not guaranteed across the long term: if documents are moved, deleted, or an index (e.g., on `age`) makes the query planner use an index scan instead of a collection scan, the "first" document can change. `findOne` never errors when multiple documents match and never returns all of them — if you want a deterministic choice, you must explicitly sort, e.g. `find({ age: 25 }).sort({ _id: 1 }).limit(1)`. If nothing matches, it returns `null`.
+
+**Takeaway:** `findOne` returns the first hit in the current scan order — rely on an explicit `sort` whenever you care which one.
 
 ---
 
-**Q3: Dot notation vs nested object query**
+**Q3: Given a document `{ address: { city: "NYC", zip: "10001" } }`, why does querying with `{ address: { city: "NYC" } }` return `null` while `{ "address.city": "NYC" }` matches?**
 
 ```js
 // Document: { address: { city: "NYC", zip: "10001" } }
@@ -1441,7 +1449,11 @@ q1: null
 q2: NYC
 ```
 
-`{ address: { city: "NYC" } }` matches the **exact** subdocument — it requires `address` to be `{ city: "NYC" }` with NO other fields. Since the document has both `city` and `zip`, it doesn't match. Dot notation (`"address.city"`) matches the specific nested field regardless of other fields.
+**Explanation:**
+
+The two queries use two fundamentally different matching semantics. `{ address: { city: "NYC" } }` is an **equality match on the whole subdocument**: MongoDB compares the stored value of `address` against the literal object `{ city: "NYC" }` using BSON equality, which is both field-order-sensitive and field-set-sensitive. It matches only if `address` is exactly `{ city: "NYC" }` — no extra fields, no missing fields, and the keys in the same order. Because the stored subdocument also contains `zip: "10001"`, it fails equality and `q1` is `null`. The dotted form `{ "address.city": "NYC" }` is a **path query**: MongoDB walks into `address`, reads the `city` field, and checks if that scalar equals `"NYC"`. Other sibling fields like `zip` are irrelevant. Dot notation is also what MongoDB uses internally to build indexes on nested fields, so `q2` can be index-accelerated while `q1` usually cannot (except via a full-subdocument index, which is rare). The same trap applies with arrays: `{ tags: ["a","b"] }` is an exact array match, whereas `{ tags: "a" }` matches any document whose `tags` array contains `"a"`.
+
+**Takeaway:** Use dot notation to query nested fields; full-subdocument equality requires every field (and order) to match exactly.
 
 ---
 
@@ -1449,7 +1461,7 @@ q2: NYC
 
 ---
 
-**Q4: $set vs replacement — what's the document after update?**
+**Q4: If a document is `{ _id: 1, name: "Alice", age: 25, email: "alice@test.com" }` and we call `updateOne({ _id: 1 }, { name: "Bob", age: 30 })` without any `$set`, what happens — and what would happen with `$set`?**
 
 ```js
 // Before: { _id: 1, name: "Alice", age: 25, email: "alice@test.com" }
@@ -1462,16 +1474,15 @@ await db.collection('users').updateOne(
 
 **Output:** Error: the update operation document must contain atomic operators.
 
-Without `$set`, MongoDB in modern drivers treats this as invalid. In legacy MongoDB shell, this would **replace** the entire document: `{ _id: 1, name: "Bob", age: 30 }` — the `email` field would be gone. Always use `$set` for partial updates:
+**Explanation:**
 
-```js
-await db.collection('users').updateOne({ _id: 1 }, { $set: { name: "Bob", age: 30 } });
-// Result: { _id: 1, name: "Bob", age: 30, email: "alice@test.com" }
-```
+`updateOne` and `updateMany` in the modern Node driver require the update document to consist of **atomic update operators** like `$set`, `$inc`, `$push`, `$unset`, etc. Passing a plain document without any `$`-prefixed operator is rejected with the error above — this is a guardrail the driver added because silently "replacing" the document is usually a bug, not the intent. If you truly want to replace a document wholesale, you must use `replaceOne`, which takes a plain document and swaps out every field except `_id`. In the legacy mongo shell (pre-4.2 semantics) a plain-document update would perform a replacement, so `{ name: "Bob", age: 30 }` would have rewritten the document to exactly `{ _id: 1, name: "Bob", age: 30 }` — dropping `email` and `age`'s old value. Using `$set` instead performs a **partial update**: it writes only the listed fields, leaving untouched fields intact, yielding `{ _id: 1, name: "Bob", age: 30, email: "alice@test.com" }`. The immutability of `_id` is enforced in all three cases — you cannot change it via any operator.
+
+**Takeaway:** Use `$set` for partial updates, `replaceOne` for full replacements — a plain doc passed to `updateOne` throws.
 
 ---
 
-**Q5: $push vs $addToSet**
+**Q5: Given `{ _id: 1, tags: ["js", "react"] }`, how do `$push: { tags: "js" }` and `$addToSet: { tags: "js" }` differ in the resulting array?**
 
 ```js
 // Document: { _id: 1, tags: ["js", "react"] }
@@ -1492,11 +1503,15 @@ push: ["js", "react", "js"]
 addToSet: ["js", "react"]
 ```
 
-`$push` always appends (allows duplicates). `$addToSet` only adds if the value doesn't already exist in the array.
+**Explanation:**
+
+`$push` is the **unconditional append** operator: it adds the value to the end of the array every single time, with no duplicate check. After pushing `"js"` to `["js", "react"]`, the array becomes `["js", "react", "js"]` with `"js"` appearing twice. `$addToSet` treats the array as a **mathematical set**: it first checks whether an equal value already exists (using BSON equality — which means `1` and `1.0` are equal, but a string `"1"` is not equal to a number `1`), and only appends when the value is absent. Because `"js"` is already in the array, `$addToSet` is a no-op and the array stays `["js", "react"]`. The subtlety is that `$addToSet` does not deduplicate existing duplicates — it only prevents new ones. It also treats whole subdocuments with strict BSON equality, so `$addToSet: { items: { id: 1 } }` will still insert a duplicate if the existing element is `{ id: 1, qty: 2 }` because those two objects are not equal. For bulk additions, use the `$each` modifier (`$push: { tags: { $each: [...] } }` or `$addToSet: { tags: { $each: [...] } }`).
+
+**Takeaway:** `$push` always appends; `$addToSet` skips the append when an equal value already exists.
 
 ---
 
-**Q6: updateMany — return value**
+**Q6: If 3 users all have `age: 25` and we run `updateMany({ age: 25 }, { $set: { status: "active" } })`, what are the values of `matchedCount`, `modifiedCount`, and `upsertedCount` — and how could `modifiedCount` be lower than `matchedCount`?**
 
 ```js
 // 3 users with age: 25
@@ -1517,7 +1532,11 @@ console.log(result.upsertedCount);
 0
 ```
 
-`matchedCount` = documents matching the filter. `modifiedCount` = actually changed (would be `0` if they already had `status: "active"`). `upsertedCount` = only non-zero with `upsert: true`.
+**Explanation:**
+
+The result of an update operation exposes three independent counters, and distinguishing them is crucial for correctness checks. `matchedCount` reports how many documents matched the filter — here, all three documents with `age: 25`. `modifiedCount` reports how many of those matched documents were **actually changed on disk**. MongoDB performs a value-equality comparison per field: if `$set: { status: "active" }` is applied to a document that already has `status: "active"`, the on-disk bytes don't change, so that document contributes to `matchedCount` but NOT to `modifiedCount`. In this example, `status` did not exist before, so every matched document was modified and both counters are 3. `upsertedCount` is `0` because `upsert: true` was not passed — with upsert, if the filter matches nothing, MongoDB inserts a new document derived from the filter + update operators, and `upsertedCount` becomes `1` (plus an `upsertedId`). A common bug is using `modifiedCount > 0` to confirm "a document was found" — use `matchedCount` for that check instead, since idempotent updates can legitimately produce `modifiedCount: 0`.
+
+**Takeaway:** `matchedCount` = filter hits, `modifiedCount` = actual byte changes, `upsertedCount` only non-zero when `upsert: true` creates a new document.
 
 ---
 
@@ -1525,7 +1544,7 @@ console.log(result.upsertedCount);
 
 ---
 
-**Q7: Pipeline stage order matters**
+**Q7: In an aggregation pipeline over `[{ name: "A", age: 30 }, { name: "B", age: 20 }, { name: "C", age: 30 }]`, why does `[$match, $count]` produce `[{ total: 2 }]` while `[$count, $match]` produces `[]`?**
 
 ```js
 // Documents: [{ name: "A", age: 30 }, { name: "B", age: 20 }, { name: "C", age: 30 }]
@@ -1550,11 +1569,15 @@ result1: [{ total: 2 }]
 result2: []
 ```
 
-In `result1`, `$match` filters to 2 documents, then `$count` counts them. In `result2`, `$count` reduces everything to `[{ total: 3 }]` — then `$match` looks for `age: 30` in that document, which has no `age` field. Empty result.
+**Explanation:**
+
+An aggregation pipeline is a stream of documents where each stage transforms the output of the previous one. Walk through `result1` stage by stage. Input: three documents `{A,30}`, `{B,20}`, `{C,30}`. After `$match: { age: 30 }`: two documents remain, `{A,30}` and `{C,30}`. After `$count: "total"`: the stream is collapsed into a single document `{ total: 2 }`, which is what gets returned. Now walk through `result2`. Input: the same three documents. After `$count: "total"`: the stream is immediately collapsed into one document `{ total: 3 }` — all original field information is gone, there is no `age` field anywhere anymore. After `$match: { age: 30 }`: MongoDB looks in that single document for a field called `age`; it doesn't exist, so the match fails, and the document is filtered out, leaving `[]`. Beyond correctness, stage order also matters for **performance**: `$match` and `$sort` placed early in the pipeline can use indexes on the source collection, but once a stage like `$project`, `$group`, or `$count` reshapes the documents, the optimizer can no longer leverage those indexes. The rule of thumb is: filter (`$match`) and sort (`$sort`) first, then reshape (`$project`), then aggregate (`$group`), then paginate (`$skip`/`$limit`).
+
+**Takeaway:** Pipeline stages are sequential stream transforms — filter early to shrink the stream and keep indexes usable.
 
 ---
 
-**Q8: $group with accumulator**
+**Q8: For the employees collection `[{dept:"eng",salary:100},{dept:"eng",salary:150},{dept:"sales",salary:80}]`, what does a `$group` stage using `$sum: "$salary"`, `$sum: 1`, and `$avg: "$salary"` followed by `$sort: { _id: 1 }` produce?**
 
 ```js
 // Documents:
@@ -1585,11 +1608,15 @@ console.log(result);
 ]
 ```
 
-`$group` groups by `_id` field value. `$sum: 1` counts documents per group. `$avg` computes the average. Results have no guaranteed order without `$sort`.
+**Explanation:**
+
+The `$group` stage partitions the document stream into buckets keyed by the `_id` expression and applies accumulators across each bucket. The key `"$dept"` tells MongoDB to group by the value of the `dept` field, producing two buckets: one for `"eng"` (two documents with salaries 100 and 150) and one for `"sales"` (one document with salary 80). Within each bucket, the accumulators run in parallel: `$sum: "$salary"` adds up the salary field across all documents in the bucket (eng → 250, sales → 80); `$sum: 1` adds the constant `1` per document, which is the idiomatic way to count documents per group (eng → 2, sales → 1); `$avg: "$salary"` computes the arithmetic mean of the salary field (eng → 125, sales → 80). The output of `$group` is itself an unordered stream of one document per bucket — MongoDB deliberately does **not** guarantee any order after `$group`, even if the input was sorted. That's why the pipeline appends an explicit `$sort: { _id: 1 }`, which lexicographically orders `"eng"` before `"sales"`. If you need counts only, there's also `$count` (a shortcut for `$group` + `$project`). Remember that `_id` in the output is the group key, not the original `_id` field.
+
+**Takeaway:** `$group` partitions by its `_id` expression and runs accumulators per bucket — always follow with `$sort` if you need deterministic order.
 
 ---
 
-**Q9: $unwind with empty array**
+**Q9: Given posts `[{name:"A",tags:["js","react"]}, {name:"B",tags:[]}, {name:"C",tags:["node"]}]`, what does `{ $unwind: "$tags" }` produce — and what happens to document B?**
 
 ```js
 // Documents:
@@ -1611,11 +1638,15 @@ console.log(result.map(r => `${r.name}:${r.tags}`));
 ["A:js", "A:react", "C:node"]
 ```
 
-`$unwind` deconstructs arrays into one document per element. Documents with empty arrays are **excluded** by default. Document B disappears entirely. To keep it, use `{ $unwind: { path: "$tags", preserveNullAndEmptyArrays: true } }`.
+**Explanation:**
+
+`$unwind` flattens an array field by emitting one output document per element of that array, with the array field replaced by the individual element. Tracing through each input: document A has `tags: ["js", "react"]`, so `$unwind` emits two documents — `{name:"A", tags:"js"}` and `{name:"A", tags:"react"}`. Document C has `tags: ["node"]`, emitting one document `{name:"C", tags:"node"}`. Document B has `tags: []`, and this is the critical case: **by default `$unwind` drops documents whose array is empty, null, or missing entirely**. It emits zero output documents for B, so B vanishes from the pipeline. Total output: 2 + 0 + 1 = 3 documents. If you need to preserve documents that have no array elements (for example, when building a left-outer-join style result after `$lookup`), use the expanded form `{ $unwind: { path: "$tags", preserveNullAndEmptyArrays: true } }` — then B passes through with `tags` set to `null`. There's also an `includeArrayIndex` option that records the original array position on each emitted document. This default-drop behavior is the same trap that bites developers doing `$lookup` followed by `$unwind` on the joined field when some parent docs have no match.
+
+**Takeaway:** `$unwind` silently drops docs with empty/missing/null arrays — use `preserveNullAndEmptyArrays: true` to keep them.
 
 ---
 
-**Q10: $lookup result shape**
+**Q10: After performing a `$lookup` joining `orders` to `users` with `as: "user"` where the relationship is one-to-one, what is the shape of `result[0].user` and why — and how do you flatten it to a single object?**
 
 ```js
 // orders: [{ _id: 1, userId: 100, total: 50 }]
@@ -1642,7 +1673,11 @@ console.log(typeof result[0].user);
 object
 ```
 
-`$lookup` always returns an **array**, even for one-to-one relationships. To get a single object, add `{ $unwind: "$user" }` after the `$lookup`.
+**Explanation:**
+
+`$lookup` performs a left-outer join: for every document flowing through the pipeline, it finds matching documents in the foreign collection (here, `users` where `_id === userId`) and attaches **all** of them as an **array** on the `as` field. It uses an array unconditionally because the general case is one-to-many — even if only one foreign match exists, MongoDB still wraps it so the output shape is uniform and predictable. That's why `result[0].user` is `[{ _id: 100, name: "Alice" }]` instead of just `{ _id: 100, name: "Alice" }`. The `typeof` is `"object"` because JavaScript arrays are objects (`typeof [] === "object"`), which can confuse developers expecting `"object"` to mean "plain object" — use `Array.isArray()` to disambiguate. If the join finds no match, `user` is `[]` (not `null`, not missing). To collapse the one-to-one case to a single embedded object, append `{ $unwind: "$user" }` after the lookup — this turns `[{...}]` into `{...}`. But remember from Q9 that plain `$unwind` will drop orders with no matching user; to keep unmatched orders (true left outer join semantics), use `{ $unwind: { path: "$user", preserveNullAndEmptyArrays: true } }`.
+
+**Takeaway:** `$lookup` always produces an array on the `as` field; use `$unwind` (often with `preserveNullAndEmptyArrays`) to flatten 1:1 joins.
 
 ---
 

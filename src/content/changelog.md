@@ -1,5 +1,33 @@
 # What's New
 
+## v1.0.4 (April 2026)
+
+### Tricky Questions — Rewritten With Detailed Explanations
+
+All 111 "Tricky Output Questions" across 9 guides were rewritten. The old answers were often 2-3 lines and skipped the "why" — now every question has:
+
+- **A clear, self-contained question sentence** that works as a standalone flashcard in Quiz mode.
+- **The original code**, unchanged — the buggy behavior is still the lesson.
+- **The exact output or answer**, clearly labeled.
+- **A detailed `Explanation` block** (typically 8-14 lines) that walks through the specific language / runtime / library mechanism at play — event-loop phases for Node, Immer's draft semantics for Redux Toolkit, generator `yield`/`next` exchange for Redux Saga, contravariance under `strictFunctionTypes` for TypeScript, reconciliation-keys and closure capture for React, Yoga layout and native-driver limits for React Native, router-stack arity dispatch for Express, aggregation-pipeline stage semantics for MongoDB, widening/boxing/coercion rules for JavaScript.
+- **A one-sentence `Takeaway`** — the single rule to remember.
+
+Counts per guide: JavaScript 11, TypeScript 16, React 16, React Native 16, Redux Saga 10, Redux Toolkit 10, Node.js 12, Express 10, MongoDB 10. Answer length per question grew roughly 5-6× on average.
+
+The rewrite also preserved the Quiz-mode parser contract (`**Q{N}: ...**` marker + answer block + trailing `---`), so every new explanation is picked up in Quiz Mode, Daily Review, and the Interview Simulator.
+
+### Documentation Cleanup
+
+- README counts corrected (20+ guides → 32 guides across 8 categories; 84 tricky Qs → 111; 60+ templates → 49; AWS roster now lists Frontend Deployment; System Design lists Comparisons).
+- CLAUDE.md now documents the parser's `---` terminator behavior so future edits don't accidentally cut off an explanation.
+
+- **Console output now visible with React preview** — output pane is split evenly so console and preview share space instead of the console collapsing to a sliver. Console logs from React `useEffect` / intervals keep streaming in live (previously silent after the first tick).
+- **"Try it" auto-inserts `render()`** — when you try a React snippet from a guide that defines a component but no `render()` call, the playground now detects the component and appends `render(<YourComponent />)` so it runs immediately.
+- **Templates redesigned** — the side drawer is replaced with a centered 2-pane modal: category list on the left, snippets as cards on the right. Searching and switching categories is no longer a wall of names.
+- **Sidebar toggle no longer overlaps the editor** — the floating expand button is hidden on the Playground route; an equivalent toggle is built into the Playground header instead.
+
+---
+
 ## v1.0.3 (April 2026)
 
 ### New Content: React Native & Mobile Apps Guide

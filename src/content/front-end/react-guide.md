@@ -1638,7 +1638,7 @@ Practice questions testing your understanding of React rendering behavior, hooks
 
 ---
 
-**Q1: setState is asynchronous — what logs?**
+**Q1: In a click handler that calls `setCount(count + 1)` three times and then `console.log(count)`, what does the console print on the first click and what value ends up rendered?**
 
 ```jsx
 function Counter() {
@@ -1659,11 +1659,19 @@ function Counter() {
 
 **Rendered value:** `1`
 
-All three `setCount` calls use the same stale `count` (0) from the closure. Each call sets state to `0 + 1 = 1`, so the final state is `1`, not `3`. The `console.log` reads the stale closure value `0`.
+**Explanation:**
+
+This question tests two intertwined mechanisms: closure capture of state variables and React's batching of state updates inside event handlers. When `Counter` renders, React destructures the current state value `0` into the local const `count`. The `handleClick` function is re-created each render and closes over that specific `count = 0`. Because `count` is a plain constant in that render's scope, it cannot change mid-handler — there is no way for `setCount` to mutate it.
+
+Now trace the three calls. `setCount(count + 1)` is identical to `setCount(0 + 1)` three times in a row; React simply queues "set state to 1" three times. These are all direct value updates, not functional updaters, so React does not chain them against any pending state — each call overwrites the previous one's queued value. When the handler finishes, React batches the queued updates and schedules a single re-render with the final queued value, `1`.
+
+The `console.log(count)` runs synchronously inside the same handler, long before the re-render happens. It reads the closed-over `count`, which is still `0` from the render the handler was created in. After the handler returns, React commits the new state and re-renders the component; the button now displays `1`.
+
+**Takeaway:** Direct `setState(value)` calls in the same handler use the stale closure value — to increment correctly, pass a functional updater.
 
 ---
 
-**Q2: Functional updater — what renders?**
+**Q2: A click handler calls `setCount(prev => prev + 1)` three times in a row starting from `count = 0`. What value is rendered after the click?**
 
 ```jsx
 function Counter() {
@@ -1681,11 +1689,19 @@ function Counter() {
 
 **Rendered value after first click:** `3`
 
-Unlike Q1, functional updaters receive the latest pending state. Each call chains: `0→1→2→3`. React batches all three but applies the updaters sequentially.
+**Explanation:**
+
+This is the same shape as Q1 but swaps the direct value for a functional updater, and that single change fixes the staleness problem. When you pass a function to `setState`, React does not queue a value — it queues a transformation. During the next render, React walks the update queue in order, feeding each updater the result of the previous one. The updater itself does not close over `count`; it receives the latest pending state as its `prev` argument, freshly passed in by React at flush time.
+
+Tracing the queue: starting from committed state `0`, the first updater produces `0 + 1 = 1`. React feeds that `1` into the second updater, yielding `2`. The third updater then produces `3`. Only after all three are processed does React schedule a single re-render with the final value `3`. The three calls are still batched — the user sees exactly one render — but because each updater computes from the latest pending value rather than from a captured closure, their effects actually compound.
+
+This is also why functional updaters are the idiomatic fix whenever the new state depends on the previous state, especially inside timers, async callbacks, or any code path where the handler could run against stale data.
+
+**Takeaway:** When new state depends on previous state, always use `setState(prev => ...)` so React feeds you the latest pending value instead of a stale closure.
 
 ---
 
-**Q3: Mixing direct and functional updates**
+**Q3: A click handler interleaves direct and functional updates — `setCount(count + 1)`, then `setCount(prev => prev + 1)`, then `setCount(count + 1)` — starting from `count = 0`. What is rendered?**
 
 ```jsx
 function Counter() {
@@ -1703,15 +1719,22 @@ function Counter() {
 
 **Rendered value after first click:** `1`
 
-- `setCount(0 + 1)` → pending state becomes `1`
-- `setCount(prev => prev + 1)` → `1 + 1` → pending state becomes `2`
-- `setCount(0 + 1)` → overwrites pending state back to `1`
+**Explanation:**
 
-The last direct `setCount(count + 1)` uses the stale closure `count = 0`, so it resets to `1`.
+This one demonstrates how React's update queue treats the two kinds of updates uniformly: each entry is applied in order, but a direct value update ignores whatever pending state came before it, while a functional updater computes from it. The render captured `count = 0`, so both direct calls in this handler are really `setCount(1)` — not `setCount(count + 1)` that somehow re-reads the latest value.
+
+Walk the queue starting from base state `0`:
+1. First call enqueues "set to 1". When processed, the pending state becomes `1`.
+2. Second call enqueues an updater. When processed, React passes in the current pending state `1`, the updater returns `2`, and pending state becomes `2`.
+3. Third call enqueues "set to 1" again (because the closure's `count` is still `0`). When processed, it overwrites the pending state back to `1`.
+
+The final committed value is `1`, and the user sees a single re-render with `1` on screen. The subtle trap is that direct updates silently clobber any accumulated work done by earlier updaters in the same batch. Mixing the two styles in one handler is almost always a bug; pick functional updaters whenever you rely on the previous state.
+
+**Takeaway:** Never mix direct and functional updates for the same piece of state in one handler — direct updates overwrite pending values computed by earlier updaters.
 
 ---
 
-**Q4: State update in a loop — how many re-renders?**
+**Q4: A click handler runs a `for` loop that calls `setCount(prev => prev + 1)` five times. How many times does the component re-render and what does it log?**
 
 ```jsx
 function App() {
@@ -1733,15 +1756,21 @@ function App() {
 render 5
 ```
 
-React batches all state updates within event handlers (React 18+). Despite 5 `setCount` calls, there is only **one** re-render with the final value `5`.
+**Explanation:**
+
+This question tests automatic batching — a foundational optimization in React. In React 18 and later, any synchronous sequence of state updates inside a single "tick" of JavaScript (event handler, effect body, promise continuation, timeout callback, etc.) is collapsed into one re-render. Earlier versions only batched inside React event handlers; 18's concurrent renderer extended batching everywhere.
+
+When the button is clicked, React enters the event handler with its batching lock held. Each `setCount(prev => prev + 1)` appends an updater to the state queue — nothing renders mid-loop. Once the handler returns, React unlocks batching, flushes the queue by feeding each updater the previous pending value (`0 → 1 → 2 → 3 → 4 → 5`), and schedules exactly one re-render with the final value `5`. That single render logs `render 5`.
+
+This is why you should never worry about "too many setState calls" — React already coalesces them for you. The practical rule is to keep updaters pure (no side effects inside the function you pass), because in Strict Mode and during bail-out checks React may invoke them extra times to verify correctness.
+
+**Takeaway:** React 18 automatically batches all state updates in a single tick into one re-render, regardless of how many `setState` calls you make.
 
 ---
 
 ### useEffect & Lifecycle
 
----
-
-**Q5: What order do the logs appear?**
+**Q5: A component logs `"A"` and `"E"` in its body and has two `useEffect` calls (one with a cleanup, one mount-only) that log `"B"`/`"C"` and `"D"`. In what order do the logs appear on mount?**
 
 ```jsx
 function App() {
@@ -1770,11 +1799,19 @@ B: effect
 D: mount effect
 ```
 
-Render body runs first (A, E). Effects run after the browser paints, in declaration order (B, D). The cleanup (C) only runs on subsequent re-renders or unmount — not on mount.
+**Explanation:**
+
+React's lifecycle is a sequence of distinct phases, and each kind of work runs in exactly one of them. The render phase is the synchronous execution of the component function itself — it must be pure, so React (or Strict Mode) can call it multiple times safely. All top-level code in the function body, including both `console.log` calls, runs here: first `A`, then the hook calls (which merely register effects; they do not run the effect bodies yet), then `E`.
+
+After the render phase, React commits the result to the DOM, lets the browser paint, and then enters the effect phase. Effects fire in the order they were declared, so `B` runs before `D`. Cleanups are queued alongside effects but only execute before the next effect run or on unmount — there is nothing to clean up on the very first mount, so `C` never appears in this output.
+
+This order matters in practice: if you need to read layout after the browser paints, use `useEffect`; if you need to read or mutate the DOM before paint (to avoid a visible flash), use `useLayoutEffect`, which fires synchronously after commit but before paint. The split between render and effect phases is also why you must never call `setState` in the render body unconditionally — it would loop forever — and why effects are the right place for subscriptions, timers, and data fetching.
+
+**Takeaway:** Render body runs first (top-down), then effects fire after paint in declaration order; cleanups only run before the next effect or on unmount, never on initial mount.
 
 ---
 
-**Q6: Stale closure in useEffect**
+**Q6: A `useEffect` with an empty dependency array starts a `setInterval` that logs `count` and calls `setCount(count + 1)` every second. What does the console print over time and what value does the UI display?**
 
 ```jsx
 function Timer() {
@@ -1794,13 +1831,21 @@ function Timer() {
 
 **Console output:** `0, 0, 0, 0, ...` (repeats forever)
 
-**Rendered value:** Flickers between `0` and `1`
+**Rendered value:** Stuck at `1`
 
-The effect runs once (empty deps), closing over `count = 0`. Every interval tick reads stale `count` (always `0`) and sets state to `1`. Fix: use `setCount(prev => prev + 1)`.
+**Explanation:**
+
+This is the canonical "stale closure in useEffect" bug, and it hinges on how dependency arrays interact with JavaScript closures. An empty `[]` tells React: "only run this effect once, on mount." React complies — it captures the effect function as it existed on the first render, runs it, and never re-creates it. But that effect function closes over the `count` identifier from the first render's scope, where `count === 0`. Nothing in the effect itself can ever see a newer `count`, because re-renders create new local `count` bindings in new function scopes that this old closure knows nothing about.
+
+Every interval tick thus reads `count` as `0` and calls `setCount(0 + 1)`. The first tick re-renders with `count = 1`, but the interval callback still fires from the original closure. The second tick also calls `setCount(1)` — which is the same value React already has, so React bails out and skips the re-render (see Q12). The log keeps printing `0` forever and the UI is stuck at `1`.
+
+There are two correct fixes. The minimal change is `setCount(prev => prev + 1)` — functional updaters do not need to see `count` at all, so the staleness becomes irrelevant. The more general fix is to add `count` to the dependency array so the effect tears down and re-subscribes whenever `count` changes, but for intervals that is wasteful. When you need the latest value of something inside a long-lived subscription, either use a functional updater or mirror the value into a ref and read `ref.current` inside the callback.
+
+**Takeaway:** Effects with empty deps capture the first render's values forever — use functional updaters or refs to access the latest state inside long-lived callbacks.
 
 ---
 
-**Q7: useEffect dependency trap**
+**Q7: A `useEffect` passes `[{ key: "value" }]` as its dependency array. How often does the effect run as the component re-renders?**
 
 ```jsx
 function App() {
@@ -1816,15 +1861,21 @@ function App() {
 
 **Output:** `"effect ran"` logs on **every** render.
 
-Objects are compared by reference. `{ key: "value" }` creates a new object on every render, so React always sees the dependency as changed. This is equivalent to having no dependency array at all.
+**Explanation:**
+
+React compares dependency arrays with `Object.is`, which is essentially strict equality plus correct handling of `NaN` and `-0`. For primitives like numbers and strings, `Object.is` compares by value, so stable values yield stable deps. For objects, arrays, and functions, it compares by reference — two objects with identical keys and values are considered different if they live at different memory addresses.
+
+The literal `{ key: "value" }` is evaluated fresh inside the component function every single render. Each render produces a brand-new object with a new identity, so when React runs its dependency comparison (`Object.is(prevDep[0], nextDep[0])`), the check always returns `false`. React concludes the deps changed and re-runs the effect. The behavior is identical to omitting the array entirely.
+
+The same trap appears with inline functions (`useEffect(..., [() => {}])`) and inline arrays (`useEffect(..., [[1, 2]])`). The fixes are: move the value outside the component so it has a stable identity, wrap it in `useMemo`/`useCallback` so React reuses the reference across renders, or — more commonly — depend on the primitive fields the effect actually uses (for instance `[config.key]` instead of `[config]`). Exhaustive-deps lint rules exist specifically to surface this kind of mistake.
+
+**Takeaway:** Object and function dependencies are compared by reference — a fresh literal in the deps array defeats dependency tracking entirely.
 
 ---
 
 ### Closures & Refs
 
----
-
-**Q8: setTimeout captures stale state**
+**Q8: A click handler calls `setCount(5)` and then schedules a `setTimeout` that logs `count` one second later. What appears in the console and what is rendered?**
 
 ```jsx
 function App() {
@@ -1845,11 +1896,19 @@ function App() {
 
 **Rendered value:** `5`
 
-The `setTimeout` callback closes over the `count` value at the time of the click (`0`). Even though the component re-renders with `5`, the timeout still reads the old closure. To get the latest value, use a ref.
+**Explanation:**
+
+State in React is not a mutable variable you can re-read; it is a snapshot pinned to a specific render. When the component rendered for the first time, `useState(0)` returned the value `0` and React bound that value to the local const `count` in that particular invocation of `App`. The `handleClick` function defined in that render — and any callback defined inside it, including the `setTimeout` one — closes over that specific `count`.
+
+When the user clicks, `setCount(5)` schedules a re-render with the new state, but it does not retroactively change any variable that already exists. React then re-invokes `App`, which produces a *new* `count` binding (this time equal to `5`) and a new `handleClick`. The button now displays `5`. However, the timeout callback scheduled one second earlier is still the one from the first render, carrying its own `count = 0` in its closure. When the timer fires, it logs `0`.
+
+To read the latest value inside an async callback you have a few options: store the value in a `useRef` and read `ref.current` in the callback (refs are mutable containers whose identity is stable across renders), schedule the timeout inside a `useEffect` that depends on the state so a new closure is captured each time, or refactor so the callback receives the needed value as an argument. This is the same staleness pattern as Q6, just triggered by `setTimeout` rather than `setInterval`.
+
+**Takeaway:** Every async callback captures the state values from the render that created it — use refs or functional updaters when you need the latest value.
 
 ---
 
-**Q9: useRef doesn't trigger re-render**
+**Q9: A component stores a counter in `useRef(0)` and renders `{ref.current}`. After clicking "Increment ref" three times, what does the screen show? What happens after a subsequent "Force render" click?**
 
 ```jsx
 function App() {
@@ -1878,15 +1937,23 @@ function App() {
 **After then clicking "Force render":**
 - Screen shows: `Ref value: 3`
 
-Mutating `ref.current` does not trigger a re-render. The UI only updates when React re-renders for another reason.
+**Explanation:**
+
+`useRef` and `useState` look superficially similar — both give you a per-component value that persists across renders — but they plug into two completely different parts of the React runtime. A ref is a mutable container (`{ current: X }`) whose identity is preserved across renders; React does not track reads or writes to `.current`. A state value, by contrast, is immutable from the component's perspective, and calling its setter is what informs React that it needs to reconcile and re-render.
+
+When you click "Increment ref", the handler mutates `ref.current` in place. The console correctly shows the updated values because `console.log` reads the live object. But nothing told React to re-render, so the DOM still reflects the last committed render where `ref.current` was `0` at the time JSX was produced. The `<p>` node on screen is a frozen snapshot of that moment.
+
+When you click "Force render", `forceRender(n => n + 1)` changes an unrelated state, which causes React to call `App` again. During that new render, the JSX reads `ref.current` fresh — and it now sees `3` because the underlying object was being mutated all along. So the ref's current value finally reaches the DOM, not because of the ref itself, but because an unrelated state change triggered a render that happened to read the ref.
+
+This is precisely why refs are ideal for values that should not trigger UI updates (DOM nodes, timer IDs, previous-value caches, "did I already submit this form" flags) and why reading `ref.current` during render is generally discouraged — if you want something reactive, use state instead.
+
+**Takeaway:** Mutating `ref.current` never schedules a render; the DOM only reflects the ref's value on the next render triggered by something else.
 
 ---
 
 ### Rendering & Reconciliation
 
----
-
-**Q10: Parent re-render — does child re-render?**
+**Q10: A `Parent` component re-renders when its own state changes, and renders a `<Child />` that takes no props. Does `Child` re-render on every parent update?**
 
 ```jsx
 function Child() {
@@ -1913,11 +1980,19 @@ Parent rendered
 Child rendered
 ```
 
-Child re-renders on **every** parent re-render even though it takes no props. React doesn't know if Child depends on context or other state. Fix: wrap with `React.memo(Child)`.
+**Explanation:**
+
+React's reconciliation model is deliberately simple: when a component renders, React walks the entire subtree it produces and re-renders every child, regardless of whether props changed. The reason is that children may read from context, hooks, or other external sources that React cannot inspect — so the safe default is to re-render everything and let the virtual DOM diff figure out what actually needs to touch the real DOM.
+
+When `Parent` updates, it returns new React elements for its children. Even though `<Child />` has no props, it is still a fresh element object referencing the `Child` component, and React evaluates it by calling `Child()` again. The `console.log("Child rendered")` fires. If `Child` eventually produces the same JSX structure, React will diff and realize nothing needs to change in the DOM — but the component function itself always runs.
+
+To opt out of this behavior, wrap the child in `React.memo(Child)`. Memo adds a shallow prop comparison before calling the component: if the new props are referentially equal to the previous ones, React reuses the cached output and skips the render entirely. This only helps when the parent passes stable props (primitives, memoized callbacks, or objects wrapped in `useMemo`), and it is almost never worth it for trivial components like this one — the cost of the memo check can exceed the cost of just rendering.
+
+**Takeaway:** Children re-render whenever their parent renders, even with no props; use `React.memo` only when the render cost is actually measurable and props are referentially stable.
 
 ---
 
-**Q11: React.memo with object props**
+**Q11: A `Child` wrapped in `React.memo` receives `style={{ color: "red" }}` from its parent. When the parent re-renders, does memoization prevent `Child` from re-rendering?**
 
 ```jsx
 const Child = React.memo(({ style }) => {
@@ -1942,11 +2017,19 @@ function Parent() {
 Child rendered
 ```
 
-`React.memo` does a shallow comparison. `{ color: "red" }` is a new object every render, so the shallow compare fails and Child re-renders. Fix: memoize with `useMemo` or move the object outside the component.
+**Explanation:**
+
+`React.memo` compares the new props to the previous props with a shallow equality check: for each key, it runs `Object.is(prev[key], next[key])`. If every key matches, it bails out and reuses the last render; if any key differs, it re-renders. For primitives like `color: "red"` as a direct prop, this works nicely. But here the prop is the entire `style` object.
+
+Each time `Parent` renders, the JSX expression `style={{ color: "red" }}` evaluates fresh, producing a new object literal with a different memory address. Memo compares the old `style` object to the new `style` object, `Object.is` returns `false`, and Child re-renders — defeating the entire reason for wrapping it in memo.
+
+The fix is to stabilize the reference. You can lift the object outside the component (`const childStyle = { color: "red" };` at module scope), wrap it in `useMemo(() => ({ color: "red" }), [])` so it is only created once, or pass the individual primitive fields the child needs (`<Child color="red" />`). The same trap applies to function props — `onClick={() => doThing()}` creates a new function every render and breaks memo; use `useCallback` or lift the function out. Memo without stable references is worse than no memo, because you pay the comparison cost and still re-render.
+
+**Takeaway:** `React.memo` only helps when every non-primitive prop has a stable reference — inline object/function literals create a new identity every render and defeat memoization.
 
 ---
 
-**Q12: Same state — does it re-render?**
+**Q12: A button's click handler calls `setCount(0)` while the state is already `0`. Does the component re-render, and does it behave differently on the first click vs subsequent clicks?**
 
 ```jsx
 function App() {
@@ -1960,11 +2043,19 @@ function App() {
 **Output on first click:** `rendered`
 **Output on second click:** (nothing)
 
-On the first click, React may still re-render to verify (bail-out render). On subsequent clicks with the same value, React short-circuits and skips the render entirely.
+**Explanation:**
+
+This question exposes React's "bail-out" optimization. When you call a state setter, React compares the new value to the current value using `Object.is`. If they match, React may skip re-rendering — but only if it can confirm that nothing else would change. The subtlety is that this bail-out check itself sometimes requires a partial render to verify, especially for the first update after a mount.
+
+On the first click, React enqueues the update, begins reconciliation, confirms via `Object.is(0, 0)` that the value is unchanged, and may still call the component function once to verify nothing else needs updating. After that verification render, React discards the result if it matches the previous output. The `console.log("rendered")` fires because the component body executed. From this point on React has cached the no-op result, so subsequent `setCount(0)` calls are skipped entirely — no re-render, no log.
+
+The same bail-out applies when you update state to a value that is `Object.is`-equal to the existing one: setting an object state to a referentially identical object, setting a string to the same string, etc. This is why you must always create new objects/arrays when updating object state — mutating in place and calling the setter with the same reference would silently do nothing. In Strict Mode, React double-invokes render functions during development, which can make this first-render behavior appear twice but does not affect production output.
+
+**Takeaway:** Setting state to the same value bails out of re-rendering — but React may still run one verification render the first time, and you must pass a new reference to update object state.
 
 ---
 
-**Q13: Key prop forces remount**
+**Q13: An `<Input />` component with its own internal `text` state is rendered as `<Input key={id} />`. When the parent increments `id`, what happens to the input's current value and does `Input` log "mounted" again?**
 
 ```jsx
 function Input() {
@@ -1988,15 +2079,21 @@ function App() {
 
 **On clicking "Reset":** Input field clears, console logs `Input mounted`.
 
-Changing the `key` tells React this is a completely different component instance. React unmounts the old one and mounts a new one, resetting all internal state.
+**Explanation:**
+
+React's reconciliation algorithm uses position plus key to decide whether an element in the new render corresponds to an existing instance in the old one. Without an explicit key, React matches by position in the parent's children array — the first `<Input />` at position 0 today is treated as the same instance as the first `<Input />` at position 0 yesterday, so its hook state, DOM node, and effects are all preserved. With an explicit `key`, React uses that key as the identity instead.
+
+When the user clicks Reset, `setId(id + 1)` changes `id` from 1 to 2. On the next render, the JSX produces `<Input key={2} />`, but React remembers the previous child had `key={1}`. The keys don't match, so React treats this as a different component instance altogether: it unmounts the key-1 Input (running any cleanup effects, destroying the hook state, removing the DOM node) and mounts a fresh key-2 Input (calling the function for the first time, running `useState("")`, firing mount effects). The input clears because its internal `text` state starts over at `""`, and `console.log("Input mounted")` fires because the component body executed as a first-time render.
+
+This "change the key to reset" pattern is the idiomatic way to reset uncontrolled state without managing it from the parent. The flip side is that overusing dynamic keys (especially `key={Math.random()}` or `key={Date.now()}`) accidentally remounts on every render, throwing away perfectly good state and DOM nodes — a common performance bug. Keys should be stable and unique for the lifetime of the logical entity they represent.
+
+**Takeaway:** Changing a component's `key` forces React to unmount the old instance and mount a new one, resetting all internal state and re-running mount effects.
 
 ---
 
 ### Hooks Rules & Gotchas
 
----
-
-**Q14: Conditional hook — what happens?**
+**Q14: A component calls `useState` inside an `if (showName)` branch between two other `useState` calls. What goes wrong when `showName` toggles from `true` to `false` across renders?**
 
 ```jsx
 function App({ showName }) {
@@ -2014,11 +2111,19 @@ function App({ showName }) {
 
 **Output:** Runtime error when `showName` toggles.
 
-React tracks hooks by call order. If `showName` changes from `true` to `false`, the second `useState` call now returns what was `age`'s state. React detects the mismatch and throws: "Rendered more hooks than during the previous render."
+**Explanation:**
+
+React does not actually see the names of your hooks. Internally, each component has an array (technically a linked list) of hook slots. On every render, React walks through your component function from top to bottom; each hook call reads the next slot in sequence. The identity of a hook — which state it owns, which effect it is — is determined purely by the order of the call, not by any variable name.
+
+On the first render with `showName = true`, React records three slots: slot 0 = count state, slot 1 = name state, slot 2 = age state. On the next render with `showName = false`, your code calls only two hooks: `useState(0)` and `useState(25)`. React sees hook #0 (fine — matches count) and hook #1, but now this call is your `useState(25)` while slot 1 in memory is holding "React". React detects the mismatch — fewer hook calls than last time — and throws the dev-mode error: "Rendered fewer hooks than expected." The exact wording varies by direction, but the cause is identical: the ordered correspondence between call sites and slots has been broken.
+
+This is precisely the reason for the "Rules of Hooks" and the `eslint-plugin-react-hooks` rule that forbids hooks in conditionals, loops, or early returns. The fix is to keep all hook calls at the top level unconditionally and push the conditional logic inside the values you compute or the JSX you return. For optional state, simply always create the state and only *use* it conditionally.
+
+**Takeaway:** React identifies hooks by call order, so they must be called unconditionally in the same sequence on every render — never put a hook inside `if`, `for`, or after an early return.
 
 ---
 
-**Q15: useEffect cleanup timing**
+**Q15: A `useEffect` with `[count]` as its dependency logs `"setup", count` and returns a cleanup that logs `"cleanup", count`. What logs appear on mount, on the first click, and on the second click?**
 
 ```jsx
 function App() {
@@ -2047,11 +2152,19 @@ cleanup 1
 setup 2
 ```
 
-Cleanup runs with the **previous** render's values (stale closure from when the effect was created), then setup runs with the new values.
+**Explanation:**
+
+A `useEffect` with a dependency array is not a "when it changes" handler; it is a "keep this effect synchronized with these values" declaration. Every render where the deps have changed, React first runs the previous render's cleanup function, then runs the new render's effect function. That two-step dance is what keeps subscriptions, timers, and external resources in sync with the current props and state.
+
+On mount, there is no previous effect to clean up, so only the setup runs — and the effect closes over the first render's `count = 0`, so it logs `setup 0`. When `count` changes to `1`, React re-renders, detects that the `[count]` dep changed, and enters the commit phase. Before running the new effect, it invokes the *old* cleanup function, which was created in the render where `count` was `0`. That cleanup closes over `count = 0` and logs `cleanup 0`. Then the new effect runs, closing over `count = 1`, and logs `setup 1`.
+
+The second click repeats the pattern: cleanup from the `count = 1` render logs `cleanup 1`, then the new effect for `count = 2` logs `setup 2`. Each cleanup sees "its own" state — the state from the render that created it — which is exactly what you want when cleaning up, for example, a subscription that was opened with the previous value. If you forget this, you can accidentally call `clearInterval(id)` where `id` is from the current render rather than the one you started.
+
+**Takeaway:** Each effect's cleanup captures the state from the render that created it and runs *before* the next effect — treat setup/cleanup as paired lifecycles of the dependency snapshot.
 
 ---
 
-**Q16: useState initializer runs once**
+**Q16: `useState(expensiveInit)` is called with a reference to a function (not its return value). How many times does `expensiveInit` run across mount and a subsequent click?**
 
 ```jsx
 function expensiveInit() {
@@ -2078,7 +2191,15 @@ render 42
 render 43
 ```
 
-When you pass a **function** to `useState` (not `expensiveInit()` but `expensiveInit`), React calls it only on the first render. Subsequent renders skip the initializer entirely.
+**Explanation:**
+
+`useState` accepts either an initial value or an initializer function. When you pass a non-function value, React stores it as-is the first time and ignores the argument on every subsequent render. When you pass a function, React recognizes the special form — it invokes the function to compute the initial state exactly once, on the first render, and then ignores it forever after. This is called the *lazy initial state* optimization.
+
+The distinction matters because the expression you write for the initial value is evaluated on every render. `useState(expensiveInit())` (with parentheses) would call `expensiveInit` during every single render, do all the work to compute `42`, and then React would throw the result away on all renders after the first. By contrast, `useState(expensiveInit)` passes the function reference itself; React internally stores that reference, invokes it exactly once to populate the initial state slot, and never calls it again.
+
+On mount, React invokes `expensiveInit`, which logs `init called` and returns `42`. Render then logs `render 42`. On the click, `setValue(v => v + 1)` updates the state to `43`, triggering a re-render; React sees that the state slot is already initialized, skips the initializer entirely, and render logs `render 43`. No further `init called` ever appears. The same pattern works for `useReducer(reducer, initArg, init)`, whose third argument is a lazy initializer for the same reason.
+
+**Takeaway:** Pass the function reference itself (`useState(expensiveInit)`, not `useState(expensiveInit())`) whenever the initial value is expensive — React will call it exactly once on mount.
 
 ---
 

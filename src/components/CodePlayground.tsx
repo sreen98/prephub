@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { Link } from 'react-router-dom';
-import { Play, Trash2, ArrowLeft, AlertTriangle, Loader2, X, Search, BookOpen } from 'lucide-react';
+import { Play, Trash2, ArrowLeft, AlertTriangle, Loader2, X, Search, BookOpen, PanelLeftOpen, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ==================== Types ====================
@@ -2477,7 +2477,14 @@ function formatValue(val: any): string {
 }
 
 function detectJSX(code: string): boolean {
-  return /render\s*\(/.test(code) || /<[A-Z]/.test(code);
+  // Explicit render call or capitalized component tag.
+  if (/render\s*\(/.test(code)) return true;
+  if (/<[A-Z][A-Za-z0-9]*/.test(code)) return true;
+  // Function returning a JSX tag (lowercase HTML or uppercase component).
+  if (/return\s*\(?\s*<[a-zA-Z]/.test(code)) return true;
+  // React hook usage strongly implies a React component.
+  if (/\b(useState|useEffect|useRef|useMemo|useCallback|useReducer|useContext|useLayoutEffect)\s*\(/.test(code)) return true;
+  return false;
 }
 
 let babelModule: any = null;
@@ -2505,10 +2512,13 @@ export default function CodePlayground() {
   const [selectedName, setSelectedName] = useState<string | null>(sessionStorage.getItem('playground-code') ? null : 'Hello World');
   const [drawerSearch, setDrawerSearch] = useState<string>('');
   const [drawerFilter, setDrawerFilter] = useState<string>('all');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const reactRootRef = useRef<any>(null);
   const drawerSearchRef = useRef<HTMLInputElement>(null);
+  const logsRef = useRef<OutputEntry[]>([]);
+  const flushTimerRef = useRef<number | null>(null);
   const isJSX: boolean = detectJSX(code);
 
   // Unique tags for filter pills
@@ -2535,9 +2545,30 @@ export default function CodePlayground() {
     sessionStorage.removeItem('playground-code');
   }, []);
 
-  // Cleanup React root on unmount
+  // Patch console once on mount; restore on unmount. Logs are captured into a
+  // ref so async output (from setInterval, effects, etc.) keeps flowing after
+  // the initial run finishes. A flush interval reconciles the ref into state
+  // while the React preview is mounted.
   useEffect(() => {
+    const origLog = console.log;
+    const origWarn = console.warn;
+    const origError = console.error;
+
+    const push = (entry: OutputEntry) => {
+      logsRef.current = [...logsRef.current, entry];
+    };
+    console.log = (...args: any[]) => { push({ type: 'log', text: args.map(formatValue).join(' ') }); };
+    console.warn = (...args: any[]) => { push({ type: 'warn', text: args.map(formatValue).join(' ') }); };
+    console.error = (...args: any[]) => { push({ type: 'error', text: args.map(formatValue).join(' ') }); };
+
     return () => {
+      console.log = origLog;
+      console.warn = origWarn;
+      console.error = origError;
+      if (flushTimerRef.current !== null) {
+        window.clearInterval(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
       if (reactRootRef.current) {
         try { reactRootRef.current.unmount(); } catch { /* ignore */ }
         reactRootRef.current = null;
@@ -2547,14 +2578,8 @@ export default function CodePlayground() {
 
   const runCode = useCallback(async () => {
     setIsRunning(true);
-    const logs: OutputEntry[] = [];
-    const origLog = console.log;
-    const origWarn = console.warn;
-    const origError = console.error;
-
-    console.log = (...args: any[]) => logs.push({ type: 'log', text: args.map(formatValue).join(' ') });
-    console.warn = (...args: any[]) => logs.push({ type: 'warn', text: args.map(formatValue).join(' ') });
-    console.error = (...args: any[]) => logs.push({ type: 'error', text: args.map(formatValue).join(' ') });
+    logsRef.current = [];
+    setOutput([]);
 
     // Unmount previous React render
     if (reactRootRef.current) {
@@ -2562,6 +2587,14 @@ export default function CodePlayground() {
       reactRootRef.current = null;
     }
     setHasPreview(false);
+
+    // Stop any prior flush interval
+    if (flushTimerRef.current !== null) {
+      window.clearInterval(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+
+    let previewMounted = false;
 
     try {
       let execCode: string = code;
@@ -2581,6 +2614,7 @@ export default function CodePlayground() {
             reactRootRef.current = ReactDOM.createRoot(previewRef.current);
             reactRootRef.current.render(element);
             setHasPreview(true);
+            previewMounted = true;
           }
         };
 
@@ -2603,31 +2637,38 @@ export default function CodePlayground() {
         const scopeValues: any[] = Object.values(scope);
         const fn = new Function(...scopeKeys, execCode);
         fn(...scopeValues);
+
+        if (!previewMounted) {
+          logsRef.current = [...logsRef.current, {
+            type: 'error',
+            text: 'No render() call detected. For React components, end your code with: render(<YourComponent />);',
+          }];
+        }
       } else {
         // Plain JS execution
         const result = new Function(execCode)();
         if (result !== undefined) {
-          logs.push({ type: 'result', text: `\u2192 ${formatValue(result)}` });
+          logsRef.current = [...logsRef.current, { type: 'result', text: `\u2192 ${formatValue(result)}` }];
         }
       }
     } catch (err: any) {
-      logs.push({ type: 'error', text: `${err.name}: ${err.message}` });
+      logsRef.current = [...logsRef.current, { type: 'error', text: `${err.name}: ${err.message}` }];
     } finally {
-      console.log = origLog;
-      console.warn = origWarn;
-      console.error = origError;
       setIsRunning(false);
     }
 
-    const syncLogs: OutputEntry[] = [...logs];
-    setOutput(syncLogs);
+    setOutput([...logsRef.current]);
 
-    // Collect async logs
-    setTimeout(() => {
-      if (logs.length > syncLogs.length) {
-        setOutput([...logs]);
-      }
-    }, 600);
+    // Keep flushing while a React preview is live (captures async logs from
+    // intervals, effects, event handlers). Short one-shot flush for plain JS
+    // to catch promise resolutions.
+    if (previewMounted) {
+      flushTimerRef.current = window.setInterval(() => {
+        setOutput((prev) => (prev.length !== logsRef.current.length ? [...logsRef.current] : prev));
+      }, 250);
+    } else {
+      window.setTimeout(() => setOutput([...logsRef.current]), 600);
+    }
   }, [code]);
 
   // Cmd+Enter to run, Escape to close drawer
@@ -2645,11 +2686,20 @@ export default function CodePlayground() {
     return () => window.removeEventListener('keydown', handler);
   }, [runCode, isDrawerOpen]);
 
+  const stopFlush = (): void => {
+    if (flushTimerRef.current !== null) {
+      window.clearInterval(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  };
+
   const handleTemplate = (template: Template): void => {
+    stopFlush();
     if (reactRootRef.current) {
       try { reactRootRef.current.unmount(); } catch { /* ignore */ }
       reactRootRef.current = null;
     }
+    logsRef.current = [];
     setCode(template.code);
     setOutput([]);
     setHasPreview(false);
@@ -2659,10 +2709,12 @@ export default function CodePlayground() {
   };
 
   const handleClear = (): void => {
+    stopFlush();
     if (reactRootRef.current) {
       try { reactRootRef.current.unmount(); } catch { /* ignore */ }
       reactRootRef.current = null;
     }
+    logsRef.current = [];
     setOutput([]);
     setHasPreview(false);
   };
@@ -2671,6 +2723,7 @@ export default function CodePlayground() {
     setIsDrawerOpen(true);
     setDrawerSearch('');
     setDrawerFilter('all');
+    setActiveCategory('all');
     setTimeout(() => drawerSearchRef.current?.focus(), 200);
   };
 
@@ -2690,7 +2743,7 @@ export default function CodePlayground() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen relative">
-      {/* Template Drawer */}
+      {/* Templates Modal -- 2-pane layout: categories on the left, snippets on the right */}
       <AnimatePresence>
         {isDrawerOpen && (
           <>
@@ -2698,27 +2751,43 @@ export default function CodePlayground() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30"
               onClick={() => setIsDrawerOpen(false)}
             />
             <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed top-0 right-0 h-full w-[340px] max-w-[90vw] bg-white dark:bg-[#0f0f1a] border-l border-slate-200 dark:border-slate-800 shadow-2xl z-40 flex flex-col"
+              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 8 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              className="fixed inset-0 m-auto w-[min(960px,94vw)] h-[min(620px,88vh)] bg-white dark:bg-[#0f0f1a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-40 flex flex-col overflow-hidden"
             >
-              {/* Drawer Header */}
-              <div className="px-5 pt-5 pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                      <BookOpen size={15} className="text-white" />
-                    </div>
-                    <div>
-                      <h2 className="font-bold text-sm leading-tight">Templates</h2>
-                      <span className="text-[11px] text-slate-400">{allTemplates.length} snippets</span>
-                    </div>
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <BookOpen size={16} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-base leading-tight">Templates</h2>
+                    <span className="text-[11px] text-slate-400">{allTemplates.length} snippets across {templateCategories.length} categories</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 w-[260px]">
+                    <Search size={13} className="text-slate-400 shrink-0" />
+                    <input
+                      ref={drawerSearchRef}
+                      value={drawerSearch}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDrawerSearch(e.target.value)}
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Escape' && setIsDrawerOpen(false)}
+                      placeholder="Search templates..."
+                      className="flex-1 bg-transparent outline-none text-sm placeholder:text-slate-400"
+                    />
+                    {drawerSearch && (
+                      <button onClick={() => { setDrawerSearch(''); drawerSearchRef.current?.focus(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
                   <button
                     onClick={() => setIsDrawerOpen(false)}
@@ -2727,119 +2796,150 @@ export default function CodePlayground() {
                     <X size={16} />
                   </button>
                 </div>
+              </div>
 
-                {/* Search */}
-                <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 focus-within:border-indigo-300 dark:focus-within:border-indigo-700 focus-within:ring-2 focus-within:ring-indigo-500/10 transition-all">
-                  <Search size={14} className="text-slate-400 shrink-0" />
-                  <input
-                    ref={drawerSearchRef}
-                    value={drawerSearch}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDrawerSearch(e.target.value)}
-                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Escape' && setIsDrawerOpen(false)}
-                    placeholder="Search templates..."
-                    className="flex-1 bg-transparent outline-none text-sm placeholder:text-slate-400"
-                  />
-                  {drawerSearch && (
-                    <button onClick={() => { setDrawerSearch(''); drawerSearchRef.current?.focus(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                      <X size={14} />
+              {/* Body: category nav + template grid */}
+              <div className="flex-1 flex min-h-0">
+                {/* Category Nav */}
+                <div className="w-[220px] shrink-0 border-r border-slate-100 dark:border-slate-800 py-3 overflow-y-auto sidebar-scroll bg-slate-50/60 dark:bg-slate-900/40">
+                  {/* Tag pills at top of category list */}
+                  <div className="px-3 pb-3 flex gap-1.5 flex-wrap">
+                    {tagOptions.map((tag: string) => {
+                      const count: number = tag === 'all' ? allTemplates.length : allTemplates.filter(t => t.tag.toLowerCase() === tag).length;
+                      return (
+                        <button
+                          key={tag}
+                          onClick={() => setDrawerFilter(tag)}
+                          className={[
+                            "px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all capitalize flex items-center gap-1",
+                            drawerFilter === tag
+                              ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
+                              : "bg-white dark:bg-slate-800/70 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                          ].join(' ')}
+                        >
+                          {tag === 'all' ? 'All' : tag}
+                          <span className="text-[9px] opacity-60">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="px-2">
+                    <button
+                      onClick={() => setActiveCategory('all')}
+                      className={[
+                        "w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors flex items-center justify-between",
+                        activeCategory === 'all'
+                          ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
+                      ].join(' ')}
+                    >
+                      <span>All categories</span>
+                      <span className="text-[10px] text-slate-400">{filteredCategories.reduce((n, c) => n + c.templates.length, 0)}</span>
                     </button>
+                    {filteredCategories.map((cat: TemplateCategory) => {
+                      const isActive = activeCategory === cat.label;
+                      return (
+                        <button
+                          key={cat.label}
+                          onClick={() => setActiveCategory(cat.label)}
+                          className={[
+                            "w-full text-left px-3 py-2 mt-0.5 rounded-lg text-[13px] transition-colors flex items-center justify-between gap-2",
+                            isActive
+                              ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
+                              : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
+                          ].join(' ')}
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className={[
+                              "text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0",
+                              cat.tag === 'React' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
+                                cat.tag === 'Polyfills' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' :
+                                  'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                            ].join(' ')}>
+                              {cat.tag}
+                            </span>
+                            <span className="truncate">{cat.label}</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 shrink-0">{cat.templates.length}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Templates Grid */}
+                <div className="flex-1 overflow-y-auto sidebar-scroll p-4">
+                  {/* Mobile-only search */}
+                  <div className="sm:hidden mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                    <Search size={13} className="text-slate-400 shrink-0" />
+                    <input
+                      value={drawerSearch}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDrawerSearch(e.target.value)}
+                      placeholder="Search templates..."
+                      className="flex-1 bg-transparent outline-none text-sm"
+                    />
+                  </div>
+
+                  {filteredCategories.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center py-12 text-slate-400">
+                      <Search size={32} className="mb-3 opacity-40" />
+                      <p className="text-sm font-medium">No templates found</p>
+                      <p className="text-xs mt-1">Try a different search or filter</p>
+                    </div>
+                  ) : (
+                    (activeCategory === 'all' ? filteredCategories : filteredCategories.filter(c => c.label === activeCategory)).map((cat: TemplateCategory) => (
+                      <div key={cat.label} className="mb-5 last:mb-0">
+                        <div className="flex items-center gap-2 mb-2.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            {cat.label}
+                          </span>
+                          <span className={[
+                            "text-[9px] px-1.5 py-0.5 rounded-full font-semibold",
+                            cat.tag === 'React' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
+                              cat.tag === 'Polyfills' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' :
+                                'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                          ].join(' ')}>
+                            {cat.tag}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {cat.templates.map((t: Template) => {
+                            const isActive: boolean = selectedName === t.name;
+                            return (
+                              <button
+                                key={t.name}
+                                onClick={() => handleTemplate(t)}
+                                className={[
+                                  "text-left px-3 py-2.5 rounded-xl text-[13px] transition-all flex items-center gap-2 group border",
+                                  isActive
+                                    ? "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-medium shadow-sm"
+                                    : "bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300"
+                                ].join(' ')}
+                              >
+                                <span className="flex-1 truncate">{t.name}</span>
+                                {t.jsx && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 shrink-0">
+                                    JSX
+                                  </span>
+                                )}
+                                <ChevronRight size={12} className="text-slate-300 dark:text-slate-700 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors shrink-0" />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
-
-                {/* Category Filter Pills */}
-                <div className="mt-3 flex gap-1.5 overflow-x-auto">
-                  {tagOptions.map((tag: string) => {
-                    const count: number = tag === 'all' ? allTemplates.length : allTemplates.filter(t => t.tag.toLowerCase() === tag).length;
-                    return (
-                      <button
-                        key={tag}
-                        onClick={() => setDrawerFilter(tag)}
-                        className={[
-                          "px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize whitespace-nowrap flex items-center gap-1.5",
-                          drawerFilter === tag
-                            ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 shadow-sm"
-                            : "bg-slate-100 dark:bg-slate-800/80 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700/80"
-                        ].join(' ')}
-                      >
-                        {tag === 'all' ? 'All' : tag}
-                        <span className={[
-                          "text-[10px] min-w-[18px] text-center rounded-full px-1",
-                          drawerFilter === tag
-                            ? "bg-indigo-200/80 dark:bg-indigo-800/60 text-indigo-800 dark:text-indigo-200"
-                            : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
-                        ].join(' ')}>
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
 
-              {/* Divider */}
-              <div className="h-px bg-slate-100 dark:bg-slate-800 mx-4" />
-
-              {/* Template List */}
-              <div className="flex-1 overflow-y-auto px-3 py-3 sidebar-scroll">
-                {filteredCategories.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                    <Search size={32} className="mb-3 opacity-40" />
-                    <p className="text-sm font-medium">No templates found</p>
-                    <p className="text-xs mt-1">Try a different search or filter</p>
-                  </div>
-                ) : (
-                  filteredCategories.map((cat: TemplateCategory) => (
-                    <div key={cat.label} className="mb-3">
-                      <div className="px-2 py-2 flex items-center gap-2 sticky top-0 bg-white/95 dark:bg-[#0f0f1a]/95 backdrop-blur-sm z-10">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          {cat.label}
-                        </span>
-                        <span className={[
-                          "text-[9px] px-1.5 py-0.5 rounded-full font-semibold",
-                          cat.tag === 'React' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
-                          cat.tag === 'Polyfills' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' :
-                          'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                        ].join(' ')}>
-                          {cat.tag}
-                        </span>
-                        <span className="text-[10px] text-slate-300 dark:text-slate-600">{cat.templates.length}</span>
-                      </div>
-                      <div className="space-y-0.5">
-                        {cat.templates.map((t: Template) => {
-                          const isActive: boolean = selectedName === t.name;
-                          return (
-                            <button
-                              key={t.name}
-                              onClick={() => handleTemplate(t)}
-                              className={[
-                                "w-full text-left px-3 py-2.5 rounded-xl text-[13px] transition-all flex items-center gap-3 group relative",
-                                isActive
-                                  ? "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 font-medium shadow-sm"
-                                  : "hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                              ].join(' ')}
-                            >
-                              {/* Active indicator bar */}
-                              {isActive && (
-                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-indigo-500" />
-                              )}
-                              <span className="flex-1 truncate">{t.name}</span>
-                              {t.jsx && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100/80 dark:bg-blue-900/20 text-blue-500 dark:text-blue-400 opacity-60 group-hover:opacity-100 transition-opacity shrink-0">
-                                  JSX
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Drawer Footer */}
-              <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                <p className="text-[11px] text-slate-400 text-center">
+              {/* Modal Footer */}
+              <div className="px-5 py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+                <p className="text-[11px] text-slate-400">
+                  {filteredCategories.reduce((n, c) => n + c.templates.length, 0)} matching
+                </p>
+                <p className="text-[11px] text-slate-400">
                   Press <kbd className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-[10px] font-mono mx-0.5">Esc</kbd> to close
                 </p>
               </div>
@@ -2851,7 +2951,14 @@ export default function CodePlayground() {
       {/* Header -- always dark like an IDE */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2d333b] bg-[#1c2028] shrink-0 text-slate-200">
         <div className="flex items-center gap-3 min-w-0">
-          <Link to="/" className="text-slate-400 hover:text-white transition-colors shrink-0">
+          <button
+            onClick={() => window.dispatchEvent(new Event('prephub:show-sidebar'))}
+            className="text-slate-400 hover:text-white transition-colors shrink-0 hidden md:flex p-1.5 rounded-lg hover:bg-[#2d333b]"
+            title="Show sidebar"
+          >
+            <PanelLeftOpen size={16} />
+          </button>
+          <Link to="/" className="text-slate-400 hover:text-white transition-colors shrink-0" title="Back to home">
             <ArrowLeft size={18} />
           </Link>
           <h1 className="text-lg font-bold shrink-0 text-white">Playground</h1>
@@ -2889,7 +2996,6 @@ export default function CodePlayground() {
           >
             {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
             {isRunning ? 'Running...' : 'Run'}
-            <kbd className="hidden sm:inline text-[10px] opacity-70 ml-1">⌘↵</kbd>
           </button>
         </div>
       </div>
@@ -2919,43 +3025,47 @@ export default function CodePlayground() {
 
         {/* Output Panel */}
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Console */}
-          <div className="px-4 py-2 text-xs font-medium text-slate-500 border-b border-[#2d333b] bg-[#22272e] shrink-0 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Console Output
-          </div>
-          <div className={`overflow-auto p-4 bg-[#1e1e2e] font-mono text-sm ${hasPreview ? 'max-h-[30vh]' : 'flex-1 min-h-[100px]'}`}>
-            {output.length === 0 && !hasPreview ? (
-              <div className="text-slate-500 italic">
-                Click "Run" or press ⌘+Enter to execute your code...
-              </div>
-            ) : (
-              output.map((entry: OutputEntry, i: number) => (
-                <div
-                  key={i}
-                  className={`py-1 border-b border-slate-800/50 last:border-0 ${
-                    entry.type === 'error' ? 'text-red-400' :
-                    entry.type === 'warn' ? 'text-yellow-400' :
-                    entry.type === 'result' ? 'text-blue-400' :
-                    'text-[#a6e3a1]'
-                  }`}
-                >
-                  {entry.type === 'error' && <AlertTriangle size={12} className="inline mr-2" />}
-                  <span className="whitespace-pre-wrap">{entry.text}</span>
+          {/* Console -- when React preview is shown, split vertical space evenly so both are readable */}
+          <div className={hasPreview ? 'flex-1 flex flex-col min-h-[160px] basis-0' : 'flex-1 flex flex-col min-h-[100px]'}>
+            <div className="px-4 py-2 text-xs font-medium text-slate-500 border-b border-[#2d333b] bg-[#22272e] shrink-0 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              Console Output
+              {output.length > 0 && <span className="ml-1 text-[10px] text-slate-600">({output.length})</span>}
+            </div>
+            <div className="flex-1 overflow-auto p-4 bg-[#1e1e2e] font-mono text-sm min-h-0">
+              {output.length === 0 && !hasPreview ? (
+                <div className="text-slate-500 italic">
+                  Click "Run" or press ⌘+Enter to execute your code...
                 </div>
-              ))
-            )}
+              ) : output.length === 0 ? (
+                <div className="text-slate-600 italic text-xs">No console output yet — logs will appear here.</div>
+              ) : (
+                output.map((entry: OutputEntry, i: number) => (
+                  <div
+                    key={i}
+                    className={`py-1 border-b border-slate-800/50 last:border-0 ${entry.type === 'error' ? 'text-red-400' :
+                        entry.type === 'warn' ? 'text-yellow-400' :
+                          entry.type === 'result' ? 'text-blue-400' :
+                            'text-[#a6e3a1]'
+                      }`}
+                  >
+                    {entry.type === 'error' && <AlertTriangle size={12} className="inline mr-2" />}
+                    <span className="whitespace-pre-wrap">{entry.text}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           {/* React Preview -- always mounted, toggled via CSS */}
-          <div className={hasPreview ? 'flex-1 flex flex-col min-h-0' : 'h-0 overflow-hidden'}>
-            <div className="px-4 py-2 text-xs font-medium text-slate-500 border-y border-[#2d333b] bg-[#22272e] shrink-0 flex items-center gap-2">
+          <div className={hasPreview ? 'flex-1 flex flex-col min-h-[160px] basis-0 border-t border-[#2d333b]' : 'h-0 overflow-hidden'}>
+            <div className="px-4 py-2 text-xs font-medium text-slate-500 border-b border-[#2d333b] bg-[#22272e] shrink-0 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-blue-500" />
               React Preview
             </div>
             <div
               ref={previewRef}
-              className="flex-1 overflow-auto bg-white text-slate-900 min-h-[120px] p-1"
+              className="flex-1 overflow-auto bg-white text-slate-900 p-2 min-h-0"
             />
           </div>
         </div>

@@ -7,10 +7,10 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 ## Features
 
 ### Study Content
-- **20+ Guides** across 8 categories: Front End (React, React Native & Apps, Redux, TanStack Query, Storybook, Testing, Frontend Tooling), JS & TS, Back End (Node.js, Express, MongoDB, API Design, CORS, Database Schema), AWS, Git, DSA, Behavioral, System Design
-- **7 Cheat Sheets** — condensed quick reference cards (React Hooks, JS ES6+, Git Commands, Git Workflows, Big-O, CSS Flexbox/Grid, HTTP Status Codes)
-- **Mermaid Diagrams** — architecture diagrams rendered as interactive visuals
-- **Tricky Output Questions** — "Guess the Output" sections in 7 guides (React, TypeScript, Node.js, Redux Saga, Express, MongoDB, Redux Toolkit) with 84 total questions and cheat sheets
+- **32 guides across 8 categories** — Front End (9: React, React Native & Apps, Redux Toolkit, Redux Saga, TanStack Query, Storybook, Jest & RTL, Frontend Tooling, React Comparisons), JS & TS (3), Back End (7: Node.js, Express, MongoDB, API Design, Database Schema, CORS, Backend Comparisons), AWS (7: IAM, EC2, S3, Lambda, CloudWatch, Frontend Deployment, AWS Comparisons), Git (2), DSA (1), Behavioral (1), System Design (2)
+- **7 cheat sheets** — React Hooks, JS ES6+, Git Commands, Git Workflows & Advanced, Big-O, CSS Flexbox/Grid, HTTP Status Codes
+- **Mermaid diagrams** — architecture diagrams rendered as interactive visuals
+- **Tricky Output Questions** — "Guess the Output" sections in 9 guides (JavaScript, TypeScript, React, React Native, Redux Saga, Redux Toolkit, Node.js, Express, MongoDB) totalling 111 questions, each paired with a detailed explanation and followed by a cheat-sheet summary
 - **Syntax-highlighted code blocks** with copy and "Try it" buttons
 - **Reading time estimates** on every guide
 - **Table of Contents** — auto-generated from headings, tracks active section while scrolling
@@ -19,7 +19,7 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 - **Quiz Mode** — flashcard-style Q&A extracted from guides, with difficulty filters (Beginner/Intermediate/Advanced)
 - **Daily Review** — spaced repetition (SM-2 algorithm) schedules questions for optimal retention
 - **Interview Simulator** — timed mock interviews with configurable question count, time limit, and category selection
-- **Code Playground** — run JavaScript and React/JSX code in-browser with live preview, 60+ templates across JS fundamentals, interview topics, React basics, polyfills, coding challenges, and React machine coding questions
+- **Code Playground** — run JavaScript and React/JSX code in-browser with live preview and streaming console logs; 49 built-in templates across JS fundamentals, interview topics, React basics, polyfills, coding challenges, and React machine coding questions; templates browser is a centered 2-pane modal (categories + snippet cards)
 
 ### Study Effectiveness
 - **Progress Tracking** — guides auto-marked as in-progress on visit, manual "Mark Complete" with visual status dots
@@ -79,14 +79,14 @@ prephub/
       useStudyStats.ts         # Streak & gamification stats (localStorage)
       useTextToSpeech.ts       # Web Speech API wrapper
     content/
-      front-end/               # React, React Native & Apps, Redux, TanStack Query, Storybook, Testing, Frontend Tooling guides
-      javascript-and-typescript/
-      back-end/                # Node.js, Express, MongoDB, API Design, CORS, Database Schema guides
-      aws/                     # IAM, EC2, S3, Lambda, CloudWatch guides
+      front-end/               # React, React Native & Apps, Redux Toolkit, Redux Saga, TanStack Query, Storybook, Jest & RTL, Frontend Tooling, React Comparisons
+      javascript-and-typescript/ # JavaScript, TypeScript, JS Comparisons
+      back-end/                # Node.js, Express, MongoDB, API Design, Database Schema, CORS, Backend Comparisons
+      aws/                     # IAM, EC2, S3, Lambda, CloudWatch, Frontend Deployment, AWS Comparisons
       git/                     # Git Guide, Git Comparisons
       dsa/                     # Data structures & algorithms
       behavioral/              # STAR method, leadership principles
-      system-design/
+      system-design/           # System Design Guide, Design Comparisons
       cheatsheets/             # 7 quick reference sheets
       changelog.md
   scripts/                     # prepare-content.js, generate-sitemap.js

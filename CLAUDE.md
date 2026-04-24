@@ -26,8 +26,12 @@ Build must pass before pushing. The deploy workflow runs `prepare-content.js` th
 
 ### Data flow
 - `data.ts` exports `menuStructure` (defines all guide categories/items), `contentFiles` (eager glob of all markdown), and utility functions. This is the single source of truth for content structure.
+- Current counts: 8 categories (Front End 9, JS & TS 3, Back End 7, AWS 7, Git 2, DSA 1, Behavioral 1, System Design 2) = 32 guides, plus an Introduction entry. 7 cheat sheets.
 - `cheatSheets` array in `data.ts` defines cheat sheet routes separately from guide categories.
-- All question extraction happens via `extractQuestions()` which parses two markdown patterns (JS output-style `## QN` and standard `**QN: text**`).
+- All question extraction happens via `extractQuestions()` which parses two markdown patterns:
+  1. **JS output-style** (`## QN` + ` ```…``` ` + `### ✅ Output` + `### 💡 Explanation`) — used only by the JavaScript guide.
+  2. **Standard** (`**QN: text**` followed by an answer block, terminated by the next `**Q{N+1}:` marker **or a standalone `---` line**). Everything between the marker and that terminator becomes the Quiz-mode answer — so the explanation for a question must live BEFORE the `---` separator, not after it.
+- "Tricky Output Questions" sections currently live in 9 guides: JavaScript (11 Qs), TypeScript (16), React (16), React Native (16), Redux Saga (10), Redux Toolkit (10), Node.js (12), Express (10), MongoDB (10) — 111 total. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style (for its standalone output-style questions) and the `**QN:**` format for its tricky section.
 
 ### Content
 - Markdown files in `src/content/` are loaded at build time via `import.meta.glob` with eager loading. They're bundled into the JS, not served as separate files.
@@ -41,8 +45,10 @@ Build must pass before pushing. The deploy workflow runs `prepare-content.js` th
 
 ### Key patterns
 - **Heading IDs**: `createHeading` in ContentPage generates IDs via `slugify(getTextContent(children))`. Used by TOC, deep links, and bookmarks.
-- **Code blocks**: `PreBlock` wraps all `<pre>` elements, adds copy/try-it buttons. Mermaid blocks are detected by `language-mermaid` class and routed to `MermaidBlock`.
+- **Code blocks**: `PreBlock` wraps all `<pre>` elements, adds copy/try-it buttons. Mermaid blocks are detected by `language-mermaid` class and routed to `MermaidBlock`. The "Try it" handler auto-appends `render(<Component />)` when it finds JSX with no render call, so snippets from React guides are runnable without manual edits.
 - **JSX in Playground**: Detected via `/<[A-Z]/.test(code) || /render\s*\(/.test(code)`. Transpiled by lazy-loaded `@babel/standalone`. React scope injected via `new Function(...keys, code)(...values)`.
+- **Playground console capture**: `console.log/warn/error` are patched once on mount (not per-run) and write into a ref. A flush interval copies the ref into state while a React preview is live, so async logs from intervals/effects keep streaming. The patch is restored on unmount.
+- **Playground sidebar toggle**: Playground emits a `prephub:show-sidebar` window event; `App` listens and opens/uncollapses the sidebar. The floating expand button is hidden on `/playground` to avoid overlapping the editor — the playground header has its own inline toggle.
 - **Spaced Repetition**: SM-2 algorithm in `useSpacedRepetition.ts`. Quality 4 = "Got It", 1 = "Study Again".
 
 ### localStorage schema
@@ -79,6 +85,8 @@ There are no automated tests. Verify changes by:
 - Version `1.0.0` marks the first stable release with the repo rename to `prephub`.
 
 ## What's New (Latest Changes)
+- **Tricky-section rewrite (v1.0.5)** — All 111 Tricky Output Questions across 9 guides were rewritten to state the question clearly in one sentence and follow with a detailed teaching-style explanation (not the previous 2-3 line summaries). Parser contract preserved: each Q stays in the `**Q{N}: text**` + answer-block + `---` format, with the full explanation placed BEFORE the `---` separator so Quiz mode still captures it.
+- **Playground fixes (v1.0.4)** — Console output now splits space evenly with the React preview (no more collapsed sliver). Console patch is persistent so async logs from intervals/effects keep flowing. "Try it" from React guides auto-appends `render(<Component />)`. Templates UI redesigned as a centered 2-pane modal (categories + snippet cards) instead of the cluttered drawer. On `/playground`, the floating sidebar expand button is hidden and replaced by an inline toggle in the playground header to stop it overlapping the editor.
 - **React Native & Apps guide** — New Front End guide covering core components, Flexbox (platform differences), `FlatList`/`SectionList` perf, React Navigation + Expo Router, platform APIs, SafeArea/Keyboard, storage (AsyncStorage/MMKV/SecureStore/SQLite), animations (Animated + Reanimated), gestures, native modules, New Architecture (JSI/Fabric/TurboModules/Hermes), push notifications, deep linking, OTA updates (EAS Update / CodePush), accessibility, i18n. 30 interview Qs (split by difficulty) + 16 tricky output/conceptual questions with a cheat sheet.
 - **Tricky Output Questions** — "Guess the Output" sections added to 7 guides: React (16Q), TypeScript (16Q), Node.js (12Q), Redux Saga (10Q), Express.js (10Q), MongoDB (10Q), Redux Toolkit (10Q). Each follows the `**QN: text**` + `**Output:**` format with a cheat sheet at the end. JS guide already had this section.
 - **v1.0.0** — Repo renamed from `interview-prep` to `prephub`. Base path updated to `/prephub/` across all configs.

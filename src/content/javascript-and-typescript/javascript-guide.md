@@ -1596,7 +1596,7 @@ Practice questions testing your understanding of JavaScript quirks — type coer
 
 ---
 
-**Q1: What does `3 > 2 > 1` return?**
+**Q1: Why does the chained comparison `3 > 2 > 1` return `false` even though 3, 2, and 1 appear to be in strictly decreasing order?**
 
 ```js
 console.log(3 > 2 > 1);
@@ -1604,11 +1604,21 @@ console.log(3 > 2 > 1);
 
 **Output:** `false`
 
-`3 > 2` evaluates to `true`, then `true` is coerced to `1`, and `1 > 1` is `false`.
+**Explanation:**
+
+Unlike mathematics or languages like Python, JavaScript does **not** support chained relational comparisons as a single "is this value between these two?" operation. Instead, `>` is strictly a binary operator and is left-associative, so the expression is evaluated in two separate steps from left to right.
+
+1. First, `3 > 2` is evaluated. Both operands are numbers, so no coercion happens. The result is the boolean `true`.
+2. The expression now becomes `true > 1`. Relational operators require numeric operands, so the abstract `ToNumber` algorithm converts `true` to `1`.
+3. The comparison reduces to `1 > 1`, which is `false`.
+
+The trap is that a reader expects JavaScript to interpret the expression as "is 3 greater than 2 AND 2 greater than 1?", but what actually happens is that the boolean result of the first comparison silently participates in the second one as a number. The same pitfall appears in `1 < 2 < 3`, which surprisingly also returns `true` — not because the math checks out, but because `true < 3` is `1 < 3`.
+
+**Takeaway:** JavaScript has no chained comparison syntax; write `3 > 2 && 2 > 1` explicitly when you mean a range check.
 
 ---
 
-**Q2: Why is `[] == ![]` true?**
+**Q2: Why does `[] == ![]` evaluate to `true` when an empty array is truthy but also appears to be equal to its own negation?**
 
 ```js
 console.log([] == ![]);
@@ -1616,11 +1626,22 @@ console.log([] == ![]);
 
 **Output:** `true`
 
-`![]` is `false` (arrays are truthy). Then `[] == false` — both sides coerce to `0`, so `0 == 0` is `true`.
+**Explanation:**
+
+Two different coercion systems collide here: unary `!` uses the *boolean* coercion rules (`ToBoolean`), while `==` uses the abstract equality algorithm which coerces objects to primitives and then to numbers.
+
+1. `![]` evaluates first because `!` has higher precedence than `==`. The `!` operator applies `ToBoolean` to its operand. Every object — including an empty array — is truthy in JavaScript, so `ToBoolean([])` is `true`. Negating it gives `false`. So `![]` becomes `false`.
+2. The expression is now `[] == false`. The abstract equality algorithm sees an object on the left and a boolean on the right. The rule is: if either side is a boolean, convert the boolean to a number. `false` becomes `0`, so we now have `[] == 0`.
+3. The next step: object on the left, number on the right. The algorithm converts the object to a primitive via `ToPrimitive` with a `"number"` hint, which calls `[].valueOf()` (returns the array itself, not a primitive) and then falls back to `[].toString()`, which returns the empty string `""`.
+4. We now have `"" == 0`. The string is coerced to a number: `Number("")` is `0`. Finally, `0 == 0` is `true`.
+
+The apparent contradiction with "`[]` is truthy" is only apparent: truthiness (used by `!`, `if`, `&&`, `||`) is a different conversion path than abstract equality (used by `==`), so one object can simultaneously be truthy AND loosely equal to `false`.
+
+**Takeaway:** `!` uses `ToBoolean`; `==` uses object-to-primitive plus numeric coercion. These are different rule sets, which is exactly why linters forbid `==` on mixed types — always prefer `===`.
 
 ---
 
-**Q3: Null comparison quirks**
+**Q3: How can `null >= 0` be `true` while both `null > 0` and `null == 0` are `false` — isn't that mathematically inconsistent?**
 
 ```js
 console.log(null >= 0);
@@ -1635,11 +1656,20 @@ false
 false
 ```
 
-`>=` and `>` coerce `null` to `0`, so `0 >= 0` is `true` but `0 > 0` is `false`. However, `==` has special rules — `null` only equals `undefined`, not `0`.
+**Explanation:**
+
+This is one of the most famous inconsistencies in the language, and it happens because the relational operators (`<`, `<=`, `>`, `>=`) and the equality operators (`==`, `!=`) use **completely different specification algorithms**.
+
+1. For `null >= 0` and `null > 0`, JavaScript uses the Abstract Relational Comparison algorithm. This algorithm calls `ToNumber` on both operands. `ToNumber(null)` is defined to be `0`, and `ToNumber(0)` is `0`. So `null >= 0` reduces to `0 >= 0` → `true`, and `null > 0` reduces to `0 > 0` → `false`.
+2. For `null == 0`, JavaScript uses the Abstract Equality algorithm, which has a **hard-coded special case**: `null` is only loosely equal to `null` and `undefined`. It does **not** coerce `null` to a number. So `null == 0` returns `false` without any numeric comparison ever happening.
+
+The contradiction — "if `null >= 0` is true but `null == 0` is false, then `null > 0` must be true" — is what mathematicians would call a violation of trichotomy. JavaScript breaks this intentionally because `==` treats `null` as a distinct nullish sentinel (for the idiomatic `x == null` check that catches both `null` and `undefined`), while the relational operators fell back to blind numeric coercion.
+
+**Takeaway:** `null` uses different coercion rules for `<`/`<=`/`>`/`>=` (numeric) than for `==`/`!=` (special-cased). Never rely on relational operators with `null`; use explicit `null` or `undefined` checks.
 
 ---
 
-**Q4: NaN is not equal to itself**
+**Q4: Why does `NaN == NaN` return `false` when every other value in JavaScript is equal to itself?**
 
 ```js
 console.log(NaN == NaN);
@@ -1647,11 +1677,30 @@ console.log(NaN == NaN);
 
 **Output:** `false`
 
-`NaN` is the only value in JavaScript that is not equal to itself. Use `Number.isNaN()` to check for NaN.
+**Explanation:**
+
+`NaN` (Not-a-Number) is a special floating-point value that represents the result of an undefined or unrepresentable mathematical operation — things like `0/0`, `Math.sqrt(-1)`, `parseInt("abc")`, or `"foo" * 2`. The behavior `NaN !== NaN` is not a JavaScript quirk; it comes directly from the **IEEE 754** floating-point standard, which JavaScript's `Number` type implements.
+
+The reasoning in IEEE 754 is philosophical: `NaN` means "the result of a failed computation", and two failed computations aren't necessarily the same failure. `0/0` and `Math.sqrt(-1)` both yield `NaN`, but treating them as equal would be misleading — they represent different undefined outcomes. By design, any comparison involving `NaN` (using `==`, `===`, `<`, `>`, `<=`, `>=`) returns `false`, except `!=` and `!==` which return `true`.
+
+This means you cannot detect `NaN` with equality:
+
+```js
+const x = NaN;
+x === NaN;          // false
+x !== x;            // true — the classic self-inequality trick
+Number.isNaN(x);    // true — the correct way
+isNaN("abc");       // true — but the global isNaN is buggy (coerces first)
+Object.is(NaN, NaN); // true — Object.is has special NaN handling
+```
+
+Note that `Object.is(NaN, NaN)` returns `true` because `Object.is` uses the "SameValue" algorithm, which explicitly treats `NaN` as equal to itself. It also distinguishes `+0` from `-0`, unlike `===`.
+
+**Takeaway:** `NaN` is the only value not equal to itself; use `Number.isNaN(x)` or `Object.is(x, NaN)` to test for it, never `x === NaN`.
 
 ---
 
-**Q5: Array and object coercion with `+`**
+**Q5: What does each of `[] + []`, `[] + {}`, `{} + []`, and `true + true` produce, and why do two of them look like they should give the same result but don't?**
 
 ```js
 console.log([] + []);
@@ -1668,10 +1717,18 @@ console.log(true + true);
 2
 ```
 
-- `[] + []`: Both arrays coerce to `""`, so `"" + ""` = `""`.
-- `[] + {}`: `[]` becomes `""`, `{}` becomes `"[object Object]"`.
-- `{} + []`: `{}` is parsed as empty block, so it becomes `+[]` which is `0`.
-- `true + true`: Both coerce to `1`, so `1 + 1` = `2`.
+**Explanation:**
+
+The binary `+` operator in JavaScript has a dual personality: it's both numeric addition and string concatenation. For each operand it calls `ToPrimitive` with a `"default"` hint; if either resulting primitive is a string, it switches to string concatenation, otherwise it does numeric addition. The surprise here is that **parser context** also changes the meaning of `{}`.
+
+1. **`[] + []`**: Both operands are arrays. `ToPrimitive` on an array calls `.toString()`, which joins elements with commas. An empty array joins to `""`. So we get `"" + ""`, and since at least one side is a string, the result is string concatenation: `""`.
+2. **`[] + {}`**: The left side coerces to `""` as above. The right side is an object literal in an **expression** position, so `ToPrimitive` is applied: `({}).toString()` returns `"[object Object]"`. Result: `"" + "[object Object]"` → `"[object Object]"`.
+3. **`{} + []`**: At the **start of a statement**, `{}` is parsed as an empty block statement, not an object literal. The parser sees `{}` (a block that does nothing) followed by `+[]`, where `+` is now the **unary** plus operator. Unary `+` coerces its operand to a number: `+[]` calls `ToNumber([])`, which first converts to `""`, then `Number("")` is `0`. So the whole line logs `0`. (If you wrap it as `({} + [])`, the parens force expression context and you get `"[object Object]"` instead.)
+4. **`true + true`**: Neither operand is an object or string, so `+` does numeric addition. `ToNumber(true)` is `1`, so the result is `1 + 1` = `2`.
+
+The key insight: `{} + []` behaves differently from `[] + {}` not because `+` is non-commutative (it is for strings, but that's not what's happening here), but because the parser decides whether `{}` is a block or an object based on position.
+
+**Takeaway:** `+` prefers strings when either operand coerces to one, and a leading `{}` on a line is parsed as a block — wrap expressions in parentheses if you need object-literal semantics.
 
 ---
 
@@ -1679,7 +1736,7 @@ console.log(true + true);
 
 ---
 
-**Q6: Objects and arrays are compared by reference**
+**Q6: Why does `{} === {}` return `false` — aren't two empty objects "the same"?**
 
 ```js
 console.log({} === {});
@@ -1692,7 +1749,30 @@ false
 false
 ```
 
-Two separate object/array literals create two different references in memory, so they are never equal.
+**Explanation:**
+
+JavaScript divides its values into two big families: **primitives** (string, number, boolean, null, undefined, symbol, bigint) and **objects** (everything else — plain objects, arrays, functions, dates, maps, etc.). The `===` operator compares these families differently.
+
+- For primitives, `===` compares **by value**: `"a" === "a"` is `true`, and `5 === 5` is `true`, regardless of where those literals appear in source code.
+- For objects, `===` compares **by reference** (identity): two objects are `===` only if they are literally the same object in memory — the same slot on the heap.
+
+Each time you write an object or array literal (`{}`, `[]`, `new Date()`, a function expression, etc.), the engine allocates a **fresh** object on the heap and returns a reference to it. Even if the new object has identical contents to another, they live at different memory addresses, so the references are different, so `===` is `false`.
+
+```js
+const a = {};
+const b = a;
+a === b; // true — same reference
+
+const c = {};
+a === c; // false — different references even though both are empty
+
+// To compare contents, you need structural equality:
+JSON.stringify(a) === JSON.stringify(c); // true (but brittle — ignores undefined, functions, symbols, circular refs)
+```
+
+The same applies to arrays, functions, and every other object type. `[] === []` is `false`, `(()=>{}) === (()=>{})` is `false`, and so on.
+
+**Takeaway:** Objects and arrays compare by reference, not structure; use a deep-equality helper (lodash `isEqual`, `JSON.stringify` for simple data) when you need value-based comparison.
 
 ---
 
@@ -1702,7 +1782,7 @@ These questions test your understanding of the execution order between synchrono
 
 ---
 
-**Q7: async/await execution order**
+**Q7: In what order will `"A"`, `"B"`, and `"C"` print when an async function logs `"A"`, awaits a resolved promise, then logs `"B"`, and the calling code logs `"C"` after invoking the function?**
 
 ```js
 async function test() {
@@ -1721,11 +1801,22 @@ C
 B
 ```
 
-`"A"` prints synchronously. `await` pauses the function and schedules the rest as a microtask. `"C"` prints next (synchronous). Then `"B"` runs from the microtask queue.
+**Explanation:**
+
+An `async` function is **not** asynchronous from the caller's perspective until it hits its first `await` (or `return`). Up to that point, every statement runs synchronously as part of the call that invoked it.
+
+1. `test()` is invoked. Execution enters the function body. `console.log("A")` runs immediately and prints `A`.
+2. `await Promise.resolve()` is reached. Even though the promise is already resolved, `await` **always suspends** the async function and schedules the continuation (everything after `await`) as a microtask. Control returns to the caller. `test()` returns an unresolved promise.
+3. The next synchronous statement runs: `console.log("C")` prints `C`.
+4. The synchronous portion of the script finishes. The JavaScript runtime now drains the microtask queue before returning control to the event loop. The continuation of `test` runs: `console.log("B")` prints `B`.
+
+The critical rule people miss is step 2: `await` suspends **even when the promise is already resolved**. It does not optimize the "already-resolved" case. This is what makes `await` different from just reading `.then()` callbacks — the code after `await` always runs in a later microtask tick.
+
+**Takeaway:** The body of an `async` function runs synchronously until the first `await`, after which the remainder is scheduled as a microtask — so anything after the `async` call but before the event loop yields runs before the post-`await` code.
 
 ---
 
-**Q8: async function interleaved with synchronous code**
+**Q8: When a `console.log(3)` happens before an `async` function is called and `console.log(4)` happens after, in what order do `1`, `2`, `3`, and `4` appear?**
 
 ```js
 async function test() {
@@ -1747,11 +1838,23 @@ console.log(4);
 2
 ```
 
-`3` is synchronous. `test()` is called — `1` prints synchronously, then `await` pauses. `4` prints. Then `2` runs from the microtask queue.
+**Explanation:**
+
+The execution walks through one synchronous pass followed by one microtask flush. Here's the step-by-step trace:
+
+1. `console.log(3)` runs first because it appears first in source order. Output so far: `3`.
+2. `test()` is invoked. Because `async` functions run synchronously up to the first `await`, `console.log(1)` executes immediately. Output so far: `3, 1`.
+3. `await Promise.resolve()` is reached. The async function suspends and schedules the continuation (`console.log(2)`) as a microtask. `test()` returns an unresolved promise to the caller, but nothing is done with it.
+4. Execution returns to the top-level script. `console.log(4)` runs synchronously. Output so far: `3, 1, 4`.
+5. The synchronous portion is now complete. The runtime drains the microtask queue. The `test` continuation resumes and runs `console.log(2)`. Final output: `3, 1, 4, 2`.
+
+The crucial observation: calling `test()` does **not** immediately defer the entire body — only the part **after** `await`. So `1` prints between `3` and `4` (synchronous portion), while `2` prints after `4` (microtask portion).
+
+**Takeaway:** Calling an `async` function is a blend of synchronous execution (up to the first `await`) and scheduled microtasks (everything after); read each `await` as "suspend here and continue in a future microtask tick".
 
 ---
 
-**Q9: setTimeout with nested Promise**
+**Q9: Given a `setTimeout` that internally schedules a Promise, plus a top-level Promise and surrounding synchronous logs, what is the exact printing order?**
 
 ```js
 console.log("A");
@@ -1775,11 +1878,22 @@ B
 C
 ```
 
-Sync: `A`, `E`. Microtask: `D`. Macrotask: `B`, then its nested microtask: `C`.
+**Explanation:**
+
+The event loop processes work in three tiers with strict priority: **synchronous code** on the call stack finishes first, then the entire **microtask queue** is drained, and only then does the loop pick **one** macrotask (a `setTimeout` callback is a macrotask). After each macrotask, the microtask queue is drained again before the next macrotask runs.
+
+1. **Synchronous pass.** `console.log("A")` prints `A`. `setTimeout(...)` registers its callback as a macrotask (it does not run yet, even with `0ms` delay). `Promise.resolve().then(...)` registers its callback as a microtask. `console.log("E")` prints `E`.
+2. **First microtask drain.** The synchronous script is done. The runtime drains the microtask queue. The `.then(() => console.log("D"))` callback fires, printing `D`.
+3. **First macrotask.** The event loop picks the `setTimeout` callback. `console.log("B")` prints `B`. Inside this callback, `Promise.resolve().then(() => console.log("C"))` schedules a new microtask.
+4. **Second microtask drain.** The macrotask has finished, so the runtime drains the microtask queue again before the next macrotask. The newly-scheduled callback fires, printing `C`.
+
+Final order: `A, E, D, B, C`. The lesson is the relative priority of microtasks and macrotasks — even a `0ms` `setTimeout` runs after every currently-queued microtask, and each macrotask has its own follow-up microtask drain.
+
+**Takeaway:** Microtasks (Promises, `queueMicrotask`, `MutationObserver`) run to completion between each macrotask (`setTimeout`, `setInterval`, I/O), so a `setTimeout(fn, 0)` is always later than any already-resolved promise.
 
 ---
 
-**Q10: async function vs Promise.then ordering**
+**Q10: When an `async` function with `await` is called and then a separate `Promise.then()` is chained afterwards, which one's callback runs first in the microtask queue?**
 
 ```js
 async function foo() {
@@ -1803,11 +1917,23 @@ B
 D
 ```
 
-Sync: `C`, `A` (foo starts synchronously), `E`. Then microtasks in order: `B` (from await), `D` (from .then).
+**Explanation:**
+
+This question tests microtask **ordering** — microtasks run in the order they are enqueued (FIFO). Because `foo()` is called **before** the `.then()` registration, the `await` continuation gets queued first.
+
+1. **Synchronous pass begins.** `console.log("C")` prints `C`.
+2. `foo()` is invoked. The body runs synchronously until the first `await`. `console.log("A")` prints `A`. The `await Promise.resolve()` suspends `foo` and enqueues its continuation (`console.log("B")`) as **microtask #1**.
+3. `Promise.resolve().then(() => console.log("D"))` runs. The promise is already resolved, so the `.then` callback is enqueued immediately as **microtask #2**.
+4. `console.log("E")` prints `E`.
+5. **Synchronous pass is done.** The microtask queue now holds `[continuation of foo, then-callback]`. They are dequeued in FIFO order: `B` prints first, then `D`.
+
+Final order: `C, A, E, B, D`. If you had called `foo()` **after** the `.then()`, the order of the last two would flip to `D, B`. This is a common interview trick — the printing of `D` and `B` is determined purely by the order in which `await` and `.then()` were reached during the synchronous phase, not by any intrinsic priority of one over the other.
+
+**Takeaway:** The microtask queue is FIFO — whichever microtask was scheduled first runs first; `await` and `.then()` have equal priority and are ordered solely by when they were encountered during synchronous execution.
 
 ---
 
-**Q11: Complex combined scenario**
+**Q11: Given a mix of synchronous logs, a `setTimeout`, an `async` function with `await`, and a `Promise.then`, what is the full execution order from start to finish?**
 
 ```js
 console.log("1");
@@ -1837,7 +1963,21 @@ console.log("6");
 2
 ```
 
-Sync: `1`, `3` (foo starts), `6`. Microtasks: `4` (from await), `5` (from .then). Macrotask: `2` (from setTimeout).
+**Explanation:**
+
+This combines everything from the previous questions: synchronous order, microtask FIFO ordering, and the microtask-vs-macrotask priority rule. Walk through each step carefully:
+
+1. **Synchronous phase.** `console.log("1")` prints `1`. The `setTimeout` callback is registered as a **macrotask** (it won't run until the stack and microtask queue are empty).
+2. The function declaration `async function foo() { ... }` is hoisted and does not produce output.
+3. `foo()` is called. Inside the async body, `console.log("3")` runs synchronously and prints `3`. Then `await Promise.resolve()` suspends `foo` and enqueues its continuation (`console.log("4")`) as **microtask #1**.
+4. `Promise.resolve().then(() => console.log("5"))` runs and enqueues the `.then` callback as **microtask #2**.
+5. `console.log("6")` prints `6`. The synchronous phase is now done. Output so far: `1, 3, 6`.
+6. **Microtask drain.** Queue is `[foo-continuation, then-callback]`. FIFO dequeue: `console.log("4")` prints `4`, then `console.log("5")` prints `5`.
+7. **Macrotask pick.** The microtask queue is empty. The event loop picks the next macrotask — the `setTimeout` callback. `console.log("2")` prints `2`.
+
+Final order: `1, 3, 6, 4, 5, 2`. Notice the synchronous logs all happen first (in the source order `1, 3, 6`), then all already-queued microtasks drain in FIFO order (`4, 5`), and the `setTimeout` callback — despite its `0ms` delay — is last.
+
+**Takeaway:** Execution order is always: (1) synchronous call stack to completion, (2) entire microtask queue drained FIFO, (3) one macrotask, then repeat — so `setTimeout(fn, 0)` always loses to `await` and `.then()` callbacks queued in the same tick.
 
 ---
 

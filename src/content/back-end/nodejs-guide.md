@@ -1214,20 +1214,27 @@ Practice questions testing your understanding of Node.js event loop phases, `pro
 
 ---
 
-**Q1: setTimeout vs setImmediate**
+**Q1: In the top-level module (not inside an I/O callback), what does this print, and why is the order not guaranteed?**
 
 ```js
 setTimeout(() => console.log("timeout"), 0);
 setImmediate(() => console.log("immediate"));
 ```
 
-**Output:** Non-deterministic — could be either order.
+**Output:**
+```
+Non-deterministic — could be "timeout" first or "immediate" first
+```
 
-When run in the main module, the order depends on process performance. `setTimeout(fn, 0)` is actually `setTimeout(fn, 1)` internally. If the event loop enters the timer phase before 1ms elapses, `setImmediate` fires first. If not, `setTimeout` fires first.
+**Explanation:**
+
+This is the classic race that confuses most Node developers. After the synchronous script finishes, the event loop starts its first iteration. The phase order is: **timers → pending callbacks → idle/prepare → poll → check (setImmediate) → close callbacks**. `setTimeout(fn, 0)` is silently clamped to `setTimeout(fn, 1)` internally because Node's timer API has a minimum delay of 1 ms. When the loop enters the timer phase, it asks: "has 1 ms elapsed since the timer was scheduled?" If the process is still warming up (module loading, V8 optimization, etc.) and 1 ms has passed, the timer fires first and "timeout" prints, followed by "immediate" from the check phase on the same iteration. If the loop reaches the timer phase in under 1 ms, the timer is not yet due, so the loop skips through to the check phase, prints "immediate", and only fires the timer on the next iteration. Because whether we cross the 1 ms boundary depends on host load, the output is a race condition.
+
+**Takeaway:** At the top level, `setTimeout(fn, 0)` vs `setImmediate` ordering is a race — never rely on it; use `setImmediate` explicitly when you need "after the current poll phase".
 
 ---
 
-**Q2: setTimeout vs setImmediate inside I/O callback**
+**Q2: Inside an I/O callback (here, `fs.readFile`), what order do `setTimeout(fn, 0)` and `setImmediate(fn)` run, and why is it deterministic this time?**
 
 ```js
 const fs = require('fs');
@@ -1241,20 +1248,18 @@ fs.readFile(__filename, () => {
 **Output:**
 ```
 immediate
-immediate
-```
-
-Wait — actually:
-```
-immediate
 timeout
 ```
 
-Inside an I/O callback, `setImmediate` **always** fires before `setTimeout`. After the poll phase completes, the check phase (where `setImmediate` lives) runs before the event loop wraps back to timers.
+**Explanation:**
+
+Unlike Q1, this ordering is **guaranteed** by Node's event loop design. `fs.readFile`'s completion callback runs during the **poll phase** of the event loop (that's where I/O callbacks are dispatched). Inside this callback we schedule two things: a timer with `setTimeout` (which lands in the timer phase's queue) and a `setImmediate` (which lands in the check phase's queue). When the I/O callback returns, the event loop does not rewind to the timer phase — it moves forward through its phase order. The next phase after poll is **check**, where `setImmediate` callbacks live, so "immediate" fires first. The loop then proceeds through close callbacks, wraps around to the next iteration, hits the timer phase, sees the timer is due, and prints "timeout". This phase-ordering rule — "after poll comes check, before we wrap back to timers" — is what makes the result deterministic inside any I/O callback.
+
+**Takeaway:** Inside an I/O callback, `setImmediate` always fires before `setTimeout(fn, 0)` because the check phase comes right after poll, before the loop wraps back to timers.
 
 ---
 
-**Q3: process.nextTick vs Promise vs setTimeout**
+**Q3: In what order do synchronous logs, `process.nextTick`, `Promise.resolve().then`, and `setTimeout(fn, 0)` execute, and where does each callback live?**
 
 ```js
 console.log("1");
@@ -1277,11 +1282,15 @@ console.log("5");
 2
 ```
 
-Execution order: Synchronous (`1`, `5`) → `nextTick` queue (`4`) → microtask/Promise queue (`3`) → timer phase (`2`). `process.nextTick` always fires before Promises.
+**Explanation:**
+
+First, the synchronous top-level script runs to completion: `"1"` prints, the timer is registered in the timer phase's queue, the resolved promise's `.then` callback is queued in the **microtask queue**, the `nextTick` callback is queued in the **nextTick queue**, and `"5"` prints. Once the script stack is empty, Node drains its two special queues **before** entering any event loop phase. The rule is: **nextTick queue drains first, then the microtask queue, then we enter the event loop**. So `"4"` (nextTick) prints before `"3"` (Promise microtask). Only after both special queues are empty does the loop enter its first iteration. It hits the timer phase, finds the due 0 ms timer, and prints `"2"`. The nextTick queue is a Node-specific construct that sits *outside* the event loop phases; the microtask queue is the V8 promise queue. Both are drained between every transition — but nextTick always wins when both are populated simultaneously.
+
+**Takeaway:** `process.nextTick` > Promise microtasks > any event loop phase (timers, I/O, setImmediate). The two "out-of-loop" queues drain completely between phases, with nextTick draining first.
 
 ---
 
-**Q4: Nested nextTick — starvation risk**
+**Q4: If a `process.nextTick` callback schedules another `process.nextTick` while running, does the new one execute in the same drain or on the next loop iteration?**
 
 ```js
 setImmediate(() => console.log("immediate"));
@@ -1302,11 +1311,15 @@ tick 2
 immediate
 ```
 
-`process.nextTick` callbacks are processed **completely** before moving to the next event loop phase — including any new nextTick calls added during processing. This can starve I/O if abused.
+**Explanation:**
+
+After the synchronous portion runs (`"sync"`), Node drains the nextTick queue before entering the event loop. It pulls out the first callback and prints `"tick 1"`. Inside that callback, a new `process.nextTick` is scheduled — importantly, this is pushed onto the **same** nextTick queue Node is currently draining. Node's drain algorithm is: *keep processing until the queue is empty*, not *process a snapshot of size N*. So after `"tick 1"` returns, Node checks the queue again, finds the newly added callback, and runs it — printing `"tick 2"`. Only once the nextTick queue is truly empty does Node move on. It then drains microtasks (none here), enters the event loop, walks past the timer phase (empty), past poll (empty), and reaches the check phase where the `setImmediate` callback fires, printing `"immediate"`. This recursive drain is exactly what makes `process.nextTick` dangerous: a function that endlessly re-queues itself via nextTick will **starve the event loop**, never letting I/O, timers, or `setImmediate` callbacks run. This is why the official docs discourage using nextTick for anything but micro-scheduling within the current operation.
+
+**Takeaway:** `process.nextTick` drains recursively in the same pass, so nested nextTicks run before I/O — powerful for deferring logic, but a starvation hazard if you recurse.
 
 ---
 
-**Q5: Multiple timers with same delay**
+**Q5: When three `setTimeout(fn, 0)` callbacks are queued alongside a Promise and a `nextTick`, in what order do they run, and are timers with the same delay guaranteed to be FIFO?**
 
 ```js
 setTimeout(() => console.log("A"), 0);
@@ -1326,7 +1339,11 @@ B
 C
 ```
 
-`nextTick` (E) runs first, then microtask/Promise (D), then all timers in FIFO order (A, B, C).
+**Explanation:**
+
+Three logical things are happening here. First, the synchronous script queues three timers, one promise microtask, and one nextTick callback, then returns. Second, Node drains the nextTick queue — `"E"` prints. Third, Node drains the microtask queue — `"D"` prints. Now the event loop enters its first iteration and hits the timer phase. Internally, Node stores timers in a min-heap keyed by expiration time, but **all three timers share the same expiration (1 ms clamped)**, so they're grouped into a single linked list in **insertion order**. When the phase runs, it walks the list and fires them in the order they were scheduled: `"A"`, `"B"`, `"C"`. Crucially, Node does **not** re-drain microtasks or nextTicks between sibling callbacks in the **same timer phase** on older Node versions, but since Node 11 it does — though here that doesn't matter because we have no new microtasks being scheduled. FIFO for same-delay timers is a documented behavior of the timer phase, making this ordering reliable.
+
+**Takeaway:** nextTick → microtasks → timer phase (which fires same-delay timers in FIFO scheduling order).
 
 ---
 
@@ -1334,7 +1351,7 @@ C
 
 ---
 
-**Q6: async/await with process.nextTick**
+**Q6: How does `await` on a promise that resolves from inside a `process.nextTick` callback interleave with top-level synchronous code?**
 
 ```js
 async function main() {
@@ -1362,11 +1379,15 @@ B
 C
 ```
 
-`A` is synchronous. `await` pauses `main()`. `D` runs synchronously. `nextTick` fires `B` and resolves the promise. Then `C` runs from the microtask queue.
+**Explanation:**
+
+`main()` is called synchronously. It prints `"A"`, then constructs a `new Promise`. The executor runs **synchronously** inside the constructor and schedules a callback on the **nextTick queue**, but does not call `resolve()` yet. The promise returned is pending, so `await` suspends `main()` — control returns to the caller. The rest of the top-level script runs, printing `"D"`. Now the synchronous stack is empty, so Node drains its nextTick queue. It fires the nextTick callback: `"B"` prints, then `resolve()` is called. Calling `resolve()` does not run the awaiting continuation immediately; it schedules the continuation of `main()` (the code after `await`) on the **microtask queue**. Node finishes draining nextTicks, then drains microtasks. The awaited continuation runs, executing `console.log("C")`. Note the subtlety: even though the promise was resolved from inside a nextTick, the `await` continuation itself is a **microtask**, not a nextTick — so anything else already on the microtask queue still runs in order.
+
+**Takeaway:** `await` suspension resumes via a microtask, even if the resolver was called from a nextTick; synchronous code after the async call always runs before any awaited continuation.
 
 ---
 
-**Q7: Event emitter — sync or async?**
+**Q7: When you call `emitter.emit('data')`, does the listener run synchronously on the same call stack, or is it deferred to a later tick?**
 
 ```js
 const EventEmitter = require('events');
@@ -1386,11 +1407,15 @@ listener
 after
 ```
 
-Event emitter listeners are called **synchronously** when `emit()` is called. This surprises many people who assume Node.js events are async.
+**Explanation:**
+
+Many developers assume that everything "event-driven" in Node is asynchronous, but `EventEmitter` is the opposite: it's a purely synchronous pub/sub implementation. When you call `emit('data')`, the emitter looks up its internal listener array for the `'data'` event and **invokes each listener in order on the current call stack**, via a plain function call. No microtask, no nextTick, no event loop involvement. That's why `"before"` prints, then `emit()` synchronously calls the listener which prints `"listener"`, then control returns to the caller and `"after"` prints — all in a single synchronous flow. This has important consequences: errors thrown inside a listener propagate back up to the `emit()` call site (so they can be caught with `try/catch` around `emit`), listeners block the emitting code until they return, and if you need async behavior you must explicitly schedule it inside the listener (e.g. wrap the body in `setImmediate` or `queueMicrotask`). The only exception is `'error'` events with no listener — those throw synchronously too, but many native emitters like streams emit `'error'` asynchronously via `process.nextTick` to give code time to attach a handler.
+
+**Takeaway:** `EventEmitter.emit()` is synchronous — listeners run on the caller's stack in registration order, making `try/catch` around `emit()` work for listener errors.
 
 ---
 
-**Q8: Error event without listener**
+**Q8: What happens when you `emit('error', ...)` on an `EventEmitter` that has no `'error'` listener, and can a surrounding `try/catch` catch it?**
 
 ```js
 const EventEmitter = require('events');
@@ -1414,7 +1439,11 @@ caught: boom
 after
 ```
 
-If no listener is registered for `'error'` events, Node.js throws the error. Since `emit` is synchronous, the `try/catch` works. Without the `try/catch`, this would crash the process.
+**Explanation:**
+
+`'error'` is a special built-in event in Node. When `emit('error', err)` is called and there's **no listener for `'error'` and no `'error'` listener on the `errorMonitor` symbol**, the emitter treats the error as a crash signal: it throws the error synchronously from the `emit()` call itself. Because `emit()` is synchronous (Q7), the thrown error propagates up the call stack like any other exception. Our `try/catch` wraps the `emit()` call, so it catches the error — `"caught: boom"` prints and execution continues normally, so `"after"` prints too. If we had removed the `try/catch`, the throw would have bubbled out to the top of the module, Node's default `uncaughtException` handler would log a stack trace, and the process would **exit with code 1** (unless an `uncaughtException` handler was installed). This is Node's way of making sure silent `'error'` emissions don't go unnoticed. Best practice: always register at least one `'error'` listener on any emitter — especially streams, child processes, and network sockets — because those often emit `'error'` asynchronously (via `process.nextTick`), where a `try/catch` around the `.emit` call cannot help you.
+
+**Takeaway:** Unhandled `'error'` events crash the process; because `emit` is synchronous here, a `try/catch` can catch it, but real-world emitters often fire `'error'` asynchronously — always attach an `'error'` listener.
 
 ---
 
@@ -1422,7 +1451,7 @@ If no listener is registered for `'error'` events, Node.js throws the error. Sin
 
 ---
 
-**Q9: Stream ordering — readable events**
+**Q9: In what order do a Readable stream's `data`, `end`, and `close` events fire relative to synchronous code that follows the `.on` registrations?**
 
 ```js
 const { Readable } = require('stream');
@@ -1449,11 +1478,15 @@ end
 close
 ```
 
-Stream events are emitted asynchronously (on the next tick), so `sync` prints first. Events fire in order: `data` for each chunk, `end` when no more data, `close` when the stream is fully closed.
+**Explanation:**
+
+Even though `EventEmitter.emit` is synchronous, Node's **streams** intentionally defer their emissions to preserve "async-first" semantics. When you register a `'data'` listener, the stream switches into **flowing mode**, but it does not call `_read()` immediately — it schedules the initial read via `process.nextTick`. That is why `"sync"` prints first: the synchronous script finishes, then Node drains the nextTick queue, which triggers the `read()` implementation. Inside `read()`, `this.push("hello")` emits the `'data'` event (still synchronously from the push), so `"data: hello"` prints. Then `this.push(null)` signals end-of-stream; Node queues the `'end'` event for a later tick, then the `'close'` event after cleanup. These fire in the standard stream lifecycle order: **data (per chunk) → end (no more data) → close (underlying resource released)**. The asynchronous deferral is critical for correctness — it guarantees that listeners registered synchronously after stream creation, but before the next tick, always receive the first chunk, avoiding race conditions that would exist if the stream emitted during the listener registration phase.
+
+**Takeaway:** Streams emit their first event asynchronously (on the next tick), giving your code a chance to attach listeners; lifecycle order is `data` (repeatedly) → `end` → `close`.
 
 ---
 
-**Q10: Buffer comparison**
+**Q10: How do `===`, `.equals()`, and `Buffer.compare()` differ when checking two Buffers that hold the same bytes?**
 
 ```js
 const buf1 = Buffer.from("abc");
@@ -1471,7 +1504,11 @@ true
 0
 ```
 
-`===` compares references (different Buffer objects). `.equals()` compares contents. `Buffer.compare()` returns `0` for equal, negative if first is less, positive if first is greater.
+**Explanation:**
+
+A `Buffer` in Node is a `Uint8Array` subclass backed by allocated memory in V8's off-heap pool. `Buffer.from("abc")` allocates a fresh 3-byte region each time it's called, so `buf1` and `buf2` are two **distinct objects pointing to different memory**. The `===` operator compares object references in JavaScript — not contents — so it returns `false`. The `.equals()` method is the content-aware equality check: it verifies both buffers have the same length (3) and then does a byte-by-byte memcmp of their contents; since both hold `[0x61, 0x62, 0x63]`, it returns `true`. `Buffer.compare(a, b)` (also available as `a.compare(b)`) returns a three-way lexicographic comparison result: `0` when equal, a **negative** number if `a` would sort before `b`, and a **positive** number if after. It's designed to be passed directly to `Array.prototype.sort()`, so `buffers.sort(Buffer.compare)` produces a lexicographic ordering. A common footgun this exposes: using a `Set` or `Map` keyed by Buffers to deduplicate "same content" buffers does not work, because those collections use reference equality (`===`/`SameValueZero`) and will treat every Buffer as unique.
+
+**Takeaway:** Use `.equals()` for content equality and `Buffer.compare()` for sort comparators; never use `===` to compare Buffer contents.
 
 ---
 
@@ -1479,7 +1516,7 @@ true
 
 ---
 
-**Q11: require caching — how many times does the module execute?**
+**Q11: When `main.js` calls `require('./counter')` twice, how many times does `counter.js` execute, and are the two imported objects the same reference?**
 
 ```js
 // counter.js
@@ -1502,11 +1539,15 @@ loaded, count: 1
 true
 ```
 
-`require()` caches modules after first load. The second `require('./counter')` returns the cached export — the module code does NOT execute again. Both `a` and `b` are the same object.
+**Explanation:**
+
+CommonJS `require()` is backed by a module cache stored at `require.cache`, keyed by the fully-resolved absolute path of each module. When `main.js` first calls `require('./counter')`, Node resolves the path to something like `/abs/path/counter.js`, looks it up in the cache, finds nothing, and begins the load. It creates a new `Module` object, wraps `counter.js`'s source in a function (the module wrapper that provides `exports`, `require`, `module`, `__filename`, `__dirname`), invokes it, and stores the resulting `module.exports` in the cache. During this execution, `count` becomes `1`, `"loaded, count: 1"` prints, and `{ count: 1 }` is exported. The second `require('./counter')` resolves to the same path, hits the cache, and **returns the exact same `exports` object without re-executing the module code**. This is why the log appears only once. Because `a` and `b` both point to the cached object, `a === b` is `true`. Important corollary: if you mutated `a.count = 99`, `b.count` would also be `99`, because they share the reference — modules are effectively singletons per resolved path per process. Another subtlety: if `counter.js` were required from a different path (e.g. a symlink or a copy in `node_modules` elsewhere), it would resolve to a different cache key and execute again.
+
+**Takeaway:** `require()` caches modules by resolved path — every import of the same module returns the **same exports object**, and the module body runs only once per process.
 
 ---
 
-**Q12: Circular dependencies**
+**Q12: With a circular dependency between `a.js` and `b.js` (each requires the other), what values does each module see when it reaches the `require` call, and why does this not infinite-loop?**
 
 ```js
 // a.js
@@ -1533,7 +1574,11 @@ b: a.value = A
 a: b.value = B
 ```
 
-When `a.js` requires `b.js`, Node gives `b` the **partially completed** exports of `a` (which already has `value = "A"`). After `b` finishes, `a` continues and sees `b.value = "B"`.
+**Explanation:**
+
+The trick to understanding circular requires is Node's "insert into cache **before** executing" policy. When `main.js` calls `require('./a')`, Node registers `a.js` in the module cache with an **empty** `exports` object, then begins executing its body. `"a: start"` prints. Line 2 sets `exports.value = "A"` — the cached `exports` is now `{ value: "A" }`. Line 3, `require('./b')`, resolves `b.js`, caches an empty `exports` for it, and begins executing. `"b: start"` prints. Inside `b.js`, `require('./a')` is called. Node checks the cache and finds `a.js` already present (even though its body has not finished), so it returns the **partial exports** — `{ value: "A" }` — without re-running `a.js`. That's why `"b: a.value = A"` prints. `b.js` then sets its own `exports.value = "B"` and finishes. Control returns to `a.js` line 3, where `b` is now `{ value: "B" }`, so `"a: b.value = B"` prints. The key insight is that `const a` in `b.js` captured the reference to `a.js`'s exports object at the moment of import — any properties added to `a.js`'s exports *after* that point (if there were any) would be visible to `b.js` too because they share the reference. This is why replacing `module.exports` wholesale (`module.exports = function() {}`) inside a circular cycle breaks, while mutating `exports.x = ...` works.
+
+**Takeaway:** Circular requires return a **partial exports object** — Node caches the module before running it, so the cycle terminates but each side sees only what's been exported so far. Prefer `exports.x = ...` over `module.exports = ...` to stay compatible with cycles.
 
 ---
 

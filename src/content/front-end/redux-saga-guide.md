@@ -1291,7 +1291,7 @@ Practice questions testing your understanding of generator execution, saga effec
 
 ---
 
-**Q1: Generator step-by-step — what does each `.next()` return?**
+**Q1: Stepping through a generator with `next()`, `next("hello")`, `next("world")` — what does each call log and what object does each `next()` return?**
 
 ```js
 function* gen() {
@@ -1319,15 +1319,21 @@ C world
 { value: 3, done: true }
 ```
 
-- First `next()`: runs until first `yield`, prints `A`, yields `1`
-- `next("hello")`: resumes, `"hello"` becomes the value of `yield 1`, prints `B hello`, yields `2`
-- `next("world")`: resumes, `"world"` becomes the value of `yield 2`, prints `C world`, returns `3`
+**Explanation:**
 
-The value passed to `next()` becomes the result of the `yield` expression that paused the generator.
+Calling `gen()` does *not* run the function body — it returns an iterator object that is paused before the first line. Execution only advances when you call `.next()`, and it advances up to (and pauses *at*) the next `yield` or `return`.
+
+- The **first** `it.next()` is the "starter". The generator runs from the top: it prints `"A"`, then evaluates `yield 1`, which suspends the function. `next()` returns `{ value: 1, done: false }` — `value` is whatever was yielded out, `done: false` means the generator has not finished.
+- The **second** call, `it.next("hello")`, resumes the paused `yield 1` expression. The argument `"hello"` is injected as the *result* of that `yield`, so `x = "hello"`. Execution continues: `console.log("B", x)` prints `B hello`, then it pauses at `yield 2`, returning `{ value: 2, done: false }`.
+- The **third** call, `it.next("world")`, does the same: `"world"` becomes the value of `yield 2`, so `y = "world"`, `C world` is printed, and the function hits `return 3`. The iterator yields one final envelope `{ value: 3, done: true }`.
+
+This is exactly how Redux-Saga middleware drives your sagas: it receives each yielded effect descriptor (like `{ value: callEffect, done: false }`), resolves the effect, and then calls `it.next(resolvedValue)` so the resolved value appears on the left-hand side of the `const x = yield ...` inside your saga.
+
+**Takeaway:** `gen()` returns a paused iterator; each `next(v)` injects `v` into the currently-paused `yield` and runs until the next `yield`/`return`.
 
 ---
 
-**Q2: Generator — what happens with no argument to next()?**
+**Q2: When you resume a paused generator with `next()` and pass no argument, what value does the previously-paused `yield` expression evaluate to inside the generator?**
 
 ```js
 function* gen() {
@@ -1337,18 +1343,31 @@ function* gen() {
 }
 
 const it = gen();
-it.next();
-it.next();
-it.next();
+it.next();      // runs up to `yield 1`
+it.next();      // resumes — what does `a` become?
+it.next();      // resumes — what does `b` become?
 ```
 
-**Output:** `undefined undefined`
+**Output:**
+```
+undefined undefined
+```
 
-When `next()` is called without an argument, the `yield` expression evaluates to `undefined`. This is a common mistake — forgetting to pass values back into the generator.
+**Explanation:**
+
+A generator pauses *at* each `yield`. When you call `it.next(value)`, `value` is injected back into the generator and becomes the evaluation result of the paused `yield` — i.e., the right-hand side of the `const` declaration that owns that `yield`.
+
+- The first `it.next()` is the starter call. The generator runs from the top and hits `yield 1`. The argument you pass in here is *ignored* because there is no paused `yield` waiting yet. The outside world receives `{ value: 1, done: false }`.
+- The second `it.next()` resumes the generator. The paused `yield 1` expression is replaced by whatever you passed. You passed nothing, so `yield 1` → `undefined`, and `a = undefined`.
+- The third `it.next()` does the same for `yield 2`, so `b = undefined`. `console.log(a, b)` then prints `undefined undefined`.
+
+This asymmetry (the value you yield *out* is not the value that flows back *in* on resume) is the foundation of Redux-Saga's design: the saga yields an effect *description*, the middleware does the actual work, and only then does it call `it.next(result)` so the saga sees the resolved value.
+
+**Takeaway:** `yield` evaluates to the argument of the *next* `next()` call — not to the value you yielded out.
 
 ---
 
-**Q3: Generator return vs yield**
+**Q3: When you spread a generator into an array (`[...gen()]`), are values produced by `return` included alongside values produced by `yield`, and what happens to code after `return`?**
 
 ```js
 function* gen() {
@@ -1361,9 +1380,22 @@ const results = [...gen()];
 console.log(results);
 ```
 
-**Output:** `[1]`
+**Output:**
+```
+[1]
+```
 
-The spread operator iterates until `done: true`. The `return 2` sets `done: true`, so the value `2` is not included in the iteration. `yield 3` is unreachable. Use `yield` for values meant to be iterated.
+**Explanation:**
+
+Spread syntax (`...`) and `for...of` both consume an iterator by calling `.next()` in a loop and **stopping as soon as `done` becomes `true`**. Crucially, the `value` of the envelope that carries `done: true` is *not* included in the collected results — it's treated as a terminator, not a data point.
+
+- The first `.next()` yields `1` with `done: false`, so `1` is pushed into the array.
+- The second `.next()` hits `return 2`, which produces `{ value: 2, done: true }`. Because `done` is `true`, spread stops — and `2` is discarded, not included.
+- `yield 3` is never reached. It's unreachable code after a `return`.
+
+This is why idiomatic generators (and sagas) emit values with `yield` and only use `return` to signal "I'm finished, here's an optional completion value that consumers are free to ignore." In a saga, the `return` value of a forked task is accessible via `task.result()`, but during normal iteration it's not a "yielded" effect.
+
+**Takeaway:** Spread / `for...of` collects values until `done: true` and drops the final `return` value — use `yield` for data, `return` only for termination.
 
 ---
 
@@ -1371,7 +1403,7 @@ The spread operator iterates until `done: true`. The `return 2` sets `done: true
 
 ---
 
-**Q4: What actions get dispatched and in what order?**
+**Q4: In a saga that interleaves `console.log`, `yield put(...)`, and `yield call(api.fetch)`, what is the exact order of console output vs dispatched actions, and where does execution pause?**
 
 ```js
 function* saga() {
@@ -1385,7 +1417,7 @@ function* saga() {
 }
 ```
 
-**Output (console logs and dispatched actions):**
+**Output (console logs and dispatched actions, in order):**
 ```
 A
 → dispatch FIRST
@@ -1396,11 +1428,21 @@ C
 D
 ```
 
-`put` dispatches synchronously and continues. `call` is blocking — the saga pauses until the promise/function resolves. This is why `SECOND` only dispatches after the API call completes.
+**Explanation:**
+
+Every `yield` in a saga hands a plain effect description to the middleware. The middleware then decides how to execute it and when to resume the saga via `next()`. Two effect types have very different blocking behavior:
+
+- `put(action)` is effectively **synchronous** from the saga's point of view. The middleware dispatches the action through the store (reducers run, subscribers notify) and *immediately* resumes the saga on the same tick. So `"A"` prints, `FIRST` is dispatched, and `"B"` prints without any real wait.
+- `call(fn, ...args)` invokes `fn` and, if it returns a Promise (as `api.fetch` does), **blocks** the saga until that Promise settles. The middleware does not call `it.next(...)` again until the Promise resolves. That's why `"C"` does not print until the fetch completes.
+- After the fetch resolves, the saga resumes, logs `"C"`, `put`s `SECOND` synchronously, and finally logs `"D"`.
+
+This ordering is what makes sagas read like synchronous code despite being asynchronous: `put` gets out of the way fast, `call` is the deliberate pause point.
+
+**Takeaway:** `put` is synchronous and non-blocking; `call` blocks the saga until the called function's promise settles.
 
 ---
 
-**Q5: fork vs call — execution difference**
+**Q5: When a parent saga uses `yield fork(childSaga)` followed by `yield call(slowTask)`, does the parent wait for the child before continuing, and in what order do the child's and parent's `console.log`s appear?**
 
 ```js
 function* parentSaga() {
@@ -1428,11 +1470,22 @@ child start
 child end (after 1s, concurrent with parent)
 ```
 
-`fork` starts the child saga **non-blocking** — the parent continues immediately. `call` is **blocking** — the parent waits. The child saga runs concurrently alongside the parent.
+**Explanation:**
+
+`fork` and `call` are the two fundamental ways to invoke another function/saga, and they differ in exactly one dimension: **blocking behavior**.
+
+- `yield call(fn)` says "run `fn` and pause me until it finishes." The parent literally cannot advance past that `yield` until the called function resolves.
+- `yield fork(saga)` says "start `saga` in a separate task, hand me back a Task handle *immediately*, and keep going." Forked sagas run concurrently with their parent on the same event loop — they're not OS threads, they're cooperatively scheduled tasks.
+
+So the trace goes: parent logs `"1"`, forks the child. The middleware synchronously enters the child, which logs `"child start"` and hits `delay(1000)` — that suspends the child. Control returns to the parent, which logs `"2"` and then `call(slowTask)` — which blocks the parent. While the parent is blocked on `slowTask`, the child's 1-second delay elapses and it logs `"child end"`. When `slowTask` finally resolves, the parent logs `"3"`.
+
+Note the child logs appear *before* the parent's next line when no async boundary exists — `fork` runs the child synchronously up to its first blocking yield.
+
+**Takeaway:** `call` blocks the parent; `fork` returns immediately and lets the child run concurrently.
 
 ---
 
-**Q6: takeLatest cancellation — which API call completes?**
+**Q6: With `takeLatest("FETCH", fetchSaga)` and three `FETCH` actions dispatched rapidly (ids 1, 2, 3) before any API call finishes, which saga instances start, which complete, and which `SUCCESS` action is dispatched?**
 
 ```js
 function* fetchSaga(action) {
@@ -1461,11 +1514,24 @@ fetch completed: 3
 → dispatch SUCCESS (id: 3 data)
 ```
 
-`takeLatest` cancels previous running instances when a new action arrives. Sagas for id 1 and 2 are cancelled at the `yield call` point. Only id 3 completes.
+**Explanation:**
+
+`takeLatest(pattern, saga)` is essentially shorthand for "watch for actions matching `pattern`; each time one arrives, *cancel* the previously spawned instance of `saga` if it's still running, then start a new one." It's the standard cure for search-as-you-type races, double-clicked buttons, and stale responses overwriting fresh data.
+
+Walking through the timeline:
+
+- **t=0**: `FETCH id=1` is taken. `fetchSaga` starts, logs `"fetch started: 1"`, and blocks on `call(api.fetch, 1)`.
+- **t=50ms**: `FETCH id=2` arrives. `takeLatest` cancels the still-pending saga for id 1 (it is cancelled *at* the `yield call` point, so `"fetch completed: 1"` never logs and no `SUCCESS` for id 1 is ever dispatched). A new instance starts, logs `"fetch started: 2"`, and blocks on its own `call`.
+- **t=100ms**: `FETCH id=3` arrives. Instance 2 is cancelled identically. Instance 3 starts, logs `"fetch started: 3"`.
+- Since no new `FETCH` arrives, instance 3 eventually resolves its `call`, logs `"fetch completed: 3"`, and `put`s `SUCCESS` with id 3's data.
+
+Only the *latest* response is applied to the store — earlier, possibly-slower responses can never clobber it because their sagas were killed before reaching `put`.
+
+**Takeaway:** `takeLatest` auto-cancels in-flight previous runs; use it to prevent stale async results from winning the race.
 
 ---
 
-**Q7: select gets current state**
+**Q7: If a saga does `yield put({ type: "INCREMENT" })` and then immediately `yield select(state => state.counter)`, does `select` see the state *before* or *after* the increment?**
 
 ```js
 // Initial state: { counter: 0 }
@@ -1477,9 +1543,26 @@ function* saga() {
 }
 ```
 
-**Output:** `count: 1`
+**Output:**
+```
+count: 1
+```
 
-`select` reads the state **after** previous `put` effects have been processed by reducers. Since `put` dispatches synchronously, the store is already updated when `select` runs.
+**Explanation:**
+
+This question tests whether you understand `put`'s synchronous nature. `yield put(action)` does three things before the saga is resumed:
+
+1. The action object is handed to the store's `dispatch`.
+2. All reducers run synchronously — the store's state is fully updated.
+3. Subscribers (including `connect`/`useSelector`) are notified.
+
+Only *after* all of that does the middleware call `it.next(...)` to resume your saga. So by the time control reaches the line after `yield put`, the store already reflects the new state.
+
+`select(selector)` is also synchronous — it calls `store.getState()` and then applies your selector. Because the `INCREMENT` has already been committed, `state.counter` is `1`, not `0`. You can think of `put` + `select` back-to-back as equivalent to "dispatch, then read" in normal Redux code.
+
+One subtle exception: if you have *another* saga that reacts to `INCREMENT` via `take`/`takeEvery`, that reactive saga is scheduled but has not necessarily completed by the time your `select` runs — so you see your reducer's output, but not necessarily the output of any follow-up sagas triggered by the same action.
+
+**Takeaway:** `put` fully updates the store before the saga resumes, so a follow-up `select` always sees the post-dispatch state.
 
 ---
 
@@ -1487,7 +1570,7 @@ function* saga() {
 
 ---
 
-**Q8: race — which effect wins?**
+**Q8: Given `yield race({ data: call(api.slowFetch), timeout: delay(2000) })` where `slowFetch` takes 5s and `delay` is 2s, what does the destructured `{ data, timeout }` contain and what happens to the losing effect?**
 
 ```js
 function* saga() {
@@ -1507,11 +1590,24 @@ data: undefined
 timeout: true
 ```
 
-`race` resolves when the first effect completes. `delay(2000)` wins. The losing effect (`api.slowFetch`) is automatically cancelled. The winner's key gets its result, losers get `undefined`.
+**Explanation:**
+
+`race` is the saga equivalent of `Promise.race` with an extra guarantee: **the losers are cancelled**, not just ignored. You pass an object whose keys are labels and whose values are effects; `race` resolves as soon as *any one* of them completes.
+
+Timeline:
+
+- At t=0, both effects are started in parallel: `api.slowFetch` kicks off (it won't settle until t=5s), and `delay(2000)` begins counting.
+- At t=2s, `delay` resolves with `true` (the default result of `delay`). That makes `timeout` the winner.
+- `race` immediately **cancels** every other branch. The saga driving `api.slowFetch` is killed mid-flight. If that call held resources, they leak unless the API supports cancellation (e.g., via an `AbortController` wired through) — but from the saga's perspective the branch is torn down.
+- The value returned from `yield race(...)` is an object with the *winning* key set to its result and every other key set to `undefined`. Hence `{ data: undefined, timeout: true }`.
+
+This pattern is idiomatic for timeouts, cancellable user intents (`race({ result, cancelled: take('CANCEL') })`), and "first to respond wins" scenarios.
+
+**Takeaway:** `race` runs effects in parallel, returns an object where only the winner's key has a value, and automatically cancels every loser.
 
 ---
 
-**Q9: all — parallel execution**
+**Q9: With `yield all([call(api.fetchUsers), call(api.fetchPosts)])` where the two calls take 2s and 3s respectively, how long does the saga block before `"done"` is logged — 2s, 3s, or 5s?**
 
 ```js
 function* saga() {
@@ -1533,11 +1629,25 @@ start
 done (after 3s, not 5s)
 ```
 
-`all` runs effects in parallel and waits for ALL to complete. Total time = longest effect (3s), not sum of effects. If any effect fails, `all` is cancelled and throws.
+**Explanation:**
+
+`all` is the saga analog of `Promise.all`. You give it either an array or an object of effects, and it runs every branch **concurrently**, then resolves once *all* of them have resolved.
+
+Timeline:
+
+- At t=0, `"start"` is logged. Both `call` effects are kicked off on the same tick — `fetchUsers` and `fetchPosts` are now running in parallel (from the saga's perspective; in reality they're two Promises awaiting network I/O).
+- The saga is blocked at `yield all([...])`. It is not resumed until every branch settles.
+- At t=2s, `fetchUsers` resolves. `all` is still waiting — it doesn't resume the saga yet.
+- At t=3s, `fetchPosts` resolves. Now `all` gathers both results into an array in the same order as the input, and the saga resumes with `[users, posts]` destructured from that array.
+- Total wall clock = max(2s, 3s) = 3s, not 5s.
+
+The failure semantics matter too: if *any* branch throws, `all` rejects immediately — the still-pending siblings are cancelled, and the error propagates to the nearest `try/catch` in the saga (this mirrors `Promise.all`'s fail-fast behavior, not `Promise.allSettled`).
+
+**Takeaway:** `all` runs effects in parallel; total time equals the *slowest* effect and any single failure cancels the rest.
 
 ---
 
-**Q10: Error in forked task — does parent crash?**
+**Q10: If a `fork`ed child saga throws after a delay, does the error propagate to the parent's `try/catch`, and does the parent's code after the fork keep running normally until the child eventually throws?**
 
 ```js
 function* childSaga() {
@@ -1563,7 +1673,20 @@ parent continues
 parent caught: child error
 ```
 
-Errors in `fork`ed tasks bubble up to the parent. The parent's `try/catch` catches it. But note: `"parent done"` never logs because the error interrupts the parent at the `delay(500)`. Use `spawn` instead of `fork` for detached tasks where errors should NOT propagate.
+**Explanation:**
+
+`fork` creates an **attached** task. That's the key word: the child is non-blocking, but it is still tied to its parent in two ways — the parent won't actually finish until the child does, and uncaught errors in the child bubble up to the parent.
+
+Timeline:
+
+- At t=0, `fork(childSaga)` starts the child and returns immediately. The child logs nothing, hits `delay(100)`, and suspends.
+- The parent continues past the fork, logs `"parent continues"`, then blocks on `yield delay(500)`.
+- At t=100ms, the child's delay elapses, it resumes, and throws `Error("child error")`. Because the child was `fork`ed (attached), this error is re-raised *inside* the parent task, at the point where the parent is currently suspended (`yield delay(500)`). It's as if `yield delay(500)` itself threw.
+- The thrown error is caught by the enclosing `try/catch`, which logs `"parent caught: child error"`. Because control left the `try` block via an exception, `"parent done"` never runs — the remaining 400ms of the delay and the log after it are skipped entirely.
+
+If you wanted the child to be fire-and-forget — a background task whose crash shouldn't kill the parent — you'd use `spawn(childSaga)` instead. `spawn` creates a **detached** task: its errors do *not* propagate to the parent, though you lose the automatic "parent waits for child" guarantee.
+
+**Takeaway:** `fork` is attached — child errors crash the parent; use `spawn` for truly detached background work.
 
 ---
 

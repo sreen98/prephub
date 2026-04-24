@@ -2019,7 +2019,7 @@ Use the Xcode memory graph or Android Studio profiler to confirm — a retained 
 
 ---
 
-**Q1: Missing `flex: 1` — what renders?**
+**Q1: In React Native, if the root `<View>` has no `flex`, no `width`, and no `height`, and its children rely on `flex: 1` or implicit sizing, what does the screen show and why?**
 
 ```tsx
 function App() {
@@ -2032,15 +2032,17 @@ function App() {
 }
 ```
 
-**Output:** A blank screen. Nothing is visible.
+**Output:** A completely blank screen — neither the red nor the blue view is visible.
 
-The outer `View` has no size and no `flex`, so it collapses to 0×0. The blue child's `flex: 1` resolves against a 0-pixel parent → still 0. The red child has no dimensions at all → 0.
+**Explanation:**
 
-Fix: give the root `<View>` `flex: 1` so it fills the screen. This is the most common "why is my screen blank" bug in RN.
+React Native uses Facebook's Yoga layout engine, which is a Flexbox implementation that does **not** auto-stretch a `View` to fill its parent the way a web `<body>` + `<div>` chain does. A `View` with no `flex`, no `width`, and no `height` measures its content and, because neither child has an intrinsic size, the parent collapses to 0×0. The blue child declares `flex: 1`, which means "take the remaining space of your parent's main axis" — but the parent's main-axis size is 0, so 1 × 0 is still 0. The red child has no dimensions and no children, so it too measures as 0×0. Nothing is drawn. This is fundamentally different from the web, where the document body has a viewport-derived height and block elements expand to fill their containing block's width automatically. In RN, every ancestor in the chain must have a resolvable size (via `flex`, explicit dimensions, or `StyleSheet.absoluteFill`) for `flex: 1` to produce a non-zero value. The fix is to put `flex: 1` on the root `<View>` (or use `<SafeAreaView style={{ flex: 1 }}>`) so the chain resolves against the screen.
+
+**Takeaway:** In RN, flex only fills space that a parent actually has — make sure `flex: 1` reaches the root of the tree.
 
 ---
 
-**Q2: `flexDirection` default**
+**Q2: In React Native, when you place two fixed-size `<View>` children inside a parent `<View>` without specifying `flexDirection`, do the children render side-by-side (like the web default) or stacked top-to-bottom, and why?**
 
 ```tsx
 function App() {
@@ -2053,15 +2055,17 @@ function App() {
 }
 ```
 
-**Question:** Are the boxes side-by-side or stacked vertically?
+**Output:** The red box appears on top and the blue box below it — **stacked vertically**.
 
-**Output:** **Stacked vertically**.
+**Explanation:**
 
-Unlike the web (where `<div>` defaults to `flex-direction: row` inside a flex container), RN's `View` defaults to `flexDirection: 'column'`. Add `flexDirection: 'row'` to the parent to get the web-like behavior.
+Yoga in React Native deliberately overrides the CSS default of `flex-direction: row` and uses `'column'` instead. The reasoning is that mobile layouts are overwhelmingly vertical (scrollable feeds, stacked cards, lists), so making column the default removes the need to set `flexDirection` on nearly every container. This trips up web developers because in CSS Flexbox `flex-direction: row` is the spec default, but Yoga treats RN-specific defaults as platform idioms. Note also that every `View` in RN is implicitly `display: flex`; there is no `display: block`, no inline flow, and no float model. So the layout engine is always flex, just with column as the starting axis. To get the web-like horizontal layout, add `flexDirection: 'row'` to the parent. Combine with `justifyContent` (main axis, which is now horizontal) and `alignItems` (cross axis, now vertical) — note these two swap meaning depending on `flexDirection`, another common source of confusion.
+
+**Takeaway:** Every `View` is flex, and the default direction is `'column'`, not `'row'` like the web.
 
 ---
 
-**Q3: String inside `<View>`**
+**Q3: What happens in React Native if you place a bare string (like `"Hello"`) directly inside a `<View>` without wrapping it in a `<Text>` component?**
 
 ```tsx
 function App() {
@@ -2073,13 +2077,17 @@ function App() {
 }
 ```
 
-**Output:** Runtime error: `Text strings must be rendered within a <Text> component.`
+**Output:** The app throws a runtime error: `Invariant Violation: Text strings must be rendered within a <Text> component.`
 
-React Native enforces native text rendering through the `Text` primitive only. Raw strings are valid JSX children only inside `Text`. Wrap in `<Text>Hello</Text>`.
+**Explanation:**
+
+React Native does not have a generic "text node" primitive the way the web DOM does. On the web, browsers happily render any string child because the DOM defines text nodes as first-class citizens that can live anywhere. In RN, the renderer maps JSX to native views (`UIView` on iOS, `android.view.View` on Android), and those native containers simply cannot display text — only the platform's text view (`UILabel` / `TextView`) can. The `<Text>` component is the RN primitive that bridges to those native text views, applying font metrics, line breaking, and accessibility roles. When the renderer walks children of a non-`<Text>` host component and finds a raw string, it aborts with an invariant because there is no native element to receive it. Importantly, this rule is recursive: once you're inside a `<Text>`, nested `<Text>` children are fine and inherit parent styles (a handy way to style spans). Whitespace, newlines, and template literals all count as strings — so even `<View>{" "}</View>` fails. The fix is always to wrap text: `<Text>Hello</Text>`.
+
+**Takeaway:** Only `<Text>` can render strings in RN — everything else is a native container that cannot hold text nodes.
 
 ---
 
-**Q4: Style array order**
+**Q4: When you pass an array of style objects to a React Native component's `style` prop (e.g., `style={[styles.a, styles.b]}`), how are the styles merged, and which rule wins for overlapping and non-overlapping keys?**
 
 ```tsx
 const styles = StyleSheet.create({
@@ -2090,15 +2098,17 @@ const styles = StyleSheet.create({
 <Text style={[styles.a, styles.b]}>Hello</Text>
 ```
 
-**Question:** What color is the text?
+**Output:** The text renders in **blue** with a **fontSize of 20**.
 
-**Output:** **Blue**, fontSize: 20.
+**Explanation:**
 
-Arrays merge left to right — later entries override earlier ones for overlapping keys, and non-overlapping keys are kept. `styles.b` overrides `color` but not `fontSize`.
+React Native's style prop accepts either a plain style object, a registered `StyleSheet` ID (an integer returned by `StyleSheet.create`), `false`/`null`/`undefined`, or an array of any of those. When given an array, the reconciler flattens it left-to-right, and later entries override earlier entries on a **per-property** basis — not by replacing the whole object. So `styles.a` contributes `color: 'red'` and `fontSize: 20`; `styles.b` then overwrites `color` with `'blue'` but contributes nothing for `fontSize`, leaving it at 20. Falsy entries are skipped, which is why conditional styling like `style={[styles.base, isActive && styles.active]}` is such a common pattern — when `isActive` is false, the `false` is dropped silently. The array can be nested arbitrarily (`[a, [b, c], d]`) and RN still flattens correctly. Under the hood, `StyleSheet.create` freezes the objects and returns integer IDs, which used to be a small perf optimization for bridge serialization (sending one int instead of a whole object); on Fabric this matters less, but the API stays the same. If you need to programmatically merge and inspect the final object, use `StyleSheet.flatten([...])`.
+
+**Takeaway:** RN style arrays merge per-property, last-wins — use conditional entries and `StyleSheet.flatten` when you need to inspect the merged result.
 
 ---
 
-**Q5: `percentage` height without parent height**
+**Q5: In React Native, if you set a child `<View>`'s `height` to `'50%'` but the parent `<View>` has no explicit height or flex value, what size does the child render at and why?**
 
 ```tsx
 <View>
@@ -2106,9 +2116,13 @@ Arrays merge left to right — later entries override earlier ones for overlappi
 </View>
 ```
 
-**Output:** Green box is **0 tall** (invisible).
+**Output:** The green child renders at **0 pixels tall** and is invisible.
 
-Percentage heights resolve against the parent's measured height. The parent `<View>` has no height set (no `flex`, no explicit `height`), so it collapses to 0 → 50% of 0 is 0. `flex: 1` on a child does not have this problem because it grabs remaining space rather than computing against a parent dimension.
+**Explanation:**
+
+Percentage-based dimensions in Yoga resolve against the parent's **measured** size on the corresponding axis — `height: '50%'` means "fifty percent of my parent's computed height". The parent here is a `View` with no explicit `height`, no `flex`, and no `maxHeight`, so Yoga falls back to measuring the parent by its content. Its only content is the child, whose size is itself a percentage of... the parent. This creates a circular dependency, and Yoga resolves it by treating the unknown parent dimension as 0 for percentage resolution, which makes the child 0 tall, which makes the parent 0 tall — a stable zero fixed point. Contrast this with `flex: 1`, which is a **distributive** rule: "take the remaining space after other children are laid out". If the parent chain all the way up to the screen has non-zero resolved height, flex propagates correctly; percentages do not, because they require an already-measured parent. This mirrors web behavior for `height: 50%` on a parent with `height: auto`, but it is easy to forget in RN because the root of the tree is not a styled `<body>` with an implicit viewport size. The fix is to make the parent's height explicit, flex-based, or take up the full screen via `flex: 1` from the root down.
+
+**Takeaway:** Percentages resolve against the parent's measured size — if the parent has no resolved size, the percentage collapses to zero.
 
 ---
 
@@ -2116,7 +2130,7 @@ Percentage heights resolve against the parent's measured height. The parent `<Vi
 
 ---
 
-**Q6: Inline `renderItem` and `React.memo`**
+**Q6: In a `FlatList` whose `renderItem` is an inline arrow and whose `Row` is wrapped in `React.memo`, what happens to the rows when an unrelated parent state change (like a counter) causes the list component to re-render?**
 
 ```tsx
 const Row = React.memo(({ item }) => {
@@ -2139,27 +2153,33 @@ function List({ data }) {
 }
 ```
 
-**Question:** When you tap `+`, do the rows re-render?
+**Output:** Every visible row re-renders on each tap of the `+` button — you see `render 1`, `render 2`, ... in the console each time.
 
-**Output:** **Yes, every row re-renders.**
+**Explanation:**
 
-`renderItem` is an inline arrow, a new function each render. FlatList internally passes it down; even though `Row` is memoized, FlatList re-invokes `renderItem`, producing a new JSX element. But more importantly, each `Row` still receives the same `item` reference, so — here's the subtlety — `React.memo` **would** actually skip. The re-render you see is because `FlatList` itself re-renders and re-invokes `renderItem` for the visible rows.
+`React.memo` works by shallow-comparing the previous and next props; if they are referentially equal it bails out of reconciliation. The gotcha here has two layers. First, `renderItem` is defined inline, so every render of `List` produces a new function identity. `FlatList` internally stores the latest `renderItem` and re-invokes it for each visible cell whenever it re-renders; this produces a fresh `<Row item={...} />` element tree. Second, even though `item` itself is the same object reference frame-to-frame (assuming `data` is stable), `FlatList` does still re-render its cell wrappers because its own props changed (the new `renderItem` identity). `React.memo` on `Row` will correctly skip the inner work when `item` is stable — but the cell wrapper above `Row` does reconcile, which is why you see the extra work. The fix is a combination: `const renderItem = useCallback(({ item }) => <Row item={item} />, [])` to stabilize the function, keep `data` in a stable reference (via state or `useMemo`), and never pass newly created handlers like `onPress={() => handle(item.id)}` into `Row` — either define handlers with `useCallback` or pass `item.id` and let `Row` look up the handler from context.
 
-The practical fix is: `useCallback` the `renderItem`, and avoid passing new props into `Row` (e.g., inline `onPress={() => handle(item.id)}` creates a new callback each render, which defeats `React.memo`).
+**Takeaway:** Memoized rows still re-render unless `renderItem`, `data`, and every prop into the row are referentially stable.
 
 ---
 
-**Q7: FlatList `keyExtractor` missing**
+**Q7: What actually happens if you render a `FlatList` without providing a `keyExtractor` and the items themselves do not have a `key` prop — does the list break, log a warning, or silently fall back to something?**
 
 ```tsx
 <FlatList data={[{ name: 'a' }, { name: 'b' }]} renderItem={({ item }) => <Text>{item.name}</Text>} />
 ```
 
-**Output:** A warning: `Warning: Each child in a list should have a unique "key" prop.` RN falls back to using the index as the key, which is fine for static data but breaks recycling when the list reorders (items at old indices keep stale state). Always provide `keyExtractor`.
+**Output:** The list renders, but you get a dev warning: `Warning: Each child in a list should have a unique "key" prop.` RN internally falls back to using the array **index** as the key.
+
+**Explanation:**
+
+`FlatList` is built on top of `VirtualizedList`, which assigns a key to every cell so React can match previous render output to the new one for reconciliation. The lookup order is: (1) use `keyExtractor(item, index)` if provided, (2) use `item.key` if the item object has one, (3) use `item.id` if present, (4) fall back to the index. The fallback to index is what keeps the app running, but it is dangerous because cell recycling and internal state (selection, input focus, animations, expanded/collapsed) are keyed by this value. If you later reorder, insert, or delete items, React thinks "the item at index 0 is still the same item" even though its content changed, leading to ghost state where a row visually shows new data but keeps the old input value, selected state, or animation progress. On large or paginated lists, this also interferes with `getItemLayout` optimization and can cause visual jumps when items shift. Always provide `keyExtractor={item => item.id}` using a stable, unique domain identifier — never the index, never a derived hash of mutable content.
+
+**Takeaway:** Always supply `keyExtractor` with a stable domain ID; index fallbacks corrupt cell state whenever the list reorders.
 
 ---
 
-**Q8: Object reference in `data`**
+**Q8: If you pass an inline array literal as the `data` prop of a `FlatList` inside a component that re-renders often (e.g., due to an unrelated counter state), does the list skip work because the items are logically unchanged, or does it fully re-render?**
 
 ```tsx
 function App() {
@@ -2173,9 +2193,13 @@ function App() {
 }
 ```
 
-**Question:** On each tap, does `FlatList` re-render?
+**Output:** The `FlatList` **re-renders fully** on every tap, even though the items' IDs and content are identical.
 
-**Output:** **Yes.** The inline array literal `[{ id: 1 }, { id: 2 }]` is a new array every render, so the `data` prop's reference changes → FlatList re-renders and re-evaluates its children. To stabilize, move the array outside the component or `useMemo` it.
+**Explanation:**
+
+React compares props by referential identity, not structural equality. `[{ id: 1 }, { id: 2 }]` written inside the render body constructs a brand-new array — and brand-new item objects — on every render of `App`. From `FlatList`'s perspective, `prevProps.data !== nextProps.data`, so it re-measures, re-evaluates which rows are visible, and re-invokes `renderItem`. Worse, because each item object is also a new reference, even a memoized `Row` would break: `React.memo`'s shallow comparison sees a different `item` prop. This kind of unstable reference is one of the single biggest performance regressions in RN apps, because list work scales with the number of visible cells times the cost of each cell. The correct patterns are: (1) put `data` into state or a ref and update only when truly changed, (2) wrap derived lists in `useMemo(() => transform(source), [source])`, (3) hoist static lists to module scope outside the component, or (4) for server data, use a query library like TanStack Query that stabilizes the reference when nothing changed.
+
+**Takeaway:** Inline array/object props are fresh every render — always stabilize `data` via state, `useMemo`, or module-scope constants.
 
 ---
 
@@ -2183,7 +2207,7 @@ function App() {
 
 ---
 
-**Q9: `useNativeDriver` with layout animation**
+**Q9: In React Native, if you use the built-in `Animated` API with `useNativeDriver: true` to animate a layout property like `width`, what error do you get and what is the underlying architectural reason?**
 
 ```tsx
 const width = useRef(new Animated.Value(100)).current;
@@ -2195,13 +2219,17 @@ useEffect(() => {
 <Animated.View style={{ width, height: 50, backgroundColor: 'red' }} />
 ```
 
-**Output:** Runtime error or warning: `Style property 'width' is not supported by native animated module`.
+**Output:** A runtime warning/error: `Style property 'width' is not supported by native animated module`. The animation either does not start or falls back silently depending on the version.
 
-The native driver only supports **transform** (translate/scale/rotate) and **opacity** — not layout properties like width/height/padding/margin/color. For animating `width`, set `useNativeDriver: false` (runs on JS thread) or use Reanimated (runs layout on UI thread via worklets).
+**Explanation:**
+
+When `useNativeDriver: true` is set, the Animated API serializes the animation (keyframes, easing, interpolations, style bindings) down to the native side at `start()` time, and from then on the animation runs entirely on the UI thread without hopping back to the JS thread on each frame. This is what gives native-driven animations perfect 60/120 fps smoothness even when the JS thread is busy. The catch: driving a property natively requires the native animated module to be able to mutate it without triggering a layout pass — which is only possible for properties that map to compositor-level transforms on the GPU. Those are `transform` (translateX/Y, scale, rotate, skew) and `opacity`. Layout properties (`width`, `height`, `padding`, `margin`, `top`/`left`, `flex`) would require re-running Yoga layout on every frame, which the native driver refuses to do. Color is also excluded because color interpolation requires JS-side math. The two standard workarounds: (1) use `useNativeDriver: false` for layout animations, accepting that they'll jank if the JS thread is busy; or (2) switch to **Reanimated**, which runs worklets on the UI thread and can animate layout properties via its shared-values-plus-layout-animator system. For width specifically, you can often get the same visual effect by animating `transform: [{ scaleX }]` with native driver, which is free on the GPU.
+
+**Takeaway:** Native driver only supports `transform` and `opacity` — for anything else, drop to JS driver or reach for Reanimated.
 
 ---
 
-**Q10: Promise inside `useEffect` without cleanup**
+**Q10: What is the concrete problem with firing a `fetch` inside `useEffect` and calling `setData` when it resolves, without returning a cleanup function, in a React Native screen that the user can navigate away from?**
 
 ```tsx
 function Screen() {
@@ -2215,23 +2243,17 @@ function Screen() {
 }
 ```
 
-**Question:** What's wrong?
+**Answer:** If the user navigates away (or the screen unmounts for any reason) before the fetch resolves, `setData` will be called on an unmounted component, the network request continues to consume bandwidth and battery, and the closure prevents garbage collection of the captured state and component tree.
 
-**Problem:** If the component unmounts before `fetch` resolves, `setData` runs on an unmounted component. React 18 no longer warns about this loudly, but the `fetch` itself isn't cancelled — you're doing work and holding a closure reference for nothing. Fix with `AbortController`:
+**Explanation:**
 
-```tsx
-useEffect(() => {
-  const c = new AbortController();
-  fetch('/api/data', { signal: c.signal }).then(r => r.json()).then(setData).catch(() => {});
-  return () => c.abort();
-}, []);
-```
+In a stack navigator, `Screen` may be unmounted at any moment — the user hits back, a deep link replaces it, the tab changes, or the app is backgrounded and killed. The `fetch` Promise, however, has no knowledge of React's lifecycle. It continues downloading the response, parses the JSON, and then calls `setData`. React 18 removed the noisy "can't call setState on an unmounted component" warning because it caused more false positives than real bugs, but the underlying leak is still real: the network connection is open, the response body is parsed into memory, and the closure holds references to `setData` (which in turn holds onto the fiber and its props). On slow networks or during screen-rotation storms, you can easily rack up a dozen orphaned requests. The correct pattern is to pair the effect with an `AbortController`: pass `signal: c.signal` into the fetch, and return `() => c.abort()` from the effect. `fetch` will reject with an `AbortError`, the network layer will cancel the request at the native level (both iOS URLSession and Android OkHttp honor abort), and the component tree can be collected. In practice, most apps should use a data-fetching library (TanStack Query, RTK Query, Apollo) which handles cancellation, caching, retries, and race conditions automatically.
 
-Or use TanStack Query, which handles cancellation automatically.
+**Takeaway:** Always tie async work to the effect's lifecycle with `AbortController` or a query library — otherwise you leak network and memory on unmount.
 
 ---
 
-**Q11: `setState` in stale closure**
+**Q11: In this counter, the effect sets up a one-time `setInterval` with an empty dependency array and calls `setCount(count + 1)` each tick — what number does the UI display over time and why does it behave that way?**
 
 ```tsx
 function Counter() {
@@ -2248,11 +2270,13 @@ function Counter() {
 }
 ```
 
-**Output:** Text displays `0`, then `1`, and **stays at 1**.
+**Output:** The text shows `0`, then ticks to `1` after one second, and then **stays stuck at `1` forever**.
 
-The effect captures `count` = 0 at mount time. The interval's callback always reads this stale value. `setCount(0 + 1)` → sets to 1 each tick → React short-circuits re-renders because the value doesn't change.
+**Explanation:**
 
-Fix with functional updater: `setCount(c => c + 1)`. This works because the setter always receives the latest state.
+This is the classic stale-closure bug. `useEffect` with `[]` runs once on mount. At that moment, the interval callback closes over the `count` binding from that particular render — which is `0`. The callback, whenever it fires, computes `0 + 1 = 1` and passes `1` to `setCount`. On the next tick it again computes `0 + 1 = 1` (still reading the same captured `count`) and passes `1`. React sees `Object.is(prev, next) === true` after the first update and bails out of re-rendering. The interval never gets torn down and recreated because its dependency array is empty, so there's no chance for a fresh closure with the updated `count` to be captured. There are three canonical fixes, each with trade-offs. (1) Functional updater: `setCount(c => c + 1)` — React passes the latest state to the updater, so closure staleness doesn't matter. This is the correct fix here. (2) Add `count` to dependencies: works but recreates the interval every second, which drifts the timing and is wasteful. (3) Use a ref that mirrors the latest value: `const ref = useRef(count); ref.current = count;` and read `ref.current` inside the interval. Useful when the updater pattern doesn't fit (e.g., reading other state or props). Note: RN's JS thread and the web's event loop behave the same here — this is a pure React issue, not platform-specific.
+
+**Takeaway:** Inside long-lived subscriptions (intervals, listeners, timers) always use the functional updater or a ref — never read state directly from the closure.
 
 ---
 
@@ -2260,7 +2284,7 @@ Fix with functional updater: `setCount(c => c + 1)`. This works because the sett
 
 ---
 
-**Q12: Shadows don't appear on Android**
+**Q12: Why do the iOS-style `shadowColor`, `shadowOffset`, `shadowOpacity`, and `shadowRadius` properties render a shadow on iOS but produce nothing on Android, and what is the correct cross-platform approach?**
 
 ```tsx
 <View style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 }}>
@@ -2268,23 +2292,17 @@ Fix with functional updater: `setCount(c => c + 1)`. This works because the sett
 </View>
 ```
 
-**On iOS:** Shadow renders. **On Android:** No shadow.
+**Output:** On iOS the shadow renders correctly around the view. On Android, **no shadow is drawn at all**.
 
-Android uses `elevation` (Material Design) for shadows, not the iOS shadow properties. Also, elevation requires the view to have a solid `backgroundColor` to cast. Cross-platform:
+**Explanation:**
 
-```tsx
-const card = {
-  backgroundColor: 'white',
-  // iOS
-  shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
-  // Android
-  elevation: 4,
-};
-```
+iOS and Android have fundamentally different shadow models at the native layer. On iOS, every `UIView` backed by `CALayer` supports `shadowColor`, `shadowOffset`, `shadowOpacity`, and `shadowRadius` as layer-level properties; RN maps the matching style keys directly onto the layer. On Android, Material Design expresses depth through **elevation** — a `float` Z-position on the `View` that the platform uses to compute both a silhouette shadow (via `ViewOutlineProvider`) and ambient/key light contributions. The iOS-named properties simply have no equivalent that Android can honor without a custom drawing pass, so RN ignores them on Android. Additionally, Android's elevation-based shadow needs the view to have a solid background (an opaque `backgroundColor`), a defined outline (rectangle, rounded rect, or path), and non-clipped overflow for the shadow silhouette to render — otherwise the platform has nothing to cast a shadow from. The idiomatic cross-platform fix is to set both families of properties (iOS ignores `elevation`, Android ignores the shadow* keys), and always include `backgroundColor: 'white'` (or another opaque color). Newer RN versions added a `boxShadow` style on Fabric that mimics the CSS syntax and is normalized across platforms, but for broad compatibility ship both. For complex custom shadows, use `react-native-shadow-2` or layer a pre-rendered shadow image.
+
+**Takeaway:** iOS uses `shadow*` properties, Android uses `elevation` — set both, plus an opaque `backgroundColor`, for shadows that work everywhere.
 
 ---
 
-**Q13: `SafeAreaView` from `react-native` on Android**
+**Q13: Why does `SafeAreaView` imported from `'react-native'` correctly avoid the iPhone notch and home indicator on iOS, but do nothing for the Android status bar or gesture area, and what should you use instead?**
 
 ```tsx
 import { SafeAreaView } from 'react-native';
@@ -2294,13 +2312,17 @@ import { SafeAreaView } from 'react-native';
 </SafeAreaView>
 ```
 
-**On iOS:** Pads correctly around notch. **On Android:** No padding at all.
+**Output:** On iOS the content is padded away from the notch, status bar, and home indicator. On Android the view renders flush to the edges with **no padding**, causing content to sit under the status bar.
 
-The built-in `SafeAreaView` is iOS-only. On Android it's a plain `View`. Always use `react-native-safe-area-context`'s `SafeAreaView` or `useSafeAreaInsets` — both work cross-platform.
+**Explanation:**
+
+The `SafeAreaView` shipped in the `react-native` core package is intentionally iOS-only. It maps to a native `UIView` that reads the current view controller's `safeAreaInsets` — a UIKit API that reports the insets for notches, dynamic islands, and the home indicator. On Android, the equivalent concept is handled through `WindowInsets` (status bar, navigation bar, gesture inset, IME), and these APIs differ enough across Android versions (edge-to-edge mode, display cutouts on 9+, gesture navigation on 10+) that the RN core team decided not to ship a built-in implementation, falling back to a plain `View`. The community library `react-native-safe-area-context` provides a proper cross-platform implementation: a `SafeAreaProvider` at the root that reads insets once per layout change, a `SafeAreaView` that consumes them, and a `useSafeAreaInsets()` hook for fine-grained control (e.g., applying only the top inset to a header, only the bottom inset to a tab bar). It works on both platforms, handles rotation, handles split-screen, and integrates with React Navigation (which uses it internally for headers and bottom tabs). The rule of thumb: never import `SafeAreaView` from `react-native` in a cross-platform app — always import from `react-native-safe-area-context`.
+
+**Takeaway:** Core `SafeAreaView` is iOS-only; always use `react-native-safe-area-context` for cross-platform inset handling.
 
 ---
 
-**Q14: Android hardware back button**
+**Q14: If you build a "modal" out of a plain `<View>` gated behind a state flag (rather than using `<Modal>` or a navigation stack) and a user on Android presses the hardware/back-gesture button, what happens and how should you handle it correctly?**
 
 ```tsx
 function Modal() {
@@ -2311,11 +2333,13 @@ function Modal() {
 }
 ```
 
-**Question:** What happens on Android when the user presses the hardware back button?
+**Output:** The user's modal stays open, but the Android back press **exits the entire app** instead of dismissing the modal.
 
-**Output:** The app **exits**.
+**Explanation:**
 
-RN's default Android back behavior is "pop the navigator, and if none, exit the app". Your modal is a plain view, not a navigator screen — so back exits. Fix: listen to `BackHandler.addEventListener('hardwareBackPress', ...)`, return `true` to consume the event, or use `<Modal onRequestClose={close}>` which wires this automatically.
+Android's hardware back button is a system-level event delivered to the current Activity. RN's default handler pops the current navigator screen if one exists, and if the navigation stack is empty, it calls `moveTaskToBack()` (effectively exiting). Your conditional-render "modal" is just a `<View>` in the component tree — it's invisible to Android's back dispatcher, the navigation library, and the platform. Nothing in the tree is subscribed to back presses, so the default Activity behavior runs and the app backgrounds. To handle this correctly, you need to subscribe to the `hardwareBackPress` event with `BackHandler.addEventListener('hardwareBackPress', handler)` and return `true` from the handler when your modal is open (returning `true` tells Android "I've consumed this event, don't do the default"). You must also clean up the subscription on unmount or when the modal closes. The cleaner option is to use the built-in `<Modal>` component, which exposes an `onRequestClose` callback that fires for hardware back (Android) and is required to be implemented on that platform. Or use a library like `react-native-modal` / React Navigation's modal screens, both of which wire the back handler automatically. iOS has no equivalent because there is no hardware back button — users dismiss with a gesture or a UI-provided close affordance.
+
+**Takeaway:** Conditional-render modals don't capture Android back — subscribe to `BackHandler` or use `<Modal onRequestClose>` / a navigation-based modal.
 
 ---
 
@@ -2323,7 +2347,7 @@ RN's default Android back behavior is "pop the navigator, and if none, exit the 
 
 ---
 
-**Q15: `AsyncStorage` at startup**
+**Q15: When an app reads its auth token from `AsyncStorage` inside a `useEffect` and renders either `<LoginScreen />` or `<HomeScreen />` based on whether the token is present, what does a logged-in user actually see on cold start, and what are the options to fix it?**
 
 ```tsx
 function App() {
@@ -2338,26 +2362,29 @@ function App() {
 }
 ```
 
-**Question:** What does the user see on cold start?
+**Output:** Even for a logged-in user, the `LoginScreen` flashes briefly before the app switches to `HomeScreen`. The flash is usually a few tens of milliseconds on modern devices but can be up to a second on older Android hardware or after an OTA update.
 
-**Output:** They see `LoginScreen` **for a brief flash**, even if they're already logged in. `AsyncStorage.getItem` is async and takes ~tens of ms. During that gap, `token` is `null` → LoginScreen renders → promise resolves → HomeScreen.
+**Explanation:**
 
-Fix options:
-1. **MMKV** is synchronous — read at top-level, no flash.
-2. Keep splash screen visible (`SplashScreen.preventAutoHideAsync`) until rehydration completes.
-3. Render a neutral loading state (not LoginScreen) while `token` is `null` and you haven't finished hydration.
+`AsyncStorage` is, as the name says, **asynchronous**: on iOS it serializes to a plist on disk, on Android to SQLite (or a file system variant). Every read hops over the JS/native bridge, does I/O, and returns through a Promise. On the first render of `App`, `token` is `null` (the initial state) because React renders synchronously and the effect runs **after** commit. So the first frame paints `LoginScreen`, then microseconds to hundreds of milliseconds later the promise resolves, `setToken` triggers a re-render, and `HomeScreen` replaces it. The user perceives a login-screen flash followed by a jarring swap. There are three correct fixes, and production apps typically combine them: (1) **MMKV** (`react-native-mmkv`) is a synchronous, memory-mapped key-value store; you can read at module scope or during the initial render with no promise, eliminating the flash. (2) Keep the native splash screen up until hydration completes, via `expo-splash-screen` or `react-native-bootsplash` — call `preventAutoHideAsync()` at startup and `hideAsync()` after reading the token. (3) Render a neutral loading state (a blank view with the app's background color) instead of `LoginScreen` while `token` is still the sentinel value — and use a three-state enum (`'unknown' | 'loggedIn' | 'loggedOut'`) rather than `null` so you can tell "haven't checked" apart from "checked and empty". The splash + MMKV combination gives the smoothest UX.
+
+**Takeaway:** AsyncStorage-backed gates always flash — use MMKV for sync reads, keep the splash screen up during hydration, and distinguish "unknown" from "logged out".
 
 ---
 
-**Q16: Image source from a string URI**
+**Q16: Why does passing a raw URL string to `<Image source="...">` in React Native fail to render the image, when the same syntax works on the web's `<img src="...">` element?**
 
 ```tsx
 <Image source="https://example.com/pic.jpg" style={{ width: 100, height: 100 }} />
 ```
 
-**Output:** Nothing renders; warning: `source.uri should not be an empty string`.
+**Output:** Nothing renders. In development you typically see a warning like `source.uri should not be an empty string` or a TypeScript error; in production the view is empty.
 
-RN's `Image` expects either `require(...)` or `{ uri: 'https://...' }`. A raw string is not valid. Use `source={{ uri: 'https://example.com/pic.jpg' }}`.
+**Explanation:**
+
+RN's `<Image>` does **not** mirror the HTML `<img>` API. Its `source` prop is typed as either (a) a numeric ID returned by `require('./local.png')` — the Metro bundler turns that call into an integer that maps to a bundled asset at runtime — or (b) an object like `{ uri: 'https://...' }` for remote/URL images. An object form can also carry metadata that the web's `<img>` has no equivalent for: `width`, `height` (for content-aware layout), `headers` (for Authorization or signed URL tokens), `cache` policy (`default` / `reload` / `force-cache` / `only-if-cached`), `method`, and `body` for POST-fetched images. Passing a string short-circuits all of this — the renderer does not implicitly wrap the string into `{ uri }`, so the image module sees an invalid source and draws nothing. The right call is always `source={{ uri: 'https://example.com/pic.jpg' }}` for remote images and `source={require('./pic.png')}` for bundled assets. If you need to handle both cases in the same component, pass the normalized object form. For heavy remote image workflows (placeholders, blurhash, progressive decoding, caching) use `expo-image` or `react-native-fast-image`, both of which accept the same source shape but add features the core `<Image>` lacks.
+
+**Takeaway:** RN `<Image>` takes `require(...)` or `{ uri }` — never a raw string. Use `expo-image` / `react-native-fast-image` when you need caching and placeholders.
 
 ---
 

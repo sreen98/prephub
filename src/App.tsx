@@ -106,7 +106,25 @@ const PreBlock = ({ children }) => {
   };
 
   const handleTryIt = () => {
-    const text = ref.current?.textContent || '';
+    let text = ref.current?.textContent || '';
+    // Detect JSX broadly: capitalized tag (`<Timer />`), any JSX returned from a function
+    // (`return <button>`), React hook usage, or an explicit render call.
+    const hasJSX =
+      /<[A-Z][A-Za-z0-9]*/.test(text) ||
+      /return\s*\(?\s*<[a-zA-Z]/.test(text) ||
+      /\b(useState|useEffect|useRef|useMemo|useCallback|useReducer|useContext|useLayoutEffect)\s*\(/.test(text);
+    const hasRender = /render\s*\(/.test(text) || /ReactDOM\.(render|createRoot)/.test(text);
+    if (hasJSX && !hasRender) {
+      const matches = [
+        ...text.matchAll(/function\s+([A-Z][A-Za-z0-9]*)\s*\(/g),
+        ...text.matchAll(/(?:const|let|var)\s+([A-Z][A-Za-z0-9]*)\s*=/g),
+        ...text.matchAll(/class\s+([A-Z][A-Za-z0-9]*)\s+extends/g),
+      ];
+      if (matches.length > 0) {
+        const componentName = matches[matches.length - 1][1];
+        text = `${text.replace(/\s+$/, '')}\n\nrender(<${componentName} />);`;
+      }
+    }
     sessionStorage.setItem('playground-code', text);
     window.open(`${import.meta.env.BASE_URL}playground`, '_blank');
   };
@@ -1017,7 +1035,7 @@ const BackToTop = () => {
 
 // ==================== Main App ====================
 
-const CHANGELOG_VERSION = '2026-03';
+const CHANGELOG_VERSION = '2026-04-tricky-rewrite';
 
 export default function App() {
   const { theme, toggleTheme } = useDarkMode();
@@ -1042,6 +1060,16 @@ export default function App() {
     statsHook.recordVisit();
     const m = statsHook.checkMilestone();
     if (m) setMilestone(m);
+  }, []);
+
+  // Allow pages (e.g. playground) to request showing the sidebar
+  useEffect(() => {
+    const handler = () => {
+      setIsSidebarCollapsed(false);
+      setIsSidebarOpen(true);
+    };
+    window.addEventListener('prephub:show-sidebar', handler);
+    return () => window.removeEventListener('prephub:show-sidebar', handler);
   }, []);
 
   // Mark changelog as seen
@@ -1182,8 +1210,8 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Sidebar expand button (desktop, when collapsed) */}
-      {isSidebarCollapsed && (
+      {/* Sidebar expand button (desktop, when collapsed). Hidden on /playground — the playground has its own inline toggle to avoid overlapping the editor. */}
+      {isSidebarCollapsed && location.pathname !== '/playground' && (
         <button
           onClick={() => setIsSidebarCollapsed(false)}
           className="hidden md:flex fixed top-1/2 -translate-y-1/2 left-0 z-[55] py-3 px-1 rounded-r-lg bg-slate-200/80 dark:bg-slate-800/80 border border-l-0 border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700 hover:px-2 transition-all"
