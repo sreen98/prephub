@@ -19,6 +19,19 @@
 - [11. Context API](#11-context-api)
 - [12. Refs](#12-refs)
 - [13. Performance Optimization](#13-performance-optimization)
+  - [13.1 React.memo](#131-reactmemo)
+  - [13.2 useMemo and useCallback](#132-usememo-and-usecallback)
+  - [13.3 Code Splitting (Lazy Loading)](#133-code-splitting-lazy-loading)
+  - [13.4 Virtualization](#134-virtualization-large-lists)
+  - [13.5 Concurrent Features](#135-concurrent-features-usetransition-usedeferredvalue)
+  - [13.6 Profiling and Measurement](#136-profiling-and-measuring-performance)
+  - [13.7 Common Re-render Causes](#137-common-re-render-causes-and-fixes)
+  - [13.8 Image and Asset Optimization](#138-image-and-asset-optimization)
+  - [13.9 Webpack vs Vite](#139-build-tools--webpack-vs-vite)
+  - [13.10 Bundle Analyzers](#1310-bundle-analyzers)
+  - [13.11 Tree Shaking and Code Splitting](#1311-tree-shaking-and-code-splitting-at-build-time)
+  - [13.12 Server Components, SSR, Streaming](#1312-server-components-ssr-and-streaming)
+  - [13.13 Performance Rules](#1313-performance-rules)
 - [14. Patterns and Best Practices](#14-patterns-and-best-practices)
 - [15. React 19 Features](#15-react-19-features)
 - [16. Interview Questions & Answers](#16-interview-questions--answers)
@@ -1110,19 +1123,485 @@ function VirtualList({ items }: { items: Item[] }) {
 }
 ```
 
-### 13.5 Performance Rules
+### 13.5 Concurrent Features (`useTransition`, `useDeferredValue`)
+
+React 18's concurrent renderer lets you mark some updates as **non-urgent** so the browser stays responsive while heavy work happens in the background. Without these, a slow filter on every keystroke blocks the input thread; with them, the input stays at 60 fps and the list catches up.
+
+**The mental model — why this matters.** Pre-React-18, every state update was synchronous and committed in the same render. Once React started rendering, it could not be interrupted; the browser's main thread was blocked until the entire tree was reconciled and committed. On a slow render that took 200ms, the keystroke that caused it could not paint until those 200ms were up — the input felt "stuck." React 18 introduced a **concurrent renderer** that can pause, abandon, and restart work, plus a **lane-based scheduler** that assigns each update a priority. There are roughly three priority tiers users care about:
+
+```
+| Priority         | Triggered by                                    | Example                  |
+|------------------|-------------------------------------------------|--------------------------|
+| Sync / discrete  | Direct user input — clicks, keystrokes, focus   | setState in onChange     |
+| Default          | Network responses, timers, normal setState      | setState after fetch     |
+| Transition       | Wrapped in startTransition, or useDeferredValue | Slow filter, route change|
+```
+
+Higher-priority lanes can preempt lower ones. If the user types again while React is mid-transition, React **discards the in-progress render** and starts over with the latest state — the partially-rendered output is thrown away. This is why concurrent features don't make the work itself faster; they make it *interruptible*, so the urgent work (input value, paint) is never starved.
+
+**What `isPending` is actually telling you.** It is `true` from the moment `startTransition` queues the work to the moment that work commits. It lives in the urgent lane (so updating it doesn't block the input), and it lets you show a spinner without re-introducing the lag — the spinner update itself is sync, but the heavy work it announces is not.
+
+```tsx
+import { useState, useTransition, useDeferredValue, useMemo } from 'react';
+
+function ProductSearch({ products }: { products: Product[] }) {
+  const [query, setQuery] = useState('');
+  const [isPending, startTransition] = useTransition();
+
+  function onChange(e: React.ChangeEvent<HTMLInputElement>) {
+    // Urgent: input value updates immediately (controlled input stays snappy)
+    setQuery(e.target.value);
+    // Non-urgent: heavy filter can be interrupted by the next keystroke
+    startTransition(() => {
+      // ...trigger downstream state update if needed
+    });
+  }
+
+  // Or: defer derivation rather than the setter
+  const deferredQuery = useDeferredValue(query);
+  const filtered = useMemo(
+    () => products.filter(p => p.name.includes(deferredQuery)),
+    [products, deferredQuery],
+  );
+
+  return (
+    <>
+      <input value={query} onChange={onChange} />
+      {isPending && <span>Updating…</span>}
+      <ProductList items={filtered} />
+    </>
+  );
+}
+```
+
+`useTransition` wraps **state setters** that schedule slow updates. `useDeferredValue` wraps a **value** so a derived computation lags behind the latest input — useful when the slow consumer isn't yours to wrap.
+
+### 13.6 Profiling and Measuring Performance
+
+You can't fix what you can't see. Use the right tool for the layer you're investigating:
+
+```
+| Layer                      | Tool                                    |
+|----------------------------|-----------------------------------------|
+| Component render cost      | React DevTools Profiler (Flamegraph)    |
+| Why a component re-rendered| Profiler "Why did this render?" / why-did-you-render |
+| Page load (LCP, INP, CLS)  | Lighthouse, Chrome DevTools Performance |
+| Real-user metrics          | web-vitals lib + analytics, Sentry      |
+| Long tasks blocking input  | DevTools Performance tab → Long Tasks   |
+| Bundle size & duplicates   | Bundle analyzer (see 13.10)             |
+```
+
+The React DevTools Profiler records a session of renders and shows a flamegraph of how long each component took. Yellow/red components are the slow ones — start there. The "Ranked" view sorts by duration; the "Why did this render?" toggle (in DevTools settings) annotates each render with the prop/state/hook that changed.
+
+**Render vs commit — what the profiler actually measures.** A React update has two phases. The **render phase** is pure: React calls your component functions, builds the new fiber tree, and runs reconciliation. The **commit phase** is when React actually mutates the DOM and runs effects (`useLayoutEffect` synchronously, `useEffect` after paint). The profiler shows you both — the flamegraph bars represent render-phase time per component, and the commit duration sits at the top. A common confusion: "my component is slow" usually means "the render phase is slow"; if your work is in `useEffect`, the profiler bar for that component will look fine because effects run *after* the recorded commit. For effect-heavy bottlenecks, switch to the Chrome Performance tab.
+
+**Actual vs base duration.** Each Profiler bar shows two numbers: *actual duration* (how long this render took) and *base duration* (how long it would take with no memoization). The gap between them is the value memoization is adding — if base ≈ actual, your memoization isn't doing anything (the component is re-rendering anyway), which usually means a reference-equality bug in props.
+
+**Core Web Vitals — what each metric actually represents.**
+
+- **LCP (Largest Contentful Paint)** — when the biggest above-the-fold element (typically the hero image, video, or a large heading) finishes painting. Good ≤ 2.5s, poor > 4s. LCP is dominated by network (TTFB, image size) and render-blocking resources (large CSS/JS).
+- **INP (Interaction to Next Paint)** — replaced FID in March 2024. INP measures the **worst-case latency** between any user interaction (click, tap, key) and the next paint, not just the first one. Good ≤ 200ms, poor > 500ms. This is the React-specific killer: long renders, expensive event handlers, and hydration all spike INP. Lighthouse cannot measure INP reliably (it has no real interactions); you only see it via real-user monitoring.
+- **CLS (Cumulative Layout Shift)** — sum of unexpected layout shifts during the page's lifetime. Good ≤ 0.1, poor > 0.25. Common causes: images without `width`/`height`, late-loading fonts that change line metrics, banners injected after first paint, and ads without reserved space.
+
+These three are Google's **search ranking signals** as of 2021 (LCP, FID/INP, CLS), so they have business consequences beyond user feel. The `web-vitals` library measures them using the same algorithms Chrome itself ships, then hands you a callback you can wire to any analytics endpoint:
+
+```tsx
+// Report Core Web Vitals to your analytics endpoint
+import { onCLS, onINP, onLCP, onFCP, onTTFB } from 'web-vitals';
+
+function send(metric: { name: string; value: number; id: string }) {
+  navigator.sendBeacon('/analytics', JSON.stringify(metric));
+}
+
+onCLS(send);   // Cumulative Layout Shift  (visual stability)
+onINP(send);   // Interaction to Next Paint (responsiveness, replaced FID in 2024)
+onLCP(send);   // Largest Contentful Paint (load speed)
+onFCP(send);
+onTTFB(send);
+```
+
+`React.Profiler` is the in-app equivalent — wrap a subtree to programmatically measure render durations, useful for synthetic perf tests:
+
+```tsx
+<Profiler id="ProductGrid" onRender={(id, phase, actual, base) => {
+  console.log(id, phase, actual, base);
+}}>
+  <ProductGrid />
+</Profiler>
+```
+
+### 13.7 Common Re-render Causes (and Fixes)
+
+Most "React is slow" complaints trace back to a small set of patterns. Profile first, but watch for these:
+
+**The underlying cause is almost always reference equality.** React decides whether a component needs to re-run by comparing the *references* of its props, state, and context value to the previous render's. Two object literals with identical contents are not equal under `Object.is`:
+
+```js
+{ a: 1 } === { a: 1 }   // false — different references
+```
+
+So when you write `<Child style={{ color: 'red' }} />`, you create a brand-new object on every parent render, and any `React.memo` on `Child` will think the prop changed even though the value is identical. The same is true of arrays (`[1, 2, 3]`), inline functions (`() => doSomething()`), and the `value={{...}}` object you hand to a Context Provider. The fixes — `useMemo`, `useCallback`, hoisting constants outside the component, splitting context — all exist to give those references stability across renders.
+
+**By default, React does not memoize.** Every render of a parent re-renders all of its children, transitively. `React.memo` opts a single component into shallow-prop comparison; without it, the parent re-rendering is enough to re-render the child even when nothing meaningful changed. The React Compiler (React 19) flips this default by inserting memoization automatically, but in compiler-less codebases you have to be deliberate.
+
+**Why "the parent re-rendered" is so often the answer.** When the URL changes, when a top-level provider's value changes, or when global state in `Context` updates, every component below fires a render — even leaves that don't read the changed value. The structural fix is to move the state down (co-location) or split the provider so consumers only subscribe to the state they actually use.
+
+```
+| Cause                                          | Fix                                              |
+|------------------------------------------------|--------------------------------------------------|
+| Inline object/array prop: <X style={{...}} />  | Hoist constant, or useMemo it                    |
+| Inline callback to memoized child              | useCallback (or move handler to leaf)            |
+| Context value changes on every parent render   | useMemo the value object; split into 2 contexts  |
+| Anonymous function inside .map() in deps       | Hoist or useCallback                             |
+| Updating state with the same value             | React bails out for primitives, NOT for objects  |
+| Parent re-renders entire subtree on URL change | Move route boundaries closer to the leaf         |
+| Tall provider tree wrapping the whole app      | Co-locate providers; consider Zustand/Jotai     |
+```
+
+The classic Context fan-out trap — every consumer re-renders when *any* field of `value` changes:
+
+```tsx
+// BAD — value object is new on every render, even if user/theme didn't change
+<AppContext.Provider value={{ user, theme, setTheme }}>
+
+// GOOD — memoize, and split unrelated state into separate contexts
+const auth = useMemo(() => ({ user }), [user]);
+const themeCtx = useMemo(() => ({ theme, setTheme }), [theme]);
+<AuthContext.Provider value={auth}>
+  <ThemeContext.Provider value={themeCtx}>
+```
+
+### 13.8 Image and Asset Optimization
+
+Images are usually the biggest payload on a React page and the dominant LCP element. Quick wins:
+
+**Why images dominate LCP.** A typical landing page ships ~50 KB of HTML, ~200 KB of JS, and ~1 MB of images. The hero image is almost always the Largest Contentful Paint element by area, which means **its download time is your LCP**. Until that image is decoded and painted, Google's measurement is still "loading." Three forces shape image performance — file size (which format and resolution), download priority (browser fetch ordering), and decode/layout cost (how much work the main thread does to paint it). Each attribute below addresses one of those forces.
+
+**What each attribute actually does:**
+
+- **`width` / `height`** — reserves layout space *before* the image loads, preventing CLS. The browser computes the aspect ratio from these and inserts a placeholder box of the right size. Without them, content below the image jumps when it loads.
+- **`loading="lazy"`** — defers the network request until the image is near the viewport (the browser uses an internal threshold, ~1500px below the fold). Cheap to apply to every offscreen image; do **not** apply it to the LCP image, since that delays your most important asset.
+- **`decoding="async"`** — tells the browser the image can be decoded off the main thread. Decoding a large JPEG can stall input for tens of milliseconds; `async` removes that from the critical path.
+- **`fetchpriority="high" / "low"`** — overrides the browser's heuristic for the request priority. Mark the LCP image `high` (browsers default `<img>` to medium); mark below-the-fold and decorative images `low`.
+- **`srcSet` / `sizes`** — gives the browser multiple resolutions and a hint about how wide the image will display. The browser picks the smallest file that's still sharp at the user's DPR. A single 1920×1080 hero is wasted bytes for a 400px-wide phone.
+- **`<link rel="preload" as="image">`** — fires the request as soon as the HTML parses, in parallel with CSS/JS. Pair with `fetchpriority="high"` for the LCP image; without preload, the request only starts after the browser parses far enough to discover the `<img>` tag in JS-rendered React output.
+
+```tsx
+// Native lazy-loading + explicit dimensions to prevent CLS
+<img
+  src="/hero.webp"
+  width={1200}
+  height={630}
+  loading="lazy"          // defer offscreen images
+  decoding="async"        // don't block the main thread on decode
+  alt="Hero"
+/>
+
+// Responsive images — browser picks the smallest file that fits
+<img
+  srcSet="/hero-480.webp 480w, /hero-960.webp 960w, /hero-1920.webp 1920w"
+  sizes="(max-width: 600px) 480px, 960px"
+  src="/hero-960.webp"
+  alt="Hero"
+/>
+
+// Preload the LCP image so it starts downloading with the HTML
+<link rel="preload" as="image" href="/hero.webp" fetchpriority="high" />
+```
+
+Other low-effort wins: serve WebP/AVIF instead of JPEG, set `fetchpriority="high"` on the LCP image and `low` on offscreen ones, and self-host fonts with `font-display: swap` (or use `next/font` / `@fontsource`).
+
+### 13.9 Build Tools — Webpack vs Vite
+
+Modern React apps almost always use one of these. Pick based on dev-experience needs and ecosystem fit, not folklore.
+
+```
+| Aspect             | Webpack                              | Vite                                   |
+|--------------------|--------------------------------------|----------------------------------------|
+| Dev server         | Bundles before serving               | Native ESM — serves source on demand   |
+| Cold start         | Seconds-to-minutes on big apps       | Sub-second                             |
+| HMR                | Full module graph rebuild            | Per-module, near-instant               |
+| Production build   | Webpack itself                       | Rollup (under the hood)                |
+| Config             | Verbose, plugin-heavy                | Minimal; sensible defaults             |
+| Loader/plugin eco  | Largest in JS tooling                | Growing; compatible with Rollup plugins|
+| Best for           | Legacy apps, heavy custom transforms | New apps, fast feedback loops          |
+```
+
+**Why Vite's dev server is so much faster.** Webpack's classic model is *bundle then serve*: every time you start the dev server, Webpack walks the entire dependency graph from the entry point, transforms every file (Babel, TypeScript, CSS-in-JS, etc.), and concatenates the result into one or more bundles before the browser sees anything. On a 5,000-module app, that's 30–90 seconds of cold-start. Hot Module Replacement still has to invalidate part of the graph and rebuild. Vite inverts this — it serves your source files **as native ES modules** over HTTP, with the browser doing the import resolution. The first request for `App.tsx` triggers a single-file transform (esbuild, written in Go, ~10–100x faster than Babel); the next file the browser asks for is transformed lazily on demand. Cold start is sub-second regardless of project size because Vite never builds the graph upfront.
+
+There's a catch: ESM in the browser doesn't work for `node_modules`. Vite **pre-bundles** dependencies once with esbuild on first start (cached after that), converting CommonJS packages into a single ESM file per dependency to keep the import waterfall shallow.
+
+For production, Vite uses **Rollup** instead of esbuild, even though esbuild is faster. The trade-off is intentional: Rollup produces smaller, more aggressively tree-shaken output and has a richer plugin ecosystem for production concerns (legacy browser support, advanced code splitting, asset hashing). Build speed matters less in CI than runtime performance for users.
+
+Webpack 5 closed part of the gap with **persistent caching** (the file system cache means the second build is much faster than the first) and **Module Federation** (the canonical answer for micro-frontends). But per-module HMR and the bundle-free dev server are still Vite's structural edge.
+
+A minimal Vite config for a React app (this project's setup):
+
+```js
+// vite.config.js
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split heavy vendor libs into their own chunks for better caching
+          react: ['react', 'react-dom', 'react-router-dom'],
+          mermaid: ['mermaid'],
+        },
+      },
+    },
+  },
+});
+```
+
+### 13.10 Bundle Analyzers
+
+When the production bundle is bigger than expected, an analyzer tells you *which module* is responsible. Three common choices:
+
+**What an analyzer is actually visualizing.** A modern bundler emits a **stats file** describing every module that ended up in every chunk: the module's source path, its parsed size (after minification), and its gzipped/brotli size (what actually goes over the wire). An analyzer reads that stats file and renders it as a treemap — each rectangle is one module, sized by bytes, nested inside its parent directory or chunk. Visualizing it is critical because intuition is wrong: a 50-line file that imports `moment` is bigger than 500 lines of your own code, and the treemap makes that difference impossible to miss.
+
+**Three sizes you'll see, and which to care about.**
+
+- **Stat size** — raw bytes of the source file before any optimization. Misleading; ignore it for shipping decisions.
+- **Parsed size** — bytes after minification, before compression. This is what the browser parses and executes; affects parse/compile time on low-end devices.
+- **Gzipped / Brotli size** — bytes on the network. This is what affects download time on slow connections. **This is the number you optimize for.** Brotli is ~15–25% smaller than gzip and supported everywhere.
+
+**`source-map-explorer` vs the native analyzers.** The native analyzers (`webpack-bundle-analyzer`, `rollup-plugin-visualizer`) plug into the build and have the full module graph. `source-map-explorer` works retroactively — it reads the shipped JS plus its source maps and reverse-engineers what each byte came from. Use the native ones during development; use `source-map-explorer` to audit a bundle you didn't build (e.g., a coworker's deploy, or a third-party site you're benchmarking against).
+
+```bash
+# Vite / Rollup — interactive treemap
+npm i -D rollup-plugin-visualizer
+# add to vite.config.js plugins; opens stats.html after build
+
+# Webpack — same idea, Webpack-native
+npm i -D webpack-bundle-analyzer
+
+# Any source-map-emitting bundler — analyzes the shipped JS, not the build graph
+npm i -D source-map-explorer
+npx source-map-explorer 'dist/assets/*.js'
+```
+
+```js
+// vite.config.js
+import { visualizer } from 'rollup-plugin-visualizer';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    visualizer({ filename: 'dist/stats.html', gzipSize: true, brotliSize: true }),
+  ],
+});
+```
+
+What to look for in the treemap:
+
+```
+1. Duplicate copies of the same library (multiple lodash versions, two react copies)
+2. Whole libraries imported for one function (lodash → lodash-es with named imports)
+3. Moment.js — replace with date-fns or dayjs (10x smaller)
+4. Entire icon packs — import only the icons you use
+5. Polyfills shipped to modern browsers — check your browserslist
+6. Source maps accidentally shipped to production
+7. Markdown/MDX content bundled into JS instead of fetched
+```
+
+### 13.11 Tree Shaking and Code Splitting at Build Time
+
+#### Tree Shaking — the theory
+
+**Tree shaking** is the bundler's ability to statically analyze your imports and **drop unused exports** from the final bundle. The name comes from physically shaking a tree — leaves you don't reach drop off, leaves you do reach stay. You import `{ debounce }` from a 70 KB library, and only the bytes that `debounce` transitively depends on end up shipped.
+
+**Why ES modules are required.** Tree shaking is only possible because ES modules are **statically analyzable**. The shape of your imports and exports must be determinable at build time, without running the code. Compare:
+
+```js
+// ESM — import binding is fixed at parse time. Bundler knows
+//   exactly which exports of './lib' are reachable.
+import { debounce } from './lib';
+
+// CommonJS — module.exports is a regular object that runtime code
+//   can read, mutate, or destructure dynamically. The bundler cannot
+//   prove that any given export is unused without running the code.
+const { debounce } = require('./lib');
+```
+
+CommonJS is fundamentally a runtime construct (`require` is a function call that returns an object), while ESM is a syntactic construct (`import` is a declaration the parser sees before any code runs). That difference is why `lodash` (CommonJS) doesn't tree-shake but `lodash-es` (ESM) does.
+
+**The `sideEffects` field — a contract with the bundler.** A "side effect" in this context means: importing a module causes something to happen *besides* binding its exports — a polyfill registers itself on `window`, a CSS file is injected, a singleton is initialized. If a module has side effects, the bundler **cannot drop it** even when none of its exports are used, because removing the import would change observable program behavior.
+
+By default, bundlers assume every module has side effects (the safe assumption). To enable aggressive tree shaking, library authors declare otherwise in `package.json`:
+
+```json
+// "sideEffects: false" — every file in this package is pure.
+//   Bundler is free to drop any unreachable export.
+{ "sideEffects": false }
+
+// Whitelist the specific files that DO have side effects.
+//   Everything else is treated as pure.
+{ "sideEffects": ["*.css", "./src/polyfills.ts"] }
+```
+
+This applies to **your application** too, not just published libraries. If your app's `package.json` is missing this field, the bundler may keep modules around that you'd think it could drop.
+
+**What concretely breaks tree shaking** (ranked by frequency in real codebases):
+
+```
+1. Default-importing a whole namespace:  import _ from 'lodash'
+   - You used the whole `_` object; nothing to shake.
+2. Importing from a CommonJS-only build of a library
+   - lodash, moment, many older react libraries.
+   - Fix: lodash → lodash-es; moment → date-fns/dayjs.
+3. Missing `sideEffects: false` in package.json
+   - Bundler conservatively keeps everything.
+4. Babel transpiling ESM down to CommonJS BEFORE the bundler sees it
+   - Old Babel preset-env without `modules: false`.
+   - Fix: `["@babel/preset-env", { "modules": false }]`
+5. Re-exports through barrel files (index.ts) that pull side-effects
+   - Cleaner DX, but every consumer drags the whole barrel's import graph.
+6. Dynamic property access:  import * as Icons; Icons[name]
+   - The bundler can't prove which names are reachable.
+7. Accessing exports through a default-exported object:
+     export default { a, b, c }   →   import M from './m'; M.a
+   - Looks named, behaves like a namespace; bundler keeps b and c.
+```
+
+**How to verify it's working.** Run a bundle analyzer (13.10) before and after the import-style change, or simulate it with a probe export:
+
+```js
+// In your library (or a test module), add a uniquely-named export
+//   that you never actually import:
+export const __SHOULD_BE_TREE_SHAKEN__ = '🪓';
+```
+
+Build production, search the output for that string. If it's gone, tree shaking works. If it's there, something in the toolchain is preserving it.
+
+#### Code Splitting — the theory
+
+**Code splitting** is the build-time inverse of tree shaking. Tree shaking removes code that's *never* reached; code splitting separates code that *is* reached but doesn't all need to load up-front. The bundler emits multiple **chunks** (separate `.js` files), and the browser fetches each one only when the running app needs it.
+
+**Why this matters for performance.** A single 2 MB bundle blocks the main thread on parse and compile (not just download) before any of your code runs. Splitting that into a 200 KB initial chunk plus 1.8 MB of on-demand chunks turns the worst-case experience into the best-case experience for most users — they may never request the chunks they don't need.
+
+**The three strategies, why each one exists:**
+
+1. **Route-based splitting** — the highest-leverage split. Most users only visit a fraction of your routes per session, so each route's code is a natural boundary. Wrap each top-level route component in `React.lazy` and the bundler emits one chunk per route automatically.
+
+2. **Component-based splitting** — for heavy widgets that only load on user intent. A rich text editor (~500 KB), a map (~300 KB), or a chart library (~200 KB) doesn't need to be in the initial bundle if the user has to click "Edit" or "Show on map" first. Same `React.lazy` mechanism, scoped to a single component instead of a route.
+
+3. **Vendor chunk splitting** — separates long-lived dependencies (React, React Router, etc.) from your application code. Vendor code changes rarely; your app code changes every deploy. Putting them in separate chunks means a deploy invalidates only the app chunk in users' caches — vendor stays cached. See `manualChunks` in 13.9.
+
+```tsx
+// 1. Route-based splitting — every route is its own chunk
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Settings  = lazy(() => import('./pages/Settings'));
+
+// 2. Component-based splitting — heavy widgets only load when needed
+const Chart = lazy(() => import('./Chart'));   // ~200KB d3 dependency
+function Report() {
+  const [show, setShow] = useState(false);
+  return show ? <Suspense fallback={<Spinner/>}><Chart /></Suspense>
+              : <button onClick={() => setShow(true)}>Show chart</button>;
+}
+
+// 3. Vendor chunk — long-lived libs cached separately from app code
+//    See manualChunks in 13.9
+```
+
+**The waterfall trap.** Naively nested `React.lazy` boundaries serialize the network — child chunks can't begin downloading until the parent chunk is parsed:
+
+```
+1. Browser requests A.js                    [200ms]
+2. Browser parses A, discovers it imports B
+3. Browser requests B.js                    [200ms]
+4. Browser parses B, discovers it imports C
+5. Browser requests C.js                    [200ms]
+                                  total:  ~600ms
+```
+
+Compare to parallel loading where A, B, and C all start at t=0:
+
+```
+   total: ~200ms (whichever is slowest)
+```
+
+**Mitigations:**
+
+- **Preload at the entry**: emit `<link rel="modulepreload" href="/B-abc.js">` in the HTML so the browser fetches B in parallel with A, even though it doesn't *need* B yet.
+- **Prefetch on intent**: start the dynamic import on hover or focus, so by the time the user clicks, the chunk is already in the cache.
+- **Restructure**: hoist the lazy boundary to the route level, so all the route's lazy children resolve their imports off a single chunk.
+
+**`startTransition` + lazy.** Wrapping a navigation that crosses a Suspense boundary in `startTransition` makes React **keep the previous UI visible** until the new chunk loads, instead of swapping in the fallback. The Suspense fallback only shows if the load takes longer than the transition timeout (~5s by default). This is what turns a flash-of-spinner into a smooth route change.
+
+### 13.12 Server Components, SSR, and Streaming
+
+Sending less JS to the browser is the biggest performance lever there is. React 19 + frameworks like Next.js (App Router), Remix, and TanStack Start make this easier.
+
+**Three rendering models — and how they differ.**
+
+```
+| Model       | Where it runs        | What ships to browser              | What the user sees first            |
+|-------------|----------------------|-------------------------------------|-------------------------------------|
+| CSR (SPA)   | Browser only         | JS bundle + tiny HTML shell        | Blank page until JS loads & renders |
+| SSR         | Server, then browser | Pre-rendered HTML + JS for hydration | HTML immediately, interactive after JS |
+| RSC + SSR   | Server only (RSC parts) | HTML + JS only for client comps  | HTML immediately; some parts never need JS |
+```
+
+**Classic SSR — the hydration tax.** With pure SSR, the server renders the React tree to an HTML string and ships it; the browser shows it immediately (great LCP). But the React tree must then **hydrate** in the browser: React re-renders the same tree to attach event listeners and reconcile with the existing DOM. This means you ship the HTML *and* every component's JS, and the user can see the page but cannot interact with it until hydration finishes (the "uncanny valley" of pre-React-18 SSR).
+
+**React Server Components — what they fix.** RSCs run **only on the server** and never ship their JS to the browser. The output of an RSC is a serialized description of the rendered tree (not HTML, not JSX — a special wire format) that the React runtime in the browser can stitch into the page alongside Client Components. Three consequences:
+
+1. **Zero JS for non-interactive subtrees.** A 50-item product list, a markdown blog post, a sidebar nav — these never needed event handlers anyway. Their code, their dependencies, and their data-fetching logic all stay on the server.
+2. **Direct backend access.** Because RSCs run on the server, they can `await db.query(...)`, read environment secrets, and use Node-only APIs. There's no API layer to maintain for "just display this data."
+3. **Composability with Client Components.** An RSC can render a `'use client'` Client Component — the framework handles serialization across the boundary. The reverse (Client → Server) requires a navigation or `import()` boundary because client code can't await server code mid-render.
+
+**Streaming SSR — the throughput model.** Even with classic SSR, `renderToPipeableStream` (Node) and `renderToReadableStream` (Edge) flush HTML to the browser as it's generated, rather than buffering the whole document. Pair with `<Suspense>` boundaries: above-the-fold content paints first; the slow data section sends a placeholder HTML, and the real content streams in over the same response when the promise resolves. The browser swaps the placeholder once the stream arrives — no second request, no waterfall. This is why streaming SSR can produce sub-1s LCP on data-heavy pages that would otherwise wait for the slowest query.
+
+**The taxonomy in one place:**
+
+- **Server Components** render on the server and ship only HTML — zero JS for that subtree. Use them for data-heavy, non-interactive UI.
+- **Client Components** (`'use client'`) hydrate and run in the browser — keep these for interactive leaves.
+- **Streaming SSR** (`renderToPipeableStream` / `renderToReadableStream`) sends HTML in chunks as the data resolves, paired with `<Suspense>` boundaries. The browser paints above-the-fold content before the slow data section finishes.
+
+```tsx
+// Server component — runs once on the server, ships zero JS
+async function ProductList() {
+  const products = await db.products.findMany();   // direct DB access
+  return <ul>{products.map(p => <li key={p.id}>{p.name}</li>)}</ul>;
+}
+
+// app/page.tsx
+export default function Page() {
+  return (
+    <Suspense fallback={<Skeleton />}>
+      <ProductList />          {/* streams in when data is ready */}
+    </Suspense>
+  );
+}
+```
+
+Even without RSC, plain SSR + hydration improves LCP on content-heavy pages. The trade-off is TTFB — measure before adopting.
+
+### 13.13 Performance Rules
 
 Follow these rules of thumb to keep your React app fast.
 
 ```
-1. Don't optimize prematurely — React is fast by default
-2. Profile first — use React DevTools Profiler to find bottlenecks
-3. Avoid creating objects/arrays in render (causes unnecessary re-renders of children)
-4. Use keys properly in lists
-5. Move state as close to where it's needed as possible
-6. Split large components into smaller ones
-7. Use lazy loading for routes and heavy components
-8. Virtualize long lists (1000+ items)
+1.  Don't optimize prematurely — React is fast by default
+2.  Profile first — React DevTools Profiler for renders, Lighthouse for load
+3.  Avoid creating objects/arrays/functions in render unless they're props to memoized children
+4.  Use stable keys in lists (id, not index, when items can reorder or splice)
+5.  Move state as close to where it's needed as possible — co-location > global
+6.  Memoize Context value objects; split unrelated state into separate contexts
+7.  Code-split routes and heavy widgets; preload above-the-fold chunks
+8.  Virtualize long lists (1000+ items)
+9.  Use useTransition / useDeferredValue for slow state-derived UI
+10. Lazy-load offscreen images, set width/height to prevent CLS, preload the LCP image
+11. Run a bundle analyzer on every release; chase duplicates and lodash/moment
+12. Tree-shake — named ESM imports + sideEffects:false
+13. Track INP, LCP, CLS in production with web-vitals → analytics
+14. Prefer Server Components for non-interactive, data-heavy UI
 ```
 
 ---
@@ -1627,6 +2106,124 @@ class ErrorBoundary extends React.Component<
 ```
 
 Error boundaries must be class components (no hook equivalent yet). They catch rendering errors, lifecycle errors, and constructor errors — but NOT event handler errors, async errors, or SSR errors.
+
+---
+
+### Performance & Tooling
+
+---
+
+**Q19: What are the Core Web Vitals and which one is most affected by React-specific issues?**
+
+The three Core Web Vitals are **LCP** (Largest Contentful Paint, load speed), **INP** (Interaction to Next Paint, responsiveness — replaced FID in March 2024), and **CLS** (Cumulative Layout Shift, visual stability).
+
+- **LCP** is mostly about network and image work — large bundles delay it because the browser parses JS before painting hydrated content.
+- **INP** is the one React apps fail most often. Long tasks triggered by re-renders, expensive event handlers, or hydration block input. Measure it with `web-vitals` in production, not Lighthouse — synthetic tools underestimate INP.
+- **CLS** comes from images/embeds without explicit dimensions, late-loading fonts, and dynamically inserted content. Fix with reserved space (`width`/`height`, `aspect-ratio`, skeletons).
+
+Track all three with the `web-vitals` library and ship them to your analytics endpoint.
+
+---
+
+**Q20: How does React DevTools Profiler help you find performance issues?**
+
+The Profiler records a session of renders and shows a flamegraph: each component's bar width = time spent rendering it. Workflow:
+
+1. Start a recording, perform the slow interaction, stop.
+2. Switch to the **Ranked** view to sort components by render time.
+3. Click a component in the flamegraph — the right panel shows *why* it rendered (props change, state change, hook change, parent re-rendered).
+4. Enable "Highlight updates when components render" (settings) for a real-time visual.
+
+It tells you which renders are slow and which are unnecessary, but not why a particular line of code is slow — for that, use the Chrome Performance tab and look at the JS flamechart inside the slow component.
+
+---
+
+**Q21: What is a bundle analyzer and what should you look for?**
+
+A bundle analyzer visualizes the production bundle as a treemap, with each rectangle sized by bytes. It shows which modules are eating the budget. For Vite/Rollup use `rollup-plugin-visualizer`; for Webpack use `webpack-bundle-analyzer`; for any output with source maps use `source-map-explorer`.
+
+Things to chase down on every release:
+
+1. Duplicate copies of the same library (often two React versions or two lodash versions).
+2. Whole libraries imported for one helper — `import _ from 'lodash'` ships ~70 KB; use `import { debounce } from 'lodash-es'`.
+3. `moment.js` (~70 KB) — replace with `date-fns` (~5 KB tree-shaken) or `dayjs` (~2 KB).
+4. Entire icon packs — import only the icons you use.
+5. Polyfills shipped to modern browsers (check `browserslist`).
+6. Source maps accidentally bundled into JS chunks.
+
+---
+
+**Q22: Webpack vs Vite — when do you pick which?**
+
+| | Webpack | Vite |
+|---|---|---|
+| Dev server | Bundles before serving | Native ESM, no bundling |
+| Cold start | Slow on big apps (seconds-to-minutes) | Sub-second |
+| HMR | Module-graph rebuild | Per-module, near-instant |
+| Production | Webpack itself | Rollup |
+| Config | Verbose, plugin-heavy | Minimal defaults |
+| Plugin ecosystem | Largest in JS tooling | Growing (Rollup-compatible) |
+
+**Pick Vite** for new projects, fast feedback loops, and standard React apps — it's the default in 2025+.
+**Pick Webpack** when you have heavy custom transforms (legacy Babel pipelines, Module Federation in micro-frontends), or when you're already deep into a Webpack codebase and migration risk outweighs the dev-experience win. Webpack 5's persistent caching narrowed the cold-start gap, but per-module HMR is still Vite's edge.
+
+---
+
+**Q23: How does tree shaking work and what breaks it?**
+
+Tree shaking is the bundler's removal of unused exports from the final bundle. It depends on **static analysis of ES modules** — bundlers must be able to prove an export is unused without running the code.
+
+What breaks it:
+
+1. **CommonJS imports** (`require`) — dynamic by design, not statically analyzable.
+2. **Default-importing a whole library**: `import _ from 'lodash'` — there's nothing to shake; you used the whole namespace.
+3. **`sideEffects: true`** in `package.json` (the default if absent) — bundler assumes the file mutates global state and keeps it.
+4. **Transpiling ESM down to CommonJS** before the bundler sees it (old Babel configs).
+5. **Re-exports through barrel files** that re-export modules with side effects.
+
+Fixes: use named ESM imports (`import { debounce } from 'lodash-es'`), set `"sideEffects": false` (or whitelist the few side-effectful files like CSS), and let the bundler consume ESM directly.
+
+---
+
+**Q24: What's the difference between `useTransition` and `useDeferredValue` from a performance perspective?**
+
+Both schedule work as non-urgent so urgent updates (like a controlled input) stay responsive. The difference is **what you wrap**:
+
+- `useTransition` wraps a **state setter call**. You own the slow update and you mark it as non-urgent: `startTransition(() => setQuery(value))`.
+- `useDeferredValue` wraps a **value**. You don't control where the slow consumer is — you just hand it a stale-but-recent version of the value, and React will re-render the consumer with the latest value when it has spare time.
+
+Rule of thumb: if the slow work is *your* `setState`, use `useTransition`. If it's a derived computation in a child you can't easily change, pass `useDeferredValue(input)` to it. Both also expose an `isPending` signal (directly from `useTransition`, indirectly via `value !== deferredValue` for `useDeferredValue`) so you can show a spinner without blocking the input.
+
+---
+
+**Q25: How would you reduce a 2 MB initial JS bundle on a React app?**
+
+Walk through this in priority order — each step usually finds at least one offender:
+
+1. **Run a bundle analyzer** to see who's actually big. Don't optimize blind.
+2. **Route-based code splitting** with `React.lazy` + `<Suspense>`. The login page should not download the dashboard's chart library.
+3. **Component-level splitting** for heavy widgets (rich text editors, charts, maps, video players) — load only when the user clicks the button.
+4. **Replace heavy deps**: `moment` → `date-fns`/`dayjs`; `lodash` → `lodash-es` with named imports; `chart.js` is often replaceable with a lighter chart lib.
+5. **Tree-shake aggressively**: named ESM imports, `sideEffects: false`, ESM builds of dependencies.
+6. **Drop polyfills** the modern browser doesn't need — set `browserslist` to a recent baseline.
+7. **Manual chunks** in Vite/Rollup so vendor libs land in a long-lived cached file separate from app code.
+8. **Compression on the server** (Brotli > gzip) — not strictly a bundle reduction but cuts ~70% off the wire size.
+9. **Server Components / SSR** for content that doesn't need to ship as JS at all.
+
+Measure LCP and INP before/after — bytes saved is a proxy; what users feel is what matters.
+
+---
+
+**Q26: How do you debug an unnecessary re-render that the Profiler flagged?**
+
+Open the Profiler, click the offending render, and read the "Why did this render?" panel — it lists which prop, state, hook, or context value changed. Then:
+
+1. **Prop changed but value looks the same** — the parent is creating a new object/array/function reference each render. Hoist it, `useMemo` it, or `useCallback` the function. The child can be wrapped in `React.memo` to bail out on shallow-equal props.
+2. **Context changed** — the provider's `value` is a new object each render. Memoize it, or split the context so unrelated consumers don't fan out.
+3. **Hook (state) changed** — the state itself updated; verify it's actually a new value and not `setState` being called with an equal object (primitives bail out automatically; objects don't).
+4. **Parent re-rendered** — your component isn't memoized. Wrap with `React.memo` if it's pure and props are stable; or move state down so the parent doesn't re-render in the first place.
+
+The React Compiler (React 19) handles most of this automatically when enabled — but knowing the underlying cause is still essential for debugging compiled output and for codebases that haven't adopted it yet.
 
 ---
 
@@ -2203,20 +2800,194 @@ On mount, React invokes `expensiveInit`, which logs `init called` and returns `4
 
 ---
 
+### Performance Pitfalls
+
+---
+
+**Q17: A `Child` is wrapped in `React.memo` and the parent passes `data={users}` and `onSelect={handleSelect}`, where `handleSelect` is defined as a regular function inside the parent's body. Why does `Child` still re-render every time the parent re-renders, and what is the minimum fix?**
+
+```jsx
+const Child = React.memo(function Child({ data, onSelect }) {
+  console.log("Child render");
+  return <ul>{data.map(u => <li key={u.id} onClick={() => onSelect(u)}>{u.name}</li>)}</ul>;
+});
+
+function Parent() {
+  const [count, setCount] = useState(0);
+  const [users] = useState([{ id: 1, name: "Ana" }]);
+
+  function handleSelect(u) { console.log(u); }   // recreated each render
+
+  return (
+    <>
+      <button onClick={() => setCount(c => c + 1)}>{count}</button>
+      <Child data={users} onSelect={handleSelect} />
+    </>
+  );
+}
+```
+
+**Output:** `Child render` logs on every parent render, even though `users` and the user-visible output of `handleSelect` are unchanged.
+
+**Explanation:**
+
+`React.memo` does a **shallow** compare of props. When the parent re-renders (because `count` changed), the function body runs top-to-bottom, including `function handleSelect(u) { ... }`. That function declaration creates a fresh function object each render — `handleSelect_render2 !== handleSelect_render1` even though the source code is identical. The memo comparator then checks each prop: `data` is the same array reference (it lives in `useState`, so it survives across renders), but `onSelect` is a new reference. Shallow equality fails on `onSelect`, the memo bails, and `Child` re-renders.
+
+`users` survives because `useState` stores the value across renders and only changes the reference if you call its setter. Inline objects/arrays defined directly in the JSX (`data={[...]}`) would have the same problem as `handleSelect`.
+
+The minimum fix is `useCallback`: `const handleSelect = useCallback((u) => console.log(u), [])`. This stores a single function reference across renders (until the dependency list changes), so `onSelect` stays referentially equal and the memo holds.
+
+**Takeaway:** `React.memo` is necessary but not sufficient — every function/object/array prop you pass must be referentially stable too, or the memo is wasted work plus an extra equality check.
+
+---
+
+**Q18: A `<ThemeProvider>` wraps the whole app and supplies `value={{ theme, user, setTheme, setUser }}`. Theme rarely changes, but `user` updates on every page navigation. Why do **all** consumers of `useTheme()` re-render on navigation, even ones that never read `user`?**
+
+```jsx
+const Ctx = createContext(null);
+
+function AppProvider({ children }) {
+  const [theme, setTheme] = useState("dark");
+  const [user, setUser] = useState(null);
+
+  return (
+    <Ctx.Provider value={{ theme, user, setTheme, setUser }}>
+      {children}
+    </Ctx.Provider>
+  );
+}
+
+function ThemedButton() {
+  const { theme } = useContext(Ctx);     // only reads theme
+  return <button className={theme}>Go</button>;
+}
+```
+
+**Output:** Every `ThemedButton` re-renders on user updates, even though it only reads `theme`.
+
+**Explanation:**
+
+Context propagation in React is keyed off the `value` **reference**, not the individual fields you destructure inside `useContext`. On every render of `AppProvider`, the `{ theme, user, setTheme, setUser }` object literal creates a new object — even if the *contents* are unchanged. React compares the new value reference to the previous one with `Object.is`, sees they differ, and notifies every subscriber to schedule a re-render. The destructuring `{ theme }` inside the consumer happens *after* React has already scheduled the work; React doesn't know which fields you read, so it can't be selective.
+
+Two compounding problems: (1) the provider's value is a brand-new object on every render, so re-renders fire even when nothing actually changed; (2) when something *does* change (e.g. `user`), every consumer re-renders, including ones that only read `theme`.
+
+Fixes, in order of escalation:
+1. **`useMemo` the value** so the reference is stable when its dependencies haven't changed: `const value = useMemo(() => ({ theme, user, setTheme, setUser }), [theme, user])`. Cheap; fixes problem (1).
+2. **Split the context** into independent providers (`<ThemeProvider>` and `<UserProvider>`) so unrelated state lives in unrelated subscriptions. Fixes problem (2).
+3. **Use a state library** (Zustand, Jotai) or `useSyncExternalStore` if you need field-level subscription with one logical store.
+
+**Takeaway:** Context is a *broadcast* mechanism — it's coarse by design. Memoize the value, split unrelated state, and reach for a store library when consumers need field-level subscriptions.
+
+---
+
+**Q19: A list of 5,000 rows is rendered with `items.map((item, i) => <Row key={i} {...item} />)`. The user clicks a button that calls `setItems(prev => [newItem, ...prev])`. What goes wrong, and why is it both a correctness *and* a performance bug?**
+
+**Output:** Every existing `Row` re-renders (or worse, mounts/unmounts), and any internal Row state — like a half-typed input — is wrong: it sticks to the *position* instead of the row's data.
+
+**Explanation:**
+
+When you use the array index as `key`, React's reconciler matches old and new children by position, not identity. Before the prepend, the first row had `key=0` and the data for `oldItems[0]`. After the prepend, the first row still has `key=0` but now holds `newItem`. React looks up `key=0`, sees a "match," and instead of mounting a new row at the top and shifting the rest, it **reuses** the first DOM node and just updates its props. Every row's props change because every row's data shifted, so every row's hooks/state/DOM are reconciled. With 5,000 rows that's a massive amount of unnecessary work — and any internal Row state (controlled inputs, expanded/collapsed flags) now belongs to the *wrong* item.
+
+If you used `key={item.id}` instead, the reconciler matches by identity. The new row gets a fresh mount; existing rows keep their identity, their state, and — crucially — React doesn't re-render them at all because their props haven't changed.
+
+The bug compounds with `React.memo`: memoization can't help when index keys make every prop look "changed" from the reconciler's point of view.
+
+**Takeaway:** Use index keys only for static lists that never reorder, splice, or filter. For everything else, use a stable id — it's a correctness fix first, performance fix second.
+
+---
+
+**Q20: A search input filters a 50,000-item product list. The user reports the input "feels laggy" — characters lag behind their typing by 300ms. Wrapping the filter call in `useTransition` fixes the lag. What does that actually change at the React scheduler level?**
+
+```jsx
+function Search({ products }) {
+  const [query, setQuery] = useState("");
+  const [filtered, setFiltered] = useState(products);
+  const [isPending, startTransition] = useTransition();
+
+  function onChange(e) {
+    setQuery(e.target.value);                                  // urgent
+    startTransition(() => {
+      setFiltered(products.filter(p => p.name.includes(e.target.value)));   // non-urgent
+    });
+  }
+
+  return <><input value={query} onChange={onChange} />{isPending && "…"}<List items={filtered}/></>;
+}
+```
+
+**Output:** Without `useTransition`, every keystroke schedules one render that re-runs the 50K filter and re-renders the list synchronously — the input value can't update until that render commits. With `useTransition`, the input updates on every keystroke at full speed; the filtered list catches up in the background.
+
+**Explanation:**
+
+In React's concurrent renderer, every state update has a **lane** (priority). By default, `setState` calls inside an event handler land in the same lane and are batched into a single render. `setQuery` (cheap) and `setFiltered` (expensive) get committed together, so the input value can't paint until the whole render — including the 50K-item filter and the list reconciliation — finishes. Result: input lag.
+
+`startTransition(fn)` tells React "the state updates inside `fn` are non-urgent." Those updates go into a transition lane that's lower priority than the default lane. The `setQuery` update keeps its urgent priority, so React can paint the new input value first, then start working on the transition. Critically, transitions are **interruptible**: if the user types another character while React is mid-filter, React throws away the in-progress work and starts over with the latest value. That's why concurrent rendering matters here — without it, you'd just be queueing up filter computations and getting further behind.
+
+`isPending` exposes the "transition in flight" state so you can show a spinner without re-introducing the lag (because the spinner update itself is urgent and lives outside the transition).
+
+The same effect can be achieved with `useDeferredValue(query)` when you don't own the `setState` of the slow consumer — the deferred value lags behind the real value, and React renders the consumer at lower priority.
+
+**Takeaway:** `useTransition` doesn't make the work faster — it makes the work **interruptible** and **lower-priority**, so urgent UI (input, click feedback) commits without waiting on it.
+
+---
+
+**Q21: A `Chart` component is loaded with `React.lazy(() => import('./Chart'))` and rendered inside `<Suspense fallback={<Spinner />}>`. The first time the page mounts, the user sees a 200ms flash of the spinner even on a fast connection. Why, and what's the fix if the chart is above the fold?**
+
+**Explanation:**
+
+`React.lazy` triggers the dynamic `import()` only the first time the lazy component is rendered. The browser then has to: (1) make a network request for the chunk, (2) wait for it to download, (3) parse and execute it. Meanwhile, `<Suspense>` shows the fallback. Even on a fast connection, the round-trip + parse easily takes 100–300ms — so you see the spinner flash.
+
+For an above-the-fold chunk, lazy loading is the wrong tool. The whole point of lazy loading is to *delay* work until the user needs it; if the user always needs it on this route, you've added a network round-trip for no benefit, *worsened* LCP, and introduced a layout shift when the spinner is replaced.
+
+Fixes, by situation:
+
+1. **Don't lazy-load it.** Import it normally. Code splitting is for code the user *might* not need.
+2. **Preload the chunk** with `<link rel="modulepreload" href="/assets/Chart-abc123.js">` in the HTML head — the browser starts fetching in parallel with the main bundle, so by the time React renders `<Chart>` the chunk is already in the cache and Suspense never has to wait.
+3. **Prefetch on hover/intent** for routes one click away — start the import when the user hovers the link, finish by the time they click.
+4. **`startTransition` around the navigation** that triggers the lazy boundary — React will keep showing the previous UI instead of swapping to the fallback, hiding the loading flash.
+
+**Takeaway:** `React.lazy` is a knob, not a free upgrade. Lazy-load below-the-fold or rarely-used widgets; for above-the-fold code, either ship it eagerly or preload the chunk so the Suspense boundary never trips.
+
+---
+
+**Q22: A bundle analyzer shows that `lodash` is contributing 71 KB to the production bundle, but the team only uses `debounce` and `cloneDeep`. The lead developer changed `import _ from 'lodash'` to `import { debounce, cloneDeep } from 'lodash'` — the bundle size barely moved. Why didn't named imports tree-shake?**
+
+**Explanation:**
+
+Tree shaking depends on the bundler being able to **statically prove** that an export is unused, and that proof relies on the source being **ES modules** that are explicitly side-effect-free. The classic `lodash` package on npm ships **CommonJS** — it predates the ESM era. CommonJS uses `module.exports = require('./debounce')` etc., which is a runtime construct: the bundler can't prove at build time that `cloneDeep` is the only thing reachable, because in CJS any module can dynamically reach into another. Most bundlers fall back to including the whole module.
+
+Two complementary fixes:
+
+1. **Use the ESM build**: `import { debounce, cloneDeep } from 'lodash-es'`. `lodash-es` is the same library shipped as ES modules with `sideEffects: false` declared, so Rollup/Webpack can shake out everything you don't reference. This single change usually drops 60+ KB.
+2. **Per-function imports** as a fallback when only the CJS build is available: `import debounce from 'lodash/debounce'`. This works because `lodash/debounce.js` is a narrow file with only its own dependencies — the bundler ends up with just the dependency closure of debounce, not all of lodash.
+
+Same lesson applies to other libraries: `moment` doesn't tree-shake well (its locales pull in megabytes); replace with `date-fns` (ESM, fully tree-shaken) or `dayjs` (~2 KB core). Icon packs ship as one giant file by default — most provide per-icon imports (`from 'lucide-react/icons/x'`) that shake correctly.
+
+Verify the win in the analyzer, not in your head — module resolution edge cases (transitive deps, dual-package hazards) sometimes mean the "obvious" fix doesn't actually shrink the bundle.
+
+**Takeaway:** Tree shaking needs ES modules + `sideEffects: false` + named imports. `lodash` (CJS) won't shake even with named imports — switch to `lodash-es` or per-function paths. Always verify the savings with a bundle analyzer.
+
+---
+
 ### Key Rules
 
 ```
 React Output Cheat Sheet:
-1. setState with direct value uses the closure value (may be stale)
-2. setState with function updater gets the latest pending state
-3. React 18+ batches all state updates in event handlers
-4. useEffect runs AFTER browser paint, not during render
-5. useEffect cleanup captures values from the render it was created in
-6. Object/array deps in useEffect always trigger re-runs (reference equality)
-7. React.memo does shallow compare — new object refs bypass it
-8. Changing `key` completely remounts the component
-9. Hooks must be called in the same order every render
+1.  setState with direct value uses the closure value (may be stale)
+2.  setState with function updater gets the latest pending state
+3.  React 18+ batches all state updates in event handlers
+4.  useEffect runs AFTER browser paint, not during render
+5.  useEffect cleanup captures values from the render it was created in
+6.  Object/array deps in useEffect always trigger re-runs (reference equality)
+7.  React.memo does shallow compare — new object refs bypass it
+8.  Changing `key` completely remounts the component
+9.  Hooks must be called in the same order every render
 10. useRef mutations don't trigger re-renders
+11. Inline {object} as Context value re-renders ALL consumers — useMemo it
+12. Index keys break correctness on prepend/splice; use stable ids
+13. useTransition makes work non-urgent + interruptible, not faster
+14. React.lazy adds a network round-trip; preload above-the-fold chunks
+15. Tree shaking needs ESM + sideEffects:false; CJS lodash won't shake
 ```
 
 ---

@@ -1,5 +1,71 @@
 # What's New
 
+## v1.0.5 (April 2026)
+
+### Browser APIs Guide
+
+A new Front End guide: **Browser APIs** — a comprehensive walkthrough of the platform APIs every web developer is expected to know, with comparison tables wherever the platform offers multiple options:
+
+- **DOM and EventTarget** — `addEventListener` options (`once`, `passive`, `signal`, `capture`), custom events, event delegation.
+- **Storage APIs** — Cookies (HttpOnly / Secure / SameSite), localStorage, sessionStorage, IndexedDB, Cache API, with a side-by-side comparison and a decision flow for picking the right one.
+- **Network APIs** — fetch vs XMLHttpRequest, AbortController and signal composition, WebSockets, Server-Sent Events, plus a WS / SSE / long-polling comparison.
+- **Workers** — Web Workers (with transferable objects), Shared Workers, Service Workers (lifecycle + cache strategies + the `skipWaiting`/`clients.claim` deploy pattern).
+- **Observers** — IntersectionObserver, MutationObserver, ResizeObserver, PerformanceObserver — when each one replaces a scroll/resize listener.
+- **History API and bfcache** — pushState / replaceState / popstate, plus `pageshow`/`pagehide` with `e.persisted`.
+- **Performance API** — Navigation Timing, Resource Timing, User Timing (marks/measures), `performance.now()` vs `Date.now()`.
+- **Scheduling APIs** — setTimeout vs queueMicrotask vs requestAnimationFrame vs requestIdleCallback, plus the event-loop mental model.
+- **File, Blob, and Streams** — File/FileReader, modern Promise-based APIs (`.text()`, `.arrayBuffer()`, `.stream()`), `URL.createObjectURL`, drag-and-drop, ReadableStream piping.
+- **Geolocation, Notifications, Clipboard** — permission-gated APIs.
+- **Web Crypto** — `crypto.getRandomValues`, `crypto.randomUUID`, SubtleCrypto for hashing/encryption, non-extractable keys, and why `Math.random` is never appropriate for security.
+- **Cross-document and cross-tab messaging** — `postMessage`, `BroadcastChannel`, `MessageChannel`, with the security pattern for validating `event.origin` and `event.source`.
+- **Page Lifecycle and Visibility** — `visibilitychange`, `pageshow`/`pagehide`, `navigator.sendBeacon`, why `beforeunload` is unreliable.
+- **Permissions API** — querying state without triggering prompts.
+- **URL and URLSearchParams** — the boring API everyone gets wrong with manual string concatenation.
+
+Closes with **16 interview questions** (Beginner / Intermediate / Advanced) and **12 tricky questions** organized by theme (Storage & Lifecycle, Network & Async, Workers & Threading, DOM & Events, Lifecycle & Performance) covering the storage event firing only in other tabs, why `fetch` doesn't reject on 5xx, the HTTP/1.1 6-connection limit and head-of-line blocking, structured-clone overhead and transferable objects, the Service Worker deploy stale-cache trap, `passive: true` ignoring `preventDefault`, why `beforeunload` analytics get lost, and rAF throttling in hidden tabs. Plus a 15-rule cheat sheet at the end.
+
+### React Guide — Performance & Build-Tooling Expansion
+
+The React guide's Performance section was expanded into a full deep dive on making React apps fast in production. New topics covered:
+
+- **Concurrent Features** — `useTransition` and `useDeferredValue`, with guidance on when to reach for each.
+- **Profiling and Measurement** — React DevTools Profiler workflow and Core Web Vitals (LCP, INP, CLS) with the `web-vitals` library.
+- **Common Re-render Causes** — the usual offenders (inline objects, Context fan-out, anonymous callbacks) and how to fix them.
+- **Image and Asset Optimization** — lazy loading, responsive `srcset`, LCP-image preload, font-display.
+- **Webpack vs Vite** — feature comparison and when to pick which.
+- **Bundle Analyzers** — `rollup-plugin-visualizer`, `webpack-bundle-analyzer`, `source-map-explorer`, with a checklist of what to chase down on every release.
+- **Tree Shaking and Code Splitting** — what breaks tree shaking, waterfall lazy loading, route-based vs component-level splitting.
+- **Server Components, SSR, Streaming** — Server Components vs Client Components, streaming SSR with `<Suspense>`.
+- **Expanded performance cheat sheet** at the end of the section.
+
+Added **8 new interview questions** on Core Web Vitals + INP, DevTools Profiler workflow, bundle analyzer red flags, Webpack vs Vite trade-offs, tree shaking, useTransition vs useDeferredValue, "reduce a 2 MB bundle" walkthrough, and debugging unnecessary re-renders.
+
+Added **6 new tricky questions** on `React.memo` defeated by inline callbacks, Context fan-out from a non-memoized value, index-key bugs on prepend, `useTransition` priorities, `React.lazy` Suspense flash on above-the-fold chunks, and why named imports from CJS `lodash` don't tree-shake.
+
+### Play Store Launch Guide
+
+A new Front End guide: **Play Store Launch** — a practical, end-to-end playbook for shipping any Android app (React Native, native, Flutter — framework agnostic in workflow) to the Google Play Store. Examples use Expo / EAS where they're most concrete, but the Play Console workflow is identical for every framework. Covers the full path from code-side prep through Production Access:
+
+- Code-side prerequisites (privacy-policy alignment, cascade delete, encryption-in-transit, secret rotation)
+- `app.json` and EAS Build configuration (proguard, `usesCleartextTraffic`, `autoIncrement` strategy, Sentry sourcemaps)
+- Privacy policy + public delete-account URL hosting requirements
+- Backend Config collection pattern for runtime-configurable URLs (privacy policy, Play Store, force-update messages)
+- Walkthrough of all 11 Play Console dashboard forms (App access, Ads, Content rating, Target audience, Data safety, Government/Financial/Health declarations, Advertising ID)
+- Detailed Data Safety form mapping for a typical app: which data types to tick, required-vs-optional, purposes per type
+- Store listing assets (icon 512×512, feature graphic 1024×500, screenshot specs) with `sips` resize tip
+- Closed Testing setup, the 14-day soak rule for new personal accounts, tester-list management
+- Production Access application + staged rollout strategy
+- 14 common pitfalls (versionCode collisions, `expo-dev-client` in dependencies, missing crash-logs declaration when using Sentry, hardcoded `secure: false` cookies, etc.)
+- A pre-launch checklist covering code, build, Play Console forms, store assets, and post-submission monitoring
+- **Android Build Internals deep dive** — APK vs AAB internals, the build pipeline (AAPT2 → R8 → D8 → zipalign → sign), R8 shrinking/obfuscation with keep rules, signature schemes V1–V4, upload key vs app signing key, key reset/upgrade/rotation flows, manifest merger, Hermes + baseline profiles, Dynamic Delivery, OTA-allowed vs Play-required changes
+- **React Native / Expo build concerns** — Bridge vs JSI/Fabric/TurboModules/Bridgeless, Managed vs Bare workflow, EAS Build vs local Gradle, sourcemap symbolication, `expo-doctor`
+- **Bundletool, Firebase Pre-Launch Report, Internal App Sharing** — local AAB validation and pre-flight tooling
+- **24 interview questions** across Beginner / Intermediate / Advanced — APK/AAB, Play App Signing, signature schemes, R8 keep rules, force-update architecture, manifest merger, target SDK floor, sourcemaps, Sentry + Data Safety, cascade delete, New Architecture, ANR debugging, key recovery vs upgrade vs rotation, OTA boundaries, staged rollout, baseline profiles, runtime config
+- **10 tricky scenario questions** — versionCode high-water mark across tracks, `autoIncrement` drift, R8-broke-release-but-debug-works, 14-day soak resets when tester list rotates, Sentry tracesSampleRate misses App interactions, anonymize-not-delete cascade gotcha, tablet screenshots even with `supportsTablet: false`, upload-key reset (recoverable) vs app-signing-key loss (not), Managed Publishing app-level vs per-release scope, `blockedPermissions` doesn't disable SDK code
+- **20-rule cheat sheet** at the end
+
+---
+
 ## v1.0.4 (April 2026)
 
 ### Tricky Questions — Rewritten With Detailed Explanations

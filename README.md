@@ -7,10 +7,10 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 ## Features
 
 ### Study Content
-- **32 guides across 8 categories** — Front End (9: React, React Native & Apps, Redux Toolkit, Redux Saga, TanStack Query, Storybook, Jest & RTL, Frontend Tooling, React Comparisons), JS & TS (3), Back End (7: Node.js, Express, MongoDB, API Design, Database Schema, CORS, Backend Comparisons), AWS (7: IAM, EC2, S3, Lambda, CloudWatch, Frontend Deployment, AWS Comparisons), Git (2), DSA (1), Behavioral (1), System Design (2)
+- **34 guides across 8 categories** — Front End (11: React, React Native & Apps, Play Store Launch, Redux Toolkit, Redux Saga, TanStack Query, Storybook, Jest & RTL, Frontend Tooling, Browser APIs, React Comparisons), JS & TS (3), Back End (7: Node.js, Express, MongoDB, API Design, Database Schema, CORS, Backend Comparisons), AWS (7: IAM, EC2, S3, Lambda, CloudWatch, Frontend Deployment, AWS Comparisons), Git (2), DSA (1), Behavioral (1), System Design (2)
 - **7 cheat sheets** — React Hooks, JS ES6+, Git Commands, Git Workflows & Advanced, Big-O, CSS Flexbox/Grid, HTTP Status Codes
 - **Mermaid diagrams** — architecture diagrams rendered as interactive visuals
-- **Tricky Output Questions** — "Guess the Output" sections in 9 guides (JavaScript, TypeScript, React, React Native, Redux Saga, Redux Toolkit, Node.js, Express, MongoDB) totalling 111 questions, each paired with a detailed explanation and followed by a cheat-sheet summary
+- **Tricky Output Questions** — "Guess the Output" sections in 10 guides (JavaScript, TypeScript, React, React Native, Redux Saga, Redux Toolkit, Node.js, Express, MongoDB, Browser APIs) totalling 129 questions, each paired with a detailed explanation and followed by a cheat-sheet summary (React's 22 are split into 16 core + 6 Performance Pitfalls; Browser APIs has 12)
 - **Syntax-highlighted code blocks** with copy and "Try it" buttons
 - **Reading time estimates** on every guide
 - **Table of Contents** — auto-generated from headings, tracks active section while scrolling
@@ -79,7 +79,7 @@ prephub/
       useStudyStats.ts         # Streak & gamification stats (localStorage)
       useTextToSpeech.ts       # Web Speech API wrapper
     content/
-      front-end/               # React, React Native & Apps, Redux Toolkit, Redux Saga, TanStack Query, Storybook, Jest & RTL, Frontend Tooling, React Comparisons
+      front-end/               # React, React Native & Apps, Play Store Launch, Redux Toolkit, Redux Saga, TanStack Query, Storybook, Jest & RTL, Frontend Tooling, React Comparisons
       javascript-and-typescript/ # JavaScript, TypeScript, JS Comparisons
       back-end/                # Node.js, Express, MongoDB, API Design, Database Schema, CORS, Backend Comparisons
       aws/                     # IAM, EC2, S3, Lambda, CloudWatch, Frontend Deployment, AWS Comparisons
