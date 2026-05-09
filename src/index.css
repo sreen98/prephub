@@ -217,6 +217,69 @@ html {
   padding: 0 !important;
 }
 
+/* ==================== Code Playground Editor ==================== */
+/* react-simple-code-editor renders <pre> + <textarea> stacked. They MUST
+   share font metrics so the caret aligns with the highlighted tokens. */
+.playground-editor-wrap textarea,
+.playground-editor-wrap .playground-editor-pre,
+.playground-editor-wrap .playground-editor-textarea {
+  font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  white-space: pre !important;
+  word-spacing: normal !important;
+  word-break: normal !important;
+  word-wrap: normal !important;
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
+  hyphens: none !important;
+}
+
+/* Make highlight.js token classes apply inside the editor. The
+   github-dark-dimmed theme is loaded globally via App.tsx. */
+.playground-editor-wrap .playground-editor-pre {
+  background: transparent !important;
+  margin: 0;
+  outline: none;
+}
+
+.playground-editor-wrap textarea {
+  outline: none !important;
+}
+
+.playground-editor-wrap textarea::placeholder {
+  color: #6c7086;
+}
+
+/* Wrap toggle — overrides the no-wrap defaults when the user enables it.
+   Indentation/alignment looks slightly odd on long lines but the editor
+   stops clipping when the splitter is dragged narrow. */
+.playground-editor-wrap.wrap-on textarea,
+.playground-editor-wrap.wrap-on .playground-editor-pre,
+.playground-editor-wrap.wrap-on .playground-editor-textarea {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+.playground-editor-wrap.wrap-on {
+  overflow-x: hidden !important;
+}
+
+/* Rainbow brackets — colors cycle by nesting depth (depth % 3) so paired
+   brackets share the same color, like VS Code's bracket pair colorization. */
+.playground-editor-wrap .bd-0 { color: #ffd700; }   /* gold */
+.playground-editor-wrap .bd-1 { color: #da70d6; }   /* orchid */
+.playground-editor-wrap .bd-2 { color: #179fff; }   /* azure */
+
+/* Matching pair at the cursor — both brackets get a soft box + stronger color. */
+.playground-editor-wrap .bd-match {
+  background: rgba(120, 170, 255, 0.18);
+  outline: 1px solid rgba(160, 200, 255, 0.55);
+  border-radius: 3px;
+  padding: 0 1px;
+  margin: 0 -1px;
+}
+
 /* ==================== Tables ==================== */
 
 .prose-container table {

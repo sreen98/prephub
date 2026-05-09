@@ -11,7 +11,7 @@ import {
   PanelLeftClose, PanelLeftOpen, ExternalLink, Type, Clock,
   Link2, Bookmark, BookmarkCheck, Flame, GraduationCap,
   RotateCcw, FileText, CheckCircle, Circle,
-  ScrollText, Lock
+  ScrollText, Lock, Flag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDarkMode } from './hooks/useDarkMode';
@@ -22,6 +22,7 @@ import { contentFiles, menuStructure, slugify, getTextContent, extractHeadings, 
 import { useReadingPrefs } from './hooks/useReadingPrefs';
 import { useProgress } from './hooks/useProgress';
 import { useBookmarks } from './hooks/useBookmarks';
+import { useCheckpoints } from './hooks/useCheckpoints';
 import { useSpacedRepetition } from './hooks/useSpacedRepetition';
 import { useStudyStats } from './hooks/useStudyStats';
 import MermaidBlock from './components/MermaidBlock';
@@ -34,6 +35,7 @@ const HomePage           = lazy(() => import('./components/HomePage'));
 const QuizMode           = lazy(() => import('./components/QuizMode'));
 const CodePlayground     = lazy(() => import('./components/CodePlayground'));
 const BookmarksPage      = lazy(() => import('./components/BookmarksPage'));
+const CheckpointsPage    = lazy(() => import('./components/CheckpointsPage'));
 const ReviewPage         = lazy(() => import('./components/ReviewPage'));
 const InterviewSimulator = lazy(() => import('./components/InterviewSimulator'));
 const CheatSheetsIndex   = lazy(() => import('./components/CheatSheetsIndex'));
@@ -137,7 +139,9 @@ const PreBlock = ({ children }: { children: React.ReactNode }) => {
       /<[A-Z][A-Za-z0-9]*/.test(text) ||
       /return\s*\(?\s*<[a-zA-Z]/.test(text) ||
       /\b(useState|useEffect|useRef|useMemo|useCallback|useReducer|useContext|useLayoutEffect)\s*\(/.test(text);
-    const hasRender = /render\s*\(/.test(text) || /ReactDOM\.(render|createRoot)/.test(text);
+    // `render\s*\(` would also match a class method declaration `render() {`.
+    // Require a JSX argument: `render(<` so we only count actual top-level calls.
+    const hasRender = /(?:^|\n|;)\s*render\s*\(\s*</.test(text) || /ReactDOM\.(render|createRoot)/.test(text);
     if (hasJSX && !hasRender) {
       const matches = [
         ...text.matchAll(/function\s+([A-Z][A-Za-z0-9]*)\s*\(/g),
@@ -499,8 +503,10 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
   const [isTocCollapsed, setIsTocCollapsed] = useState(false);
   const { getStatus, markInProgress, toggleComplete } = useProgress();
   const { isBookmarked, toggleBookmark } = useBookmarks();
+  const { getCheckpoint, setCheckpoint, clearCheckpoint } = useCheckpoints();
   const { recordGuideCompleted } = useStudyStats();
   const guideStatus = guidePath ? getStatus(guidePath) : null;
+  const checkpoint = guidePath ? getCheckpoint(guidePath) : null;
 
   // Dynamic page title for SEO
   useEffect(() => {
@@ -512,6 +518,27 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
     }
     return () => { document.title = 'PrepHub — Interview Prep'; };
   }, [guideName]);
+
+  // Hash-based scroll-to-heading on mount. The element may not exist on the
+  // first frame because ReactMarkdown renders the body after this effect
+  // commits — poll with rAF up to ~1s, then give up.
+  useEffect(() => {
+    if (!location.hash) return;
+    const id = decodeURIComponent(location.hash.slice(1));
+    let cancelled = false;
+    let tries = 0;
+    const tick = () => {
+      if (cancelled) return;
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (tries++ < 60) requestAnimationFrame(tick);
+    };
+    tick();
+    return () => { cancelled = true; };
+  }, [location.hash, content]);
 
   // ===== Feature 1: Related Guides Suggestions =====
   const relatedGuides = useMemo(() => {
@@ -701,6 +728,36 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
 
         <OfficialDocsBar filePath={filePath} />
 
+        {checkpoint && guidePath && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 px-4 py-3 mb-6 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50"
+          >
+            <Flag size={16} className="text-indigo-500 fill-indigo-500/30 shrink-0" />
+            <button
+              onClick={() => {
+                const el = document.getElementById(checkpoint.headingId);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                else setToastMsg('Checkpoint heading no longer exists in this guide');
+              }}
+              className="flex-1 min-w-0 text-left text-sm group"
+            >
+              <span className="text-indigo-700 dark:text-indigo-300">Continue from </span>
+              <span className="font-semibold text-indigo-900 dark:text-indigo-100 group-hover:underline truncate">
+                &ldquo;{checkpoint.headingText}&rdquo;
+              </span>
+            </button>
+            <button
+              onClick={() => clearCheckpoint(guidePath)}
+              className="p-1 rounded-lg text-indigo-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
+              aria-label="Clear checkpoint"
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+
         <MobileToc content={content} />
 
         <div ref={containerRef} className="prose-container">
@@ -794,8 +851,85 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
       </motion.div>
 
       <TableOfContents content={content} isCollapsed={isTocCollapsed} onToggle={() => setIsTocCollapsed(c => !c)} />
+      {guidePath && guideName && (
+        <SaveCheckpointFab
+          onSave={() => {
+            const heading = findNearestHeadingAbove();
+            if (!heading || !heading.id) {
+              setToastMsg('No heading found to checkpoint');
+              return;
+            }
+            setCheckpoint(guidePath, {
+              headingId: heading.id,
+              headingText: heading.text,
+              guideName,
+            });
+            setToastMsg(`Checkpoint saved at "${heading.text}"`);
+          }}
+        />
+      )}
       <Toast message={toastMsg} onClose={() => setToastMsg(null)} />
     </>
+  );
+};
+
+// ==================== Save Checkpoint FAB ====================
+
+// Finds the heading whose top is just above (or at) the given threshold from
+// the viewport top. Falls back to the first heading if the user is at the very
+// top of the page. Returns null only when the guide has no headings at all.
+function findNearestHeadingAbove(threshold: number = 100): { id: string; text: string } | null {
+  const headings = document.querySelectorAll<HTMLElement>(
+    '.prose-container h1[id], .prose-container h2[id], .prose-container h3[id], .prose-container h4[id]'
+  );
+  let best: HTMLElement | null = null;
+  for (const h of Array.from(headings)) {
+    if (h.getBoundingClientRect().top <= threshold) best = h;
+    else break;
+  }
+  if (!best && headings.length) best = headings[0];
+  if (!best) return null;
+  return { id: best.id, text: best.textContent?.trim().replace(/[#¶​]/g, '').trim() ?? '' };
+}
+
+const SaveCheckpointFab = ({ onSave }: { onSave: () => void }) => {
+  const [show, setShow] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setShow(window.scrollY > 300);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleClick = () => {
+    onSave();
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 1500);
+  };
+
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          onClick={handleClick}
+          className={cn(
+            "fixed bottom-24 right-6 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-full shadow-lg border transition-all z-50",
+            savedFlash
+              ? "bg-emerald-500 text-white border-emerald-500"
+              : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:shadow-xl hover:-translate-y-0.5"
+          )}
+          aria-label="Save checkpoint at current position"
+        >
+          {savedFlash ? <Check size={16} /> : <Flag size={16} className="text-indigo-500" />}
+          <span className="text-xs font-medium">{savedFlash ? 'Saved' : 'Save Checkpoint'}</span>
+        </motion.button>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -836,6 +970,8 @@ export default function App() {
   const { fontSize, cycleFontSize, sizeLabel } = useReadingPrefs();
   const progressHook = useProgress();
   const bookmarksHook = useBookmarks();
+  const checkpointsHook = useCheckpoints();
+  const checkpointsCount = Object.keys(checkpointsHook.checkpoints).length;
   const srHook = useSpacedRepetition();
   const statsHook = useStudyStats();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -933,6 +1069,10 @@ export default function App() {
   useEffect(() => {
     const handleArrowNav = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+
+      // Plain arrow keys must scroll the page — only intercept with Alt held.
+      // (Cmd is taken by browser history back/forward; Ctrl by some OS shortcuts.)
+      if (!e.altKey) return;
 
       // Don't navigate when focus is in an input, textarea, or search-related element
       const active = document.activeElement as HTMLElement | null;
@@ -1174,6 +1314,10 @@ export default function App() {
                 <Bookmark size={16} /> Bookmarks
                 {bookmarksHook.bookmarks.length > 0 && <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">{bookmarksHook.bookmarks.length}</span>}
               </Link>
+              <Link to="/checkpoints" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === '/checkpoints' ? "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900")}>
+                <Flag size={16} /> Checkpoints
+                {checkpointsCount > 0 && <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">{checkpointsCount}</span>}
+              </Link>
               <Link to="/changelog" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === '/changelog' ? "bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900")}>
                 <Sparkles size={16} /> What's New
                 {hasUnreadChangelog && <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse ml-auto" />}
@@ -1217,6 +1361,7 @@ export default function App() {
             <Route path="/interview" element={<InterviewSimulator />} />
             <Route path="/playground" element={<CodePlayground />} />
             <Route path="/bookmarks" element={<BookmarksPage />} />
+            <Route path="/checkpoints" element={<CheckpointsPage />} />
             <Route path="/changelog" element={<ContentPage filePath="./content/changelog.md" />} />
             <Route path="/cheatsheets" element={<CheatSheetsIndex />} />
             <Route path="/admin" element={<AdminPage />} />

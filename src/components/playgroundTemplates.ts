@@ -3,21 +3,85 @@
 
 // ==================== Types ====================
 
+export type TemplateLang = 'js' | 'ts' | 'jsx' | 'tsx';
+export type CategoryKind = 'template' | 'challenge';
+export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+
+/** Algorithmic patterns — tagged on Coding Challenges so users can find
+ *  challenges that share the same underlying technique. A challenge may
+ *  belong to more than one pattern (e.g. Quick Sort is Sorting + Recursion). */
+export type Pattern =
+  | 'Two Pointer'
+  | 'Sliding Window'
+  | 'Hash Map / Set'
+  | 'Stack'
+  | 'Recursion / D&C'
+  | 'Dynamic Programming'
+  | 'Greedy'
+  | 'Binary Search'
+  | 'Backtracking'
+  | 'Math / Bit'
+  | 'Sorting'
+  | 'Linked List'
+  | 'Closure / State'
+  | 'In-Place';
+
+/** Canonical list — used for filter chips in the templates modal. */
+export const ALL_PATTERNS: Pattern[] = [
+  'Two Pointer',
+  'Sliding Window',
+  'Hash Map / Set',
+  'Stack',
+  'Recursion / D&C',
+  'Dynamic Programming',
+  'Greedy',
+  'Binary Search',
+  'Backtracking',
+  'Math / Bit',
+  'Sorting',
+  'Linked List',
+  'Closure / State',
+  'In-Place',
+];
+
+/** Patterns grouped into super-categories for the modal filter UI.
+ *  Avoids the "long horizontal row" UX problem — chips lay out in a
+ *  small number of well-named rows that fit the screen vertically. */
+export const PATTERN_GROUPS: { label: string; patterns: Pattern[] }[] = [
+  { label: 'Linear scans',  patterns: ['Two Pointer', 'Sliding Window', 'In-Place'] },
+  { label: 'Lookup',        patterns: ['Hash Map / Set', 'Stack'] },
+  { label: 'Recursive',     patterns: ['Recursion / D&C', 'Backtracking'] },
+  { label: 'Optimization',  patterns: ['Dynamic Programming', 'Greedy', 'Binary Search'] },
+  { label: 'Data + Misc',   patterns: ['Sorting', 'Linked List', 'Closure / State', 'Math / Bit'] },
+];
+
 export interface Template {
   name: string;
   code: string;
+  /** Whether the snippet uses JSX (legacy alias — prefer `lang`). */
   jsx?: boolean;
+  /** Source language for the runner. Defaults to 'jsx' if jsx===true, else 'js'. */
+  lang?: TemplateLang;
+  /** Algorithmic patterns this challenge demonstrates. Used for cross-discovery —
+   *  studying one challenge with pattern X teaches you the technique for every
+   *  other challenge with the same tag. */
+  patterns?: Pattern[];
+  /** Subjective difficulty rating, roughly aligned with LeetCode conventions. */
+  difficulty?: Difficulty;
 }
 
 export interface TemplateCategory {
   label: string;
   tag: string;
+  /** 'template' = teaching reference; 'challenge' = problem to solve. */
+  kind?: CategoryKind;
   templates: Template[];
 }
 
 export interface FlatTemplate extends Template {
   category: string;
   tag: string;
+  kind: CategoryKind;
 }
 
 // ==================== Templates ====================
@@ -27,6 +91,7 @@ export const templateCategories: TemplateCategory[] = [
   {
     label: 'JavaScript Fundamentals',
     tag: 'JS',
+    kind: 'template',
     templates: [
       {
         name: 'Hello World',
@@ -167,6 +232,7 @@ console.log(rest);                      // { age: 30, role: "dev" }
   {
     label: 'JS Interview Topics',
     tag: 'JS',
+    kind: 'template',
     templates: [
       {
         name: 'Event Loop & Microtasks',
@@ -365,6 +431,7 @@ for (let j = 0; j < 3; j++) {
   {
     label: 'React Basics',
     tag: 'React',
+    kind: 'template',
     templates: [
       {
         name: 'useState Counter',
@@ -466,6 +533,7 @@ render(<App />);`,
   {
     label: 'React Advanced',
     tag: 'React',
+    kind: 'template',
     templates: [
       {
         name: 'useReducer Todo',
@@ -655,6 +723,7 @@ render(<App />);`,
   {
     label: 'JS Polyfills',
     tag: 'JS',
+    kind: 'template',
     templates: [
       {
         name: 'Array.map',
@@ -1578,14 +1647,375 @@ const child = Object.create(proto);
 child.own = "yes";
 console.log(Object.myKeys(child));        // ["own"]   — proto skipped`,
       },
+
+      // ===== Newly added polyfills (commonly asked) =====
+
+      {
+        name: 'JSON.parse',
+        code: `// Polyfill for JSON.parse — recursive descent parser.
+// (The native is a hand-written state machine; this is a teaching version
+// that covers strings, numbers, true/false/null, arrays, objects.)
+
+JSON.myParse = function (text) {
+  let i = 0;
+  const skipWs = () => { while (i < text.length && /\\s/.test(text[i])) i++; };
+
+  function parseValue() {
+    skipWs();
+    const ch = text[i];
+    if (ch === '"') return parseString();
+    if (ch === '{') return parseObject();
+    if (ch === '[') return parseArray();
+    if (ch === 't' || ch === 'f') return parseBool();
+    if (ch === 'n') return parseNull();
+    return parseNumber();
+  }
+
+  function parseString() {
+    i++; // opening "
+    let out = "";
+    while (i < text.length && text[i] !== '"') {
+      if (text[i] === '\\\\') {                  // escape
+        i++;
+        const esc = text[i++];
+        out += esc === 'n' ? '\\n' : esc === 't' ? '\\t' : esc === '"' ? '"' : esc;
+      } else out += text[i++];
+    }
+    i++; // closing "
+    return out;
+  }
+
+  function parseNumber() {
+    const start = i;
+    while (i < text.length && /[0-9eE+\\-.]/.test(text[i])) i++;
+    return Number(text.slice(start, i));
+  }
+
+  function parseBool() { const t = text.slice(i, i + 4); if (t === 'true')  { i += 4; return true; } i += 5; return false; }
+  function parseNull() { i += 4; return null; }
+
+  function parseArray() {
+    i++; const out = []; skipWs();
+    if (text[i] === ']') { i++; return out; }
+    while (true) {
+      out.push(parseValue());
+      skipWs();
+      if (text[i] === ',') { i++; continue; }
+      if (text[i] === ']') { i++; return out; }
+    }
+  }
+
+  function parseObject() {
+    i++; const out = {}; skipWs();
+    if (text[i] === '}') { i++; return out; }
+    while (true) {
+      skipWs();
+      const key = parseString();
+      skipWs(); i++; // colon
+      out[key] = parseValue();
+      skipWs();
+      if (text[i] === ',') { i++; continue; }
+      if (text[i] === '}') { i++; return out; }
+    }
+  }
+
+  return parseValue();
+};
+
+// Tests
+console.log(JSON.myParse('"hello"'));                                  // "hello"
+console.log(JSON.myParse('42'));                                       // 42
+console.log(JSON.myParse('-3.14'));                                    // -3.14
+console.log(JSON.myParse('true'));                                     // true
+console.log(JSON.myParse('null'));                                     // null
+console.log(JSON.myParse('[1, 2, 3]'));                                // [1, 2, 3]
+console.log(JSON.myParse('{"a": 1, "b": [true, null]}'));              // { a: 1, b: [true, null] }
+console.log(JSON.myParse('{"name":"Ana","tags":["dev","js"],"age":30}'));`,
+      },
+      {
+        name: 'Array.isArray',
+        code: `// Polyfill for Array.isArray — the most reliable test.
+// typeof [] === 'object' (same as object/null), so we need a smarter check.
+
+Array.myIsArray = function (val) {
+  // Object.prototype.toString tag is the historically reliable check —
+  // it works across iframes (where instanceof Array fails) and survives
+  // proxies. The string form is "[object Array]" for arrays only.
+  return Object.prototype.toString.call(val) === '[object Array]';
+};
+
+// Tests
+console.log(Array.myIsArray([]));               // true
+console.log(Array.myIsArray([1, 2, 3]));        // true
+console.log(Array.myIsArray("not an array"));   // false
+console.log(Array.myIsArray({ length: 0 }));    // false  (array-like ≠ array)
+console.log(Array.myIsArray(null));             // false
+console.log(Array.myIsArray(undefined));        // false
+console.log(Array.myIsArray(new Array(3)));     // true
+
+// instanceof fails across iframes (separate Array constructor):
+// const iframeArray = iframe.contentWindow.Array;
+// const arr = new iframeArray(1, 2);
+// arr instanceof Array        // false  ← classic gotcha
+// Array.isArray(arr)          // true   ← correct
+
+// Why typeof doesn't work:
+console.log(typeof []);          // "object"
+console.log(typeof null);        // "object"  — and null is not an array
+console.log(typeof {});          // "object"`,
+      },
+      {
+        name: 'Object.create',
+        code: `// Polyfill for Object.create — creates an object with the given prototype.
+// The classic 4-line implementation. Foundation of pre-class OOP in JS.
+
+Object.myCreate = function (proto, props) {
+  if (proto !== null && typeof proto !== 'object' && typeof proto !== 'function') {
+    throw new TypeError("Object prototype may only be an Object or null");
+  }
+  function F() {}              // empty constructor
+  F.prototype = proto;          // its prototype is what we want
+  const obj = new F();          // new instance inherits from proto
+
+  // Optional second argument — property descriptors map.
+  if (props) Object.defineProperties(obj, props);
+  return obj;
+};
+
+// Tests
+const animal = {
+  speak() { return \`\${this.name} makes a sound\`; }
+};
+
+const dog = Object.myCreate(animal);
+dog.name = "Rex";
+console.log(dog.speak());                          // "Rex makes a sound"
+console.log(Object.getPrototypeOf(dog) === animal); // true
+
+// With property descriptors
+const cat = Object.myCreate(animal, {
+  name:  { value: "Whiskers", writable: true, enumerable: true, configurable: true },
+  legs:  { value: 4 },          // not writable / not enumerable / not configurable
+});
+console.log(cat.speak());                          // "Whiskers makes a sound"
+console.log(cat.legs);                             // 4
+cat.legs = 99;                                     // silently ignored
+console.log(cat.legs);                             // 4
+
+// Common use: prototype-based inheritance pre-class
+function Animal(name) { this.name = name; }
+Animal.prototype.speak = function () { return this.name + " sounds"; };
+
+function Dog(name) { Animal.call(this, name); }
+Dog.prototype = Object.myCreate(Animal.prototype);   // ← THE classic line
+Dog.prototype.constructor = Dog;
+
+const rex = new Dog("Rex");
+console.log(rex.speak());                          // "Rex sounds"
+
+// Object.create(null) makes a prototype-less object — useful as a true map
+const dict = Object.myCreate(null);
+dict.toString = "no inheritance";
+console.log(dict.toString);                        // "no inheritance"   (no [object Object] inherited)`,
+      },
+      {
+        name: 'Object.freeze + deepFreeze',
+        code: `// Polyfill for Object.freeze — and the deepFreeze variant interviewers love.
+// Native Object.freeze is shallow: nested objects can still be mutated.
+
+Object.myFreeze = function (obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+
+  // Make every own property non-writable + non-configurable.
+  for (const key of Object.getOwnPropertyNames(obj)) {
+    Object.defineProperty(obj, key, {
+      writable: false,
+      configurable: false,
+    });
+  }
+  // Mark as non-extensible (no new props can be added).
+  Object.preventExtensions(obj);
+  return obj;
+};
+
+// Tests — shallow freeze
+const user = Object.myFreeze({ name: "Ana", age: 30 });
+user.name = "Bob";                  // silently ignored (strict mode would throw)
+console.log(user.name);             // "Ana"
+delete user.age;                    // ignored
+console.log(user.age);              // 30
+user.role = "dev";                  // ignored
+console.log(user.role);             // undefined
+console.log(Object.isFrozen(user)); // true
+
+// Shallow freeze gotcha — nested object is still mutable
+const nested = Object.myFreeze({ name: "Outer", inner: { value: 1 } });
+nested.inner.value = 999;           // works! inner was not frozen
+console.log(nested.inner.value);    // 999
+
+// === deepFreeze — recursive freeze ===
+function deepFreeze(obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+  // Freeze nested values FIRST so freezing the parent doesn't lock us out
+  // of further descents (defineProperty on a frozen object throws).
+  for (const key of Object.getOwnPropertyNames(obj)) {
+    deepFreeze(obj[key]);
+  }
+  return Object.freeze(obj);
+}
+
+const config = deepFreeze({ env: "prod", db: { host: "x", port: 5432 } });
+config.db.host = "y";                // ignored — host is now frozen
+console.log(config.db.host);         // "x"
+
+// Beware cycles — naive recursion would infinite-loop.
+function deepFreezeCycleSafe(obj, seen = new WeakSet()) {
+  if (obj === null || typeof obj !== 'object' || seen.has(obj)) return obj;
+  seen.add(obj);
+  for (const key of Object.getOwnPropertyNames(obj)) deepFreezeCycleSafe(obj[key], seen);
+  return Object.freeze(obj);
+}
+const a = { name: "A" }; a.self = a;
+deepFreezeCycleSafe(a);
+console.log(Object.isFrozen(a));     // true`,
+      },
+      {
+        name: 'Array.prototype.fill',
+        code: `// Polyfill for Array.prototype.fill(value, start?, end?).
+// Mutates the array in place. Negative indices count from the end.
+// Common interview ask alongside Array.from.
+
+Array.prototype.myFill = function (value, start = 0, end = this.length) {
+  const len = this.length;
+
+  // Normalize negative indices.
+  let i = start < 0 ? Math.max(len + start, 0) : Math.min(start, len);
+  const last = end < 0 ? Math.max(len + end, 0) : Math.min(end, len);
+
+  while (i < last) {
+    this[i++] = value;
+  }
+  return this;
+};
+
+// Tests
+console.log([1, 2, 3, 4].myFill(0));            // [0, 0, 0, 0]
+console.log([1, 2, 3, 4].myFill(7, 1, 3));      // [1, 7, 7, 4]
+console.log([1, 2, 3, 4].myFill('x', -2));      // [1, 2, 'x', 'x']
+console.log([1, 2, 3, 4].myFill('x', 1, -1));   // [1, 'x', 'x', 4]
+
+// Common pattern: pre-allocate then fill
+const empty = new Array(5).myFill(null);
+console.log(empty);                              // [null, null, null, null, null]
+
+// Gotcha — object reference is SHARED across all slots:
+const grid = new Array(3).myFill([]);
+grid[0].push("a");
+console.log(grid);                               // [['a'], ['a'], ['a']]   — same array!
+
+// Fix: use Array.from with a factory function
+const realGrid = Array.from({ length: 3 }, () => []);
+realGrid[0].push("a");
+console.log(realGrid);                           // [['a'], [], []]   — distinct arrays`,
+      },
+      {
+        name: 'String.prototype.repeat',
+        code: `// Polyfill for String.prototype.repeat — short but classic.
+// Throws on negative or non-finite count.
+
+String.prototype.myRepeat = function (count) {
+  if (this == null) throw new TypeError("Cannot call repeat on null/undefined");
+  const n = Math.floor(count);
+  if (n < 0 || n === Infinity) throw new RangeError("Invalid count");
+  if (n === 0) return "";
+
+  // Doubling trick — O(log n) string concatenations instead of O(n).
+  // Each iteration squares the segment until we have enough, then
+  // sprinkle the remaining shifted bits.
+  let result = "";
+  let segment = String(this);
+  let i = n;
+  while (i > 0) {
+    if (i & 1) result += segment;     // bit set → add current segment
+    i = i >>> 1;                      // halve i
+    if (i > 0) segment += segment;    // double segment for next bit
+  }
+  return result;
+};
+
+// Tests
+console.log("ab".myRepeat(3));                        // "ababab"
+console.log("-".myRepeat(10));                        // "----------"
+console.log("".myRepeat(5));                          // ""
+console.log("x".myRepeat(0));                         // ""
+console.log("hi".myRepeat(2.9));                      // "hihi"   (floored)
+
+// RangeError tests
+try { "x".myRepeat(-1); } catch (e) { console.log("caught:", e.message); }
+try { "x".myRepeat(Infinity); } catch (e) { console.log("caught:", e.message); }
+
+// Naive O(n) version — works fine for small n but bad for large n
+String.prototype.myRepeatSimple = function (n) {
+  let r = "";
+  for (let i = 0; i < n; i++) r += this;
+  return r;
+};
+console.log("ha".myRepeatSimple(3));                  // "hahaha"
+
+// Practical use — padding (modern code uses padStart/padEnd, but historically:)
+const padLeft = (s, width, char = " ") => char.myRepeat(Math.max(0, width - s.length)) + s;
+console.log(padLeft("42", 5, "0"));                   // "00042"`,
+      },
+      {
+        name: 'Array.prototype.join',
+        code: `// Polyfill for Array.prototype.join(separator).
+// Default separator is ",". null/undefined become empty strings.
+
+Array.prototype.myJoin = function (separator = ",") {
+  if (this == null) throw new TypeError("Cannot call join on null/undefined");
+  const sep = String(separator);
+  let result = "";
+  for (let i = 0; i < this.length; i++) {
+    if (i > 0) result += sep;
+    const item = this[i];
+    if (item != null) result += String(item);   // null/undefined → empty
+  }
+  return result;
+};
+
+// Tests
+console.log([1, 2, 3].myJoin());              // "1,2,3"
+console.log([1, 2, 3].myJoin("-"));           // "1-2-3"
+console.log(["a", "b", "c"].myJoin(""));      // "abc"
+console.log([].myJoin(","));                  // ""
+console.log([42].myJoin(","));                // "42"
+
+// null / undefined behave specially — they're omitted (rendered as "")
+console.log([1, null, 3, undefined, 5].myJoin(","));   // "1,,3,,5"
+
+// Sparse arrays — holes also render as ""
+const sparse = [1, , , 4];                    // length 4 with two holes
+console.log(sparse.myJoin(","));              // "1,,,4"
+
+// Useful idiom — join + split is the canonical "replace all"
+const text = "hello world hello";
+console.log(text.split("hello").myJoin("hi")); // "hi world hi"
+
+// Native vs polyfill output match:
+const arr = [1, "two", null, true];
+console.log(arr.myJoin(" | ") === arr.join(" | "));   // true`,
+      },
     ],
   },
   {
     label: 'Coding Challenges',
     tag: 'JS',
+    kind: 'challenge',
     templates: [
       {
         name: 'Two Sum',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Two Sum =====
 // Given an array of integers and a target,
 // return indices of the two numbers that add up to target.
@@ -1613,6 +2043,8 @@ test("Example 3", twoSum([3, 3], 6), [0, 1]);`,
       },
       {
         name: 'Reverse String',
+        patterns: ['Two Pointer'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Reverse String =====
 // Reverse a string without using the built-in reverse() method.
 //
@@ -1642,6 +2074,8 @@ test("Palindrome", reverseString("racecar"), "racecar");`,
       },
       {
         name: 'Valid Palindrome',
+        patterns: ['Two Pointer'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Valid Palindrome =====
 // Check if a string is a palindrome, considering only
 // alphanumeric characters and ignoring case.
@@ -1672,6 +2106,8 @@ test("With numbers", isPalindrome("0P"), false);`,
       },
       {
         name: 'FizzBuzz',
+        patterns: ['Math / Bit'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: FizzBuzz =====
 // Return an array of strings from 1 to n where:
 // - Multiples of 3 are replaced with "Fizz"
@@ -1702,6 +2138,8 @@ test("FizzBuzz at 30", fizzBuzz(30).slice(-1), ["FizzBuzz"]);`,
       },
       {
         name: 'Max Profit',
+        patterns: ['Greedy', 'Dynamic Programming'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Max Profit (Best Time to Buy & Sell Stock) =====
 // Given an array of prices where prices[i] is the price on day i,
 // find the maximum profit from one transaction (buy then sell).
@@ -1733,6 +2171,8 @@ test("Buy first sell last", maxProfit([1, 4, 2, 7]), 6);`,
       },
       {
         name: 'Valid Parentheses',
+        patterns: ['Stack'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Valid Parentheses =====
 // Given a string containing just '(', ')', '{', '}', '[' and ']',
 // determine if the input string is valid.
@@ -1767,6 +2207,8 @@ test("Empty string", isValid(""), true);`,
       },
       {
         name: 'Merge Sorted Arrays',
+        patterns: ['Two Pointer'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Merge Sorted Arrays =====
 // Given two sorted arrays, merge them into one sorted array.
 //
@@ -1796,6 +2238,8 @@ test("With duplicates", mergeSorted([1, 3, 3], [2, 3, 4]), [1, 2, 3, 3, 3, 4]);`
       },
       {
         name: 'Flatten Array',
+        patterns: ['Recursion / D&C'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Flatten Array =====
 // Flatten a deeply nested array without using Array.prototype.flat().
 //
@@ -1825,6 +2269,8 @@ test("Empty arrays", flatten([[], [1], [], [2, []], 3]), [1, 2, 3]);`,
       },
       {
         name: 'Debounce',
+        patterns: ['Closure / State'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Debounce =====
 // Implement a debounce function that delays invoking the provided
 // function until after 'delay' milliseconds have elapsed since
@@ -1883,6 +2329,8 @@ setTimeout(() => {
       },
       {
         name: 'Group Anagrams',
+        patterns: ['Hash Map / Set', 'Sorting'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Group Anagrams =====
 // Given an array of strings, group the anagrams together.
 // An anagram is a word formed by rearranging the letters of another.
@@ -1916,6 +2364,8 @@ test("No anagrams", groupAnagrams(["abc","def","ghi"]), [["abc"],["def"],["ghi"]
       },
       {
         name: 'Find Duplicates',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Find Duplicates =====
 // Return an array of all duplicate values in the input array.
 // A duplicate appears more than once.
@@ -1948,6 +2398,8 @@ test("Triple duplicate", findDuplicates([1, 1, 1, 2, 2]), [1, 2]);`,
       },
       {
         name: 'Remove Duplicates',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Remove Duplicates =====
 // Remove duplicate values from an array, preserving original order.
 // Implement WITHOUT using Set or filter+indexOf (do it manually).
@@ -1978,6 +2430,8 @@ test("Empty", removeDuplicates([]), []);`,
       },
       {
         name: 'Find Missing Number',
+        patterns: ['Math / Bit'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Find Missing Number =====
 // An array contains n distinct numbers from the range [0, n].
 // Find the one number that is missing.
@@ -2008,6 +2462,8 @@ test("Larger array", findMissing([9, 6, 4, 2, 3, 5, 7, 0, 1]), 8);`,
       },
       {
         name: 'Move Zeros',
+        patterns: ['Two Pointer', 'In-Place'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Move Zeros to End =====
 // Move all zeros to the end of the array, keeping non-zero
 // elements in their original order. Modify in-place if you can.
@@ -2038,6 +2494,8 @@ test("Zeros first", moveZeros([0, 0, 1, 2]), [1, 2, 0, 0]);`,
       },
       {
         name: 'Rotate Array',
+        patterns: ['Two Pointer', 'In-Place'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Rotate Array =====
 // Rotate the array to the right by k steps.
 // k may be larger than the array length — rotate by k % n.
@@ -2069,6 +2527,8 @@ test("Single",       rotate([1], 5), [1]);`,
       },
       {
         name: 'Bubble Sort',
+        patterns: ['Sorting'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Bubble Sort (Custom Sort, No Built-In) =====
 // Sort an array of numbers ascending WITHOUT using
 // Array.prototype.sort or any built-in sort.
@@ -2098,6 +2558,8 @@ test("Empty",       bubbleSort([]), []);`,
       },
       {
         name: 'Quick Sort',
+        patterns: ['Sorting', 'Recursion / D&C'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Quick Sort =====
 // Sort using the Quick Sort algorithm. Pick a pivot, partition
 // into less-than and greater-than-pivot, recursively sort each.
@@ -2126,6 +2588,8 @@ test("Duplicates", quickSort([3, 1, 3, 2, 1]), [1, 1, 2, 3, 3]);`,
       },
       {
         name: 'Merge Sort',
+        patterns: ['Sorting', 'Recursion / D&C'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Merge Sort =====
 // Sort using the Merge Sort algorithm. Recursively split the
 // array in half, sort each half, then merge sorted halves.
@@ -2160,6 +2624,8 @@ test("Big",       mergeSort([10, -5, 7, 0, 3, 7]), [-5, 0, 3, 7, 7, 10]);`,
       },
       {
         name: 'Anagram Check',
+        patterns: ['Hash Map / Set', 'Sorting'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Anagram Check =====
 // Determine if two strings are anagrams of each other.
 // Anagrams contain exactly the same letters in different order.
@@ -2191,6 +2657,8 @@ test("Empty strings",     isAnagram("", ""),             true);`,
       },
       {
         name: 'Longest Substring',
+        patterns: ['Sliding Window', 'Hash Map / Set'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Longest Substring Without Repeating =====
 // Given a string, find the length of the longest substring
 // without repeating characters.
@@ -2222,6 +2690,8 @@ test("Unique",   lengthOfLongestSubstring("abcdef"), 6);`,
       },
       {
         name: 'First Non-Repeating Char',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: First Non-Repeating Character =====
 // Return the first character in a string that does NOT repeat,
 // or null if every character repeats.
@@ -2252,6 +2722,8 @@ test("Empty",        firstNonRepeating(""), null);`,
       },
       {
         name: 'Sum Curry',
+        patterns: ['Closure / State', 'Recursion / D&C'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Sum Curry — sum(1)(2)(3)... =====
 // Implement an infinitely curryable sum function.
 // Calling it without arguments (or coercing to number) returns the total.
@@ -2283,6 +2755,8 @@ test("With zero",    sum(0)(0)(5)(),       5);`,
       },
       {
         name: 'Memoize',
+        patterns: ['Closure / State', 'Hash Map / Set'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Memoize =====
 // Implement a higher-order function that caches results of
 // expensive function calls. Subsequent calls with the same
@@ -2317,6 +2791,8 @@ console.log(computeCount === 2 ? "✅" : "❌", "Cache hit count: expected 2 com
       },
       {
         name: 'Deep Clone',
+        patterns: ['Recursion / D&C'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Deep Clone =====
 // Implement a deep clone function for plain JS objects/arrays.
 // Modifying the clone must NOT affect the original.
@@ -2356,6 +2832,8 @@ test("Different reference", original === cloned, false);`,
       },
       {
         name: 'Throttle',
+        patterns: ['Closure / State'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Throttle =====
 // Throttle ensures a function is called AT MOST once every \`limit\` ms.
 // (Compare to Debounce: debounce delays until pause; throttle caps rate.)
@@ -2393,6 +2871,8 @@ setTimeout(() => {
       },
       {
         name: 'EventEmitter',
+        patterns: ['Closure / State', 'Hash Map / Set'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: EventEmitter =====
 // Implement a basic event emitter (pub/sub).
 //
@@ -2451,6 +2931,8 @@ console.log(onceCount === 1 ? "✅" : "❌", \`once should fire 1x, fired \${onc
       },
       {
         name: 'LRU Cache',
+        patterns: ['Hash Map / Set', 'Linked List'],
+        difficulty: 'Hard',
         code: `// ===== CHALLENGE: LRU Cache =====
 // Least-Recently-Used cache with capacity \`n\`.
 //   get(key)      — return value or -1, mark as most-recently-used
@@ -2488,6 +2970,8 @@ console.log(cache.get(4));    // "d"`,
       },
       {
         name: 'Compose & Pipe',
+        patterns: ['Recursion / D&C', 'Closure / State'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Compose & Pipe =====
 // Functional composition.
 //   compose(f, g, h)(x) = f(g(h(x)))   — right to left
@@ -2523,6 +3007,8 @@ test("Single fn",             compose(double)(5), 10);`,
       },
       {
         name: 'Binary Search',
+        patterns: ['Binary Search'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Binary Search =====
 // Given a SORTED array and a target, return the index of the target
 // or -1 if not found. O(log n).
@@ -2550,6 +3036,8 @@ test("Single element",   binarySearch([42], 42), 0);`,
       },
       {
         name: 'Roman to Integer',
+        patterns: ['Math / Bit'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Roman to Integer =====
 // Convert a Roman numeral to an integer.
 // Symbols: I=1, V=5, X=10, L=50, C=100, D=500, M=1000
@@ -2579,6 +3067,8 @@ test("XL",      romanToInt("XL"),      40);`,
       },
       {
         name: 'Reverse Linked List',
+        patterns: ['Linked List'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Reverse Linked List =====
 // Reverse a singly linked list. Each node = { val, next }.
 // Return the new head.
@@ -2619,6 +3109,8 @@ test("Long list",   toArray(reverseList(fromArray([1, 2, 3, 4, 5]))), [5, 4, 3, 
       },
       {
         name: 'Container With Most Water',
+        patterns: ['Two Pointer', 'Greedy'],
+        difficulty: 'Medium',
         code: `// ===== CHALLENGE: Container With Most Water =====
 // Given an array of heights, find two lines that together with
 // the x-axis form a container holding the most water.
@@ -2649,6 +3141,8 @@ test("Single",    maxArea([5]),                          0);`,
       },
       {
         name: 'Climbing Stairs',
+        patterns: ['Dynamic Programming'],
+        difficulty: 'Easy',
         code: `// ===== CHALLENGE: Climbing Stairs =====
 // You're climbing a staircase with n steps. Each move you can take
 // either 1 step or 2 steps. How many distinct ways can you reach
@@ -2682,11 +3176,575 @@ test("n = 4",  climbStairs(4), 5);
 test("n = 5",  climbStairs(5), 8);
 test("n = 10", climbStairs(10), 89);`,
       },
+      {
+        name: 'Balanced Brackets (Count)',
+        patterns: ['Math / Bit'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Balanced Brackets — Count Match =====
+// Given a string with parens (), square brackets [], and curly braces {},
+// return true if EACH PAIR has equal counts of opening and closing.
+//
+// Note: this is COUNT-BASED — it does NOT check nesting order.
+//   "(([]))" → true   (2 of '(', 2 of ')', 1 of '[', 1 of ']')
+//   "([)]"   → true   (counts match — though not properly nested!)
+//   ")(["    → false  (1 ')' but no '(', 1 '[' but no ']')
+//
+// For ORDER-AWARE validation, see the "Valid Parentheses" template.
+//
+// Constraints:
+// - Each pair must have equal opening + closing counts
+// - Other characters (letters, digits, spaces) are ignored
+//
+// Show Solution covers multiple approaches:
+//   - Counters per pair (best — O(n) time, O(1) space)
+//   - Hash map of bracket counts (cleaner for many bracket types)
+//   - Stack-based (uses more memory; not strictly needed)
+//   - Regex / split+filter (most concise; multiple passes)
+
+function isBalancedByCount(str) {
+  // YOUR CODE HERE
+
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Properly nested",       isBalancedByCount("(([]))"), true);
+test("Unordered but balanced", isBalancedByCount("([)]"),  true);
+test("Unbalanced parens",     isBalancedByCount("(("),     false);
+test("Unbalanced brackets",   isBalancedByCount("[(])"),   false);
+test("All three pairs",        isBalancedByCount("({[]})"), true);
+test("Letters mixed in",       isBalancedByCount("a(b[c]d)e"), true);
+test("Empty string",           isBalancedByCount(""),       true);
+test("Reversed order",         isBalancedByCount(")("),     true);  // counts match!`,
+      },
+      {
+        name: 'Second Largest Number',
+        patterns: ['Greedy'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Second Largest Number =====
+// Given an array of numbers, return the second largest UNIQUE value.
+// If no second largest exists (e.g., array of all duplicates), return null.
+//
+// Example: secondLargest([3, 1, 4, 1, 5, 9, 2, 6])    → 6
+// Example: secondLargest([5, 5, 5])                    → null
+// Example: secondLargest([10, 5])                      → 5
+//
+// Constraints:
+// - Do NOT use sort() — that's the whole point
+// - Aim for O(n) time, O(1) space (single pass tracking top two)
+//
+// Show Solution covers multiple approaches:
+//   - Single-pass two-variable tracking (BEST — O(n) time, O(1) space)
+//   - Two-pass: find max, then find max != max
+//   - Set + reduce (cleaner; O(n) time, O(n) space)
+//   - Min-heap of size 2 (overkill here, useful when k > 2)
+
+function secondLargest(nums) {
+  // YOUR CODE HERE
+
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Basic",                secondLargest([3, 1, 4, 1, 5, 9, 2, 6]), 6);
+test("Two distinct",          secondLargest([10, 5]),                  5);
+test("All duplicates",        secondLargest([5, 5, 5]),                null);
+test("Two of largest",        secondLargest([7, 7, 3]),                3);
+test("Negatives",             secondLargest([-1, -3, -2, -5]),         -2);
+test("With zero",             secondLargest([0, 0, 0, 1]),             0);
+test("Single element",        secondLargest([42]),                     null);
+test("Empty",                 secondLargest([]),                       null);`,
+      },
+
+      // ===== Newly added (DP / two-pointer / backtracking / monotonic stack / linked list) =====
+
+      {
+        name: 'Maximum Subarray',
+        patterns: ['Dynamic Programming', 'Greedy'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Maximum Subarray (Kadane's) ═════
+// Given an integer array, find the contiguous subarray with the
+// largest sum and return that sum.
+//
+// Example: maxSubArray([-2,1,-3,4,-1,2,1,-5,4]) → 6  ([4,-1,2,1])
+//
+// Hint: at each i, the best subarray ending here is either
+// (a) just nums[i], or (b) nums[i] + best ending at i-1.
+
+function maxSubArray(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Mixed",        maxSubArray([-2,1,-3,4,-1,2,1,-5,4]),  6);
+test("All negative", maxSubArray([-3,-1,-2]),               -1);
+test("Single",       maxSubArray([5]),                       5);
+test("All positive", maxSubArray([1,2,3,4]),                10);`,
+      },
+      {
+        name: 'Trapping Rain Water',
+        patterns: ['Two Pointer'],
+        difficulty: 'Hard',
+        code: `// ═════ CHALLENGE: Trapping Rain Water ═════
+// Given an array of non-negative integers representing bar heights
+// of unit width, compute how much rainwater the structure can trap.
+//
+// Example: trap([0,1,0,2,1,0,1,3,2,1,2,1]) → 6
+//
+// Hint: water above index i = min(maxLeft, maxRight) - height[i].
+// The two-pointer trick computes this in O(1) extra space.
+
+function trap(height) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Classic",  trap([0,1,0,2,1,0,1,3,2,1,2,1]),  6);
+test("Plateau", trap([4,2,0,3,2,5]),               9);
+test("Tiny",     trap([1,0,1]),                    1);
+test("Flat",     trap([2,2,2]),                    0);`,
+      },
+      {
+        name: '3Sum',
+        patterns: ['Two Pointer', 'Sorting'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: 3Sum ═════
+// Given an integer array, return all unique triplets [a, b, c]
+// such that a + b + c === 0. The triplets themselves should NOT
+// duplicate (order within a triplet must be ascending).
+//
+// Example: threeSum([-1,0,1,2,-1,-4]) → [[-1,-1,2], [-1,0,1]]
+//
+// Hint: sort the array, then for each i fix nums[i] and use a
+// two-pointer scan on the right slice to find pairs summing to -nums[i].
+
+function threeSum(nums) {
+  // YOUR CODE HERE — return Array<[number, number, number]> sorted ascending
+}
+
+// ═════ TEST CASES ═════
+const norm = (arrs) => arrs.map(a => [...a].sort((x,y)=>x-y)).map(a => JSON.stringify(a)).sort();
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(norm(actual)) === JSON.stringify(norm(expected));
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Two triplets", threeSum([-1,0,1,2,-1,-4]), [[-1,-1,2], [-1,0,1]]);
+test("All zeros",    threeSum([0,0,0,0]),         [[0,0,0]]);
+test("No triplets",  threeSum([1,2,3]),           []);
+test("With duplicates", threeSum([-2,0,1,1,2]),   [[-2,0,2], [-2,1,1]]);`,
+      },
+      {
+        name: 'Generate Parentheses',
+        patterns: ['Backtracking', 'Recursion / D&C'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Generate Parentheses ═════
+// Given n pairs of parentheses, return all combinations of
+// well-formed parentheses.
+//
+// Example: generate(3) →
+//   ["((()))","(()())","(())()","()(())","()()()"]
+//
+// Hint: backtrack with two counters (open, close). Add '(' if
+// open < n; add ')' if close < open.
+
+function generate(n) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify([...actual].sort()) === JSON.stringify([...expected].sort());
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("n=1", generate(1), ["()"]);
+test("n=2", generate(2), ["(())", "()()"]);
+test("n=3", generate(3), ["((()))","(()())","(())()","()(())","()()()"]);
+test("n=0", generate(0), [""]);`,
+      },
+      {
+        name: 'Subsets',
+        patterns: ['Backtracking', 'Recursion / D&C'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Subsets (Power Set) ═════
+// Given an array of distinct integers, return all possible subsets
+// (the power set). Order of subsets in your answer does not matter
+// but each subset itself should be in input order.
+//
+// Example: subsets([1,2,3]) → [[],[1],[2],[3],[1,2],[1,3],[2,3],[1,2,3]]
+//
+// Hint: backtracking is the cleanest. Iterative bit-mask works too.
+
+function subsets(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const norm = (arrs) => [...arrs].map(a => JSON.stringify(a)).sort();
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(norm(actual)) === JSON.stringify(norm(expected));
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("[1,2,3]", subsets([1,2,3]), [[],[1],[2],[3],[1,2],[1,3],[2,3],[1,2,3]]);
+test("[0]",     subsets([0]),     [[], [0]]);
+test("[]",      subsets([]),      [[]]);`,
+      },
+      {
+        name: 'Permutations',
+        patterns: ['Backtracking', 'Recursion / D&C'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Permutations ═════
+// Given an array of distinct integers, return all possible
+// permutations. n! results.
+//
+// Example: permute([1,2,3]) →
+//   [[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]
+//
+// Hint: backtracking with a "used" set, OR swap-based recursion
+// in place.
+
+function permute(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const norm = (arrs) => [...arrs].map(a => JSON.stringify(a)).sort();
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(norm(actual)) === JSON.stringify(norm(expected));
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("[1,2,3]", permute([1,2,3]),
+  [[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]);
+test("[0,1]",   permute([0,1]),   [[0,1],[1,0]]);
+test("[1]",     permute([1]),     [[1]]);`,
+      },
+      {
+        name: 'Min Stack',
+        patterns: ['Stack'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Min Stack (O(1) min) ═════
+// Implement a stack with: push(x), pop(), top(), getMin().
+// All operations must be O(1).
+//
+// Hint: keep a parallel "min stack" that tracks the running minimum
+// at each level — push the new min when it's <= current min.
+
+class MinStack {
+  constructor() {
+    // YOUR CODE HERE
+  }
+  push(x) {}
+  pop() {}
+  top() {}
+  getMin() {}
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+const s = new MinStack();
+s.push(-2); s.push(0); s.push(-3);
+test("getMin after pushes", s.getMin(), -3);
+s.pop();
+test("top after pop",       s.top(),     0);
+test("getMin after pop",    s.getMin(), -2);
+s.push(-5); s.push(-5);
+test("getMin two equal",    s.getMin(), -5);
+s.pop();
+test("getMin one popped",   s.getMin(), -5);`,
+      },
+      {
+        name: 'Daily Temperatures',
+        patterns: ['Stack'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Daily Temperatures ═════
+// Given an array of daily temperatures, return an array where
+// answer[i] = number of days you'd have to wait until a warmer
+// temperature. If never, answer[i] = 0.
+//
+// Example: dailyTemperatures([73,74,75,71,69,72,76,73])
+//          →          [1, 1, 4, 2, 1, 1, 0, 0]
+//
+// Hint: monotonic decreasing stack of indices. Pop while the new
+// temp is warmer than what's on top.
+
+function dailyTemperatures(t) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Mixed", dailyTemperatures([73,74,75,71,69,72,76,73]), [1,1,4,2,1,1,0,0]);
+test("Increasing", dailyTemperatures([30,40,50,60]),         [1,1,1,0]);
+test("Decreasing", dailyTemperatures([90,80,70]),            [0,0,0]);`,
+      },
+      {
+        name: 'Coin Change',
+        patterns: ['Dynamic Programming'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Coin Change ═════
+// Given coin denominations and an amount, return the FEWEST coins
+// needed to make up that amount. -1 if impossible. Unlimited supply
+// of each coin.
+//
+// Example: coinChange([1,2,5], 11) → 3   (5 + 5 + 1)
+//
+// Hint: classic 1D DP. dp[i] = min coins for amount i.
+
+function coinChange(coins, amount) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Standard",   coinChange([1,2,5], 11),  3);
+test("Impossible", coinChange([2], 3),      -1);
+test("Zero",       coinChange([1], 0),       0);
+test("Single",     coinChange([1,2,5], 5),   1);`,
+      },
+      {
+        name: 'House Robber',
+        patterns: ['Dynamic Programming'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: House Robber ═════
+// Each house holds money. You cannot rob two adjacent houses
+// (alarms connect). Return the max amount you can rob.
+//
+// Example: rob([1,2,3,1]) → 4   (rob house 0 and 2: 1 + 3)
+//
+// Hint: dp[i] = max(dp[i-1], dp[i-2] + nums[i]). Two scalars
+// suffice — O(1) space.
+
+function rob(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Standard",     rob([1,2,3,1]),       4);
+test("Larger",       rob([2,7,9,3,1]),    12);
+test("Single",       rob([5]),             5);
+test("Empty",        rob([]),              0);`,
+      },
+      {
+        name: 'Jump Game',
+        patterns: ['Greedy'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Jump Game ═════
+// Each element nums[i] is the MAX jump length from index i.
+// Return true if you can reach the last index from index 0.
+//
+// Example: canJump([2,3,1,1,4]) → true
+//          canJump([3,2,1,0,4]) → false   (stuck at index 3)
+//
+// Hint: greedy. Track the farthest reachable index. If you ever
+// reach an index farther than that, return false.
+
+function canJump(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Reachable",   canJump([2,3,1,1,4]), true);
+test("Stuck",       canJump([3,2,1,0,4]), false);
+test("Single",      canJump([0]),         true);
+test("Zero start",  canJump([0,1]),       false);`,
+      },
+      {
+        name: 'Detect Cycle in Linked List',
+        patterns: ['Linked List', 'Two Pointer'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Detect Cycle in Linked List ═════
+// Given the head of a singly linked list, return true if a cycle
+// exists, otherwise false.
+//
+// Example: 3 → 2 → 0 → -4 ↻ (back to 2)  → true
+//
+// Hint: Floyd's tortoise & hare. Slow moves 1, fast moves 2; if
+// they ever meet, cycle exists. O(n) time, O(1) space.
+
+function hasCycle(head) {
+  // YOUR CODE HERE
+}
+
+// ═════ LIST HELPERS (for tests) ═════
+class ListNode {
+  constructor(val) { this.val = val; this.next = null; }
+}
+const fromArray = (arr, cycleAtIdx = -1) => {
+  if (!arr.length) return null;
+  const nodes = arr.map(v => new ListNode(v));
+  for (let i = 0; i < nodes.length - 1; i++) nodes[i].next = nodes[i + 1];
+  if (cycleAtIdx >= 0) nodes[nodes.length - 1].next = nodes[cycleAtIdx];
+  return nodes[0];
+};
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("With cycle",     hasCycle(fromArray([3,2,0,-4], 1)),  true);
+test("No cycle",       hasCycle(fromArray([1,2,3,4])),      false);
+test("Self loop",      hasCycle(fromArray([1], 0)),         true);
+test("Empty",          hasCycle(null),                      false);`,
+      },
+      {
+        name: 'Sort Colors',
+        patterns: ['Two Pointer', 'In-Place'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Sort Colors (Dutch Flag) ═════
+// Given an array with values 0, 1, 2 only, sort them IN PLACE
+// in one pass without using a sort built-in.
+//
+// Example: sortColors([2,0,2,1,1,0]) → [0,0,1,1,2,2]
+//
+// Hint: three pointers — low (next 0 slot), mid (cursor),
+// high (next 2 slot). Move mid forward, swap as needed.
+
+function sortColors(nums) {
+  // YOUR CODE HERE — mutate nums; no return needed
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+const a1 = [2,0,2,1,1,0]; sortColors(a1);
+test("Mixed",    a1, [0,0,1,1,2,2]);
+
+const a2 = [2,0,1]; sortColors(a2);
+test("Tiny",     a2, [0,1,2]);
+
+const a3 = [0]; sortColors(a3);
+test("Single",   a3, [0]);
+
+const a4 = [1,1,1]; sortColors(a4);
+test("All same", a4, [1,1,1]);`,
+      },
+      {
+        name: 'Top K Frequent Elements',
+        patterns: ['Hash Map / Set', 'Sorting'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Top K Frequent Elements ═════
+// Given an integer array and integer k, return the k most frequent
+// elements. Order of the returned k elements does not matter.
+//
+// Example: topK([1,1,1,2,2,3], 2) → [1, 2]
+//
+// Hint: bucket sort by frequency runs in O(n). Heap-of-size-k is
+// O(n log k). Sort all entries is O(n log n) and acceptable.
+
+function topK(nums, k) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify([...actual].sort()) === JSON.stringify([...expected].sort());
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("k=2", topK([1,1,1,2,2,3], 2),     [1, 2]);
+test("k=1", topK([1], 1),               [1]);
+test("All distinct", topK([4,5,6], 2),  [4, 5]);
+test("All same", topK([7,7,7], 1),      [7]);`,
+      },
+      {
+        name: 'Merge Two Sorted Lists',
+        patterns: ['Linked List', 'Two Pointer'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Merge Two Sorted Lists ═════
+// Given heads of two sorted singly linked lists, splice them
+// together into one sorted list and return its head.
+//
+// Example: mergeTwoLists(1→2→4, 1→3→4) → 1→1→2→3→4→4
+//
+// Hint: dummy head + tail pointer. Walk both, picking the smaller
+// each step. When one runs out, splice the rest of the other.
+
+function mergeTwoLists(l1, l2) {
+  // YOUR CODE HERE
+}
+
+// ═════ LIST HELPERS ═════
+class ListNode {
+  constructor(val) { this.val = val; this.next = null; }
+}
+const fromArray = (arr) => {
+  if (!arr.length) return null;
+  const head = new ListNode(arr[0]);
+  let cur = head;
+  for (let i = 1; i < arr.length; i++) { cur.next = new ListNode(arr[i]); cur = cur.next; }
+  return head;
+};
+const toArray = (head) => {
+  const out = []; let cur = head;
+  while (cur) { out.push(cur.val); cur = cur.next; }
+  return out;
+};
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",  toArray(mergeTwoLists(fromArray([1,2,4]), fromArray([1,3,4]))), [1,1,2,3,4,4]);
+test("L1 empty",  toArray(mergeTwoLists(null, fromArray([0]))),                    [0]);
+test("Both empty",toArray(mergeTwoLists(null, null)),                              []);
+test("Disjoint",  toArray(mergeTwoLists(fromArray([1,2,3]), fromArray([4,5,6]))), [1,2,3,4,5,6]);`,
+      },
     ],
   },
   {
     label: 'React Machine Coding',
     tag: 'React',
+    kind: 'challenge',
     templates: [
       {
         name: 'Pagination',
@@ -4631,5 +5689,76 @@ render(<App />);`,
 
 // Flatten for easy access
 export const allTemplates: FlatTemplate[] = templateCategories.flatMap(cat =>
-  cat.templates.map(t => ({ ...t, category: cat.label, tag: cat.tag }))
+  cat.templates.map(t => ({ ...t, category: cat.label, tag: cat.tag, kind: cat.kind ?? 'template' }))
 );
+
+// ==================== Blank Starters ====================
+// Three starter snippets for users who want to start fresh in JS / TS / React.
+// Surfaced via the "Blank" tab in the templates modal.
+
+export interface BlankStarter {
+  name: string;
+  lang: TemplateLang;
+  description: string;
+  code: string;
+}
+
+export const blankStarters: BlankStarter[] = [
+  {
+    name: 'JavaScript',
+    lang: 'js',
+    description: 'Plain JavaScript editor.',
+    code: `// JavaScript playground — start fresh!
+
+console.log("Hello, JavaScript!");
+
+// Try anything: variables, functions, async/await, etc.
+const greet = (name) => \`Hello, \${name}!\`;
+console.log(greet("World"));`,
+  },
+  {
+    name: 'TypeScript',
+    lang: 'ts',
+    description: 'Type-stripped TS via Babel — runs as JS.',
+    code: `// TypeScript playground — types are stripped at runtime.
+
+interface User {
+  name: string;
+  age: number;
+}
+
+function greet(user: User): string {
+  return \`Hello, \${user.name}! You are \${user.age} years old.\`;
+}
+
+const ana: User = { name: "Ana", age: 30 };
+console.log(greet(ana));`,
+  },
+  {
+    name: 'React',
+    lang: 'jsx',
+    description: 'React component sandbox with live preview.',
+    code: `// React playground — your component renders to the right.
+
+function App() {
+  const [count, setCount] = React.useState(0);
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+      <h2>Hello, React!</h2>
+      <p>You clicked {count} times.</p>
+      <button
+        onClick={() => setCount(count + 1)}
+        style={{
+          padding: "8px 16px", borderRadius: 6, border: "none",
+          background: "#3b82f6", color: "#fff", cursor: "pointer",
+        }}
+      >
+        Click me
+      </button>
+    </div>
+  );
+}
+
+render(<App />);`,
+  },
+];

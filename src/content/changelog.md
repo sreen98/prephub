@@ -1,5 +1,285 @@
 # What's New
 
+## v1.0.9 (May 2026)
+
+### Coding Challenges Now Tagged by Algorithmic Pattern
+
+Every JS Coding Challenge is now tagged with the algorithmic pattern(s) it demonstrates &mdash; so studying one challenge teaches you the pattern for every other challenge that shares the tag. **Reverse String** and **Valid Palindrome** both use the **Two Pointer** pattern; learn it once on Reverse String, you've learned it for both.
+
+Each template card now shows its pattern tags below the name. A new **Pattern filter** row in the templates modal (challenges tab) lets you narrow the list to only challenges that use a specific pattern. Clicking **Two Pointer** surfaces 10 challenges all using the same converging-pointer technique:
+
+- Reverse String &middot; Valid Palindrome &middot; Container With Most Water &middot; 3Sum &middot; Trapping Rain Water &middot; Move Zeros &middot; Rotate Array &middot; Sort Colors &middot; Detect Cycle in Linked List &middot; Merge Two Sorted Lists &middot; Merge Sorted Arrays
+
+The 14 patterns are organized into 5 super-categories &mdash; no long horizontal-scrolling row, just five short labeled rows that fit any screen:
+
+- **Linear scans:** Two Pointer · Sliding Window · In-Place
+- **Lookup:** Hash Map / Set · Stack
+- **Recursive:** Recursion / D&amp;C · Backtracking
+- **Optimization:** Dynamic Programming · Greedy · Binary Search
+- **Data + Misc:** Sorting · Linked List · Closure / State · Math / Bit
+
+Each chip shows its challenge count, so you can see at a glance which patterns are most-asked.
+
+Distribution highlights:
+- **Hash Map / Set** &mdash; 11 challenges (Two Sum, Find Duplicates, EventEmitter, LRU, Memoize, etc.)
+- **Two Pointer** &mdash; 10 challenges
+- **Recursion / D&amp;C** &mdash; 9 (Quick Sort, Merge Sort, Flatten Array, Deep Clone, Compose &amp; Pipe, Subsets, Permutations, Generate Parentheses, Sum Curry)
+- **Closure / State** &mdash; 6 (Debounce, Throttle, Memoize, EventEmitter, Compose &amp; Pipe, Sum Curry)
+- **Sorting** &mdash; 6 (Bubble/Quick/Merge Sort plus Group Anagrams, Anagram Check, Top K Frequent)
+- **Dynamic Programming** &mdash; 5 (Climbing Stairs, House Robber, Coin Change, Maximum Subarray, Max Profit)
+
+A challenge can have multiple patterns (Quick Sort is both **Sorting** and **Recursion / D&amp;C**; Longest Substring is both **Sliding Window** and **Hash Map / Set**). The intent is that the patterns reflect what techniques you actually need to know to solve the challenge.
+
+### Every Coding Challenge Now Has 2+ Approaches with Elaborate Teaching
+
+Big quality upgrade across all 35 algorithm explanations. Every challenge in the Explain modal now shows **at least two approaches** &mdash; the canonical "best" answer plus an alternative or baseline &mdash; with multi-paragraph intuitions that walk you through the algorithm rather than just stating it.
+
+A representative sample of new second approaches now shipped:
+
+- **Reverse String** &mdash; built-in chain (split &rarr; reverse &rarr; join) alongside the canonical two-pointer
+- **Valid Palindrome** &mdash; regex-based strip-and-compare with the regex `/[^a-z0-9]/gi` broken down piece by piece (`[^...]` negation, `a-z` and `0-9` ranges, `g`/`i` flag meanings)
+- **FizzBuzz** &mdash; string concatenation with the elegant `s || String(i)` falsy-empty-string trick
+- **Max Profit** &mdash; brute-force baseline showing the path to the O(n) one-pass insight
+- **Valid Parentheses** &mdash; the cute "replace inner pairs" alternative (O(n&sup2;) but a beautiful constructive proof)
+- **Quick Sort** &mdash; three-way partition (Dutch National Flag) for duplicate-heavy inputs
+- **Merge Sort** &mdash; bottom-up iterative variant that avoids recursion stack overhead
+- **Find Missing Number** &mdash; XOR identity (`a ^ a = 0`) for overflow safety
+- **LRU Cache** &mdash; the textbook DLL+Map version alongside the JS Map insertion-order trick
+- **Memoize** &mdash; WeakMap variant for object-keyed caches with automatic GC
+- **Deep Clone** &mdash; quick `JSON.parse(JSON.stringify())` baseline with all the things it loses (Date, undefined, functions, cycles)
+- **Throttle** &mdash; trailing-edge variant that captures the LAST args (vs leading-edge that captures the first)
+- **Compose &amp; Pipe** &mdash; async pipe that awaits each step
+- **Binary Search** &mdash; recursive variant with the JS-tail-call-not-eliminated caveat
+- **Climbing Stairs** &mdash; memoized top-down recursion alongside the O(1) bottom-up
+
+When regex appears in any approach, the regex itself is now explained piece by piece &mdash; what each character class means, what each flag does, why the pattern was chosen.
+
+### New JS & TS Guide &mdash; Regex
+
+A complete, interview-grade Regex guide now lives under JS &amp; TS. Roughly 1,100 lines covering:
+
+- **What regex is** (and emphatically isn't &mdash; HTML, JSON, RFC 5322 emails)
+- **The two creation forms** (literal vs constructor) and the double-escape gotcha
+- **All 8 flags** &mdash; `g i m s u y d v` &mdash; what each does and when to use it
+- **Character classes**, **anchors**, **word boundaries**
+- **Greedy vs lazy quantifiers** with a tag-extraction example
+- **Groups, captures, named captures, backreferences**
+- **All 4 lookarounds** with worked examples (the strong-password regex with stacked positive lookaheads)
+- **Unicode handling** &mdash; the `u` flag, `\p{Letter}`, surrogate-pair gotchas with emoji
+- **Full JS API** &mdash; test, exec, match, matchAll, replace, replaceAll, search, split &mdash; with the differences between them
+- **The `lastIndex` gotcha** &mdash; the #1 source of regex bugs in JS, with three fixes
+- **Catastrophic backtracking and ReDoS** &mdash; what makes a regex hangable, why `(a+)+` is dangerous, how to avoid it
+- **Commonly used patterns** &mdash; email, URL, phone, IPv4, ISO date, time, HEX color, strong password, username, UUID v4, credit card, slug, whitespace, markdown, HTML
+- **Real-world use cases** &mdash; form validation, slug generation, search highlighting, query string parsing, sensitive-data masking, URL extraction, HTML stripping, camelCase&harr;kebab-case, template token replacement
+- **Anti-patterns** &mdash; what regex should never be used for
+- **Full cheat sheet**
+- **8 interview Qs** + **8 tricky Qs** including the `lastIndex` bug, the catastrophic-backtracking pattern, the split-with-capture-group surprise, and the HTML-escape-order subtlety
+
+Total guides: 38 &rarr; **39**. JS &amp; TS section: 3 &rarr; **4**.
+
+### Polyfill Cross-Links in Explain Modal + 7 New Polyfills
+
+The Explain modal now shows you which built-in JavaScript methods each algorithmic approach actually leans on &mdash; with **clickable chips that open the corresponding polyfill template**. Curious how `Array.prototype.reduce` or `JSON.parse` is implemented under the hood? Click the chip in the Flatten Array or Deep Clone explanation, and the polyfill opens in the editor instantly.
+
+Tagged so far:
+- **Flatten Array** &rarr; reduce, concat, flat
+- **Group Anagrams** &rarr; sort, join
+- **Rotate Array** &rarr; reverse, slice, concat
+- **Anagram Check** &rarr; sort, join
+- **Deep Clone** &rarr; JSON.stringify, JSON.parse
+- **Compose &amp; Pipe** &rarr; reduce
+
+**7 new JS polyfills** added to fill commonly-asked gaps in interview prep:
+
+- **JSON.parse** &mdash; full recursive-descent parser, pairing with the existing `JSON.stringify` polyfill
+- **Array.isArray** &mdash; including the iframe-cross-realm gotcha that breaks `instanceof Array`
+- **Object.create** &mdash; the classic 4-line implementation, descriptors variant, and the null-prototype use case for "true map" objects
+- **Object.freeze + deepFreeze** &mdash; shallow native freeze, recursive deep freeze, plus a `WeakSet`-based cycle-safe variant
+- **Array.prototype.fill** &mdash; with the shared-reference gotcha (`new Array(3).fill([])` makes three slots pointing to the SAME array)
+- **String.prototype.repeat** &mdash; the O(log n) bit-shifting doubling trick, plus the naive baseline
+- **Array.prototype.join** &mdash; with `null`/`undefined`/sparse-hole handling
+
+Polyfill count: 24 &rarr; **31**.
+
+### Playground — Auto-Save, Status Tracking, 15 New Challenges, Word Wrap
+
+The biggest playground update yet. Five things shipped together.
+
+**1. Your code is auto-saved per challenge.** Type anything in the editor and it's quietly saved every ~800ms. Close the tab, reload, come back tomorrow — your code is right where you left it. Each challenge has its own slot. When you reopen one, a small toast says "Resumed your saved work in '_X_'" and a **Reset** button lets you revert to the original challenge stub if you want a clean start. Show Solution still confirms before overwriting.
+
+**2. Solved tracking.** When you click Run and every test passes (all ✅), the challenge is marked Solved. The templates modal now shows colored dots on each card — green for solved, amber for in-progress, none for untouched. The playground header shows your overall progress: "**4 / 50 solved**". The pass/fail count appears as a green or red pill near Run after each execution.
+
+**3. Continue last session + Random Challenge.** When you open `/playground`, if you have unfinished work, a pill at the top says **Resume "Two Sum"** with how long ago you edited it. One click takes you back. New **Random** button in the templates modal (challenges tab) opens a randomly chosen unsolved challenge.
+
+**4. Notes scratchpad per challenge.** A collapsible Notes panel below the editor lets you jot down thoughts as you go — approach ideas, gotchas, complexity reasoning. Saved alongside your code. Stays empty for fresh templates.
+
+**5. Word-wrap toggle (default ON).** New **Wrap on / off** pill in the editor toolbar. When the splitter is dragged narrow, long lines now wrap to the next line by default instead of clipping off the right side. Toggle off if you prefer horizontal scroll. Persists across reloads.
+
+### 15 New JavaScript Coding Challenges
+
+Total challenge count: 35 → **50**. New patterns now represented: dynamic programming, backtracking, monotonic stack, greedy, linked list cycle detection.
+
+- **Maximum Subarray (Kadane's)** — classic DP / running sum
+- **Trapping Rain Water** — two-pointer, harder
+- **3Sum** — sort + two-pointer (extends Two Sum)
+- **Generate Parentheses** — backtracking with two counters
+- **Subsets** — power-set backtracking
+- **Permutations** — backtracking with used-set
+- **Min Stack** — implement push/pop/top/getMin all in O(1)
+- **Daily Temperatures** — monotonic stack
+- **Coin Change** — minimum-coins DP
+- **House Robber** — adjacency-constrained DP
+- **Jump Game** — greedy reachability
+- **Detect Cycle in Linked List** — Floyd's tortoise & hare (helper included)
+- **Sort Colors** — Dutch flag three-pointer
+- **Top K Frequent Elements** — bucket sort or heap
+- **Merge Two Sorted Lists** — linked list splicing (helper included)
+
+### Playground — Resizable Layout + Step-by-Step Explain Modal
+
+Two upgrades to the playground.
+
+**Resizable editor / console split.** The vertical divider between the editor and the Console Output panel is now draggable. Grab it and pull left or right to give the panel that needs more room exactly that &mdash; useful when your test output runs long, or when you're typing a wide function. Your chosen split persists across reloads.
+
+**Explain button (Two Sum, more coming).** Coding Challenges now have a new **Explain** button (Sparkles icon, indigo) next to **Show Solution**. Click it to open a step-by-step walkthrough modal:
+
+- **Intuition** of the approach in one paragraph &mdash; what the algorithm is actually doing.
+- **Complexity** with time, space, and a verdict on when to use it.
+- **Visual canvas** showing the array, the hash map, and the math being performed at each step. Cells light up to show what i and j are pointing at; map entries highlight when newly added or matched.
+- **Pseudocode** alongside the visual, with the current line highlighted as you walk through.
+- **Step navigator** at the bottom &mdash; Prev/Next/Reset, click any dot to jump, or hit the Play button to auto-advance. Keyboard shortcuts: &larr;/&rarr; to step, Space to autoplay, Esc to close.
+
+For Two Sum specifically, you can step through both **Brute Force** (4 steps showing the nested-loop comparisons) and the **Hash Map one-pass** approach (5 steps showing how the complement check + map fill works). It's the difference between reading a solution and watching the solution happen.
+
+**Now extended to all 35 JavaScript Coding Challenges.** Every JS challenge in the playground now has its own Explain button with the same step-by-step treatment, tailored to the algorithm:
+
+- **Stack visualizations** for **Valid Parentheses** (push/pop) showing matched openers and closers.
+- **Two-pointer animations** for **Reverse String**, **Valid Palindrome**, **Container With Most Water**, **Merge Sorted Arrays** &mdash; pointers light up as they walk inward or merge.
+- **Sliding window + set** for **Longest Substring Without Repeating** &mdash; watch the window expand and shrink.
+- **Recursion call-stack** for **Quick Sort**, **Merge Sort**, **Flatten Array**, **Sum Curry**, **Deep Clone**, **Compose &amp; Pipe** &mdash; see frames stack up and resolve.
+- **Linked-list nodes with arrows** for **Reverse Linked List** &mdash; prev/curr/next markers walk through the reversal.
+- **Timeline visualizations** for **Debounce** and **Throttle** &mdash; events appear on a time axis showing which calls fire and which get skipped.
+- **Hash map state** for **Group Anagrams**, **Anagram Check**, **First Non-Repeating Character**, **Memoize**, **EventEmitter**, **LRU Cache**, **Balanced Brackets (Count)** &mdash; entries highlight as new or hit.
+- **Set state** for **Find Duplicates**, **Remove Duplicates** &mdash; chips light up as values are added or matched.
+- **Sorting walkthroughs** for **Bubble Sort** with swap markers per pass.
+- **Search visualizations** for **Binary Search** &mdash; low/mid/high pointers shrink in half each step.
+- **Math callouts** for **Find Missing Number**, **Climbing Stairs**, **Roman to Integer**, **Second Largest Number** &mdash; running computation shown step by step.
+
+React Machine Coding templates intentionally do **not** have Explain entries &mdash; those are open-ended UI builds, not single-answer algorithms.
+
+### Checkpoints — Pick Up Where You Left Off
+
+Reading a long guide, hitting pause, and trying to remember which section you were on now has a one-click answer.
+
+While reading **any guide**, scroll to wherever you stopped and click the new floating **&ldquo;Save Checkpoint&rdquo;** button (bottom-right, appears once you've scrolled past the top). It auto-detects the nearest heading above your current viewport and remembers it as your reading position for that guide.
+
+When you return to the same guide, an indigo **&ldquo;Continue from 'Hooks'&rdquo;** banner appears at the top &mdash; one click smooth-scrolls you straight back to the section you were last reading. The banner has an &times; to clear the checkpoint when you're done.
+
+**One checkpoint per guide.** Saving a new one replaces the old (you don't need to clean up). Unlike bookmarks (where you save many interesting sections to revisit), a checkpoint is your single &ldquo;you are here&rdquo; marker. The two coexist &mdash; you might bookmark a key section for reference and set a checkpoint somewhere else for resuming.
+
+A new **&ldquo;Checkpoints&rdquo;** entry in the sidebar Tools section opens a global page listing every checkpoint you've saved across all guides, sorted by most recent. Each row shows the guide name, the section heading, when you saved it, and a **Continue &rarr;** button that jumps you straight there.
+
+All checkpoints persist locally in the browser like the rest of PrepHub's state &mdash; nothing leaves your device.
+
+### New Guide — Real-Time Web (Polling, SSE, WebSockets & Beyond)
+
+A new Front End guide covering the architectural question of "how does the server tell the client something happened?" — every transport pattern senior front-end interviews probe.
+
+**What's covered (~1,400 lines, 9 transport patterns):**
+
+- **HTTP is request/response** — the architectural fact every pattern in the guide exists to work around
+- **Short polling** — when it's the right answer, exponential back-off, pause-on-hidden-tab
+- **Long polling** — Comet-era pattern, still valuable as a fallback; full Express server example with event bus
+- **Server-Sent Events** — `EventSource`, frame format (`data:`, `event:`, `id:`, `retry:`, comment heartbeats), `Last-Event-ID` resumption, the ~6-connections-per-origin gotcha + HTTP/2 fix
+- **WebSockets** — handshake (with `Sec-WebSocket-Accept` SHA-1 derivation), frame anatomy (FIN, opcode, MASK), why client→server frames are masked (cache-poisoning defense), close codes (1000/1001/1006/1011/4xxx), heartbeats, the half-open connection problem, full reconnection-with-jitter implementation, `ws` Node example, Socket.IO example with rooms + acks
+- **HTTP streaming with `fetch` + ReadableStream** — how AI chat UIs (ChatGPT-style) actually work; SSE-over-fetch for endpoints that need `Authorization` headers (which `EventSource` can't send)
+- **WebRTC DataChannels** — peer-to-peer with sub-100ms latency; signaling channel responsibilities; when you'd actually reach for it (games, collab editors, P2P file transfer)
+- **Push API + Service Workers** — VAPID, subscription endpoints, `web-push` Node example; the "must show a notification" browser policy
+- **GraphQL Subscriptions** — `graphql-ws` server + Apollo Client setup; the operational-cost reality check
+
+**Production concerns section** covers auth (token-in-URL vs subprotocol vs cookie vs auth-after-open), reconnection strategy (exponential back-off + full jitter + visibility-aware), message ordering & replay (sequence numbers, `Last-Event-ID`, outbox pattern), backpressure (`ws.bufferedAmount`, SSE `drain`), scaling (sticky sessions + Redis pub/sub fan-out diagram), monitoring metrics, and the WebSocket → SSE → long polling → short polling fallback chain.
+
+**Decision table** comparing all 9 patterns by direction, latency, complexity, browser limits, and when-to-use; plus a 6-question decision tree.
+
+**16 interview Qs** (beginner → advanced) covering why HTTP can't push, short vs long polling, SSE vs WebSocket choice, WebSocket handshake details, why client frames are masked, production reconnection requirements, SSE heartbeat vs WebSocket ping at protocol vs application layer, the 6-tab SSE limit, WebSocket auth strategies, WebSocket scaling with Redis pub/sub, the laptop-sleep half-open connection problem, when to use `fetch` streaming over `EventSource`, HTTP/2 push deprecation, polling as the right answer, and message-ordering with reconnect.
+
+**8 tricky Qs** covering 8-tabs-hang on SSE, corporate-proxy WebSocket failures, out-of-order events despite TCP guarantees, React Strict Mode double-mounting WebSockets (with the singleton-context fix), WebSocket cost-explosion audit questions, Safari-only `fetch` streaming buffering, why "exactly-once" is a marketing lie (and the at-least-once + idempotent pattern that approximates it), and why a WebRTC video-call app still needs a WebSocket (signaling vs media).
+
+Total guides: 37 → 38; tricky Qs across the app: 135 → 143.
+
+### React Guide — Built-in Hooks Reference Now Has Theory
+
+Section 6.2 was a lone code block listing every hook signature with no explanation — useful as a recap, useless if you didn't already know what `useImperativeHandle` was for. It's now a per-hook walkthrough: each of the 14 React 19 built-in hooks gets its own subsection with **what it does**, **when to use it**, and **the most common pitfall**, plus a focused example.
+
+Highlights of what's now properly explained:
+
+- **`useState` and `useReducer`** — when a reducer earns its complexity and when a single boolean really doesn't need one
+- **`useEffect`** — what to use it for vs what people mistakenly use it for (deriving state, handling user events) — with a pointer to §7 for the full effect lifecycle
+- **`useContext`** — the re-render storm pitfall when `value={{ user, setUser }}` is a fresh object literal every render
+- **`useRef`** — DOM ref vs instance variable, and why reading `.current` during render breaks purity
+- **`useMemo` vs `useCallback`** — the identity `useCallback(fn, deps) === useMemo(() => fn, deps)`, plus the senior-level "useless without consumer memoization" caveat
+- **`useImperativeHandle`** — the "you're probably fighting the framework" warning sign
+- **`useLayoutEffect`** — the synchronous-before-paint contract and when the flicker is bad enough to escalate from `useEffect`
+- **`useSyncExternalStore`** — the "must return `===`-equal" stable snapshot rule that infinite-loops if you violate it
+- **`useId`** — why it's SSR-safe and why you must NOT use it as a list `key`
+- **`useTransition` vs `useDeferredValue`** — when to use one vs the other (own the setter / don't own the setter)
+
+Opens with a 7-row mental-model table grouping all 14 hooks into State / Side effects / Context / Refs / Memoization / Concurrent / External data / Misc buckets.
+
+### Playground — Rainbow Brackets + Matching-Pair Highlight
+
+The playground editor now colors brackets by nesting depth — paired `( )`, `[ ]`, and `{ }` share the same color (gold / orchid / azure), cycling every three levels just like VS Code's bracket pair colorization. Makes it instantly obvious which closer belongs to which opener in deeply-nested JSX or callback chains.
+
+When the cursor lands on a bracket, both that bracket **and its match** are outlined and softly highlighted, so you can see at a glance where a pair starts and ends. Strings, comments, and regex literals are intentionally skipped — a `(` inside `"hello ("` is still gray, not a depth color.
+
+### Playground — Auto-Format with Prettier
+
+New **Format** button (also `⌘/Ctrl + Shift + F`) reformats your code with Prettier on demand. The formatter is lazy-loaded on first click — about ~140 KB gzipped split across babel, estree, and the typescript plugin, none of which are paid for unless you actually format. Picks the right parser automatically: pure JS/JSX uses Babel, anything with TypeScript syntax (interfaces, generics, type annotations) uses TypeScript even when the template is marked JSX. If your code has a real syntax error, Prettier surfaces the line and column in the console without overwriting your buffer.
+
+Two more editor niceties shipped alongside it:
+- **Auto-indent on Enter** — pressing Enter inside `{`, `[`, or `(` opens a new line with one extra indent and re-aligns the closing bracket on a third line.
+- **Bracket auto-close** (toggleable from the toolbar pill, persisted across sessions) — typing `(`, `[`, `{`, `"`, `'`, or `` ` `` inserts the matching closer and places the caret between them. Skipped intelligently when the next character is a word character (so `console.log` doesn't get an extra `)`).
+
+### Playground — Every Challenge Solution Now Multi-Approach
+
+Completed the audit: **all 35 Coding Challenge solutions** now show multiple approaches side by side with a Time / Space / Verdict comparison table and a "When to pick which" footer that explains the trade-offs and _why_ a given approach is used.
+
+Highlights of what's now covered:
+
+- **Sorting:** Bubble Sort (basic / early-exit / cocktail), Quick Sort (three-way partition / Lomuto in-place / random pivot), Merge Sort (top-down / bottom-up iterative)
+- **Search:** Binary Search (iterative / recursive / linear baseline), Longest Substring (index-map / Set+shrink), First Non-Repeating Char (two-pass map / one-pass ordered map)
+- **Data structures:** EventEmitter (Map of Sets vs Map of Arrays), LRU Cache (Map insertion-order trick vs textbook doubly-linked-list + Map), Memoize (4 cache strategies including WeakMap for object args)
+- **Functional:** Debounce (4 variants: trailing-edge / leading-edge / both-edges / cancellable), Throttle (timestamp / timer / both-edges), Compose & Pipe, Sum Curry (empty-call vs valueOf trick), Memoize
+- **Cloning / serialization:** Deep Clone (recursion+WeakMap vs `structuredClone` vs JSON round-trip), Group Anagrams (sorted-key vs char-count signature vs prime-product trick)
+- **Array manipulation:** Rotate Array (slice+concat / reverse-three-times / cyclic replacement), Move Zeros (write-index / single-pass-swap / filter+pad), Find Missing Number (sum / XOR overflow-safe / Set / sort), Find Duplicates, Remove Duplicates
+- **String / classic LeetCode:** Two Sum (hash map vs brute force), FizzBuzz (if/else / string-concat / lookup table), Valid Parentheses (stack canonical / replace-empty-pairs), Roman to Integer (peek / right-to-left / replace-pairs)
+
+Every solution names its **best** approach for performance, **best** for readability, and **don't ship** baselines — and explains _why_ the pattern (sliding window, two-pointer, DLL+Map, etc.) is the right shape for the problem class. The Show Solution toggle in the playground reveals all of them.
+
+### Playground — Multi-Approach Solutions + 2 More Templates
+
+Two new Coding Challenges added:
+
+- **Balanced Brackets (Count)** — count-based parity check for `()`, `[]`, `{}`. Returns true when the number of opens equals closes for each pair. Note: this is _different_ from the existing **Valid Parentheses** template, which validates nesting order (so `([)]` is `false` for that one but `true` for this count-based one).
+- **Second Largest Number** — find the second-largest unique value in an array, without using `sort()`.
+
+The "Show Solution" toggle for both new templates reveals **multiple approaches** side by side, with a comparison table showing time / space / verdict, and trailing commentary on when to pick which approach.
+
+Several existing Coding Challenges had their solutions upgraded the same way — multiple approaches with performance commentary instead of one canonical answer:
+
+- **Two Sum** — single-pass hash map (best) · two-pass hash map · brute force O(n²)
+- **Reverse String** — two-pointer in-place · split+reverse+join (1-liner) · recursion · for-loop concat
+- **Find Missing Number** — sum formula (best) · XOR (overflow-safe) · Set lookup · sort+scan
+- **Find Duplicates** — two Sets (best) · frequency map · sort+scan · filter+indexOf
+- **Anagram Check** — frequency map (best) · sort+compare · char-code array (ASCII)
+- **Climbing Stairs** — bottom-up DP O(1) space (best) · dp array · memoized recursion · naive recursion · Binet's closed-form
+- **Container With Most Water** — two-pointer (best) · brute force
+- **Binary Search** — iterative (best) · recursive · linear scan
+
+Each shows a Time / Space / Verdict table and "When to pick which" commentary so you can see not just _an_ answer but the _trade-offs_ between answers.
+
+Total templates: 96 → 98. Total solutions: 33 → 35.
+
 ## v1.0.8 (May 2026)
 
 ### Stripe Integration Guide
@@ -93,311 +373,3 @@ The React guide was audited against the "React.js Priority Map for Jobs in 2026"
 - **§16.3 useFormStatus** — added alongside existing `useActionState` (renamed from "Actions" with deeper explanation) and `useOptimistic`, framing them as the **form-state triad** (form-level state machine + descendant access + instant UI). Renumbered React 19 subsections to 16.1–16.5.
 - **§13.2 useMemo / useCallback identity** — added the `useCallback(fn, deps) === useMemo(() => fn, deps)` equivalence interviewers love to test, plus a "when NOT to memoize" senior-signal block (cheap renders, unstable deps, no memoized consumer, React Compiler enabled). The point: profile first, don't sprinkle memoization preemptively.
 - **§6.3 Custom Hooks expansion** — added `useFetch` (with `AbortController` cleanup, the canonical "build one live" interview ask) and `useToggle` alongside the existing `useDebounce` and `useLocalStorage`. The four together cover the most-asked custom-hook patterns, with a note that the cancellation pattern is the senior-level signal.
-
-## v1.0.6 (April 2026)
-
-### Removed: Read Aloud (Text-to-Speech)
-
-The Read Aloud / Text-to-Speech feature has been removed. The button on guide pages, the playback controls, the paragraph-highlighting style, and the underlying Web Speech API hook are all gone. Existing `tts-prefs` localStorage keys are left in place but no longer read.
-
-### Behavioral Guide — Major Expansion
-
-The Behavioral guide grew from a STAR-method overview into a comprehensive interview prep resource. Four new sections, plus deeper foundational theory:
-
-- **§3 Alternative Frameworks Beyond STAR** — when STAR doesn't fit, four alternatives with the questions they suit best: **CAR** (compressed, for senior+ candidates), **SOAR** (with an explicit _Obstacle_ beat for "tell me about a hard challenge" questions), **PARLA** (Problem / Action / Result / Learning / Application — the reflection-heavy framework, ideal for "tell me about a failure" and Microsoft growth-mindset interviews), and **BAR** (rubric-aligned for Amazon LP / Google GCA / explicit-trait questions). Plus a "when to use which" table.
-- **§7 Company-Specific Behavioral Cultures** — per-company rubric breakdowns for **Amazon** (Leadership Principles, bar raiser, data obsession), **Google** (GCA / RRK / Leadership / Googleyness), **Meta** (Move Fast / Be Bold / Focus on Impact, with a bias-for-action lens), **Microsoft** (growth mindset, learning from failure, customer obsession), **Apple** (detail, craft, secrecy comfort), **Netflix** (high judgment, candor, "keeper test"), and **startups** (many hats, speed under chaos). Closes with a cross-company comparison table of top signals graded vs worst-fit story types.
-- **§9 Handling Tough Questions** — frames and scripts for the questions where candidates typically lie, dodge, or sabotage themselves: "why are you leaving," "tell me about a weakness," "why is there a gap on your résumé," "tell me about a conflict," "tell me about a failure," "what are your salary expectations" (early-round), "what's your current salary," and "where do you see yourself in 5 years."
-- **§10 Salary Negotiation** — the highest-leverage 30 minutes of an engineer's career. Market-data sources (Levels.fyi, Blind, network), the negotiation timeline (verbal offer → written offer → counter), the seven components of total comp (base, signing, equity, refresher, performance bonus, relocation, benefits), what counts as leverage and what doesn't, the negotiation script, seven mistakes to avoid, and when not to negotiate.
-- **§1 Why Behavioral Interviews Matter** — added the empirical research foundation (Janz / Hellervik / Gilmore _Behavior Description Interviewing_ 1986, Google's Project Oxygen and Project Aristotle), the three theoretical assumptions structured behavioral interviewing rests on, and concrete framing for why "tell me about a time" works while "what would you do" doesn't.
-
-Sections renumbered: previous 3→4, 4→5, 5→6, 6→8, 7→11, 8→12, 9→13, 10→14, 11→15, with TOC updated to match.
-
-### CORS Guide Expansion
-
-Section 1 (Same-Origin Policy) gained two theory blocks:
-
-- **Why SOP Exists — The Threat Model** — the concrete attack SOP prevents (bank.com cookie-leak via attacker.com fetch), and the three things to internalize (cookies are domain-keyed not page-keyed; the server still ran the request; CORS is the deliberate exception to a default-deny model).
-- **The History — How We Got Here** — timeline from 1995 (Netscape introduces SOP with JavaScript) through 2009 (CORS spec finalized) to 2020+ (COOP/COEP for SharedArrayBuffer + Spectre mitigation), framing SOP as a living security model rather than a fixed rule.
-
-### Storybook Guide Expansion
-
-Section 1 (What is Storybook?) added Component-Driven Development theory:
-
-- **Why Isolation Matters — Component-Driven Development** — three structural problems CDD solves (the "running the whole app to see one button" problem; the "works in this context, breaks in that one" bug; the design/engineering handoff).
-- **Storybook in the broader testing stack** — 4-layer comparison table (Unit / Component / Visual Regression / E2E) showing exactly where Storybook fits and what each layer catches.
-
-### Design Patterns Guide
-
-A new Front End guide: **Design Patterns** — all 23 Gang of Four patterns (Creational, Structural, Behavioral) with JavaScript/TypeScript examples and idiomatic-JS alternatives where the language already solves what the pattern was invented to address. Plus the React-specific canon: Higher-Order Components, Render Props, Custom Hooks, Compound Components, Container/Presentational, Provider, and the Reducer pattern. Closes with anti-patterns to flag in code review (Singleton-as-global-state, Factory of one, HOC pyramids, etc.), a "which pattern when" comparison table, 11 interview questions, and 4 tricky questions on subtle pattern selection trade-offs (Strategy vs Dependency Injection, Strategy vs Template Method, Builder vs Parameter Object, Observer subscribe-return-unsubscriber design).
-
-### Refactoring & Code Review Guide
-
-A new Front End guide: **Refactoring & Code Review** — covers the full refactoring.guru catalog plus modern code review practice:
-
-- **What is refactoring** — the precise definition (behavior-preserving structural improvement), the "two hats" rule, when to refactor (rule of three, before features, fixing bugs, in code review), when not to.
-- **How to refactor safely** — small steps, tests at every step, never mix refactoring with behavior changes in one commit.
-- **Code smells** — full catalog grouped by family: Bloaters (Long Method, Large Class, Primitive Obsession, Long Parameter List, Data Clumps), OO Abusers (Switch Statements, Temporary Field, Refused Bequest, Alternative Classes), Change Preventers (Divergent Change, Shotgun Surgery, Parallel Inheritance), Dispensables (Comments, Duplicate Code, Lazy Class, Data Class, Dead Code, Speculative Generality), Couplers (Feature Envy, Inappropriate Intimacy, Message Chains, Middle Man).
-- **Refactoring techniques** — Composing Methods (Extract Method, Inline, Replace Temp with Query), Moving Features Between Objects (Move Method, Extract Class, Hide Delegate), Simplifying Conditionals (Guard Clauses, Replace Conditional with Polymorphism, Introduce Null Object), Simplifying Method Calls (Introduce Parameter Object, Separate Query from Modifier), Dealing with Generalization (Pull Up, Push Down, Replace Inheritance with Delegation).
-- **React-specific refactorings** — Extract Custom Hook, Extract Component, Move state down, Lift state up, Replace `useEffect`-as-derivation with derivation, Co-location.
-- **Code review** — goals (correctness > design > maintainability > style), full checklist (correctness / design / performance / security / tests / naming / hygiene), comment-prefix conventions (`nit:` / `question:` / `suggestion:` / `issue:` / `blocking:`), how to give and receive feedback, PR hygiene (size, description, commits), 13 anti-patterns to flag without discussion.
-- **12 interview questions** (Beginner/Intermediate/Advanced) on refactoring vs rewriting, rule of three, smells vs bugs, guard clauses, when to comment, refactoring a 200-line component, primitive obsession, Replace Conditional with Polymorphism, the strangler fig pattern, refactoring without tests, async vs pair vs sync code review, and how to decide whether to refactor or accept a smell.
-- **7 tricky questions** on Message Chain diagnosis, Data Clump fixes, Long Parameter List vs Introduce Parameter Object, Extract Method when blocks update enclosing scope, "switch vs polymorphism" reviewer/author dispute, junior PR review judgement (block vs follow-up), and "build vs adopt" library decisions.
-
-### React Guide — Reconciliation, Hydration, and Rendering Models
-
-The React guide grew significantly:
-
-- **New Section 14 "Reconciliation and Fiber"** — a deep dive into how React actually renders. The render → reconcile → commit pipeline, the three-rule diffing algorithm (different types remount, same types reuse, lists matched by `key`), why list keys are a correctness rule and not just a perf rule, the Fiber data structure (linked list, double-buffering via `alternate`, the lanes bitmap), the work loop with its 5ms time-slicing yields via `MessageChannel`, and practical implications (don't redeclare components inside other components; remounting is expensive but updating is cheap).
-- **Section 13.4 (Virtualization)** got the windowing math, fixed-vs-dynamic-height handling, and a side-by-side comparison of react-window, @tanstack/react-virtual, react-virtualized, and react-virtuoso, plus a `content-visibility: auto` note.
-- **Section 13.5 (Concurrent Features)** got the lane priority bitmap explanation, time-slicing 5ms yield mechanics, double-buffering with the `alternate` pointer, `useOptimistic` (React 19), and the tearing problem with `useSyncExternalStore` as the fix.
-- **Section 13.12 (Server Components, SSR, Streaming)** expanded to cover Selective Hydration (priority-promoted hydration on user click), Progressive Hydration (hydrate-on-visible/idle/interaction), Islands Architecture (Astro / Marko / Fresh / Qwik with the SPA-vs-SSR-vs-RSC-vs-Islands comparison), and Incremental Static Regeneration (Next.js `getStaticProps` + `revalidate`, plus `revalidatePath`/`revalidateTag` for on-demand invalidation). Closes with a 7-row rendering-models comparison table (CSR / SSR / SSG / ISR / Streaming SSR / RSC / Islands) keyed by TTFB / FCP / TTI / SEO.
-
-### Browser APIs Guide
-
-A new Front End guide: **Browser APIs** — a comprehensive walkthrough of the platform APIs every web developer is expected to know, with comparison tables wherever the platform offers multiple options:
-
-- **DOM and EventTarget** — `addEventListener` options (`once`, `passive`, `signal`, `capture`), custom events, event delegation.
-- **Storage APIs** — Cookies (HttpOnly / Secure / SameSite), localStorage, sessionStorage, IndexedDB, Cache API, with a side-by-side comparison and a decision flow for picking the right one.
-- **Network APIs** — fetch vs XMLHttpRequest, AbortController and signal composition, WebSockets, Server-Sent Events, plus a WS / SSE / long-polling comparison.
-- **Workers** — Web Workers (with transferable objects), Shared Workers, Service Workers (lifecycle + cache strategies + the `skipWaiting`/`clients.claim` deploy pattern).
-- **Observers** — IntersectionObserver, MutationObserver, ResizeObserver, PerformanceObserver — when each one replaces a scroll/resize listener.
-- **History API and bfcache** — pushState / replaceState / popstate, plus `pageshow`/`pagehide` with `e.persisted`.
-- **Performance API** — Navigation Timing, Resource Timing, User Timing (marks/measures), `performance.now()` vs `Date.now()`.
-- **Scheduling APIs** — setTimeout vs queueMicrotask vs requestAnimationFrame vs requestIdleCallback, plus the event-loop mental model.
-- **File, Blob, and Streams** — File/FileReader, modern Promise-based APIs (`.text()`, `.arrayBuffer()`, `.stream()`), `URL.createObjectURL`, drag-and-drop, ReadableStream piping.
-- **Geolocation, Notifications, Clipboard** — permission-gated APIs.
-- **Web Crypto** — `crypto.getRandomValues`, `crypto.randomUUID`, SubtleCrypto for hashing/encryption, non-extractable keys, and why `Math.random` is never appropriate for security.
-- **Cross-document and cross-tab messaging** — `postMessage`, `BroadcastChannel`, `MessageChannel`, with the security pattern for validating `event.origin` and `event.source`.
-- **Page Lifecycle and Visibility** — `visibilitychange`, `pageshow`/`pagehide`, `navigator.sendBeacon`, why `beforeunload` is unreliable.
-- **Permissions API** — querying state without triggering prompts.
-- **URL and URLSearchParams** — the boring API everyone gets wrong with manual string concatenation.
-
-Closes with **16 interview questions** (Beginner / Intermediate / Advanced) and **12 tricky questions** organized by theme (Storage & Lifecycle, Network & Async, Workers & Threading, DOM & Events, Lifecycle & Performance) covering the storage event firing only in other tabs, why `fetch` doesn't reject on 5xx, the HTTP/1.1 6-connection limit and head-of-line blocking, structured-clone overhead and transferable objects, the Service Worker deploy stale-cache trap, `passive: true` ignoring `preventDefault`, why `beforeunload` analytics get lost, and rAF throttling in hidden tabs. Plus a 15-rule cheat sheet at the end.
-
-### React Guide — Performance & Build-Tooling Expansion
-
-The React guide's Performance section was expanded into a full deep dive on making React apps fast in production. New topics covered:
-
-- **Concurrent Features** — `useTransition` and `useDeferredValue`, with guidance on when to reach for each.
-- **Profiling and Measurement** — React DevTools Profiler workflow and Core Web Vitals (LCP, INP, CLS) with the `web-vitals` library.
-- **Common Re-render Causes** — the usual offenders (inline objects, Context fan-out, anonymous callbacks) and how to fix them.
-- **Image and Asset Optimization** — lazy loading, responsive `srcset`, LCP-image preload, font-display.
-- **Webpack vs Vite** — feature comparison and when to pick which.
-- **Bundle Analyzers** — `rollup-plugin-visualizer`, `webpack-bundle-analyzer`, `source-map-explorer`, with a checklist of what to chase down on every release.
-- **Tree Shaking and Code Splitting** — what breaks tree shaking, waterfall lazy loading, route-based vs component-level splitting.
-- **Server Components, SSR, Streaming** — Server Components vs Client Components, streaming SSR with `<Suspense>`.
-- **Expanded performance cheat sheet** at the end of the section.
-
-Added **8 new interview questions** on Core Web Vitals + INP, DevTools Profiler workflow, bundle analyzer red flags, Webpack vs Vite trade-offs, tree shaking, useTransition vs useDeferredValue, "reduce a 2 MB bundle" walkthrough, and debugging unnecessary re-renders.
-
-Added **6 new tricky questions** on `React.memo` defeated by inline callbacks, Context fan-out from a non-memoized value, index-key bugs on prepend, `useTransition` priorities, `React.lazy` Suspense flash on above-the-fold chunks, and why named imports from CJS `lodash` don't tree-shake.
-
-### Play Store Launch Guide
-
-A new Front End guide: **Play Store Launch** — a practical, end-to-end playbook for shipping any Android app (React Native, native, Flutter — framework agnostic in workflow) to the Google Play Store. Examples use Expo / EAS where they're most concrete, but the Play Console workflow is identical for every framework. Covers the full path from code-side prep through Production Access:
-
-- Code-side prerequisites (privacy-policy alignment, cascade delete, encryption-in-transit, secret rotation)
-- `app.json` and EAS Build configuration (proguard, `usesCleartextTraffic`, `autoIncrement` strategy, Sentry sourcemaps)
-- Privacy policy + public delete-account URL hosting requirements
-- Backend Config collection pattern for runtime-configurable URLs (privacy policy, Play Store, force-update messages)
-- Walkthrough of all 11 Play Console dashboard forms (App access, Ads, Content rating, Target audience, Data safety, Government/Financial/Health declarations, Advertising ID)
-- Detailed Data Safety form mapping for a typical app: which data types to tick, required-vs-optional, purposes per type
-- Store listing assets (icon 512×512, feature graphic 1024×500, screenshot specs) with `sips` resize tip
-- Closed Testing setup, the 14-day soak rule for new personal accounts, tester-list management
-- Production Access application + staged rollout strategy
-- 14 common pitfalls (versionCode collisions, `expo-dev-client` in dependencies, missing crash-logs declaration when using Sentry, hardcoded `secure: false` cookies, etc.)
-- A pre-launch checklist covering code, build, Play Console forms, store assets, and post-submission monitoring
-- **Android Build Internals deep dive** — APK vs AAB internals, the build pipeline (AAPT2 → R8 → D8 → zipalign → sign), R8 shrinking/obfuscation with keep rules, signature schemes V1–V4, upload key vs app signing key, key reset/upgrade/rotation flows, manifest merger, Hermes + baseline profiles, Dynamic Delivery, OTA-allowed vs Play-required changes
-- **React Native / Expo build concerns** — Bridge vs JSI/Fabric/TurboModules/Bridgeless, Managed vs Bare workflow, EAS Build vs local Gradle, sourcemap symbolication, `expo-doctor`
-- **Bundletool, Firebase Pre-Launch Report, Internal App Sharing** — local AAB validation and pre-flight tooling
-- **24 interview questions** across Beginner / Intermediate / Advanced — APK/AAB, Play App Signing, signature schemes, R8 keep rules, force-update architecture, manifest merger, target SDK floor, sourcemaps, Sentry + Data Safety, cascade delete, New Architecture, ANR debugging, key recovery vs upgrade vs rotation, OTA boundaries, staged rollout, baseline profiles, runtime config
-- **10 tricky scenario questions** — versionCode high-water mark across tracks, `autoIncrement` drift, R8-broke-release-but-debug-works, 14-day soak resets when tester list rotates, Sentry tracesSampleRate misses App interactions, anonymize-not-delete cascade gotcha, tablet screenshots even with `supportsTablet: false`, upload-key reset (recoverable) vs app-signing-key loss (not), Managed Publishing app-level vs per-release scope, `blockedPermissions` doesn't disable SDK code
-- **20-rule cheat sheet** at the end
-
----
-
-## v1.0.5 (April 2026)
-
-### Tricky Questions — Rewritten With Detailed Explanations
-
-All 111 "Tricky Output Questions" across 9 guides were rewritten. The old answers were often 2-3 lines and skipped the "why" — now every question has:
-
-- **A clear, self-contained question sentence** that works as a standalone flashcard in Quiz mode.
-- **The original code**, unchanged — the buggy behavior is still the lesson.
-- **The exact output or answer**, clearly labeled.
-- **A detailed `Explanation` block** (typically 8-14 lines) that walks through the specific language / runtime / library mechanism at play — event-loop phases for Node, Immer's draft semantics for Redux Toolkit, generator `yield`/`next` exchange for Redux Saga, contravariance under `strictFunctionTypes` for TypeScript, reconciliation-keys and closure capture for React, Yoga layout and native-driver limits for React Native, router-stack arity dispatch for Express, aggregation-pipeline stage semantics for MongoDB, widening/boxing/coercion rules for JavaScript.
-- **A one-sentence `Takeaway`** — the single rule to remember.
-
-Counts per guide: JavaScript 11, TypeScript 16, React 16, React Native 16, Redux Saga 10, Redux Toolkit 10, Node.js 12, Express 10, MongoDB 10. Answer length per question grew roughly 5-6× on average.
-
-The rewrite also preserved the Quiz-mode parser contract (`**Q{N}: ...**` marker + answer block + trailing `---`), so every new explanation is picked up in Quiz Mode, Daily Review, and the Interview Simulator.
-
-### Documentation Cleanup
-
-- README counts corrected (20+ guides → 32 guides across 8 categories; 84 tricky Qs → 111; 60+ templates → 49; AWS roster now lists Frontend Deployment; System Design lists Comparisons).
-- CLAUDE.md now documents the parser's `---` terminator behavior so future edits don't accidentally cut off an explanation.
-
-- **Console output now visible with React preview** — output pane is split evenly so console and preview share space instead of the console collapsing to a sliver. Console logs from React `useEffect` / intervals keep streaming in live (previously silent after the first tick).
-- **"Try it" auto-inserts `render()`** — when you try a React snippet from a guide that defines a component but no `render()` call, the playground now detects the component and appends `render(<YourComponent />)` so it runs immediately.
-- **Templates redesigned** — the side drawer is replaced with a centered 2-pane modal: category list on the left, snippets as cards on the right. Searching and switching categories is no longer a wall of names.
-- **Sidebar toggle no longer overlaps the editor** — the floating expand button is hidden on the Playground route; an equivalent toggle is built into the Playground header instead.
-
----
-
-## v1.0.4 (April 2026)
-
-### New Content: React Native & Mobile Apps Guide
-
-A full guide to building native mobile apps with React Native, added to the Front End section:
-
-- **Core mobile concepts** — React Native vs hybrid/Flutter/native, JS thread vs UI thread, how the platform bridge works
-- **Expo vs bare CLI** — when to use each, EAS Build, Expo Prebuild, `app.json` config
-- **Core components** — `View`, `Text`, `Image`, `ScrollView`, `TextInput`, `Pressable`, `Modal`
-- **Styling & Flexbox** — `StyleSheet`, platform differences from web (column default, no cascade, dp units, shadows)
-- **Lists** — `FlatList`/`SectionList` performance (`getItemLayout`, `windowSize`, memoized `renderItem`), FlashList
-- **Navigation** — React Navigation (Stack, Tab, Drawer), typed params, Expo Router file-based routing
-- **Platform APIs** — `Platform`, `Dimensions`, `StatusBar`, `SafeAreaView`, `KeyboardAvoidingView`, `BackHandler`, `Linking`
-- **Storage** — AsyncStorage, MMKV, SecureStore, SQLite, Realm, WatermelonDB — when to pick which
-- **Animations & gestures** — `Animated` API + `useNativeDriver`, Reanimated worklets, `react-native-gesture-handler`
-- **Native modules & New Architecture** — JSI, Fabric, TurboModules, Hermes, Bridgeless mode
-- **Permissions, push notifications, deep linking** (URL schemes, Universal Links, App Links)
-- **Build & release** — EAS Build, signing, App Store / Play Store, EAS Update / CodePush OTA
-- **Accessibility, i18n & RTL, offline patterns**
-- **30 interview questions** across beginner / intermediate / advanced
-- **16 tricky questions** — `flex: 1` gotchas, `flexDirection` default, `useNativeDriver` limitations, stale `setState` in intervals, Android shadows, `SafeAreaView` platform differences, AsyncStorage startup flash, and more
-
----
-
-## v1.0.3 (April 2026)
-
-### Tricky Output Questions — 7 Guides
-
-Added "Guess the Output" sections with code snippets and detailed explanations to 7 guides:
-
-- **React** (16 questions) — State batching, stale closures, useEffect timing, refs, reconciliation, hooks rules
-- **TypeScript** (16 questions) — Type inference & widening, narrowing, generics, conditional types, structural typing, `any` vs `unknown`
-- **Node.js** (12 questions) — Event loop ordering (`nextTick` vs `Promise` vs `setTimeout` vs `setImmediate`), streams, modules, circular deps
-- **Redux Saga** (10 questions) — Generator step-by-step, `call` vs `fork`, `takeLatest` cancellation, `race`, `all`, error propagation
-- **Express.js** (10 questions) — Middleware execution chain, error handling flow, `next('route')`, async errors, double response
-- **MongoDB** (10 questions) — Query behavior, dot notation vs exact match, `$push` vs `$addToSet`, aggregation pipeline order, `$unwind`, `$lookup`
-- **Redux Toolkit** (10 questions) — Immer mutations, state references, selector memoization, `createAsyncThunk` lifecycle, middleware order, serializability
-
-Each section includes a 10-rule cheat sheet summary.
-
----
-
-## v1.0.0 (April 2026)
-
-### Repo Renamed to PrepHub
-
-- Repository renamed from `interview-prep` to `prephub`
-- Live site URL is now **sreen98.github.io/prephub**
-- Started semantic versioning at v1.0.0
-
-### Production Polish
-
-- Custom **Open Graph image** (1200x630) for better social media previews
-- **DNS prefetch** for Google Analytics for faster page loads
-- **PWA screenshots** and categories in manifest for richer install prompts
-- Fixed `robots.txt` sitemap URL to point to new repo name
-
-### New Content: CORS Guide
-
-- Comprehensive guide covering **Same-Origin Policy, CORS headers, preflight requests, credentialed requests**, and security best practices
-- **Express.js CORS configuration** — using the `cors` middleware and manual setup with dynamic origin allowlists
-- **CORS in production environments** — AWS API Gateway, Nginx, Cloudflare Workers, and dev server proxies (Vite, CRA)
-- **Debugging guide** — common error messages, curl commands for testing, and a debugging checklist
-- **CORS vs JSONP, proxies, postMessage** — when to use each cross-origin mechanism
-- **15 interview questions** across beginner, intermediate, and advanced levels
-
-### New Content: Frontend Tooling Guide
-
-- Comprehensive guide covering **Webpack, Vite, and bundler fundamentals** — why React needs a bundler, how webpack works (loaders, plugins, code splitting), how Vite leverages native ES modules
-- **Webpack vs Vite comparison** — dev speed, config complexity, ecosystem, migration steps from CRA
-- **Other bundlers overview** — Rollup, esbuild, Parcel, Turbopack, SWC
-- **Package managers** — npm vs yarn vs pnpm deep dive with resolution strategies, speed, and monorepo support
-- **package.json deep dive** — dependencies vs devDependencies vs peerDependencies, semver, scripts, entry points
-- **20 interview questions** across beginner, intermediate, and advanced levels
-
----
-
-## March 2026
-
-### React Machine Coding Challenges in Playground
-
-- **10 new interactive templates** — frequently asked React machine coding interview questions
-- Pagination, Search Filter, Real-time Chat, Modal, Image Gallery with Lazy Loading, Drag-and-Drop, Product List with Sort & Filter, Responsive Navbar, Infinite Scroll, and Notifications
-- All challenges are fully functional and runnable in the playground with live preview
-- New "React Machine Coding" category in the template drawer
-
-### New Content: Git Category
-
-- **Git Guide** — Complete guide covering internals, branching, merging, rebasing, workflows, cherry-pick, stashing, tags, and advanced topics
-- **Git Comparisons** — Merge vs rebase, reset vs revert, fetch vs pull, and more comparison tables
-- New sidebar category with `GitCompare` icon
-
-### New Content: Jest & React Testing Library Guide
-
-- Comprehensive guide covering Jest fundamentals, matchers, mocking, and async testing
-- React Testing Library patterns for components, hooks, Redux, React Query, forms, and routing
-- Best practices and anti-patterns section
-
-### New Cheat Sheet: Git Workflows & Advanced
-
-- Interactive rebase, cherry-pick, bisect, reflog, worktrees
-- Git Flow, GitHub Flow, and trunk-based development patterns
-
-## March 2026
-
-### Quiz Difficulty Filters
-
-- Filter quiz questions by **Beginner**, **Intermediate**, or **Advanced**
-- Color-coded difficulty badges on each flashcard
-- Questions automatically tagged based on guide structure
-
-### Reading Time Estimates
-
-- See estimated reading time on each guide (~X min read)
-- Displayed on home page category cards and at the top of each guide
-
-### Reading Preferences
-
-- Adjustable font size: **Small / Medium / Large**
-- Toggle via the font size button in the sidebar
-- Your preference is saved across sessions
-
-### Offline Support (PWA)
-
-- Install PrepHub as an app on your device
-- All content cached for offline reading
-- Auto-updates when new content is available
-
-### Code Playground Enhancements
-
-- "Try it" button on JavaScript code blocks sends code to the playground
-- 6 built-in templates for common interview topics
-- Console output with color-coded log levels
-
----
-
-## Initial Release
-
-### Core Features
-
-- 16+ comprehensive interview preparation guides
-- Covers Front End, Back End, JavaScript/TypeScript, AWS, and System Design
-- Full-text search across all content (Cmd+K)
-- Dark mode with system preference detection
-
-### Interactive Tools
-
-- **Quiz Mode** — Flashcard-style Q&A extracted from guides
-- **Code Playground** — Run JavaScript directly in the browser
-- **Table of Contents** — Auto-generated from headings with scroll tracking
-
-### Reading Experience
-
-- Syntax-highlighted code blocks with copy button
-- Reading progress bar
-- Back-to-top floating button
-- Search result highlighting with auto-scroll

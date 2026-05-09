@@ -158,7 +158,9 @@ class Greeting extends React.Component<GreetingProps> {
 
 #### State in Class Components
 
-State is initialized in the constructor or as a class field. Use `this.setState()` to update it — never mutate `this.state` directly. `setState` accepts either an object (shallow merged) or a function for updates that depend on previous state. React batches multiple `setState` calls for performance.
+State is initialized in one of two ways: **inside the constructor** (the original pattern) or as a **class field** (modern syntactic shortcut). Both end up at the same place — `this.state` is set before `render()` runs the first time. Use `this.setState()` to update it; never mutate `this.state` directly. `setState` accepts either an object (shallow-merged) or a function (when the update depends on previous state). React batches multiple `setState` calls inside the same event handler for performance.
+
+##### Style 1 — Constructor-based initialization (classic pattern)
 
 ```tsx
 interface CounterState {
@@ -167,24 +169,76 @@ interface CounterState {
 }
 
 class Counter extends React.Component<{}, CounterState> {
-  // Class field syntax (no constructor needed)
+  // The classic React 16/17 pattern. Required if you target older toolchains
+  // that don't compile class-field syntax, and the only way to do anything
+  // OTHER than initialize state on construction (e.g., refs, instance
+  // methods that capture props at construction time).
+  constructor(props: {}) {
+    // super(props) MUST be called before you can use `this`. Two reasons:
+    //   1. JavaScript's class spec — derived class constructors must invoke
+    //      super() before referencing `this`. Skipping it throws ReferenceError.
+    //   2. Passing `props` makes `this.props` available INSIDE the constructor.
+    //      If you call super() without props, `this.props` is undefined for
+    //      the rest of the constructor (though React still sets it before
+    //      render runs). Always pass props to be safe.
+    super(props);
+
+    // Now `this` is initialized — assign initial state.
+    this.state = {
+      count: 0,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    // The constructor is also where you bind handlers (if you use the
+    // method-not-arrow-function style — see "this binding" below) and
+    // initialize any instance refs (`this.inputRef = React.createRef()`).
+  }
+
+  increment = () => {
+    this.setState({ count: this.state.count + 1 });
+  };
+
+  render() {
+    return (
+      <div>
+        <p>Count: {this.state.count}</p>
+        <button onClick={this.increment}>Increment</button>
+      </div>
+    );
+  }
+}
+```
+
+**Why is `super(props)` even a thing?** Class components extend `React.Component`. The base `React.Component` constructor does internal setup (creates the updater queue, attaches `this.props`, etc.). Skipping `super()` means none of that happens — `this` doesn't exist as far as JS is concerned. Skipping `super(props)` (calling just `super()`) lets the base class run but leaves `this.props` undefined *inside the constructor body*. React patches `this.props` itself afterwards, so render still works — but any prop-reading code in your constructor will misbehave. The safest, no-think rule: **always write `super(props)` in every class component constructor.**
+
+##### Style 2 — Class-field syntax (no constructor needed)
+
+```tsx
+class Counter extends React.Component<{}, CounterState> {
+  // Equivalent to setting `this.state = {...}` in a constructor that just
+  // calls super(props). Babel / TS compile this to constructor code under
+  // the hood. Most modern React codebases prefer this for readability.
   state: CounterState = {
     count: 0,
     lastUpdated: new Date().toISOString(),
   };
 
-  // Arrow function to avoid 'this' binding issues
+  // Arrow-as-class-field auto-binds `this` to the instance — no manual
+  // .bind(this) in a constructor needed.
   increment = () => {
     // Object form — merged with current state
     this.setState({ count: this.state.count + 1 });
 
-    // Functional form — use when update depends on previous state
+    // Functional form — use when the update depends on previous state.
+    // Critical inside loops or rapid-fire events; the object form would
+    // batch and read stale this.state.count.
     this.setState((prevState) => ({
       count: prevState.count + 1,
       lastUpdated: new Date().toISOString(),
     }));
 
-    // setState with callback (runs after state is applied)
+    // setState with callback (runs AFTER state has been applied + render
+    // committed). Use sparingly — usually componentDidUpdate is cleaner.
     this.setState(
       (prev) => ({ count: prev.count + 1 }),
       () => console.log('State updated:', this.state.count)
@@ -201,6 +255,22 @@ class Counter extends React.Component<{}, CounterState> {
   }
 }
 ```
+
+**Constructor vs class fields — when to pick which:**
+
+```
+| Reason to use constructor                 | Reason to use class fields            |
+|-------------------------------------------|---------------------------------------|
+| Reading props before initial state        | All state is static / props-free      |
+|   (e.g., state: { id: props.initialId })  |   (most components)                   |
+| Binding methods you defined as functions  | Using arrow-function methods          |
+|   (this.handleClick = this.handleClick    |   (auto-bound, no manual binding)     |
+|    .bind(this))                           |                                       |
+| Creating refs (this.inputRef = createRef) | createRef in field syntax also works  |
+| Old build toolchains without TC39 fields  | Modern build (any Babel/TS since 2018)|
+```
+
+In practice, most modern code uses class fields and only reaches for the constructor when initial state derives from props. Both compile to the same thing.
 
 #### Lifecycle Methods
 
@@ -318,6 +388,151 @@ componentDidMount            getSnapshotBeforeUpdate           componentWillUnmo
 
 Error Handling (any phase):  getDerivedStateFromError → render → componentDidCatch
 ```
+
+#### `this` Binding — The Four Ways
+
+Class component event handlers are notorious for `this`-binding bugs. When you pass `this.handleClick` to `onClick`, the function gets called as a free function (not as a method on the instance), so `this` inside it is `undefined` in strict mode. There are four canonical fixes; pick one and stick with it.
+
+```tsx
+class Buttons extends React.Component<{}, { count: number }> {
+  state = { count: 0 };
+
+  // ---------- Method 1: bind in the constructor ----------
+  // Classic. Rebinds the method to the instance once at construction.
+  // Verbose but explicit; most "official tutorial" code uses this.
+  constructor(props: {}) {
+    super(props);
+    this.handleClickBound = this.handleClickBound.bind(this);
+  }
+  handleClickBound() {
+    this.setState({ count: this.state.count + 1 });
+  }
+
+  // ---------- Method 2: arrow function as a class field (RECOMMENDED) ----------
+  // The arrow lexically captures `this` at definition time, so it's
+  // permanently bound to the instance. No constructor work, no manual bind.
+  // Most modern codebases standardize on this.
+  handleClickArrow = () => {
+    this.setState({ count: this.state.count + 1 });
+  };
+
+  // ---------- Method 3: arrow function inline in JSX ----------
+  // Convenient but creates a NEW function reference on every render —
+  // breaks `React.memo` / `PureComponent` for child components that
+  // receive this as a prop. OK for tiny / non-memoized children.
+
+  // ---------- Method 4: bind in render (anti-pattern) ----------
+  // Same allocation-per-render problem as Method 3, plus visually noisy.
+  // Avoid: <button onClick={this.handleClickBound.bind(this)}>...
+
+  render() {
+    return (
+      <div>
+        {/* Method 1 */}
+        <button onClick={this.handleClickBound}>Bound</button>
+
+        {/* Method 2 (recommended) */}
+        <button onClick={this.handleClickArrow}>Arrow</button>
+
+        {/* Method 3 (inline arrow) */}
+        <button onClick={() => this.setState({ count: this.state.count + 1 })}>
+          Inline
+        </button>
+      </div>
+    );
+  }
+}
+```
+
+**Performance footnote:** Methods 1 and 2 produce one stable function reference per instance — safe to pass to `React.memo`'d children. Methods 3 and 4 produce a fresh function every render, which defeats child memoization. For most leaf components the cost is negligible; for components passing handlers to `React.memo` lists with thousands of items, prefer Methods 1 or 2.
+
+#### Default Props
+
+Default values for missing props. Two equivalent patterns, depending on style:
+
+```tsx
+// ---------- Static defaultProps (legacy + still supported) ----------
+class Greeting extends React.Component<{ name?: string; greeting?: string }> {
+  static defaultProps = {
+    greeting: 'Hello',
+  };
+  render() {
+    return <h1>{this.props.greeting}, {this.props.name ?? 'friend'}!</h1>;
+  }
+}
+// React 18 deprecated defaultProps for FUNCTION components in favor of
+// destructuring defaults; for class components it remains supported.
+
+// ---------- TypeScript-friendly: destructure defaults in render ----------
+class Greeting2 extends React.Component<{ name?: string; greeting?: string }> {
+  render() {
+    const { name = 'friend', greeting = 'Hello' } = this.props;
+    return <h1>{greeting}, {name}!</h1>;
+  }
+}
+```
+
+#### Prop Validation — `PropTypes` Then, TypeScript Now
+
+Pre-2018, class components used `PropTypes` to validate props at runtime in development:
+
+```jsx
+import PropTypes from 'prop-types';
+
+class Greeting extends React.Component {
+  static propTypes = {
+    name: PropTypes.string.isRequired,
+    age:  PropTypes.number,
+    role: PropTypes.oneOf(['admin', 'user']).isRequired,
+  };
+  render() { return <h1>Hello {this.props.name}</h1>; }
+}
+```
+
+This is **legacy**. Modern React (with TypeScript) replaces `PropTypes` entirely — type checking happens at compile time, with no runtime cost, and the type system catches issues `PropTypes` couldn't (literal types, tuples, conditional types). The `prop-types` package was removed from React's recommended setup; you'll only see it in older codebases. Don't add `PropTypes` to new code; use TypeScript.
+
+#### `forceUpdate` — When (Rarely) to Use
+
+`this.forceUpdate()` re-renders the component without a state or prop change. Class components shouldn't normally need it — if your UI depends on data, that data should be in state or props. Two niche cases:
+
+```tsx
+class ClockDisplay extends React.Component {
+  // Example: subscribing to an external mutable source not tracked in state
+  private timer?: number;
+
+  componentDidMount() {
+    this.timer = window.setInterval(() => this.forceUpdate(), 1000);
+  }
+  componentWillUnmount() {
+    if (this.timer) window.clearInterval(this.timer);
+  }
+
+  render() {
+    // Reads Date.now() directly — not in state, but render needs it fresh
+    return <p>Time: {new Date().toLocaleTimeString()}</p>;
+  }
+}
+```
+
+**Almost always wrong.** If you're reaching for `forceUpdate`, the right fix is usually to put the data in state (`this.setState({ now: Date.now() })`), or in the function-component world, use `useSyncExternalStore` for external mutable sources. The hooks equivalent (`const [, force] = useReducer(x => x + 1, 0)`) exists for exactly the same niche cases.
+
+#### Deprecated Lifecycle Methods (UNSAFE_*)
+
+Three lifecycles were deprecated in React 16.3 and renamed with the `UNSAFE_` prefix in 16.9. They still work today but will be removed in a future major version. If you encounter them in legacy code, here's why they're problematic and what to use instead:
+
+```
+| Deprecated (UNSAFE_)       | Why removed                              | Modern replacement              |
+|----------------------------|------------------------------------------|---------------------------------|
+| componentWillMount         | Async-rendering safety: may run multiple │ constructor or                  |
+|                            │ times in concurrent mode                 │ componentDidMount               │
+| componentWillReceiveProps  | Encouraged storing-derived-state pattern │ getDerivedStateFromProps OR     │
+|                            │ that becomes stale; inconsistent with    │ derive in render OR             │
+|                            │ async rendering                          │ key-based remount               │
+| componentWillUpdate        | Same async-safety problem; commonly     │ getSnapshotBeforeUpdate (for   │
+|                            │ misused for DOM reads                    │ DOM reads) + componentDidUpdate │
+```
+
+The **strict-mode warning** is what prompts the rename in modern React: any of these three names triggers a deprecation log in development. New class code should never use them.
 
 #### Class vs Function Components
 
@@ -518,47 +733,264 @@ function Counter() {
 
 ### 6.2 Built-in Hooks Reference
 
-React provides several built-in hooks for different purposes. Here is a quick reference of all hooks available in React 19.
+React 19 ships with 14 built-in hooks (plus the 3 actions/forms hooks covered in §16). They split into a few mental buckets:
+
+| Bucket | Hooks | Use for |
+|---|---|---|
+| **State** | `useState`, `useReducer` | Component-local state |
+| **Side effects** | `useEffect`, `useLayoutEffect`, `useInsertionEffect` | Synchronizing with the outside world |
+| **Context** | `useContext` | Reading values from a Provider |
+| **Refs** | `useRef`, `useImperativeHandle` | Mutable values + DOM access |
+| **Memoization** | `useMemo`, `useCallback` | Avoid expensive recomputes |
+| **Concurrent** | `useTransition`, `useDeferredValue` | Mark updates as non-urgent |
+| **External data** | `useSyncExternalStore` | Subscribe to non-React stores |
+| **Misc** | `useId`, `useDebugValue` | SSR-safe IDs, devtools labels |
+
+Each hook below shows its signature, what it does, when to reach for it, and the most common mistake.
+
+#### `useState` — basic local state
 
 ```tsx
-// State
 const [state, setState] = useState(initialValue);
-const [state, dispatch] = useReducer(reducer, initialState);
-
-// Side effects
-useEffect(setup, dependencies?);
-
-// Context
-const value = useContext(MyContext);
-
-// Refs
-const ref = useRef(initialValue);
-
-// Memoization
-const memoized = useMemo(() => expensiveComputation(a, b), [a, b]);
-const callback = useCallback((arg) => doSomething(arg), [dep]);
-
-// Imperative handle (expose methods to parent)
-useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
-
-// Layout effect (synchronous, before paint)
-useLayoutEffect(setup, dependencies?);
-
-// Debug
-useDebugValue(value, formatFn?);
-
-// Sync external store
-const snapshot = useSyncExternalStore(subscribe, getSnapshot);
-
-// Unique ID generation
-const id = useId();
-
-// Transitions (non-urgent updates)
-const [isPending, startTransition] = useTransition();
-
-// Deferred values (keep old value during re-render)
-const deferredValue = useDeferredValue(value);
 ```
+
+**What it does.** Stores a value across re-renders and gives you a setter that triggers a re-render when called.
+
+**When to use it.** Any component-local value that affects the UI: form inputs, toggles, counters, fetched data, modals open/closed.
+
+**Pitfall — setters are async-feeling.** `setState(state + 1)` reads a stale `state`. For updates that depend on the previous value, pass a function: `setState(s => s + 1)`. Calling it twice in a row both increment correctly only with the function form.
+
+See §5.1 for a deeper walkthrough including lazy initialization and update batching.
+
+#### `useReducer` — state with a reducer function
+
+```tsx
+const [state, dispatch] = useReducer(reducer, initialState);
+const [state, dispatch] = useReducer(reducer, initialArg, init);  // lazy init
+```
+
+**What it does.** Same job as `useState`, but transitions go through a `(state, action) => newState` function. `dispatch({ type: '...' })` triggers the next state.
+
+**When to use it.** When state has multiple sub-values that update together, when next state depends on previous state in non-trivial ways, or when you want to centralize update logic in one testable function. Forms with many fields, undo/redo, complex toggles.
+
+**Pitfall — don't over-reach for it.** A single boolean does not need a reducer. Reducers earn their complexity only when transitions are coupled.
+
+See §5.3 for examples including the `init` lazy-initializer.
+
+#### `useEffect` — synchronize with external systems
+
+```tsx
+useEffect(setup, dependencies?);
+useEffect(() => { /* setup */; return () => { /* cleanup */ }; }, [deps]);
+```
+
+**What it does.** Runs `setup` after the browser paints. Returns an optional cleanup function that runs before the next setup or on unmount.
+
+**When to use it.** Subscriptions (websockets, event listeners), DOM measurements after layout, integrating non-React libraries. **Not** for deriving state from props (just compute it during render) and **not** for handling user events (use the handler).
+
+**Pitfall — missing cleanup leaks.** Forgetting to return a cleanup that detaches the listener / aborts the fetch leads to leaks and "Can't perform a state update on an unmounted component" warnings.
+
+See §7 for the full effect lifecycle, dependency rules, and the `useEffect` vs derived-state vs handler decision tree (§7.4).
+
+#### `useContext` — read from a Provider
+
+```tsx
+const value = useContext(MyContext);
+```
+
+**What it does.** Subscribes the component to the nearest `<MyContext.Provider value={...}>` above it. The component re-renders whenever that `value` changes (referentially).
+
+**When to use it.** Cross-cutting concerns: theme, current user, locale, feature flags. Anything that many components need without prop-drilling.
+
+**Pitfall — re-render storms.** Every consumer re-renders on every `value` change. If you put a fast-changing object literal as `value={{ user, setUser }}`, every consumer re-renders on every keystroke. Memoize the value or split state from setters into separate contexts.
+
+```tsx
+const ThemeContext = createContext<'light' | 'dark'>('light');
+function ThemedButton() {
+  const theme = useContext(ThemeContext);
+  return <button className={theme}>Click</button>;
+}
+```
+
+#### `useRef` — mutable box that survives re-renders
+
+```tsx
+const ref = useRef(initialValue);
+ref.current  // read or write — does NOT trigger re-render
+```
+
+**What it does.** Returns a stable `{ current }` object. Mutating `current` does **not** trigger a re-render. Two main uses:
+1. **DOM references** — `<input ref={inputRef} />`, then `inputRef.current.focus()`.
+2. **Instance variables** — store interval IDs, previous values, mutable flags that don't drive UI.
+
+**When to use it.** Anything you need to remember across renders that should NOT cause a re-render when it changes. Setters in event handlers, timeouts, "did this run already" guards.
+
+**Pitfall — don't read `.current` during render.** Doing so makes render impure. Read it inside effects and handlers.
+
+```tsx
+const intervalRef = useRef<number | null>(null);
+useEffect(() => {
+  intervalRef.current = window.setInterval(tick, 1000);
+  return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+}, []);
+```
+
+#### `useMemo` — cache an expensive computation
+
+```tsx
+const value = useMemo(() => expensiveCompute(a, b), [a, b]);
+```
+
+**What it does.** Memoizes the result of the function across renders. React only re-runs it when one of the dependencies changes (by `Object.is` comparison).
+
+**When to use it.** Genuinely expensive pure computations (parsing large data, building lookup tables) **or** preserving referential identity of an object/array passed to a memoized child or used in a `useEffect` dep list.
+
+**Pitfall — premature optimization.** Wrapping every value in `useMemo` adds bookkeeping with no benefit. The `() => ...` allocation, dep array allocation, and `Object.is` comparisons can cost more than the computation itself for cheap values. Profile first.
+
+#### `useCallback` — memoize a function reference
+
+```tsx
+const onClick = useCallback((id: string) => { selectItem(id); }, [selectItem]);
+```
+
+**What it does.** Returns the **same function reference** between renders as long as deps are unchanged. Equivalent to `useMemo(() => fn, deps)` — same identity-stabilizing job, function-shaped.
+
+**When to use it.** When the function is passed to a `React.memo`'d child or used as a dep of `useEffect` / `useMemo`. Without it, a fresh closure each render breaks downstream memoization.
+
+**Pitfall — useless without consumer memoization.** If the child isn't memoized, wrapping the prop in `useCallback` does nothing. Each render still re-renders the child.
+
+#### `useImperativeHandle` — expose methods on a ref
+
+```tsx
+useImperativeHandle(ref, () => ({
+  focus: () => inputRef.current?.focus(),
+  scrollTo: (y: number) => containerRef.current?.scrollTo(0, y),
+}), []);
+```
+
+**What it does.** When a parent passes a `ref` to your component, this hook lets you customize what `ref.current` exposes — methods, not the DOM node.
+
+**When to use it.** Sparingly. Only when a parent genuinely needs to imperatively command a child (focus an input, scroll a list, play a video). Most of the time, props + state are the right answer.
+
+**Pitfall — bypassing React's data flow.** If you reach for `useImperativeHandle` to "trigger something in a child", you're usually fighting the framework. Ask whether prop-driven state would do the job.
+
+#### `useLayoutEffect` — synchronous effect before paint
+
+```tsx
+useLayoutEffect(setup, dependencies?);
+```
+
+**What it does.** Same shape as `useEffect`, but runs **synchronously after DOM mutation and before the browser paints**. The user never sees the in-between state.
+
+**When to use it.** When you need to read layout (`getBoundingClientRect`, `scrollHeight`) and mutate the DOM in response, in a way that would flicker if delayed to `useEffect`. Tooltips that need to reposition, auto-scroll-to-bottom on new messages, focus management after a layout change.
+
+**Pitfall — blocks paint.** The browser waits for this to finish before painting. Heavy work here freezes the UI. Default to `useEffect` and only escalate to `useLayoutEffect` when you see a flicker.
+
+#### `useDebugValue` — label a custom hook in DevTools
+
+```tsx
+function useOnlineStatus() {
+  const isOnline = ...;
+  useDebugValue(isOnline ? 'Online' : 'Offline');
+  return isOnline;
+}
+```
+
+**What it does.** Adds a label next to your custom hook in React DevTools.
+
+**When to use it.** In shared custom hooks that ship in libraries. For app-internal hooks, the variable names already tell DevTools enough.
+
+**Pitfall — formatting overhead.** Pass a `formatFn` second argument if formatting is expensive — it only runs when DevTools inspects the hook.
+
+#### `useSyncExternalStore` — subscribe to a non-React store
+
+```tsx
+const snapshot = useSyncExternalStore(
+  subscribe,         // (callback) => unsubscribe
+  getSnapshot,       // () => current value
+  getServerSnapshot? // SSR-safe initial value
+);
+```
+
+**What it does.** Tear-free subscription to any external store: Redux, Zustand, browser APIs (`window.localStorage`, `window.matchMedia`), event emitters. React guarantees consistent reads across concurrent rendering.
+
+**When to use it.** Building a state library, subscribing to a global event source, or wrapping a browser API in a hook. End users of Redux/Zustand never call this directly — the libraries use it under the hood.
+
+**Pitfall — `getSnapshot` must be stable.** It must return `===`-equal values when nothing changed, or React will infinite-loop re-rendering. Don't return a fresh object literal each call.
+
+```tsx
+function useWindowWidth() {
+  return useSyncExternalStore(
+    (cb) => { window.addEventListener('resize', cb); return () => window.removeEventListener('resize', cb); },
+    () => window.innerWidth,
+    () => 0,  // SSR fallback
+  );
+}
+```
+
+#### `useId` — stable, unique, SSR-safe IDs
+
+```tsx
+const id = useId();
+return (
+  <>
+    <label htmlFor={id}>Name</label>
+    <input id={id} />
+  </>
+);
+```
+
+**What it does.** Generates a unique ID that's stable across renders and identical between server and client (avoids hydration mismatches).
+
+**When to use it.** Linking labels to inputs, ARIA `aria-describedby`, or any DOM-id attribute. Especially important under SSR — `Math.random()` and counters break hydration; `useId` doesn't.
+
+**Pitfall — don't use it as a list key.** It's not derived from data; it's per-component-instance. Use stable data IDs for `key`.
+
+#### `useTransition` — mark updates as non-urgent
+
+```tsx
+const [isPending, startTransition] = useTransition();
+startTransition(() => { setExpensiveState(next); });
+```
+
+**What it does.** State updates inside `startTransition` are marked low-priority. React keeps the previous UI interactive while the transition renders, and can interrupt the transition if a higher-priority update (e.g., another keystroke) arrives.
+
+**When to use it.** When typing into a search box would freeze the UI because the result list is expensive to render. Wrap the expensive state update in `startTransition`; let the input field update urgently.
+
+**Pitfall — only state, not events.** You can't transition a network call or `setTimeout`. The body of `startTransition` must be synchronous and only call setters.
+
+```tsx
+function Search() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Item[]>([]);
+  const [isPending, startTransition] = useTransition();
+  return (
+    <input
+      value={query}
+      onChange={(e) => {
+        setQuery(e.target.value);                    // urgent
+        startTransition(() => setResults(filter(e.target.value))); // can be interrupted
+      }}
+    />
+  );
+}
+```
+
+#### `useDeferredValue` — render a stale value while a fresh one catches up
+
+```tsx
+const deferredQuery = useDeferredValue(query);
+```
+
+**What it does.** Returns a value that "lags behind" the input. React renders with the stale value first (fast), then re-renders with the fresh value as a low-priority update (which can be interrupted).
+
+**When to use it.** Same problem as `useTransition` from a different angle — you don't own the setter (e.g., it's a prop from above), so you can't wrap the update. Wrap the *value* instead.
+
+**Pitfall — don't pair it with `useTransition`.** Pick one. If you own the setter, use `useTransition`. If you don't, use `useDeferredValue`.
+
+#### React 19 additions (preview)
+
+The action/forms hooks — `useActionState`, `useFormStatus`, `useOptimistic` — are covered in detail in §16.
 
 ### 6.3 Custom Hooks
 
