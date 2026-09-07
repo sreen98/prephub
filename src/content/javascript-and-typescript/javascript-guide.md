@@ -10,7 +10,7 @@
 - [6. Objects and Prototypes](#6-objects-and-prototypes)
 - [7. Arrays and Iteration](#7-arrays-and-iteration)
 - [8. Asynchronous JavaScript](#8-asynchronous-javascript)
-- [9. ES6+ Features](#9-es6-features)
+- [9. ES6+ and Modern JavaScript](#9-es6-and-modern-javascript)
 - [10. Error Handling](#10-error-handling)
 - [11. The Event Loop](#11-the-event-loop)
 - [12. Modules](#12-modules)
@@ -738,7 +738,165 @@ console.log('4');                           // synchronous
 
 ---
 
-## 9. ES6+ Features
+### 8.5 Mixing `async`/`await` with `.then()`/`.catch()`
+
+They're the same mechanism — `await` consumes a promise, `.then()` chains one — so mixing them is legal. It's also where a lot of real bugs live, because the two styles handle errors and sequencing differently.
+
+**The forgotten `await`** is the most common. An `async` function always returns a promise, so calling one without `await` starts the work and moves on:
+
+```js
+async function save() { throw new Error('boom'); }
+
+async function handler() {
+  try {
+    save();                     // ✗ no await — the rejection escapes this try/catch
+  } catch (e) {
+    console.log('caught');      // never runs
+  }
+  return 'done';                // resolves fine; the error surfaces as
+}                               // an unhandled rejection, elsewhere, later
+```
+
+`try`/`catch` only catches what the `await`ed expression rejects with. Without `await`, the promise leaves the `try` block before it settles.
+
+**Mixing on the same call** produces a subtler trap:
+
+```js
+// ✗ Both a .catch() AND a try/catch — the catch handler "handles" it,
+//   so the await resolves with undefined and the try block is never entered
+try {
+  const data = await fetch(url).then(r => r.json()).catch(() => null);
+  process(data);               // data is null, not an error — silently wrong
+} catch (e) { /* unreachable */ }
+```
+
+`.catch()` returning a value **converts a rejection into a resolution**. That's often what you want, but then the `try`/`catch` is dead code and the caller has to check for the sentinel. Pick one style per call site.
+
+**Where `.then()` is genuinely better** — the case worth knowing, because "always use await" is wrong:
+
+```js
+// Sequential — 3 round trips, one after another
+const a = await getA(); const b = await getB(); const c = await getC();
+
+// Concurrent — start all three, then await. This is the fix for
+// the most common async performance bug in real codebases.
+const [a, b, c] = await Promise.all([getA(), getB(), getC()]);
+
+// Start early, await late — useful when you need to do other work in between
+const userPromise = getUser();        // no await: the request is already in flight
+renderSkeleton();
+const user = await userPromise;
+```
+
+Two more rules that come up:
+
+- **`await` in a loop is sequential.** `for (const id of ids) await fetch(id)` makes N sequential requests. Use `Promise.all(ids.map(fetch))` for parallel, or a bounded pool if N is large enough to hammer the server.
+- **`.forEach` with an `async` callback doesn't wait.** `forEach` ignores the returned promise, so the loop finishes instantly and the work continues in the background. Use `for...of` with `await` (sequential) or `Promise.all(map(...))` (parallel). This one silently breaks ordering guarantees.
+- **`return await` vs `return`.** Inside a `try` block they differ: `return await p` catches `p`'s rejection locally, `return p` hands the promise to the caller and your `catch` never sees it. Outside a `try` they're equivalent (modern engines don't add a meaningful tick).
+
+---
+
+### 8.6 Top-Level `await`
+
+In an **ES module** (ES2022), `await` works at the top level, outside any function:
+
+```js
+// config.js — an ES module
+const res = await fetch('/config.json');
+export const config = await res.json();
+```
+
+The mechanism worth understanding: a module containing top-level `await` becomes an **async module**, and every module that imports it waits for it to finish evaluating before its own body runs. The `await` doesn't block the thread — it blocks the *module graph* beneath it.
+
+That gives you three genuinely useful patterns:
+
+```js
+// 1. Conditional dynamic import — pick an implementation at load time
+const db = process.env.DB === 'pg'
+  ? await import('./pg-adapter.js')
+  : await import('./sqlite-adapter.js');
+
+// 2. Resource initialisation without an init() function every caller must remember
+export const connection = await createConnection();
+
+// 3. Dependency fallback
+let lib;
+try { lib = await import('./fast-native.js'); }
+catch { lib = await import('./pure-js-fallback.js'); }
+```
+
+And three constraints that get asked:
+
+- **ES modules only.** Not in CommonJS, and not in a classic `<script>` — you need `<script type="module">` or a `.mjs`/`"type": "module"` file. A syntax error otherwise.
+- **`require()` of a module with top-level `await` throws**, even on Node 24 where `require(esm)` is otherwise supported. `require` is synchronous by contract, so there's nothing it can return. `await import()` is the only option. This is the single most common real-world limitation.
+- **It can delay your whole app.** A slow top-level `await` in a widely-imported module blocks every importer, and because it's not in a function there's no obvious place to add a timeout or a loading state. Keep it for genuinely required startup work, and keep it fast.
+
+---
+
+### 8.7 Retrying, Cancelling and Bounding Async Work
+
+Three production patterns that come up as "implement this" questions.
+
+**Retry with exponential back-off and jitter:**
+
+```js
+async function retry(fn, { retries = 3, base = 300, factor = 2 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= retries || !isRetryable(err)) throw err;
+      const delay = base * factor ** attempt;
+      const jittered = Math.random() * delay;          // full jitter
+      await new Promise(r => setTimeout(r, jittered));
+    }
+  }
+}
+```
+
+Three details interviewers look for. **Only retry retryable failures** — a `500`, a timeout or a network error, never a `400` or `422`, because a validation error will fail identically forever. **Jitter is not optional**: without it, a thousand clients that failed together retry together, and you've built a self-inflicted thundering herd that keeps the service down. And **respect `Retry-After`** when the server sends it — your back-off calculation is a guess, that header is not.
+
+**Cancellation with `AbortController`:**
+
+```js
+const ctrl = new AbortController();
+const timeout = setTimeout(() => ctrl.abort(), 5000);       // or AbortSignal.timeout(5000)
+
+try {
+  const res = await fetch(url, { signal: ctrl.signal });
+  return await res.json();
+} catch (err) {
+  if (err.name === 'AbortError') return null;               // distinguish this!
+  throw err;
+} finally {
+  clearTimeout(timeout);
+}
+```
+
+`AbortSignal.timeout(ms)` is the modern shorthand, and `AbortSignal.any([a, b])` combines signals — a user-initiated cancel *and* a timeout. The rule: **always distinguish an abort from a real error**, or a user navigating away logs as a failure and pollutes your error rate.
+
+**Bounded concurrency** — the "throttle promises" pattern. `Promise.all` over 1,000 URLs opens 1,000 connections; a pool keeps exactly N in flight:
+
+```js
+async function pool(items, limit, worker) {
+  const results = new Array(items.length);
+  let i = 0;
+  const runners = Array.from({ length: limit }, async () => {
+    while (i < items.length) {
+      const idx = i++;                        // claim an index atomically (single-threaded)
+      results[idx] = await worker(items[idx]);
+    }
+  });
+  await Promise.all(runners);
+  return results;                             // order preserved
+}
+```
+
+Also worth naming: `Promise.allSettled` when you want every result regardless of failures (batch jobs, dashboards), `Promise.any` for a first-success race across mirrors, and `Promise.race` for a timeout — though `AbortSignal.timeout` is better, because `race` leaves the losing request running and still paying for bandwidth.
+
+---
+
+## 9. ES6+ and Modern JavaScript
 
 ### 9.1 Template Literals
 
@@ -886,6 +1044,292 @@ console.log(proxy.missing);               // 'Property missing not found'
 
 ---
 
+### 9.6 Which Version Shipped What — The Baseline Table
+
+Interviewers rarely ask "what year did X land?", but they do ask "is that safe to use?" and "what would you reach for here?". Knowing the rough vintage of a feature tells you whether it needs a polyfill, a transpiler, or nothing at all.
+
+| Edition | Features you are expected to know |
+|---|---|
+| **ES2022** | Top-level `await`, class static blocks, private fields (`#x`) + the `#x in obj` brand check, `Object.hasOwn`, `Array.prototype.at`, `Error` `cause`, RegExp `d` flag (match indices) |
+| **ES2023** | `findLast` / `findLastIndex`, the immutable quartet `toSorted` / `toReversed` / `toSpliced` / `with`, hashbang grammar |
+| **ES2024** | `Object.groupBy` / `Map.groupBy`, `Promise.withResolvers`, RegExp `v` flag (set notation), `ArrayBuffer.prototype.transfer` |
+| **ES2025** | Iterator helpers, Set methods (`union`, `intersection`, …), `Promise.try`, `RegExp.escape`, duplicate named capture groups, import attributes (`with { type: 'json' }`) |
+| **ES2026** | **Temporal**, explicit resource management (`using` / `await using`), `Array.fromAsync`, `Error.isError` |
+
+Everything through ES2024 is available in every current browser and in Node 20+, so it needs no build step. ES2025 and ES2026 features are the ones worth checking against your minimum target — `using` in particular needs TypeScript 5.2+ or a transpiler because it is *syntax*, not just a new method.
+
+---
+
+### 9.7 Grouping and the New Set Methods
+
+`Object.groupBy` and `Map.groupBy` (ES2024) finally give JavaScript the `groupBy` that every utility library has shipped for a decade. Both take an iterable and a callback that returns the key for each item.
+
+```js
+const people = [
+  { name: 'Alice', dept: 'eng' },
+  { name: 'Bob',   dept: 'sales' },
+  { name: 'Cara',  dept: 'eng' },
+];
+
+Object.groupBy(people, p => p.dept);
+// { eng: [{Alice}, {Cara}], sales: [{Bob}] }
+```
+
+The difference between the two matters in interviews. `Object.groupBy` coerces every key to a **string** and returns a `null`-prototype object; `Map.groupBy` keeps the key at its original type, so you can group by an object reference or a number without collisions:
+
+```js
+// Object.groupBy stringifies keys — 1 and '1' collide
+Object.groupBy([1, '1'], x => x);        // { '1': [1, '1'] }
+
+// Map.groupBy preserves key identity — no collision
+Map.groupBy([1, '1'], x => x);           // Map { 1 => [1], '1' => ['1'] }
+```
+
+Reach for `Map.groupBy` whenever the grouping key is not already a string. The returned object from `Object.groupBy` has a `null` prototype, which is deliberate — it means a group named `"toString"` or `"__proto__"` cannot shadow or corrupt anything, but it also means the result has no `.hasOwnProperty`, so use `Object.hasOwn(result, key)` or the `in` operator instead.
+
+**Set methods (ES2025)** replace the old spread-and-filter dance. Seven methods land together: three that return a new `Set`, and four that return a boolean.
+
+```js
+const a = new Set([1, 2, 3, 4]);
+const b = new Set([3, 4, 5]);
+
+a.union(b);                 // Set { 1, 2, 3, 4, 5 }
+a.intersection(b);          // Set { 3, 4 }
+a.difference(b);            // Set { 1, 2 }        — in a, not in b
+a.symmetricDifference(b);   // Set { 1, 2, 5 }     — in exactly one
+
+a.isSubsetOf(b);            // false
+a.isSupersetOf(new Set([1, 2]));  // true
+a.isDisjointFrom(new Set([9]));   // true
+```
+
+Two details interviewers probe. First, these methods are **non-mutating** — `a.union(b)` returns a new `Set` and leaves `a` alone, matching the ES2023 immutable-array philosophy. Second, the argument does not have to be a `Set`; it only needs to be *set-like*, meaning it has a numeric `size`, a `has` method, and a `keys` method. A `Map` satisfies that contract, so `mySet.intersection(myMap)` works and compares against the Map's **keys**.
+
+---
+
+### 9.8 Iterator Helpers — Lazy Array Methods for Anything Iterable
+
+Before ES2025, `.map` and `.filter` lived only on arrays. If you had a generator, a `Map`, a `Set`, or a `NodeList`, you had to materialise it into an array first — allocating the whole thing in memory — before you could transform it. Iterator helpers put those methods on `Iterator.prototype`, so they work on **any** iterator, and they evaluate **lazily**.
+
+```js
+function* naturals() {
+  let n = 1;
+  while (true) yield n++;      // infinite — an array could never hold this
+}
+
+const firstFiveSquares = naturals()
+  .map(n => n * n)
+  .take(5)
+  .toArray();
+
+console.log(firstFiveSquares);   // [1, 4, 9, 16, 25]
+```
+
+The full set: `map`, `filter`, `take`, `drop`, `flatMap`, `reduce`, `toArray`, `forEach`, `some`, `every`, `find`. Note that `reduce`, `forEach`, `some`, `every`, `find` and `toArray` are **terminal** — they consume the iterator and produce a value. The rest are lazy and return a new iterator.
+
+Why this matters beyond neat infinite-sequence demos: the array version builds an intermediate array at every step. Chaining `.filter().map().slice(0, 10)` over 100,000 records allocates two 100,000-element arrays to hand you ten items. The iterator version pulls exactly the elements it needs and stops.
+
+```js
+// Array chain — allocates two full intermediate arrays
+const arrResult = bigArray.filter(isActive).map(toDto).slice(0, 10);
+
+// Iterator chain — pulls ~10 items through the pipeline and stops
+const iterResult = bigArray.values().filter(isActive).map(toDto).take(10).toArray();
+```
+
+The classic gotcha: **iterators are single-use.** Once consumed, they are exhausted. An array can be iterated forever; an iterator cannot.
+
+```js
+const it = [1, 2, 3].values();
+it.toArray();      // [1, 2, 3]
+it.toArray();      // []  — already drained, not an error
+```
+
+This is also the reason a helper chain has no `length` and no `.sort()` — sorting is inherently eager, since you cannot know the first element of a sorted sequence without seeing all of them.
+
+---
+
+### 9.9 Explicit Resource Management — `using` and `await using`
+
+`try`/`finally` works, but it separates acquisition from cleanup by however many lines the body happens to be, and it nests horribly once you hold three resources. ES2026's explicit resource management adds two new declaration forms that attach cleanup to the *variable's scope* instead.
+
+A resource is any object with a `[Symbol.dispose]()` method (sync) or `[Symbol.asyncDispose]()` (async). When the block containing the `using` declaration exits — by return, by throw, by `break`, by anything — the dispose method runs automatically.
+
+```js
+class FileHandle {
+  constructor(path) {
+    this.path = path;
+    console.log(`open ${path}`);
+  }
+  [Symbol.dispose]() {
+    console.log(`close ${this.path}`);
+  }
+}
+
+function readConfig() {
+  using file = new FileHandle('config.json');
+  console.log('reading');
+  return 'contents';
+  // no finally block — dispose runs here, on the way out
+}
+
+readConfig();
+// open config.json
+// reading
+// close config.json
+```
+
+`await using` is the asynchronous counterpart, and it *awaits* the disposal — which is the whole point for things like database transactions and streams whose teardown is itself async:
+
+```js
+async function withTransaction(db) {
+  await using tx = await db.begin();     // tx has [Symbol.asyncDispose]
+  await tx.query('UPDATE …');
+  await tx.commit();
+  // await tx[Symbol.asyncDispose]() runs and is awaited here
+}
+```
+
+Three rules that show up as interview traps:
+
+1. **Disposal order is reverse of declaration** — it is a stack, exactly like nested `finally` blocks. Declare `using a`, then `using b`, and `b` disposes first.
+2. **`using` bindings are implicitly `const`.** You cannot reassign them, because the engine has to be sure the thing it disposes is the thing it acquired.
+3. **`null` and `undefined` are allowed** and are simply skipped, so `using maybe = condition ? openThing() : null;` is legal and does the right thing. Any *other* value without a `[Symbol.dispose]` method is a `TypeError` at declaration time.
+
+`DisposableStack` and `AsyncDisposableStack` ship alongside for the case where the number of resources is dynamic — you `.use()` things into the stack and disposing the stack disposes everything in reverse:
+
+```js
+using stack = new DisposableStack();
+for (const path of paths) stack.use(new FileHandle(path));
+// all handles close in reverse order when the block exits
+```
+
+---
+
+### 9.10 The Temporal API — The Replacement for `Date`
+
+`Date` has been the language's most-complained-about built-in since 1995: it is mutable, it parses inconsistently, its months are zero-indexed but its days are not, it silently conflates "an instant in time" with "a date on a calendar", and it has no real time-zone support. `Temporal` reached Stage 4 in March 2026 and fixes all of it by splitting the single overloaded `Date` into several **immutable** types, each of which means exactly one thing.
+
+| Type | What it represents | Example |
+|---|---|---|
+| `Temporal.Instant` | An exact point on the global timeline, no calendar | `2026-09-07T14:30:00Z` |
+| `Temporal.ZonedDateTime` | An instant *plus* a time zone and calendar | `2026-09-07T10:30-04:00[America/New_York]` |
+| `Temporal.PlainDate` | A calendar date with no time and no zone | `2026-09-07` (a birthday) |
+| `Temporal.PlainTime` | A wall-clock time with no date | `09:00` (when the shop opens) |
+| `Temporal.PlainDateTime` | Date + time, still no zone | `2026-09-07T09:00` |
+| `Temporal.Duration` | A length of time | `P1M2DT3H` (1 month, 2 days, 3 hours) |
+| `Temporal.PlainYearMonth` / `PlainMonthDay` | Partial dates | `2026-09`, `09-07` (recurring) |
+
+```js
+// Current instant, and the same instant in two zones
+const now = Temporal.Now.instant();
+const nyc = now.toZonedDateTimeISO('America/New_York');
+const tokyo = now.toZonedDateTimeISO('Asia/Tokyo');
+
+// Arithmetic returns a NEW object — nothing mutates
+const date = Temporal.PlainDate.from('2026-09-07');
+const later = date.add({ months: 1, days: 3 });
+console.log(date.toString());    // '2026-09-07'  — unchanged
+console.log(later.toString());   // '2026-10-10'
+
+// Months are 1-based, as any human would expect
+console.log(date.month);         // 9  (Date would have said 8)
+
+// Differences are typed Durations, not milliseconds
+const diff = date.until('2026-12-25', { largestUnit: 'day' });
+console.log(diff.days);          // 109
+```
+
+The conceptual point interviewers are testing is **picking the right type**, because that choice encodes a real business decision. A hotel check-in date is a `PlainDate` — the guest arrives on the 7th regardless of where they booked from. A meeting is a `ZonedDateTime` — it happens at one instant that renders differently per attendee. A recurring 9 a.m. daily standup is a `PlainTime` plus a zone, *not* a fixed instant, because the instant shifts when daylight saving changes. Storing a standup as a UTC instant is precisely the bug that makes it drift by an hour twice a year.
+
+Interop with the old world goes through strings and epoch values, so migration is incremental:
+
+```js
+const instant = legacyDate.toTemporalInstant();      // Date  → Temporal
+const backToDate = new Date(instant.epochMilliseconds); // Temporal → Date
+```
+
+---
+
+### 9.11 Smaller Modern Additions Worth Knowing
+
+**`Promise.withResolvers` (ES2024)** removes the "deferred" boilerplate that every codebase reinvented — hoisting `resolve` and `reject` out of the executor so something *outside* the promise can settle it.
+
+```js
+// Before — the awkward let-and-assign dance
+let resolve, reject;
+const p = new Promise((res, rej) => { resolve = res; reject = rej; });
+
+// After
+const { promise, resolve, reject } = Promise.withResolvers();
+```
+
+This is the natural shape for wrapping event-based APIs: create the promise, hand `resolve` to the `onmessage` handler, return `promise`.
+
+**`Array.fromAsync` (ES2026)** is `Array.from` for async iterables — it drains an async generator or a paginated API into an array and returns a promise. It is the one-line version of a `for await…of` accumulation loop.
+
+```js
+async function* pages() {
+  let url = '/api/items';
+  while (url) {
+    const res = await fetch(url).then(r => r.json());
+    yield* res.items;
+    url = res.next;
+  }
+}
+
+const allItems = await Array.fromAsync(pages());
+```
+
+Note the difference from `Promise.all(arr.map(f))`: `Array.fromAsync` iterates **sequentially**, awaiting each value before pulling the next. That is what you want for paginated fetches (page 2's URL comes from page 1) and *not* what you want for independent parallel requests.
+
+**`Promise.try` (ES2025)** starts a promise chain from a function that might throw synchronously, so a sync throw and an async rejection land in the same `.catch`:
+
+```js
+Promise.try(() => mightThrowSyncOrReturnPromise(input))
+  .then(handle)
+  .catch(handleBoth);        // catches both failure modes
+```
+
+**`Error.isError` (ES2026)** is a reliable cross-realm error check. `instanceof Error` fails for an error thrown inside an iframe or a worker (different realm, different `Error` constructor), and duck-typing on `.stack` gives false positives on plain objects:
+
+```js
+Error.isError(new TypeError('x'));       // true
+Error.isError({ name: 'Error', message: 'fake' });  // false
+```
+
+**`RegExp.escape` (ES2025)** safely escapes a string for interpolation into a regex — the fix for the "user input broke my dynamic pattern" bug covered in the Regex guide:
+
+```js
+const term = 'price (USD)';
+new RegExp(RegExp.escape(term), 'gi');   // matches the literal text
+```
+
+**`Object.hasOwn` (ES2022)** replaces `Object.prototype.hasOwnProperty.call(obj, key)`. Use it whenever the object might have a `null` prototype (like a `Object.groupBy` result) or an own property literally named `hasOwnProperty`.
+
+**Class static blocks and private brand checks (ES2022)** — a `static { }` block runs once at class definition time with `this` bound to the class, which is where per-class initialisation that needs statements (not just an expression) belongs. And `#field in obj` is the only correct way to ask "is this object actually an instance of my class?", because it checks for the private field's presence without throwing:
+
+```js
+class Counter {
+  #count = 0;
+  static #registry = new Map();
+  static { Counter.#registry.set('default', new Counter()); }
+
+  static isCounter(obj) {
+    return #count in obj;      // true brand check, never throws
+  }
+}
+```
+
+**Import attributes (ES2025)** declare how a module should be interpreted, which the host uses as a security guarantee rather than a hint — a server cannot smuggle JavaScript in by changing the `Content-Type`:
+
+```js
+import config from './config.json' with { type: 'json' };
+const data = await import('./data.json', { with: { type: 'json' } });
+```
+
+---
+
 ## 10. Error Handling
 
 JavaScript uses `try`/`catch`/`finally` for synchronous error handling and `.catch()` or `try`/`catch` inside `async` functions for asynchronous errors. You can create custom error classes by extending the built-in `Error` to add domain-specific context like field names or HTTP status codes.
@@ -932,6 +1376,82 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled:', event.reason);
 });
 ```
+
+---
+
+### 10.1 Global Error Handling — "Error Boundaries" Outside React
+
+An uncaught error anywhere in your app should be *observed*, even where no `try`/`catch` reaches. The browser gives you four hooks, and knowing which catches what is the interview question.
+
+```js
+// 1. Uncaught synchronous errors and errors thrown in callbacks
+window.addEventListener('error', (event) => {
+  report({ message: event.message, source: event.filename,
+           line: event.lineno, col: event.colno, error: event.error });
+});
+
+// 2. Promise rejections with no .catch() — a DIFFERENT event
+window.addEventListener('unhandledrejection', (event) => {
+  report({ reason: event.reason });
+  event.preventDefault();               // suppress the console warning if you've handled it
+});
+
+// 3. Failed resource loads (img, script, link) — these do NOT bubble,
+//    so you need the capture phase and they don't reach window 'error' otherwise
+window.addEventListener('error', (event) => {
+  if (event.target !== window) report({ failedResource: event.target.src });
+}, true);                               // ← capture
+
+// 4. A rejection that later gets handled (useful for tuning noise)
+window.addEventListener('rejectionhandled', (event) => { /* … */ });
+```
+
+The distinctions that matter:
+
+- **`error` and `unhandledrejection` are separate events.** Wiring only the first means every unhandled promise rejection goes unreported — and in an `async`-heavy codebase that's most of your errors.
+- **Resource load failures don't bubble**, so a broken `<img>` or a failed `<script>` is invisible unless you listen in the **capture** phase and check `event.target`.
+- **Cross-origin scripts are opaque.** Without `crossorigin="anonymous"` on the `<script>` tag *and* CORS headers on the response, you get the useless `"Script error."` with no message, file or line. This is the reason most teams' error reporting is empty for CDN-served bundles.
+- **`try`/`catch` does not catch async errors** thrown after the synchronous frame exits. A rejection inside a `setTimeout` callback, or in a promise you forgot to `await`, reaches `unhandledrejection` instead.
+
+In **Node**, the equivalents are `process.on('uncaughtException')` and `process.on('unhandledRejection')` — and the correct behaviour there is different: log, flush, and **exit**. The process is in an undefined state after an uncaught exception, so continuing to serve traffic risks corrupt data. Let your supervisor restart it (see the Node.js guide's graceful-shutdown section).
+
+**The relationship to React error boundaries** is worth stating precisely, because they're often conflated. A React error boundary catches errors thrown **during render, in lifecycle methods, and in constructors** of the tree below it, and lets you render fallback UI. It does **not** catch errors in event handlers, in `setTimeout`, in async code, or during server-side rendering. So they're complementary layers: the error boundary preserves the *UI*, and the global handlers catch everything the boundary structurally cannot. You need both.
+
+---
+
+### 10.2 Testing Async Code Without a Framework
+
+Node's built-in test runner (`node:test`, stable since Node 20) plus `node:assert` covers most of this with zero dependencies:
+
+```js
+import { test, describe, mock } from 'node:test';
+import assert from 'node:assert/strict';
+
+test('resolves with the parsed body', async () => {
+  const result = await getUser('1');              // just await it
+  assert.deepEqual(result, { id: '1', name: 'Ada' });
+});
+
+test('rejects on a 404', async () => {
+  await assert.rejects(() => getUser('nope'), { message: /not found/ });
+});
+
+test('retries three times then throws', async () => {
+  const fn = mock.fn(() => Promise.reject(new Error('boom')));
+  await assert.rejects(() => retry(fn, { retries: 2, base: 0 }));
+  assert.equal(fn.mock.callCount(), 3);           // initial + 2 retries
+});
+```
+
+The techniques that make async tests reliable, framework or not:
+
+- **`assert.rejects` / `assert.doesNotReject`** for expected failures. The alternative — a `try`/`catch` with a `assert.fail()` after the call — is the pattern that silently passes when the function *doesn't* throw, which is the classic false-green async test.
+- **Always `await` or `return` the assertion.** A forgotten `await` means the test function returns before the assertion runs, and the test passes regardless. This is the single most common async-test bug.
+- **Control the clock rather than sleeping.** `mock.timers.enable()` in `node:test` (or `vi.useFakeTimers()` in Vitest) lets you advance time instantly, so a test for a 30-second back-off runs in a millisecond. Real `setTimeout` in tests is the main source of both slowness and flake.
+- **`mock.fn()`** gives you call counts and arguments without a mocking library.
+- **Test the observable behaviour, not the timing.** Asserting "it retried three times" is stable; asserting "it waited 600ms" is flaky on a loaded CI machine.
+
+When you *do* want a framework, the reasons are jsdom for DOM tests, snapshot testing, module mocking, and parallel test orchestration — see the Testing Strategy & E2E guide for how to choose, and the Node.js guide §13.4 for when `node:test` is enough.
 
 ---
 
@@ -1612,6 +2132,74 @@ const price = new Money(100, 'USD');
 
 ---
 
+**Q21: Why is `Object.groupBy` not a drop-in replacement for Lodash's `groupBy`, and when should you use `Map.groupBy` instead?**
+
+`Object.groupBy` (ES2024) coerces every key returned by the callback to a **string**, and it returns an object with a `null` prototype. Both facts change behaviour in ways that bite.
+
+```js
+Object.groupBy([1, '1'], x => x);   // { '1': [1, '1'] }   — collision
+Map.groupBy([1, '1'], x => x);      // Map { 1 => [1], '1' => ['1'] }
+
+const g = Object.groupBy([{ id: null }], r => r.id);
+Object.keys(g);          // ['null']  — the string 'null', not the value
+g.hasOwnProperty;        // undefined — null prototype, no inherited methods
+```
+
+Use `Object.groupBy` when the key is already a string and you want a plain serialisable object (JSON responses, template rendering). Use `Map.groupBy` when the key is a number, a boolean, a date, or an object reference — anything where identity matters. The `null` prototype is a security feature, not an oversight: a group named `"__proto__"` or `"constructor"` cannot corrupt the result the way it could with a normal object literal. Just remember to reach for `Object.hasOwn(g, key)` rather than `g.hasOwnProperty(key)`.
+
+---
+
+**Q22: When would you use an iterator helper chain instead of array methods?**
+
+Iterator helpers (ES2025) put `map`, `filter`, `take`, `drop`, `flatMap`, `reduce`, `toArray`, `forEach`, `some`, `every` and `find` on `Iterator.prototype`, so they work on generators, `Map`s, `Set`s and DOM collections — and they evaluate **lazily**.
+
+Two situations make them the right call. First, when the source is infinite or expensive to fully enumerate:
+
+```js
+function* ids() { let n = 0; while (true) yield n++; }
+ids().filter(n => n % 7 === 0).take(3).toArray();   // [0, 7, 14]
+```
+
+Second, when you only need a prefix of a large transformation. `bigArray.filter(f).map(g).slice(0, 10)` allocates two full intermediate arrays to give you ten items; `bigArray.values().filter(f).map(g).take(10).toArray()` pulls roughly ten items through the pipeline and stops.
+
+The trade-offs to name out loud: iterators are **single-use** (a second `toArray()` returns `[]`, silently), they have no `length`, and there is no `sort` because sorting cannot be lazy. For small arrays the array methods are also *faster* — laziness costs one function call per element per stage, which only pays off when you're skipping work.
+
+---
+
+**Q23: What problem do `using` and `await using` solve that `try`/`finally` does not?**
+
+Explicit resource management (ES2026) binds cleanup to a variable's **scope** rather than to a hand-written block, which fixes three things.
+
+It removes the distance between acquisition and release — with `try`/`finally` the two halves can be a hundred lines apart, and a `return` added in the middle by a later commit is easy to get wrong. It removes nesting: three resources means three nested `try`/`finally` blocks, versus three consecutive `using` declarations. And it makes the contract *declarative* — a type carrying `[Symbol.dispose]` advertises that it must be cleaned up, so forgetting becomes a lint error rather than a leak found in production.
+
+```js
+async function handler(req) {
+  await using tx = await db.begin();      // [Symbol.asyncDispose]
+  using span = tracer.startSpan('handler'); // [Symbol.dispose]
+  const rows = await tx.query(/* … */);
+  return rows;                            // span disposes, then tx — reverse order
+}
+```
+
+Points interviewers look for: disposal runs on **every** exit path including a throw; disposal order is **reverse of declaration** (it's a stack); `using` bindings are implicitly `const`; `null`/`undefined` are skipped so conditional acquisition is safe; and `await using` *awaits* the disposal, which is the whole reason it exists separately. For a dynamic number of resources, `DisposableStack`/`AsyncDisposableStack` collect them and dispose the lot in reverse.
+
+---
+
+**Q24: `Temporal` has eight main types where `Date` had one. How do you choose, and why does the choice matter?**
+
+The choice encodes a business decision, which is exactly why interviewers ask it. The core split is **instant versus calendar**.
+
+- A **`Temporal.Instant`** or **`ZonedDateTime`** is one exact moment on the global timeline. Use it for anything that happened or will happen *once*: a log entry, a payment, a meeting.
+- A **`PlainDate`** is a date on a calendar with no instant attached. Use it for a birthday, a hotel check-in date, an invoice due date — the guest arrives on the 7th no matter which time zone they booked from.
+- A **`PlainTime`** is a wall-clock time. Use it for "the shop opens at 09:00" — which is a *different instant* in summer and winter.
+- A **`Duration`** is a length of time, and it is deliberately not a number of milliseconds, because "one month" has no fixed millisecond count.
+
+The classic bug this prevents: storing a recurring daily 9 a.m. standup as a fixed UTC instant. It is correct until the daylight-saving switch, then it silently becomes 8 a.m. or 10 a.m. for everyone. Modelled correctly it is a `PlainTime` plus a time zone, resolved to an instant per occurrence.
+
+Beyond type safety, `Temporal` objects are **immutable** — every arithmetic method returns a new object, so `date.add({ months: 1 })` has no effect unless you use the return value. Months are 1-based. Parsing is strict ISO 8601 rather than `Date`'s implementation-defined guessing. And month-end arithmetic **clamps** rather than overflowing: `2026-01-31` plus one month is `2026-02-28`, where `Date`'s `setMonth` would have rolled over to March 3.
+
+---
+
 ## 16. Tricky Output Questions
 
 Practice questions testing your understanding of JavaScript quirks — type coercion, reference types, and the event loop.
@@ -2002,6 +2590,216 @@ This combines everything from the previous questions: synchronous order, microta
 Final order: `1, 3, 6, 4, 5, 2`. Notice the synchronous logs all happen first (in the source order `1, 3, 6`), then all already-queued microtasks drain in FIFO order (`4, 5`), and the `setTimeout` callback — despite its `0ms` delay — is last.
 
 **Takeaway:** Execution order is always: (1) synchronous call stack to completion, (2) entire microtask queue drained FIFO, (3) one macrotask, then repeat — so `setTimeout(fn, 0)` always loses to `await` and `.then()` callbacks queued in the same tick.
+
+---
+
+### Modern JavaScript (ES2022–ES2026)
+
+---
+
+**Q12: Grouping three rows by `id` with `Object.groupBy` produces only two keys and the result has no `hasOwnProperty` — why?**
+
+```js
+const rows = [{ id: 1 }, { id: '1' }, { id: null }];
+const grouped = Object.groupBy(rows, r => r.id);
+
+console.log(Object.keys(grouped));
+console.log(grouped['1'].length);
+console.log(grouped.hasOwnProperty);
+```
+
+**Output:**
+```
+[ '1', 'null' ]
+2
+undefined
+```
+
+**Explanation:**
+
+Three separate design decisions in `Object.groupBy` (ES2024) collide in this one snippet.
+
+1. **Keys are coerced to strings.** The callback returns the number `1` for the first row and the string `'1'` for the second. Because the result is a plain object, both keys pass through `ToPropertyKey`, and the number `1` becomes the string `'1'`. The two rows land in the same bucket, which is why `grouped['1'].length` is `2` rather than `1`. This is not special to `groupBy` — it is the ordinary rule that object keys are strings or symbols — but it is easy to forget when the callback looks like it is returning a number.
+
+2. **`null` becomes the string `'null'`.** There is no "no group" behaviour and no skipping. `ToPropertyKey(null)` produces the four-character string `'null'`, so you get a bucket literally named `null` sitting next to your real groups. The same happens for `undefined`, which becomes `'undefined'`. Filter before grouping if you don't want that.
+
+3. **The returned object has a `null` prototype.** `Object.groupBy` deliberately creates its result via `OrdinaryObjectCreate(null)`, so it inherits nothing from `Object.prototype`. That means `grouped.hasOwnProperty` is `undefined`, `grouped.toString` is `undefined`, and `String(grouped)` throws. The reason is safety: if some row's key were `"__proto__"` or `"constructor"`, a normal object literal would have those assignments either silently ignored or actively corrupting the prototype chain. With a `null` prototype every key is just data.
+
+`Map.groupBy` avoids the first two problems entirely, because `Map` keys are compared with SameValueZero and keep their original type — `Map.groupBy(rows, r => r.id)` gives you three distinct entries keyed by `1`, `'1'` and `null`.
+
+**Takeaway:** `Object.groupBy` stringifies keys and returns a prototype-less object — use `Map.groupBy` for non-string keys, and `Object.hasOwn(g, k)` instead of `g.hasOwnProperty(k)`.
+
+---
+
+**Q13: Why do the `map` and `filter` side effects interleave here, instead of all the `map` logs coming first?**
+
+```js
+const chain = [1, 2, 3].values()
+  .map(n => { console.log('map', n); return n * 2; })
+  .filter(n => { console.log('filter', n); return n > 2; });
+
+console.log('nothing yet');
+console.log(chain.take(1).toArray());
+```
+
+**Output:**
+```
+nothing yet
+map 1
+filter 2
+map 2
+filter 4
+[ 4 ]
+```
+
+**Explanation:**
+
+Iterator helpers (ES2025) are **lazy**, which changes both *when* work happens and *in what order*.
+
+The first thing to notice is that `'nothing yet'` prints before any `map` or `filter` log. Building the chain does no work at all — `.map()` and `.filter()` on an iterator return a new iterator that merely remembers the callback. Nothing is pulled from the source until a terminal operation asks for a value. With arrays this would be impossible: `[1,2,3].map(f)` runs `f` three times immediately and hands back a finished array.
+
+The second thing is the interleaving. Because evaluation is pull-based, `toArray()` asks `take(1)` for one value, which asks `filter` for a value, which asks `map` for a value, which asks the source array's iterator. So each element travels the **entire pipeline** before the next element is touched:
+
+- Pull #1: `map 1` logs, produces `2`. `filter 2` logs, `2 > 2` is `false` — rejected, so `filter` pulls again.
+- Pull #2: `map 2` logs, produces `4`. `filter 4` logs, `4 > 2` is `true` — accepted. `take(1)` has its one value and stops.
+- The source element `3` is **never touched**. No `map 3`, no `filter 6`.
+
+The equivalent array chain would have printed `map 1, map 2, map 3` (all of them, including the wasted third), then `filter 2, filter 4, filter 6`, and allocated two three-element intermediate arrays along the way.
+
+There is a further trap hiding here: `chain` is now **exhausted for anything past the first accepted value**, and iterators are single-use. Calling `chain.toArray()` again returns `[6]` — the remaining elements — and a third call returns `[]`, with no error to tell you the pipeline is drained.
+
+**Takeaway:** iterator helpers build a pull-based pipeline — nothing runs until a terminal operation (`toArray`, `reduce`, `find`, `some`, `forEach`), each element flows through every stage before the next one starts, and elements past what you consumed are never evaluated.
+
+---
+
+**Q14: In what order do the disposals run when the function body throws?**
+
+```js
+function make(name) {
+  return { [Symbol.dispose]() { console.log('dispose', name); } };
+}
+
+function run() {
+  using a = make('a');
+  using b = make('b');
+  console.log('body');
+  throw new Error('boom');
+}
+
+try { run(); } catch (e) { console.log('caught', e.message); }
+```
+
+**Output:**
+```
+body
+dispose b
+dispose a
+caught boom
+```
+
+**Explanation:**
+
+`using` declarations (ES2026 explicit resource management) register their resource on a per-scope disposal stack, and the engine unwinds that stack when the block exits — **however** it exits.
+
+Two things determine the output. First, disposal is **LIFO**: `b` was declared last, so it disposes first. This mirrors nested `try`/`finally` blocks, and it is the only order that can be correct in general — if `b` was constructed using `a` (a transaction opened on a connection, a span inside a tracer), then `a` must still be alive while `b` cleans up.
+
+Second, disposal happens **before the exception propagates out of the function**. The `throw` begins unwinding the scope; the scope's exit runs the disposal stack; only then does the error continue to the caller's `catch`. So both `dispose` logs land before `caught boom`. This is exactly the guarantee `finally` gives you, which is the point — `using` is `finally` with the boilerplate removed and the ordering handled for you.
+
+Related traps worth knowing:
+
+- `using` bindings are implicitly **`const`**. `using a = …; a = other;` is a syntax error, because the engine must be certain the value it disposes is the value it acquired.
+- `null` and `undefined` are **skipped silently**, so `using maybe = flag ? open() : null;` is legal. Any other value lacking `[Symbol.dispose]` is a `TypeError` thrown at the declaration.
+- If a dispose method itself throws while the scope is already unwinding from an error, the errors are aggregated into a `SuppressedError` rather than one silently replacing the other.
+- `await using` is a distinct form that looks up `[Symbol.asyncDispose]` and **awaits** the result. Using plain `using` on an async resource does not await the teardown, which is the subtle bug: the transaction rolls back *eventually*, after your response has already gone out.
+
+**Takeaway:** `using` disposes in reverse declaration order, on every exit path including a `throw`, and always before the error propagates — and `await using` is required if the cleanup is itself asynchronous.
+
+---
+
+**Q15: Why does the date not change on the first log, and why is the second result February 28 rather than March 3?**
+
+```js
+const d = Temporal.PlainDate.from('2026-01-31');
+d.add({ months: 1 });
+console.log(d.toString());
+
+console.log(Temporal.PlainDate.from('2026-01-31').add({ months: 1 }).toString());
+
+const legacy = new Date(2026, 0, 31);
+legacy.setMonth(legacy.getMonth() + 1);
+console.log(legacy.toISOString().slice(0, 10));
+```
+
+**Output:**
+```
+2026-01-31
+2026-02-28
+2026-03-03
+```
+
+**Explanation:**
+
+This contrasts the two things `Temporal` changed about date arithmetic.
+
+**Immutability.** Every `Temporal` type is frozen; `add`, `subtract`, `with`, `round` and friends all return a **new** object and never touch the receiver. So `d.add({ months: 1 })` on line 2 computes a value and throws it away — `d` is still `2026-01-31`. This is the single most common `Temporal` mistake among developers coming from `Date`, where `setMonth` mutates in place and returns a timestamp number. The mutation-based API was the source of countless aliasing bugs (two variables pointing at the same `Date`, one of them "helpfully" advanced); making the types immutable eliminates the class entirely, at the cost of having to remember to use the return value.
+
+**Clamping instead of overflow.** January 31 plus one month has no obvious answer, because February 31 does not exist. `Temporal`'s default `overflow: 'constrain'` mode **clamps the day to the last valid day of the target month**, giving `2026-02-28`. That matches how humans reason about "a month from the 31st" and how subscription billing works. Legacy `Date` instead lets the invalid day **overflow** into the next month: `setMonth` builds February 31, which normalises to March 3 (2026 is not a leap year, so February has 28 days, and 31 − 28 = 3). Silent overflow is why "renew one month later" code drifts and occasionally skips a month entirely.
+
+If you actually want the error rather than the clamp, `Temporal` lets you ask for it: `d.add({ months: 1 }, { overflow: 'reject' })` throws a `RangeError` instead of quietly picking a day.
+
+A related asymmetry follows from clamping: date arithmetic is **not** reversible. `2026-01-31` plus one month minus one month is `2026-01-28`, not `2026-01-31`. That is inherent to calendar math, not a `Temporal` flaw — but interviewers like it because it forces you to think about whether your business rule wants calendar months or a fixed number of days.
+
+**Takeaway:** `Temporal` objects are immutable (use the return value) and clamp out-of-range days to the end of the month, where legacy `Date` mutates in place and overflows into the following month.
+
+---
+
+**Q16: Why does this take about 60 ms rather than about 30 ms, and why is the result in source order?**
+
+```js
+async function* gen() {
+  for (const ms of [30, 10, 20]) {
+    await new Promise(r => setTimeout(r, ms));
+    console.log('yield', ms);
+    yield ms;
+  }
+}
+
+const t = Date.now();
+const out = await Array.fromAsync(gen());
+console.log(out, Date.now() - t >= 60);
+```
+
+**Output:**
+```
+yield 30
+yield 10
+yield 20
+[ 30, 10, 20 ] true
+```
+
+**Explanation:**
+
+`Array.fromAsync` (ES2026) is often mistaken for "`Promise.all` for async iterables". It is not. It drains the async iterable **sequentially**, awaiting each value before requesting the next — it is a `for await…of` accumulation loop with the boilerplate removed.
+
+That has to be true, because an async iterator is pull-based and *serial by construction*. `Array.fromAsync` cannot ask a generator for its third value without the generator having produced its second — there is nothing to parallelise. So the total time is the **sum** of the delays (30 + 10 + 20 ≈ 60 ms), and the logs appear in source order rather than in fastest-first order.
+
+Contrast the superficially similar `Promise.all`:
+
+```js
+// Sequential: ~60 ms — each await blocks the next pull
+await Array.fromAsync(gen());
+
+// Parallel: ~30 ms — all three timers run concurrently
+await Promise.all([30, 10, 20].map(ms => new Promise(r => setTimeout(() => r(ms), ms))));
+```
+
+Both return results in source order — `Promise.all` preserves input order regardless of settle order — but only one of them overlaps the waiting.
+
+Which behaviour you want depends on whether the items are independent. Sequential is **required** for paginated fetching, because page 2's cursor comes out of page 1's response; you literally cannot start request *n+1* before request *n* returns. Parallel is what you want for independent requests, and `Array.fromAsync` is the wrong tool there — you would `Promise.all` a mapped array, or use a bounded concurrency pool if you need to avoid hammering the server.
+
+One more detail: `Array.fromAsync` also accepts a **sync** iterable of promises, in which case it awaits each element as it collects it. That makes `Array.fromAsync([p1, p2, p3])` behave like a sequential `Promise.all` — same result, no concurrency — which is almost never what you meant to write.
+
+**Takeaway:** `Array.fromAsync` is a sequential drain of an async iterable (`for await…of` in one line), not a concurrent one — reach for `Promise.all` or a concurrency pool when the work is independent.
 
 ---
 

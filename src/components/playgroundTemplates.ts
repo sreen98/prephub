@@ -726,6 +726,128 @@ render(<App />);`,
     kind: 'template',
     templates: [
       {
+        name: 'How to Write a Polyfill',
+        code: `// ═══════════════════════════════════════════════════════════════
+// HOW TO WRITE A POLYFILL — the meta-template
+// ═══════════════════════════════════════════════════════════════
+//
+// A POLYFILL is a re-implementation of a built-in API for environments
+// that don't have it (old browsers, older Node versions, JS engines
+// embedded in tools). Interviewers ask for them to test whether you
+// understand the contract beneath the syntax.
+//
+// 5-STEP RECIPE for writing any polyfill:
+//
+//   1. READ THE SPEC — pin down the contract. Inputs, outputs, edge
+//      cases, what throws. MDN's "Specifications" section links to it.
+//
+//   2. PICK THE RIGHT PROTOTYPE — instance methods go on
+//      \`Type.prototype\` (e.g., \`Array.prototype.myMap\`). Static
+//      methods go on the type itself (e.g., \`Object.myAssign\`).
+//
+//   3. USE \`this\` CORRECTLY — for prototype methods, \`this\` is the
+//      instance. Don't write arrow functions for the polyfill body —
+//      they steal \`this\` from the outer scope.
+//
+//   4. HANDLE EDGE CASES — empty input, null/undefined, NaN, sparse
+//      arrays, non-function callbacks, missing args. The spec lists
+//      every TypeError it should throw.
+//
+//   5. NAME IT \`myX\` (not \`x\`) — never overwrite the native built-in.
+//      Replacing native methods breaks every other library on the page.
+//
+// ═══════════════════════════════════════════════════════════════
+// PATTERN: instance method polyfill (most common)
+// ═══════════════════════════════════════════════════════════════
+
+Array.prototype.myExample = function (callback, thisArg) {
+  // 1. Guard: spec usually throws TypeError on null/undefined this.
+  if (this == null) {
+    throw new TypeError("called on null or undefined");
+  }
+  if (typeof callback !== "function") {
+    throw new TypeError(callback + " is not a function");
+  }
+
+  // 2. Use 'this' — refers to the array .myExample() was called on.
+  //    NEVER use an arrow function here; it would lose 'this'.
+  const arr = Object(this);
+  const len = arr.length >>> 0;   // coerce to uint32 (spec quirk)
+
+  const out = [];
+  for (let i = 0; i < len; i++) {
+    // 3. Respect sparse arrays — only call callback on existing slots.
+    if (i in arr) {
+      // 4. Forward thisArg correctly using .call (the spec's "call(thisArg, ...)").
+      out.push(callback.call(thisArg, arr[i], i, arr));
+    }
+  }
+  return out;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PATTERN: static method polyfill
+// ═══════════════════════════════════════════════════════════════
+
+Object.myExampleStatic = function (target, ...sources) {
+  if (target == null) throw new TypeError("target cannot be null/undefined");
+  // ... copy own enumerable props from each source into target ...
+  return target;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// CONVENTIONS — what interviewers expect
+// ═══════════════════════════════════════════════════════════════
+
+// (a) Don't overwrite the native:
+Array.prototype.map = function () {};   // ❌ breaks every library
+Array.prototype.myMap = function () {}; // ✅ safe, opt-in
+
+// (b) Don't use the built-in inside your polyfill — that's cheating:
+Array.prototype.myMap = function (cb) {
+  return this.map(cb);   // ❌ defeats the point
+};
+
+// (c) For Promise-based polyfills, return a thenable:
+function myPromiseAll(promises) {
+  return new Promise((resolve, reject) => { /* ... */ });
+}
+
+// (d) Test against the native: same input → same output. The polyfill
+// must match the native's edge-case behavior, not just the happy path.
+const native  = [1, 2, 3].map(x => x * 2);
+const myImpl  = [1, 2, 3].myExample(x => x * 2);
+console.log(JSON.stringify(native) === JSON.stringify(myImpl));   // true
+
+// ═══════════════════════════════════════════════════════════════
+// COMMON GOTCHAS by category
+// ═══════════════════════════════════════════════════════════════
+//
+//  Array methods:
+//   - Sparse arrays: \`new Array(3)\` has length 3, holes at 0,1,2.
+//     map/filter/forEach SKIP holes; the polyfill must too.
+//   - NaN equality: indexOf returns -1 for NaN; includes returns true.
+//
+//  Function methods (bind/call/apply):
+//   - The bound function must work with \`new\` (constructor case).
+//   - apply receives args as an ARRAY, call as separate args.
+//
+//  Object methods:
+//   - Only own ENUMERABLE STRING-KEYED properties get copied (Object.assign).
+//   - Symbols are NOT included by default — most polyfills skip them.
+//
+//  Promise methods:
+//   - Promise.all: fail-fast on first rejection.
+//   - Promise.allSettled: never rejects.
+//   - Promise.race: first to settle (either way) wins.
+//   - Promise.any: first to FULFILL wins; AggregateError if all reject.
+//
+// ═══════════════════════════════════════════════════════════════
+// Now open any other polyfill template (Array.map, Promise.all, etc.)
+// and you'll see this pattern applied. Each one has its own quirks
+// noted in the comments — that's the spec talking back to you.`,
+      },
+      {
         name: 'Array.map',
         code: `// Polyfill: Array.prototype.map
 Array.prototype.myMap = function(callback, thisArg) {
@@ -3213,9 +3335,9 @@ const test = (name, actual, expected) => {
 };
 
 test("Properly nested",       isBalancedByCount("(([]))"), true);
-test("Unordered but balanced", isBalancedByCount("([)]"),  true);
+test("Unordered but balanced", isBalancedByCount("([)]"),  true);   // counts match — order is NOT checked
 test("Unbalanced parens",     isBalancedByCount("(("),     false);
-test("Unbalanced brackets",   isBalancedByCount("[(])"),   false);
+test("Mismatched bracket totals", isBalancedByCount("[[(]"), false); // 2 '[' but only 1 ']'
 test("All three pairs",        isBalancedByCount("({[]})"), true);
 test("Letters mixed in",       isBalancedByCount("a(b[c]d)e"), true);
 test("Empty string",           isBalancedByCount(""),       true);
@@ -3738,6 +3860,997 @@ test("Standard",  toArray(mergeTwoLists(fromArray([1,2,4]), fromArray([1,3,4])))
 test("L1 empty",  toArray(mergeTwoLists(null, fromArray([0]))),                    [0]);
 test("Both empty",toArray(mergeTwoLists(null, null)),                              []);
 test("Disjoint",  toArray(mergeTwoLists(fromArray([1,2,3]), fromArray([4,5,6]))), [1,2,3,4,5,6]);`,
+      },
+
+      // ===== Mirrors of existing challenges =====
+
+      {
+        name: 'Rotate Array Left',
+        patterns: ['Two Pointer', 'In-Place'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Rotate Array Left ═════
+// Rotate the array LEFT by k positions, in place.
+//
+// Example: rotateLeft([1,2,3,4,5,6,7], 3) → [4,5,6,7,1,2,3]
+//
+// Hint 1: rotating LEFT by k is the same as rotating RIGHT by n-k.
+// Hint 2: three-reversal trick — reverse first k, reverse the rest,
+//         then reverse the whole array.
+//         (Same three reversals as right-rotation, opposite order.)
+
+function rotateLeft(nums, k) {
+  // YOUR CODE HERE — mutate nums; return nums for test ergonomics
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",   rotateLeft([1,2,3,4,5,6,7], 3), [4,5,6,7,1,2,3]);
+test("k > n",      rotateLeft([1,2,3], 5),         [3,1,2]);   // 5 % 3 = 2
+test("k = n",      rotateLeft([1,2,3,4], 4),       [1,2,3,4]); // no change
+test("k = 0",      rotateLeft([1,2,3], 0),         [1,2,3]);
+test("Empty",      rotateLeft([], 3),              []);
+test("Single",     rotateLeft([42], 1),            [42]);`,
+      },
+      {
+        name: 'Reverse Words in a String',
+        patterns: ['Two Pointer'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Reverse Words in a String ═════
+// Reverse the ORDER of words in a string. Words are separated by one
+// or more spaces. Leading/trailing whitespace and multiple inner
+// spaces should be collapsed to single spaces.
+//
+// Example: reverseWords("  hello   world  ") → "world hello"
+//          reverseWords("the sky is blue")   → "blue is sky the"
+//
+// Hint 1: split on whitespace, filter empty tokens, reverse, join.
+// Hint 2: The "two-reversal trick" — reverse the WHOLE string, then
+//         reverse each word in place. Pairs with Reverse String.
+
+function reverseWords(s) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",        reverseWords("the sky is blue"),       "blue is sky the");
+test("Trim + collapse", reverseWords("  hello   world  "),     "world hello");
+test("Single word",     reverseWords("hello"),                 "hello");
+test("Empty",           reverseWords(""),                      "");
+test("All spaces",      reverseWords("    "),                  "");
+test("Punctuated",      reverseWords("a good   example"),      "example good a");`,
+      },
+
+      // ===== More string + array challenges =====
+
+      {
+        name: 'Longest Common Prefix',
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Longest Common Prefix ═════
+// Write a function to find the longest common prefix string amongst
+// an array of strings. If there is no common prefix, return "".
+//
+// Example: longestCommonPrefix(["flower","flow","flight"]) → "fl"
+//          longestCommonPrefix(["dog","racecar","car"])    → ""
+//
+// Hint: vertical scan — walk character index i from 0 upward; check
+// that strs[0][i] matches every strs[j][i]. Stop on first mismatch
+// or when any string runs out.
+
+function longestCommonPrefix(strs) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",  longestCommonPrefix(["flower","flow","flight"]), "fl");
+test("No common", longestCommonPrefix(["dog","racecar","car"]),    "");
+test("Single",    longestCommonPrefix(["alone"]),                  "alone");
+test("Identical", longestCommonPrefix(["abc","abc","abc"]),        "abc");
+test("Empty",     longestCommonPrefix([]),                          "");
+test("One empty", longestCommonPrefix(["", "abc"]),                 "");`,
+      },
+      {
+        name: 'Longest Palindromic Substring',
+        patterns: ['Two Pointer', 'Dynamic Programming'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Longest Palindromic Substring ═════
+// Given a string s, return the longest palindromic substring in s.
+//
+// Example: longestPalindrome("babad") → "bab" (or "aba", both valid)
+//          longestPalindrome("cbbd")  → "bb"
+//
+// Hint: expand-around-center. For each index i, expand outward as
+// long as left and right characters match. Handle BOTH odd-length
+// (single center) and even-length (two-character center) cases.
+
+function longestPalindrome(s) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+// We accept any valid longest palindrome (some inputs have ties).
+const isPalin = x => x === [...x].reverse().join("");
+const test = (name, actual, possibleAnswers) => {
+  const pass = isPalin(actual) && possibleAnswers.some(p => p.length === actual.length);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Got \${JSON.stringify(actual)}, expected one of \${JSON.stringify(possibleAnswers)}\`);
+};
+
+test("babad",     longestPalindrome("babad"), ["bab", "aba"]);
+test("cbbd",      longestPalindrome("cbbd"),  ["bb"]);
+test("All same",  longestPalindrome("aaaa"),  ["aaaa"]);
+test("Single",    longestPalindrome("a"),     ["a"]);
+test("None",      longestPalindrome("abcde"), ["a","b","c","d","e"]);`,
+      },
+      {
+        name: 'Reverse Vowels of a String',
+        patterns: ['Two Pointer'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Reverse Vowels of a String ═════
+// Reverse only the vowels (a, e, i, o, u — both cases) in the
+// string. All other characters stay in place.
+//
+// Example: reverseVowels("hello")    → "holle"
+//          reverseVowels("leetcode") → "leotcede"
+//
+// Hint: two-pointer. Advance left until it lands on a vowel,
+// advance right backward to a vowel, swap, step inward.
+
+function reverseVowels(s) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("hello",        reverseVowels("hello"),    "holle");
+test("leetcode",     reverseVowels("leetcode"), "leotcede");
+test("Mixed case",   reverseVowels("aA"),       "Aa");
+test("No vowels",    reverseVowels("bcdfg"),    "bcdfg");
+test("All vowels",   reverseVowels("aeiou"),    "uoiea");
+test("Empty",        reverseVowels(""),         "");`,
+      },
+      {
+        name: 'String to Integer (atoi)',
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: String to Integer (atoi) ═════
+// Convert a string to a 32-bit signed integer, following these rules:
+//   1. Skip leading whitespace.
+//   2. Read an optional + or − sign.
+//   3. Read digits until a non-digit or end of string.
+//   4. Clamp to [-2³¹, 2³¹ − 1] on overflow.
+//   5. Return 0 if no digits were read.
+//
+// Example: myAtoi("42")             → 42
+//          myAtoi("   -42")         → -42
+//          myAtoi("4193 with words") → 4193
+//          myAtoi("words 987")       → 0
+//          myAtoi("91283472332")     → 2147483647 (clamped to INT_MAX)
+
+function myAtoi(s) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Basic",           myAtoi("42"),               42);
+test("With spaces",     myAtoi("   -42"),           -42);
+test("Trailing words",  myAtoi("4193 with words"),  4193);
+test("Leading words",   myAtoi("words 987"),        0);
+test("Overflow",        myAtoi("91283472332"),      2147483647);
+test("Underflow",       myAtoi("-91283472332"),     -2147483648);
+test("Plus sign",       myAtoi("+1"),               1);
+test("Just sign",       myAtoi("-"),                0);
+test("Empty",           myAtoi(""),                 0);`,
+      },
+      {
+        name: 'Letter Combinations of Phone Number',
+        patterns: ['Backtracking', 'Recursion / D&C'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Letter Combinations of Phone Number ═════
+// Given a string of digits 2..9, return all letter combinations the
+// digits could represent on a classic phone keypad.
+//
+// Mapping:
+//   2 → "abc"   3 → "def"   4 → "ghi"   5 → "jkl"
+//   6 → "mno"   7 → "pqrs"  8 → "tuv"   9 → "wxyz"
+//
+// Example: letterCombinations("23") →
+//   ["ad","ae","af","bd","be","bf","cd","ce","cf"]
+//
+// Hint: backtracking. For each digit, branch into 3–4 child letters
+// and recurse for the rest of the digits.
+
+function letterCombinations(digits) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify([...actual].sort()) === JSON.stringify([...expected].sort());
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("23",     letterCombinations("23"),  ["ad","ae","af","bd","be","bf","cd","ce","cf"]);
+test("Single", letterCombinations("2"),    ["a","b","c"]);
+test("Empty",  letterCombinations(""),     []);
+test("Three",  letterCombinations("234"),  [
+  "adg","adh","adi","aeg","aeh","aei","afg","afh","afi",
+  "bdg","bdh","bdi","beg","beh","bei","bfg","bfh","bfi",
+  "cdg","cdh","cdi","ceg","ceh","cei","cfg","cfh","cfi",
+]);`,
+      },
+      {
+        name: 'Single Number',
+        patterns: ['Math / Bit'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Single Number ═════
+// Every element appears TWICE in the array except for ONE element
+// that appears exactly once. Find that one. O(n) time and O(1) space.
+//
+// Example: singleNumber([2,2,1])      → 1
+//          singleNumber([4,1,2,1,2])  → 4
+//
+// Hint: XOR. \`a ^ a = 0\` and \`a ^ 0 = a\`. XOR every number; the
+// duplicates cancel and the single one survives.
+
+function singleNumber(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Three",   singleNumber([2,2,1]),     1);
+test("Five",    singleNumber([4,1,2,1,2]), 4);
+test("Single",  singleNumber([1]),         1);
+test("Negative",singleNumber([-1,-1,-2]), -2);`,
+      },
+      {
+        name: 'Single Number II',
+        patterns: ['Math / Bit'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Single Number II ═════
+// Every element appears THREE TIMES in the array except for ONE
+// element that appears exactly once. Find that one.
+// O(n) time and O(1) space.
+//
+// Example: singleNumberII([2,2,3,2])         → 3
+//          singleNumberII([0,1,0,1,0,1,99])  → 99
+//
+// Follow-up to "Single Number". The XOR trick from that problem
+// FAILS here — XOR cancels pairs (mod 2), but here we have triples.
+//
+// Hint: Think bit-by-bit. For each of the 32 bits, count how many
+// numbers have that bit set. Modulo 3 isolates the lone element's
+// bit pattern: triples contribute 0 mod 3; the singleton contributes 1.
+//
+// Two clean approaches:
+//   1. Bit-counting mod 3 (32 passes) — easy to explain
+//   2. Two-bit state machine (ones/twos) — single pass, harder to derive
+// Solution shows both.
+
+function singleNumberII(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Four",       singleNumberII([2,2,3,2]),        3);
+test("Seven",      singleNumberII([0,1,0,1,0,1,99]), 99);
+test("Single",     singleNumberII([7]),              7);
+test("Negative",   singleNumberII([-2,-2,1,1,-3,1,-3,-3,-4,-2]), -4);
+test("Large bit",  singleNumberII([1,1,1,2147483646]), 2147483646);`,
+      },
+      {
+        name: 'Majority Element',
+        patterns: ['Math / Bit'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Majority Element ═════
+// Given an array of size n, return the element that appears more
+// than ⌊n/2⌋ times. You may assume one always exists.
+//
+// Example: majorityElement([3,2,3])        → 3
+//          majorityElement([2,2,1,1,1,2,2]) → 2
+//
+// Hint: Boyer–Moore voting algorithm. Keep a candidate and a count.
+// On match, increment count; on mismatch, decrement count; on count
+// 0, swap the candidate. Runs in O(n) time, O(1) space.
+
+function majorityElement(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Three",    majorityElement([3,2,3]),         3);
+test("Seven",    majorityElement([2,2,1,1,1,2,2]), 2);
+test("Single",   majorityElement([42]),            42);
+test("All same", majorityElement([5,5,5,5]),       5);`,
+      },
+      {
+        name: 'Product of Array Except Self',
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Product of Array Except Self ═════
+// Given an array nums, return an array where output[i] is the
+// product of all elements of nums EXCEPT nums[i]. You may NOT use
+// division. Target O(n) time and O(1) extra space (the output
+// array does not count).
+//
+// Example: productExceptSelf([1,2,3,4]) → [24,12,8,6]
+//
+// Hint: two passes. First pass fills output[i] with the product of
+// everything LEFT of i. Second pass walks right-to-left with a
+// running "right product" and multiplies it into output[i].
+
+function productExceptSelf(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",  productExceptSelf([1,2,3,4]),       [24,12,8,6]);
+test("With zero", productExceptSelf([-1,1,0,-3,3]),  [0,0,9,0,0]);
+test("Two zeros", productExceptSelf([0,0,1,2]),       [0,0,0,0]);
+test("Pair",      productExceptSelf([3,5]),           [5,3]);`,
+      },
+      {
+        name: 'Plus One',
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Plus One ═════
+// You are given a non-negative integer represented as an array of
+// digits (most-significant first). Increment by one and return the
+// resulting digit array.
+//
+// Example: plusOne([1,2,3])  → [1,2,4]
+//          plusOne([9,9,9])  → [1,0,0,0]
+//          plusOne([0])      → [1]
+//
+// Hint: walk from right to left. If the digit is < 9, increment and
+// return. If it is 9, set to 0 and carry. If you walk off the left
+// end with a carry, prepend a 1.
+
+function plusOne(digits) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Simple",    plusOne([1,2,3]),         [1,2,4]);
+test("All nines", plusOne([9,9,9]),         [1,0,0,0]);
+test("Single 9",  plusOne([9]),             [1,0]);
+test("Trailing 9",plusOne([1,2,9]),         [1,3,0]);
+test("Zero",      plusOne([0]),             [1]);`,
+      },
+      {
+        name: 'Subarray Sum Equals K',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Subarray Sum Equals K ═════
+// Given an integer array and an integer k, return the number of
+// contiguous subarrays whose sum equals k.
+//
+// Example: subarraySum([1,1,1], 2)  → 2   ([1,1] twice)
+//          subarraySum([1,2,3], 3)  → 2   ([1,2] and [3])
+//
+// Hint: prefix sums + hash map. Walk the array maintaining a running
+// sum S. At each index, the count of subarrays ending here with sum k
+// equals the count of times \`S − k\` has appeared as a prior prefix.
+// Store prefix-sum frequencies in a Map.
+
+function subarraySum(nums, k) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Standard",      subarraySum([1,1,1], 2),       2);
+test("Pair sum",      subarraySum([1,2,3], 3),       2);
+test("All k",         subarraySum([1,1,1,1], 2),     3);
+test("Negatives",     subarraySum([1,-1,0], 0),      3);
+test("None",          subarraySum([1,2,3], 7),       0);
+test("Single match",  subarraySum([5], 5),           1);`,
+      },
+      {
+        name: 'Search in Rotated Sorted Array',
+        patterns: ['Binary Search'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Search in Rotated Sorted Array ═════
+// You are given a sorted-then-rotated array of distinct integers
+// (e.g. [4,5,6,7,0,1,2] which was [0..7] rotated). Find the index
+// of target, or -1 if not present. Must run in O(log n).
+//
+// Example: searchRotated([4,5,6,7,0,1,2], 0)  → 4
+//          searchRotated([4,5,6,7,0,1,2], 3)  → -1
+//
+// Hint: modified binary search. At each step, ONE half of the
+// mid-split is guaranteed to be sorted (compare nums[lo] with
+// nums[mid] to find which). Check if target lies within that
+// sorted half; if yes, search there; otherwise search the other.
+
+function searchRotated(nums, target) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Rotated, right half",  searchRotated([4,5,6,7,0,1,2], 0), 4);
+test("Rotated, left half",   searchRotated([4,5,6,7,0,1,2], 5), 1);
+test("Not found",            searchRotated([4,5,6,7,0,1,2], 3), -1);
+test("Empty",                searchRotated([], 1),              -1);
+test("Single, hit",          searchRotated([1], 1),             0);
+test("Not rotated",          searchRotated([1,2,3,4,5], 3),     2);
+test("Rotated by 1",         searchRotated([5,1,2,3,4], 1),     1);`,
+      },
+      {
+        name: 'Spiral Matrix',
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Spiral Matrix ═════
+// Given an m × n matrix, return all elements in spiral order
+// (start top-left, go right → down → left → up → repeat inward).
+//
+// Example: spiralOrder([[1,2,3],[4,5,6],[7,8,9]]) → [1,2,3,6,9,8,7,4,5]
+//
+// Hint: maintain four boundaries (top, bottom, left, right).
+// After traversing each edge, shrink the corresponding boundary
+// inward by 1. Stop when top > bottom or left > right.
+
+function spiralOrder(matrix) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("3x3",       spiralOrder([[1,2,3],[4,5,6],[7,8,9]]),                 [1,2,3,6,9,8,7,4,5]);
+test("3x4",       spiralOrder([[1,2,3,4],[5,6,7,8],[9,10,11,12]]),        [1,2,3,4,8,12,11,10,9,5,6,7]);
+test("Single row",spiralOrder([[1,2,3,4]]),                                [1,2,3,4]);
+test("Single col",spiralOrder([[1],[2],[3]]),                              [1,2,3]);
+test("Empty",     spiralOrder([]),                                         []);
+test("1x1",       spiralOrder([[42]]),                                     [42]);`,
+      },
+
+      // ===== "Find Highest / Lowest" family =====
+
+      {
+        name: 'Find Maximum in Array',
+        patterns: ['Greedy'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Find Maximum in Array ═════
+// Return the largest number in the array. Return null if the
+// array is empty.
+//
+// Example: findMax([3, 7, 1, 9, 4]) → 9
+//
+// Hint: single pass with a running max. Start at -Infinity (so
+// any real number wins) — or use the first element as the seed.
+
+function findMax(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Mixed",        findMax([3, 7, 1, 9, 4]),       9);
+test("All negative", findMax([-5, -2, -8, -1]),      -1);
+test("Single",       findMax([42]),                  42);
+test("All same",     findMax([5, 5, 5]),             5);
+test("With negatives", findMax([-3, 0, 5, -1]),      5);
+test("Empty",        findMax([]),                    null);`,
+      },
+      {
+        name: 'Find Min and Max',
+        patterns: ['Greedy'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Find Min and Max (Single Pass) ═════
+// Return both the smallest and largest numbers in the array as
+// an object { min, max }. Return { min: null, max: null } if
+// the array is empty.
+//
+// Example: findMinMax([3, 7, 1, 9, 4]) → { min: 1, max: 9 }
+//
+// Hint: track two running variables — currentMin (start at +∞)
+// and currentMax (start at -∞). One pass, O(n). The naive
+// approach uses 2n comparisons; the pair-wise trick achieves
+// roughly 3n/2 by comparing pairs first, then comparing the
+// smaller of the pair with min and the larger with max.
+
+function findMinMax(nums) {
+  // YOUR CODE HERE — return { min, max }
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Mixed",        findMinMax([3, 7, 1, 9, 4]),    { min: 1, max: 9 });
+test("All negative", findMinMax([-5, -2, -8, -1]),   { min: -8, max: -1 });
+test("Single",       findMinMax([42]),               { min: 42, max: 42 });
+test("All same",     findMinMax([5, 5, 5]),          { min: 5, max: 5 });
+test("Two elements", findMinMax([10, 3]),            { min: 3, max: 10 });
+test("Empty",        findMinMax([]),                 { min: null, max: null });`,
+      },
+      {
+        name: 'Third Largest Number',
+        patterns: ['Greedy'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Third Largest Number ═════
+// Return the third DISTINCT largest number in the array. If
+// fewer than three distinct numbers exist, return the maximum.
+//
+// Example: thirdLargest([3, 2, 1])       → 1
+//          thirdLargest([1, 2])          → 2  (only two distinct)
+//          thirdLargest([2, 2, 3, 1])    → 1  (distinct: 3,2,1)
+//
+// Hint: extend the Second Largest pattern. Track first, second,
+// third with -Infinity sentinels. On each x: skip if equal to
+// any of first/second/third (must be DISTINCT). Otherwise
+// cascade-shift values down as needed.
+
+function thirdLargest(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Three distinct",  thirdLargest([3, 2, 1]),       1);
+test("Fewer than 3",    thirdLargest([1, 2]),          2);
+test("With duplicates", thirdLargest([2, 2, 3, 1]),    1);
+test("All same",        thirdLargest([5, 5, 5]),       5);
+test("Larger array",    thirdLargest([1, 2, 2, 5, 3, 5]), 2);
+test("Single",          thirdLargest([42]),            42);`,
+      },
+      {
+        name: 'Kth Largest Element',
+        patterns: ['Sorting'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Kth Largest Element ═════
+// Return the k-th largest element in the array (k is 1-indexed:
+// k=1 means the largest, k=2 the second largest, etc.). The k-th
+// largest is the element that would be at index n-k if the array
+// were sorted ascending. Duplicates count.
+//
+// Example: kthLargest([3,2,1,5,6,4], 2)         → 5
+//          kthLargest([3,2,3,1,2,4,5,5,6], 4)   → 4
+//
+// Three classic approaches:
+//   1. Sort + index   — O(n log n) time, simplest
+//   2. Heap of size k — O(n log k) time, better for streaming
+//   3. Quickselect    — O(n) average, the optimal-asymptotic
+
+function kthLargest(nums, k) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("k=2",            kthLargest([3,2,1,5,6,4], 2),         5);
+test("k=4 with dups",  kthLargest([3,2,3,1,2,4,5,5,6], 4),   4);
+test("k=1 (largest)",  kthLargest([3,2,1], 1),               3);
+test("k=n (smallest)", kthLargest([3,2,1], 3),               1);
+test("Negatives",      kthLargest([-1, -2, -3], 2),         -2);
+test("Single",         kthLargest([42], 1),                  42);`,
+      },
+      {
+        name: 'Find Peak Element',
+        patterns: ['Binary Search'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Find Peak Element ═════
+// A peak element is one strictly greater than its neighbors.
+// Given an array where adjacent elements differ, return the
+// INDEX of ANY peak (multiple peaks may exist; any valid index
+// is accepted). nums[-1] and nums[n] are treated as -∞.
+//
+// Example: findPeak([1, 2, 3, 1])    → 2   (value 3 is a peak)
+//          findPeak([1, 2, 1, 3, 5, 6, 4]) → 1 OR 5 (two peaks)
+//
+// Hint: binary search runs in O(log n). At mid: if nums[mid] >
+// nums[mid+1], a peak lies on the LEFT half (including mid).
+// Else a peak lies on the RIGHT half (excluding mid). The
+// answer is always inside the surviving half because the
+// edges are -∞.
+
+function findPeak(nums) {
+  // YOUR CODE HERE — return any valid peak INDEX
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, validIndices) => {
+  const pass = validIndices.includes(actual);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Got \${actual}, expected one of \${JSON.stringify(validIndices)}\`);
+};
+
+test("Single peak",   findPeak([1, 2, 3, 1]),                [2]);
+test("Two peaks",     findPeak([1, 2, 1, 3, 5, 6, 4]),       [1, 5]);
+test("Single",        findPeak([42]),                         [0]);
+test("Strictly inc",  findPeak([1, 2, 3, 4, 5]),              [4]);
+test("Strictly dec",  findPeak([5, 4, 3, 2, 1]),              [0]);
+test("Two elements",  findPeak([1, 2]),                       [1]);`,
+      },
+
+      // ===== Async / Promise / React-internals additions =====
+
+      {
+        name: 'Auto-Retry for Promises',
+        patterns: ['Closure / State'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Auto-Retry for Promises ═════
+// Wrap a function that returns a Promise. If it rejects, retry up to
+// 'retries' times with exponential backoff between attempts.
+//
+// Example:
+//   const flaky = autoRetry(unreliableFn, 3, 100);
+//   await flaky();   // retries 3 times before giving up
+//
+// Hint:
+//  - async/await + try/catch in a for loop
+//  - back-off: delay * 2^attempt (or full-jitter)
+//  - throw the LAST error if all retries exhausted
+//  - common in production HTTP clients, queue workers, etc.
+
+function autoRetry(fn, retries = 3, delay = 100) {
+  // YOUR CODE HERE — return an async function with same signature as fn
+}
+
+// ═════ TEST CASES ═════
+// Simulate a flaky function that succeeds on the Nth call.
+function makeFlaky(failsBefore, returnValue) {
+  let calls = 0;
+  return async () => {
+    calls++;
+    if (calls <= failsBefore) throw new Error(\`fail \${calls}\`);
+    return { value: returnValue, attempts: calls };
+  };
+}
+
+async function run() {
+  const test = (name, actual, expected) => {
+    const pass = JSON.stringify(actual) === JSON.stringify(expected);
+    console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+  };
+
+  const succeedsOnSecond = autoRetry(makeFlaky(1, "OK"), 3, 5);
+  test("retries once then succeeds", await succeedsOnSecond(), { value: "OK", attempts: 2 });
+
+  const succeedsOnThird = autoRetry(makeFlaky(2, "yes"), 3, 5);
+  test("retries twice then succeeds", await succeedsOnThird(), { value: "yes", attempts: 3 });
+
+  try {
+    const allFail = autoRetry(makeFlaky(10, ""), 2, 5);
+    await allFail();
+    console.log("❌ should have thrown after retries exhausted");
+  } catch (e) {
+    console.log("✅ throws after retries exhausted:", e.message);
+  }
+}
+run();`,
+      },
+      {
+        name: 'Batch Promises by Concurrency',
+        patterns: ['Closure / State'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Throttle Promises by Batching ═════
+// Given an array of async task functions, run them with a CONCURRENCY
+// CAP — at most N in flight at once. Preserve the order of results.
+//
+// Example: 100 API calls, but only fire 5 at a time.
+//
+// Hint:
+//  - Don't just chunk into Math.ceil(n/k) batches and Promise.all each
+//    batch — that wastes the time when one task finishes early but its
+//    batch-mates are still running.
+//  - Better: an "always-N-in-flight" pool. Workers pull from a shared
+//    index until tasks run out.
+
+async function batchPromises(tasks, concurrency) {
+  // YOUR CODE HERE — return array of results in same order as tasks
+}
+
+// ═════ TEST CASES ═════
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+async function run() {
+  const test = (name, actual, expected) => {
+    const pass = JSON.stringify(actual) === JSON.stringify(expected);
+    console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+  };
+
+  // 5 tasks each returning their index after a small delay
+  const tasks = [1, 2, 3, 4, 5].map(n => async () => { await wait(10); return n; });
+  test("All preserve order", await batchPromises(tasks, 2), [1, 2, 3, 4, 5]);
+
+  // Single task
+  test("Single task", await batchPromises([async () => 42], 3), [42]);
+
+  // Empty
+  test("Empty",       await batchPromises([], 3), []);
+
+  // Concurrency >= tasks.length — effectively Promise.all
+  const ts = [1, 2, 3].map(n => async () => n);
+  test("Concurrency > n", await batchPromises(ts, 10), [1, 2, 3]);
+}
+run();`,
+      },
+      {
+        name: 'Async Tasks in Series',
+        patterns: ['Closure / State'],
+        difficulty: 'Easy',
+        code: `// ═════ CHALLENGE: Execute Async Tasks in Series ═════
+// Given an array of async functions, run them ONE AT A TIME (not
+// concurrently). Return an array of results in order.
+//
+// This is the "do A, wait, then do B with A's result, etc." pattern.
+//
+// Example:
+//   const tasks = [() => fetchUser(), () => fetchPosts(), () => fetchComments()];
+//   const [user, posts, comments] = await runInSeries(tasks);
+//
+// Hint: a simple for-of loop with await is the most readable form.
+// Avoid Promise.all (that's parallel). Avoid forEach + await (broken).
+
+async function runInSeries(tasks) {
+  // YOUR CODE HERE — return array of results in order
+}
+
+// ═════ TEST CASES ═════
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+async function run() {
+  const test = (name, actual, expected) => {
+    const pass = JSON.stringify(actual) === JSON.stringify(expected);
+    console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+  };
+
+  // Verify ORDER: track call times.
+  const calls = [];
+  const tasks = [1, 2, 3].map(n => async () => {
+    calls.push(\`start \${n}\`);
+    await wait(5);
+    calls.push(\`end \${n}\`);
+    return n * 10;
+  });
+  test("Results in order", await runInSeries(tasks), [10, 20, 30]);
+  test("Truly sequential", calls, ["start 1","end 1","start 2","end 2","start 3","end 3"]);
+
+  test("Empty", await runInSeries([]), []);
+}
+run();`,
+      },
+      {
+        name: 'Implement useState (Basic)',
+        patterns: ['Closure / State'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: Implement useState (Basic) ═════
+// Write a tiny version of React's useState that supports:
+//   - get the current value
+//   - set the value, which triggers a re-render
+//   - functional update form: setState(prev => prev + 1)
+//
+// We won't have the full React reconciler, so model the "render cycle"
+// as a function the user passes in. Each setState call invokes the
+// renderer with the new value.
+//
+// Example:
+//   const [getCount, setCount] = createState(0, render);
+//   setCount(c => c + 1);   // triggers render(1)
+//   setCount(5);            // triggers render(5)
+//
+// Hint: closure holds the current value. The setter is a function
+// that updates the closure variable and calls the renderer.
+
+function createState(initial, render) {
+  // YOUR CODE HERE — return [getValue, setValue]
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+const renders = [];
+const [getCount, setCount] = createState(0, v => renders.push(v));
+test("Initial value", getCount(), 0);
+
+setCount(5);
+test("After set(5)", getCount(), 5);
+test("Render called", renders, [5]);
+
+setCount(c => c + 1);
+test("Functional update", getCount(), 6);
+test("Two renders",      renders,    [5, 6]);
+
+setCount(c => c * 2);
+test("Functional doubles", getCount(), 12);
+test("Three renders",      renders,    [5, 6, 12]);
+
+// Independent state slots — each createState call gets its own closure.
+const renders2 = [];
+const [getName, setName] = createState("Alice", v => renders2.push(v));
+setName("Bob");
+test("Independent slot 1", getName(),  "Bob");
+test("Independent slot 2", getCount(), 12);   // unchanged`,
+      },
+      {
+        name: 'JSON Prettifier',
+        patterns: ['Recursion / D&C'],
+        difficulty: 'Medium',
+        code: `// ═════ CHALLENGE: JSON Prettifier ═════
+// Given a JavaScript value, return a pretty-printed JSON string with
+// the specified indentation. Match JSON.stringify(value, null, indent).
+//
+// Example: prettify({a:1, b:[2,3]}, 2) →
+//   {
+//     "a": 1,
+//     "b": [
+//       2,
+//       3
+//     ]
+//   }
+//
+// Hint: recursive descent. Handle each type — null, boolean, number,
+// string (escape!), array, object — and emit indented lines.
+
+function prettify(value, indent = 2) {
+  // YOUR CODE HERE — produce the indented JSON string
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected:\\n\${expected}\\nGot:\\n\${actual}\`);
+};
+
+test("Number",    prettify(42),                     "42");
+test("String",    prettify("hi"),                   '"hi"');
+test("Boolean",   prettify(true),                   "true");
+test("Null",      prettify(null),                   "null");
+test("Empty obj", prettify({}),                     "{}");
+test("Empty arr", prettify([]),                     "[]");
+test("Flat obj",  prettify({a: 1, b: 2}),
+\`{
+  "a": 1,
+  "b": 2
+}\`);
+test("Nested",    prettify({a: 1, b: [2, 3]}),
+\`{
+  "a": 1,
+  "b": [
+    2,
+    3
+  ]
+}\`);
+test("Tab indent", prettify({x: 1}, 4),
+\`{
+    "x": 1
+}\`);`,
+      },
+      {
+        name: 'Task Runner with Concurrency Control',
+        patterns: ['Closure / State'],
+        difficulty: 'Hard',
+        code: `// ═════ CHALLENGE: Task Runner with Concurrency Control ═════
+// Build a class that manages async tasks with a concurrency cap. Tasks
+// can be added at any time; the runner processes at most N in flight.
+//
+// API:
+//   const runner = new TaskRunner(2);          // max 2 concurrent
+//   const p = runner.add(() => fetchUser(id)); // returns a Promise
+//   await p;
+//
+// Tasks added past the cap are queued and started as slots free up.
+// Each .add(fn) returns a promise resolving to fn's result.
+//
+// Hint: keep a counter of running tasks + a queue of pending tasks.
+// When a task finishes, dequeue the next one and start it.
+
+class TaskRunner {
+  constructor(concurrency) {
+    // YOUR CODE HERE
+  }
+  add(taskFn) {
+    // YOUR CODE HERE — return a Promise resolving with taskFn's result
+  }
+}
+
+// ═════ TEST CASES ═════
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+async function run() {
+  const test = (name, actual, expected) => {
+    const pass = JSON.stringify(actual) === JSON.stringify(expected);
+    console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+  };
+
+  // 4 tasks, concurrency 2 → at most 2 running at once.
+  const runner = new TaskRunner(2);
+  const inFlight = { now: 0, max: 0 };
+  const make = n => async () => {
+    inFlight.now++;
+    inFlight.max = Math.max(inFlight.max, inFlight.now);
+    await wait(20);
+    inFlight.now--;
+    return n;
+  };
+
+  const results = await Promise.all([
+    runner.add(make(1)),
+    runner.add(make(2)),
+    runner.add(make(3)),
+    runner.add(make(4)),
+  ]);
+
+  test("All results returned",       results.sort(), [1, 2, 3, 4]);
+  test("Concurrency cap respected",  inFlight.max,    2);
+
+  // Late adds work too
+  const late = await runner.add(async () => "late");
+  test("Late add resolves",          late,            "late");
+}
+run();`,
       },
     ],
   },

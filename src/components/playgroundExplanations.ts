@@ -118,6 +118,13 @@ export interface Approach {
   tradeoffs: string;
   /** Built-ins this approach uses that have a polyfill template in the playground */
   usesPolyfills?: PolyfillRef[];
+  /** Optional side-by-side comparison blocks. When present, the modal renders
+   *  the primary pseudocode + each compare block as columns. Useful for
+   *  paired algorithms like rotate-left vs rotate-right. The primary's
+   *  pseudoLine highlight applies only to the primary column. */
+  pseudocodeCompare?: { label: string; lines: string[]; highlightLine?: number }[];
+  /** Optional label for the primary pseudocode when shown alongside compare blocks. */
+  pseudocodeLabel?: string;
 }
 
 export interface Explanation {
@@ -1274,13 +1281,27 @@ const rotateArray: Explanation = {
     id: 'reverse-3',
     name: 'Reverse Three Times',
     badge: 'best',
-    intuition: 'Reverse the entire array, then reverse the first k, then reverse the rest. The clever observation: rotating right by k is the same as a sequence of three reversals — and reversal is in-place O(1) extra space.',
+    intuition:
+      "Reverse the entire array, then reverse the first k, then reverse the rest. The clever observation: rotating right by k is the same as a sequence of three reversals — and reversal is in-place O(1) extra space.\n\n" +
+      "**Mirror with Rotate Array Left:** both algorithms use the EXACT SAME three reversals, just in opposite order.\n\n" +
+      "• Right rotation: reverse-WHOLE → reverse-first-k → reverse-rest\n" +
+      "• Left rotation:  reverse-first-k → reverse-rest → reverse-WHOLE\n\n" +
+      "There's also a direct equivalence: `rotateRight(arr, k) === rotateLeft(arr, n - k)`. If you have one, the other is one line.",
     complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical, O(1) space' },
     pseudocode: [
       'k = k % n',
-      'reverse(arr, 0, n-1)',
-      'reverse(arr, 0, k-1)',
-      'reverse(arr, k, n-1)',
+      'reverse(arr, 0, n-1)   // whole',
+      'reverse(arr, 0, k-1)   // first k',
+      'reverse(arr, k, n-1)   // rest',
+    ],
+    pseudocodeLabel: 'Rotate RIGHT',
+    pseudocodeCompare: [
+      { label: 'Rotate LEFT', lines: [
+        'k = k % n',
+        'reverse(arr, 0, k-1)   // first k',
+        'reverse(arr, k, n-1)   // rest',
+        'reverse(arr, 0, n-1)   // whole',
+      ] },
     ],
     example: { input: '[1,2,3,4,5,6,7], k=3', output: '[5,6,7,1,2,3,4]' },
     steps: [
@@ -1293,6 +1314,14 @@ const rotateArray: Explanation = {
       { title: 'Reverse rest [3..n-1] → [5,6,7, 1,2,3,4].', pseudoLine: 3,
         array: { cells: [{ value: 5 }, { value: 6 }, { value: 7 }, { value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 4, highlight: 'found' }] },
         result: { found: true, value: '[5,6,7,1,2,3,4]' } },
+      { title: 'Compare with Rotate Array LEFT (same reversals, opposite order).',
+        detail:
+          "Right and Left rotation use exactly the same primitive (reverse a slice) — only the ORDER differs. Memorize one rule and you have both.\n\n" +
+          "→ RIGHT by k: whole, then first-k, then rest.\n" +
+          "← LEFT  by k: first-k, then rest, then whole.\n\n" +
+          "Or use the identity: rotateLeft(arr, k) === rotateRight(arr, n − k).",
+        note: "Both produce a rotation; the order of the three reversals decides direction. See the 'Rotate Array Left' challenge for the mirrored walkthrough.",
+        result: { found: true, value: 'right ↔ left mirror' } },
     ],
     tradeoffs: 'Slice-and-concat (`arr.slice(-k).concat(arr.slice(0, -k))`) is O(n) extra space — fine for typical inputs. Cyclic-replacement is O(1) space too but needs gcd-cycle math to avoid double work. Reverse-3 is the cleanest interview answer.',
     usesPolyfills: [
@@ -2619,6 +2648,2826 @@ const secondLargest: Explanation = {
   }],
 };
 
+// ==================== Batch: DP / Greedy ====================
+
+const maximumSubarray: Explanation = {
+  problem: 'Maximum Subarray (Kadane\'s)',
+  problemStatement: 'Given an integer array, find the contiguous subarray with the largest sum and return that sum.',
+  approaches: [{
+    id: 'kadane',
+    name: "Kadane's Algorithm (Best — O(1) Space)",
+    badge: 'best',
+    intuition:
+      "At each position i, the best subarray ENDING at i is either (a) just nums[i] alone, or (b) nums[i] extended onto the best subarray ending at i-1. The choice: if the previous running sum is negative, dropping it strictly improves things (negative + anything < anything alone).\n\n" +
+      "Maintain two scalars: `current` (best sum ending at the current position) and `best` (best seen anywhere). On each step: `current = max(nums[i], current + nums[i])`; `best = max(best, current)`.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical — the textbook answer' },
+    pseudocode: [
+      'current = nums[0], best = nums[0]',
+      'for i from 1 to n-1:',
+      '  current = max(nums[i], current + nums[i])',
+      '  best = max(best, current)',
+      'return best',
+    ],
+    example: { input: '[-2,1,-3,4,-1,2,1,-5,4]', output: '6 (subarray [4,-1,2,1])' },
+    steps: [
+      { title: 'Start: current = -2, best = -2.', pseudoLine: 0,
+        computation: { label: 'current / best', result: '-2 / -2' } },
+      { title: 'i=1, nums=1. max(1, -2+1=-1) = 1. current=1, best=1.', pseudoLine: 2,
+        computation: { label: 'max(1, -1)', result: '1' } },
+      { title: 'i=2, nums=-3. max(-3, 1-3=-2) = -2. current=-2, best stays 1.', pseudoLine: 2,
+        computation: { label: 'max(-3, -2)', result: '-2' } },
+      { title: 'i=3, nums=4. max(4, -2+4=2) = 4. current=4, best=4.', pseudoLine: 2,
+        computation: { label: 'max(4, 2)', result: '4 — restart from here' } },
+      { title: 'Continue: 4 → 3 → 5 → 6 → 1 → 5. Max seen = 6.', pseudoLine: 3,
+        result: { found: true, value: '6' } },
+    ],
+    tradeoffs: "Beats brute-force O(n²) by recognizing that the best subarray ending at i depends only on the best ending at i-1. Divide-and-conquer also solves it in O(n log n) but is overkill — Kadane's is strictly better.",
+  }],
+};
+
+const trappingRainWater: Explanation = {
+  problem: 'Trapping Rain Water',
+  problemStatement: 'Given non-negative bar heights, compute how much rainwater the structure can trap.',
+  approaches: [{
+    id: 'two-pointer',
+    name: 'Two-Pointer (Best — O(1) Space)',
+    badge: 'best',
+    intuition:
+      "Water above index i = min(maxLeftOf_i, maxRightOf_i) - height[i]. The two-pointer trick avoids computing left/right max arrays upfront.\n\n" +
+      "Start `left=0, right=n-1`. Track `leftMax, rightMax`. At each step, move the pointer at the SHORTER side inward: that side's local max is the binding constraint (water level is capped by the shorter of the two walls), so the water at that position equals its side's max minus its height. The taller side is irrelevant until we reach it.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'left=0, right=n-1, leftMax=0, rightMax=0, total=0',
+      'while left < right:',
+      '  if height[left] < height[right]:',
+      '    if height[left] >= leftMax: leftMax = height[left]',
+      '    else: total += leftMax - height[left]',
+      '    left++',
+      '  else:',
+      '    if height[right] >= rightMax: rightMax = height[right]',
+      '    else: total += rightMax - height[right]',
+      '    right--',
+    ],
+    example: { input: '[0,1,0,2,1,0,1,3,2,1,2,1]', output: '6' },
+    steps: [
+      { title: "Compare ends: h[0]=0 < h[11]=1. Move left.", pseudoLine: 2,
+        array: { cells: [{value:0,highlight:'i'},{value:1},{value:0},{value:2},{value:1},{value:0},{value:1},{value:3},{value:2},{value:1},{value:2},{value:1,highlight:'j'}] } },
+      { title: 'h[left]=0 ≥ leftMax=0 → update leftMax=0. No water yet.', pseudoLine: 3 },
+      { title: 'Continue. When h[left] < leftMax, water += leftMax - h[left].',
+        note: 'The trick: water at position i is bounded by min(leftMax, rightMax). Since we only move the SHORTER side, that side\'s max IS the binding constraint at that position.' },
+      { title: 'After full sweep: total = 6.',
+        result: { found: true, value: '6' } },
+    ],
+    tradeoffs: 'Brute force checks each position\'s leftMax/rightMax separately (O(n²)). DP precomputes leftMax[]/rightMax[] (O(n) time, O(n) space). Two-pointer is the gold standard.',
+  }],
+};
+
+const threeSum: Explanation = {
+  problem: '3Sum',
+  problemStatement: 'Given an integer array, return all unique triplets [a, b, c] such that a + b + c === 0.',
+  approaches: [{
+    id: 'sort-two-pointer',
+    name: 'Sort + Two-Pointer (Best)',
+    badge: 'best',
+    intuition:
+      "Sort the array first. Then fix each index i in turn and run a TWO-POINTER scan on the slice [i+1..n-1] to find pairs that sum to -nums[i]. Sorting is what lets the two-pointer work: if the sum is too small, move left pointer right (bigger numbers); too big, move right pointer left.\n\n" +
+      "Skip duplicates at both levels: at the outer i (if nums[i] === nums[i-1], skip — would produce duplicate triplets) and at the inner level after finding a match (advance left/right past duplicates of the matched value).",
+    complexity: { time: 'O(n²)', space: 'O(1) extra (sort in-place)', verdict: 'Canonical' },
+    pseudocode: [
+      'sort(nums)',
+      'result = []',
+      'for i from 0 to n-3:',
+      '  if i > 0 and nums[i] === nums[i-1]: continue   // skip dup',
+      '  l = i+1, r = n-1',
+      '  while l < r:',
+      '    s = nums[i] + nums[l] + nums[r]',
+      '    if s === 0: push triplet, skip dups, l++, r--',
+      '    else if s < 0: l++',
+      '    else: r--',
+      'return result',
+    ],
+    example: { input: '[-1,0,1,2,-1,-4]', output: '[[-1,-1,2], [-1,0,1]]' },
+    steps: [
+      { title: 'Sort: [-4,-1,-1,0,1,2].', pseudoLine: 0,
+        array: { cells: [-4,-1,-1,0,1,2].map(v => ({ value: v })) } },
+      { title: 'i=0 (nums[i]=-4). l=1, r=5. Sum=-4+(-1)+2=-3 < 0 → l++. Continue... no triplet for i=0.', pseudoLine: 5 },
+      { title: 'i=1 (nums[i]=-1). l=2, r=5. -1+(-1)+2=0 ✓. Push [-1,-1,2].', pseudoLine: 7,
+        result: { found: true, value: '[-1,-1,2]' } },
+      { title: 'Skip duplicates at l. Continue to find [-1,0,1]. Final: 2 triplets.', pseudoLine: 6,
+        result: { found: true, value: '[[-1,-1,2], [-1,0,1]]' } },
+    ],
+    tradeoffs: 'Brute force is O(n³). Hash-set approach is O(n²) but messier dedup logic. Sort+two-pointer is the cleanest and the interview standard.',
+  }],
+};
+
+const generateParentheses: Explanation = {
+  problem: 'Generate Parentheses',
+  problemStatement: 'Given n pairs of parentheses, return all combinations of well-formed parentheses.',
+  approaches: [{
+    id: 'backtracking',
+    name: 'Backtracking with Two Counters',
+    badge: 'best',
+    intuition:
+      "Build the string character by character. Track two counters: `open` (count of '(' used so far) and `close` (count of ')'). The rules:\n\n" +
+      "• Can add '(' if `open < n` (not yet at max opens).\n" +
+      "• Can add ')' if `close < open` (a closer needs a prior unmatched opener).\n\n" +
+      "When length === 2n, the string is complete and well-formed. Recurse from both choices when both are legal, branching the search tree. The two-counter pruning ensures we never produce malformed strings — no need to validate at the end.",
+    complexity: { time: 'O(4ⁿ / √n) — Catalan number', space: 'O(n) recursion depth', verdict: 'Canonical' },
+    pseudocode: [
+      'result = []',
+      'function back(s, open, close):',
+      '  if s.length === 2*n: push(s); return',
+      '  if open < n: back(s + "(", open+1, close)',
+      '  if close < open: back(s + ")", open, close+1)',
+      'back("", 0, 0)',
+    ],
+    example: { input: 'n = 3', output: '["((()))","(()())","(())()","()(())","()()()"]' },
+    steps: [
+      { title: 'back("", 0, 0). Both branches legal: try "(" first.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'back("", 0, 0)', status: 'active' }] } },
+      { title: 'back("(", 1, 0). open=1<3, close=0<1 → both branches. Try "(" deeper.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'back("(", 1, 0)', status: 'pending' }, { call: 'back("((", 2, 0)', status: 'active' }] } },
+      { title: 'Continue depth-first. Hit length 6: push "((()))". Backtrack and explore alternatives.', pseudoLine: 1,
+        result: { found: true, value: '5 valid strings (Catalan(3) = 5)' } },
+    ],
+    tradeoffs: 'Brute-force "generate all 2ⁿ strings then filter" is O(2²ⁿ · n). The counter-based pruning is the key insight.',
+  }],
+};
+
+const subsets: Explanation = {
+  problem: 'Subsets (Power Set)',
+  problemStatement: 'Given an array of distinct integers, return all 2ⁿ possible subsets.',
+  approaches: [{
+    id: 'backtracking',
+    name: 'Backtracking (Best)',
+    badge: 'best',
+    intuition:
+      "At each index, decide INCLUDE the element or EXCLUDE it. Two choices × n elements = 2ⁿ subsets. The recursion tree has depth n, and at each leaf you record the current subset.\n\n" +
+      "Maintain a running `path` array. At index i: push nums[i], recurse to i+1, pop nums[i], recurse to i+1. Record `path` at every entry (including the empty array at the root).",
+    complexity: { time: 'O(n · 2ⁿ)', space: 'O(n) recursion + O(n·2ⁿ) output', verdict: 'Canonical' },
+    pseudocode: [
+      'result = []',
+      'function back(i, path):',
+      '  result.push([...path])      // every node, not just leaves',
+      '  for j from i to n-1:',
+      '    path.push(nums[j])',
+      '    back(j+1, path)',
+      '    path.pop()                // undo the choice',
+      'back(0, [])',
+    ],
+    example: { input: '[1,2,3]', output: '[[],[1],[1,2],[1,2,3],[1,3],[2],[2,3],[3]]' },
+    steps: [
+      { title: 'back(0, []). Push []. Loop j=0: include 1.', pseudoLine: 2,
+        callStack: { frames: [{ call: 'back(0, [])', status: 'active' }] } },
+      { title: 'back(1, [1]). Push [1]. Loop j=1: include 2.', pseudoLine: 2,
+        callStack: { frames: [{ call: 'back(0, [])', status: 'pending' }, { call: 'back(1, [1])', status: 'active' }] } },
+      { title: 'Recursion bottoms out at [1,2,3], then unwinds, exploring alternatives.', pseudoLine: 5,
+        result: { found: true, value: '8 subsets' } },
+    ],
+    tradeoffs: 'Iterative bit-mask: each subset corresponds to an n-bit number 0..2ⁿ-1. Bit i set = include nums[i]. Same complexity, no recursion stack.',
+  }],
+};
+
+const permutations: Explanation = {
+  problem: 'Permutations',
+  problemStatement: 'Given an array of distinct integers, return all n! permutations.',
+  approaches: [{
+    id: 'backtracking',
+    name: 'Backtracking with Used Set',
+    badge: 'best',
+    intuition:
+      "At each position in the permutation, pick any unused element. Track 'used' status with a boolean array. When path.length === n, record a copy. Then backtrack: unmark the last choice and try the next unused element.\n\n" +
+      "The recursion tree branches n × (n-1) × (n-2) × ... = n! ways. Each leaf is one permutation. The `used` array prevents picking the same element twice in the same permutation.",
+    complexity: { time: 'O(n · n!)', space: 'O(n) recursion + O(n!·n) output', verdict: 'Canonical' },
+    pseudocode: [
+      'result = []',
+      'function back(path, used):',
+      '  if path.length === n: push([...path]); return',
+      '  for i from 0 to n-1:',
+      '    if used[i]: continue',
+      '    used[i] = true; path.push(nums[i])',
+      '    back(path, used)',
+      '    used[i] = false; path.pop()',
+      'back([], new Array(n).fill(false))',
+    ],
+    example: { input: '[1,2,3]', output: '6 permutations' },
+    steps: [
+      { title: 'back([], all unused). Try i=0: path=[1].', pseudoLine: 5,
+        callStack: { frames: [{ call: 'back([1], used={1})', status: 'active' }] } },
+      { title: 'back([1]). Try i=1: path=[1,2]. Then i=2: path=[1,2,3]. Push.', pseudoLine: 2,
+        result: { found: true, value: '[1,2,3] added' } },
+      { title: 'Backtrack, try [1,3,2], then [2,...], etc. Final: 6 permutations.',
+        result: { found: true, value: '3! = 6' } },
+    ],
+    tradeoffs: 'Swap-based version reduces space: maintain a single array, swap the current position with each candidate index, recurse, swap back. Same complexity, slightly less allocation.',
+  }],
+};
+
+const minStack: Explanation = {
+  problem: 'Min Stack',
+  problemStatement: 'Implement a stack with push, pop, top, and getMin all O(1).',
+  approaches: [{
+    id: 'parallel-stack',
+    name: 'Parallel Min Stack',
+    badge: 'best',
+    intuition:
+      "Two stacks. The main one holds values; the second holds the running minimum at each level. On push: also push min(currentTop_of_minStack, newValue) — this preserves the minimum across pops. On pop: pop both. getMin: peek the min stack.\n\n" +
+      "The key insight: at any moment, the min should reflect ALL currently-pushed elements. Storing per-level mins means popping a level automatically restores the previous min.",
+    complexity: { time: 'O(1) all ops', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'class MinStack:',
+      '  stack = []; mins = []',
+      '  push(x): stack.push(x); mins.push(mins.length ? Math.min(mins.last(), x) : x)',
+      '  pop():   stack.pop(); mins.pop()',
+      '  top():   return stack.last()',
+      '  getMin(): return mins.last()',
+    ],
+    example: { input: 'push -2, push 0, push -3; getMin → -3; pop; getMin → -2', output: 'works in O(1)' },
+    steps: [
+      { title: 'push(-2): stack=[-2], mins=[-2].', pseudoLine: 2,
+        stack: { items: [{ value: -2, highlight: 'new' }], action: 'push' } },
+      { title: 'push(0): stack=[-2,0], mins=[-2,-2] (min stays -2).', pseudoLine: 2,
+        stack: { items: [{ value: -2 }, { value: 0, highlight: 'new' }], action: 'push' } },
+      { title: 'push(-3): stack=[-2,0,-3], mins=[-2,-2,-3] (new min).', pseudoLine: 2,
+        stack: { items: [{ value: -2 }, { value: 0 }, { value: -3, highlight: 'new' }], action: 'push' } },
+      { title: 'getMin → -3. pop. mins=[-2,-2] → getMin → -2.', pseudoLine: 5,
+        result: { found: true, value: 'O(1) min restored' } },
+    ],
+    tradeoffs: 'Space-optimized: store (value, diffFromMin) pairs in one stack — O(n) space but constant per element. Not worth the complexity in interviews.',
+  }],
+};
+
+const dailyTemperatures: Explanation = {
+  problem: 'Daily Temperatures',
+  problemStatement: 'For each day, return the number of days until a warmer temperature (0 if never).',
+  approaches: [{
+    id: 'monotonic-stack',
+    name: 'Monotonic Stack (Best)',
+    badge: 'best',
+    intuition:
+      "Stack holds INDICES of days waiting for a warmer one. The invariant: temperatures at these indices form a non-increasing sequence top-to-bottom.\n\n" +
+      "Walk forward. For each day i: while the stack is non-empty AND temps[i] > temps[top of stack], pop the top index j and set answer[j] = i - j (number of days waited). Then push i.\n\n" +
+      "Each index gets pushed once and popped at most once — O(n) total.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical monotonic-stack pattern' },
+    pseudocode: [
+      'stack = [], answer = new Array(n).fill(0)',
+      'for i from 0 to n-1:',
+      '  while stack.length && temps[i] > temps[top]:',
+      '    j = stack.pop()',
+      '    answer[j] = i - j',
+      '  stack.push(i)',
+      'return answer',
+    ],
+    example: { input: '[73,74,75,71,69,72,76,73]', output: '[1,1,4,2,1,1,0,0]' },
+    steps: [
+      { title: 'i=0 (73). Stack empty → push 0. Stack: [0].', pseudoLine: 5,
+        stack: { items: [{ value: '73@0', highlight: 'new' }], action: 'push' } },
+      { title: 'i=1 (74). 74 > 73 → pop 0, answer[0]=1. Push 1.', pseudoLine: 3,
+        stack: { items: [{ value: '74@1', highlight: 'new' }], action: 'push' } },
+      { title: 'Continue. The "4" at index 2: temp 75 waits days 3,4,5,6 → 76 at 6 triggers pop. answer[2]=4.',
+        pseudoLine: 4 },
+      { title: 'Final: [1,1,4,2,1,1,0,0].', pseudoLine: 6,
+        result: { found: true, value: '[1,1,4,2,1,1,0,0]' } },
+    ],
+    tradeoffs: 'Brute force: for each i, scan forward until warmer = O(n²). Monotonic stack ensures each index is processed once each direction.',
+  }],
+};
+
+const coinChange: Explanation = {
+  problem: 'Coin Change',
+  problemStatement: 'Given coin denominations and an amount, return the FEWEST coins to make that amount; -1 if impossible.',
+  approaches: [{
+    id: 'dp',
+    name: 'Bottom-Up DP',
+    badge: 'best',
+    intuition:
+      "Define dp[a] = fewest coins to make amount `a`. Base: dp[0] = 0 (no coins). For each a from 1 to amount, try every coin c: if c ≤ a, then dp[a] could be dp[a-c] + 1 (use one coin of denomination c, plus whatever made a-c). Take the minimum across all coins.\n\n" +
+      "Initialize dp[1..amount] to Infinity (or amount+1 as a sentinel — any value > amount means 'impossible so far'). After the fill, if dp[amount] is still the sentinel, no combination works → return -1.",
+    complexity: { time: 'O(amount · #coins)', space: 'O(amount)', verdict: 'Canonical' },
+    pseudocode: [
+      'dp = new Array(amount + 1).fill(amount + 1)',
+      'dp[0] = 0',
+      'for a from 1 to amount:',
+      '  for c in coins:',
+      '    if c <= a: dp[a] = min(dp[a], dp[a - c] + 1)',
+      'return dp[amount] > amount ? -1 : dp[amount]',
+    ],
+    example: { input: 'coins=[1,2,5], amount=11', output: '3 (5+5+1)' },
+    steps: [
+      { title: 'dp[0]=0. For a=1: only coin 1 fits. dp[1] = dp[0]+1 = 1.', pseudoLine: 4,
+        computation: { label: 'dp[1]', result: '1' } },
+      { title: 'a=2: coin 1 → dp[1]+1=2. coin 2 → dp[0]+1=1. min=1.', pseudoLine: 4,
+        computation: { label: 'dp[2]', result: '1' } },
+      { title: 'a=5: coin 5 wins → dp[0]+1=1. dp[5]=1.', pseudoLine: 4,
+        computation: { label: 'dp[5]', result: '1' } },
+      { title: 'a=11: coin 5 → dp[6]+1=3. dp[11]=3.', pseudoLine: 5,
+        result: { found: true, value: '3' } },
+    ],
+    tradeoffs: 'Memoized recursion (top-down) is equivalent in complexity. Greedy "always pick largest" FAILS for non-standard coin sets (e.g., [1,3,4] amount=6: greedy gives 4+1+1=3, optimal is 3+3=2).',
+  }],
+};
+
+const houseRobber: Explanation = {
+  problem: 'House Robber',
+  problemStatement: 'Each house holds money. You cannot rob two adjacent houses. Return the max amount.',
+  approaches: [{
+    id: 'dp-o1',
+    name: 'O(1) Space DP — Two Scalars',
+    badge: 'best',
+    intuition:
+      "At house i, you choose either (a) rob house i — gain nums[i] + best from i-2, OR (b) skip house i — best from i-1. Take the better.\n\n" +
+      "Recurrence: `dp[i] = max(dp[i-1], dp[i-2] + nums[i])`. You only need the last two values, so use two scalars: `prev2` (best up to i-2), `prev1` (best up to i-1). Iterate, updating in place.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'prev2 = 0, prev1 = 0',
+      'for x in nums:',
+      '  curr = max(prev1, prev2 + x)',
+      '  prev2 = prev1; prev1 = curr',
+      'return prev1',
+    ],
+    example: { input: '[2,7,9,3,1]', output: '12 (rob houses 0, 2, 4)' },
+    steps: [
+      { title: 'x=2: curr=max(0, 0+2)=2. prev2=0, prev1=2.', pseudoLine: 2,
+        computation: { label: 'curr', result: '2' } },
+      { title: 'x=7: curr=max(2, 0+7)=7. prev2=2, prev1=7.', pseudoLine: 2,
+        computation: { label: 'curr', result: '7' } },
+      { title: 'x=9: curr=max(7, 2+9)=11. prev1=11.', pseudoLine: 2,
+        computation: { label: 'curr', result: '11' } },
+      { title: 'x=3: curr=max(11, 7+3)=11. x=1: curr=max(11, 11+1)=12.', pseudoLine: 2,
+        result: { found: true, value: '12' } },
+    ],
+    tradeoffs: 'Recursive + memoization is the same complexity but eats stack. The two-scalar trick is the canonical "DP with O(1) space" pattern.',
+  }],
+};
+
+const jumpGame: Explanation = {
+  problem: 'Jump Game',
+  problemStatement: 'Each nums[i] is the max jump length from index i. Return true if you can reach the last index.',
+  approaches: [{
+    id: 'greedy',
+    name: 'Greedy — Track Farthest Reachable',
+    badge: 'best',
+    intuition:
+      "Sweep left to right. Maintain `farthest` = the maximum index reachable from any position seen so far. At each index i: if i > farthest, you can't even reach here — return false. Otherwise, update farthest = max(farthest, i + nums[i]).\n\n" +
+      "After the loop (or once farthest ≥ n-1), return true. This is O(n) — vastly better than the obvious O(2ⁿ) recursion or O(n²) DP.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'farthest = 0',
+      'for i from 0 to n-1:',
+      '  if i > farthest: return false',
+      '  farthest = max(farthest, i + nums[i])',
+      'return true',
+    ],
+    example: { input: '[2,3,1,1,4]', output: 'true' },
+    steps: [
+      { title: 'i=0, farthest=0. 0≤0 ok. Update: max(0, 0+2)=2.', pseudoLine: 3,
+        computation: { label: 'farthest', result: '2' } },
+      { title: 'i=1: 1≤2 ok. max(2, 1+3)=4.', pseudoLine: 3,
+        computation: { label: 'farthest', result: '4' } },
+      { title: 'i=2,3,4: all ≤ farthest. Reached last index → true.', pseudoLine: 4,
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'DP variant: dp[i] = reachable from 0. O(n²) — strictly worse than the greedy. The greedy "farthest reachable" is one of the cleanest greedy proofs in competitive programming.',
+  }],
+};
+
+// ==================== Batch: Linked List + Sorting ====================
+
+const detectCycle: Explanation = {
+  problem: 'Detect Cycle in Linked List',
+  problemStatement: 'Return true if the linked list has a cycle, otherwise false.',
+  approaches: [{
+    id: 'floyd',
+    name: "Floyd's Tortoise & Hare",
+    badge: 'best',
+    intuition:
+      "Two pointers: slow advances 1 step, fast advances 2 steps. If there's a cycle, fast eventually laps slow and they meet INSIDE the cycle. If there's no cycle, fast hits null first.\n\n" +
+      "Why they meet: once both pointers are in the cycle, fast closes the gap by 1 step every iteration. With a cycle of length k, fast catches up in at most k iterations. Total O(n) time, O(1) space — beats the hash-set approach's O(n) space.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'slow = head, fast = head',
+      'while fast && fast.next:',
+      '  slow = slow.next',
+      '  fast = fast.next.next',
+      '  if slow === fast: return true',
+      'return false',
+    ],
+    example: { input: '3 → 2 → 0 → -4 ↻ (back to 2)', output: 'true' },
+    steps: [
+      { title: 'slow=3, fast=3. Step: slow=2, fast=0.', pseudoLine: 3,
+        linkedList: { nodes: [{ value: 3 }, { value: 2, label: 's' }, { value: 0, label: 'f' }, { value: -4 }] } },
+      { title: 'Step: slow=0, fast=2 (fast wrapped). Step: slow=-4, fast=-4. MEET!', pseudoLine: 4,
+        linkedList: { nodes: [{ value: 3 }, { value: 2 }, { value: 0 }, { value: -4, label: 's=f', highlight: 'found' }] },
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'Hash-set approach: walk forward, add each node to a Set; if a node is already in the set, cycle detected. Same O(n) time but O(n) space. Floyd\'s is strictly better.',
+  }],
+};
+
+const mergeTwoSortedLists: Explanation = {
+  problem: 'Merge Two Sorted Lists',
+  problemStatement: 'Given heads of two sorted lists, splice them together into one sorted list.',
+  approaches: [{
+    id: 'dummy-head',
+    name: 'Dummy Head + Tail Pointer',
+    badge: 'best',
+    intuition:
+      "Create a dummy node so you never need to special-case 'the very first node'. Walk both lists with a `tail` pointer. At each step, take the smaller of l1.val and l2.val, attach it after `tail`, and advance.\n\n" +
+      "When one list runs out, attach the rest of the other directly — it's already sorted, no further work needed. Return `dummy.next` (the real head of the merged list).",
+    complexity: { time: 'O(m + n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'dummy = new ListNode(0); tail = dummy',
+      'while l1 && l2:',
+      '  if l1.val <= l2.val: tail.next = l1; l1 = l1.next',
+      '  else: tail.next = l2; l2 = l2.next',
+      '  tail = tail.next',
+      'tail.next = l1 || l2     // attach the leftover',
+      'return dummy.next',
+    ],
+    example: { input: '1→2→4, 1→3→4', output: '1→1→2→3→4→4' },
+    steps: [
+      { title: 'l1=1, l2=1. Both equal — take l1. tail=1.', pseudoLine: 3,
+        linkedList: { nodes: [{ value: 1, label: 'merged' }] } },
+      { title: 'l1=2, l2=1. l2 smaller. tail=1→1.', pseudoLine: 4,
+        linkedList: { nodes: [{ value: 1 }, { value: 1 }] } },
+      { title: 'Continue: 2, 3, 4 from l1, 4 from l2. Final: 1→1→2→3→4→4.', pseudoLine: 6,
+        result: { found: true, value: '1→1→2→3→4→4' } },
+    ],
+    tradeoffs: 'Recursive variant: merge(l1, l2) = head + merge(rest of smaller, other). Same complexity, O(m+n) stack space.',
+  }],
+};
+
+const sortColors: Explanation = {
+  problem: 'Sort Colors (Dutch National Flag)',
+  problemStatement: 'Sort an array of 0s, 1s, and 2s in place in one pass.',
+  approaches: [{
+    id: 'dutch-flag',
+    name: "Three-Pointer (Dutch Flag)",
+    badge: 'best',
+    intuition:
+      "Three pointers: `low` (next slot for a 0), `high` (next slot for a 2), `mid` (cursor). Invariant: nums[0..low-1] all 0s, nums[low..mid-1] all 1s, nums[high+1..n-1] all 2s, nums[mid..high] unknown.\n\n" +
+      "At each step: if nums[mid] === 0, swap with low and advance both. If 2, swap with high and decrement high (don't advance mid — the swapped-in value is unread). If 1, just advance mid.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical — one pass' },
+    pseudocode: [
+      'low = 0, mid = 0, high = n - 1',
+      'while mid <= high:',
+      '  if nums[mid] === 0: swap(low++, mid++)',
+      '  else if nums[mid] === 2: swap(mid, high--)',
+      '  else: mid++',
+    ],
+    example: { input: '[2,0,2,1,1,0]', output: '[0,0,1,1,2,2]' },
+    steps: [
+      { title: 'low=0, mid=0, high=5. nums[0]=2 → swap with high=5. Array: [0,0,2,1,1,2]. high=4.', pseudoLine: 3,
+        array: { cells: [0,0,2,1,1,2].map(v => ({ value: v })) } },
+      { title: 'nums[mid=0]=0 → swap with low=0 (self). low=1, mid=1.', pseudoLine: 2 },
+      { title: 'Continue. After pass: [0,0,1,1,2,2].', pseudoLine: 4,
+        array: { cells: [0,0,1,1,2,2].map(v => ({ value: v, highlight: 'found' as const })) },
+        result: { found: true, value: '[0,0,1,1,2,2]' } },
+    ],
+    tradeoffs: 'Counting sort: two passes — count 0s/1s/2s, then write back. Same complexity, less elegant. Dutch flag is the canonical one-pass answer.',
+  }],
+};
+
+const topKFrequent: Explanation = {
+  problem: 'Top K Frequent Elements',
+  problemStatement: 'Return the k most frequent elements (order does not matter).',
+  approaches: [{
+    id: 'bucket-sort',
+    name: 'Bucket Sort by Frequency (Best — O(n))',
+    badge: 'best',
+    intuition:
+      "Count frequencies with a Map. Frequencies are bounded: any frequency is between 1 and n. So create `n+1` buckets (an array of arrays); `buckets[f]` is the list of values with frequency exactly f. Walk buckets from high to low, collecting k values.\n\n" +
+      "This avoids the O(n log k) heap cost and runs strictly in O(n).",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Best asymptotic' },
+    pseudocode: [
+      'count = new Map()',
+      'for x in nums: count.set(x, (count.get(x) || 0) + 1)',
+      'buckets = Array(n+1).fill(null).map(() => [])',
+      'for [val, freq] of count: buckets[freq].push(val)',
+      'result = []',
+      'for f from n down to 1:',
+      '  for v of buckets[f]:',
+      '    result.push(v)',
+      '    if result.length === k: return result',
+    ],
+    example: { input: '[1,1,1,2,2,3], k=2', output: '[1, 2]' },
+    steps: [
+      { title: 'count: {1:3, 2:2, 3:1}.', pseudoLine: 1,
+        map: { entries: [{ key: 1, value: 3 }, { key: 2, value: 2 }, { key: 3, value: 1 }] } },
+      { title: 'buckets: [[], [3], [2], [1], [], [], []]. Walk high→low.', pseudoLine: 3 },
+      { title: 'f=3: push 1. f=2: push 2. result=[1,2]. Length k=2 → return.', pseudoLine: 8,
+        result: { found: true, value: '[1, 2]' } },
+    ],
+    tradeoffs: 'Heap of size k: O(n log k). Sort all entries by frequency: O(n log n). Bucket sort wins on raw speed but allocates n+1 buckets.',
+  }],
+};
+
+// ==================== Batch: Hash Map / Math ====================
+
+const subarraySumK: Explanation = {
+  problem: 'Subarray Sum Equals K',
+  problemStatement: 'Return the number of contiguous subarrays whose sum equals k.',
+  approaches: [{
+    id: 'prefix-sum',
+    name: 'Prefix Sum + Hash Map (Best)',
+    badge: 'best',
+    intuition:
+      "Walk the array maintaining a running sum S. A subarray (i..j] has sum = S[j] - S[i]. So we want pairs (i, j) where S[j] - S[i] === k, i.e., S[i] = S[j] - k.\n\n" +
+      "Use a hash map of prefix-sum frequencies. At each index, look up how many times `S - k` has appeared as a prior prefix; that count is the number of subarrays ENDING at this index with sum k. Then record the current S in the map. Start with `{0: 1}` to handle subarrays starting at index 0.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'sums = new Map([[0, 1]])      // base case: empty prefix',
+      'S = 0, count = 0',
+      'for x in nums:',
+      '  S += x',
+      '  if sums.has(S - k): count += sums.get(S - k)',
+      '  sums.set(S, (sums.get(S) || 0) + 1)',
+      'return count',
+    ],
+    example: { input: '[1,1,1], k=2', output: '2' },
+    steps: [
+      { title: 'Start sums={0:1}. x=1: S=1. Look up 1-2=-1 (miss). Record S=1. sums={0:1, 1:1}.', pseudoLine: 4,
+        map: { entries: [{ key: 0, value: 1 }, { key: 1, value: 1, highlight: 'new' }] } },
+      { title: 'x=1: S=2. Look up 2-2=0 → HIT, count=1. Record S=2.', pseudoLine: 4,
+        map: { entries: [{ key: 0, value: 1, highlight: 'hit' }, { key: 1, value: 1 }, { key: 2, value: 1, highlight: 'new' }] },
+        lookupOutcome: { kind: 'hit', key: 0, at: 'sums' } },
+      { title: 'x=1: S=3. Look up 3-2=1 → HIT, count=2.', pseudoLine: 4,
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'Brute force checks every subarray = O(n²). The prefix-sum trick is one of the most-asked patterns in interviews.',
+  }],
+};
+
+const singleNumber: Explanation = {
+  problem: 'Single Number',
+  problemStatement: 'Every element appears twice except one. Find it in O(n) time and O(1) space.',
+  approaches: [{
+    id: 'xor',
+    name: 'XOR All Elements',
+    badge: 'best',
+    intuition:
+      "The key identity: `a ^ a === 0` and `a ^ 0 === a`. XOR is commutative and associative, so the order of elements doesn't matter.\n\n" +
+      "XOR every element together. Every duplicate cancels itself (because a ^ a = 0). The lone element survives the cancellation cascade and is what remains.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'result = 0',
+      'for x in nums: result ^= x',
+      'return result',
+    ],
+    example: { input: '[4,1,2,1,2]', output: '4' },
+    steps: [
+      { title: '0 ^ 4 = 4. 4 ^ 1 = 5. 5 ^ 2 = 7. 7 ^ 1 = 6. 6 ^ 2 = 4. The 4 was never XOR\'d with itself.',
+        pseudoLine: 1,
+        computation: { label: '4 ^ 1 ^ 2 ^ 1 ^ 2', result: '4' },
+        result: { found: true, value: '4' } },
+    ],
+    tradeoffs: 'Hash-set approach: O(n) time and O(n) space. Sum-and-subtract approach: 2·sum(set) - sum(array) — same complexity. XOR is the cleanest.\n\n**Important constraint to flag in interviews:** this XOR trick is tightly coupled to the "exactly twice" assumption. The moment the problem becomes "every element appears three times except one", XOR alone breaks — XOR is addition mod 2 per bit, so triples mod 2 leave bits set just like a singleton would. The fix is bit-counting mod 3 (see the **Single Number II** challenge).',
+  }],
+};
+
+const singleNumberII: Explanation = {
+  problem: 'Single Number II',
+  problemStatement: 'Every element appears THREE times except one. Find it in O(n) time and O(1) space.',
+  approaches: [
+    {
+      id: 'bit-count',
+      name: 'Bit-count mod 3',
+      badge: 'best',
+      intuition:
+        "The XOR trick from Single Number doesn't work here. XOR is addition mod 2 per bit — pairs cancel, singletons survive. But here every element appears THREE times. 3 mod 2 = 1, so XOR'ing triples leaves bits set just like a singleton would.\n\n" +
+        "**Generalize XOR to mod 3.** For each bit position (0..31), count how many numbers have that bit set. Modulo 3:\n" +
+        "• Bits that appeared 3 times contribute 0 mod 3.\n" +
+        "• Bits in the singleton contribute 1 mod 3.\n\n" +
+        "So a bit is set in the answer iff (count of that bit across all numbers) % 3 !== 0. Reassemble the 32 bits and you've isolated the lone element.\n\n" +
+        "This generalizes cleanly to \"every element appears K times except one\": count each bit and take mod K.",
+      complexity: { time: 'O(32·n)', space: 'O(1)', verdict: 'Most clear' },
+      pseudocode: [
+        'result = 0',
+        'for bit in 0..31:',
+        '  sum = 0',
+        '  for x in nums:',
+        '    sum += (x >> bit) & 1',
+        '  if sum % 3 !== 0:',
+        '    result |= (1 << bit)',
+        'return result',
+      ],
+      example: { input: '[2,2,3,2]', output: '3' },
+      steps: [
+        { title: 'bit=0: count set bits in [2,2,3,2] at position 0. 2=10₂ (bit 0 = 0), 3=11₂ (bit 0 = 1). Sum = 1. 1 % 3 = 1 → set bit 0 in result. result = 1.',
+          pseudoLine: 4,
+          computation: { label: 'bit 0 set-count', result: '1 → set in result' } },
+        { title: 'bit=1: 2=10₂ (bit 1 = 1) × 3 + 3=11₂ (bit 1 = 1) = sum 4. 4 % 3 = 1 → set bit 1. result = 0b11 = 3.',
+          pseudoLine: 4,
+          computation: { label: 'bit 1 set-count', result: '4 % 3 = 1 → set in result' } },
+        { title: 'bits 2..31: all sums are multiples of 3, so result stays 0b11 = 3.',
+          pseudoLine: 6 },
+        { title: 'Final result: 3 — the singleton.',
+          pseudoLine: 7,
+          result: { found: true, value: '3' } },
+      ],
+      tradeoffs: '32 passes feels expensive but is still O(n) (constant factor 32). Easy to explain on the spot — just generalize "XOR cancels mod 2" to "count mod 3". Approach 2 (state machine) does it in a single pass but is harder to derive.',
+    },
+    {
+      id: 'state-machine',
+      name: 'Two-bit State Machine',
+      badge: 'alternative',
+      intuition:
+        "Single-pass, O(1) space, O(n) time — but the derivation is subtle. We maintain TWO integers, `ones` and `twos`, encoding the count of each bit mod 3:\n" +
+        "• `(ones, twos) = (0, 0)` → bit appeared 0 mod 3 times\n" +
+        "• `(ones, twos) = (1, 0)` → bit appeared 1 mod 3 times\n" +
+        "• `(ones, twos) = (0, 1)` → bit appeared 2 mod 3 times\n\n" +
+        "On each new number, we transition. The magic update:\n" +
+        "```\nones = (ones ^ x) & ~twos\ntwos = (twos ^ x) & ~ones\n```\n\n" +
+        "These come from working through the truth table — for each bit position, you want `ones` to be 1 only when seen 1 mod 3 times. After processing all numbers, `ones` holds the singleton's bit pattern (because triples cycle back to (0,0); the lone element ends at (1,0)).\n\n" +
+        "Beautiful but interview-risky: if you can't derive it, don't use it.",
+      complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Single-pass, hard to derive' },
+      pseudocode: [
+        'ones = 0, twos = 0',
+        'for x in nums:',
+        '  ones = (ones ^ x) & ~twos',
+        '  twos = (twos ^ x) & ~ones',
+        'return ones',
+      ],
+      example: { input: '[2,2,3,2]', output: '3' },
+      steps: [
+        { title: 'Start: ones=0, twos=0.', pseudoLine: 0 },
+        { title: 'x=2 (10₂). ones = (0 ^ 2) & ~0 = 2. twos = (0 ^ 2) & ~2 = 0.',
+          pseudoLine: 3,
+          computation: { label: '(ones, twos)', result: '(2, 0) — bit 1 seen once' } },
+        { title: 'x=2 again. ones = (2 ^ 2) & ~0 = 0. twos = (0 ^ 2) & ~0 = 2.',
+          pseudoLine: 3,
+          computation: { label: '(ones, twos)', result: '(0, 2) — bit 1 seen twice' } },
+        { title: 'x=3 (11₂). ones = (0 ^ 3) & ~2 = 3 & ~2 = 1. twos = (2 ^ 3) & ~1 = 1 & ~1 = 0.',
+          pseudoLine: 3,
+          computation: { label: '(ones, twos)', result: '(1, 0) — bit 0 from 3, bit 1 now 0' } },
+        { title: 'x=2. ones = (1 ^ 2) & ~0 = 3. twos = (0 ^ 2) & ~3 = 2 & ~3 = 0. Wait — recompute carefully…',
+          pseudoLine: 3 },
+        { title: 'After all four numbers, ones holds the bit pattern of 3 (the singleton). Triples have cycled back through (1,0) → (0,1) → (0,0); 3 remained at (1,0).',
+          pseudoLine: 4,
+          result: { found: true, value: '3' } },
+      ],
+      tradeoffs: 'Single pass, no inner loop — fastest in practice. But the derivation is tricky and easy to misstate. Most interviewers prefer the bit-count approach because it shows you reasoned from "XOR is mod 2" to "I need mod 3".',
+    },
+  ],
+};
+
+const majorityElement: Explanation = {
+  problem: 'Majority Element',
+  problemStatement: 'Find the element that appears more than ⌊n/2⌋ times.',
+  approaches: [{
+    id: 'boyer-moore',
+    name: 'Boyer-Moore Voting Algorithm',
+    badge: 'best',
+    intuition:
+      "Maintain a candidate and a counter. For each element: if counter is 0, adopt this element as candidate. If the element matches candidate, increment; otherwise decrement.\n\n" +
+      "Why it works: every non-majority element 'cancels out' a majority one. Since the majority appears more than n/2 times, after all cancellations, the surviving candidate IS the majority. The intuition: imagine pairs of (majority, non-majority) cancelling — there are strictly more majority elements than all others combined.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'candidate = null, count = 0',
+      'for x in nums:',
+      '  if count === 0: candidate = x',
+      '  count += (x === candidate ? 1 : -1)',
+      'return candidate',
+    ],
+    example: { input: '[2,2,1,1,1,2,2]', output: '2' },
+    steps: [
+      { title: 'x=2: count=0 → candidate=2, count=1.', pseudoLine: 3 },
+      { title: 'x=2: matches → count=2. x=1: mismatch → count=1. x=1: count=0.', pseudoLine: 4 },
+      { title: 'x=1: count=0 → candidate=1, count=1. x=2: count=0. x=2: candidate=2, count=1.', pseudoLine: 3 },
+      { title: 'Final candidate: 2. Survives cancellation.', pseudoLine: 5,
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'Sort then take middle element: O(n log n). Hash-map count: O(n) time + O(n) space. Boyer-Moore is the only one with O(1) space.',
+  }],
+};
+
+const productExceptSelf: Explanation = {
+  problem: 'Product of Array Except Self',
+  problemStatement: 'Return an array where output[i] = product of all elements EXCEPT nums[i]. No division.',
+  approaches: [{
+    id: 'left-right-product',
+    name: 'Left + Right Product Two-Pass',
+    badge: 'best',
+    intuition:
+      "output[i] = (product of everything left of i) × (product of everything right of i). Compute these in two passes.\n\n" +
+      "**Pass 1** (left-to-right): output[i] = product of all nums[0..i-1]. output[0] = 1 (nothing to the left).\n" +
+      "**Pass 2** (right-to-left): maintain a running `rightProduct` (initially 1). Multiply output[i] by rightProduct, then update rightProduct *= nums[i].\n\n" +
+      "This gives O(1) extra space (the output array doesn't count as extra space by convention).",
+    complexity: { time: 'O(n)', space: 'O(1) extra', verdict: 'Canonical' },
+    pseudocode: [
+      'output = new Array(n)',
+      'output[0] = 1',
+      'for i from 1 to n-1: output[i] = output[i-1] * nums[i-1]   // left products',
+      'right = 1',
+      'for i from n-1 down to 0:',
+      '  output[i] *= right',
+      '  right *= nums[i]',
+      'return output',
+    ],
+    example: { input: '[1,2,3,4]', output: '[24,12,8,6]' },
+    steps: [
+      { title: 'Pass 1 — left products: [1, 1, 2, 6].', pseudoLine: 2,
+        array: { cells: [1,1,2,6].map(v => ({ value: v })) } },
+      { title: 'Pass 2 — multiply by right, accumulate right: [1·24, 1·12, 2·4, 6·1] = [24,12,8,6].', pseudoLine: 5,
+        array: { cells: [24,12,8,6].map(v => ({ value: v, highlight: 'found' as const })) },
+        result: { found: true, value: '[24,12,8,6]' } },
+    ],
+    tradeoffs: 'The "use division" approach is the obvious answer but fails with zeros and is often disallowed. The two-pass trick is the elegant workaround.',
+  }],
+};
+
+const plusOne: Explanation = {
+  problem: 'Plus One',
+  problemStatement: 'Increment a non-negative integer represented as a digit array.',
+  approaches: [{
+    id: 'right-to-left',
+    name: 'Right-to-Left Carry Walk',
+    badge: 'best',
+    intuition:
+      "Walk right to left. If the digit < 9, increment it and return — no carry, done. If the digit IS 9, set it to 0 and carry over to the next-higher position.\n\n" +
+      "If you walk all the way past the leftmost digit while still carrying (the all-nines case: [9,9,9] → [1,0,0,0]), prepend a 1.",
+    complexity: { time: 'O(n)', space: 'O(1) (or O(n) for the all-nines case)', verdict: 'Canonical' },
+    pseudocode: [
+      'for i from n-1 down to 0:',
+      '  if digits[i] < 9:',
+      '    digits[i]++',
+      '    return digits',
+      '  digits[i] = 0',
+      'return [1, ...digits]   // all-nines case',
+    ],
+    example: { input: '[1,2,9]', output: '[1,3,0]' },
+    steps: [
+      { title: 'i=2: digits[2]=9 → set to 0, carry.', pseudoLine: 4,
+        array: { cells: [{value:1},{value:2},{value:0,highlight:'i'}] } },
+      { title: 'i=1: digits[1]=2 < 9 → increment to 3, return.', pseudoLine: 2,
+        array: { cells: [{value:1},{value:3,highlight:'found'},{value:0}] },
+        result: { found: true, value: '[1,3,0]' } },
+    ],
+    tradeoffs: 'Cute alternative: convert to BigInt, add 1, convert back to digits. Fine for non-leetcode-style usage. For interviews, the array walk is what they want.',
+  }],
+};
+
+// ==================== Batch: Strings ====================
+
+const longestCommonPrefix: Explanation = {
+  problem: 'Longest Common Prefix',
+  problemStatement: 'Find the longest common prefix string amongst an array of strings.',
+  approaches: [{
+    id: 'vertical-scan',
+    name: 'Vertical Scan (Best for Many Strings)',
+    badge: 'best',
+    intuition:
+      "Pick the first string as a 'reference'. Walk character by character (column-by-column). At each column index i, check that strs[0][i] equals strs[j][i] for every j. If any string is shorter than i or has a different character, return strs[0].slice(0, i).\n\n" +
+      "If you walk past the end of strs[0] without a mismatch, return strs[0] itself.",
+    complexity: { time: 'O(S) where S = total chars', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'if strs.length === 0: return ""',
+      'for i from 0 to strs[0].length - 1:',
+      '  c = strs[0][i]',
+      '  for j from 1 to strs.length - 1:',
+      '    if i >= strs[j].length || strs[j][i] !== c:',
+      '      return strs[0].slice(0, i)',
+      'return strs[0]',
+    ],
+    example: { input: '["flower","flow","flight"]', output: '"fl"' },
+    steps: [
+      { title: 'i=0: "f"=="f"=="f" ✓.', pseudoLine: 2 },
+      { title: 'i=1: "l"=="l"=="l" ✓.', pseudoLine: 2 },
+      { title: 'i=2: "o"=="o"=="i" ✗ → return "fl".', pseudoLine: 5,
+        result: { found: true, value: '"fl"' } },
+    ],
+    tradeoffs: 'Horizontal scan: take the prefix of strs[0]∩strs[1], intersect with strs[2], etc. Same complexity. Sort + compare first/last: O(n log n) sort + O(m) compare — sometimes faster if the prefix is very short, but more code.',
+  }],
+};
+
+const longestPalindromicSubstring: Explanation = {
+  problem: 'Longest Palindromic Substring',
+  problemStatement: 'Return the longest palindromic substring of s.',
+  approaches: [{
+    id: 'expand-center',
+    name: 'Expand Around Center',
+    badge: 'best',
+    intuition:
+      "A palindrome is symmetric around its center. A string of length n has 2n-1 possible centers: n single-character centers (for odd-length palindromes) and n-1 between-character centers (for even-length).\n\n" +
+      "For each center, expand outward two pointers as long as characters match. Track the longest palindrome found. O(n²) overall — for each center O(n) expansion.",
+    complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'Canonical for interview' },
+    pseudocode: [
+      'function expand(l, r):',
+      '  while l >= 0 && r < n && s[l] === s[r]: l--; r++',
+      '  return s.slice(l+1, r)',
+      'best = ""',
+      'for i from 0 to n-1:',
+      '  odd = expand(i, i)',
+      '  even = expand(i, i+1)',
+      '  if odd.length > best.length: best = odd',
+      '  if even.length > best.length: best = even',
+      'return best',
+    ],
+    example: { input: '"babad"', output: '"bab" or "aba"' },
+    steps: [
+      { title: 'i=0 odd: expand("b") → "b". even: s[0]="b", s[1]="a" mismatch → "".', pseudoLine: 5 },
+      { title: 'i=1 odd: expand around "a" — s[0]=s[2]="b" ✓ → "bab" length 3.', pseudoLine: 5,
+        computation: { label: 'expand(1,1)', result: '"bab"' } },
+      { title: 'Continue. Final: longest is "bab" (or "aba").', pseudoLine: 9,
+        result: { found: true, value: '"bab"' } },
+    ],
+    tradeoffs: 'Manacher\'s algorithm solves it in O(n) but is complex enough that interviewers rarely expect it. Expand-around-center is the sweet spot of correctness, readability, and speed.',
+  }],
+};
+
+const reverseVowels: Explanation = {
+  problem: 'Reverse Vowels of a String',
+  problemStatement: 'Reverse only the vowels in the string. All other characters stay in place.',
+  approaches: [{
+    id: 'two-pointer',
+    name: 'Two-Pointer Swap',
+    badge: 'best',
+    intuition:
+      "Two pointers, one at each end. Advance `left` forward until it hits a vowel; advance `right` backward until it hits a vowel. Swap, step inward, repeat until they meet.\n\n" +
+      "Same shape as Reverse String, but with the 'is vowel' filter making it skip consonants instead of swapping every character.",
+    complexity: { time: 'O(n)', space: 'O(n) for the char array; O(1) extra', verdict: 'Canonical' },
+    pseudocode: [
+      'arr = s.split("")',
+      'vowels = new Set(["a","e","i","o","u","A","E","I","O","U"])',
+      'left = 0, right = arr.length - 1',
+      'while left < right:',
+      '  while left < right && !vowels.has(arr[left]):  left++',
+      '  while left < right && !vowels.has(arr[right]): right--',
+      '  swap(arr[left], arr[right])',
+      '  left++; right--',
+      'return arr.join("")',
+    ],
+    example: { input: '"hello"', output: '"holle"' },
+    steps: [
+      { title: 'arr=["h","e","l","l","o"]. left=0 ("h", not vowel) → skip to 1.', pseudoLine: 4,
+        array: { cells: ['h','e','l','l','o'].map(c => ({ value: c })),
+          pointers: [{ index: 1, label: 'L', color: 'red' }, { index: 4, label: 'R', color: 'amber' }] } },
+      { title: 'Both at vowels: swap "e" and "o". arr=["h","o","l","l","e"].', pseudoLine: 6,
+        array: { cells: [{value:'h'},{value:'o',highlight:'found'},{value:'l'},{value:'l'},{value:'e',highlight:'found'}] } },
+      { title: 'Step inward. left=2, right=3. No vowels in middle. Done.', pseudoLine: 7,
+        result: { found: true, value: '"holle"' } },
+    ],
+    tradeoffs: 'Filter-collect-reverse-merge alternative: extract vowels, reverse, splice back. Same complexity, two passes vs one.',
+  }],
+};
+
+const myAtoi: Explanation = {
+  problem: 'String to Integer (atoi)',
+  problemStatement: 'Convert a string to a 32-bit signed integer, clamping to [-2³¹, 2³¹−1].',
+  approaches: [{
+    id: 'state-machine',
+    name: 'Manual State Walk',
+    badge: 'best',
+    intuition:
+      "Walk the string in four phases:\n\n" +
+      "1. **Skip whitespace** at the start.\n" +
+      "2. **Read sign** — at most one '+' or '-'.\n" +
+      "3. **Read digits** until a non-digit or end.\n" +
+      "4. **Clamp** the result to INT32 bounds.\n\n" +
+      "The tricky parts: stopping at the first non-digit (any leading non-whitespace, non-sign, non-digit means return 0); handling overflow BEFORE multiplying (check `result > Math.floor((INT_MAX - digit) / 10)` to detect impending overflow).",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical (interview-grade)' },
+    pseudocode: [
+      'INT_MAX = 2**31 - 1, INT_MIN = -(2**31)',
+      'i = 0',
+      'while s[i] === " ": i++          // skip whitespace',
+      'sign = 1',
+      'if s[i] === "-": sign = -1; i++',
+      'else if s[i] === "+": i++',
+      'result = 0',
+      'while s[i] is a digit:',
+      '  result = result * 10 + parseInt(s[i])',
+      '  if sign * result > INT_MAX: return INT_MAX',
+      '  if sign * result < INT_MIN: return INT_MIN',
+      '  i++',
+      'return sign * result',
+    ],
+    example: { input: '"   -42abc"', output: '-42' },
+    steps: [
+      { title: 'Skip 3 spaces. i=3.', pseudoLine: 3 },
+      { title: 's[3]="-" → sign=-1, i=4.', pseudoLine: 5 },
+      { title: 'Read "4" → result=4. Read "2" → result=42. s[6]="a" → stop.', pseudoLine: 9 },
+      { title: 'Return sign * result = -42.', pseudoLine: 13,
+        result: { found: true, value: '-42' } },
+    ],
+    tradeoffs: 'Native parseInt does most of this but skips the strict INT32 clamping and accepts edge cases atoi rejects. Rolling your own forces you to think about each phase explicitly.',
+  }],
+};
+
+const letterCombinations: Explanation = {
+  problem: 'Letter Combinations of Phone Number',
+  problemStatement: 'Return all possible letter combinations the digits could represent on a phone keypad.',
+  approaches: [{
+    id: 'backtracking',
+    name: 'Backtracking',
+    badge: 'best',
+    intuition:
+      "Build the result string one character at a time. For each digit, branch into 3-4 candidate letters (e.g., '2' → 'a', 'b', 'c'). Recurse for the rest of the digits. When the string length equals the number of digits, record a copy.\n\n" +
+      "The recursion tree has 3-4 children per level and `digits.length` levels deep. Total leaves = product of branching factors — exactly the number of combinations.",
+    complexity: { time: 'O(4ⁿ · n)', space: 'O(n) recursion', verdict: 'Canonical' },
+    pseudocode: [
+      'map = { "2":"abc", "3":"def", ..., "9":"wxyz" }',
+      'result = []',
+      'function back(i, path):',
+      '  if i === digits.length: result.push(path); return',
+      '  for c of map[digits[i]]:',
+      '    back(i+1, path + c)',
+      'if digits: back(0, "")',
+      'return result',
+    ],
+    example: { input: '"23"', output: '["ad","ae","af","bd","be","bf","cd","ce","cf"]' },
+    steps: [
+      { title: 'back(0, ""). digits[0]="2" → try "a", "b", "c".', pseudoLine: 4,
+        callStack: { frames: [{ call: 'back(0, "")', status: 'active' }] } },
+      { title: 'back(1, "a"). digits[1]="3" → try "d", "e", "f".', pseudoLine: 4,
+        callStack: { frames: [{ call: 'back(0, "")', status: 'pending' }, { call: 'back(1, "a")', status: 'active' }] } },
+      { title: 'back(2, "ad"). i=length → push "ad". Backtrack, try "ae", "af", then "b...", "c...".', pseudoLine: 3,
+        result: { found: true, value: '9 combinations' } },
+    ],
+    tradeoffs: 'Iterative BFS variant: start with [""], for each digit replace each existing entry with its letter-extended versions. Same complexity, different shape.',
+  }],
+};
+
+const reverseWordsString: Explanation = {
+  problem: 'Reverse Words in a String',
+  problemStatement: 'Reverse the order of words in a string. Collapse multiple spaces; trim ends.',
+  approaches: [{
+    id: 'split-reverse-join',
+    name: 'Split → Filter → Reverse → Join',
+    badge: 'best',
+    intuition:
+      "The cleanest path: split on whitespace, filter out empty strings (from double-spaces), reverse the array, join with single space.\n\n" +
+      "`s.split(/\\s+/).filter(Boolean).reverse().join(' ')` — the regex `\\s+` matches one or more whitespace characters as a single delimiter, so multiple spaces don't produce empty tokens. The `filter(Boolean)` catches the rare leading-whitespace empty entry.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'return s.split(/\\s+/).filter(Boolean).reverse().join(" ")',
+    ],
+    example: { input: '"  hello   world  "', output: '"world hello"' },
+    steps: [
+      { title: 'split(/\\s+/) → ["", "hello", "world", ""].', pseudoLine: 0 },
+      { title: 'filter(Boolean) → ["hello", "world"] (drops empties).', pseudoLine: 0 },
+      { title: 'reverse() → ["world", "hello"]. join(" ") → "world hello".', pseudoLine: 0,
+        result: { found: true, value: '"world hello"' } },
+    ],
+    tradeoffs: 'In-place O(1)-space variant: reverse the whole string, then reverse each word in place. Twice the work; useful when the input is mutable bytes (C/Java). In JS strings are immutable so allocation is unavoidable.',
+  }],
+};
+
+// ==================== Batch: Rotate / Spiral / Search ====================
+
+const rotateArrayLeft: Explanation = {
+  problem: 'Rotate Array Left',
+  problemStatement: 'Rotate the array LEFT by k positions in place.',
+  approaches: [{
+    id: 'reverse-three',
+    name: 'Three-Reversal Trick',
+    badge: 'best',
+    intuition:
+      "Same insight as right-rotation, three reversals in a different ORDER:\n\n" +
+      "1. Reverse the FIRST k elements.\n" +
+      "2. Reverse the REST.\n" +
+      "3. Reverse the WHOLE array.\n\n" +
+      "**Mirror with Rotate Array Right:** both directions use the EXACT SAME three reversals — only the order differs.\n\n" +
+      "← Left  by k: reverse-first-k → reverse-rest → reverse-WHOLE\n" +
+      "→ Right by k: reverse-WHOLE → reverse-first-k → reverse-rest\n\n" +
+      "There's also a direct equivalence: `rotateLeft(arr, k) === rotateRight(arr, n − k)`. So if you already have right-rotation working, left-rotation is one line of code.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'k = k % n',
+      'reverse(arr, 0, k-1)   // first k',
+      'reverse(arr, k, n-1)   // rest',
+      'reverse(arr, 0, n-1)   // whole',
+    ],
+    pseudocodeLabel: 'Rotate LEFT',
+    pseudocodeCompare: [
+      { label: 'Rotate RIGHT', lines: [
+        'k = k % n',
+        'reverse(arr, 0, n-1)   // whole',
+        'reverse(arr, 0, k-1)   // first k',
+        'reverse(arr, k, n-1)   // rest',
+      ] },
+    ],
+    example: { input: '[1,2,3,4,5,6,7], k=3', output: '[4,5,6,7,1,2,3]' },
+    steps: [
+      { title: 'Original: [1,2,3,4,5,6,7].', pseudoLine: 0,
+        array: { cells: [1,2,3,4,5,6,7].map(v => ({ value: v })) } },
+      { title: 'Reverse [0..2]: [3,2,1, 4,5,6,7].', pseudoLine: 1,
+        array: { cells: [{value:3,highlight:'compare'},{value:2,highlight:'compare'},{value:1,highlight:'compare'},{value:4},{value:5},{value:6},{value:7}] } },
+      { title: 'Reverse [3..6]: [3,2,1, 7,6,5,4].', pseudoLine: 2,
+        array: { cells: [{value:3},{value:2},{value:1},{value:7,highlight:'compare'},{value:6,highlight:'compare'},{value:5,highlight:'compare'},{value:4,highlight:'compare'}] } },
+      { title: 'Reverse whole: [4,5,6,7,1,2,3].', pseudoLine: 3,
+        array: { cells: [{value:4,highlight:'found'},{value:5,highlight:'found'},{value:6,highlight:'found'},{value:7,highlight:'found'},{value:1,highlight:'found'},{value:2,highlight:'found'},{value:3,highlight:'found'}] },
+        result: { found: true, value: '[4,5,6,7,1,2,3]' } },
+      { title: 'Compare with Rotate Array RIGHT (same reversals, opposite order).',
+        detail:
+          "Left and Right rotation use exactly the same primitive (reverse a slice) — only the ORDER differs. Memorize one rule and you have both.\n\n" +
+          "← LEFT  by k: first-k, then rest, then whole.\n" +
+          "→ RIGHT by k: whole, then first-k, then rest.\n\n" +
+          "Or use the identity: rotateLeft(arr, k) === rotateRight(arr, n − k).",
+        note: "Both produce a rotation; the order of the three reversals decides direction. See the 'Rotate Array' challenge for the mirrored walkthrough.",
+        result: { found: true, value: 'left ↔ right mirror' } },
+    ],
+    tradeoffs: 'Equivalent to `rotateRight(arr, n - k)`. If you already have a working right-rotation, just call it with the complementary k. Both algorithms differ ONLY in the order of three reversals — memorize one and the other follows.',
+  }],
+};
+
+const spiralMatrix: Explanation = {
+  problem: 'Spiral Matrix',
+  problemStatement: 'Return all elements of a matrix in spiral order.',
+  approaches: [{
+    id: 'four-boundary',
+    name: 'Four-Boundary Walk',
+    badge: 'best',
+    intuition:
+      "Maintain four cursors: `top, bottom, left, right`. Each cycle of the outer loop traverses one full layer of the spiral:\n\n" +
+      "1. Left → right along row `top`, then top++.\n" +
+      "2. Top → bottom along column `right`, then right--.\n" +
+      "3. Right → left along row `bottom` (only if top ≤ bottom), then bottom--.\n" +
+      "4. Bottom → top along column `left` (only if left ≤ right), then left++.\n\n" +
+      "Stop when top > bottom or left > right. The conditional checks on steps 3 and 4 are crucial for non-square matrices to avoid double-traversal.",
+    complexity: { time: 'O(m·n)', space: 'O(1) extra', verdict: 'Canonical' },
+    pseudocode: [
+      'top=0, bottom=m-1, left=0, right=n-1, out=[]',
+      'while top <= bottom && left <= right:',
+      '  for c from left to right: out.push(matrix[top][c]); top++',
+      '  for r from top to bottom: out.push(matrix[r][right]); right--',
+      '  if top <= bottom:',
+      '    for c from right downto left: out.push(matrix[bottom][c]); bottom--',
+      '  if left <= right:',
+      '    for r from bottom downto top: out.push(matrix[r][left]); left++',
+      'return out',
+    ],
+    example: { input: '[[1,2,3],[4,5,6],[7,8,9]]', output: '[1,2,3,6,9,8,7,4,5]' },
+    steps: [
+      { title: 'Row 0 LR: 1,2,3. top=1.', pseudoLine: 2 },
+      { title: 'Col 2 TB: 6,9. right=1.', pseudoLine: 3 },
+      { title: 'Row 2 RL: 8,7. bottom=1.', pseudoLine: 5 },
+      { title: 'Col 0 BT: 4. left=1.', pseudoLine: 7 },
+      { title: 'Row 1 LR: 5. Done.', pseudoLine: 2,
+        result: { found: true, value: '[1,2,3,6,9,8,7,4,5]' } },
+    ],
+    tradeoffs: 'Direction-vector variant: track a (dx, dy) pair and rotate on hitting a boundary or a visited cell. Same complexity, more "general" but with extra bookkeeping.',
+  }],
+};
+
+const searchRotated: Explanation = {
+  problem: 'Search in Rotated Sorted Array',
+  problemStatement: 'Find the index of target in a rotated sorted array, or -1, in O(log n).',
+  approaches: [{
+    id: 'modified-binary',
+    name: 'Modified Binary Search',
+    badge: 'best',
+    intuition:
+      "At any mid, one half of the split (left or right of mid) is GUARANTEED to be sorted. Identify which: if nums[lo] ≤ nums[mid], the left half is sorted; otherwise the right half is.\n\n" +
+      "Once you know which half is sorted, check if the target falls within its range. If yes, search there; otherwise search the OTHER half. The rotated half might contain the target — when we recurse there, the same identify-which-half logic applies again.",
+    complexity: { time: 'O(log n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'lo = 0, hi = n - 1',
+      'while lo <= hi:',
+      '  mid = (lo + hi) >> 1',
+      '  if nums[mid] === target: return mid',
+      '  if nums[lo] <= nums[mid]:        // left half sorted',
+      '    if nums[lo] <= target && target < nums[mid]: hi = mid - 1',
+      '    else: lo = mid + 1',
+      '  else:                             // right half sorted',
+      '    if nums[mid] < target && target <= nums[hi]: lo = mid + 1',
+      '    else: hi = mid - 1',
+      'return -1',
+    ],
+    example: { input: '[4,5,6,7,0,1,2], target=0', output: '4' },
+    steps: [
+      { title: 'lo=0, hi=6, mid=3 → nums[3]=7. Left half [4,5,6,7] sorted. 0 not in [4,7] → search right.', pseudoLine: 5,
+        array: { cells: [{value:4},{value:5},{value:6},{value:7,highlight:'i'},{value:0},{value:1},{value:2}] } },
+      { title: 'lo=4, hi=6, mid=5 → nums[5]=1. Left half [0,1] sorted. 0 in [0,1) → search left.', pseudoLine: 5,
+        array: { cells: [{value:4},{value:5},{value:6},{value:7},{value:0},{value:1,highlight:'i'},{value:2}] } },
+      { title: 'lo=4, hi=4, mid=4 → nums[4]=0 = target. Return 4.', pseudoLine: 3,
+        array: { cells: [{value:4},{value:5},{value:6},{value:7},{value:0,highlight:'found'},{value:1},{value:2}] },
+        result: { found: true, value: '4' } },
+    ],
+    tradeoffs: 'Brute linear scan: O(n) — fine for tiny arrays. Two-pass approach (find rotation pivot, then binary search either half): cleaner conceptually but two passes vs one combined.',
+  }],
+};
+
+// ==================== Batch: Find Max Family ====================
+
+const findMaximum: Explanation = {
+  problem: 'Find Maximum in Array',
+  problemStatement: 'Return the largest number in the array, or null if empty.',
+  approaches: [{
+    id: 'running-max',
+    name: 'Single-Pass Running Max',
+    badge: 'best',
+    intuition:
+      "Initialize a `max` variable with -Infinity (so any real number beats it). Walk the array; update `max` whenever you find something larger. After the pass, return `max` (or null if the array was empty).",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'if nums.length === 0: return null',
+      'max = -Infinity',
+      'for x in nums:',
+      '  if x > max: max = x',
+      'return max',
+    ],
+    example: { input: '[3, 7, 1, 9, 4]', output: '9' },
+    steps: [
+      { title: 'max=-∞. x=3 > -∞ → max=3.', pseudoLine: 3,
+        computation: { label: 'max', result: '3' } },
+      { title: 'x=7 > 3 → max=7. x=1 not > 7 → unchanged. x=9 > 7 → max=9.', pseudoLine: 3,
+        computation: { label: 'max', result: '9' } },
+      { title: 'x=4 not > 9 → unchanged. Return 9.', pseudoLine: 4,
+        result: { found: true, value: '9' } },
+    ],
+    tradeoffs: '`Math.max(...nums)` is the one-liner — but spread for huge arrays can hit stack limits (~10⁵ elements). Use `nums.reduce((m, x) => x > m ? x : m, -Infinity)` for big inputs.',
+  }],
+};
+
+const findMinMax: Explanation = {
+  problem: 'Find Min and Max (Single Pass)',
+  problemStatement: 'Return both the smallest and largest values as { min, max }.',
+  approaches: [{
+    id: 'pairwise',
+    name: 'Single Pass with Two Running Vars',
+    badge: 'best',
+    intuition:
+      "Track `min` (initially +∞) and `max` (initially -∞). One pass, two comparisons per element: 2n total. Returns both in O(n) time and O(1) space.\n\n" +
+      "**Optimization (3n/2 comparisons):** process elements in PAIRS. For each pair (a, b), first compare a and b (1 comparison); the smaller candidate competes with `min`, the larger with `max` (2 more). Three comparisons per pair = 3n/2 total. Marginal in practice but a classic interview detail.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'if nums.length === 0: return { min: null, max: null }',
+      'min = +Infinity, max = -Infinity',
+      'for x in nums:',
+      '  if x < min: min = x',
+      '  if x > max: max = x',
+      'return { min, max }',
+    ],
+    example: { input: '[3, 7, 1, 9, 4]', output: '{ min: 1, max: 9 }' },
+    steps: [
+      { title: 'x=3: min=3, max=3.', pseudoLine: 3,
+        computation: { label: 'min/max', result: '3 / 3' } },
+      { title: 'x=7: max=7. x=1: min=1. x=9: max=9. x=4: unchanged.', pseudoLine: 4,
+        result: { found: true, value: '{ min: 1, max: 9 }' } },
+    ],
+    tradeoffs: 'Calling Math.min(...arr) + Math.max(...arr) is 2 passes plus the spread limit. Single-pass version is both faster and safer for big inputs.',
+  }],
+};
+
+const thirdLargest: Explanation = {
+  problem: 'Third Largest Number',
+  problemStatement: 'Return the third DISTINCT largest number, or the max if fewer than 3 distinct.',
+  approaches: [{
+    id: 'three-sentinels',
+    name: 'Three Sentinel Variables',
+    badge: 'best',
+    intuition:
+      "Track three running variables: `first` (largest), `second`, `third` — all initialized to -Infinity. For each x: skip if x equals any of them (must be DISTINCT). Else, cascade-shift:\n\n" +
+      "• If x > first: third = second, second = first, first = x.\n" +
+      "• Else if x > second: third = second, second = x.\n" +
+      "• Else if x > third: third = x.\n\n" +
+      "At the end, if `third` is still -Infinity (fewer than 3 distinct values), return `first`. Otherwise return `third`.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'first = second = third = -Infinity',
+      'for x in nums:',
+      '  if x === first || x === second || x === third: continue',
+      '  if x > first: third = second; second = first; first = x',
+      '  else if x > second: third = second; second = x',
+      '  else if x > third: third = x',
+      'return third === -Infinity ? first : third',
+    ],
+    example: { input: '[2,2,3,1]', output: '1' },
+    steps: [
+      { title: 'x=2: first=2.', pseudoLine: 4,
+        computation: { label: '1st/2nd/3rd', result: '2 / -∞ / -∞' } },
+      { title: 'x=2: duplicate of first → skip.', pseudoLine: 2 },
+      { title: 'x=3: > first → cascade. first=3, second=2.', pseudoLine: 4,
+        computation: { label: '1st/2nd/3rd', result: '3 / 2 / -∞' } },
+      { title: 'x=1: < second → check third. third=1. Return 1.', pseudoLine: 6,
+        result: { found: true, value: '1' } },
+    ],
+    tradeoffs: '[...new Set(arr)].sort((a,b)=>b-a)[2] is the readable one-liner. Slower asymptotically but fine for small inputs. Senior interviewers prefer the explicit-sentinel approach.',
+  }],
+};
+
+const kthLargest: Explanation = {
+  problem: 'Kth Largest Element',
+  problemStatement: 'Return the k-th largest element (1-indexed: k=1 means largest).',
+  approaches: [{
+    id: 'sort-index',
+    name: 'Sort + Index (Simplest)',
+    badge: 'best',
+    intuition:
+      "Sort the array ascending; the k-th largest sits at index `n-k`. O(n log n) — slower than the heap or quickselect approaches but the simplest correct answer.",
+    complexity: { time: 'O(n log n)', space: 'O(1) in-place sort', verdict: 'Simple; use when n is moderate' },
+    pseudocode: [
+      'nums.sort((a, b) => a - b)',
+      'return nums[nums.length - k]',
+    ],
+    example: { input: '[3,2,1,5,6,4], k=2', output: '5' },
+    steps: [
+      { title: 'Sort: [1,2,3,4,5,6].', pseudoLine: 0,
+        array: { cells: [1,2,3,4,5,6].map(v => ({ value: v })) } },
+      { title: 'Index n-k = 6-2 = 4 → 5.', pseudoLine: 1,
+        array: { cells: [{value:1},{value:2},{value:3},{value:4},{value:5,highlight:'found'},{value:6}] },
+        result: { found: true, value: '5' } },
+    ],
+    tradeoffs: 'Min-heap of size k: O(n log k) — keep heap small, anything that drops out can\'t be in the top k. Quickselect: O(n) average, O(n²) worst case — the asymptotic winner but tricky to implement correctly.',
+  },
+  {
+    id: 'heap',
+    name: 'Min-Heap of Size K',
+    badge: 'alternative',
+    intuition:
+      "Maintain a MIN-heap of size k. For each element: push it; if the heap exceeds size k, pop the smallest. After processing all n elements, the heap contains exactly the k LARGEST values, with the k-th largest at the root.\n\n" +
+      "Why min-heap (not max-heap): we want to easily discard the smallest of our current top-k whenever a bigger candidate arrives. The min-root makes that O(log k).",
+    complexity: { time: 'O(n log k)', space: 'O(k)', verdict: 'Best when k ≪ n or for streaming' },
+    pseudocode: [
+      'heap = new MinHeap()',
+      'for x in nums:',
+      '  heap.push(x)',
+      '  if heap.size > k: heap.pop()',
+      'return heap.peek()',
+    ],
+    example: { input: '[3,2,1,5,6,4], k=2', output: '5' },
+    steps: [
+      { title: 'Push 3, 2 (heap full). Push 1 → push then pop smallest. Heap: [2, 3].', pseudoLine: 3 },
+      { title: 'Push 5 → pop 2. Push 6 → pop 3. Push 4 → pop 4. Heap: [5, 6].', pseudoLine: 3 },
+      { title: 'Root = 5 = answer.', pseudoLine: 4,
+        result: { found: true, value: '5' } },
+    ],
+    tradeoffs: 'Win when k is small compared to n (e.g., k=10 out of 10⁶). For large k (k ≈ n/2), sorting is just as fast and simpler.',
+  }],
+};
+
+const findPeakElement: Explanation = {
+  problem: 'Find Peak Element',
+  problemStatement: 'Return the index of any peak element (strictly greater than its neighbors).',
+  approaches: [{
+    id: 'binary-search',
+    name: 'Binary Search (Best — O(log n))',
+    badge: 'best',
+    intuition:
+      "Boundaries are treated as -∞, so a peak ALWAYS exists. At mid: if nums[mid] > nums[mid+1], a peak lies on the left (including mid itself — possibly the peak we want). Else a peak lies strictly to the right.\n\n" +
+      "Why this works: if nums[mid] < nums[mid+1], the right side is 'going up' at this point; somewhere to the right, the slope must turn (since nums[n] = -∞), creating a peak. Same argument mirror-imaged for the left.",
+    complexity: { time: 'O(log n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'lo = 0, hi = n - 1',
+      'while lo < hi:',
+      '  mid = (lo + hi) >> 1',
+      '  if nums[mid] > nums[mid+1]: hi = mid     // peak on left, including mid',
+      '  else: lo = mid + 1                       // peak strictly right',
+      'return lo',
+    ],
+    example: { input: '[1,2,3,1]', output: '2 (value 3)' },
+    steps: [
+      { title: 'lo=0, hi=3, mid=1 → nums[1]=2, nums[2]=3. 2 < 3 → peak right. lo=2.', pseudoLine: 4 },
+      { title: 'lo=2, hi=3, mid=2 → nums[2]=3, nums[3]=1. 3 > 1 → peak left. hi=2.', pseudoLine: 3 },
+      { title: 'lo === hi === 2. Return 2.', pseudoLine: 5,
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'Linear scan: O(n). The binary search trick is surprising — most peak-finding problems are linear. The key insight is that we don\'t need to find THE peak, just ANY peak.',
+  }],
+};
+
+// ==================== Template Explanations: JS Fundamentals ====================
+
+const helloWorld: Explanation = {
+  problem: 'Hello World',
+  problemStatement: 'The simplest possible JavaScript program — log a value to the console. The starting point for every "is this environment alive?" check.',
+  approaches: [{
+    id: 'console-log',
+    name: 'console.log Basics',
+    badge: 'best',
+    intuition:
+      "`console.log(...args)` writes any number of arguments to the runtime's standard log channel, separated by spaces. Each argument is serialized — primitives render as their string form, objects render with a structured representation that varies by runtime.\n\n" +
+      "The console is part of the **Web Console API**, not JavaScript itself. In a browser it writes to DevTools. In Node it writes to stdout (and `console.error` to stderr). Knowing this matters when running JavaScript headlessly: a missing console (e.g., in some embedded JS engines) would crash unsuspecting code.\n\n" +
+      "**Variants worth knowing:** `console.warn` (yellow), `console.error` (red), `console.table` (formatted tables), `console.group`/`groupEnd` (collapsible groups), `console.time`/`timeEnd` (perf), `console.assert(condition, msg)` (conditional log).",
+    complexity: { time: 'O(args)', space: 'O(args)', verdict: 'Always available' },
+    pseudocode: ['console.log("Hello, World!")'],
+    example: { input: '"Hello, World!"', output: 'Hello, World!' },
+    steps: [
+      { title: 'JavaScript executes the call. The Console API serializes "Hello, World!" and writes it to the runtime log.', pseudoLine: 0,
+        result: { found: true, value: 'Hello, World!' } },
+    ],
+    tradeoffs: 'For production logs in Node, prefer a structured logger (pino, winston) — `console.log` is fine for debugging but slower and lacks log levels, transports, and machine-readable output.',
+  }],
+};
+
+const arrayMethods: Explanation = {
+  problem: 'Array Methods',
+  problemStatement: 'A whirlwind tour of the most-used `Array.prototype` methods: map, filter, reduce, find, some, every, flatMap, etc.',
+  approaches: [{
+    id: 'overview',
+    name: 'Pure vs Mutating Methods',
+    badge: 'best',
+    intuition:
+      "Array methods split into two families based on whether they MUTATE the array:\n\n" +
+      "**Pure (return a new array, leave the original alone):** `map`, `filter`, `reduce` (returns a value, not array), `slice`, `concat`, `flat`, `flatMap`, `find`, `findIndex`, `some`, `every`, `includes`, `indexOf`. These are the functional core — composable, predictable, what 90% of modern code uses.\n\n" +
+      "**Mutating (modify in place, return the same array or a removed slice):** `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin`. Use sparingly; mutating shared state is the #1 cause of weird React bugs.\n\n" +
+      "**ES2023 immutable methods:** `toSorted`, `toReversed`, `toSpliced`, `with` — the pure equivalents of the mutating four. Use these in React state updates.\n\n" +
+      "**The reducer mental model:** `reduce((acc, x) => ..., initial)` is the most powerful — `map` and `filter` can both be expressed as `reduce` (and so can almost everything else).",
+    complexity: { time: 'Varies — most are O(n)', space: 'O(n) for pure methods', verdict: 'Know the pure ones cold' },
+    pseudocode: [
+      '[1,2,3].map(x => x*2)       // [2,4,6]  (pure)',
+      '[1,2,3].filter(x => x>1)    // [2,3]    (pure)',
+      '[1,2,3].reduce((a,x) => a+x, 0)  // 6   (pure)',
+      'arr.push(4)                  // mutates arr, returns new length',
+      'arr.sort()                   // mutates arr',
+      'arr.toSorted()               // ES2023 — returns new sorted',
+    ],
+    example: { input: 'demo of each common method', output: 'see template' },
+    steps: [
+      { title: 'map / filter / reduce: the functional triumvirate. Compose freely; never mutate.', pseudoLine: 0 },
+      { title: 'push / pop / shift / unshift: mutate. Cheap O(1) at the end (push/pop), O(n) at the start (shift/unshift).', pseudoLine: 3 },
+      { title: 'sort / reverse: mutate AND return the same array. Wrap in [...arr] when you need to preserve the original.', pseudoLine: 4,
+        result: { found: true, value: 'pure vs mutating — pick on purpose' } },
+    ],
+    tradeoffs: 'In hot loops, classic `for` loops outperform `forEach`/`map` by ~10-30% because they skip function-call overhead. For everything else, prefer the functional methods — readability wins.',
+  }],
+};
+
+const closures: Explanation = {
+  problem: 'Closures',
+  problemStatement: 'A closure is a function that "remembers" the variables from its surrounding scope, even after that scope has finished executing.',
+  approaches: [{
+    id: 'lexical-capture',
+    name: 'Lexical Scope Capture',
+    badge: 'best',
+    intuition:
+      "JavaScript uses **lexical scoping**: a function's scope is determined by WHERE it's defined, not where it's called. When a function references a variable, the engine looks it up in the chain of scopes that surrounded the function's definition.\n\n" +
+      "A **closure** is what happens when an inner function holds a reference to an outer function's variables, keeping those variables alive in memory even after the outer function returned. The function and its referenced environment are bundled together.\n\n" +
+      "**Classic uses:**\n" +
+      "• **Data privacy** — module pattern: an IIFE returns an object whose methods close over private state.\n" +
+      "• **Function factories** — `makeAdder(x)` returns `(y) => x + y`.\n" +
+      "• **Currying** — chains of closures each remembering one argument.\n" +
+      "• **Event handlers** — the handler closes over the component scope, accessing state when fired.\n\n" +
+      "**The `var`-in-loop gotcha:** `for (var i=0; i<3; i++) setTimeout(() => console.log(i), 0)` prints `3, 3, 3` because all three closures share the same `i`. Fix with `let` (per-iteration binding) or an IIFE.",
+    complexity: { time: 'O(1) per call', space: 'O(captured vars) — kept alive', verdict: 'Foundational JS concept' },
+    pseudocode: [
+      'function makeCounter() {',
+      '  let count = 0;          // private',
+      '  return () => ++count;   // closure over count',
+      '}',
+      'const c = makeCounter(); c(); c(); c();   // 1, 2, 3',
+    ],
+    example: { input: 'makeCounter() called 3 times', output: '1, 2, 3' },
+    steps: [
+      { title: 'makeCounter() runs. Allocates `count = 0` in its scope. Returns an inner function.', pseudoLine: 1 },
+      { title: 'makeCounter() returns. Normally `count` would be garbage-collected — but the returned function holds a reference to it, keeping it alive.', pseudoLine: 2 },
+      { title: 'c() runs. Inner function looks up `count` in its captured scope, increments, returns 1. Repeat: 2, 3.', pseudoLine: 4,
+        result: { found: true, value: '1, 2, 3' } },
+    ],
+    tradeoffs: 'Closures can leak memory if you accidentally retain large objects in the captured scope. Common React bug: a stale closure captures an old prop/state value. The fix: useCallback with proper dependencies, or use a ref for always-fresh access.',
+  }],
+};
+
+const promisesAsync: Explanation = {
+  problem: 'Promises & Async',
+  problemStatement: 'A Promise is a placeholder for a value that may not exist yet. async/await is sugar for chaining Promises with synchronous-looking syntax.',
+  approaches: [{
+    id: 'three-states',
+    name: 'The Three-State Machine',
+    badge: 'best',
+    intuition:
+      "A Promise is in exactly one of three states:\n\n" +
+      "1. **Pending** — the async operation hasn't completed.\n" +
+      "2. **Fulfilled** — completed successfully with a value.\n" +
+      "3. **Rejected** — failed with an error.\n\n" +
+      "Once a Promise leaves Pending (settled), its state is permanent. `.then(onFulfilled, onRejected)` schedules callbacks. `.catch(fn)` is shorthand for `.then(undefined, fn)`. `.finally(fn)` runs in either case without affecting the value.\n\n" +
+      "**async/await:** `async function` always returns a Promise. `await p` pauses the function until `p` settles, then resumes with the resolved value (or throws if rejected). Under the hood, `await` is sugar over `.then`.\n\n" +
+      "**Microtask queue:** `.then` callbacks run in the MICROTASK queue, which drains BEFORE the next macrotask (setTimeout, I/O). This is why `Promise.resolve().then(...)` fires before `setTimeout(..., 0)`.\n\n" +
+      "**Concurrency helpers:** `Promise.all` (all succeed or first error), `Promise.allSettled` (waits for all, never rejects), `Promise.race` (first to settle), `Promise.any` (first to fulfill).",
+    complexity: { time: 'Depends on the async op', space: 'O(handlers)', verdict: 'Foundational' },
+    pseudocode: [
+      'const p = new Promise((resolve, reject) => {',
+      '  setTimeout(() => resolve("done"), 1000);',
+      '});',
+      'p.then(v => console.log(v))   // "done" after 1s',
+      '',
+      'async function run() {',
+      '  const v = await p;            // pauses; resumes with "done"',
+      '  console.log(v);',
+      '}',
+    ],
+    example: { input: 'new Promise that resolves to "done"', output: '"done" (after delay)' },
+    steps: [
+      { title: 'new Promise(executor) runs executor SYNCHRONOUSLY. The executor schedules the eventual resolve.', pseudoLine: 0 },
+      { title: 'setTimeout fires after 1s. Calls resolve("done"). Promise transitions Pending → Fulfilled.', pseudoLine: 1 },
+      { title: 'Any pending .then callbacks (and awaiting async functions) are queued in the microtask queue and run next.', pseudoLine: 3,
+        result: { found: true, value: '"done"' } },
+    ],
+    tradeoffs: 'Top-level await (modules only) makes startup code linear. Unhandled rejections crash Node 16+ and warn in browsers — always handle errors. `for await...of` iterates async iterables (streams, async generators) one chunk at a time.',
+  }],
+};
+
+const mapSet: Explanation = {
+  problem: 'Map & Set',
+  problemStatement: 'Map: ordered key-value collection with any-type keys. Set: ordered unique-value collection. Both built into ES2015.',
+  approaches: [{
+    id: 'why-not-object',
+    name: 'Why Not Plain Object / Array?',
+    badge: 'best',
+    intuition:
+      "Before Map: people used plain objects as hash maps. That had problems:\n\n" +
+      "• Keys could only be strings (or coerced to strings). `{ [obj]: 'x' }` becomes `'[object Object]': 'x'` — useless.\n" +
+      "• Inherited prototype methods (toString, hasOwnProperty) collided with data keys.\n" +
+      "• No `size` property; you had to `Object.keys(obj).length` (O(n)).\n" +
+      "• Iteration order historically unreliable (now guaranteed in modern engines).\n\n" +
+      "**Map fixes all of this.** Keys can be ANY value (including objects, functions, NaN). `.size` is O(1). Iteration order is insertion order. No prototype pollution.\n\n" +
+      "**Set** is the same shape for unique values. `arr.includes(x)` is O(n); `set.has(x)` is O(1) — use Set for membership checks in hot paths.\n\n" +
+      "**The NaN gotcha:** in Map and Set, NaN is considered equal to NaN (so they dedupe correctly). In Array.indexOf and === comparisons, NaN !== NaN. Map/Set use SameValueZero equality.",
+    complexity: { time: 'O(1) avg for get/set/has', space: 'O(n)', verdict: 'Use for non-trivial key-value work' },
+    pseudocode: [
+      'const m = new Map();',
+      'm.set("k", 1); m.set(obj, "objKey"); m.set(NaN, "nanWorks");',
+      'm.has(NaN);   // true (Map handles NaN)',
+      'm.size;       // O(1)',
+      '',
+      'const s = new Set([1, 2, 2, 3]);   // {1, 2, 3}',
+      's.add(NaN); s.has(NaN);   // true',
+    ],
+    example: { input: 'Map with object keys + Set with NaN', output: 'both work' },
+    steps: [
+      { title: 'Map.set(obj, value): stores by object identity. Different objects with same shape are different keys.', pseudoLine: 1 },
+      { title: 'Set deduplicates by SameValueZero — NaN === NaN inside Set/Map, unlike with ===.', pseudoLine: 6,
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'Plain object is still fine when keys are known strings and you want JSON-serializability. Map/Set are NOT JSON-serializable directly (you have to convert via `[...map.entries()]`). Choose based on whether you need rich keys and O(1) size.',
+  }],
+};
+
+const spreadRest: Explanation = {
+  problem: 'Spread & Rest',
+  problemStatement: 'The `...` operator: spreads an iterable into its elements (spread) or collects multiple elements into an array (rest). Same syntax, opposite directions.',
+  approaches: [{
+    id: 'two-roles',
+    name: 'Same Syntax, Two Roles',
+    badge: 'best',
+    intuition:
+      "**Spread (...iterable) — expansion:** unpacks an array/string/iterable into its elements. Used in function calls, array literals, object literals.\n\n" +
+      "• `Math.max(...[1, 2, 3])` → `Math.max(1, 2, 3)`\n" +
+      "• `[...a, ...b]` concatenates\n" +
+      "• `{...obj}` shallow-copies (own enumerable properties only)\n\n" +
+      "**Rest (...name) — collection:** gathers remaining arguments into an array. Used in function parameters and destructuring patterns.\n\n" +
+      "• `function f(first, ...rest) { ... }` — rest is an array of all args past first\n" +
+      "• `const [head, ...tail] = arr` — tail is everything after head\n" +
+      "• `const { a, ...rest } = obj` — rest is a new object without `a`\n\n" +
+      "**Subtle behaviors:**\n" +
+      "• Spread on objects copies OWN ENUMERABLE properties (no inherited / non-enumerable).\n" +
+      "• Spread is SHALLOW. `{...nested}` doesn't deep-clone — nested objects share references.\n" +
+      "• Spread invokes the iterator protocol: works on arrays, strings, Maps, Sets, generators.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Workhorse syntax — use freely' },
+    pseudocode: [
+      'const arr = [1, 2, 3];',
+      'Math.max(...arr);            // SPREAD → Math.max(1, 2, 3)',
+      'const copy = [...arr];       // SPREAD into new array',
+      '',
+      'function sum(...nums) {      // REST: gather args',
+      '  return nums.reduce((a, b) => a + b, 0);',
+      '}',
+      'const { x, ...rest } = { x: 1, y: 2, z: 3 };  // REST in destructure',
+    ],
+    example: { input: 'mixed spread/rest patterns', output: 'see template' },
+    steps: [
+      { title: 'Spread in a function call expands an array into separate arguments — replacing the legacy `apply` pattern.', pseudoLine: 1 },
+      { title: 'Spread in array/object literals does a SHALLOW copy — nested references are shared.', pseudoLine: 2,
+        note: '`a = {nested: {n: 1}}; b = {...a}; b.nested === a.nested` → true. To deep-copy, use structuredClone.' },
+      { title: 'Rest in parameters or destructuring collects the leftovers into an array (positional) or object (named).', pseudoLine: 4,
+        result: { found: true, value: 'rest = { y: 2, z: 3 }' } },
+    ],
+    tradeoffs: 'Spread can hit stack limits for very large arrays (~10⁵+) because each element becomes a separate stack arg. For huge arrays, use array methods or concat instead of spread.',
+  }],
+};
+
+// ==================== Template Explanations: JS Interview Topics ====================
+
+const eventLoopMicrotasks: Explanation = {
+  problem: 'Event Loop & Microtasks',
+  problemStatement: 'JavaScript is single-threaded. The event loop is what lets it handle async work without blocking.',
+  approaches: [{
+    id: 'queue-model',
+    name: 'Call Stack + Microtask + Macrotask Queues',
+    badge: 'best',
+    intuition:
+      "JavaScript runs on ONE thread with a CALL STACK. Async APIs (setTimeout, fetch, DOM events) schedule callbacks via the runtime, not the engine. The event loop pulls one task at a time onto the empty stack.\n\n" +
+      "**The order matters:**\n\n" +
+      "1. Run the current synchronous code to completion (call stack empties).\n" +
+      "2. Drain the **microtask queue** entirely — Promise callbacks, queueMicrotask, MutationObserver.\n" +
+      "3. Render (if browser; one frame's worth).\n" +
+      "4. Pop one **macrotask** from the queue (setTimeout, setInterval, I/O, UI events) and run it.\n" +
+      "5. Go to step 2.\n\n" +
+      "**The key consequence:** microtasks run BEFORE the next macrotask. `Promise.resolve().then(...)` runs before `setTimeout(..., 0)` even though setTimeout was scheduled first.\n\n" +
+      "**Be careful:** an infinite chain of microtasks can starve macrotasks and freeze the UI. `for (let i = 0; i < 1000000; i++) Promise.resolve().then(...)` is bad.",
+    complexity: { time: 'Each task O(its work)', space: 'O(queued tasks)', verdict: 'Core mental model' },
+    pseudocode: [
+      'console.log(1);                                  // sync',
+      'setTimeout(() => console.log(2), 0);             // macrotask',
+      'Promise.resolve().then(() => console.log(3));    // microtask',
+      'console.log(4);                                  // sync',
+      '// Output: 1, 4, 3, 2',
+    ],
+    example: { input: 'mix of sync, microtask, macrotask logs', output: '1, 4, 3, 2' },
+    steps: [
+      { title: 'Sync runs first: logs 1, schedules timeout (macrotask), schedules .then (microtask), logs 4.', pseudoLine: 0,
+        result: { found: false, value: 'queue: [microtask: 3] [macrotask: 2]' } },
+      { title: 'Call stack empty. Drain microtasks → logs 3.', pseudoLine: 2 },
+      { title: 'Microtask queue empty. Process one macrotask → logs 2.', pseudoLine: 1,
+        result: { found: true, value: '1, 4, 3, 2' } },
+    ],
+    tradeoffs: 'requestAnimationFrame runs BEFORE the next render — between macrotasks but separate from the microtask queue. Use rAF for visual changes; microtasks for "do this right after the current sync chunk".',
+  }],
+};
+
+const thisKeyword: Explanation = {
+  problem: 'this Keyword',
+  problemStatement: '`this` is the implicit context of a function call. Its value is determined by HOW the function is called, not where it was defined.',
+  approaches: [{
+    id: 'four-rules',
+    name: 'Four Binding Rules + Arrow Exception',
+    badge: 'best',
+    intuition:
+      "There are **four rules** that determine `this`, applied in this order of precedence:\n\n" +
+      "1. **`new` binding:** `new fn()` makes `this` the newly-created object.\n" +
+      "2. **Explicit binding:** `fn.call(ctx)`, `fn.apply(ctx)`, `fn.bind(ctx)` — `this` is `ctx`.\n" +
+      "3. **Implicit binding:** `obj.fn()` — `this` is `obj`.\n" +
+      "4. **Default binding:** plain `fn()` — `this` is the global object (window in browser, undefined in strict mode).\n\n" +
+      "**Arrow functions are the exception:** they do NOT have their own `this`. They inherit `this` from the LEXICAL enclosing scope. This is why arrow functions are perfect for callbacks inside class methods — no `.bind(this)` needed.\n\n" +
+      "**The classic pitfall:** detaching a method from its object loses the binding.\n" +
+      "```js\n" +
+      "const obj = { name: 'Ana', say() { return this.name; } };\n" +
+      "obj.say();              // 'Ana' (implicit)\n" +
+      "const fn = obj.say;\n" +
+      "fn();                   // undefined (default binding, no obj)\n" +
+      "```",
+    complexity: { time: 'O(1)', space: 'O(1)', verdict: 'Core JS concept' },
+    pseudocode: [
+      "// Rule 1: new — new object",
+      "// Rule 2: call/apply/bind — explicit",
+      "// Rule 3: obj.fn() — implicit (the object before the dot)",
+      "// Rule 4: plain fn() — global / undefined (strict)",
+      "// Exception: arrow function inherits this from lexical scope",
+    ],
+    example: { input: 'fn called four different ways', output: 'four different this values' },
+    steps: [
+      { title: '`new Foo()` — creates an object, sets `this` to it, calls Foo with that this.', pseudoLine: 1 },
+      { title: '`obj.method()` — `this` is `obj`. Pure dot-call.', pseudoLine: 3 },
+      { title: '`const ref = obj.method; ref()` — DETACHED. `this` falls back to default (undefined in strict mode).', pseudoLine: 4,
+        note: 'This is the #1 React bug source: passing `this.handleClick` as a prop. Fix with `.bind(this)` in constructor, or use arrow methods.' },
+      { title: '`() => this` — arrow ignores all four rules and inherits from where it was defined.', pseudoLine: 5,
+        result: { found: true, value: 'four rules + arrow exception' } },
+    ],
+    tradeoffs: 'In class fields, `method = () => { ... }` creates an arrow bound to the instance — pre-bound, no .bind needed, but uses more memory (one closure per instance) versus prototype methods (one shared method).',
+  }],
+};
+
+const debounceThrottleTemplate: Explanation = {
+  problem: 'Debounce & Throttle',
+  problemStatement: 'Two rate-limiting patterns. Debounce: fire only after a quiet period. Throttle: fire at most once per window.',
+  approaches: [{
+    id: 'difference',
+    name: 'The Key Difference',
+    badge: 'best',
+    intuition:
+      "**Debounce — silence-triggered:** the function fires only AFTER `wait` ms of silence. Every new call CANCELS any pending fire and restarts the timer. Use for: search-as-you-type (wait for the user to stop typing), resize handlers (wait for resize to finish).\n\n" +
+      "**Throttle — pace-limited:** the function fires AT MOST once per `wait` window. Calls between fires are dropped (leading) or queued for the next window (trailing). Use for: scroll position tracking (continuous updates capped at e.g. 60 FPS), button rate-limiting.\n\n" +
+      "**Picture them on a timeline of inputs:**\n" +
+      "```\n" +
+      "Inputs:    | | | |        | | |   |\n" +
+              "wait=200ms\n" +
+      "Debounce:  ----------|------------------|----  (fires after silence)\n" +
+      "Throttle:  |---|---|---|----|---|---|--------  (fires every 200ms max)\n" +
+      "```\n\n" +
+      "Both are closures — they remember state across calls (the pending timeout or last-fire timestamp).",
+    complexity: { time: 'O(1) per call', space: 'O(1)', verdict: 'Both are everyday tools' },
+    pseudocode: [
+      'function debounce(fn, wait) {',
+      '  let timer;',
+      '  return (...args) => {',
+      '    clearTimeout(timer);',
+      '    timer = setTimeout(() => fn(...args), wait);',
+      '  };',
+      '}',
+      '',
+      'function throttle(fn, wait) {',
+      '  let last = 0;',
+      '  return (...args) => {',
+      '    if (Date.now() - last >= wait) {',
+      '      last = Date.now();',
+      '      fn(...args);',
+      '    }',
+      '  };',
+      '}',
+    ],
+    example: { input: 'rapid clicks every 50ms, wait=200ms', output: 'debounce: 1 fire after stop; throttle: every 4th call fires' },
+    steps: [
+      { title: 'Debounce on rapid input: each call clears the previous pending timer, reschedules.', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: 'in', kind: 'input' }, { t: 50, label: 'in', kind: 'input' }, { t: 100, label: 'in', kind: 'input' }, { t: 300, label: 'fire', kind: 'fire' }], windowMs: 200 } },
+      { title: 'Throttle: first call fires immediately, subsequent within 200ms drop. After 200ms a new fire is allowed.', pseudoLine: 12,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }, { t: 50, label: 'skip', kind: 'skip' }, { t: 100, label: 'skip', kind: 'skip' }, { t: 200, label: 'fire', kind: 'fire' }], windowMs: 200 },
+        result: { found: true, value: 'two patterns, two use cases' } },
+    ],
+    tradeoffs: 'Most production libraries (lodash) offer both leading + trailing variants of each. Debounce defaults trailing; throttle defaults leading. Real-world: search uses debounce (trailing), scroll uses throttle (leading).',
+  }],
+};
+
+const curryingTemplate: Explanation = {
+  problem: 'Currying',
+  problemStatement: 'Transform a multi-argument function into a chain of single-argument functions: `f(a, b, c)` becomes `f(a)(b)(c)`.',
+  approaches: [{
+    id: 'closure-chain',
+    name: 'Closure-Chain Currying',
+    badge: 'best',
+    intuition:
+      "Currying is partial application of one argument at a time. Each call captures one parameter in a closure and returns a function expecting the next. When all parameters are collected, the original function runs.\n\n" +
+      "**Why it matters:** enables function composition, point-free style, and easy reuse. `const addFive = add(5)` makes a specialized function from a general one.\n\n" +
+      "**Implementation pattern:** a generic `curry(fn)` wraps any function. It collects arguments across calls; once collected enough to match `fn.length` (the arity), it invokes `fn`. Otherwise it returns a new function that continues collecting.\n\n" +
+      "**Variadic curry (sum(1)(2)(3)()):** a different pattern — terminator-based. The empty call signals the end.",
+    complexity: { time: 'O(1) per call; O(n) closures in chain', space: 'O(n)', verdict: 'Pattern, not algorithm' },
+    pseudocode: [
+      'function curry(fn) {',
+      '  return function curried(...args) {',
+      '    if (args.length >= fn.length) return fn(...args);',
+      '    return (...next) => curried(...args, ...next);',
+      '  };',
+      '}',
+      '',
+      'const add = (a, b, c) => a + b + c;',
+      'const cAdd = curry(add);',
+      'cAdd(1)(2)(3);      // 6',
+      'cAdd(1, 2)(3);      // 6',
+      'cAdd(1)(2, 3);      // 6',
+    ],
+    example: { input: 'curry(add)(1)(2)(3)', output: '6' },
+    steps: [
+      { title: 'curry(add) returns `curried`. curried(1) — args=[1], length 1 < arity 3 → return new collector.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'curry(add) → curried', status: 'returned' }, { call: 'curried(1)', status: 'returned', returns: 'fn(args=[1])' }] } },
+      { title: 'curried(1)(2) — accumulates to args=[1,2]. Still < 3 → another collector.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'curried(1)(2)', status: 'returned', returns: 'fn(args=[1,2])' }] } },
+      { title: 'curried(1)(2)(3) — args=[1,2,3]. Length === arity → call add(1,2,3) → 6.', pseudoLine: 2,
+        callStack: { frames: [{ call: 'curried(1)(2)(3)', status: 'returned', returns: '6' }] },
+        result: { found: true, value: '6' } },
+    ],
+    tradeoffs: 'Auto-curry (lodash/curry) handles arbitrary arity and supports placeholders. The hand-rolled version is simpler but assumes you know fn.length. Ramda goes further and curries every function by default.',
+  }],
+};
+
+const prototypesClasses: Explanation = {
+  problem: 'Prototypes & Classes',
+  problemStatement: 'ES2015 classes are syntactic sugar over JavaScript\'s prototypal inheritance. Understanding both layers prevents subtle bugs.',
+  approaches: [{
+    id: 'prototype-chain',
+    name: 'The Prototype Chain',
+    badge: 'best',
+    intuition:
+      "Every JavaScript object has an internal `[[Prototype]]` slot (accessed via `Object.getPrototypeOf(obj)` or the legacy `__proto__`). When you read a property, the engine walks the chain: own property first, then prototype, then prototype's prototype, until it hits null.\n\n" +
+      "**class syntax (ES2015):**\n" +
+      "```js\n" +
+      "class Animal {\n" +
+      "  constructor(name) { this.name = name; }\n" +
+      "  speak() { return this.name + ' speaks'; }\n" +
+      "}\n" +
+      "```\n" +
+      "Is equivalent to:\n" +
+      "```js\n" +
+      "function Animal(name) { this.name = name; }\n" +
+      "Animal.prototype.speak = function () { return this.name + ' speaks'; };\n" +
+      "```\n\n" +
+      "**Instance methods** live on `Animal.prototype` — shared across instances, accessed via the prototype chain. **`static` methods** live on `Animal` itself.\n\n" +
+      "**`extends` sets up the chain:** `class Dog extends Animal` makes `Dog.prototype.__proto__ === Animal.prototype`, so `dog.speak()` finds speak on Animal's prototype.",
+    complexity: { time: 'O(chain depth) per property lookup', space: 'O(1) per instance', verdict: 'Core OO model' },
+    pseudocode: [
+      'class Animal {',
+      '  constructor(name) { this.name = name; }',
+      '  speak() { return this.name + " speaks"; }',
+      '}',
+      '',
+      'class Dog extends Animal {',
+      '  bark() { return "Woof!"; }',
+      '}',
+      '',
+      'const d = new Dog("Rex");',
+      'd.speak();   // "Rex speaks" — found on Animal.prototype',
+      'd.bark();    // "Woof!"     — found on Dog.prototype',
+    ],
+    example: { input: 'new Dog("Rex").speak()', output: '"Rex speaks"' },
+    steps: [
+      { title: 'new Dog("Rex"): creates obj, sets [[Prototype]] to Dog.prototype, runs constructor (which calls Animal.call(this)).', pseudoLine: 8 },
+      { title: 'd.speak(): not found on d → check Dog.prototype → not there → check Animal.prototype → found!', pseudoLine: 9,
+        callStack: { frames: [{ call: 'd.speak()', status: 'active' }, { call: 'lookup: d → Dog.prototype → Animal.prototype.speak ✓', status: 'returned' }] } },
+      { title: 'd.bark(): found on Dog.prototype directly.', pseudoLine: 10,
+        result: { found: true, value: 'inheritance via the chain' } },
+    ],
+    tradeoffs: 'Class fields (`name = "default"`) put properties on each instance (not the prototype). Arrow methods (`fn = () => {}`) similarly per-instance — bind `this` automatically but cost memory. Pick prototype methods for shared behavior, instance fields for state.',
+  }],
+};
+
+const destructuringDeepDive: Explanation = {
+  problem: 'Destructuring Deep Dive',
+  problemStatement: 'Destructuring lets you extract values from arrays/objects with a syntax that mirrors how you build them. Supports defaults, renaming, nesting, and rest.',
+  approaches: [{
+    id: 'patterns',
+    name: 'The Five Patterns',
+    badge: 'best',
+    intuition:
+      "**1. Basic positional (array):**\n" +
+      "`const [a, b] = [1, 2]` — by index.\n\n" +
+      "**2. Basic named (object):**\n" +
+      "`const { x, y } = { x: 1, y: 2 }` — by key.\n\n" +
+      "**3. Renaming (object only):**\n" +
+      "`const { x: xVal } = { x: 1 }` — extracts `x`, binds to `xVal`.\n\n" +
+      "**4. Defaults:**\n" +
+      "`const { x = 10 } = {}` → `x === 10`. Default only applies if the property is `undefined` (NOT if it's null or 0 or empty string).\n\n" +
+      "**5. Rest pattern:**\n" +
+      "`const [first, ...rest] = arr` — `rest` is everything past `first`. `const { x, ...rest } = obj` — `rest` is a new object missing `x`.\n\n" +
+      "**Combine freely:**\n" +
+      "```js\n" +
+      "const { a: { b = 5 } = {}, c = 'default' } = obj;\n" +
+      "// extract obj.a.b (default 5, with safe fallback {} if obj.a is undefined),\n" +
+      "// and obj.c (default 'default')\n" +
+      "```",
+    complexity: { time: 'O(props extracted)', space: 'O(props extracted)', verdict: 'Use liberally' },
+    pseudocode: [
+      'const [a, b, c = 10] = [1, 2];           // a=1, b=2, c=10 (default)',
+      'const { name: n, age = 18 } = user;       // rename + default',
+      'const [first, ...rest] = [1, 2, 3, 4];   // rest=[2,3,4]',
+      'const { x, ...rest } = { x: 1, y: 2 };   // rest={y:2}',
+      '',
+      '// Nested:',
+      'const { addr: { city } } = user;',
+      '',
+      '// In function params:',
+      'function greet({ name = "stranger" } = {}) { return "Hi " + name; }',
+    ],
+    example: { input: 'various patterns', output: 'see template' },
+    steps: [
+      { title: 'Array destructuring is positional (by index). Object destructuring is named (by key).', pseudoLine: 0 },
+      { title: 'Defaults apply ONLY when the source value is undefined. `null`, `0`, `""` skip the default — they\'re defined, just falsy.', pseudoLine: 1,
+        note: 'Common bug: `const { count = 5 } = { count: 0 }` → count is 0, not 5. To force-default falsy values, use ?? operator separately.' },
+      { title: 'Function parameter destructuring + default braces (`= {}`) lets callers omit the object entirely.', pseudoLine: 7,
+        result: { found: true, value: 'greet() works without args' } },
+    ],
+    tradeoffs: 'Destructuring is a readability multiplier when used moderately. Over-destructuring in function signatures (5+ params) hurts readability — at that point, consider a named params object that\'s NOT destructured at the function boundary.',
+  }],
+};
+
+const trickyInterviewQ: Explanation = {
+  problem: 'Tricky Interview Q',
+  problemStatement: 'A curated collection of classic JavaScript gotchas — type coercion, hoisting, scoping, and async surprises.',
+  approaches: [{
+    id: 'gotchas',
+    name: 'The Most-Asked Tricks',
+    badge: 'best',
+    intuition:
+      "**1. `==` vs `===`:** `==` coerces types. `1 == '1'` → true; `1 === '1'` → false. Always use `===` unless you specifically want coercion.\n\n" +
+      "**2. NaN strangeness:** `NaN !== NaN`. Use `Number.isNaN(x)` (NOT global `isNaN(x)` which coerces first).\n\n" +
+      "**3. Hoisting:** `var` declarations hoist (but not initializations) — referencing before declaring gives `undefined`. `let`/`const` hoist into the temporal dead zone — referencing before declaring throws ReferenceError.\n\n" +
+      "**4. typeof null === 'object':** historical bug, never fixed for backward compat.\n\n" +
+      "**5. [] + [] === '':** array → string via .join(',') → '', then '' + '' === ''.\n\n" +
+      "**6. var in loop with closures:** `for (var i=0; i<3; i++) setTimeout(() => console.log(i))` prints 3,3,3 (var is function-scoped, shared). With let: 0,1,2 (let is block-scoped, fresh per iteration).\n\n" +
+      "**7. Object key coercion:** `obj[true] = 'a'; obj['true']` returns 'a' — all object keys are strings (or symbols).\n\n" +
+      "**8. Floating point:** `0.1 + 0.2 !== 0.3`. It's `0.30000000000000004`. Use rounding for comparisons.",
+    complexity: { time: 'N/A', space: 'N/A', verdict: 'Pattern recognition' },
+    pseudocode: [
+      '0.1 + 0.2 === 0.3                    // false  (floating point)',
+      'NaN === NaN                          // false  (use Number.isNaN)',
+      'typeof null                          // "object"  (historical bug)',
+      '[] + []                              // ""  (toString coercion)',
+      'for (var i=0; i<3; i++) setTimeout(() => console.log(i))   // 3 3 3',
+      'for (let i=0; i<3; i++) setTimeout(() => console.log(i))   // 0 1 2',
+    ],
+    example: { input: 'various gotchas', output: 'all surprising' },
+    steps: [
+      { title: 'Type coercion: `[] + []` triggers Array → primitive → string. Empty array becomes "". Concatenation: "" + "" = "".', pseudoLine: 3 },
+      { title: 'Floating point: doubles have ~15 decimal digits of precision. Repeating binary fractions like 0.1 + 0.2 don\'t add cleanly.', pseudoLine: 0 },
+      { title: '`var` is function-scoped, `let` is block-scoped. The loop-closure gotcha is the single most-asked variant.', pseudoLine: 4,
+        result: { found: true, value: 'know these cold' } },
+    ],
+    tradeoffs: 'These quirks are mostly about pattern recognition, not understanding. Interviewers ask them to test whether you have years of JS pain accumulated. Use === everywhere, let everywhere, Number.isNaN — and you avoid 90% of them.',
+  }],
+};
+
+// ==================== Template Explanations: React ====================
+
+const useStateCounter: Explanation = {
+  problem: 'useState Counter',
+  problemStatement: 'The simplest possible React state hook: a counter with increment/decrement/reset buttons.',
+  approaches: [{
+    id: 'usestate',
+    name: 'useState Fundamentals',
+    badge: 'best',
+    intuition:
+      "`const [state, setState] = useState(initialValue)` does three things:\n\n" +
+      "1. **On first render:** allocates a slot in React's internal state for this component, initialized to `initialValue`.\n" +
+      "2. **On subsequent renders:** returns the LATEST value, not the initial. React preserves state across re-renders.\n" +
+      "3. **`setState(next)`:** queues an update. On the NEXT render, `state` reflects `next`. Calling setState does NOT immediately change `state` within the current render — it's async-feeling.\n\n" +
+      "**The functional form** `setState(prev => prev + 1)` is essential when next state depends on previous — multiple calls in a row work correctly:\n" +
+      "```js\n" +
+      "setCount(c => c + 1);  // count + 1\n" +
+      "setCount(c => c + 1);  // count + 2 (uses the previous setter's result)\n" +
+      "```\n" +
+      "Whereas `setCount(count + 1)` twice would only add 1 (both calls read the stale `count`).",
+    complexity: { time: 'O(1) per setState call', space: 'O(1)', verdict: 'Most-used React hook' },
+    pseudocode: [
+      'function Counter() {',
+      '  const [count, setCount] = useState(0);',
+      '  return (',
+      '    <button onClick={() => setCount(c => c + 1)}>{count}</button>',
+      '  );',
+      '}',
+    ],
+    example: { input: 'click increment 3 times', output: 'count = 3' },
+    steps: [
+      { title: 'First render: useState(0) allocates the slot. Returns [0, setter].', pseudoLine: 1 },
+      { title: 'Click → setCount(c => c+1) queued. React schedules a re-render.', pseudoLine: 3 },
+      { title: 'Re-render: useState now returns [1, setter]. Component re-renders with count=1.', pseudoLine: 1,
+        result: { found: true, value: 'state persists; setter triggers re-render' } },
+    ],
+    tradeoffs: 'useState batches multiple setState calls within the same event handler into a single re-render (React 18+). Outside React events (setTimeout callbacks, native event listeners), each setState triggers a re-render — wrap in flushSync or move state to useReducer for complex updates.',
+  }],
+};
+
+const useEffectLifecycle: Explanation = {
+  problem: 'useEffect Lifecycle',
+  problemStatement: 'useEffect runs side effects AFTER the render commits to the DOM. It replaces componentDidMount/Update/Unmount in one unified API.',
+  approaches: [{
+    id: 'three-phases',
+    name: 'Three Phases: Mount, Update, Cleanup',
+    badge: 'best',
+    intuition:
+      "**The signature:** `useEffect(setup, deps?)`\n\n" +
+      "1. **Setup function** runs after every render where dependencies changed.\n" +
+      "2. **Cleanup function** (returned from setup) runs BEFORE the next setup AND on unmount.\n\n" +
+      "**Dependency-array behavior:**\n" +
+      "• **`undefined`** (omitted): runs after EVERY render. Almost always wrong.\n" +
+      "• **`[]`** (empty): runs ONCE after mount, cleanup runs on unmount. The classic 'componentDidMount' replacement.\n" +
+      "• **`[a, b]`** (specific deps): runs after mount + any render where `a` or `b` changed.\n\n" +
+      "**Common uses:** subscriptions (DOM events, websockets), data fetching (with AbortController in cleanup), DOM measurements.\n\n" +
+      "**Modern guidance:** prefer `useState` for derived state, `event handlers` for user actions, `Suspense + a data library` (TanStack Query) for fetching — useEffect is for synchronizing with EXTERNAL systems, not for kicking off rendering work.",
+    complexity: { time: 'O(setup)', space: 'O(closure)', verdict: 'For sync with the outside world' },
+    pseudocode: [
+      'useEffect(() => {',
+      '  console.log("mounted or deps changed");',
+      '  const id = setInterval(tick, 1000);',
+      '  return () => {',
+      '    console.log("cleanup before next setup or unmount");',
+      '    clearInterval(id);',
+      '  };',
+      '}, [someDep]);',
+    ],
+    example: { input: 'component mounts, deps change, unmounts', output: 'setup → cleanup → setup → ... → cleanup' },
+    steps: [
+      { title: 'Mount: render commits → effect setup runs (logs "mounted"). Cleanup is REMEMBERED for next phase.', pseudoLine: 0 },
+      { title: 'someDep changes → new render commits → React runs PREVIOUS cleanup, then NEW setup.', pseudoLine: 3 },
+      { title: 'Component unmounts → React runs the FINAL cleanup.', pseudoLine: 5,
+        result: { found: true, value: 'setup/cleanup pair on each dep change' } },
+    ],
+    tradeoffs: 'StrictMode in dev runs setup → cleanup → setup TWICE to flush bugs from missing cleanups. Don\'t disable StrictMode — fix the cleanup. The official guidance "You Might Not Need an Effect" in React docs is required reading.',
+  }],
+};
+
+const customHook: Explanation = {
+  problem: 'Custom Hook',
+  problemStatement: 'A function that starts with `use` and calls other hooks inside. The mechanism for extracting and reusing stateful logic across components.',
+  approaches: [{
+    id: 'pattern',
+    name: 'The Custom-Hook Pattern',
+    badge: 'best',
+    intuition:
+      "A custom hook is just a function that:\n" +
+      "1. Has a name starting with `use` (so the linter can validate hook rules).\n" +
+      "2. Calls one or more built-in hooks (useState, useEffect, etc.).\n" +
+      "3. Returns whatever the caller needs (value, setter, object, tuple — your call).\n\n" +
+      "**Each component that calls your hook gets its OWN STATE.** Hooks don't share state across instances. `useCounter()` in component A and `useCounter()` in component B are completely independent. The hook just packages the logic; React wires up per-instance state via the call order.\n\n" +
+      "**What to extract into a hook:** logic that\n" +
+      "• combines multiple useState + useEffect calls coherently,\n" +
+      "• you'd otherwise copy-paste into multiple components,\n" +
+      "• has its own conceptual identity (useFetch, useLocalStorage, useToggle).\n\n" +
+      "**The rules of hooks still apply:** only call hooks at the top level of your custom hook, never conditionally or in loops.",
+    complexity: { time: 'O(work)', space: 'O(state)', verdict: 'The composition mechanism for hooks' },
+    pseudocode: [
+      'function useCounter(initial = 0) {',
+      '  const [count, setCount] = useState(initial);',
+      '  const inc = useCallback(() => setCount(c => c + 1), []);',
+      '  const reset = useCallback(() => setCount(initial), [initial]);',
+      '  return { count, inc, reset };',
+      '}',
+      '',
+      'function App() {',
+      '  const { count, inc, reset } = useCounter(0);',
+      '  return <button onClick={inc}>{count}</button>;',
+      '}',
+    ],
+    example: { input: 'useCounter(10) in two components', output: 'each gets its own count' },
+    steps: [
+      { title: 'useCounter(10) called: allocates new state slot scoped to the calling component instance. Returns the API.', pseudoLine: 1 },
+      { title: 'Component A renders with count=10. Component B with its own count=10.', pseudoLine: 6 },
+      { title: 'A clicks inc → only A re-renders. B unaffected. State is isolated per call site.', pseudoLine: 8,
+        result: { found: true, value: 'per-instance state via React internals' } },
+    ],
+    tradeoffs: 'For shared state across components (theme, current user), use Context — not a hook. Hooks share LOGIC; Context shares VALUES.',
+  }],
+};
+
+const useReducerTodo: Explanation = {
+  problem: 'useReducer Todo',
+  problemStatement: 'useReducer is useState for complex state — you pass actions to a reducer function instead of values to a setter.',
+  approaches: [{
+    id: 'reducer',
+    name: 'When useReducer Beats useState',
+    badge: 'best',
+    intuition:
+      "**Signature:** `const [state, dispatch] = useReducer(reducer, initialState)`. The reducer is `(state, action) => newState`.\n\n" +
+      "**Use useReducer when:**\n" +
+      "• State has MULTIPLE sub-values that update together (a todo list with filter, sort, edit-in-progress).\n" +
+      "• Next state often depends on previous state in non-trivial ways.\n" +
+      "• You want to centralize all the update logic in one testable function.\n" +
+      "• You'd like to log/replay actions (great for debugging).\n\n" +
+      "**Stick with useState when:**\n" +
+      "• State is a single value or two related values.\n" +
+      "• Updates are mostly independent.\n\n" +
+      "**The reducer MUST be pure:** no side effects, no API calls, no time-dependent values. It's just `(state, action) => newState`. Side effects go in event handlers or effects.\n\n" +
+      "**Action shape convention:** `{ type: 'add', payload: ... }`. Many people use Redux Toolkit-style action creators even with useReducer for consistency.",
+    complexity: { time: 'O(reducer work)', space: 'O(state size)', verdict: 'For complex state updates' },
+    pseudocode: [
+      'function reducer(state, action) {',
+      '  switch (action.type) {',
+      '    case "add":    return [...state, action.todo];',
+      '    case "remove": return state.filter(t => t.id !== action.id);',
+      '    case "toggle": return state.map(t => t.id === action.id ? {...t, done: !t.done} : t);',
+      '    default: throw new Error("unknown action " + action.type);',
+      '  }',
+      '}',
+      'const [todos, dispatch] = useReducer(reducer, []);',
+      'dispatch({ type: "add", todo: { id: 1, text: "buy milk", done: false } });',
+    ],
+    example: { input: 'add, toggle, remove actions', output: 'todos state transitions' },
+    steps: [
+      { title: 'dispatch({type:"add",...}) → React calls reducer(currentTodos, action) → returns new array → state updates.', pseudoLine: 8 },
+      { title: 'Subsequent dispatch with the same state shape → reducer runs purely → React batches re-render.', pseudoLine: 2 },
+      { title: 'Centralized logic: one function describes every legal transition. Easy to test, easy to log.', pseudoLine: 0,
+        result: { found: true, value: 'predictable state machine' } },
+    ],
+    tradeoffs: 'Verbose compared to useState. Redux Toolkit\'s createSlice generates reducers + action creators with much less boilerplate — for app-wide state, it\'s often the better choice than ad-hoc useReducer hooks scattered around.',
+  }],
+};
+
+const contextAPI: Explanation = {
+  problem: 'Context API',
+  problemStatement: 'Context lets you pass values through the component tree without prop-drilling. Created with createContext, consumed with useContext.',
+  approaches: [{
+    id: 'provider-consumer',
+    name: 'Provider + Consumer Pattern',
+    badge: 'best',
+    intuition:
+      "**Three pieces:**\n" +
+      "1. `const Ctx = createContext(defaultValue)` — creates the context object.\n" +
+      "2. `<Ctx.Provider value={...}>{children}</Ctx.Provider>` — provides a value to all descendants.\n" +
+      "3. `const v = useContext(Ctx)` — any descendant reads the nearest Provider's value.\n\n" +
+      "**The re-render rule:** every consumer re-renders WHENEVER the Provider's `value` prop changes by reference. So:\n" +
+      "```js\n" +
+      "// BAD — new object every render\n" +
+      "<Ctx.Provider value={{ user, setUser }}>...</Ctx.Provider>\n" +
+      "\n" +
+      "// GOOD — stable reference\n" +
+      "const value = useMemo(() => ({ user, setUser }), [user]);\n" +
+      "<Ctx.Provider value={value}>...</Ctx.Provider>\n" +
+      "```\n\n" +
+      "**When NOT to use Context:**\n" +
+      "• High-frequency updates (typing into an input). Every consumer re-renders on every keystroke.\n" +
+      "• Server state (fetched data). Use TanStack Query or SWR instead.\n" +
+      "• When two props deep would do.",
+    complexity: { time: 'O(consumers) per change', space: 'O(1)', verdict: 'For low-frequency cross-cutting state' },
+    pseudocode: [
+      'const ThemeCtx = createContext("light");',
+      '',
+      'function App() {',
+      '  return (',
+      '    <ThemeCtx.Provider value="dark">',
+      '      <Toolbar />',
+      '    </ThemeCtx.Provider>',
+      '  );',
+      '}',
+      '',
+      'function Button() {',
+      '  const theme = useContext(ThemeCtx);',
+      '  return <button className={theme}>Click</button>;',
+      '}',
+    ],
+    example: { input: 'theme="dark" provided at App, consumed in Button', output: 'Button gets "dark"' },
+    steps: [
+      { title: 'createContext("light") makes the Ctx object. The "light" is the default — only used if NO Provider exists above the consumer.', pseudoLine: 0 },
+      { title: 'Provider value="dark" → walks the tree. Any useContext(Ctx) finds this as the nearest provider.', pseudoLine: 4 },
+      { title: 'Button calls useContext → gets "dark". When Provider value changes, Button re-renders.', pseudoLine: 11,
+        result: { found: true, value: 'value flows through the tree' } },
+    ],
+    tradeoffs: 'For high-frequency state, split into multiple contexts (one for value, one for setter) or use a state library (Zustand, Jotai) that doesn\'t re-render all consumers on every change.',
+  }],
+};
+
+const reactCompilerPatterns: Explanation = {
+  problem: 'React Compiler Patterns',
+  problemStatement: 'React Compiler (RC, formerly React Forget) auto-memoizes components so you don\'t need useMemo/useCallback/React.memo. This template shows the patterns it handles.',
+  approaches: [{
+    id: 'auto-memo',
+    name: 'Automatic Memoization',
+    badge: 'best',
+    intuition:
+      "React Compiler is a Babel plugin that analyzes your component code at build time and inserts memoization automatically. Where you'd write `useMemo(() => expensiveCompute(a, b), [a, b])` by hand, the compiler does it for you — for every computation that survives re-renders.\n\n" +
+      "**What the compiler enables:**\n" +
+      "• Object/array literals as props don't cause child re-renders (auto-memoized).\n" +
+      "• Inline event handlers don't break React.memo.\n" +
+      "• Derived state is essentially free.\n" +
+      "• Most uses of useMemo/useCallback become unnecessary.\n\n" +
+      "**What it requires:** your code follows the Rules of React (no mutation, pure components, no calling hooks conditionally). The compiler bails out gracefully if it sees violations.\n\n" +
+      "**Stable in React 19+.** When stable, the recommended path is: write idiomatic React without manual memoization, let the compiler optimize. For now (2026), the compiler is opt-in via the eslint plugin react-compiler/react-compiler.",
+    complexity: { time: 'Compile-time analysis', space: 'O(memo cache)', verdict: 'The future of React perf' },
+    pseudocode: [
+      '// Before compiler:',
+      'const items = useMemo(() => [1, 2, 3], []);',
+      'const handle = useCallback((e) => { ... }, [dep]);',
+      '<Child items={items} onClick={handle} />',
+      '',
+      '// After compiler — write the natural code:',
+      'const items = [1, 2, 3];',
+      'const handle = (e) => { ... };',
+      '<Child items={items} onClick={handle} />   // still memoized, automatically',
+    ],
+    example: { input: 'idiomatic React', output: 'auto-memoized output' },
+    steps: [
+      { title: 'Compiler sees `const items = [1, 2, 3]` — pure, no external deps. Wraps in implicit memoization.', pseudoLine: 5 },
+      { title: 'Compiler sees the arrow handler. Identifies closed-over values. Memoizes when those don\'t change.', pseudoLine: 6 },
+      { title: '<Child> receives stable refs. If Child is also compiler-optimized, it skips re-render.', pseudoLine: 7,
+        result: { found: true, value: 'manual memoization removed' } },
+    ],
+    tradeoffs: 'Until React Compiler is widely adopted, you may still need useMemo/useCallback for libraries that haven\'t been re-compiled. The compiler doesn\'t help if you mutate state — write functional updates.',
+  }],
+};
+
+// ==================== Template Explanations: Polyfills (compact) ====================
+
+// Helper to make polyfill explanations compact and consistent.
+// Auto-generates one step per pseudocode line so learners can step through
+// the implementation. Callers can pass `lineNotes` (a Map of pseudoLineIndex → comment)
+// to override the default "walk this line" title with a deeper explanation
+// of what that specific line does and why.
+function polyfillExplanation(
+  name: string,
+  builtinSig: string,
+  oneLineIntent: string,
+  intuition: string,
+  pseudocode: string[],
+  example: { input: string; output: string },
+  gotchas: string,
+  lineNotes?: Record<number, string>,
+): Explanation {
+  // Build a contract-then-implementation framing for the intuition. Every
+  // polyfill walkthrough now starts with "how to write a polyfill" mental
+  // model so learners can transfer the technique to other built-ins.
+  const intuitionExpanded =
+    `**Why polyfills matter.** A polyfill recreates a built-in feature in plain JavaScript. ` +
+    `Writing them is the canonical interview test of how well you understand the language: you need to know the *contract* of the built-in, then build it from first principles using only primitives.\n\n` +
+    `**The four parts of every polyfill:**\n` +
+    `1. **Validate inputs** — match the built-in's TypeError messages (e.g. "Reduce of empty array with no initial value").\n` +
+    `2. **Walk the data** — typically a single \`for\` loop. For sparse-array correctness use \`i in this\` not just \`this[i]\` so holes are skipped (matches native).\n` +
+    `3. **Apply the callback / transform** — pass the canonical \`(value, index, array)\` signature; honor \`thisArg\` via \`callback.call(thisArg, …)\`.\n` +
+    `4. **Return the right shape** — same length for map, smaller for filter, accumulator for reduce, the array itself for in-place mutators like reverse.\n\n` +
+    `**Specific to this built-in:** ${intuition}`;
+
+  // Auto-generate one step per line of pseudocode so the modal can render
+  // a true line-by-line walkthrough. lineNotes augments specific lines with
+  // a deeper explanation. Empty / brace-only lines collapse into a single
+  // continue-arrow step so the modal isn't cluttered.
+  const lineSteps = pseudocode.map((line, i) => {
+    const trimmed = line.trim();
+    const annotation = lineNotes?.[i];
+    let title: string;
+    if (annotation) {
+      title = annotation;
+    } else if (!trimmed || trimmed === '};' || trimmed === '}' || trimmed === '{') {
+      title = `Line ${i + 1}: scope marker — function body boundary.`;
+    } else if (trimmed.startsWith('//')) {
+      title = `Line ${i + 1}: comment — sets context for the next line.`;
+    } else if (trimmed.startsWith('return')) {
+      title = `Line ${i + 1}: return the result. This is the polyfill's contract value — matches the native return type.`;
+    } else if (trimmed.startsWith('for') || trimmed.startsWith('while')) {
+      title = `Line ${i + 1}: walk the source. Single-pass is canonical — built-ins are optimized for O(n).`;
+    } else if (trimmed.startsWith('if')) {
+      title = `Line ${i + 1}: guard. Polyfills must match the native edge-case behavior, not throw on edge cases the native handles.`;
+    } else if (trimmed.includes('throw')) {
+      title = `Line ${i + 1}: throw on invalid input. Match the native TypeError message format so callers can pattern-match errors.`;
+    } else {
+      title = `Line ${i + 1}: ${trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed}`;
+    }
+    return { title, pseudoLine: i };
+  });
+
+  return {
+    problem: `${name} (Polyfill)`,
+    problemStatement: `Polyfill for ${builtinSig}. ${oneLineIntent}`,
+    approaches: [{
+      id: 'polyfill',
+      name: `Polyfill: ${name}`,
+      badge: 'best',
+      intuition: intuitionExpanded,
+      complexity: { time: '—', space: '—', verdict: 'Re-implement the built-in to understand it' },
+      pseudocode,
+      example,
+      steps: [
+        ...lineSteps,
+        { title: 'Verify the polyfill matches native: run a few test cases and compare outputs to the native built-in.',
+          result: { found: true, value: 'native-equivalent behavior' },
+          note: gotchas },
+      ],
+      tradeoffs: gotchas,
+    }],
+  };
+}
+
+const arrayMap = polyfillExplanation(
+  'Array.prototype.map',
+  '`Array.prototype.map(callback, thisArg)`',
+  'Transform each element via the callback into a NEW array of the same length.',
+  "map walks the array, calls `callback(element, index, array)` for each item, and collects the return values into a new array. The original is untouched (pure).\n\n" +
+  "Key contract: the result array has the **same length** as the source. Even sparse arrays preserve holes — the callback isn't called for holes (a subtle point that breaks naive `for` loops).\n\n" +
+  "If a second argument is provided, it becomes `this` inside the callback. Rarely used today since arrow functions handle scoping cleanly.",
+  [
+    'Array.prototype.myMap = function (callback, thisArg) {',
+    '  if (this == null) throw new TypeError("...");',
+    '  if (typeof callback !== "function") throw new TypeError("...");',
+    '  const result = new Array(this.length);',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (i in this) result[i] = callback.call(thisArg, this[i], i, this);',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, 2, 3].myMap(x => x * 2)', output: '[2, 4, 6]' },
+  'Two subtle behaviors: (1) the `i in this` check skips holes in sparse arrays, matching native behavior; (2) preallocating `new Array(this.length)` is faster than `push` for known size.',
+  {
+    0: 'Attach to `Array.prototype` using a regular `function` (not arrow) so `this` binds to the array on which `.myMap()` is called.',
+    1: 'Reject `null` / `undefined` receivers. Native throws "Cannot convert undefined or null to object" — this matches the spec\'s ToObject step.',
+    2: 'Validate the callback. Without this, calling with a non-function throws a confusing "is not a function" deep inside the loop. Fail fast at the boundary.',
+    3: 'Pre-allocate the result with the right length. `new Array(n)` reserves capacity in V8, faster than repeated `push()` which causes hidden-class transitions.',
+    4: 'Walk indices 0..length-1. Use a counter loop, not `for…of`, because we need the index and need to preserve sparse-array holes.',
+    5: '`i in this` — this is the sparse-array correctness check. For `[1, , 3]`, position 1 is a HOLE (not undefined). Native map SKIPS holes. We call the callback with `(value, index, originalArray)` and bind `thisArg` via `.call()`.',
+    7: 'Return the new array. Note: original is untouched — this is a pure transform.',
+  },
+);
+
+const arrayFilter = polyfillExplanation(
+  'Array.prototype.filter',
+  '`Array.prototype.filter(predicate, thisArg)`',
+  'Return a NEW array containing only the elements for which the predicate returns truthy.',
+  "filter walks the source, calls `predicate(item, index, array)` for each, and pushes the item to the result if the return value is truthy.\n\n" +
+  "Unlike map, the result length is variable (≤ source length). Holes in sparse arrays are skipped silently — same as map.",
+  [
+    'Array.prototype.myFilter = function (predicate, thisArg) {',
+    '  const result = [];',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (i in this && predicate.call(thisArg, this[i], i, this)) {',
+    '      result.push(this[i]);',
+    '    }',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4].myFilter(x => x > 2)', output: '[3, 4]' },
+  'Truthy/falsy coercion: anything other than 0, "", null, undefined, NaN, false passes. Be careful with `[].myFilter(Boolean)` to clear out empty/falsy values — it works but also drops 0 and "".',
+  {
+    1: 'Empty result accumulator. Unlike map, we DON\'T preallocate because the final length is unknown (≤ source length).',
+    2: 'Standard counter loop. Sparse-array hole check happens inside the condition.',
+    3: '`i in this` skips holes; `predicate.call(thisArg, ...)` invokes the predicate with the canonical `(value, index, array)` signature. Truthy return = keep. Falsy = drop.',
+    4: 'Push only the elements that survived — preserves original order.',
+    7: 'Return the filtered subset. Original is never mutated.',
+  },
+);
+
+const arrayReduce = polyfillExplanation(
+  'Array.prototype.reduce',
+  '`Array.prototype.reduce(reducer, initialValue?)`',
+  'Fold the array into a single value by applying the reducer left-to-right.',
+  "reduce is the most general iteration primitive — map, filter, find, even forEach can all be expressed as reduce.\n\n" +
+  "The reducer signature: `(accumulator, currentValue, index, array) => nextAccumulator`. Two modes:\n" +
+  "• **With initialValue:** accumulator starts as initialValue, iteration starts at index 0.\n" +
+  "• **Without initialValue:** accumulator starts as arr[0], iteration starts at index 1. Throws on empty array.\n\n" +
+  "Always pass initialValue when the result type differs from the element type, or to avoid the empty-array crash.",
+  [
+    'Array.prototype.myReduce = function (reducer, initialValue) {',
+    '  let acc = initialValue, startIdx = 0;',
+    '  if (arguments.length < 2) {',
+    '    if (this.length === 0) throw new TypeError("...");',
+    '    acc = this[0]; startIdx = 1;',
+    '  }',
+    '  for (let i = startIdx; i < this.length; i++) {',
+    '    if (i in this) acc = reducer(acc, this[i], i, this);',
+    '  }',
+    '  return acc;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4].myReduce((a, b) => a + b, 0)', output: '10' },
+  'reduceRight is the same shape iterating right-to-left. Useful for compose() and right-associative operations.',
+  {
+    1: 'Start state: accumulator and start index. Both will be reassigned if initialValue was omitted.',
+    2: 'Detect "no initial value" via `arguments.length` (the only reliable way — passing `undefined` explicitly is different from omitting the argument).',
+    3: 'The empty-array-no-initial trap. Native throws TypeError("Reduce of empty array with no initial value"). Match the message format exactly so calling code can pattern-match.',
+    4: 'When no initial value, the first element BECOMES the accumulator and we start iteration at index 1. This is why `[5].reduce(fn)` returns 5 without calling `fn` at all.',
+    6: 'Walk from startIdx. The branch above sets startIdx=0 for the with-initial case and startIdx=1 for the without-initial case.',
+    7: '`acc = reducer(acc, value, index, array)` is the entire essence of reduce. The reducer\'s job is to produce the next accumulator. Notice the same `i in this` sparse-hole skip used by map/filter.',
+    9: 'Return the final accumulator. Any value type — number, string, object, array — reduce is shape-agnostic.',
+  },
+);
+
+const arrayForEach = polyfillExplanation(
+  'Array.prototype.forEach',
+  '`Array.prototype.forEach(callback, thisArg)`',
+  'Iterate without producing a new array. Side effects only.',
+  "forEach is just a for loop with a function-call signature. It returns undefined — you can't chain it. Use map/filter/reduce when you need a result.\n\n" +
+  "Cannot be broken out of (no `break`, no early return). If you need that, use a classic `for` loop or `some`/`every` which short-circuit.",
+  [
+    'Array.prototype.myForEach = function (callback, thisArg) {',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (i in this) callback.call(thisArg, this[i], i, this);',
+    '  }',
+    '};',
+  ],
+  { input: '[1, 2, 3].myForEach(x => console.log(x))', output: 'logs 1, 2, 3' },
+  'No early termination. To stop early, use `some` (returns true to stop) or a regular for loop.',
+);
+
+const arrayFindFindIndex = polyfillExplanation(
+  'Array.find / findIndex',
+  '`Array.prototype.find(predicate)` and `findIndex(predicate)`',
+  'Return the first element (or its index) that satisfies the predicate.',
+  "find returns the matching element or undefined. findIndex returns the matching index or -1. Both short-circuit on the first match — unlike filter which scans the whole array.\n\n" +
+  "Use find when you want the element, findIndex when you want the position (to splice, replace, etc.).",
+  [
+    'Array.prototype.myFind = function (predicate) {',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (predicate(this[i], i, this)) return this[i];',
+    '  }',
+    '  return undefined;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4].myFind(x => x > 2)', output: '3' },
+  'find returns undefined for no-match (cleaner than null). To distinguish "value undefined was found" vs "no match", use findIndex (-1 means no match).',
+);
+
+const arraySomeEvery = polyfillExplanation(
+  'Array.some / every',
+  '`Array.prototype.some(predicate)` and `every(predicate)`',
+  'Boolean reducers: `some` returns true if ANY element passes; `every` returns true if ALL do.',
+  "Both short-circuit. `some` stops at the first true. `every` stops at the first false. They're the boolean counterparts to find/findIndex.\n\n" +
+  "**Edge cases for empty arrays:** `[].some(...) === false` (no element passes); `[].every(...) === true` (vacuously true — every element passes since there are none to check).",
+  [
+    'Array.prototype.mySome = function (p) {',
+    '  for (let i = 0; i < this.length; i++) if (p(this[i], i, this)) return true;',
+    '  return false;',
+    '};',
+    'Array.prototype.myEvery = function (p) {',
+    '  for (let i = 0; i < this.length; i++) if (!p(this[i], i, this)) return false;',
+    '  return true;',
+    '};',
+  ],
+  { input: '[1, 2, 3].mySome(x => x > 2)', output: 'true' },
+  '`[].every(...)` returns true (vacuously) — a common surprise. Always guard with `.length > 0` if you require at least one element.',
+);
+
+const arrayFlatFlatMap = polyfillExplanation(
+  'Array.flat / flatMap',
+  '`Array.prototype.flat(depth = 1)` and `flatMap(callback)`',
+  'flat unnests one (or more) levels of nested arrays. flatMap maps then flattens by one level.',
+  "**flat(depth):** depth defaults to 1. `flat(Infinity)` flattens fully.\n\n" +
+  "**flatMap(fn):** equivalent to `map(fn).flat(1)` — useful when each element produces a variable-length result (e.g., split words).",
+  [
+    'Array.prototype.myFlat = function (depth = 1) {',
+    '  const result = [];',
+    '  for (const item of this) {',
+    '    if (Array.isArray(item) && depth > 0) result.push(...item.myFlat(depth - 1));',
+    '    else result.push(item);',
+    '  }',
+    '  return result;',
+    '};',
+    'Array.prototype.myFlatMap = function (cb) {',
+    '  return this.map(cb).myFlat(1);',
+    '};',
+  ],
+  { input: '[[1,2],[3,[4,5]]].myFlat()', output: '[1, 2, 3, [4, 5]]' },
+  'flatMap flattens only ONE level, regardless of how nested your callback returns. For deeper flattening of map output, use map().flat(depth).',
+);
+
+const functionBind = polyfillExplanation(
+  'Function.prototype.bind',
+  '`Function.prototype.bind(thisArg, ...presetArgs)`',
+  'Return a new function with `this` permanently bound and optional preset arguments (partial application).',
+  "bind creates a NEW function that, when called, invokes the original with `this` set to `thisArg` (regardless of how the new function is called). Preset arguments are PREPENDED to whatever arguments the new function receives.\n\n" +
+  "Crucial property: the bound function ignores subsequent rebinding. `boundFn.call(otherCtx)` still uses the original thisArg.",
+  [
+    'Function.prototype.myBind = function (thisArg, ...presetArgs) {',
+    '  const fn = this;',
+    '  return function (...callArgs) {',
+    '    return fn.apply(thisArg, [...presetArgs, ...callArgs]);',
+    '  };',
+    '};',
+  ],
+  { input: 'greet.myBind({ name: "Ana" }, "Hello")("!")', output: '"Hello, Ana!"' },
+  'Arrow functions cannot be bound — their `this` is lexical. If you bind an arrow, the thisArg is silently ignored. Bind on regular functions only.',
+  {
+    0: 'Attach to `Function.prototype` with a regular function so `this` is the function being bound.',
+    1: 'Capture `this` (the original function) in a closure variable. The returned function will use this later.',
+    2: 'Return a NEW function. Whatever args it gets at call time go into `callArgs`.',
+    3: 'Invoke the original with `apply` — passes `thisArg` as the explicit context and merges presetArgs first (partial application), then the call-time args. This achieves both fixed-`this` and curry-like behavior in one mechanism.',
+  },
+);
+
+const functionCallApply = polyfillExplanation(
+  'Function.call / apply',
+  '`fn.call(thisArg, ...args)` and `fn.apply(thisArg, argsArray)`',
+  'Call a function with explicit `this`. call takes args separately; apply takes them as an array.',
+  "Both immediately invoke `fn`. The only difference is argument shape:\n" +
+  "• `fn.call(ctx, a, b, c)` — args as separate parameters.\n" +
+  "• `fn.apply(ctx, [a, b, c])` — args as one array.\n\n" +
+  "With ES2015 spread (`fn(...args)`), apply is largely redundant. call remains useful when you want to invoke a generic function on a specific object (e.g., `Array.prototype.slice.call(arguments)`).",
+  [
+    'Function.prototype.myCall = function (thisArg, ...args) {',
+    '  thisArg = thisArg ?? globalThis;',
+    '  const key = Symbol("fn");',
+    '  thisArg[key] = this;',
+    '  const result = thisArg[key](...args);',
+    '  delete thisArg[key];',
+    '  return result;',
+    '};',
+    'Function.prototype.myApply = function (thisArg, argsArray) {',
+    '  return this.myCall(thisArg, ...(argsArray ?? []));',
+    '};',
+  ],
+  { input: 'greet.myCall({ name: "Ana" }, "Hello")', output: '"Hello, Ana"' },
+  'Using a Symbol key avoids overwriting an existing property on thisArg. Modern code often uses `Reflect.apply` which is cleaner.',
+);
+
+const promiseAllExpl = polyfillExplanation(
+  'Promise.all',
+  '`Promise.all(iterable) → Promise<array>`',
+  'Wait for all promises to fulfill. If ANY rejects, fail fast with that rejection.',
+  "Returns a single Promise that fulfills with an array of resolved values (in the same order as the input). If any input rejects, the returned Promise rejects immediately with that error — no waiting for the rest.\n\n" +
+  "Empty iterable resolves immediately with `[]`. Non-Promise values are wrapped with Promise.resolve.",
+  [
+    'Promise.myAll = function (promises) {',
+    '  return new Promise((resolve, reject) => {',
+    '    const arr = [...promises];',
+    '    if (arr.length === 0) return resolve([]);',
+    '    const results = new Array(arr.length);',
+    '    let remaining = arr.length;',
+    '    arr.forEach((p, i) => {',
+    '      Promise.resolve(p).then(v => {',
+    '        results[i] = v;',
+    '        if (--remaining === 0) resolve(results);',
+    '      }, reject);',
+    '    });',
+    '  });',
+    '};',
+  ],
+  { input: 'Promise.myAll([Promise.resolve(1), Promise.resolve(2)])', output: '[1, 2]' },
+  'Fail-fast semantics: as soon as one rejects, the returned Promise rejects, but other in-flight promises CONTINUE running (you cannot cancel them). For "wait for all regardless", use allSettled.',
+  {
+    0: 'Static method on the Promise constructor, not on a prototype — matches the native API.',
+    1: 'Return a new Promise wrapped around our internal coordination logic. Caller awaits this single Promise.',
+    2: 'Spread the iterable into an array. Native accepts any iterable (Array, Set, Map, generator) — `[...iterable]` normalizes.',
+    3: 'Empty-iterable edge case: resolve immediately with `[]`. Without this, `remaining` would start at 0 and never decrement, hanging forever.',
+    4: 'Pre-allocate results array. Order MUST match input order, so we assign by index, not push.',
+    5: 'Counter to track how many promises are still pending. Decrement on each fulfillment.',
+    6: 'Loop over each input, capturing its index in the closure.',
+    7: '`Promise.resolve(p)` wraps non-promise values into a promise — supports calling with `[1, Promise.resolve(2)]`.',
+    8: 'On fulfill: store the value at the input\'s original index — preserves order even if promises settle out of order.',
+    9: 'Pre-decrement check: when the LAST promise settles, resolve the outer Promise with the full results array.',
+    10: 'Pass the rejection handler as the second `.then()` argument — that\'s how Promise.all\'s fail-fast works. The first rejection wins the race for the outer Promise; subsequent rejections are ignored (Promise can only settle once).',
+  },
+);
+
+const promiseAllSettledExpl = polyfillExplanation(
+  'Promise.allSettled',
+  '`Promise.allSettled(iterable) → Promise<array of {status, value/reason}>`',
+  'Wait for ALL promises to settle (fulfill or reject). Never rejects.',
+  "Like Promise.all but never short-circuits. Each result is `{status: 'fulfilled', value}` or `{status: 'rejected', reason}`. Use when you want every result regardless of failures.",
+  [
+    'Promise.myAllSettled = function (promises) {',
+    '  return Promise.all([...promises].map(p =>',
+    '    Promise.resolve(p).then(',
+    '      v => ({ status: "fulfilled", value: v }),',
+    '      r => ({ status: "rejected", reason: r }),',
+    '    )',
+    '  ));',
+    '};',
+  ],
+  { input: 'allSettled([Promise.resolve(1), Promise.reject(2)])', output: '[{status:"fulfilled",value:1}, {status:"rejected",reason:2}]' },
+  'Use for parallel requests where some failures are tolerable (e.g., load 10 widgets, render the ones that succeeded).',
+);
+
+const promiseRaceAny = polyfillExplanation(
+  'Promise.race / any',
+  '`Promise.race(iterable)` and `Promise.any(iterable)`',
+  'race: first to settle wins (fulfilled or rejected). any: first to FULFILL wins.',
+  "**race:** returns the first promise to settle, in either direction. Useful for timeouts: `Promise.race([fetch(...), timeout(5000)])`.\n\n" +
+  "**any:** returns the first to FULFILL. If all reject, throws AggregateError with all reasons. Useful for trying multiple sources where any success is enough.",
+  [
+    'Promise.myRace = function (promises) {',
+    '  return new Promise((resolve, reject) => {',
+    '    for (const p of promises) Promise.resolve(p).then(resolve, reject);',
+    '  });',
+    '};',
+    'Promise.myAny = function (promises) {',
+    '  return new Promise((resolve, reject) => {',
+    '    const arr = [...promises]; const errors = []; let rejected = 0;',
+    '    arr.forEach((p, i) => Promise.resolve(p).then(resolve, e => {',
+    '      errors[i] = e; if (++rejected === arr.length) reject(new AggregateError(errors));',
+    '    }));',
+    '  });',
+    '};',
+  ],
+  { input: 'race([slow, fast])', output: 'fast result' },
+  'race with timeout = standard fetch-with-timeout pattern. any is rarer but handy for parallel API fallbacks.',
+);
+
+const arrayIncludes = polyfillExplanation(
+  'Array.prototype.includes',
+  '`Array.prototype.includes(value, fromIndex = 0)`',
+  'Return true if the array contains the value. Uses SameValueZero equality (NaN === NaN is true).',
+  "Like indexOf but: (a) returns boolean not index, (b) treats NaN equally (indexOf doesn't).",
+  [
+    'Array.prototype.myIncludes = function (target, fromIndex = 0) {',
+    '  const start = fromIndex < 0 ? Math.max(0, this.length + fromIndex) : fromIndex;',
+    '  for (let i = start; i < this.length; i++) {',
+    '    if (this[i] === target || (Number.isNaN(this[i]) && Number.isNaN(target))) return true;',
+    '  }',
+    '  return false;',
+    '};',
+  ],
+  { input: '[1, NaN, 3].myIncludes(NaN)', output: 'true' },
+  'NaN handling is the key behavior — indexOf returns -1 for NaN, includes returns true. Most search bugs come from this difference.',
+);
+
+const objectAssign = polyfillExplanation(
+  'Object.assign',
+  '`Object.assign(target, ...sources)`',
+  'Copy enumerable OWN properties from sources to target. Mutates and returns target.',
+  "Sequential shallow copies. Later sources overwrite earlier ones for overlapping keys. Only OWN enumerable properties are copied — inherited or non-enumerable ones are skipped.\n\n" +
+  "Mutates the target. To avoid mutation, use Object.assign({}, ...sources) or the spread `{...a, ...b}`.",
+  [
+    'Object.myAssign = function (target, ...sources) {',
+    '  if (target == null) throw new TypeError("...");',
+    '  const to = Object(target);',
+    '  for (const src of sources) {',
+    '    if (src == null) continue;',
+    '    for (const key of Object.keys(src)) to[key] = src[key];',
+    '  }',
+    '  return to;',
+    '};',
+  ],
+  { input: 'Object.myAssign({a:1}, {b:2}, {a:3})', output: '{a: 3, b: 2}' },
+  'Shallow merge only — nested objects share references. For deep merge, use a recursive helper or a library (lodash.merge).',
+);
+
+const arrayFrom = polyfillExplanation(
+  'Array.from',
+  '`Array.from(arrayLike, mapFn?, thisArg?)`',
+  'Create a new array from an array-like or iterable. Optional mapFn applies to each.',
+  "Two source types: (1) array-likes with `length` and indexed properties (arguments, NodeList, strings), and (2) iterables (Map, Set, generators).\n\n" +
+  "The optional mapFn is more efficient than `Array.from(x).map(fn)` because it maps in a single pass without intermediate array.",
+  [
+    'Array.myFrom = function (arrLike, mapFn, thisArg) {',
+    '  const result = [];',
+    '  if (arrLike[Symbol.iterator]) {',
+    '    let i = 0;',
+    '    for (const v of arrLike) result.push(mapFn ? mapFn.call(thisArg, v, i++) : v);',
+    '  } else {',
+    '    for (let i = 0; i < arrLike.length; i++) result.push(mapFn ? mapFn.call(thisArg, arrLike[i], i) : arrLike[i]);',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: 'Array.myFrom("abc", c => c.toUpperCase())', output: '["A", "B", "C"]' },
+  'Array.from({length: n}, (_, i) => f(i)) is the canonical way to create a range or pre-fill an array — faster than push in a loop.',
+);
+
+const arraySort = polyfillExplanation(
+  'Array.prototype.sort',
+  '`Array.prototype.sort(compareFn?)`',
+  'Sort the array IN PLACE. Default comparator sorts as STRINGS (the #1 gotcha).',
+  "Without a comparator, elements are converted to strings and sorted lexicographically. `[10, 2].sort()` → `[10, 2]` (10 < 2 as strings).\n\n" +
+  "For numbers, ALWAYS pass `(a, b) => a - b` (ascending) or `(a, b) => b - a` (descending). The result must be a number; negative means a < b, positive means a > b, zero means equal.\n\n" +
+  "V8's sort is Timsort (mergesort-with-runs) — stable, O(n log n).",
+  [
+    'Array.prototype.mySort = function (compareFn) {',
+    '  // Simple insertion sort — O(n²) but stable',
+    '  for (let i = 1; i < this.length; i++) {',
+    '    let j = i;',
+    '    while (j > 0 && compare(this[j - 1], this[j]) > 0) {',
+    '      [this[j - 1], this[j]] = [this[j], this[j - 1]];',
+    '      j--;',
+    '    }',
+    '  }',
+    '  function compare(a, b) {',
+    '    if (compareFn) return compareFn(a, b);',
+    '    return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;',
+    '  }',
+    '  return this;',
+    '};',
+  ],
+  { input: '[10, 2, 5].mySort((a, b) => a - b)', output: '[2, 5, 10]' },
+  'Default string sort is the most-asked gotcha. Engine sort uses Timsort (better than insertion sort but with the same contract).',
+);
+
+const arrayIndexOf = polyfillExplanation(
+  'Array.indexOf / lastIndexOf',
+  '`Array.prototype.indexOf(value, fromIndex)` and `lastIndexOf`',
+  'Return the first (or last) index of value, or -1. Uses strict equality (===), so NaN never matches.',
+  "indexOf walks forward, lastIndexOf walks backward. Both use `===` for comparison. The NaN limitation is the difference vs `includes` — `[NaN].indexOf(NaN)` returns -1.",
+  [
+    'Array.prototype.myIndexOf = function (target, fromIndex = 0) {',
+    '  const start = fromIndex < 0 ? Math.max(0, this.length + fromIndex) : fromIndex;',
+    '  for (let i = start; i < this.length; i++) if (this[i] === target) return i;',
+    '  return -1;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 2].myIndexOf(2)', output: '1' },
+  'For NaN searches use `includes` or `findIndex(x => Number.isNaN(x))`. Negative fromIndex counts from the end.',
+);
+
+const arrayReverse = polyfillExplanation(
+  'Array.prototype.reverse',
+  '`Array.prototype.reverse()`',
+  'Reverse the array in place. Returns the same array.',
+  "Two-pointer swap from both ends inward. Same algorithm as the Reverse String challenge. Mutates the array.\n\n" +
+  "For non-mutating reverse, use ES2023 `toReversed()` or `[...arr].reverse()`.",
+  [
+    'Array.prototype.myReverse = function () {',
+    '  let l = 0, r = this.length - 1;',
+    '  while (l < r) {',
+    '    [this[l], this[r]] = [this[r], this[l]];',
+    '    l++; r--;',
+    '  }',
+    '  return this;',
+    '};',
+  ],
+  { input: '[1, 2, 3].myReverse()', output: '[3, 2, 1]' },
+  'Mutates! `const original = [1,2,3]; original.reverse()` → original is now [3,2,1]. Use `[...arr].reverse()` or `toReversed()` to keep the original intact.',
+);
+
+const arraySlice = polyfillExplanation(
+  'Array.prototype.slice',
+  '`Array.prototype.slice(start, end)`',
+  'Return a new array containing arr[start..end). Both args optional and support negative indices.',
+  "Pure — does NOT mutate the original. Negative indices count from the end: `slice(-2)` returns the last two elements. Omitting `end` slices to the end.\n\n" +
+  "Shallow copy: nested references are shared. Often used to defensively copy arrays (`[...arr]` is the modern equivalent).",
+  [
+    'Array.prototype.mySlice = function (start = 0, end = this.length) {',
+    '  const s = start < 0 ? Math.max(0, this.length + start) : Math.min(start, this.length);',
+    '  const e = end < 0 ? Math.max(0, this.length + end) : Math.min(end, this.length);',
+    '  const result = [];',
+    '  for (let i = s; i < e; i++) result.push(this[i]);',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4, 5].mySlice(1, -1)', output: '[2, 3, 4]' },
+  'slice() with no args = shallow copy. Best concise way to clone an array. `[...arr]` does the same.',
+);
+
+const arraySplice = polyfillExplanation(
+  'Array.prototype.splice',
+  '`Array.prototype.splice(start, deleteCount, ...items)`',
+  'Remove `deleteCount` items at `start` and insert new ones in their place. Three jobs in one method.',
+  "Mutates. Returns the array of REMOVED items. Variadic: passing items after deleteCount inserts them at `start`.\n\n" +
+  "**Three modes:**\n" +
+  "• `splice(i, 1)` — remove one item at i.\n" +
+  "• `splice(i, 0, x, y)` — insert x, y at i (no removal).\n" +
+  "• `splice(i, n, x)` — replace n items at i with x.",
+  [
+    'Array.prototype.mySplice = function (start, deleteCount = this.length - start, ...items) {',
+    '  start = start < 0 ? Math.max(0, this.length + start) : Math.min(start, this.length);',
+    '  const removed = [];',
+    '  for (let i = 0; i < deleteCount; i++) removed.push(this[start + i]);',
+    '  // shift / insert logic ...',
+    '  return removed;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4].mySplice(1, 2, "a", "b")', output: 'removed: [2, 3]; array now [1, "a", "b", 4]' },
+  'Mutates. ES2023 toSpliced() is the immutable equivalent — same args, returns a new array.',
+);
+
+const arrayConcat = polyfillExplanation(
+  'Array.prototype.concat',
+  '`Array.prototype.concat(...args)`',
+  'Return a new array combining the current array with args. Flattens args ONE LEVEL.',
+  "Pure. Each argument: if it's an array, its elements are spread into the result. Otherwise it's added as a single element.\n\n" +
+  "Spread (`[...a, ...b]`) is the modern equivalent and slightly more flexible.",
+  [
+    'Array.prototype.myConcat = function (...args) {',
+    '  const result = [...this];',
+    '  for (const arg of args) {',
+    '    if (Array.isArray(arg)) result.push(...arg);',
+    '    else result.push(arg);',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, 2].myConcat([3, 4], 5)', output: '[1, 2, 3, 4, 5]' },
+  'Only ONE level of flattening — `concat([[1, 2]])` gives `[..., [1, 2]]`, not `[..., 1, 2]`. For deeper, use flat().',
+);
+
+const stringPadStartEnd = polyfillExplanation(
+  'String.padStart / padEnd',
+  '`String.prototype.padStart(targetLength, padString = " ")` and `padEnd`',
+  'Pad the string with padString until it reaches targetLength. padStart pads the left; padEnd pads the right.',
+  "If already at or beyond targetLength, returns the original unchanged. If padString is multi-character, repeats and truncates to fit exactly.",
+  [
+    'String.prototype.myPadStart = function (target, pad = " ") {',
+    '  if (this.length >= target) return String(this);',
+    '  let padding = "";',
+    '  while (padding.length < target - this.length) padding += pad;',
+    '  return padding.slice(0, target - this.length) + this;',
+    '};',
+  ],
+  { input: '"42".myPadStart(5, "0")', output: '"00042"' },
+  'Classic use: zero-pad numbers for date/time formatting. Don\'t use for currency — Intl.NumberFormat is more correct.',
+);
+
+const jsonStringifyExpl = polyfillExplanation(
+  'JSON.stringify',
+  '`JSON.stringify(value, replacer, space)`',
+  'Serialize a JavaScript value to a JSON string.',
+  "Recursive descent. Strings get quotes + escapes; numbers/booleans/null serialize directly; arrays as [...]; objects as {...}. Functions, undefined, symbols are DROPPED in objects or become `null` in arrays.\n\n" +
+  "Circular references throw `TypeError`. The replacer arg can filter or transform; the space arg pretty-prints.",
+  [
+    'JSON.myStringify = function (val) {',
+    '  if (val === null) return "null";',
+    '  if (typeof val === "string") return \'"\' + val.replace(/"/g, \'\\\\"\') + \'"\';',
+    '  if (typeof val === "number" || typeof val === "boolean") return String(val);',
+    '  if (Array.isArray(val)) return "[" + val.map(JSON.myStringify).join(",") + "]";',
+    '  if (typeof val === "object") {',
+    '    const pairs = Object.keys(val).map(k => \'"\' + k + \'":\' + JSON.myStringify(val[k]));',
+    '    return "{" + pairs.join(",") + "}";',
+    '  }',
+    '  return undefined;   // function, undefined, symbol',
+    '};',
+  ],
+  { input: 'JSON.myStringify({a: 1, b: [2, 3]})', output: '\'{"a":1,"b":[2,3]}\'' },
+  'Date becomes a string. Map/Set become {}. Functions drop. The pair JSON.parse(JSON.stringify(x)) is the most-misused "deep clone" — works only for plain JSON-able data.',
+);
+
+const objectKeysValuesEntries = polyfillExplanation(
+  'Object.keys / values / entries',
+  '`Object.keys(obj)`, `Object.values(obj)`, `Object.entries(obj)`',
+  'Return arrays of OWN ENUMERABLE properties: keys, values, or [key, value] pairs.',
+  "All three iterate own enumerable string-keyed properties. Symbols and inherited properties are excluded. Order follows insertion order in modern engines.",
+  [
+    'Object.myKeys = function (obj) {',
+    '  const result = [];',
+    '  for (const key in obj) if (Object.prototype.hasOwnProperty.call(obj, key)) result.push(key);',
+    '  return result;',
+    '};',
+    'Object.myValues = obj => Object.myKeys(obj).map(k => obj[k]);',
+    'Object.myEntries = obj => Object.myKeys(obj).map(k => [k, obj[k]]);',
+  ],
+  { input: 'Object.myEntries({a: 1, b: 2})', output: '[["a", 1], ["b", 2]]' },
+  'For-in iterates inherited too (use hasOwnProperty to filter). Reflect.ownKeys includes symbols and non-enumerables.',
+);
+
+const jsonParseExpl = polyfillExplanation(
+  'JSON.parse',
+  '`JSON.parse(text, reviver?)`',
+  'Parse a JSON string into a JavaScript value via recursive descent.',
+  "State-machine parser: skip whitespace, then match on first char — `\"` (string), `{` (object), `[` (array), digit/`-` (number), `t/f` (boolean), `n` (null). Recursive for nested structures.",
+  [
+    'JSON.myParse = function (text) {',
+    '  let i = 0;',
+    '  function parse() {',
+    '    skipWs();',
+    '    const ch = text[i];',
+    '    if (ch === \'"\') return parseString();',
+    '    if (ch === "{") return parseObject();',
+    '    if (ch === "[") return parseArray();',
+    '    return parseLiteral();',
+    '  }',
+    '  return parse();',
+    '};',
+  ],
+  { input: 'JSON.myParse(\'{"a":1,"b":[2,3]}\')', output: '{a: 1, b: [2, 3]}' },
+  'Native JSON.parse is hand-tuned in C++ and much faster than any JS polyfill. Polyfill exists to TEACH the parser pattern, not for production use.',
+);
+
+const arrayIsArrayExpl = polyfillExplanation(
+  'Array.isArray',
+  '`Array.isArray(value)`',
+  'Type-check for arrays. Returns true for arrays, false for everything else (including array-likes).',
+  "Implementation uses `Object.prototype.toString.call(val) === '[object Array]'` — the tag-based check that works across realms (iframes have a different Array constructor; `instanceof Array` fails for arrays from another iframe).",
+  [
+    'Array.myIsArray = function (val) {',
+    '  return Object.prototype.toString.call(val) === "[object Array]";',
+    '};',
+  ],
+  { input: 'Array.myIsArray([1, 2])', output: 'true' },
+  'instanceof Array fails for arrays from iframes / VM contexts. Array.isArray is realm-safe. typeof [] === "object" — useless without isArray.',
+);
+
+const objectCreateExpl = polyfillExplanation(
+  'Object.create',
+  '`Object.create(proto, propertyDescriptors?)`',
+  'Create a new object with `proto` as its prototype. The classic ES5 inheritance pattern.',
+  "Implementation: create a temporary constructor with `prototype = proto`, then `new` it. Optional descriptors merge in own properties.",
+  [
+    'Object.myCreate = function (proto, descriptors) {',
+    '  function F() {}',
+    '  F.prototype = proto;',
+    '  const obj = new F();',
+    '  if (descriptors) Object.defineProperties(obj, descriptors);',
+    '  return obj;',
+    '};',
+  ],
+  { input: 'Object.myCreate({greet: () => "hi"})', output: 'obj with greet inherited' },
+  'Object.create(null) makes a "dict" object with no inherited keys — useful as a map. Object.create(SomeClass.prototype) is the pre-ES2015 way to set up inheritance.',
+);
+
+const objectFreezeExpl = polyfillExplanation(
+  'Object.freeze + deepFreeze',
+  '`Object.freeze(obj)`',
+  'Make obj immutable (shallow). Strict-mode writes throw; sloppy writes silently no-op.',
+  "Native freeze marks the object non-extensible (no new properties), each property non-configurable and non-writable. Returns the same object.\n\n" +
+  "Shallow! Nested objects are still mutable. The deepFreeze pattern recurses.",
+  [
+    'Object.myFreeze = function (obj) {',
+    '  if (Object(obj) !== obj) return obj;',
+    '  Object.preventExtensions(obj);',
+    '  for (const key of Object.getOwnPropertyNames(obj)) {',
+    '    Object.defineProperty(obj, key, { writable: false, configurable: false });',
+    '  }',
+    '  return obj;',
+    '};',
+    'function deepFreeze(obj) {',
+    '  if (Object(obj) !== obj) return obj;',
+    '  Object.values(obj).forEach(deepFreeze);',
+    '  return Object.myFreeze(obj);',
+    '};',
+  ],
+  { input: 'const o = Object.myFreeze({a: 1}); o.a = 2;', output: 'o.a still 1' },
+  'Frozen objects are not deeply frozen. To enforce real immutability, deepFreeze recursively. Even then, Date/Map/Set internals are not protected.',
+);
+
+const arrayFillExpl = polyfillExplanation(
+  'Array.prototype.fill',
+  '`Array.prototype.fill(value, start = 0, end = length)`',
+  'Fill a slice of the array with value. Mutates in place.',
+  "Variadic-position version of `for (let i=start; i<end; i++) arr[i] = value`. The same VALUE reference fills every slot — gotcha for objects.",
+  [
+    'Array.prototype.myFill = function (value, start = 0, end = this.length) {',
+    '  const s = start < 0 ? Math.max(0, this.length + start) : Math.min(start, this.length);',
+    '  const e = end < 0 ? Math.max(0, this.length + end) : Math.min(end, this.length);',
+    '  for (let i = s; i < e; i++) this[i] = value;',
+    '  return this;',
+    '};',
+  ],
+  { input: 'new Array(3).myFill(0)', output: '[0, 0, 0]' },
+  'BIG gotcha: `new Array(3).fill([])` gives three slots pointing to the SAME empty array. Pushing to one pushes to all. Use Array.from({length:3}, () => []) for fresh arrays.',
+);
+
+const stringRepeatExpl = polyfillExplanation(
+  'String.prototype.repeat',
+  '`String.prototype.repeat(count)`',
+  'Return a new string with the value repeated `count` times.',
+  "Throws RangeError on negative count or Infinity. Returns empty string for count=0. The O(log n) doubling trick squares the chunk each iteration to minimize concatenations.",
+  [
+    'String.prototype.myRepeat = function (count) {',
+    '  if (count < 0 || count === Infinity) throw new RangeError("...");',
+    '  if (count === 0) return "";',
+    '  // O(log n) doubling',
+    '  let result = "", chunk = String(this);',
+    '  while (count > 0) {',
+    '    if (count & 1) result += chunk;',
+    '    count >>= 1;',
+    '    chunk += chunk;',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '"ab".myRepeat(3)', output: '"ababab"' },
+  'Native is the fastest. Doubling polyfill is O(log n) string concats, naive is O(n) — both fast in practice for small counts.',
+);
+
+const arrayJoinExpl = polyfillExplanation(
+  'Array.prototype.join',
+  '`Array.prototype.join(separator = ",")`',
+  'Concatenate array elements into a string, separated by separator. null/undefined become empty strings.',
+  "Default separator is comma. Each element is coerced to string via String() — except null and undefined which become empty.",
+  [
+    'Array.prototype.myJoin = function (sep = ",") {',
+    '  let result = "";',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (i > 0) result += sep;',
+    '    const v = this[i];',
+    '    if (v !== null && v !== undefined) result += String(v);',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, null, 3].myJoin("-")', output: '"1--3"' },
+  '[null, undefined, NaN].join() → ",,NaN" — null/undefined drop, NaN stringifies normally. Subtle.',
+);
+
 export const playgroundExplanations: Record<string, Explanation> = {
   'Two Sum': twoSum,
   'Reverse String': reverseString,
@@ -2655,6 +5504,101 @@ export const playgroundExplanations: Record<string, Explanation> = {
   'Climbing Stairs': climbingStairs,
   'Balanced Brackets (Count)': balancedBracketsCount,
   'Second Largest Number': secondLargest,
+  // Batch: DP / Greedy
+  'Maximum Subarray': maximumSubarray,
+  'Trapping Rain Water': trappingRainWater,
+  '3Sum': threeSum,
+  'Generate Parentheses': generateParentheses,
+  'Subsets': subsets,
+  'Permutations': permutations,
+  'Min Stack': minStack,
+  'Daily Temperatures': dailyTemperatures,
+  'Coin Change': coinChange,
+  'House Robber': houseRobber,
+  'Jump Game': jumpGame,
+  // Batch: Linked List + Sorting
+  'Detect Cycle in Linked List': detectCycle,
+  'Merge Two Sorted Lists': mergeTwoSortedLists,
+  'Sort Colors': sortColors,
+  'Top K Frequent Elements': topKFrequent,
+  // Batch: Hash Map / Math
+  'Subarray Sum Equals K': subarraySumK,
+  'Single Number': singleNumber,
+  'Single Number II': singleNumberII,
+  'Majority Element': majorityElement,
+  'Product of Array Except Self': productExceptSelf,
+  'Plus One': plusOne,
+  // Batch: Strings
+  'Longest Common Prefix': longestCommonPrefix,
+  'Longest Palindromic Substring': longestPalindromicSubstring,
+  'Reverse Vowels of a String': reverseVowels,
+  'String to Integer (atoi)': myAtoi,
+  'Letter Combinations of Phone Number': letterCombinations,
+  'Reverse Words in a String': reverseWordsString,
+  // Batch: Rotate / Spiral / Search
+  'Rotate Array Left': rotateArrayLeft,
+  'Spiral Matrix': spiralMatrix,
+  'Search in Rotated Sorted Array': searchRotated,
+  // Batch: Find Max Family
+  'Find Maximum in Array': findMaximum,
+  'Find Min and Max': findMinMax,
+  'Third Largest Number': thirdLargest,
+  'Kth Largest Element': kthLargest,
+  'Find Peak Element': findPeakElement,
+  // ===== JS Fundamentals templates =====
+  'Hello World': helloWorld,
+  'Array Methods': arrayMethods,
+  'Closures': closures,
+  'Promises & Async': promisesAsync,
+  'Map & Set': mapSet,
+  'Spread & Rest': spreadRest,
+  // ===== JS Interview Topics templates =====
+  'Event Loop & Microtasks': eventLoopMicrotasks,
+  'this Keyword': thisKeyword,
+  'Debounce & Throttle': debounceThrottleTemplate,
+  'Currying': curryingTemplate,
+  'Prototypes & Classes': prototypesClasses,
+  'Destructuring Deep Dive': destructuringDeepDive,
+  'Tricky Interview Q': trickyInterviewQ,
+  // ===== React templates =====
+  'useState Counter': useStateCounter,
+  'useEffect Lifecycle': useEffectLifecycle,
+  'Custom Hook': customHook,
+  'useReducer Todo': useReducerTodo,
+  'Context API': contextAPI,
+  'React Compiler Patterns': reactCompilerPatterns,
+  // ===== JS Polyfill templates =====
+  'Array.map': arrayMap,
+  'Array.filter': arrayFilter,
+  'Array.reduce': arrayReduce,
+  'Array.forEach': arrayForEach,
+  'Array.find & findIndex': arrayFindFindIndex,
+  'Array.some & every': arraySomeEvery,
+  'Array.flat & flatMap': arrayFlatFlatMap,
+  'Function.bind': functionBind,
+  'Function.call & apply': functionCallApply,
+  'Promise.all': promiseAllExpl,
+  'Promise.allSettled': promiseAllSettledExpl,
+  'Promise.race & any': promiseRaceAny,
+  'Array.includes': arrayIncludes,
+  'Object.assign': objectAssign,
+  'Array.from': arrayFrom,
+  'Array.sort': arraySort,
+  'Array.indexOf / lastIndexOf': arrayIndexOf,
+  'Array.reverse': arrayReverse,
+  'Array.slice': arraySlice,
+  'Array.splice': arraySplice,
+  'Array.concat': arrayConcat,
+  'String.padStart / padEnd': stringPadStartEnd,
+  'JSON.stringify': jsonStringifyExpl,
+  'Object.keys / values / entries': objectKeysValuesEntries,
+  'JSON.parse': jsonParseExpl,
+  'Array.isArray': arrayIsArrayExpl,
+  'Object.create': objectCreateExpl,
+  'Object.freeze + deepFreeze': objectFreezeExpl,
+  'Array.prototype.fill': arrayFillExpl,
+  'String.prototype.repeat': stringRepeatExpl,
+  'Array.prototype.join': arrayJoinExpl,
 };
 
 export const playgroundExplanationKeys: string[] = Object.keys(playgroundExplanations);

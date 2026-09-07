@@ -282,6 +282,108 @@ function detectJSX(code: string): boolean {
   return false;
 }
 
+// ============================================================
+// Worker-based runner for plain JS — sandboxes user code on a
+// separate thread so infinite loops can be force-killed without
+// hanging the tab.
+// ============================================================
+
+// Inline worker source. Keep it self-contained (no main-thread imports).
+// Patches console.log/warn/error to forward to the main thread, runs the
+// user code via `new Function`, and posts a `sync-done` signal when the
+// synchronous portion finishes.
+const WORKER_SOURCE = `
+function formatVal(v) {
+  if (v === null) return 'null';
+  if (v === undefined) return 'undefined';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'function') return '[Function: ' + (v.name || 'anonymous') + ']';
+  if (v instanceof Error) return v.name + ': ' + v.message;
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+}
+const post = (type, text) => self.postMessage({ kind: 'log', type, text });
+const origConsole = self.console;
+self.console = {
+  ...origConsole,
+  log:   (...a) => post('log',   a.map(formatVal).join(' ')),
+  warn:  (...a) => post('warn',  a.map(formatVal).join(' ')),
+  error: (...a) => post('error', a.map(formatVal).join(' ')),
+};
+self.onmessage = (e) => {
+  try {
+    const result = new Function(e.data)();
+    if (result !== undefined) post('result', '→ ' + formatVal(result));
+  } catch (err) {
+    post('error', (err && err.name ? err.name : 'Error') + ': ' + (err && err.message ? err.message : String(err)));
+  }
+  self.postMessage({ kind: 'sync-done' });
+};
+`;
+
+interface WorkerLog { type: 'log' | 'warn' | 'error' | 'result'; text: string; }
+interface WorkerRunResult { logs: WorkerLog[]; timedOut: boolean; }
+
+// Execute `code` in a fresh Web Worker. Hard-kills the worker after
+// `syncTimeoutMs` if the synchronous portion doesn't finish (catches
+// infinite loops). After sync completes, gives a short grace window for
+// trailing setTimeout/Promise callbacks before tearing the worker down.
+function runInWorker(code: string, syncTimeoutMs: number = 3000): Promise<WorkerRunResult> {
+  return new Promise((resolve) => {
+    const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    const logs: WorkerLog[] = [];
+    let resolved = false;
+    let syncDone = false;
+    let asyncDrainTimer: number | null = null;
+
+    const cleanup = () => {
+      try { worker.terminate(); } catch { /* ignore */ }
+      try { URL.revokeObjectURL(url); } catch { /* ignore */ }
+    };
+
+    const finalize = (timedOut: boolean) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(hardTimer);
+      if (asyncDrainTimer !== null) clearTimeout(asyncDrainTimer);
+      cleanup();
+      resolve({ logs, timedOut });
+    };
+
+    // Hard kill if the synchronous portion doesn't finish — this catches
+    // infinite loops like `while (true) {}`.
+    const hardTimer = window.setTimeout(() => {
+      if (!syncDone) {
+        logs.push({
+          type: 'error',
+          text: `⏱️ Execution timed out after ${syncTimeoutMs / 1000}s — your code is likely stuck in an infinite loop. The worker was force-stopped.`,
+        });
+        finalize(true);
+      }
+    }, syncTimeoutMs);
+
+    worker.onmessage = (e: MessageEvent) => {
+      const msg = e.data;
+      if (msg.kind === 'log') {
+        logs.push({ type: msg.type, text: msg.text });
+      } else if (msg.kind === 'sync-done') {
+        syncDone = true;
+        // Brief async drain window for trailing setTimeout/Promise callbacks
+        // (debounce demos etc.) before we close the worker.
+        asyncDrainTimer = window.setTimeout(() => finalize(false), 400);
+      }
+    };
+
+    worker.onerror = (e: ErrorEvent) => {
+      logs.push({ type: 'error', text: e.message || 'Worker error' });
+      finalize(false);
+    };
+
+    worker.postMessage(code);
+  });
+}
+
 let babelModule: any = null;
 async function transpileSource(code: string, opts: { jsx: boolean; ts: boolean }): Promise<string> {
   if (!babelModule) {
@@ -312,14 +414,43 @@ function detectTS(code: string): boolean {
 // ==================== Component ====================
 
 export default function CodePlayground() {
-  const initialCode: string = sessionStorage.getItem('playground-code') || allTemplates[0].code;
+  // Compute the initial state from three sources, in priority order:
+  //   1. sessionStorage "playground-code" — one-shot handoff from "Try it" links in study guides.
+  //   2. localStorage "playground-last-session" — auto-resume the last template the user
+  //      was working on, including their saved progress draft (if any).
+  //   3. Fall back to the first template ("Hello World").
+  const initialState: { code: string; selectedName: string | null; lang: TemplateLang } = (() => {
+    const handoff = sessionStorage.getItem('playground-code');
+    if (handoff) {
+      // Try-it bootstrap. Selected template is unknown — leave it null so the
+      // user can pick one (or just edit the handed-off code freely).
+      return { code: handoff, selectedName: null, lang: 'js' };
+    }
+    const lastName = localStorage.getItem('playground-last-session');
+    if (lastName) {
+      const tpl = allTemplates.find(t => t.name === lastName);
+      if (tpl) {
+        // If saved progress exists for this template, use the draft; otherwise the stub.
+        try {
+          const map = JSON.parse(localStorage.getItem('playground-progress') || '{}');
+          const entry = map?.[lastName];
+          const code = (entry && typeof entry.code === 'string' && entry.code) || tpl.code;
+          return { code, selectedName: lastName, lang: tpl.lang ?? (tpl.jsx ? 'jsx' : 'js') };
+        } catch {
+          return { code: tpl.code, selectedName: lastName, lang: tpl.lang ?? (tpl.jsx ? 'jsx' : 'js') };
+        }
+      }
+    }
+    const t = allTemplates[0];
+    return { code: t.code, selectedName: t.name, lang: t.lang ?? (t.jsx ? 'jsx' : 'js') };
+  })();
 
-  const [code, setCode] = useState<string>(initialCode);
+  const [code, setCode] = useState<string>(initialState.code);
   const [output, setOutput] = useState<OutputEntry[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [hasPreview, setHasPreview] = useState<boolean>(false);
-  const [selectedName, setSelectedName] = useState<string | null>(sessionStorage.getItem('playground-code') ? null : 'Hello World');
+  const [selectedName, setSelectedName] = useState<string | null>(initialState.selectedName);
   const [showingSolution, setShowingSolution] = useState<boolean>(false);
   const [drawerSearch, setDrawerSearch] = useState<string>('');
   const [drawerFilter, setDrawerFilter] = useState<string>('all');
@@ -332,9 +463,7 @@ export default function CodePlayground() {
   const [modalMode, setModalMode] = useState<'templates' | 'challenges' | 'blank'>('templates');
   // Current source language — drives transpiler preset selection.
   // Defaults to 'js'; loading a JSX template flips to 'jsx', etc.
-  const [currentLang, setCurrentLang] = useState<TemplateLang>(
-    allTemplates[0]?.jsx ? 'jsx' : (allTemplates[0]?.lang ?? 'js')
-  );
+  const [currentLang, setCurrentLang] = useState<TemplateLang>(initialState.lang);
   const previewRef = useRef<HTMLDivElement>(null);
   const reactRootRef = useRef<any>(null);
   const drawerSearchRef = useRef<HTMLInputElement>(null);
@@ -394,15 +523,26 @@ export default function CodePlayground() {
     return templateCategories
       .filter(cat => (cat.kind ?? 'template') === wantedKind)
       .filter(cat => drawerFilter === 'all' || cat.tag.toLowerCase() === drawerFilter)
-      .map(cat => ({
-        ...cat,
-        templates: cat.templates.filter(t => {
+      .map(cat => {
+        const filtered = cat.templates.filter(t => {
           if (!t.name.toLowerCase().includes(drawerSearch.toLowerCase())) return false;
           if (patternFilter !== 'all' && (!t.patterns || !t.patterns.includes(patternFilter))) return false;
           if (difficultyFilter !== 'all' && t.difficulty !== difficultyFilter) return false;
           return true;
-        })
-      }))
+        });
+        // When difficulty filter is 'all' AND we're in challenges mode, sort
+        // by difficulty: Easy → Medium → Hard. Otherwise preserve insertion order.
+        if (difficultyFilter === 'all' && modalMode === 'challenges') {
+          const rank: Record<string, number> = { Easy: 1, Medium: 2, Hard: 3 };
+          const sorted = [...filtered].sort((a, b) => {
+            const ra = a.difficulty ? rank[a.difficulty] : 99;
+            const rb = b.difficulty ? rank[b.difficulty] : 99;
+            return ra - rb;
+          });
+          return { ...cat, templates: sorted };
+        }
+        return { ...cat, templates: filtered };
+      })
       .filter(cat => cat.templates.length > 0);
   }, [drawerSearch, drawerFilter, modalMode, patternFilter, difficultyFilter]);
 
@@ -653,10 +793,14 @@ export default function CodePlayground() {
           }];
         }
       } else {
-        // Plain JS execution
-        const result = new Function(execCode)();
-        if (result !== undefined) {
-          logsRef.current = [...logsRef.current, { type: 'result', text: `\u2192 ${formatValue(result)}` }];
+        // Plain JS execution \u2014 run in a Web Worker with a 3-second
+        // synchronous timeout so infinite loops can't hang the tab.
+        const { logs, timedOut } = await runInWorker(execCode, 3000);
+        // Worker logs replace the main-thread console capture for this run
+        // (the main-thread console patches won't fire \u2014 code is in the worker).
+        logsRef.current = [...logsRef.current, ...logs];
+        if (timedOut) {
+          setToastMsg('Execution timed out \u2014 infinite loop killed');
         }
       }
     } catch (err: any) {

@@ -901,6 +901,102 @@ node --inspect-brk src/index.js   # break before user code
 
 ---
 
+### 13.5 The 2026 Runtime — Node 24 LTS and Node 26
+
+Node moved fast in 2025–26, and three of those changes are big enough to come up in interviews as architecture questions rather than trivia.
+
+| Release | Date | Status | Headline changes |
+|---|---|---|---|
+| **Node 22** | Apr 2024 | Maintenance LTS | `node --run`, global `WebSocket`, `--experimental-strip-types`, unflagged `require(esm)` in 22.12 |
+| **Node 24** | Apr 2025 | **Active LTS** (the recommended version through 2026) | `require(esm)` stable, type stripping on by default, `--permission` (renamed from `--experimental-permission`), global `URLPattern`, `AsyncLocalStorage` on `AsyncContextFrame` |
+| **Node 26** | May 2026 | Current → LTS in **Oct 2026** | Type stripping graduates to the stable module system, `Temporal` as a global, `Map.getOrInsert`, `Iterator.concat`, Undici 8 |
+
+Node 26 is also the **last release on the old six-month schedule** — from v27 onward Node moves to **annual** releases, which changes upgrade planning: one major per year instead of two, and a longer window on each LTS line.
+
+---
+
+**1. `require(esm)` — the dual-package nightmare is over.**
+
+For years, an ESM-only dependency was a hard wall for a CommonJS codebase: `require()` of an ES module threw `ERR_REQUIRE_ESM`, and the workarounds were all bad — pin an old version of the dependency, transpile your whole app to ESM, or scatter `await import()` behind async initialisation that CommonJS top-level code can't await. Library authors responded by shipping dual builds with `exports` maps, which produced the "dual package hazard" where a singleton could be instantiated twice.
+
+Node 24 makes `require()` of an ES module work:
+
+```js
+// CommonJS file, Node 24+
+const { default: chalk } = require('chalk');   // chalk v5 is ESM-only — this now works
+```
+
+Two constraints define the interview answer. First, it only works if the module graph being required is **fully synchronous** — if the ES module (or anything it imports) uses **top-level `await`**, `require()` still throws, because `require` is synchronous and there is nothing it can do but fail. Second, an ES module's default export arrives as the `.default` property, not as the module value itself, because a namespace object is not the same thing as a CommonJS `module.exports`.
+
+The practical consequence: new libraries can ship ESM-only without abandoning CommonJS consumers, and the dual-build `exports` map is no longer mandatory.
+
+---
+
+**2. Running TypeScript with no build step.**
+
+Node can execute `.ts` files directly. Type stripping arrived behind `--experimental-strip-types` in 22.6, became the default in 24, and is part of the stable module system in 26:
+
+```bash
+node app.ts          # just works on Node 24+
+```
+
+The critical thing to understand — and the most common interview follow-up — is that this **strips types, it does not check them.** Node replaces type annotations with whitespace, one file at a time, with no type information and no cross-file view. There is no error if your types are wrong; the annotations are simply gone.
+
+That has two consequences:
+
+- **You still need `tsc --noEmit`** (or your editor, or a CI step) to type-check. Node's stripping replaces your *bundler*, not your *type-checker*. A team that removes `tsc` from CI because "Node runs TypeScript now" has removed the only thing that was actually checking anything.
+- **Only erasable syntax is allowed.** Constructs that emit runtime code can't be stripped: `enum`, a `namespace` with runtime members, constructor parameter properties (`constructor(private x: string)`), and `import x = require('y')`. Node rejects them rather than guessing. Set `"erasableSyntaxOnly": true` in your `tsconfig.json` (TS 5.8+) so the type-checker enforces the same rule and you find out in your editor — see the TypeScript guide §13.3.
+
+```ts
+// Fine — pure annotations, fully erasable
+export function greet(name: string): string { return `hi ${name}`; }
+
+// Rejected — emits runtime code
+enum Status { Active, Done }
+class User { constructor(private name: string) {} }
+```
+
+Combined with the TypeScript 7 Go compiler, the 2026 baseline for a backend service is: `node app.ts` for running, `tsc --noEmit` for checking, and no bundler at all.
+
+---
+
+**3. Built-ins that removed more dependencies.**
+
+```js
+// node:sqlite — an embedded database with zero dependencies
+// (added experimental in 22.5, release candidate as of 24.15)
+import { DatabaseSync } from 'node:sqlite';
+
+const db = new DatabaseSync('app.db');
+db.exec('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)');
+const insert = db.prepare('INSERT INTO users (name) VALUES (?)');
+insert.run('Alice');
+console.log(db.prepare('SELECT * FROM users').all());
+```
+
+`node:sqlite` replaces `better-sqlite3` for local caches, CLI state, test fixtures and small single-node services — no native build step, no `node-gyp`.
+
+```js
+// Global WebSocket client (Node 22+) — no `ws` needed for the client side
+const ws = new WebSocket('wss://example.com/socket');
+ws.onmessage = (e) => console.log(e.data);
+```
+
+Note the asymmetry that trips people up: Node gives you a WebSocket **client**, not a server. You still need `ws` (or a framework) to *accept* connections.
+
+```bash
+node --run build          # run a package.json script without npm's ~200ms overhead
+node --permission --allow-fs-read=./data --allow-net=api.example.com app.js
+```
+
+`node --run` (Node 22+) executes a `package.json` script directly, skipping the npm process spawn — meaningfully faster in CI and in watch loops. It deliberately does **not** support npm's extras: no pre/post scripts, no `node_modules/.bin` path munging beyond the basics. If your script relies on `prebuild`, keep using `npm run`.
+
+The **permission model** (`--permission`, renamed from `--experimental-permission` in Node 24) restricts filesystem, network and child-process access at the process level. It is the answer to "how would you limit the blast radius of a compromised dependency?" — a supply-chain question that has become standard in backend interviews. It is coarse-grained and process-wide, not a sandbox per module, so present it as defence in depth rather than a substitute for auditing dependencies.
+
+**Temporal is a global in Node 26**, which means the date-handling advice in the JavaScript guide §9.10 applies server-side without a polyfill — relevant because timezone bugs are overwhelmingly a *backend* problem.
+
+---
+
 ## 14. Interview Questions & Answers
 
 ### Beginner
@@ -1273,6 +1369,44 @@ libuv is the C library that provides Node.js's event loop and async I/O:
    - These handle network I/O without threads
 
 The distinction matters: network I/O scales to thousands of connections (OS-level), while file I/O is limited by thread pool size.
+
+---
+
+**Q19: Node can run `.ts` files directly now. Does that mean you can drop TypeScript from your build pipeline?**
+
+You can drop the *transpile* step. You cannot drop the *type-check* step, and conflating the two is the mistake this question is designed to catch.
+
+Node's type stripping (flagged in 22.6, default in 24, stable in 26) is a purely **syntactic** transform: it replaces type annotations with whitespace, one file at a time, with no type information and no cross-file view. It never validates anything. Ship a file where you pass a `string` to a function expecting a `number` and Node runs it happily — the annotation that would have caught it was deleted before execution.
+
+So the correct pipeline is:
+
+```bash
+node app.ts        # run — no bundler, no ts-node, no build output
+tsc --noEmit       # check — in CI and in your editor
+```
+
+A team that removes `tsc` from CI because "Node runs TypeScript now" has removed the only thing that was checking their types. Stripping replaces your *bundler*, not your *type-checker*.
+
+The second half of the answer is the syntax restriction. Because stripping is per-file and type-blind, only **erasable** constructs are allowed. `enum` (emits a real bidirectional object), a `namespace` with runtime members (emits an IIFE), constructor parameter properties (`constructor(private x: string)` emits an assignment) and `import x = require('y')` all generate code, so Node rejects them. Set `"erasableSyntaxOnly": true` (TS 5.8+) so the type-checker enforces the same restriction and you learn about it in your editor rather than at deploy time.
+
+Worth adding for senior roles: this is the same constraint every native transpiler already had — esbuild, SWC and Rolldown are all type-blind single-file transforms too. Node just made the platform match the tooling. Pair it with TypeScript 7's Go compiler and the modern backend baseline is `node app.ts` to run, `tsc --noEmit` to check, and no bundler at all.
+
+---
+
+**Q20: What changed with `require(esm)` in Node 24, and when does it still fail?**
+
+Node 24 made `require()` of an ES module work (unflagged in 22.12, stable in 24). Before that, `require()` on an ESM-only package threw `ERR_REQUIRE_ESM`, and every workaround was painful: pin an old CommonJS version of the dependency, migrate your entire app to ESM, or hide `await import()` behind async initialisation that CommonJS top-level code cannot await. Library authors worked around it by publishing dual CJS+ESM builds with `exports` maps, which introduced the **dual package hazard** — the same module loaded twice through two entry points, so a singleton or an `instanceof` check silently breaks.
+
+```js
+// CommonJS, Node 24+
+const { default: chalk } = require('chalk');   // ESM-only package — works
+```
+
+It still fails in one situation, and knowing it is the point of the question: **top-level `await`**. If the ES module you require — or anything in its import graph — uses top-level `await`, `require()` throws. It has to: `require` is synchronous by contract and returns a value to the calling line, so there is no way for it to suspend and wait. `await import()` remains the only option there.
+
+The other detail to mention is the shape of the result. An ES module's default export arrives as the `.default` property, because what `require` hands back is a module **namespace object**, not a `module.exports` value. So `require('esm-pkg')` gives you `{ default: …, namedExport: … }`, and code written for the CommonJS convention of "the export *is* the module" needs the destructure.
+
+The ecosystem consequence worth naming: new libraries can now ship ESM-only without cutting off CommonJS consumers, so the dual-build `exports` map has gone from mandatory to optional.
 
 ---
 
@@ -1649,6 +1783,110 @@ a: b.value = B
 The trick to understanding circular requires is Node's "insert into cache **before** executing" policy. When `main.js` calls `require('./a')`, Node registers `a.js` in the module cache with an **empty** `exports` object, then begins executing its body. `"a: start"` prints. Line 2 sets `exports.value = "A"` — the cached `exports` is now `{ value: "A" }`. Line 3, `require('./b')`, resolves `b.js`, caches an empty `exports` for it, and begins executing. `"b: start"` prints. Inside `b.js`, `require('./a')` is called. Node checks the cache and finds `a.js` already present (even though its body has not finished), so it returns the **partial exports** — `{ value: "A" }` — without re-running `a.js`. That's why `"b: a.value = A"` prints. `b.js` then sets its own `exports.value = "B"` and finishes. Control returns to `a.js` line 3, where `b` is now `{ value: "B" }`, so `"a: b.value = B"` prints. The key insight is that `const a` in `b.js` captured the reference to `a.js`'s exports object at the moment of import — any properties added to `a.js`'s exports *after* that point (if there were any) would be visible to `b.js` too because they share the reference. This is why replacing `module.exports` wholesale (`module.exports = function() {}`) inside a circular cycle breaks, while mutating `exports.x = ...` works.
 
 **Takeaway:** Circular requires return a **partial exports object** — Node caches the module before running it, so the cycle terminates but each side sees only what's been exported so far. Prefer `exports.x = ...` over `module.exports = ...` to stay compatible with cycles.
+
+---
+
+### Modern Node (24 / 26)
+
+---
+
+**Q13: On Node 24, `require()` of an ESM package succeeds but the function call throws. Why?**
+
+```js
+// esm-pkg/index.mjs
+export default function greet(name) { return `hi ${name}`; }
+export const version = '1.0.0';
+```
+
+```js
+// app.cjs — CommonJS, Node 24+
+const pkg = require('esm-pkg');
+
+console.log(typeof pkg);
+console.log(pkg.version);
+console.log(typeof pkg.default);
+console.log(pkg('world'));
+```
+
+**Output:**
+```
+object
+1.0.0
+function
+TypeError: pkg is not a function
+```
+
+**Explanation:**
+
+`require(esm)` works on Node 24, but what it hands back is an **ES module namespace object**, not a CommonJS `module.exports` value. Those are different things, and the difference shows up precisely at the default export.
+
+In CommonJS, the convention is that the export *is* the module: `module.exports = fn` means `require('x')` returns `fn` directly. ES modules have no such concept — a module has a set of named bindings, and `default` is simply one of those names with special syntax sugar. So the namespace object is `{ default: greet, version: '1.0.0' }`. `pkg.version` works because it is a named export sitting right there; `pkg('world')` fails because `pkg` is the namespace object, and the function is one property inside it.
+
+The fix is the destructure you see in every modern migration diff:
+
+```js
+const { default: greet, version } = require('esm-pkg');
+greet('world');   // 'hi world'
+```
+
+The **other** failure mode is worth knowing because it is the hard limit of the feature: if the ES module — or anything in its import graph — uses **top-level `await`**, `require()` throws outright rather than returning anything.
+
+```js
+// esm-pkg/index.mjs
+const config = await loadConfig();     // top-level await
+export default config;
+
+// app.cjs
+require('esm-pkg');   // throws — ERR_REQUIRE_ASYNC_MODULE
+```
+
+This is not an oversight. `require` is synchronous by contract: it must return a value to the calling expression. A module graph containing top-level `await` cannot finish evaluating synchronously, so there is nothing `require` could return. `await import()` is the only option there — which is exactly why "does the dependency use top-level await?" is the first question when a `require(esm)` migration fails.
+
+**Takeaway:** `require()` of an ES module returns a namespace object, so the default export is on `.default` — and it throws entirely if the module graph uses top-level `await`, because a synchronous `require` cannot wait.
+
+---
+
+**Q14: This file runs fine under `node app.ts` and the numbers are still wrong. Why didn't anything catch it?**
+
+```ts
+// app.ts — run with: node app.ts   (Node 24+)
+function addTax(price: number): number {
+  return price * 1.2;
+}
+
+const input: any = JSON.parse('"100"');   // a string, typed as any
+console.log(addTax(input));
+
+enum Currency { USD, EUR }
+```
+
+**Output:**
+```
+SyntaxError: Node.js does not support enum in TypeScript files
+```
+and if you delete the `enum` line:
+```
+1.2000000000000002e+21
+```
+
+**Explanation:**
+
+Two separate lessons about what Node's type stripping actually is.
+
+**Why the `enum` is a hard error.** Node runs `.ts` files by **stripping** types — replacing annotations with whitespace, one file at a time, with no type information and no view of any other file. That works only for syntax that can be *deleted*. An `enum` is not deletable: it compiles into a real object with forward and reverse mappings (`Currency.USD === 0` and `Currency[0] === 'USD'`), so erasing the declaration would change what the program does. Rather than silently guess or quietly transpile, Node refuses. The same applies to `namespace` with runtime members, constructor parameter properties (`constructor(private x: string)`), and `import x = require('y')`. Setting `"erasableSyntaxOnly": true` in `tsconfig.json` (TS 5.8+) makes the type-checker flag all four in your editor instead.
+
+**Why the wrong number is not an error at all.** This is the more important half. Stripping is *not* type-checking. Node deleted `: number` and `: number` and ran the JavaScript underneath, where `"100" * 1.2` coerces the string to a number — except `JSON.parse('"100"')` returned the string `"100"`, `addTax` never validated anything, and the `any` annotation told the *compiler* to stop caring too. Node had no opinion because Node never looked. There is no runtime type enforcement anywhere in this pipeline.
+
+So `node app.ts` replaces your **bundler**, not your **type-checker**:
+
+```bash
+node app.ts        # run
+tsc --noEmit       # check — still required, in CI and in your editor
+```
+
+A team that drops `tsc` from CI on the grounds that "Node runs TypeScript now" has removed the only step that was validating anything. The value of native `.ts` execution is deleting `ts-node`, `tsx` and the `dist/` directory from the dev loop — not deleting the compiler.
+
+**Takeaway:** Node strips types without checking them, so type errors run silently; it errors only on non-erasable syntax like `enum` and parameter properties, and `tsc --noEmit` remains mandatory.
 
 ---
 

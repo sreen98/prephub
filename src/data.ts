@@ -71,7 +71,7 @@ export const menuStructure: MenuSection[] = [
     lightBg: 'bg-blue-50',
     darkBg: 'dark:bg-blue-950/30',
     accent: 'text-blue-600 dark:text-blue-400',
-    description: 'React, React Native, Redux, TanStack Query, Browser APIs, Real-Time Web, Design Patterns & Refactoring',
+    description: 'React, Next.js & RSC, Frontend Architecture, Modern CSS, Accessibility, Web Performance, Testing Strategy, React Native, Redux, TanStack Query, Browser APIs & Tooling',
     items: [
       { name: 'React Guide', path: '/frontend/react', file: './content/front-end/react-guide.md', officialDocs: [{ label: 'React', url: 'https://react.dev' }] },
       { name: 'React Native & Apps', path: '/frontend/react-native', file: './content/front-end/react-native-guide.md', officialDocs: [{ label: 'React Native', url: 'https://reactnative.dev' }, { label: 'Expo', url: 'https://docs.expo.dev' }, { label: 'React Navigation', url: 'https://reactnavigation.org' }] },
@@ -86,6 +86,12 @@ export const menuStructure: MenuSection[] = [
       { name: 'Real-Time Web', path: '/frontend/realtime-web', file: './content/front-end/realtime-web-guide.md', officialDocs: [{ label: 'MDN — SSE', url: 'https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events' }, { label: 'MDN — WebSockets', url: 'https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API' }, { label: 'RFC 6455 — WebSocket Protocol', url: 'https://datatracker.ietf.org/doc/html/rfc6455' }] },
       { name: 'Design Patterns', path: '/frontend/design-patterns', file: './content/front-end/design-patterns-guide.md', officialDocs: [{ label: 'Refactoring.guru — Design Patterns', url: 'https://refactoring.guru/design-patterns' }, { label: 'Patterns.dev', url: 'https://www.patterns.dev' }] },
       { name: 'Refactoring & Code Review', path: '/frontend/refactoring-code-review', file: './content/front-end/refactoring-code-review-guide.md', officialDocs: [{ label: 'Refactoring.guru', url: 'https://refactoring.guru/refactoring' }, { label: 'Google Engineering Practices', url: 'https://google.github.io/eng-practices/review/' }] },
+      { name: 'Frontend Architecture', path: '/frontend/architecture', file: './content/front-end/frontend-architecture-guide.md', officialDocs: [{ label: 'Monorepo Tools', url: 'https://monorepo.tools' }, { label: 'Turborepo', url: 'https://turborepo.com/docs' }, { label: 'Micro Frontends', url: 'https://micro-frontends.org' }, { label: 'Module Federation', url: 'https://module-federation.io' }] },
+      { name: 'Next.js & RSC', path: '/frontend/nextjs-rsc', file: './content/front-end/nextjs-rsc-guide.md', officialDocs: [{ label: 'Next.js App Router', url: 'https://nextjs.org/docs/app' }, { label: 'React Server Components', url: 'https://react.dev/reference/rsc/server-components' }, { label: 'Next.js Auth Guide', url: 'https://nextjs.org/docs/app/guides/authentication' }] },
+      { name: 'Modern CSS', path: '/frontend/modern-css', file: './content/front-end/modern-css-guide.md', officialDocs: [{ label: 'MDN CSS Reference', url: 'https://developer.mozilla.org/en-US/docs/Web/CSS/Reference' }, { label: 'web.dev — Learn CSS', url: 'https://web.dev/learn/css' }, { label: 'Baseline Status', url: 'https://webstatus.dev' }] },
+      { name: 'Accessibility (a11y)', path: '/frontend/accessibility', file: './content/front-end/accessibility-guide.md', officialDocs: [{ label: 'WCAG 2.2 Quick Ref', url: 'https://www.w3.org/WAI/WCAG22/quickref/' }, { label: 'ARIA Authoring Practices', url: 'https://www.w3.org/WAI/ARIA/apg/patterns/' }, { label: 'MDN ARIA', url: 'https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA' }] },
+      { name: 'Web Performance', path: '/frontend/web-performance', file: './content/front-end/web-performance-guide.md', officialDocs: [{ label: 'web.dev — Core Web Vitals', url: 'https://web.dev/articles/vitals' }, { label: 'Chrome UX Report', url: 'https://developer.chrome.com/docs/crux' }, { label: 'web-vitals library', url: 'https://github.com/GoogleChrome/web-vitals' }] },
+      { name: 'Testing Strategy & E2E', path: '/frontend/testing-strategy', file: './content/front-end/testing-strategy-guide.md', officialDocs: [{ label: 'Playwright', url: 'https://playwright.dev/docs/intro' }, { label: 'Vitest', url: 'https://vitest.dev' }, { label: 'MSW', url: 'https://mswjs.io' }] },
       { name: 'React Comparisons', path: '/frontend/comparisons', file: './content/front-end/react-comparisons.md', officialDocs: [] },
     ]
   },
@@ -111,15 +117,21 @@ export const menuStructure: MenuSection[] = [
     lightBg: 'bg-emerald-50',
     darkBg: 'dark:bg-emerald-950/30',
     accent: 'text-emerald-600 dark:text-emerald-400',
-    description: 'Node.js, Express, MongoDB, API Design, CORS, Database Schema & Stripe',
+    description: 'Node.js, Express, MongoDB, SQL, API Design, CORS, Web Security, OAuth & SSO, Microservices, Docker/K8s/CI-CD, Stripe & AI/LLM Engineering',
     items: [
       { name: 'Node.js Guide', path: '/backend/nodejs', file: './content/back-end/nodejs-guide.md', officialDocs: [{ label: 'Node.js', url: 'https://nodejs.org/docs/latest/api' }] },
       { name: 'Express.js Guide', path: '/backend/expressjs', file: './content/back-end/expressjs-guide.md', officialDocs: [{ label: 'Express.js', url: 'https://expressjs.com' }] },
       { name: 'MongoDB Guide', path: '/backend/mongodb', file: './content/back-end/mongodb-guide.md', officialDocs: [{ label: 'MongoDB Manual', url: 'https://www.mongodb.com/docs/manual' }] },
       { name: 'API Design', path: '/backend/api-design', file: './content/back-end/api-design-guide.md', officialDocs: [{ label: 'OpenAPI Spec', url: 'https://swagger.io/specification' }] },
       { name: 'Database Schema', path: '/backend/database-schema', file: './content/back-end/database-schema-guide.md', officialDocs: [{ label: 'MongoDB Data Modeling', url: 'https://www.mongodb.com/docs/manual/data-modeling' }] },
+      { name: 'SQL & Relational DBs', path: '/backend/sql', file: './content/back-end/sql-relational-databases-guide.md', officialDocs: [{ label: 'PostgreSQL Docs', url: 'https://www.postgresql.org/docs/current/' }, { label: 'Use The Index, Luke!', url: 'https://use-the-index-luke.com' }, { label: 'PG Transaction Isolation', url: 'https://www.postgresql.org/docs/current/transaction-iso.html' }] },
       { name: 'CORS', path: '/backend/cors', file: './content/back-end/cors-guide.md', officialDocs: [{ label: 'MDN CORS', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS' }] },
       { name: 'Stripe Integration', path: '/backend/stripe', file: './content/back-end/stripe-guide.md', officialDocs: [{ label: 'Stripe API', url: 'https://stripe.com/docs/api' }, { label: 'Stripe Webhooks', url: 'https://stripe.com/docs/webhooks' }, { label: 'Stripe Payments', url: 'https://stripe.com/docs/payments' }] },
+      { name: 'Web Security', path: '/backend/web-security', file: './content/back-end/web-security-guide.md', officialDocs: [{ label: 'OWASP Top 10', url: 'https://owasp.org/www-project-top-ten/' }, { label: 'OWASP Cheat Sheets', url: 'https://cheatsheetseries.owasp.org/' }, { label: 'web.dev — Strict CSP', url: 'https://web.dev/articles/strict-csp' }] },
+      { name: 'OAuth & SSO', path: '/backend/oauth-sso', file: './content/back-end/oauth-sso-guide.md', officialDocs: [{ label: 'OAuth 2.0', url: 'https://oauth.net/2/' }, { label: 'OpenID Connect', url: 'https://openid.net/connect/' }, { label: 'RFC 6749', url: 'https://datatracker.ietf.org/doc/html/rfc6749' }] },
+      { name: 'Microservices', path: '/backend/microservices', file: './content/back-end/microservices-guide.md', officialDocs: [{ label: 'microservices.io', url: 'https://microservices.io' }, { label: 'Martin Fowler — Microservices', url: 'https://martinfowler.com/articles/microservices.html' }] },
+      { name: 'AI & LLM Engineering', path: '/backend/ai-llm-engineering', file: './content/back-end/ai-llm-engineering-guide.md', officialDocs: [{ label: 'Claude Docs', url: 'https://docs.claude.com/en/docs/overview' }, { label: 'OWASP LLM Top 10', url: 'https://owasp.org/www-project-top-10-for-large-language-model-applications/' }, { label: 'Model Context Protocol', url: 'https://modelcontextprotocol.io' }] },
+      { name: 'Docker, K8s & CI/CD', path: '/backend/docker-kubernetes', file: './content/back-end/docker-kubernetes-cicd-guide.md', officialDocs: [{ label: 'Dockerfile Best Practices', url: 'https://docs.docker.com/build/building/best-practices/' }, { label: 'Kubernetes Concepts', url: 'https://kubernetes.io/docs/concepts/' }, { label: 'The Twelve-Factor App', url: 'https://12factor.net' }] },
       { name: 'Backend Comparisons', path: '/backend/comparisons', file: './content/back-end/backend-comparisons.md', officialDocs: [] },
     ]
   },
@@ -185,9 +197,11 @@ export const menuStructure: MenuSection[] = [
     lightBg: 'bg-violet-50',
     darkBg: 'dark:bg-violet-950/30',
     accent: 'text-violet-600 dark:text-violet-400',
-    description: 'Scalability, distributed systems & architecture',
+    description: 'Scalability, load balancing, caching, frontend system design, low-level design (LLD) & architecture patterns',
     items: [
       { name: 'System Design Guide', path: '/system-design/guide', file: './content/system-design/system-design-guide.md', officialDocs: [] },
+      { name: 'Frontend System Design', path: '/system-design/frontend', file: './content/system-design/frontend-system-design-guide.md', officialDocs: [{ label: 'GreatFrontEnd', url: 'https://www.greatfrontend.com' }, { label: 'WAI-ARIA Authoring Practices', url: 'https://www.w3.org/WAI/ARIA/apg/' }] },
+      { name: 'Low-Level Design (LLD)', path: '/system-design/low-level-design', file: './content/system-design/low-level-design-guide.md', officialDocs: [{ label: 'Refactoring Guru — Patterns', url: 'https://refactoring.guru/design-patterns' }, { label: 'Refactoring Guru — Code Smells', url: 'https://refactoring.guru/refactoring/smells' }] },
       { name: 'Design Comparisons', path: '/system-design/comparisons', file: './content/system-design/sysdesign-comparisons.md', officialDocs: [] },
     ]
   }

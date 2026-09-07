@@ -1172,6 +1172,70 @@ Use `satisfies` whenever you'd otherwise write `as Foo` for a const config objec
 
 ---
 
+### 10.7 Controlling Inference — `const` Type Parameters, `NoInfer`, and Inferred Predicates
+
+Three features added between TS 5.0 and 5.5 all address the same theme: TypeScript's inference is usually right, and these give you the steering wheel for the cases where it isn't. They come up constantly in interviews for library-flavoured roles.
+
+**`const` type parameters (TS 5.0)** solve the "my helper widened my literals" problem. Normally, a generic parameter inferred from an argument widens: an array argument becomes `string[]`, not a readonly tuple of literals. Before TS 5.0 the only fix was making every *caller* write `as const`, which is easy to forget and clutters the call site.
+
+```ts
+// Without `const` — T widens to string[]
+function names<T extends readonly string[]>(arg: T): T { return arg; }
+const a = names(['alice', 'bob']);
+//    ^? string[]  — the literals are gone
+
+// With `const` — the call site is inferred as if it wrote `as const`
+function constNames<const T extends readonly string[]>(arg: T): T { return arg; }
+const b = constNames(['alice', 'bob']);
+//    ^? readonly ['alice', 'bob']
+```
+
+The `const` modifier goes on the *type parameter*, meaning the library author pays the cost once instead of every consumer paying it forever. Note the constraint must permit readonly (`readonly string[]`, not `string[]`), or the inferred readonly tuple won't satisfy it. And it only affects inference from literal expressions — passing a variable that is already `string[]` still gives you `string[]`, because there are no literals left to preserve.
+
+**`NoInfer<T>` (TS 5.4)** blocks a type parameter from being inferred at a particular position. The classic case is a default value that shouldn't get a vote in what `T` is:
+
+```ts
+// Problem: TS infers T from BOTH parameters, producing a union
+function createState<T>(initial: T, options: T[]) { /* … */ }
+createState('dark', ['light', 'dark']);        // T = 'dark' | 'light' — no error!
+
+// Fix: only the first parameter decides T
+function createState2<T>(initial: T, options: NoInfer<T>[]) { /* … */ }
+createState2('dark', ['light', 'dark']);       // Error: 'light' not assignable to 'dark'
+```
+
+`NoInfer` doesn't change assignability — it changes *who gets to decide* `T`. Say out loud in an interview that it is an inference-site marker, not a constraint, and you've demonstrated the distinction most candidates miss.
+
+**Inferred type predicates (TS 5.5)** finally make the single most common `filter` idiom work without a manual annotation. Before 5.5, a predicate function returned `boolean`, so `filter` had no way to know the result was narrower than the input and the nulls stayed in the type:
+
+```ts
+const values: (number | null)[] = [1, null, 2, null, 3];
+
+// TS 5.5+: TypeScript infers `v is number` from the body — no annotation needed
+const nums = values.filter(v => v !== null);
+//    ^? number[]      (was (number | null)[] before 5.5)
+
+// Works on named predicates too, and generically
+const isNonNullish = <T,>(x: T) => x != null;
+//    ^? <T>(x: T) => x is NonNullable<T>
+```
+
+The inference kicks in **only if all four** of these hold: the function has **no explicit return type or predicate annotation**; it has a **single `return` statement** and no implicit returns; it does **not mutate its parameter**; and it returns a boolean expression that is genuinely a refinement of the parameter.
+
+That first condition is the interview trap, because annotating return types is normally considered good practice — and here it silently costs you the narrowing:
+
+```ts
+const a = (v: number | null) => v !== null;             // (v) => v is number
+const b = (v: number | null): boolean => v !== null;    // just boolean
+
+values.filter(a);   // number[]
+values.filter(b);   // (number | null)[]   — the annotation defeated the inference
+```
+
+The second condition bites too: refactoring the one-liner into an `if`/`return true`/`return false` shape, or adding an early `return false` guard, drops you back to `boolean`. When you need a predicate that is more than one expression, write the `v is T` annotation explicitly rather than relying on inference.
+
+---
+
 ## 11. Classes
 
 ### 11.1 Basic Class
@@ -1417,6 +1481,79 @@ The `tsconfig.json` file controls how the TypeScript compiler behaves, including
   "exclude": ["node_modules", "dist"]
 }
 ```
+
+---
+
+### 13.2 The 2026 Compiler Landscape — TypeScript 6.0, 7.0, and the Go Rewrite
+
+TypeScript's biggest change in a decade happened in 2026 and it is not a type-system feature. The compiler was rewritten from scratch in **Go**, shipping as **TypeScript 7.0** on 8 July 2026. Interviewers ask about it because it changes how you think about build pipelines, not because the syntax changed — the syntax didn't.
+
+**The two-track release.** Microsoft split the transition deliberately:
+
+| Version | Shipped | What it is |
+|---|---|---|
+| **5.9** | Aug 2025 | `import defer`, `--module node20`, the last routine 5.x |
+| **6.0** | 23 Mar 2026 | The **final release built on the original JavaScript codebase**. A bridge release: it turns long-standing deprecations into errors so your code is ready for 7.0 |
+| **7.0** | 8 Jul 2026 | The **Go-native compiler** (project codename *Corsa*), 8–12× faster type-checking, same `tsc` binary from the same `typescript` package |
+
+**Why Go, and why 10×.** The original compiler was written in TypeScript and ran on Node, which means every type node was a garbage-collected JavaScript object and the whole checker ran on one thread. The Go port gets three things at once: native code speed, real structs with predictable memory layout instead of hashmap-backed objects, and **shared-memory parallelism** — Go goroutines can check independent files concurrently against one shared type graph, which is impossible with Node's worker model because workers cannot share a heap. The user-visible effect is on the *editor*, not just CI: opening a file with an error in the VS Code codebase went from ~17.5 s to under 1.3 s.
+
+**What you have to know for an upgrade conversation:**
+
+- 7.0 is **behaviourally compatible** with 6.0's type-checking and CLI. Code that compiles cleanly on 6.0 should compile identically on 7.0. The migration is a dependency bump, not a code change.
+- The old `tsgo` name was the 2025 preview binary shipped via `@typescript/native-preview`. From the 7.0 RC onward, the native build **is** `tsc` inside the normal `typescript` package; `tsgo` now refers only to the nightly channel.
+- The **programmatic API is not stable in 7.0**. Anything that drives the compiler as a library — the Vue, Svelte, Astro and MDX language tooling, plus custom AST transforms and some ESLint type-aware setups — has to stay on 6.0 until it catches up. This is the single most important caveat and the thing an interviewer will be probing for: "we upgraded" is the wrong answer if half your toolchain consumes the API.
+- Nothing about your `tsconfig.json` or your types changes. If you were hoping the rewrite would bring nominal types or a runtime type system, it does not — it is the same type system, checked faster.
+
+**The framing that scores well:** the rewrite is an admission that type-checking had become the slowest step in modern front-end builds. Bundling was already native (esbuild, SWC, Rolldown), so `tsc --noEmit` in CI and the editor language server were the remaining bottlenecks. TypeScript 7 closes that gap, and it is why the "just use `transpileOnly` and check types in a separate CI job" workaround is becoming unnecessary.
+
+---
+
+### 13.3 Compiler Flags That Matter in 2026
+
+Beyond `strict`, a handful of newer flags come up in real code review and in interviews.
+
+```jsonc
+{
+  "compilerOptions": {
+    // Refuse TS syntax that emits runtime code — required if you plan to
+    // run .ts files directly under Node's type stripping (Node 22+/24+).
+    "erasableSyntaxOnly": true,     // TS 5.8+
+
+    // Never rewrite or elide imports based on type analysis. Makes the
+    // emit predictable for esbuild/SWC/Node, which strip types per-file
+    // and cannot see whether an import was type-only.
+    "verbatimModuleSyntax": true,   // TS 5.0+
+
+    // Every exported declaration must be annotated well enough that .d.ts
+    // files can be generated per-file, in parallel, without type-checking.
+    "isolatedDeclarations": true,   // TS 5.5+
+
+    // arr[0] is T | undefined, not T. The single highest-value strictness
+    // flag beyond `strict` itself.
+    "noUncheckedIndexedAccess": true,
+
+    // Resolve the way a bundler does: exports maps, no extension required.
+    "moduleResolution": "bundler",
+    "module": "preserve"            // TS 5.4+ — emit imports untouched
+  }
+}
+```
+
+**`erasableSyntaxOnly` is the one to understand conceptually,** because it connects TypeScript to the Node change described in the Node.js guide. Node can now run `.ts` files by *stripping* type annotations — a purely syntactic, per-file transform with no type information available. That works only if every TypeScript construct in the file is erasable. These are **not**:
+
+```ts
+enum Status { Active, Done }        // emits a real object at runtime
+namespace Legacy { export const x = 1; }  // emits an IIFE
+class User {
+  constructor(private name: string) {}    // parameter property emits an assignment
+}
+import Legacy = require('./legacy');      // import-equals emits a require
+```
+
+Turn `erasableSyntaxOnly` on and all four become errors, pushing you toward `const` objects with `as const` instead of `enum`, ES modules instead of `namespace`, and explicit field assignment instead of parameter properties. The payoff is that your source runs unbuilt under Node, Deno, Bun and every native bundler identically.
+
+**`verbatimModuleSyntax` catches a subtle class of bug.** Without it, TypeScript elides imports it believes are types-only — but a single-file transpiler (esbuild, SWC, Node's stripper) has no type information and cannot make that call. The result is either a dropped side-effecting import or a runtime "export not found" error that only appears in the production build. With the flag on, you must write `import type { … }` explicitly, and what you wrote is what you get.
 
 ---
 
@@ -1982,6 +2119,89 @@ const colors = {
 ```
 
 Use `satisfies` when you want type validation but don't want to lose type inference.
+
+---
+
+**Q21: TypeScript 7.0 rewrote the compiler in Go. What actually changed, and how would you plan the upgrade for a large codebase?**
+
+Nothing about the language changed. The type system, the syntax and `tsconfig.json` are identical — what changed is the *implementation*. The compiler and language service were reimplemented in Go (project *Corsa*), shipping stable on 8 July 2026, and type-checking got roughly 8–12× faster.
+
+The speedup comes from three things the old design could not have. Native compiled code instead of JavaScript on Node; real structs with predictable memory layout instead of garbage-collected objects for every type node; and **shared-memory parallelism**, where goroutines check independent files concurrently against one shared type graph. That last one is the part Node fundamentally could not do, because workers cannot share a heap. The effect shows up most in the editor rather than CI — opening an errored file in the VS Code codebase dropped from about 17.5 seconds to under 1.3.
+
+For the upgrade plan, the sequence matters:
+
+1. **Go to 6.0 first.** TypeScript 6.0 (March 2026) was the last release on the original JavaScript codebase and exists specifically as a bridge — it turns long-standing deprecations into errors. Fix those on 6.0, where the error messages and tooling you know still apply.
+2. **Then bump to 7.0.** It is behaviourally compatible with 6.0's checking and CLI, so for most codebases this is a dependency change, not a code change.
+3. **Audit anything that consumes the compiler's programmatic API**, because that API is *not* stable in 7.0. Vue, Svelte, Astro and MDX language tooling, custom AST transforms, and some type-aware ESLint setups all drive the compiler as a library and need to stay on 6.0 until they catch up.
+
+Step 3 is the answer interviewers are actually listening for. "We upgraded and it was fine" is the wrong response if half the toolchain talks to the API. The broader framing worth adding: bundling went native years ago (esbuild, SWC, Rolldown), so `tsc --noEmit` and the language server were the last JavaScript-speed steps in a front-end build. TypeScript 7 is what makes the old "use `transpileOnly` and type-check in a separate CI job" workaround unnecessary.
+
+---
+
+**Q22: What is a `const` type parameter, and how is it different from `as const` and `satisfies`?**
+
+All three preserve literal types, but they act at different points and belong to different people.
+
+**`as const`** is written by the **caller**, on a value, and makes that value deeply readonly with literal types. **`satisfies`** is also written on a value by whoever owns it, and validates the value against a type *without* widening it. A **`const` type parameter** (TS 5.0) is written by the **library author**, on a generic parameter, and makes inference behave as though every caller had written `as const`:
+
+```ts
+// Old way — every caller must remember `as const`
+function pick<T extends readonly string[]>(keys: T): T { return keys; }
+pick(['a', 'b']);              // string[]            — literals lost
+pick(['a', 'b'] as const);     // readonly ['a','b']  — caller had to opt in
+
+// TS 5.0 — the author opts in once, on the type parameter
+function pick2<const T extends readonly string[]>(keys: T): T { return keys; }
+pick2(['a', 'b']);             // readonly ['a','b']  — no caller ceremony
+```
+
+Two details show depth. First, the constraint has to permit readonly — `extends readonly string[]`, not `extends string[]`, or the inferred readonly tuple won't satisfy it. Second, `const` only affects inference from **literal expressions at the call site**; passing an existing `string[]` variable still yields `string[]`, because there are no literals left to preserve.
+
+The design point is about where the cost lands. `as const` puts the burden on every consumer forever and fails silently when someone forgets. `const T` moves it into the signature once. This is why it appears throughout modern library types — route builders, form schemas, and anything that needs to turn an array of strings into a union of keys.
+
+---
+
+**Q23: Node can now run `.ts` files directly. What does that mean for TypeScript features, and what is `erasableSyntaxOnly` for?**
+
+Node's type stripping is purely **syntactic**: it removes type annotations from each file independently and has no type information and no cross-file view. So it works only if every TypeScript construct in the file can be deleted without changing runtime behaviour. Four common constructs cannot:
+
+```ts
+enum Status { Active, Done }              // emits a real bidirectional object
+namespace Legacy { export const x = 1; }  // emits an IIFE
+class User {
+  constructor(private name: string) {}    // parameter property emits this.name = name
+}
+import Legacy = require('./legacy');      // import-equals emits a require call
+```
+
+Each of these *generates code*, so stripping the types would silently change what the program does — hence Node rejects them rather than guessing.
+
+`erasableSyntaxOnly` (TS 5.8) is the flag that makes the type-checker enforce the same rule, so you find out at compile time in your editor instead of at runtime in production. Turning it on pushes you toward the modern equivalents: a `const` object with `as const` plus a derived union type instead of `enum`, ES modules instead of `namespace`, and explicit field declarations instead of parameter properties.
+
+The payoff is portability. With `erasableSyntaxOnly` on, the same source runs unbuilt under Node, Deno and Bun, and transpiles identically through esbuild, SWC and Rolldown — because none of those tools type-check either. The trade-off to name: you give up `enum`'s reverse mapping and `namespace`'s declaration merging, and parameter properties cost you a few lines of boilerplate per class. In practice `enum` was already discouraged (it is the one TypeScript feature with no JavaScript equivalent, and `as const` unions are more flexible), so most teams lose little.
+
+---
+
+**Q24: What does `verbatimModuleSyntax` do, and what bug class does it prevent?**
+
+Without it, TypeScript **elides** imports it determines are used only in type positions — the import statement disappears from the emitted JavaScript. That was reasonable when `tsc` did all the emitting, because `tsc` has the whole type graph and knows the difference.
+
+It breaks as soon as a single-file transpiler is in the pipeline. esbuild, SWC, Babel and Node's type stripper process one file at a time with no type information, so they cannot tell whether `import { Foo } from './foo'` refers to a type or a value. They have to guess, and the two possible wrong guesses are both bad:
+
+- **Drop an import that had a side effect.** `import './register-polyfills'` re-exported through a barrel file vanishes, and something is mysteriously unregistered in the production bundle only.
+- **Keep an import of something that doesn't exist at runtime.** The bundler emits a real `import { UserType }` for a pure interface, and you get `SyntaxError: The requested module does not provide an export named 'UserType'` — again, usually only in the built output.
+
+`verbatimModuleSyntax` (TS 5.0) removes the guessing entirely: what you write is exactly what is emitted, and TypeScript errors if you import a type without saying so.
+
+```ts
+import { getUser, type User } from './user';   // inline type modifier — clear
+import type { Config } from './config';         // whole import is type-only
+
+// With the flag on, this is an error if `User` is a type:
+import { User } from './user';
+```
+
+This is one of the higher-signal flags to bring up unprompted, because it demonstrates that you understand a modern build has *two* tools with different amounts of information — `tsc` type-checks with full knowledge, and a native transpiler emits with almost none — and that most confusing "works in dev, breaks in prod" module errors live in that gap. It pairs naturally with `isolatedModules` and `module: "preserve"`.
 
 ---
 
@@ -2563,6 +2783,143 @@ type Parts = Split<"a.b.c", ".">; // ["a", "b", "c"]
 Beware of combinatorial explosion: a template with three 4-member unions produces 64 combinations. TypeScript has a per-type size limit (around 100,000 combinations) before it bails out with an error.
 
 **Takeaway:** Template literal types distribute over their union slots to generate the cross product of combinations; they're the compile-time equivalent of programmatic string building, and pair well with `infer` to parse structured strings.
+
+---
+
+### Modern TypeScript (5.x–7.0)
+
+---
+
+**Q17: Both predicates look identical, so why does only one of them narrow the array?**
+
+```ts
+const values: (number | null)[] = [1, null, 2, null, 3];
+
+const a = (v: number | null) => v !== null;
+const b = (v: number | null): boolean => v !== null;
+
+const x = values.filter(a);
+const y = values.filter(b);
+```
+
+**Output (inferred types):**
+```
+a: (v: number | null) => v is number
+b: (v: number | null) => boolean
+
+x: number[]
+y: (number | null)[]
+```
+
+**Explanation:**
+
+TypeScript 5.5 added **inferred type predicates**: when a function's body is recognisably a refinement of its parameter, TypeScript infers the return type as `v is number` rather than `boolean`. `Array.prototype.filter` has an overload that accepts a predicate `(value: T) => value is S` and returns `S[]`, so an inferred predicate makes the narrowing flow through automatically. That is why `x` is `number[]` with no annotation anywhere.
+
+The inference fires **only if all four** of these hold:
+
+1. The function has **no explicit return type** or predicate annotation.
+2. It has a **single `return` statement** and no implicit returns.
+3. It does **not mutate its parameter**.
+4. It returns a boolean expression that is genuinely a refinement of the parameter.
+
+`b` violates the first condition. Writing `: boolean` is not a no-op — it *pins* the return type, so TypeScript stops at `boolean`, `filter` matches its plain `(value: T) => unknown` overload, and the result stays `(number | null)[]`. The irony is that annotating return types is normally the recommended habit, and here it silently costs you type safety.
+
+Condition 2 is the other easy way to lose it. All three of these fall back to `boolean`:
+
+```ts
+const c = (v: number | null) => { if (v === null) return false; return true; };  // two returns
+const d = (v: number | null) => { const ok = v !== null; return ok; };            // indirection
+const e = (v: number | null) => v !== null && Math.random() > 0.5;                // not a pure refinement
+```
+
+Note that an **inline** arrow works fine — `values.filter(v => v !== null)` gives `number[]` — so this is not about named versus anonymous functions. It is about the shape of the function.
+
+**Takeaway:** inferred type predicates (TS 5.5+) are defeated by an explicit `: boolean` return type or by anything other than a single refining `return` expression — when your predicate needs more than one statement, write the `v is T` annotation yourself.
+
+---
+
+**Q18: Why does the first call type-check when it clearly shouldn't, and what does `NoInfer` change?**
+
+```ts
+function createState<T>(initial: T, allowed: T[]) {}
+function createState2<T>(initial: T, allowed: NoInfer<T>[]) {}
+
+createState('dark', ['light', 'dark']);     // ?
+createState2('dark', ['light', 'dark']);    // ?
+```
+
+**Output:**
+```
+createState('dark', ['light', 'dark']);    // OK — no error (T = 'dark' | 'light')
+createState2('dark', ['light', 'dark']);   // Error: Type '"light"' is not
+                                           // assignable to type '"dark"'
+```
+
+**Explanation:**
+
+In the first signature, `T` appears in **two inference positions**, and TypeScript collects candidates from both before deciding. The first argument contributes the candidate `'dark'`; the second contributes `'light'` and `'dark'`. Faced with multiple candidates, inference **widens to their union**, so `T` becomes `'dark' | 'light'`. Both arguments then check successfully against that union, and the constraint you were trying to express — "the initial value must be one of the allowed values" — is silently satisfied by making `T` big enough to include everything. The check is vacuous.
+
+`NoInfer<T>` (TS 5.4) marks a position as **non-inferring**. `allowed: NoInfer<T>[]` still requires the argument to be assignable to `T[]`, but it no longer *votes* on what `T` is. So `T` is decided solely by `initial` — it is `'dark'` — and then `['light', 'dark']` is checked against `'dark'[]`, which correctly fails on `'light'`.
+
+The crucial distinction to state out loud: `NoInfer` is an **inference-site marker, not a constraint**. It does not narrow, validate or transform anything; it only removes a position from the candidate-collection phase. This is why it is a utility type rather than a keyword, and why it has no runtime or assignability meaning of its own.
+
+Before 5.4 the workarounds were all awkward: a second type parameter with a mutual constraint (`<T, U extends T>`), or the intersection trick `T & {}`, or an explicit type argument at every call site. `NoInfer` says the thing directly.
+
+The generalisable rule: **any type parameter that appears in more than one parameter position will widen to a union of candidates.** If one of those positions is meant to be *validated against* the other rather than to help decide the type, wrap it in `NoInfer`.
+
+**Takeaway:** a type parameter inferred from multiple arguments widens to their union, which quietly makes "must be one of" checks pass — `NoInfer<T>` strips a position's vote so one argument decides the type and the rest are merely checked against it.
+
+---
+
+**Q19: Which of these four declarations are errors under `erasableSyntaxOnly`, and why does that flag exist?**
+
+```ts
+// tsconfig: { "erasableSyntaxOnly": true }
+
+enum Status { Active, Done }
+declare enum Ambient { A, B }
+namespace Types { export type Id = string; }
+namespace Runtime { export const x = 1; }
+class User { constructor(private name: string) {} }
+```
+
+**Output:**
+```
+enum Status      → Error: This syntax is not allowed when 'erasableSyntaxOnly' is enabled.
+declare enum     → OK    — ambient, emits nothing
+namespace Types  → OK    — contains only types, emits nothing
+namespace Runtime→ Error: emits an IIFE
+private name     → Error: parameter properties emit an assignment
+```
+
+**Explanation:**
+
+The rule is not "no enums and no namespaces" — it is **"nothing that generates runtime code."** Work through each case with that lens and the pattern is obvious.
+
+`enum Status` compiles to a real object with both forward and reverse mappings (`Status.Active === 0` *and* `Status[0] === 'Active'`), so deleting the declaration changes behaviour. Error. But `declare enum` is ambient — it asserts that something exists elsewhere and emits nothing at all, so it is fine. Likewise, a `namespace` containing only type declarations emits nothing and is allowed, while one containing a `const` emits an IIFE and is not. Parameter properties are rejected because `constructor(private name: string)` desugars into a real `this.name = name` statement — the type annotation and the field initialisation are fused into one piece of syntax, and you cannot erase half of it.
+
+The flag (TS 5.8) exists because of a change *outside* TypeScript. Node — and Deno, Bun, esbuild, SWC and Rolldown before it — can now run or transpile `.ts` files by **stripping types syntactically**, one file at a time, with no type information whatsoever. That is enormously faster than a real compile, but it is only sound when every TypeScript-specific construct is erasable. `erasableSyntaxOnly` makes the type-checker enforce the same restriction, so you get an editor squiggle instead of a runtime failure.
+
+The migrations it pushes you toward are the ones modern codebases had mostly adopted anyway:
+
+```ts
+// instead of enum
+const Status = { Active: 'active', Done: 'done' } as const;
+type Status = typeof Status[keyof typeof Status];   // 'active' | 'done'
+
+// instead of a runtime namespace — just use a module
+export const x = 1;
+
+// instead of a parameter property
+class User {
+  private name: string;
+  constructor(name: string) { this.name = name; }
+}
+```
+
+What you give up: `enum`'s reverse mapping, `namespace` declaration merging, and a few lines of constructor boilerplate. What you gain: the same source file runs unbuilt under every runtime and transpiles identically through every tool, because none of them need to understand your types.
+
+**Takeaway:** `erasableSyntaxOnly` forbids exactly the TypeScript constructs that emit runtime code — `enum`, runtime `namespace`, parameter properties, `import =` — because single-file type stripping cannot erase them safely; ambient and type-only forms of the same syntax stay legal.
 
 ---
 

@@ -10,7 +10,8 @@
 - [6. Package Managers — npm vs yarn vs pnpm](#6-package-managers--npm-vs-yarn-vs-pnpm)
 - [7. npx](#7-npx)
 - [8. package.json Deep Dive](#8-packagejson-deep-dive)
-- [9. Interview Questions & Answers](#9-interview-questions--answers)
+- [9. The 2026 Toolchain](#9-the-2026-toolchain--rust-go-and-consolidation)
+- [10. Interview Questions & Answers](#10-interview-questions--answers)
 
 ---
 
@@ -1655,7 +1656,99 @@ import { internal } from 'my-lib/src/core';   // ERROR — not in exports map
 
 ---
 
-## 9. Interview Questions & Answers
+## 9. The 2026 Toolchain — Rust, Go, and Consolidation
+
+Everything above describes the tooling world as it was built. This section describes where it landed, because 2025–26 was the year the whole JavaScript toolchain got rewritten in native languages and then *consolidated*. Interviewers ask about it not to test trivia but to see whether you understand the pattern: every layer of the pipeline that was written in JavaScript has been replaced by a native implementation, and the fragmentation that followed is now collapsing back into single tools.
+
+### 9.1 Vite 8 and Rolldown — One Bundler Instead of Two
+
+Vite's original design had a structural oddity: **dev used esbuild, production used Rollup.** That gave the best of both — esbuild's speed for dependency pre-bundling and transform, Rollup's superior tree-shaking and code splitting for the final bundle — at the cost of two different module graphs, two plugin behaviours, and the classic "works in dev, breaks in build" bug class.
+
+**Rolldown** was built to end that: a Rust implementation of Rollup's API, from the Oxc project. It hit **1.0 on 7 May 2026** with a locked API, and **Vite 8 (12 March 2026) ships it as the single default bundler for both dev and production**, no opt-in.
+
+| | Vite ≤7 | Vite 8 |
+|---|---|---|
+| Dev transform | esbuild | Rolldown |
+| Production bundle | Rollup | Rolldown |
+| Module graph | two | **one** |
+| Build speed | baseline | **10–30× faster** on large projects |
+
+The interesting part is not the speed number — it is what a single graph unlocks, which was awkward or impossible before:
+
+- **Full bundle mode in dev.** Vite's unbundled-ESM dev server was brilliant for small apps but degrades on very large ones, where the browser opens thousands of module requests. One bundler means dev can bundle when that's faster.
+- **Module-level persistent caching** across restarts, because there's one canonical representation to cache.
+- **Flexible chunk splitting** and **Module Federation** support — the last real reason teams stayed on webpack for micro-frontends.
+
+Migration is mostly a version bump, but two things bite. `@vitejs/plugin-react` v6 dropped Babel, so React Compiler is wired in differently than the Babel-plugin recipe in most 2025 tutorials. And any plugin reaching into Rollup internals rather than using the public plugin API may need updating — the API is compatible, the internals are not.
+
+### 9.2 Turbopack — Next.js Went the Same Way
+
+**Next.js 16 (21 October 2025) removed webpack as the default and ships Turbopack as the only bundler out of the box** — 5–10× faster Fast Refresh, builds up to 5× faster, plus filesystem caching (beta) that cuts cold-start time on large projects.
+
+The parallel with Vite 8 is the point worth making in an interview: both ecosystems independently concluded that a JavaScript-based bundler could not get fast enough, and both replaced it with Rust. Turbopack is Vercel's, built for Next's specific needs (RSC graph, route-based splitting); Rolldown is community-owned and Rollup-compatible, which is why it could become Vite's default without breaking the plugin ecosystem.
+
+### 9.3 Linting and Formatting — Flat Config, oxlint, Biome
+
+Three changes here, and they interact.
+
+**ESLint flat config is now the only config.** ESLint v9 made `eslint.config.js` the default; **ESLint v10 (February 2026) removed the `eslintrc` system entirely** — no `.eslintrc.json`, and the CLI dropped `--no-eslintrc`, `--env`, `--rulesdir`, `--ignore-path` and `--resolve-plugins-relative-to`. Config resolution also changed: ESLint now looks for config starting from **each linted file's directory** rather than the working directory, which quietly fixes monorepos. The migration is mechanical:
+
+```bash
+npx @eslint/migrate-config .eslintrc.json     # emits eslint.config.mjs
+```
+
+```js
+// eslint.config.mjs — flat config is plain JS, no cascade, no `extends` string magic
+import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
+
+export default [
+  js.configs.recommended,
+  reactHooks.configs['recommended-latest'],   // includes React Compiler rules (v6+)
+  { files: ['**/*.test.ts'], rules: { 'no-console': 'off' } },
+];
+```
+
+Flat config's real advantage is conceptual: it's an **array of objects evaluated in order**, so "which rule applies to this file and why" is answerable by reading top to bottom. The old cascading system resolved `extends` chains, `overrides` and directory inheritance in a way nobody could predict without running `--print-config`.
+
+**The native linters.** Two Rust contenders, and they are aiming at different jobs:
+
+| | **ESLint + typescript-eslint** | **oxlint** (Oxc) | **Biome** |
+|---|---|---|---|
+| Speed | baseline | **~30× faster** on syntax rules | very fast |
+| Custom rules / plugins | **mature, huge ecosystem** | growing | limited |
+| Formatter included | no (Prettier) | `oxfmt` (separate) | **yes — replaces Prettier too** |
+| Type-aware rules | **full — runs `tsc`** | via **tsgo** (TS 7's Go compiler) → real `tsc` semantics | approximated *without* running `tsc` |
+| Best at | correctness coverage, framework plugins | a millisecond pre-commit pre-check | replacing ESLint **and** Prettier with one tool |
+
+The honest 2026 positioning: **ESLint + typescript-eslint is still the reference** for rule coverage and framework plugins, and it is what every other tool is measured against. **oxlint** is designed to run *alongside* it as a sub-second pre-check on the common mistakes, and its type-aware rules are notable because they delegate to **tsgo** — the same Go compiler as TypeScript 7 — so its type semantics match `tsc` exactly rather than approximating. **Biome** is the "one tool, one config" play: it replaces ESLint *and* Prettier, which is a genuine simplification, but its type-aware rules approximate type information rather than running the compiler, so coverage thins out on heavily generic code.
+
+Note the shared foundation: **Oxc** is a whole Rust toolchain — parser, resolver, transformer, linter (`oxlint`), formatter (`oxfmt`) — and **Rolldown is built on it**. That is why Vite 8 and oxlint are related news rather than coincidence.
+
+### 9.4 Type-Checking Went Native Too
+
+The last JavaScript-speed step in a front-end build was `tsc`. **TypeScript 7 (8 July 2026) is the compiler rewritten in Go**, 8–12× faster, shipping as the normal `tsc` in the `typescript` package. See the TypeScript guide §13.2 for the details and the upgrade caveat (the programmatic API is not stable in 7.0, so Vue/Svelte/Astro tooling stays on 6.0).
+
+This closes the loop. Before 2026 a typical pipeline was: native transform (esbuild/SWC) → JavaScript bundle (Rollup/webpack) → JavaScript type-check (`tsc`) → JavaScript lint (ESLint). The two JavaScript steps dominated the wall clock, which is why "use `transpileOnly` and type-check in a separate CI job" became standard advice. With Rolldown, tsgo and oxlint, every stage is native and that workaround is no longer necessary.
+
+### 9.5 What To Actually Pick
+
+```
+New React SPA           → Vite 8 (Rolldown default). Nothing to configure.
+New full-stack app      → Next.js 16 (Turbopack default) or Remix/React Router.
+Library                 → Rolldown or tsdown; keep Rollup if you depend on niche plugins.
+Micro-frontends         → Vite 8 Module Federation, or webpack if the setup already exists.
+Linting, pragmatic      → ESLint 10 flat config + typescript-eslint, oxlint as a pre-commit pre-check.
+Linting, greenfield     → Biome, if you value one tool over maximum rule coverage.
+Type-checking           → TypeScript 7, unless you use Vue/Svelte/Astro tooling → stay on 6.0.
+Monorepo                → pnpm workspaces + Turborepo or Nx for task orchestration and caching.
+```
+
+The framing that scores best: name the *pattern* rather than the versions. Every layer has been rewritten in a native language for speed, and the industry is now consolidating from many single-purpose tools toward a few integrated ones (Vite+Rolldown, Biome, Oxc). The trade-off you accept in exchange is **ecosystem maturity** — the fast tool usually has fewer plugins and less battle-tested edge-case handling, which is why the sensible pattern for an existing codebase is to add the fast tool as a pre-check rather than swap out the mature one on day one.
+
+---
+
+## 10. Interview Questions & Answers
 
 ### Beginner
 
@@ -1777,10 +1870,81 @@ For webpack: use `webpack-bundle-analyzer` (generates an interactive treemap of 
 
 ---
 
-**Q20: A junior developer asks whether to use webpack or Vite for a new React project in 2024. What do you recommend and why?**
+**Q20: A junior developer asks whether to use webpack or Vite for a new React project. What do you recommend and why?**
 
-Vite, without hesitation. Here is the reasoning: (1) **Official recommendation** — the React docs (react.dev) no longer recommend Create React App and list Vite-based setups as the default, (2) **Developer experience** — Vite's dev server starts in under a second regardless of project size, HMR is near-instant, and the config file is 10-20 lines instead of 100+, (3) **Build quality** — Vite uses Rollup for production, which produces excellent tree-shaking and code splitting output, (4) **Ecosystem** — Vite is used by Vue, Svelte, Solid, Astro, and increasingly React projects. Plugin availability is excellent, (5) **TypeScript** — built-in with zero config, (6) **Migration path** — if you later need something Vite can't do, you can always eject to custom Rollup config or add webpack for specific needs. The only exceptions: if you need webpack Module Federation for micro-frontends, if you're joining a team with an existing webpack setup, or if you need very specific webpack loaders with no Vite equivalent.
+Vite, without hesitation. Here is the reasoning: (1) **Official recommendation** — the React docs (react.dev) no longer recommend Create React App and list Vite-based setups as the default, (2) **Developer experience** — Vite's dev server starts in under a second regardless of project size, HMR is near-instant, and the config file is 10-20 lines instead of 100+, (3) **Build quality** — Vite uses Rollup for production, which produces excellent tree-shaking and code splitting output, (4) **Ecosystem** — Vite is used by Vue, Svelte, Solid, Astro, and increasingly React projects. Plugin availability is excellent, (5) **TypeScript** — built-in with zero config, (6) **Migration path** — if you later need something Vite can't do, you can always eject to custom Rollup config or add webpack for specific needs. The only exceptions: if you're joining a team with an existing webpack setup, or if you need very specific webpack loaders with no Vite equivalent. Note that Module Federation used to be on that list — it was the last real reason micro-frontend teams stayed on webpack — but Vite 8's single Rolldown graph supports it, so that exception has largely closed (see §9.1).
 
 **Q21: How can you see the original React source code in browser DevTools even though webpack bundles everything into a single (or few) output file(s)?**
 
 This is possible because of **source maps**. When webpack builds your code, it can generate a `.map` file alongside each bundle (e.g., `main.js.map`). A source map is a JSON file that contains a mapping between every position in the bundled output and the corresponding position in the original source files. The browser DevTools detect the `//# sourceMappingURL=main.js.map` comment at the end of the bundle, fetch the map file, and use it to reconstruct the original file tree under the **Sources** tab — so you see your React components exactly as you wrote them, not the transpiled/minified bundle. In webpack, this is controlled by the `devtool` option. Common values include: (1) `source-map` — generates a full, separate `.map` file with accurate line/column mappings; best for production debugging but increases build time, (2) `eval-source-map` — embeds source maps inside `eval()` calls per module; fast rebuilds, great for development, (3) `cheap-module-source-map` — maps to original lines (not columns) after loader transforms; good balance of speed and accuracy, (4) `hidden-source-map` — generates the `.map` file but does not add the `sourceMappingURL` comment, so the map is not automatically loaded by browsers; useful in production when you want to upload maps to an error tracking service (like Sentry) without exposing them publicly, (5) `false` / `none` — no source maps at all. **In production**, many teams either disable source maps or use `hidden-source-map` to avoid exposing original source code to end users, while still uploading maps to error monitoring tools for readable stack traces. Vite similarly generates source maps via the `build.sourcemap` option in `vite.config.js`.
+
+---
+
+**Q22: Vite used two different bundlers. What were they, why, and what changed in Vite 8?**
+
+Vite's original architecture split the job: **esbuild** for dev (dependency pre-bundling and per-file transform, chosen for raw speed) and **Rollup** for production (chosen for the best tree-shaking and code-splitting output in the ecosystem). That was a pragmatic best-of-both, but it meant **two module graphs and two plugin pipelines**, which produced the "works in dev, breaks in build" bug class — a plugin or a subtle import-resolution difference behaving one way under esbuild and another under Rollup.
+
+**Vite 8 (March 2026) replaced both with Rolldown**, a Rust implementation of Rollup's API from the Oxc project (Rolldown hit 1.0 in May 2026 with a locked API). One bundler, one graph, dev and prod, no opt-in. Builds are 10–30× faster on large projects.
+
+The speed is the headline, but the architectural wins are the better answer:
+
+- **A single module graph** eliminates dev/prod divergence entirely.
+- **Full bundle mode in dev** becomes possible — Vite's unbundled-ESM dev server is excellent for small apps but degrades on very large ones where the browser opens thousands of module requests.
+- **Module-level persistent caching** across restarts, since there's one canonical representation to cache.
+- **Module Federation** support, which was the last real reason micro-frontend teams stayed on webpack.
+
+Migration caveats worth naming: `@vitejs/plugin-react` v6 dropped Babel, so React Compiler is wired up differently from the Babel-plugin recipe in most 2025 tutorials; and plugins that reach into Rollup *internals* rather than the public plugin API may need updating — the API is compatible, the internals are not.
+
+---
+
+**Q23: `eslintrc` no longer works after an upgrade. What happened, and what does flat config change conceptually?**
+
+**ESLint v10 (February 2026) removed the `eslintrc` config system entirely.** Flat config (`eslint.config.js` / `.mjs`) became the default in v9 and is now the only option. The CLI also dropped every eslintrc-specific flag — `--no-eslintrc`, `--env`, `--rulesdir`, `--ignore-path`, `--resolve-plugins-relative-to` — and the `ESLINT_USE_FLAT_CONFIG` escape hatch is gone. Migration is mechanical:
+
+```bash
+npx @eslint/migrate-config .eslintrc.json     # emits eslint.config.mjs
+```
+
+The conceptual change is what interviewers are after. Flat config is **a plain JavaScript array of config objects, evaluated in order**, where later entries override earlier ones:
+
+```js
+import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
+
+export default [
+  js.configs.recommended,
+  reactHooks.configs['recommended-latest'],
+  { files: ['**/*.test.ts'], rules: { 'no-console': 'off' } },
+];
+```
+
+Compare that to the old system, which resolved a cascade of `extends` strings, `overrides` blocks and directory-level `.eslintrc` inheritance through rules almost nobody could predict without running `eslint --print-config`. Three concrete improvements: **plugins are imported**, so resolution follows normal Node semantics instead of ESLint's bespoke name-mangling and `--resolve-plugins-relative-to` hacks; **config is real code**, so you can compute it, share it as a package, or conditionally include a block; and **precedence is positional**, so "which rule applies here and why" is answerable by reading top to bottom.
+
+One behavioural change that catches monorepos: v10 resolves config starting from **each linted file's directory** rather than the process working directory — which is what you always wanted, but it means a nested package's config now applies where previously the root config may have won.
+
+---
+
+**Q24: Would you replace ESLint with Biome or oxlint? How do you decide?**
+
+Rarely a straight replacement, and the reasoning matters more than the pick. The three tools are optimising for different things:
+
+| | **ESLint + typescript-eslint** | **oxlint** | **Biome** |
+|---|---|---|---|
+| Speed | baseline | ~30× faster (syntax rules) | very fast |
+| Rule/plugin ecosystem | **mature, huge** | growing | limited |
+| Formatting | separate (Prettier) | separate (`oxfmt`) | **included** |
+| Type-aware rules | **full — runs `tsc`** | via **tsgo** (TS 7's Go compiler) — real `tsc` semantics | approximated, no `tsc` |
+
+**ESLint + typescript-eslint remains the reference** for rule coverage, framework plugins (React Hooks, jsx-a11y, import ordering) and custom in-house rules. If you have any of those, it stays.
+
+**oxlint** is built to run **alongside** ESLint, not instead of it — a sub-second pre-commit or pre-push check that catches the common mistakes in milliseconds while the full ESLint run happens in CI. Its type-aware rules are worth calling out because they delegate to **tsgo**, the Go compiler behind TypeScript 7, so its type semantics match `tsc` exactly rather than approximating them.
+
+**Biome** is the "one tool, one config" play: it replaces ESLint *and* Prettier, which is a real simplification for a greenfield project or a small team. The trade-off is honest — its type-aware rules approximate type information rather than running the compiler, so coverage thins on heavily generic code, and the plugin ecosystem is much smaller.
+
+So the decision:
+
+- **Existing codebase with plugins and custom rules** → keep ESLint 10, add oxlint as a fast pre-check. Lowest risk, most of the speed benefit.
+- **Greenfield, small team, values simplicity** → Biome, and accept less rule coverage.
+- **Anything relying on jsx-a11y, custom rules, or unusual generic-heavy TypeScript** → ESLint, and don't fight it.
+
+The pattern worth naming out loud: the fast tool almost always has fewer plugins and less battle-tested edge-case handling, so adding it *in front of* the mature tool captures most of the benefit at none of the risk. That is the same reasoning that applies to Rolldown, Turbopack and tsgo — every layer of the pipeline got a native rewrite, and the sensible adoption path is incremental.

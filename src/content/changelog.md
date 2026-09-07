@@ -1,6 +1,342 @@
 # What's New
 
+## v1.1.0 (September 2026)
+
+The largest content release so far: **11 new guides** and a full 2026 freshness pass across the existing ones. **Total guides: 42 &rarr; 53.**
+
+The theory guides were written in April&ndash;May 2026 and a lot had moved since &mdash; React 19.2 shipped new stable hooks, TypeScript's compiler was rewritten in Go, ES2026 landed Temporal, Node started running TypeScript directly, and the whole build toolchain went native. Every affected guide is now current. Alongside that, eleven guides fill the gaps the library never covered: there was no CSS guide at all, no accessibility guide, nothing on SQL, and `Dockerfile` appeared nowhere in 85,000 lines of content.
+
+### New Guide &mdash; AI & LLM Engineering (Back End)
+
+**Total guides: 42 &rarr; 43. Back End: 10 &rarr; 11.**
+
+Written for the **application engineer** who has to ship an AI feature, not the ML engineer who trains models &mdash; no maths, no model training. The framing throughout is that an LLM is "a slow, expensive, non-deterministic network dependency that sometimes lies", and every design rule follows from taking that literally.
+
+- **Fundamentals** &mdash; tokens (and why non-Latin scripts cost 2&ndash;3&times; more, why digits tokenize badly, why models can't do arithmetic), the context window as a shared input+output budget, temperature vs top-p, and why model tiering is the biggest cost lever you have
+- **Cost and latency** &mdash; the two budgets, model routing, prompt caching and the prefix layout it requires, TTFT vs total completion time
+- **Prompting as engineering** &mdash; roles, the escape hatch that prevents most "hallucination", why prompts are code (versioned, evaluated in CI, model pinned)
+- **Structured output** &mdash; the three levels of rigour, schema constraints, and why you validate anyway
+- **Streaming to the UI** &mdash; the `fetch` + `ReadableStream` pattern with full server and client code, cancellation propagation, chunk-boundary handling, partial-markdown rendering, mid-stream errors, buffering proxies
+- **Tool calling and agents** &mdash; the loop, authorizing inside the tool against the session, and a straight answer on when *not* to build an agent
+- **RAG** &mdash; chunking (where most RAG systems actually fail), hybrid search, reranking, grounding and citations, the RAG triad for diagnosis, and RAG vs fine-tuning vs long context
+- **Evaluation** &mdash; golden sets, grading methods, LLM-as-judge and its biases, offline gates vs online metrics
+- **Security** &mdash; prompt injection, the lethal trifecta, and why a rendered markdown image is an exfiltration channel
+- **Production and architecture** &mdash; failure matrix, observability, caching layers, and a reference "chat with our docs" design
+
+**14 interview Q&A + 8 tricky scenario questions + a 40-rule cheat sheet.**
+
+### New Guide &mdash; Frontend Architecture at Scale (Front End)
+
+The Platform UI / frontend architect interview round. The recurring theme is that almost every question here is an **organisational** question wearing a technical costume &mdash; monorepo vs multi-repo is about how teams coordinate, micro-frontends are about deployment independence rather than JavaScript.
+
+- **Multi-product architecture** &mdash; the four layers (products &rarr; features &rarr; shared &rarr; foundation), why dependencies must point downward and how to enforce it mechanically, and the three genuinely different kinds of shared code (UI, business logic, feature packages &mdash; extract on the *third* use, not the second)
+- **Monorepo vs multi-repo** &mdash; a five-question decision framework, an honest comparison table, the position that holds up in an interview, and the mandatory tooling (pnpm workspaces, Turborepo/Nx, remote caching, CODEOWNERS, boundary lint, Changesets). Plus the two clarifications candidates miss: "monorepo" &ne; "monolith", and a monorepo without enforced boundaries is a distributed monolith with extra steps
+- **Micro-frontends** &mdash; what they actually buy (one thing: independent deployment by independently-owned teams), the six integration approaches compared, what really goes wrong (shared dependency skew, token skew, cross-remote state, error isolation, nobody owning the page), and a clear verdict on when *not* to
+- **Design systems** &mdash; tokens as CSS custom properties, versioning, and the breaking-change rollout sequence that actually works (add &rarr; deprecate &rarr; **ship a codemod** &rarr; migrate the biggest consumer yourself &rarr; track remaining usages &rarr; remove)
+- **The five caching layers** &mdash; data layer, service worker, browser HTTP, CDN, server &mdash; each with its invalidation story, plus "what breaks first?" and why you can't edge-cache personalised data
+- **Real-time UI at thousands of events/sec** &mdash; the key insight that the transport isn't the bottleneck, React is; buffering, coalescing, virtualising, Web Workers, and why server-side aggregation *removes* the problem
+- **Debugging the 1%** &mdash; segmentation before theorising, source maps, session replay, trace correlation, and why "I'd add monitoring" is the weak answer
+
+**10 interview Q&A** (including the full Platform UI round-3 question set) **+ 5 tricky questions + a 49-rule cheat sheet.**
+
+### New Guide &mdash; Next.js & React Server Components (Front End)
+
+RSC changed the React mental model more than hooks did, and this is the highest-variance topic in modern React interviews.
+
+- **The RSC mental model** &mdash; starting with the distinction everything else depends on: **RSC is not SSR.** SSR ships your component code to the browser to hydrate; Server Component code never reaches the browser at all
+- **The client boundary** &mdash; `'use client'` as an *entry point to the client graph* (not a single component), pushing the boundary down, the serialisation rules, and the security consequence: every prop is serialised into the payload the browser downloads
+- **App Router** &mdash; file conventions, layout vs template, route groups, parallel and intercepting routes, and the async `params`/`cookies()`/`headers()` change
+- **Rendering strategies** &mdash; CSR/SSR/SSG/ISR/streaming/RSC/PPR compared, with Partial Pre-rendering explained properly
+- **The caching model** &mdash; the history (13&ndash;14 cached by default &rarr; 15 stopped &rarr; 16 opt-in only), Cache Components and `"use cache"`, and the three invalidation APIs with genuinely different semantics (`revalidateTag` = eventual consistency, `updateTag` = read-your-writes, `refresh` = uncached data)
+- **Server Actions** &mdash; and the thing to say unprompted: **a Server Action is a public HTTP endpoint**
+- **Authentication, defence in depth** &mdash; grounded in the real CVE history (CVE-2025-29927, CVE-2026-45109, CVE-2026-64642) that shows why the request-interception layer can't be your authorization boundary, and why a Data Access Layer can
+- **Next.js 16** &mdash; everything that changed, including the breaking changes that bite on upgrade
+- **When *not* to use it** &mdash; a straight answer, which is what separates having used it from having adopted it
+
+**8 interview Q&A + 4 tricky questions + a 52-rule cheat sheet.**
+
+### New Guide &mdash; Modern CSS (Front End)
+
+There was no CSS guide at all &mdash; only a Flexbox/Grid cheat sheet. CSS questions have got *harder* as the platform absorbed what we used preprocessors and JavaScript for.
+
+- **The cascade, specificity and inheritance** &mdash; still the single most-asked area. Specificity as a tuple compared column by column, why `!important` isn't specificity, and the `:is()` / `:where()` distinction
+- **Cascade layers** &mdash; the feature that solves what BEM, ITCSS and `!important` were all reaching for, including the surprising rule that unlayered styles beat all layered styles
+- **Nesting and `@scope`** &mdash; donut scope with a lower boundary, and an honest answer to "so what replaced BEM?"
+- **Layout** &mdash; Flexbox vs Grid, `flex: 1` vs `flex: auto`, subgrid, and the `min-width: auto` overflow bug in all four of its costumes
+- **Container queries** &mdash; why they make a component genuinely portable, and the gotchas (you can't query the element you're styling)
+- **`:has()`** and the modern selectors, including `:nth-child(n of S)`
+- **`@property`** &mdash; why untyped custom properties can't animate, and what registering a type unlocks
+- **OKLCH and `color-mix()`** &mdash; why HSL isn't perceptually uniform, and why `color-mix()` beats Sass's `darken()`
+- **Fluid sizing** &mdash; `clamp()` (and the WCAG rule about pure `vw`), the `dvh`/`svh`/`lvh` family, logical properties
+- **Stacking contexts and containing blocks** &mdash; the single most common "why is my CSS doing that?" category, with the ancestor-chain diagnostic
+- **Anchor positioning, `popover`, `<dialog>`** &mdash; deleting a category of JavaScript
+- **View transitions**, motion and `prefers-reduced-motion`, styling architecture in 2026, and performance
+
+**8 interview Q&A + 6 tricky questions + a 64-rule cheat sheet.**
+
+### New Guide &mdash; Accessibility (Front End)
+
+Accessibility stopped being optional in June 2025, when the **European Accessibility Act** became enforceable. It's now a standard part of frontend interviews.
+
+- **The legal landscape** &mdash; EAA, ADA Titles II & III, EN 301 549, and why accessibility overlays lose in court
+- **POUR and the WCAG structure**, plus the criterion numbers that come up by number in audits
+- **WCAG 2.2** &mdash; all nine new criteria with levels, and the three that change how you build: target size (24&times;24), dragging movements, and accessible authentication &mdash; **blocking paste in an OTP field is a failure**
+- **Semantic HTML first** &mdash; and the five rules of ARIA, with the naming priority order and why a broken `aria-labelledby` yields an *empty* name rather than falling through
+- **Keyboard and focus** &mdash; roving tabindex for composite widgets, `:focus-visible`, and a table of where focus should go on every state change
+- **The accessibility tree** &mdash; what actually removes an element from it, and the `.sr-only` implementation that works
+- **Forms, colour and contrast, live regions** &mdash; including the rule that makes live regions work at all (the empty region must exist *before* you write to it)
+- **Component patterns** &mdash; modal, tabs, accordion, combobox, toast, table, and the `role="menu"` distinction interviewers love
+- **Accessibility in React** and **testing** &mdash; with the number that matters: automated tools catch only ~30&ndash;40%
+
+**8 interview Q&A + 5 tricky questions + a 65-rule cheat sheet.**
+
+### New Guide &mdash; Web Security (Back End)
+
+- **A threat model** &mdash; almost every web vulnerability is confused *identity*, confused *data/code*, or confused *trust*, and the defence follows from which
+- **XSS** &mdash; the three types (and why DOM-based defeats server-side defences), contextual output encoding, the `javascript:` URL bug React doesn't catch, and why you sanitise on output with DOMPurify rather than a regex
+- **CSP and Trusted Types** &mdash; why host allowlists are obsolete, the nonce + `strict-dynamic` policy, deploying in report-only, and why Trusted Types is the *structural* fix for DOM XSS
+- **CSRF** &mdash; why `SameSite` is necessary but not sufficient, and the honest answer about token-based APIs
+- **Tokens and sessions** &mdash; the storage question answered by refusing the premise, the BFF pattern, the `__Host-` cookie prefix, refresh rotation with reuse detection, and IDOR
+- **Supply chain** &mdash; the attack shapes, and the controls that actually contain them (`--ignore-scripts`, provenance, separated CI privileges)
+- **Injection beyond XSS** &mdash; SQL, NoSQL, command, SSRF, path traversal, prototype pollution, ReDoS, open redirect, mass assignment
+- **Secrets, authentication hardening**, and a full security-headers reference
+
+**8 interview Q&A + 4 tricky questions + a 58-rule cheat sheet.**
+
+### New Guide &mdash; SQL & Relational Databases (Back End)
+
+The biggest remaining gap: the Database Schema guide was mostly MongoDB, so there was no coverage of joins, indexes, query plans, transactions or isolation &mdash; the things asked in nearly every backend and full-stack loop.
+
+- **Query semantics** &mdash; the logical order of evaluation (which explains most SQL confusion), `WHERE` vs `HAVING`, and why `NULL` is *unknown* rather than a value
+- **JOINs** &mdash; including the two most common bugs in production SQL: a `LEFT JOIN` silently becoming an `INNER JOIN` when you filter a right-hand column in `WHERE`, and **row multiplication** when two one-to-many joins hit the same parent and quietly break every aggregate
+- **Window functions** &mdash; the highest-value SQL feature most candidates don't know exists, with the canonical "latest row per group" solution
+- **Indexes** &mdash; the B-tree model, the **leftmost-prefix rule** (an index on `(a,b,c)` cannot serve `WHERE b = 2`), covering indexes and index-only scans, partial and expression indexes, and the **non-sargable predicates** that silently defeat an index
+- **Reading a query plan** &mdash; `EXPLAIN (ANALYZE, BUFFERS)`, and the single most useful diagnostic: comparing *estimated* to *actual* rows, because a bad estimate is the root cause and the plan shape is only the symptom
+- **Transactions and isolation** &mdash; all four anomalies, why the defaults differ between Postgres and MySQL, and **write skew** explained properly (two transactions read a set, decide independently, write different rows, and break an invariant neither would have broken alone)
+- **Locking and deadlocks** &mdash; the consistent-lock-ordering fix, and why deadlocks are retryable
+- **The N+1 problem** &mdash; why it never shows up in a slow-query log, three fixes, and the query-count budget assertion that prevents it permanently
+- **Migrations and scaling** &mdash; expand/contract for zero-downtime schema changes, and the scaling order most teams get backwards
+
+**8 interview Q&A + 4 tricky questions + a 63-rule cheat sheet.**
+
+### New Guide &mdash; Docker, Kubernetes & CI/CD (Back End)
+
+`Dockerfile` previously had **zero** mentions anywhere in the library.
+
+- **Container fundamentals** &mdash; namespaces, cgroups and union filesystems; why isolation is weaker than a VM; and the two facts that drive every Dockerfile optimisation (layers are cached, and layers are **additive** so deleting a file doesn't shrink the image)
+- **Writing a Dockerfile** &mdash; the canonical multi-stage Node build with every line justified, the frontend/nginx variant, and **signals and PID 1** (shell-form `CMD` means your process never receives `SIGTERM`, so every deploy drops in-flight requests)
+- **Image size and security** &mdash; base image trade-offs including the Alpine/musl caveat, distroless, `.dockerignore`, and BuildKit secret mounts
+- **Compose** &mdash; and the three details that are the actual interview content, including why `depends_on` alone doesn't wait for readiness
+- **Kubernetes** &mdash; declarative reconciliation as the organising idea, the object model, and how traffic actually finds a pod
+- **The three probes** &mdash; readiness answers "route to me?", liveness answers "restart me?" &mdash; and the classic mistake of checking a dependency in the liveness probe, which turns a 20-second database blip into a ten-minute self-inflicted outage
+- **Requests vs limits** &mdash; and why CPU throttles while memory gets OOMKilled
+- **CI/CD** &mdash; build once and promote the same artefact, a real GitHub Actions workflow with the details that are usually missing (OIDC instead of stored keys, pinned actions, explicit permissions), and why speed is a correctness feature
+- **Deployment strategies** &mdash; rolling, blue-green, canary; feature flags decoupling deploy from release; and why the database is always the real constraint
+- **When *not* to use Kubernetes**
+
+**8 interview Q&A + 3 tricky questions + a 58-rule cheat sheet.**
+
+### New Guide &mdash; Web Performance & Core Web Vitals (Front End)
+
+- **The metrics** &mdash; LCP, INP and CLS with their thresholds, why **INP replaced FID** in 2024, and the diagnostic metrics that tell you *where* the problem is
+- **Decomposition** &mdash; the single most useful skill here: LCP splits into TTFB + load delay + load time + render delay, and INP splits into input delay + processing + presentation. Each part has a completely different fix, and teams routinely compress an image when their problem was a slow server
+- **Lab vs field** &mdash; field data tells you *what* to fix, lab data helps you *fix* it; why Lighthouse structurally cannot measure INP; and how to set up RUM that's actually useful (attribution, segmentation, percentiles)
+- **The loading pipeline** &mdash; what blocks parsing versus what blocks rendering, and the **preload scanner** (which explains why a CSS background image or a JS-inserted hero is a bad LCP element)
+- **Resource hints** &mdash; and how each one backfires when misused
+- **Images and fonts** &mdash; the two biggest wins, including why `font-display: swap` fixes one problem and causes another
+- **JavaScript** &mdash; why you pay for it three times, third-party scripts as usually the biggest cost, and the cost of hydration
+- **INP and the main thread**, **layout stability**, and **budgets in CI** that survive contact with a real team
+
+**8 interview Q&A + 4 tricky questions + a 57-rule cheat sheet.**
+
+### New Guide &mdash; Testing Strategy & E2E (Front End)
+
+The Jest & RTL guide covers *how* to write a test. This covers everything after that.
+
+- **The shape of a suite** &mdash; pyramid vs trophy, what they actually agree on, and the ice-cream-cone anti-pattern
+- **What to test at each level** &mdash; with the heuristic that settles most arguments: test at the lowest level that can catch the bug
+- **Vitest vs Jest**, and why jsdom is not a browser
+- **Mocking** &mdash; mock at the **network boundary**, not at your own module boundaries, and why mocking your own modules tests your code against your assumptions about your own code
+- **Playwright** &mdash; auto-waiting and web-first assertions, locator priority (which doubles as an accessibility smoke test), `storageState` for auth, network stubbing, and the trace viewer
+- **Flake** &mdash; treated as the real enemy, because a flaky test trains the team to ignore red. The full cause/fix table and a quarantine policy that works
+- **Visual regression, accessibility testing and contract testing** &mdash; including the gap that causes "all tests green, production broken"
+- **Coverage** &mdash; why 100% is the wrong goal, and what to measure instead
+
+**7 interview Q&A + 3 tricky questions + a 51-rule cheat sheet.**
+
+### New Guide &mdash; Low-Level Design & OOD (System Design)
+
+The "design a parking lot" round, which has no LeetCode equivalent and rewards a method rather than a memorised answer.
+
+- **What's actually being tested** &mdash; and the key insight: **the mid-interview requirement change is the exam.** A design where "now support electric vehicles" means adding a class passes; one where it means editing five `if` chains does not
+- **The method** &mdash; clarify (the highest-value two minutes) &rarr; find the nouns &rarr; assign responsibilities &rarr; define interfaces at the axes of variation &rarr; sketch &rarr; walk a scenario and attack your own design
+- **SOLID, usefully** &mdash; what each principle actually buys you, with the smell that identifies each violation
+- **Composition over inheritance**, including the Liskov test and why most LSP violations are really mutability problems
+- **Four worked designs**: **parking lot** (with a table showing how each requirement change becomes "add a class"), **rate limiter** (all five algorithms compared, and why token bucket usually wins), **elevator** (the SCAN algorithm and two-sorted-sets model), **vending machine** (the State pattern making illegal transitions inexpressible)
+- **Concurrency in LLD** &mdash; including the JavaScript-specific point that races live across `await` boundaries rather than between threads
+- **The eleven common mistakes**
+
+**5 interview Q&A + 3 tricky questions + a 44-rule cheat sheet.**
+
+### AI & LLM Engineering &mdash; MCP, Frameworks and Multi-Agent
+
+Major expansion of the guide added last release.
+
+- **MCP (Model Context Protocol)** &mdash; the N&times;M problem it solves, the three primitives and *who decides to use them* (tools = the model, resources = the host, prompts = the user), both transports, the 2026-07-28 spec's move to a **stateless** core and why that matters operationally, a minimal server, the security story (tool poisoning, the confused deputy), and when MCP is over-engineering
+- **Multi-agent patterns** &mdash; opening with the counter-evidence, because it's the strongest thing you can say: a single agent matches or beats multi-agent on ~64% of benchmarked tasks. Then the six topologies compared, why orchestrator-worker is the default, and what actually breaks (context loss compounding at every handoff)
+- **Frameworks** &mdash; LangChain and LangGraph are not competitors (`create_agent` runs *on* the LangGraph runtime), "LangChain for linear, LangGraph for cyclic", what LangGraph actually buys you (durable execution, HITL interrupts, typed state, time-travel replay), and when the provider SDK is the right answer
+- **Beyond naive RAG** &mdash; query rewriting and decomposition, contextual retrieval, agentic RAG, GraphRAG, multimodal &mdash; each framed as fixing a *specific* failure, with an ordered list of what to try first
+
+**4 more interview Q&A + 2 more tricky questions**, and the cheat sheet grew to 50 rules.
+
+### React Guide &mdash; React 19.2 and the Compiler, Brought Current
+
+The React 19 section stopped at `useOptimistic` and described the compiler in a single sentence. It now covers what actually shipped.
+
+- **`<Activity />`** &mdash; the boundary that **preserves state while destroying effects**, which is the combination neither conditional rendering (loses state) nor `display: none` (keeps timers and subscriptions running) could express. Includes the comparison table, the pre-rendering use case, and the traps: a hidden activity still re-renders on new props at low priority, hiding uses `display: none`, and effect cleanup becomes load-bearing rather than good practice
+- **`useEffectEvent`** &mdash; the fix for "I need the latest value but don't want the effect to re-run". Walks the chat-room example, explains why `useCallback` gives stability *or* freshness but never both, and covers the restriction that effect events may only be called from inside effects
+- **React Compiler 1.0** &mdash; rewritten from a stub. How the HIR and data-flow analysis produce finer-grained memoization than hand-written `useMemo`, the purity and immutability rules it depends on, and the critical failure mode: it **bails out silently** on components that violate the rules, so adoption is a linting project first
+- **React 19.2's rendering changes** &mdash; Partial Pre-rendering (`prerender` + `resume`), batched Suspense reveals in SSR, `cacheSignal`, Performance Tracks in Chrome DevTools, the `useId` prefix change
+- **Where React actually is** &mdash; a status table, including the correction that `<ViewTransition>` and Fragment Refs are **still Canary-only** despite a great deal of 2026 writing treating them as shipped
+
+**4 new interview Q&A + 4 new tricky questions** (React tricky total: 22 &rarr; 26).
+
+### React Guide &mdash; The Fundamentals Checklist
+
+Filled the gaps against a comprehensive React interview question list. New sections: **Higher-Order Components**, **Presentational vs Container** (including why the original prescription was walked back), **Flux and one-way data flow** (why it matters, not just the diagram), **Portals** (what follows the React tree vs the DOM tree), **Fragments and Node vs Element vs Component**, **StrictMode**, **internationalisation**, and **event delegation and the synthetic event system**.
+
+Plus a **Rapid-Fire Fundamentals** round of **12 new Q&A**: Node vs Element vs Component, why never to mutate state, Context pitfalls and reducing Context re-renders, resetting state with `key`, hydration mismatches, testing strategy, data-fetching pitfalls, `forwardRef` in React 19, `useReducer` vs `useState`, `useId`, what re-rendering actually means, and how to debug a React app.
+
+### TypeScript Guide &mdash; The Go Compiler, and Inference Control
+
+- **TypeScript 6.0 and 7.0** &mdash; the compiler was rewritten in Go and shipped stable on 8 July 2026, 8&ndash;12&times; faster. Covers why Go (native speed, real structs, shared-memory parallelism that Node's worker model cannot do), the two-track release plan, and the upgrade caveat that matters: the programmatic API is not stable in 7.0, so Vue/Svelte/Astro/MDX tooling stays on 6.0
+- **Modern compiler flags** &mdash; `erasableSyntaxOnly`, `verbatimModuleSyntax`, `isolatedDeclarations`, `noUncheckedIndexedAccess`, `module: preserve`, with the reasoning behind each rather than a list
+- **Controlling inference** &mdash; `const` type parameters (and how they differ from `as const` and `satisfies`), `NoInfer<T>`, and inferred type predicates with the trap that an explicit `: boolean` return type silently defeats the narrowing
+
+**4 new interview Q&A + 3 new tricky questions** (TypeScript tricky total: 16 &rarr; 19).
+
+### JavaScript Guide &mdash; ES2024, ES2025, ES2026
+
+Section 9 stopped at ES2023. It is now "ES6+ and Modern JavaScript" and runs through ES2026, with a table showing which edition shipped what so you can tell what needs a polyfill.
+
+- **Temporal** &mdash; the `Date` replacement, with the full type table and the point interviewers actually test: picking the right type encodes a business decision. A hotel check-in is a `PlainDate`; a meeting is a `ZonedDateTime`; a recurring 9 a.m. standup is a `PlainTime` and storing it as a UTC instant is the bug that makes it drift twice a year
+- **Explicit resource management** &mdash; `using` and `await using`, reverse disposal order, `DisposableStack`
+- **Iterator helpers** &mdash; lazy `map`/`filter`/`take` on any iterator, why they beat array chains on large data, and the single-use gotcha
+- **Grouping and Set methods** &mdash; `Object.groupBy` vs `Map.groupBy` (key stringification, `null` prototype), and the seven new `Set` methods
+- **Smaller additions** &mdash; `Promise.withResolvers`, `Array.fromAsync`, `Promise.try`, `Error.isError`, `RegExp.escape`, `Object.hasOwn`, class static blocks, private brand checks, import attributes
+
+**4 new interview Q&A + 5 new tricky questions** (JavaScript tricky total: 11 &rarr; 16).
+
+### JavaScript Guide &mdash; Async Patterns and Global Error Handling
+
+Filled the gaps against a "20 JavaScript questions for frontend developers" list. New sections:
+
+- **Mixing `async`/`await` with `.then()`/`.catch()`** &mdash; the forgotten `await` that escapes your `try`/`catch`, why `.catch()` returning a value turns a rejection into a silently-wrong resolution, where `.then()` is genuinely better, and the `return await` vs `return` distinction inside a `try`
+- **Top-level `await`** &mdash; how it makes a module an *async module*, the three genuinely useful patterns, and why `require()` of such a module throws even on Node 24
+- **Retrying, cancelling and bounding async work** &mdash; exponential back-off with **jitter** (and why jitter isn't optional), `AbortController` and `AbortSignal.timeout`, and a bounded-concurrency pool
+- **Global error handling** &mdash; "error boundaries" outside React: the four browser hooks, why `error` and `unhandledrejection` are separate events, why resource-load failures need the capture phase, why cross-origin scripts give you a useless `"Script error."`, and how this relates to React error boundaries
+- **Testing async code without a framework** &mdash; `node:test` and `assert.rejects`, plus the techniques that make async tests reliable
+
+### Node.js Guide &mdash; Node 24 LTS and Node 26
+
+- **A release table** for Node 22 / 24 / 26 with what each one changed, plus the note that Node 26 is the last release on the six-month schedule before annual releases begin
+- **`require(esm)`** &mdash; the dual-package nightmare is over, with the two limits: it fails on top-level `await`, and the default export arrives on `.default`
+- **Running TypeScript with no build step** &mdash; `node app.ts`, and the crucial point that it **strips types without checking them**, so `tsc --noEmit` is still mandatory and only erasable syntax is allowed
+- **Built-ins that removed dependencies** &mdash; `node:sqlite`, the global `WebSocket` client (client only, not a server), `node --run`, the permission model as a supply-chain answer, and `Temporal` as a global in Node 26
+
+**2 new interview Q&A + 2 new tricky questions** (Node tricky total: 12 &rarr; 14).
+
+### Frontend Tooling Guide &mdash; The 2026 Toolchain
+
+A new section on where the toolchain landed, because 2025&ndash;26 was the year every layer got a native rewrite and then started consolidating.
+
+- **Vite 8 and Rolldown** &mdash; Vite used to run esbuild in dev and Rollup in production, which meant two module graphs and the "works in dev, breaks in build" bug class. Vite 8 ships Rolldown as the single bundler for both, 10&ndash;30&times; faster, and unlocks full bundle mode in dev, persistent caching and Module Federation
+- **Turbopack** &mdash; Next.js 16 removed webpack as the default, and why both ecosystems reached the same conclusion independently
+- **Linting** &mdash; ESLint 10 removed `eslintrc` entirely, plus an honest comparison of ESLint + typescript-eslint vs oxlint vs Biome, including which job each one is actually built for
+- **What to actually pick** &mdash; a decision list, and the framing that matters more than the versions
+
+**3 new interview Q&A.**
+
+### Behavioral Guide &mdash; The AI-Assisted Interview
+
+The biggest change to technical hiring in a decade, and it is a behavioural change as much as a technical one. New section covering:
+
+- **What changed and why** &mdash; and a table of what Google, Meta, Canva and Anthropic actually do, including that several now grade "AI fluency, prompt engineering and output validation" explicitly
+- **What is being graded** &mdash; direction versus passive acceptance, verification (the highest-weighted signal at most companies), requirement clarification, and communicating while your attention is split between the model and the interviewer
+- **A practical playbook** &mdash; clarify before prompting, state which parts you'll delegate and why, prompt like a specification rather than a question, verify actively, push back when the model is wrong, keep narrating
+- **Anti-patterns that fail the round** &mdash; paste-and-pray, not reading the generated code, delegating the design decisions, going silent, and assuming AI is allowed without checking
+- **Behavioural questions about AI use** &mdash; model answers for "how do you use AI?", "tell me about a time it led you astray", "how do you review AI-generated code?", "how do juniors still learn?", "has it changed your estimates?"
+- **What got harder** &mdash; when everyone's code compiles, differentiation moves to architecture, debugging, code review and communication, which changes what's worth practising
+
+**3 new interview Q&A.**
+
+### Rewritten Introduction
+
+The home page now opens with **"The 20 Topics That Actually Come Up"** &mdash; a prioritised roadmap across JavaScript core, React mastery, performance and essential concepts, each linking to where it's covered. Followed by a full, current map of every guide grouped by theme, the interactive tools, and three study plans depending on whether you're interviewing in a week, a month, or just levelling up.
+
+### Totals
+
+**53 guides** across 8 categories. **30 guides** now have "Guess the Output" tricky-question sections, **261 questions** in total &mdash; up 65 this release.
+
+---
+
+---
+
 ## v1.0.9 (May 2026)
+
+### Single Number II &mdash; the XOR Follow-up
+
+Added a new Medium challenge that complements **Single Number** (75 &rarr; **76** JS challenges). When every element appears THREE times except one, the classic XOR trick breaks &mdash; XOR is addition mod 2 per bit, so triples leave bits set just like singletons. The fix is **bit-counting mod 3**: for each of the 32 bit positions, count how many numbers have that bit set, take mod 3, reassemble. Two approaches shown: the clear-to-explain 32-pass version and the elegant two-bit state-machine (`ones = (ones ^ x) & ~twos`; `twos = (twos ^ x) & ~ones`) that does it in a single pass.
+
+The original Single Number explanation now also flags this constraint up front &mdash; XOR works ONLY for "exactly twice", and the moment the problem shifts to triples (or any K), you need bit-counting mod K.
+
+### New Theory Guides &mdash; OAuth & SSO, Microservices, Frontend System Design
+
+Three substantial new guides fill long-requested theory gaps. **Total guides: 39 &rarr; 42.**
+
+**OAuth & SSO (Back End)** &mdash; a comprehensive walkthrough of OAuth 2.0, OpenID Connect, SSO, and SAML. Covers all four grant types (Authorization Code, Client Credentials, Implicit-deprecated, ROPC-deprecated), PKCE for mobile/SPA, JWT anatomy and validation, refresh token rotation with theft detection, browser token storage strategies (the BFF pattern recommendation), logout complexity across federated apps, security pitfalls, and Node + SPA implementation recipes using `openid-client` and `msal.js`. **12 interview Q&A + 8 tricky scenario Qs.**
+
+**Microservices (Back End)** &mdash; engineering view of microservices, not the marketing one. Covers when to choose them and when NOT to, the "modular monolith" middle path, service-boundary design (bounded contexts, data ownership), sync vs async communication, API gateway and BFF patterns, service discovery (DNS / client-side / mesh), distributed transactions and the saga pattern (choreography vs orchestration), the outbox pattern for at-least-once event publishing, resilience patterns (circuit breakers, retries with jitter, timeouts), observability (logs, metrics, traces with OpenTelemetry), auth across services, deployment strategies (blue-green, canary, feature flags), the distributed-monolith anti-pattern, and a realistic incremental migration playbook. **12 interview Q&A + 8 tricky scenario Qs.**
+
+**Frontend System Design (System Design)** &mdash; the question style you get in Senior/Staff frontend interviews. Starts with the framework: how to clarify, the architecture pieces, state-management trade-offs (server vs client vs URL state), data fetching, real-time transports, performance/caching, accessibility. Then applies it to seven canonical designs:
+- **Netflix** &mdash; video player with adaptive bitrate streaming (HLS/DASH), DRM, hover previews, row virtualization
+- **Twitter/Facebook Feed** &mdash; virtualized infinite scroll, cursor pagination, optimistic UI, "3 new tweets" pill
+- **Zoom/Google Meet** &mdash; WebRTC with SFU vs mesh topology, simulcast, bandwidth adaptation, echo cancellation
+- **WhatsApp-style Chat** &mdash; WebSocket + IndexedDB local-first, offline outbox, read receipts, push notifications
+- **Streaming Under Poor Network** &mdash; the ABR algorithm explained, buffer management, Network Information API, audio-first fallback
+- **Reusable Tabs Component (HLD)** &mdash; compound components, ARIA, keyboard nav, controlled/uncontrolled, lazy panels
+
+**8 interview Q&A + 8 tricky scenario Qs** covering server-state-vs-Redux, GraphQL pitfalls, SSR migration, real-time presence at scale.
+
+### Polyfills &mdash; Detailed Line-by-Line Walkthroughs
+
+Every polyfill's Explain modal now walks through the implementation **one line at a time**, with deeper annotations on the canonical ones (`Array.map`, `Array.filter`, `Array.reduce`, `Function.bind`, `Promise.all`). Each explanation now opens with a generalized "how to write a polyfill" mental model &mdash; the four parts (validate inputs, walk the data, apply the callback with canonical signature, return the right shape) &mdash; so the technique transfers to any built-in. Line annotations point out the subtle correctness details: the sparse-array `i in this` check, why `new Array(n)` is faster than `push`, the `arguments.length < 2` detection in reduce, the Promise.all closure-index trick that preserves order despite async ordering.
+
+### 14 More String + Array Challenges + Easy-First Default Sort
+
+The playground gained 14 new JS Coding Challenges (50 &rarr; **64**). The set covers common gaps in string parsing, in-place array tricks, bit manipulation, and one classic binary-search variant:
+
+**Mirrors of existing challenges:**
+- **Rotate Array Left** &mdash; same three-reversal trick as Rotate Array (right) with the order flipped
+- **Reverse Words in a String** &mdash; uses the reverse pattern twice (whole string then each word)
+
+**Strings:**
+- **Longest Common Prefix** &mdash; vertical scan
+- **Longest Palindromic Substring** &mdash; expand around center
+- **Reverse Vowels of a String** &mdash; two-pointer
+- **String to Integer (atoi)** &mdash; whitespace, sign, INT32 overflow clamping
+- **Letter Combinations of Phone Number** &mdash; backtracking
+
+**Arrays:**
+- **Single Number** &mdash; XOR identity
+- **Majority Element** &mdash; Boyer&ndash;Moore voting
+- **Product of Array Except Self** &mdash; two-pass left/right product trick, no division
+- **Plus One** &mdash; digit-array carry walk
+- **Subarray Sum Equals K** &mdash; prefix sum + hash map
+- **Search in Rotated Sorted Array** &mdash; binary search where one half is always sorted
+- **Spiral Matrix** &mdash; four-boundary directional traversal
+
+**Default sort is now Easy &rarr; Medium &rarr; Hard.** When "All" difficulty is selected, the cards order themselves by difficulty within each category so you start with the warmups and ramp up. Other filter selections preserve insertion order.
 
 ### Coding Challenges Now Tagged by Algorithmic Pattern
 

@@ -1,99 +1,122 @@
-# 📚 Interview Preparation Repository
+# 📚 PrepHub — Interview Preparation
 
-A comprehensive collection of guides covering essential topics for full-stack developer interviews. This repository is organized into focused sections to help you prepare for technical interviews across different domains.
+A comprehensive collection of guides covering everything a full-stack developer gets asked in interviews — from JavaScript fundamentals to frontend architecture, accessibility, security and AI engineering.
 
-## 🚀 Repository Structure
-
-This repository is organized into the following categories:
-
-### 📂 Back End
-
-Core backend technologies and concepts for server-side development:
-
-- **[Node.js Guide](Back%20End/nodejs-guide.md)** - Complete guide covering Node.js fundamentals, architecture, modules, streams, and best practices
-- **[Express.js Guide](Back%20End/expressjs-guide.md)** - Web framework essentials, middleware, routing, and API development
-- **[MongoDB Guide](Back%20End/mongodb-guide.md)** - NoSQL database concepts, queries, indexing, and data modeling
-- **[AWS Lambda Guide](Back%20End/aws-lambda-guide.md)** - Serverless computing, function lifecycle, and deployment strategies
-- **[API Design Guide](Back%20End/api-design-guide.md)** - RESTful API principles, design patterns, and best practices
-- **[Database Schema Guide](Back%20End/database-schema-guide.md)** - Database design patterns, normalization, and schema optimization
-
-### 🎨 Front End
-
-Modern frontend development technologies and frameworks:
-
-- **[React Guide](Front%20End/react-guide.md)** - Comprehensive React concepts including hooks, lifecycle, performance optimization, and React 19 features
-- **[Redux Toolkit Guide](Front%20End/redux-toolkit-guide.md)** - State management with Redux Toolkit, slices, and modern patterns
-- **[Redux Saga Guide](Front%20End/redux-saga-guide.md)** - Side effect management and asynchronous flow control
-- **[TanStack Query Guide](Front%20End/tanstack-query-guide.md)** - Data fetching, caching, and synchronization strategies
-- **[Storybook Guide](Front%20End/storybook-guide.md)** - Component development environment and documentation
-- **[AWS Frontend Deployment Guide](Front%20End/aws-frontend-deployment-guide.md)** - Deployment strategies using AWS services
-
-### 💻 JavaScript and TypeScript
-
-Core language fundamentals and advanced concepts:
-
-- **[JavaScript Guide](Javascript%20and%20Typescript/javascript-guide.md)** - ES6+, closures, prototypes, async programming, and modern JavaScript features
-- **[TypeScript Guide](Javascript%20and%20Typescript/typescript-guide.md)** - Type system, generics, decorators, and advanced TypeScript patterns
-
-### 🏗️ System Design
-
-Scalable architecture and distributed systems concepts:
-
-- **[System Design Guide](System%20Design/system-design-guide.md)** - Comprehensive coverage of scalability, load balancing, caching, microservices, and system architecture patterns
-
-## 🎯 What You'll Find
-
-Each guide includes:
-
-- **📖 Fundamental Concepts** - Core principles and theoretical foundations
-- **🛠️ Practical Examples** - Real-world code samples and implementations
-- **🔧 Best Practices** - Industry-standard approaches and patterns
-- **❓ Interview Questions** - Common interview questions with detailed answers
-- **📋 Quick Reference** - Key points for last-minute review
-
-## 🚦 Getting Started
-
-1. **Choose your focus area** - Select the technology or concept you want to study
-2. **Follow the table of contents** - Each guide has a detailed outline for structured learning
-3. **Practice with examples** - Work through the code samples and exercises
-4. **Test your knowledge** - Review the interview questions at the end of each section
-
-## 📖 How to Use This Repository
-
-### For Interview Preparation
-
-- Start with the fundamentals in each technology area
-- Focus on the "Interview Questions & Answers" sections
-- Practice implementing the code examples
-- Use the quick reference sections for last-minute review
-
-### For Learning New Technologies
-
-- Begin with the overview and core concepts
-- Work through examples progressively
-- Pay attention to best practices sections
-- Reference related guides for full-stack understanding
-
-### For Reference
-
-- Use the table of contents to quickly find specific topics
-- Bookmark frequently referenced sections
-- Keep guides open during coding sessions for quick lookups
-
-## 🤝 Contributing
-
-This is a personal interview preparation repository. If you find errors or have suggestions for improvements, feel free to:
-
-- Create an issue for discussion
-- Submit a pull request with improvements
-- Share additional resources or examples
-
-## 📄 License
-
-This repository is for educational and interview preparation purposes. All content is organized for learning and reference.
+**53 guides across 8 categories, plus 7 cheat sheets and an interactive Code Playground.**
 
 ---
 
-**Happy Learning! 🚀**
+## 🎯 Start Here — The 20 Topics That Actually Come Up
 
-_Last updated: March 2026_
+If you have limited time, this is the list. These twenty topics account for the overwhelming majority of questions in a typical frontend or full-stack loop. Everything else in this collection is depth on top of them.
+
+### JavaScript Core
+
+| # | Topic | Where |
+|---|---|---|
+| 1 | **Closures & Scope** | [JavaScript Guide §5](/javascript/guide) |
+| 2 | **The Event Loop & Async** | [JavaScript Guide §11](/javascript/guide) |
+| 3 | **Promises & async/await** | [JavaScript Guide §8](/javascript/guide) |
+| 4 | **Hoisting & `this`** | [JavaScript Guide §3–4](/javascript/guide) |
+| 5 | **Prototypes & Inheritance** | [JavaScript Guide §6](/javascript/guide) |
+
+### React Mastery
+
+| # | Topic | Where |
+|---|---|---|
+| 6 | **`useState` & `useEffect`** (and when *not* to use an effect) | [React Guide §6–7](/frontend/react) |
+| 7 | **Context API — and its re-render pitfalls** | [React Guide §11](/frontend/react) |
+| 8 | **Custom Hooks** | [React Guide §6.3](/frontend/react) |
+| 9 | **Component Lifecycle & Reconciliation** | [React Guide §14](/frontend/react) |
+| 10 | **State Management** (Redux Toolkit / Zustand / server state) | [React Guide §11.3](/frontend/react) |
+
+### Performance & Optimization
+
+| # | Topic | Where |
+|---|---|---|
+| 11 | **Code Splitting & Lazy Loading** | [React Guide §13.3](/frontend/react) |
+| 12 | **Memoization** (`useMemo`, `useCallback`, React Compiler) | [React Guide §13.2, §16.1](/frontend/react) |
+| 13 | **Virtual DOM & Reconciliation** | [React Guide §14](/frontend/react) |
+| 14 | **Bundle Optimization** | [Frontend Tooling](/frontend/tooling) |
+| 15 | **Core Web Vitals** (LCP, **INP**, CLS) | [React Guide §13.6](/frontend/react) |
+
+### Essential Concepts
+
+| # | Topic | Where |
+|---|---|---|
+| 16 | **Event Delegation & Bubbling** | [React Guide §15.11](/frontend/react) |
+| 17 | **Debouncing & Throttling** | [Playground — implement both from scratch](/playground) |
+| 18 | **Error Boundaries & Error Handling** | [React Guide §17 Q18](/frontend/react) |
+| 19 | **Browser Storage** (localStorage, sessionStorage, IndexedDB) | [Browser APIs Guide](/frontend/browser-apis) |
+| 20 | **REST APIs & HTTP Methods** | [API Design Guide](/backend/api-design) |
+
+> **A note on how these are tested in 2026.** Because AI assistants can produce standard implementations instantly, interviewers have moved past definitions. Expect to be asked *why* rather than *what* — why a closure causes this memory leak, why this `useEffect` runs twice, why this memoization does nothing. The [Tricky Output Questions](/quiz) sections across the guides are built for exactly that, and the [Code Playground](/playground) has 75+ challenges where you implement these from scratch.
+
+---
+
+## 🗂️ What's In Here
+
+### 🎨 Front End (20 guides)
+
+**Core React** — [React Guide](/frontend/react) (hooks, reconciliation and Fiber, performance, React 19/19.2), [React Native & Apps](/frontend/react-native), [Redux Toolkit](/frontend/redux-toolkit), [Redux Saga](/frontend/redux-saga), [TanStack Query](/frontend/tanstack-query)
+
+**Architecture & Platform** — [Frontend Architecture at Scale](/frontend/architecture) (monorepo vs multi-repo, micro-frontends, design systems, caching layers, real-time at scale, debugging the 1%), [Next.js & React Server Components](/frontend/nextjs-rsc) (the RSC model, App Router, the Next 16 caching model, auth defence-in-depth), [Design Patterns](/frontend/design-patterns), [Refactoring & Code Review](/frontend/refactoring-code-review)
+
+**Platform & Standards** — [Modern CSS](/frontend/modern-css) (cascade layers, container queries, `:has()`, `@scope`, OKLCH, anchor positioning, view transitions), [Accessibility](/frontend/accessibility) (WCAG 2.2, ARIA, keyboard and focus, testing), [Browser APIs](/frontend/browser-apis), [Real-Time Web](/frontend/realtime-web) (SSE, WebSockets, WebRTC, streaming)
+
+**Performance & Quality** — [Web Performance](/frontend/web-performance) (Core Web Vitals, the loading pipeline, INP and the main thread, budgets in CI), [Testing Strategy & E2E](/frontend/testing-strategy) (the pyramid vs the trophy, Playwright, flake, contract testing, coverage)
+
+**Tooling & Delivery** — [Frontend Tooling](/frontend/tooling) (Webpack, Vite 8/Rolldown, package managers, the 2026 toolchain), [Jest & React Testing Library](/frontend/jest-react-testing-library), [Storybook](/frontend/storybook), [Play Store Launch](/frontend/play-store-launch)
+
+### 💻 JavaScript & TypeScript (4 guides)
+
+[JavaScript Guide](/javascript/guide) (closures, prototypes, the event loop, ES2026 — Temporal, `using`, iterator helpers), [TypeScript Guide](/javascript/typescript) (generics, conditional and mapped types, the Go-native compiler), [Regex Guide](/javascript/regex), [JS Comparisons](/javascript/comparisons)
+
+### ⚙️ Back End (14 guides)
+
+**Runtime & Frameworks** — [Node.js](/backend/nodejs) (event loop, streams, Node 24/26), [Express.js](/backend/expressjs), [MongoDB](/backend/mongodb)
+
+**API & Data** — [API Design](/backend/api-design), [SQL & Relational DBs](/backend/sql) (joins, indexes, query plans, transactions and isolation, the N+1 problem), [Database Schema](/backend/database-schema), [CORS](/backend/cors)
+
+**Security & Identity** — [Web Security](/backend/web-security) (XSS, CSP, CSRF, token theft, supply chain, injection), [OAuth & SSO](/backend/oauth-sso)
+
+**Architecture & Delivery** — [Microservices](/backend/microservices), [Docker, K8s & CI/CD](/backend/docker-kubernetes) (images and layers, orchestration, pipelines, deployment strategies), [Stripe Integration](/backend/stripe), [AI & LLM Engineering](/backend/ai-llm-engineering) (tokens, streaming, RAG, tool calling, MCP, agents, evals, prompt-injection security)
+
+### ☁️ AWS (7 guides)
+
+[IAM & Security](/aws/iam), [EC2 & Networking](/aws/ec2), [S3 & Storage](/aws/s3), [Lambda](/aws/lambda), [CloudWatch](/aws/cloudwatch), [Frontend Deployment](/aws/frontend-deployment), [AWS Comparisons](/aws/comparisons)
+
+### 🏗️ System Design (4 guides)
+
+[System Design Guide](/system-design/guide), [Frontend System Design](/system-design/frontend) (Netflix, Twitter feed, Zoom, WhatsApp, and more), [Low-Level Design (LLD)](/system-design/low-level-design) (the method, SOLID applied, worked designs: parking lot, rate limiter, elevator, vending machine), [Design Comparisons](/system-design/comparisons)
+
+### 🔀 Git (2), 🧠 DSA (1), 🗣️ Behavioral (1)
+
+[Git Guide](/git/guide) & [Git Comparisons](/git/comparisons) · [DSA Guide](/dsa/guide) (arrays through backtracking, heaps and tries) · [Behavioral Guide](/behavioral/guide) (STAR, company cultures, salary negotiation, and the AI-assisted interview)
+
+---
+
+## 🛠️ Interactive Tools
+
+- **[Code Playground](/playground)** — 120+ templates: JS fundamentals, 31 polyfills written from scratch, 75+ coding challenges tagged by pattern and difficulty, and 20 React machine-coding challenges. Most have a step-by-step **Explain** modal with animated visual walkthroughs.
+- **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
+- **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.
+- **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.
+- **[Cheat Sheets](/cheatsheets)** — React Hooks, JS ES6+, Git commands and workflows, Big-O, CSS Flexbox/Grid, HTTP status codes.
+- **Bookmarks & Checkpoints** — save any heading, or drop a "where I left off" marker on any guide.
+
+---
+
+## 🚦 How To Use This
+
+**Interviewing in a week?** Work the 20 topics above, then do the Tricky Output Questions for your stack. They're the highest-yield thing here because they test the *why*.
+
+**Interviewing in a month?** Read the guides for your stack front to back, do the Playground challenges for the patterns you're weakest on, and use Daily Review to keep it. Add [Frontend System Design](/system-design/frontend) and [Frontend Architecture](/frontend/architecture) if you're going for senior or above.
+
+**Levelling up generally?** Pick the guides on things you use daily but have never read properly — most engineers find [Modern CSS](/frontend/modern-css), [Accessibility](/frontend/accessibility), [Web Security](/backend/web-security) and [SQL](/backend/sql) are the biggest gaps, because they're rarely taught and increasingly asked.
+
+**Every guide has the same shape:** concepts → practical examples → best practices → **Interview Questions & Answers** → **Tricky Output Questions** (guess-the-output with detailed explanations) → a cheat sheet → references.
+
+---
+
+_Content current as of September 2026._

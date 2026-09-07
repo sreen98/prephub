@@ -19,8 +19,9 @@ A comprehensive guide to mastering behavioral interviews. This is not about algo
 11. [Questions to Ask the Interviewer](#11-questions-to-ask-the-interviewer)
 12. [Body Language & Communication Tips](#12-body-language--communication-tips)
 13. [Preparation Checklist](#13-preparation-checklist)
-14. [Interview Questions & Answers](#14-interview-questions--answers)
-15. [References](#15-references)
+14. [The AI-Assisted Interview](#14-the-ai-assisted-interview)
+15. [Interview Questions & Answers](#15-interview-questions--answers)
+16. [References](#16-references)
 
 ---
 
@@ -1057,7 +1058,103 @@ FOLLOW-UP PREP:
 
 ---
 
-## 14. Interview Questions & Answers
+## 14. The AI-Assisted Interview
+
+This is the biggest change to technical hiring in a decade, and it is a *behavioral* change as much as a technical one — which is why it belongs in this guide rather than only in the coding guides.
+
+### 14.1 What Changed and Why
+
+For twenty years the coding interview rested on an assumption: writing a correct implementation of a known problem is hard, so watching someone do it reveals skill. AI assistants broke that assumption. A standard algorithm question is now solved instantly and correctly by any competent model, which means the traditional format stopped measuring anything about the candidate.
+
+Companies responded in two directions. Some doubled down on AI-free environments and shifted the questions toward things models handle poorly — ambiguous requirements, unfamiliar codebases, debugging live systems. Others went the opposite way and made the assistant part of the interview, on the reasoning that if the job involves working with AI all day, the interview should measure exactly that.
+
+The second camp now includes some of the largest employers in the industry:
+
+| Company | Format |
+|---|---|
+| **Google** | Candidates analyse an existing codebase with **Gemini** available. Explicitly graded on "AI fluency, including prompt engineering, output validation, and debugging skills" |
+| **Meta** | Offers a **choice of models** to switch between during the interview — GPT, Claude Sonnet, Claude Haiku, Gemini, Llama. Graded on problem solving, code quality, **verification**, and communication |
+| **Canva** | Expects candidates for backend, frontend and ML roles to use Copilot, Cursor or Claude. Questions were **redesigned** to require "iterative thinking, requirement clarification, and good decision-making" |
+| **Anthropic** | Formalised the **AI-collaborative coding interview** — the rubric grades prompt quality, verification and integration as first-class signals |
+
+The common thread across all four: **the assistant is not the thing being tested — your judgement about the assistant is.**
+
+### 14.2 What Is Actually Being Graded
+
+Four signals recur across every published rubric.
+
+**1. Direction versus passive acceptance.** The failure mode interviewers are explicitly watching for is a candidate who pastes the problem statement in, accepts whatever comes back, and moves on. What scores is decomposing the problem yourself, then using the model on the pieces where it adds leverage. A senior engineer's prompt tends to look like a *specification* — constraints, edge cases, the interface it must fit — rather than a restatement of the question.
+
+**2. Verification.** This is the highest-weighted signal at most companies and the easiest to neglect under time pressure. Generated code that looks right is the default output; the question is whether you check it. Reading it line by line, writing a test that would fail if it were wrong, probing the edge case the model glossed over, checking the error path — that is the work.
+
+**3. Requirement clarification.** Models happily answer under-specified questions by inventing assumptions. A candidate who notices the ambiguity, names it, and either asks the interviewer or states an explicit assumption is doing the thing the model cannot do. This is why Canva redesigned questions specifically to require it.
+
+**4. Communication under divided attention.** You are managing two conversations at once — one with the model and one with the interviewer — and the interviewer's is the one being graded. Narrating your reasoning while you work ("I'm going to ask it for the parsing layer, but I'll write the concurrency control myself because that's where the subtle bugs live") is not optional polish; it is the channel through which the interviewer sees your thinking at all.
+
+### 14.3 A Practical Playbook
+
+Before touching the assistant:
+
+1. **Clarify the requirements out loud.** What are the inputs, the constraints, the failure modes, the scale? Get the ambiguities on the table.
+2. **State your plan.** Decompose the problem and say which parts you will delegate and which you will write yourself, with a reason. This single habit separates strong candidates from average ones, because it demonstrates that the delegation is a decision rather than a default.
+
+While using it:
+
+3. **Prompt like a spec, not like a question.** Include the constraints, the interface, the edge cases you already identified, and the non-functional requirements. "Write a function that…" is weak; "Given this interface, implement X; inputs may be empty or contain duplicates; it must be O(n) and must not mutate the input" is what a specification looks like.
+4. **Read every line before accepting it.** Out loud, if the format allows. You will be asked to defend it.
+5. **Verify actively.** Write the test yourself, especially for the edge case the model didn't mention. Run it. If you can't run it, walk the input through by hand.
+6. **Push back when it's wrong.** Correcting a model's output with a specific reason ("this breaks when the array is empty because…") is one of the strongest signals available, and it only appears if you were reading critically.
+7. **Keep narrating.** Every 30 seconds of silent typing is 30 seconds where the interviewer has no signal.
+
+### 14.4 Anti-Patterns That Fail the Round
+
+- **Paste-and-pray.** Dropping the problem statement in and accepting the first output. Even when the answer is correct, the round produces no evidence you could have found it.
+- **Not reading the generated code.** You will be asked "why does this line do that?" and there is no recovering from not knowing.
+- **Delegating the design decisions.** Asking the model to choose the data structure or the architecture hands over the exact judgement being evaluated.
+- **Going silent.** Losing the interviewer while absorbed in the tool.
+- **Arguing with the model instead of thinking.** Six rounds of reprompting when 90 seconds of reasoning would have found the bug.
+- **Over-trusting confident wrongness.** Models are fluent about APIs that don't exist and edge cases they've mishandled. Fluency is not correctness.
+- **Assuming AI is allowed.** Formats vary by company, by team, and sometimes by round. **Ask in advance.** Turning up expecting Cursor and getting a bare editor, or vice versa, is an avoidable handicap.
+
+### 14.5 Behavioral Questions About AI Use
+
+These now appear in ordinary behavioural rounds, for every level. They are judgement questions, and the trap in all of them is answering at either extreme — "I use it for everything" or "I don't trust it" both read as unconsidered.
+
+**"How do you use AI tools in your workflow?"**
+
+> Answer with a *boundary*, not a volume. Name where it earns its keep — boilerplate, unfamiliar API surface area, test scaffolding, first-draft refactors, exploring an unfamiliar codebase — and name where you don't delegate: architectural decisions, anything touching auth or money, and code in the part of the system you're responsible for understanding deeply. Then give one concrete example of each. The signal is that you have thought about the boundary at all.
+
+**"Tell me about a time AI led you astray."**
+
+> Everyone has one; the ones who claim otherwise weren't paying attention. A good answer is specific — a confidently invented API, a subtly wrong concurrency assumption, a migration that dropped a constraint — and lands on the *process change* it produced: what you now verify before trusting. This is really a question about self-correction, and it is one of the strongest STAR opportunities available in 2026 because it is recent, honest, and technical.
+
+**"How do you review AI-generated code, yours or a teammate's?"**
+
+> The answer interviewers want is that you review it *more* carefully, not less, and that the review targets different things. Generated code is usually syntactically clean and locally plausible, so style review is nearly worthless; what needs checking is whether it matches the actual requirement, whether the error paths and edge cases are real or decorative, whether it duplicates something that already exists in the codebase, and whether its assumptions about the surrounding system hold. Mention that "the tests pass" is weaker evidence when the tests were generated by the same tool from the same misunderstanding.
+
+**"How do you make sure junior engineers still learn if AI writes the code?"**
+
+> A staff-plus question, and increasingly asked of seniors too. Strong answers separate *output* from *understanding*: the code review bar stays the same regardless of who or what wrote it, the author is accountable for explaining every line, and pairing time is spent on the reasoning rather than the typing. Some teams deliberately keep certain work un-delegated for exactly this reason. Say what you'd actually do, not what sounds virtuous.
+
+**"Has AI changed how you estimate work?"**
+
+> Yes, and unevenly — which is the interesting part. Implementation-heavy tasks compress dramatically; work dominated by ambiguity, coordination, review, debugging production issues or migrating a system nobody fully understands barely moves. Teams that scaled all their estimates down uniformly ended up missing dates. Naming that asymmetry demonstrates judgement about where engineering time actually goes.
+
+### 14.6 What Got Harder, Not Easier
+
+The counterintuitive consequence of AI-assisted interviews is that they are often *more* demanding, because the easy signal is gone. When everyone's code compiles and passes the happy-path tests, differentiation moves entirely to:
+
+- **Architectural judgement** — the decisions a model will make for you, badly, if you let it.
+- **Debugging** — reading unfamiliar code and forming a hypothesis, which remains genuinely hard.
+- **Code review** — reading critically at volume is now a core daily skill, not a periodic chore.
+- **Requirement clarification** — the one thing a model structurally cannot do, since it has no access to the stakeholder.
+- **Communication** — explaining a decision, defending a trade-off, disagreeing productively.
+
+Which is a useful reframe for preparation: the highest-leverage practice is no longer grinding implementation problems. It is practising *reading* code, *deciding* between plausible designs, and *explaining* both.
+
+---
+
+## 15. Interview Questions & Answers
 
 These questions are about the behavioral interview process itself — understanding how to approach, structure, and succeed in behavioral interviews.
 
@@ -1127,9 +1224,21 @@ These questions are about the behavioral interview process itself — understand
 
 > Bar raisers (a term from Amazon, but the concept exists at most large companies) are senior interviewers whose job is to maintain a consistent hiring bar across teams. They are typically more rigorous, ask more follow-up questions, and are specifically trained to probe for inconsistencies. To prepare: (1) Have deeper backup stories — bar raisers often ask for a second example if your first one does not fully satisfy them. (2) Be prepared for meta-questions like "why did you choose that example?" (3) Know your stories cold — bar raisers test for inconsistencies between your initial answer and follow-ups. (4) Demonstrate calibrated self-assessment — bar raisers value candidates who can accurately evaluate their own strengths and weaknesses. (5) Do not over-polish — bar raisers are skilled at detecting rehearsed, overly smooth answers that lack authenticity. The best preparation is having real stories you genuinely reflect on, not memorized scripts.
 
+**Q16: I'm told the coding round allows AI assistants. How should I prepare differently?**
+
+> Practise the format, not just the problems — using an assistant well under observation is a skill, and the first time you do it should not be in an interview. Three specific rehearsals. **(1) Narrate while you work.** Record yourself solving a problem with an assistant while talking through every decision. Most people go silent the moment they start prompting, and silence is the single most common way this round is lost. **(2) Prompt like a specification.** Practise stating constraints, interfaces and edge cases in the prompt rather than restating the problem. Compare what you get back — the difference is stark, and interviewers can tell which kind of prompt you write. **(3) Verify deliberately.** Make it a reflex to write the failing test before accepting generated code, especially for the edge case the model didn't mention. Also prepare the meta-answer for "which parts would you delegate and why?", because you will be asked, and a candidate who has a reasoned boundary sounds senior. Finally, **confirm the format in advance** with your recruiter — which tools, which models, whether the internet is available. Turning up expecting Cursor and getting a bare editor is an avoidable handicap.
+
+**Q17: Is it risky to admit in an interview how much I rely on AI tools?**
+
+> Only if you describe reliance without judgement. Interviewers in 2026 are not looking for candidates who avoid AI — most companies expect fluency, and several now grade it explicitly. What reads badly is either extreme: "I use it for everything" suggests you have not noticed where it fails, and "I don't really trust it" suggests you have not learned to use it. The answer that lands describes a **boundary** and the reasoning behind it: heavy use for boilerplate, unfamiliar APIs, test scaffolding and exploring a new codebase; deliberate non-delegation for architecture, security- and money-touching paths, and the parts of the system you are accountable for understanding. Then give one concrete example of each, and one story about a time it was confidently wrong and what you changed as a result. That last piece converts a potential liability into a self-correction story, which is exactly what behavioural rounds reward.
+
+**Q18: How do I answer "how has AI changed your job?" without sounding either dismissive or naive?**
+
+> Answer with a *specific asymmetry* rather than a verdict. The honest observation is that AI compressed implementation time dramatically while barely touching the work that actually dominates a senior engineer's week — clarifying what to build, coordinating across teams, reviewing code, debugging production incidents, and changing systems nobody fully understands. Teams that scaled every estimate down uniformly missed their dates; teams that scaled down only the implementation-heavy work were roughly right. Then name what got *harder*: reading code critically at volume is now a daily core skill, and architectural judgement matters more because a model will happily make those decisions for you, badly, if you don't. Closing on what got harder is what separates this from a talking point — it shows you have lived through the change rather than read about it.
+
 ---
 
-## 15. References
+## 16. References
 
 ### Books
 

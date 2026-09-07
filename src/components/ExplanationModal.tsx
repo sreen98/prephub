@@ -137,7 +137,53 @@ export default function ExplanationModal({ open, explanation, onClose, onLoadTem
 
               {/* Visual + pseudocode side by side */}
               <div className="grid md:grid-cols-[1fr_1.2fr] gap-4 mb-4">
-                {/* Pseudocode */}
+                {/* Pseudocode — single column OR side-by-side comparison */}
+                {approach.pseudocodeCompare && approach.pseudocodeCompare.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-indigo-300 dark:border-indigo-700/60 bg-[#0f1117] overflow-hidden">
+                      <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-indigo-400 border-b border-slate-800">
+                        {approach.pseudocodeLabel ?? 'Primary'} <span className="text-slate-500">· this one</span>
+                      </div>
+                      <pre className="p-2 text-[11px] leading-relaxed font-mono">
+                        {approach.pseudocode.map((line, i) => (
+                          <div
+                            key={i}
+                            className={
+                              'px-1.5 py-0.5 rounded transition-colors ' +
+                              (i === step.pseudoLine
+                                ? 'bg-indigo-500/20 text-indigo-200 border-l-2 border-indigo-400 -ml-0.5'
+                                : 'text-slate-400 border-l-2 border-transparent -ml-0.5')
+                            }
+                          >
+                            {line || ' '}
+                          </div>
+                        ))}
+                      </pre>
+                    </div>
+                    {approach.pseudocodeCompare.map(block => (
+                      <div key={block.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-[#0f1117] overflow-hidden">
+                        <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-slate-500 border-b border-slate-800">
+                          {block.label} <span className="text-slate-600">· compare</span>
+                        </div>
+                        <pre className="p-2 text-[11px] leading-relaxed font-mono">
+                          {block.lines.map((line, i) => (
+                            <div
+                              key={i}
+                              className={
+                                'px-1.5 py-0.5 rounded transition-colors ' +
+                                (i === block.highlightLine
+                                  ? 'bg-amber-500/15 text-amber-200 border-l-2 border-amber-500/60 -ml-0.5'
+                                  : 'text-slate-500 border-l-2 border-transparent -ml-0.5')
+                              }
+                            >
+                              {line || ' '}
+                            </div>
+                          ))}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-[#0f1117] overflow-hidden">
                   <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-slate-500 border-b border-slate-800">Pseudocode</div>
                   <pre className="p-3 text-xs leading-relaxed font-mono">
@@ -156,6 +202,7 @@ export default function ExplanationModal({ open, explanation, onClose, onLoadTem
                     ))}
                   </pre>
                 </div>
+                )}
 
                 {/* Visual */}
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-4 flex flex-col gap-4">
