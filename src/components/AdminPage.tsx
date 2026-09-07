@@ -3,21 +3,29 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { Lock, KeyRound, LogOut } from 'lucide-react';
-import { contentFiles } from '../data';
 
-// Passcode-gated personal section. Renders the markdown at
-// src/content/private/admin-prep.md only after the user enters the
-// correct passcode. Unlock state persists for the session in
-// sessionStorage so re-entry isn't required on tab refreshes.
+// Passcode-gated personal section, available in LOCAL DEVELOPMENT ONLY.
 //
-// Security note: this is a static site, so the passcode and the
-// document content both ship in the JS bundle. This gate keeps the
-// content out of casual browsing — it is NOT a security control.
-// Don't put genuinely sensitive material here.
+// The document lives at `private/admin-prep.md` — outside src/, and gitignored.
+// The deploy workflow builds from `actions/checkout`, so CI never has the file
+// and this glob resolves to an empty object in any published build. The route
+// itself is also dev-gated in App.tsx, so neither the passcode nor the content
+// reaches a production bundle.
+//
+// Why it's arranged this way: this is a static site with no backend, so ANY
+// content reachable by the bundler is served to every visitor in plain text.
+// A passcode cannot gate content — only absence from the build can.
+// Do not move this file back under src/content/.
+
+const privateDocs = import.meta.glob('/private/*.md', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
 
 const PASSCODE = '5713';
 const SESSION_KEY = 'admin-unlocked';
-const PRIVATE_DOC = './content/private/admin-prep.md';
+const PRIVATE_DOC = '/private/admin-prep.md';
 
 export default function AdminPage() {
   const [unlocked, setUnlocked] = useState<boolean>(() =>
@@ -27,7 +35,9 @@ export default function AdminPage() {
   const [error, setError] = useState<string>('');
 
   const content = useMemo(
-    () => contentFiles[PRIVATE_DOC] || '_Document not found._',
+    () =>
+      privateDocs[PRIVATE_DOC] ||
+      '_Not available in this build — `private/admin-prep.md` is untracked and local-only._',
     [],
   );
 

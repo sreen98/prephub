@@ -60,7 +60,13 @@ export interface Heading {
 
 // ==================== Data ====================
 
-export const contentFiles: Record<string, string> = import.meta.glob('./content/**/*.md', { query: '?raw', import: 'default', eager: true });
+// Eagerly bundles every study guide into the JS. NOTE: anything matched here
+// ships to every visitor in plain text — never add private content to it.
+// `private/` lives outside src/ and is gitignored; see AdminPage.tsx.
+export const contentFiles: Record<string, string> = import.meta.glob(
+  ['./content/**/*.md', '!./content/private/**'],
+  { query: '?raw', import: 'default', eager: true },
+);
 
 export const menuStructure: MenuSection[] = [
   { name: 'Introduction', path: '/', file: './content/README.md' },

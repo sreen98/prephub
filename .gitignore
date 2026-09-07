@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ---------------------------------------------------------------------------
+# PRIVATE / PERSONAL — this repo is PUBLIC. Nothing below may be committed.
+# ---------------------------------------------------------------------------
+# Personal interview prep. Untracked on purpose: the Pages workflow builds from
+# `actions/checkout`, so keeping it out of git guarantees it can never reach a
+# production bundle. Loaded dev-only by AdminPage.tsx.
+private/
+

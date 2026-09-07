@@ -39,7 +39,13 @@ const CheckpointsPage    = lazy(() => import('./components/CheckpointsPage'));
 const ReviewPage         = lazy(() => import('./components/ReviewPage'));
 const InterviewSimulator = lazy(() => import('./components/InterviewSimulator'));
 const CheatSheetsIndex   = lazy(() => import('./components/CheatSheetsIndex'));
-const AdminPage          = lazy(() => import('./components/AdminPage'));
+// Local-development only. `import.meta.env.DEV` is a compile-time constant, so
+// this dynamic import is dead-code-eliminated in a production build and the
+// AdminPage chunk is never emitted — which is what keeps `private/` out of
+// dist/ even when the build runs on a machine that has the file. See AdminPage.tsx.
+const AdminPage = (import.meta.env.DEV
+  ? lazy(() => import('./components/AdminPage'))
+  : () => null) as React.ComponentType;
 
 // Loader shown while a lazy route chunk is being fetched.
 // Pulse-skeleton hints at the upcoming page shape so the transition
@@ -1336,18 +1342,21 @@ export default function App() {
             <GithubIcon size={16} />
             <span>View on GitHub</span>
           </a>
-          <Link
-            to="/admin"
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all",
-              location.pathname === '/admin'
-                ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300"
-                : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900"
-            )}
-          >
-            <Lock size={14} />
-            <span>Admin</span>
-          </Link>
+          {/* Local-development only — see AdminPage.tsx. Never ships. */}
+          {import.meta.env.DEV && (
+            <Link
+              to="/admin"
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all",
+                location.pathname === '/admin'
+                  ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300"
+                  : "text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900"
+              )}
+            >
+              <Lock size={14} />
+              <span>Admin</span>
+            </Link>
+          )}
         </div>
       </aside>
 
@@ -1364,7 +1373,7 @@ export default function App() {
             <Route path="/checkpoints" element={<CheckpointsPage />} />
             <Route path="/changelog" element={<ContentPage filePath="./content/changelog.md" />} />
             <Route path="/cheatsheets" element={<CheatSheetsIndex />} />
-            <Route path="/admin" element={<AdminPage />} />
+            {import.meta.env.DEV && <Route path="/admin" element={<AdminPage />} />}
             {cheatSheets.map(cs => (
               <Route key={cs.path} path={cs.path} element={<ContentPage filePath={cs.file} />} />
             ))}
