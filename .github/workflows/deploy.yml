@@ -28,6 +28,12 @@ jobs:
       - name: Prepare content 📝
         run: node scripts/prepare-content.js
 
+      # Fails the deploy if the counts stated in README.md, CLAUDE.md or the
+      # app's Introduction page have drifted from the actual content. Runs
+      # BEFORE the build so a stale claim is caught in seconds, not minutes.
+      - name: Verify content counts 🔢
+        run: npm run verify:counts
+
       - name: Build 🏗️
         run: npm run build
 

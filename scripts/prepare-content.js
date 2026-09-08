@@ -15,9 +15,14 @@ const dirsToCopy = [
 
 async function prepareContent() {
   await fs.ensureDir(webContentDir);
-  
-  // Copy README.md
-  await fs.copy(path.join(rootDir, 'README.md'), path.join(webContentDir, 'README.md'));
+
+  // NOTE: this used to copy the root README.md over src/content/README.md.
+  // That made sense before the repo was flattened, when the root README also
+  // served as the app's Introduction page. It does not any more: the two files
+  // have different jobs (repo README vs. the `/` Introduction), and the copy
+  // silently replaced the Introduction with the repo README in every CI build —
+  // so the deployed `/` page was the repo README, project structure and all.
+  // Do not reinstate it. src/content/README.md is the Introduction; edit it directly.
 
   for (const dir of dirsToCopy) {
     const source = path.join(rootDir, dir);

@@ -760,6 +760,34 @@ Don't lie about your current salary — but you don't have to disclose it either
 
 ---
 
+### 9.9 "Tell me about a time your release broke production."
+
+Frontend-specific and increasingly common, because a bad build breaks the UI for *everyone at once* — there's no gradual failure the way there is with a slow query. Interviewers are checking three things: whether you took ownership, whether you **stopped the bleeding before diagnosing**, and whether the fix was systemic rather than a one-off patch.
+
+**The structure that works — and note the order, because it's the signal:**
+
+> **Situation.** Be specific about the blast radius and how you found out. "We shipped a design-system upgrade on a Thursday afternoon. Within ten minutes support flagged that the checkout button was invisible on Safari — not broken, *invisible*, so it looked like the page had simply failed."
+>
+> **Task.** "I was the release owner. My first job wasn't to understand it, it was to stop it affecting customers."
+>
+> **Action — in the right order.** "I rolled back first and diagnosed second. That's the part I'd emphasise: I had a theory about the cause and I deliberately didn't chase it while customers were affected. Rollback took four minutes because we deploy immutable, content-hashed builds and keep the previous release's assets live. Then I reproduced it on a real Safari — a CSS `@supports` block I'd assumed was universally supported wasn't, so the button inherited a transparent background. I fixed the fallback, added a Playwright WebKit screenshot test for the checkout page, and put it behind a flag for the re-release."
+>
+> **Result.** "About twelve minutes of degraded checkout. No lost orders that we could identify. And the real outcome was process: we added WebKit to the visual-regression suite, which had been Chromium-only — that gap was the actual root cause, not the CSS."
+
+**What earns credit:**
+
+- **Rollback before root-cause.** Stating that explicitly is the strongest single moment in the answer. Candidates who describe debugging while production is broken are describing the wrong instinct.
+- **A number for the blast radius and the duration.** "Twelve minutes, checkout, roughly 3% of sessions" is a real answer. "It was bad for a bit" isn't.
+- **Ownership without self-flagellation.** "I shipped it" once, then move to what you did. Interviewers are not looking for contrition, and dwelling on it reads as unsteady.
+- **A systemic fix.** The CSS fix is the boring half. The *test that would have caught it* is the half that shows you think in classes of failure. Best of all is naming what you changed about the process — a canary, a flag, a check added to the definition of done.
+- **What you'd do differently.** "I wouldn't ship a design-system upgrade at 4pm on a Thursday" is a genuinely good, human answer about deploy windows and who's around to respond.
+
+**The traps:** blaming QA, the browser, or the designer; claiming you've never broken production (nobody believes it, and it reads as either inexperience or not owning deploys); and having no numbers. If you genuinely haven't caused an outage, use one you **responded to** and be explicit that you weren't the author — that's honest and still demonstrates the instincts.
+
+**Have the frontend-specific failure modes ready**, because a good interviewer will probe for whether you know where these come from: a cached `index.html` pointing at purged asset hashes (`ChunkLoadError`); a dependency upgrade with a breaking change in a transitive package; a CSS change that only manifests in one engine; an environment variable baked into a build at the wrong value; a feature flag defaulting to on; and a service-worker update serving a stale shell. Each of those has a known preventative, and naming one shows the depth.
+
+---
+
 ## 10. Salary Negotiation
 
 The single highest-leverage conversation of your career happens in the 30 minutes after the offer call. Most engineers under-negotiate because they're afraid of "blowing it." Recruiters expect you to negotiate; not negotiating is rarely how you get the best offer.

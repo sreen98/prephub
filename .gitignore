@@ -31,3 +31,11 @@ dist-ssr
 # production bundle. Loaded dev-only by AdminPage.tsx.
 private/
 
+# Belt-and-braces for personal documents dropped anywhere in the tree. These
+# have been silently lost twice (a `git stash --include-untracked` round-trip
+# drops them); if they go missing again, restore them before any `git add -A`.
+*.pdf
+*resume*
+*Resume*
+*CV.docx
+

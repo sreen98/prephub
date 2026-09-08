@@ -1,13 +1,15 @@
 {
   "name": "prephub",
   "private": true,
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/generate-sitemap.js",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify:counts": "node scripts/verify-counts.js",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@babel/standalone": "^7.29.2",

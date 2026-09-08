@@ -550,6 +550,112 @@ In a **monorepo** steps 1–7 compress dramatically: you can do the atomic codem
 
 ---
 
+**Q11: Design a highly performant web app that renders large data tables with real-time updates.**
+
+Two problems stacked, and they fight each other: a table is a lot of DOM, and real-time means it keeps changing. Solve them separately.
+
+**The rendering side — the DOM is the cost.** 10,000 rows × 12 columns is 120,000 cells, and no amount of memoization makes that cheap because style recalculation and layout scale with node count. So **virtualize**: render only the ~30 visible rows plus a small overscan buffer, with `@tanstack/react-virtual`. For a wide table, virtualize **both axes**. Fixed row heights are dramatically simpler than measured ones — if rows must vary, use `estimateSize` plus a `ResizeObserver` and accept the scrollbar jitter.
+
+Then the things that undo virtualization if you get them wrong: **stable keys from the row's ID**, never the index, or scrolling reuses the wrong row's state. `React.memo` on the row with **primitive props** — pass `row.name` and `row.status`, not a freshly-created object each render. And `content-visibility: auto` on rows if you're not virtualizing, as the cheap 80% version.
+
+**The real-time side — the transport isn't the bottleneck, React is.** This is the §7 argument: 5,000 messages/sec is fine for a WebSocket and fatal for `setState`. So decouple ingest rate from render rate:
+
+```
+socket → normalise → buffer in a ref → flush on rAF/100ms → render the visible slice
+```
+
+**Coalesce by key** — for a table, update 400 for row X supersedes update 399, so reduce the buffer into a `Map` keyed by row ID and apply one change per row per frame. That turns thousands of events into a handful of actual cell updates.
+
+**Then the part specific to tables**, which is where candidates stop short:
+
+- **Sorting and filtering must not happen on the client for large sets.** Server-side sort, filter and pagination with a cursor; the client sends intent and renders what comes back. Client-side sorting 100,000 rows blocks the main thread for hundreds of milliseconds every time a header is clicked.
+- **A row updating while the user is scrolled or has a cell in edit mode.** If a live update reorders rows under the cursor, the user loses their place. The usual answer is to **buffer updates for rows currently in view** and show a "3 rows updated — refresh" affordance, rather than reordering underneath them. This is a product decision you should raise, not a technical one you can decide alone.
+- **Cell-level updates, not row-level.** If one field changes, only that cell should re-render. Selector-level subscriptions (Zustand/Jotai/`useSyncExternalStore`) let a cell subscribe to its own datum — Context can't, because it has no partial subscription.
+- **Aggregate on the server.** If the header shows a total across 100,000 rows, computing it client-side on every tick is the actual bottleneck.
+
+**Accessibility, which almost nobody mentions:** a virtualized table must use `aria-rowcount` and `aria-rowindex` so a screen-reader user is told the real total rather than "row 3 of 30". Sortable headers need `aria-sort`, and announcing "table updated" needs a throttled live region — announcing every tick makes the page unusable.
+
+**And the honest framing to close on:** for anything beyond a moderate grid I'd evaluate **TanStack Table** (headless — you keep control of rendering, it handles sorting/filtering/grouping state) or AG Grid for the enterprise feature set. Writing a performant, accessible, virtualized, sortable, editable data grid from scratch is a genuine multi-month project, and choosing to buy that is the senior call.
+
+---
+
+**Q12: Design a system for client-side caching, API retries and error boundaries.**
+
+Three layers with three different jobs, and the interesting part is what each one must *not* do.
+
+**Caching — use a query library, and know why.** TanStack Query (or RTK Query) gives you the request deduplication, `staleTime`/`gcTime`, background refetch, refetch-on-focus and cache invalidation that you'd otherwise hand-write badly:
+
+```js
+useQuery({
+  queryKey: ['invoices', orgId, filters],   // the key IS the cache identity
+  queryFn: fetchInvoices,
+  staleTime: 60_000,        // don't refetch for a minute
+  gcTime: 5 * 60_000,       // keep it in cache 5 min after nothing uses it
+});
+```
+
+The framing that matters: **server state and client state are different problems.** Putting fetched data in Redux means you now own caching, invalidation, dedupe and retry — that's the mistake this whole layer exists to avoid. And the cache key must include **every input that changes the result**, `orgId` included, or one tenant sees another's cached data.
+
+Above it sit the HTTP and CDN layers (§6) and below it your own in-memory memoization. Five layers, each with an invalidation story.
+
+**Retries — the details are the answer.** Retry only what's **retryable**: a `5xx`, a timeout, a network error. Never a `400`, `401`, `404` or `422` — a validation error will fail identically forever, and retrying a `401` can lock an account. Then **exponential back-off with jitter**, because without jitter a thousand clients that failed together retry together and you've built a thundering herd that keeps the service down. Honour `Retry-After` when the server sends it — your back-off is a guess, that header is not.
+
+```js
+retry: (failureCount, error) => error.status >= 500 && failureCount < 3,
+retryDelay: (attempt) => Math.random() * Math.min(30_000, 1000 * 2 ** attempt),
+```
+
+**And mutations are not queries.** A failed `GET` is safe to retry; a failed `POST` may have succeeded server-side before the response was lost. Retrying it double-charges someone. So mutations need an **idempotency key** before they're safe to retry at all — otherwise don't retry them, surface the failure and let the user decide.
+
+**Error boundaries — and their limits.** A boundary catches errors thrown during **render, in lifecycle methods and in constructors** of the tree below it. It does **not** catch errors in event handlers, in `setTimeout`, in async code, or during SSR. So boundaries are one layer, and the global `error` / `unhandledrejection` handlers are the other; you need both.
+
+Placement is the real skill: **one boundary per independent region**, not one at the root. A root-only boundary turns any component error into a white screen. A boundary around each dashboard widget means a failing chart shows "couldn't load this chart" while the rest of the page works. Pair with `useQueryErrorResetBoundary` so the boundary's `reset()` also clears the failed query, or retry re-renders the same error.
+
+**How the three compose** is the answer to the question as asked:
+
+```
+query library      → dedupe, cache, background refresh, retry policy
+   ↓ throws on exhausted retries
+error boundary     → per-region fallback UI with a reset action
+   ↓ reports
+global handlers    → error + unhandledrejection → your error tracker
+```
+
+Plus the states that make it feel deliberate rather than defensive: **stale-while-revalidate** so a refetch shows cached data instead of a spinner, **optimistic updates with a rollback path** for mutations, and an **offline** state — `navigator.onLine` plus a failed request means "you're offline, we'll retry", not "something went wrong".
+
+---
+
+**Q13: How do you manage global state efficiently in a React app that multiple teams contribute to?**
+
+The multi-team part changes the answer, so start there: with one team, any consistent choice works. With several, **the failure mode is that global state becomes a shared mutable namespace nobody owns** — team A adds a slice, team B reads it, and now A can't change it without breaking B, except nobody knows B depends on it.
+
+**So the first move is to minimise what's global at all.** Most state people put in a global store isn't global:
+
+| Kind of state | Where it belongs |
+|---|---|
+| Server data (lists, entities, details) | **a query cache** — TanStack Query. Not the store |
+| URL-shaped state (filters, tab, page, sort) | **the URL** — shareable, back-button-correct, free persistence |
+| Form state | the form library, local to the form |
+| Component UI state (open/closed, hover) | `useState`, local |
+| **Genuinely global** | session/user, permissions, theme, feature flags, toasts |
+
+That last row is short, and that's the point. **The biggest efficiency win isn't a faster store — it's having far less in it.** Server state in a query cache also removes the caching and invalidation code teams would otherwise each write differently.
+
+**Then, for what is genuinely global:** a store with **selector-level subscriptions** — Zustand, Jotai, or `useSyncExternalStore` over your own. Context is the wrong tool here because it has no partial subscription: every consumer re-renders when the value changes, regardless of which field it reads. Redux Toolkit is fine and still the right call if the org already knows it, with `createSelector` for memoized derivations.
+
+**And the multi-team structure, which is what's actually being asked:**
+
+- **Slice ownership with a CODEOWNERS entry.** Every slice has one owning team. Cross-team reads go through an **exported selector**, not a raw path into the state shape — so the owner can restructure internals without breaking consumers. That's the same encapsulation argument as a public API.
+- **Feature-sliced structure**, so a team's state lives with its feature rather than in a central `store/` folder every team edits. A central folder is a permanent merge-conflict surface and an ownership vacuum.
+- **Nothing writes to another team's slice.** Writes go through actions the owner exposes. Otherwise you can't reason about who changed what.
+- **Type the store and generate the API types from a schema**, so a shape change is a compile error in every consumer rather than a runtime surprise.
+- **Enforce boundaries mechanically** — ESLint `no-restricted-imports` or Nx module boundaries, so `feature-a` can't reach into `feature-b/store/internals`. Conventions don't survive contact with a deadline.
+- **DevTools and a documented shape.** With several teams, "what's in the store and who owns it" has to be answerable without reading the code.
+
+**The trade-off to name:** all of that is process overhead that a two-person team should skip. The reason it pays at scale is that global state is the most common place a large frontend accumulates coupling nobody intended — and the cheapest fix is having less of it, not governing more of it.
+
+---
+
 ## 11. Tricky Questions
 
 ---

@@ -3840,6 +3840,49 @@ By narrowing which layer is wrong before reaching for a tool.
 
 ---
 
+**Q43: You suspect a memory leak in a React app. How do you confirm it, find it, and fix it?**
+
+Confirm first — "the app gets slow after a while" has several causes and only one of them is a leak.
+
+**1. Confirm it's actually a leak.** Chrome DevTools → **Memory** → take a heap snapshot, exercise the suspect flow (navigate in and out of a route ten times), force GC, take another snapshot. Then use **Comparison** view and sort by delta. A leak shows as a monotonically rising baseline that survives GC; a sawtooth that returns to its floor is just normal allocation. The **Performance monitor** panel is the quickest first look — watch the JS heap size and the **DOM node count** while you use the app. A DOM node count that only ever climbs is the clearest signal.
+
+**2. Find what's retaining it.** In the comparison snapshot, look for **Detached HTMLElement** entries — DOM nodes removed from the document but still referenced by JavaScript, which is the classic React leak. Select one and read the **Retainers** panel: it shows the chain holding the reference, and that chain names your bug. Also sort by "Objects allocated between snapshot 1 and 2" to see what's accumulating.
+
+**3. The React-specific causes, in the order I'd check them:**
+
+```jsx
+// 1. Missing effect cleanup — the most common by far
+useEffect(() => {
+  const id = setInterval(tick, 1000);
+  window.addEventListener('resize', onResize);
+  const sub = socket.subscribe(onMessage);
+  const obs = new IntersectionObserver(cb); obs.observe(el);
+  return () => {                     // ← every one of these needs undoing
+    clearInterval(id);
+    window.removeEventListener('resize', onResize);
+    sub.unsubscribe();
+    obs.disconnect();
+  };
+}, []);
+```
+
+- **`addEventListener` with an inline function** and no matching `removeEventListener` — and note `removeEventListener` needs the *same function reference*, so an inline arrow can never be removed.
+- **Timers and intervals** without `clearInterval`/`clearTimeout`.
+- **Subscriptions and observers** — WebSocket, `IntersectionObserver`, `ResizeObserver`, `MutationObserver`, store subscriptions.
+- **An unbounded array in state or a ref.** A live-updating list that appends forever is a leak with a nice UI (see the Frontend Architecture guide's real-time section — cap retention with a ring buffer).
+- **A closure in a long-lived ref or module-level cache** capturing a large object or a whole component scope. A module-level `Map` used as a cache with no eviction is a leak by design; use a `WeakMap` when the key is an object whose lifetime you don't control.
+- **Detached DOM held in a ref** — storing a node in a ref and keeping the ref alive after unmount.
+- **A stale `setState` after unmount** doesn't leak in modern React (it's a no-op and the warning was removed), but the *closure that survived to call it* often does — so treat it as a symptom pointing at a missing cleanup, not the leak itself.
+
+**4. Things that look like leaks and aren't**, worth ruling out early: a query cache with a long `gcTime` (bounded, by design), an unbounded query cache key built from a changing value (that one *is* a leak — every keystroke creates a new cache entry), and simply rendering more DOM as the user scrolls an unvirtualized list.
+
+**5. Verify the fix the same way you found it.** Repeat the snapshot-exercise-GC-snapshot cycle and confirm the delta is flat. "It feels better" is not a fix.
+
+**Two things that make this cheaper next time.** **StrictMode** double-mounts effects in development specifically to surface missing cleanup — an effect that leaks will leak twice as fast, which is the point. And in production, monitor heap size in your RUM so a leak shows up as a trend rather than as a support ticket about the app being slow after an hour.
+
+---
+---
+
 ## 18. Tricky Output Questions
 
 Practice questions testing your understanding of React rendering behavior, hooks quirks, state batching, and closures.

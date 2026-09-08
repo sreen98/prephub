@@ -50,7 +50,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 | 19 | **Browser Storage** (localStorage, sessionStorage, IndexedDB) | [Browser APIs Guide](/frontend/browser-apis) |
 | 20 | **REST APIs & HTTP Methods** | [API Design Guide](/backend/api-design) |
 
-> **A note on how these are tested in 2026.** Because AI assistants can produce standard implementations instantly, interviewers have moved past definitions. Expect to be asked *why* rather than *what* — why a closure causes this memory leak, why this `useEffect` runs twice, why this memoization does nothing. The [Tricky Output Questions](/quiz) sections across the guides are built for exactly that, and the [Code Playground](/playground) has 75+ challenges where you implement these from scratch.
+> **A note on how these are tested in 2026.** Because AI assistants can produce standard implementations instantly, interviewers have moved past definitions. Expect to be asked *why* rather than *what* — why a closure causes this memory leak, why this `useEffect` runs twice, why this memoization does nothing. The [Tricky Output Questions](/quiz) sections across the guides are built for exactly that, and the [Code Playground](/playground) has 120 challenges where you implement these from scratch.
 
 ---
 
@@ -98,7 +98,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 ## 🛠️ Interactive Tools
 
-- **[Code Playground](/playground)** — 120+ templates: JS fundamentals, 31 polyfills written from scratch, 75+ coding challenges tagged by pattern and difficulty, and 20 React machine-coding challenges. Most have a step-by-step **Explain** modal with animated visual walkthroughs.
+- **[Code Playground](/playground)** — **171 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **26 React machine-coding** challenges — **120 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
 - **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.
 - **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.

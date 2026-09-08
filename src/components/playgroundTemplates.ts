@@ -4852,6 +4852,742 @@ async function run() {
 }
 run();`,
       },
+      {
+        name: 'Merge Intervals',
+        patterns: ['Sorting', 'Greedy'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Merge Intervals =====
+// Given a list of intervals, merge all overlapping ones and
+// return the result sorted by start time.
+//
+// Example: merge([[1,3],[2,6],[8,10],[15,18]]) → [[1,6],[8,10],[15,18]]
+//          merge([[1,4],[4,5]])                → [[1,5]]   (touching counts as overlap)
+//
+// Constraints:
+// - Two intervals overlap if the next start <= the current end
+// - Sort by start first, then sweep once: O(n log n) time, O(n) space
+// - Don't mutate the input
+
+function merge(intervals) {
+  // YOUR CODE HERE
+
+  return [];
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Overlapping",     merge([[1,3],[2,6],[8,10],[15,18]]), [[1,6],[8,10],[15,18]]);
+test("Touching",        merge([[1,4],[4,5]]),                [[1,5]]);
+test("Fully contained", merge([[1,10],[2,3],[4,8]]),         [[1,10]]);
+test("Unsorted input",  merge([[5,6],[1,3],[2,4]]),          [[1,4],[5,6]]);
+test("Single",          merge([[1,4]]),                      [[1,4]]);
+test("Empty",           merge([]),                           []);`,
+      },
+      {
+        name: 'Minimum Size Subarray Sum',
+        patterns: ['Sliding Window', 'Two Pointer'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Minimum Size Subarray Sum =====
+// Find the length of the SHORTEST contiguous subarray whose sum is >= target.
+// Return 0 if no such subarray exists.
+//
+// Example: minSubArrayLen(7, [2,3,1,2,4,3]) → 2    ([4,3])
+//          minSubArrayLen(11, [1,1,1,1])    → 0    (total is only 4)
+//
+// Constraints:
+// - All numbers are positive (this is what makes the window valid)
+// - Grow the window from the right, shrink from the left while the sum
+//   still qualifies: O(n) time, O(1) space
+// - The brute-force O(n²) works but the window is the expected answer
+
+function minSubArrayLen(target, nums) {
+  // YOUR CODE HERE
+
+  return 0;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",        minSubArrayLen(7,  [2,3,1,2,4,3]), 2);
+test("Impossible",      minSubArrayLen(11, [1,1,1,1]),     0);
+test("Whole array",     minSubArrayLen(11, [1,2,3,4,5]),   3);
+test("Single element",  minSubArrayLen(4,  [1,4,4]),       1);
+test("Exact match",     minSubArrayLen(6,  [1,2,3]),       3);
+test("Empty",           minSubArrayLen(1,  []),            0);`,
+      },
+      {
+        name: 'Sliding Window Maximum',
+        patterns: ['Sliding Window', 'Stack'],
+        difficulty: 'Hard',
+        code: `// ===== CHALLENGE: Sliding Window Maximum =====
+// Return the maximum of every contiguous window of size k.
+//
+// Example: maxSlidingWindow([1,3,-1,-3,5,3,6,7], 3) → [3,3,5,5,6,7]
+//
+//   [1  3  -1] -3  5  3  6  7   → 3
+//    1 [3  -1  -3] 5  3  6  7   → 3
+//    1  3 [-1  -3  5] 3  6  7   → 5
+//    ...
+//
+// Constraints:
+// - The naive answer re-scans each window: O(n·k). Aim for O(n).
+// - Use a MONOTONIC DEQUE of INDICES, kept in decreasing value order.
+//   The front is always the current window's max.
+// - Two rules per step: drop indices that fell out of the window,
+//   and pop from the back while the incoming value is larger.
+
+function maxSlidingWindow(nums, k) {
+  // YOUR CODE HERE
+
+  return [];
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",     maxSlidingWindow([1,3,-1,-3,5,3,6,7], 3), [3,3,5,5,6,7]);
+test("k = 1",        maxSlidingWindow([1,3,-1], 1),            [1,3,-1]);
+test("k = length",   maxSlidingWindow([4,2,12,3], 4),          [12]);
+test("Decreasing",   maxSlidingWindow([5,4,3,2,1], 2),         [5,4,3,2]);
+test("Increasing",   maxSlidingWindow([1,2,3,4], 2),           [2,3,4]);
+test("Empty",        maxSlidingWindow([], 3),                  []);`,
+      },
+      {
+        name: 'Longest Consecutive Sequence',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Longest Consecutive Sequence =====
+// Find the length of the longest run of consecutive integers.
+// The numbers may be in any order and may contain duplicates.
+//
+// Example: longestConsecutive([100,4,200,1,3,2]) → 4    (1,2,3,4)
+//          longestConsecutive([0,3,7,2,5,8,4,6,0,1]) → 9 (0..8)
+//
+// Constraints:
+// - Sorting gives O(n log n). Aim for O(n) with a Set.
+// - The trick: only START counting from a number whose predecessor
+//   (n - 1) is NOT in the set — that's a sequence start. Every element
+//   is then visited at most twice overall.
+
+function longestConsecutive(nums) {
+  // YOUR CODE HERE
+
+  return 0;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",     longestConsecutive([100,4,200,1,3,2]),        4);
+test("Longer run",   longestConsecutive([0,3,7,2,5,8,4,6,0,1]),    9);
+test("Duplicates",   longestConsecutive([1,2,2,3]),                3);
+test("No sequence",  longestConsecutive([10,30,20]),               1);
+test("Negatives",    longestConsecutive([-2,-1,0,1]),              4);
+test("Empty",        longestConsecutive([]),                       0);`,
+      },
+      {
+        name: 'Next Permutation',
+        patterns: ['In-Place', 'Two Pointer'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Next Permutation =====
+// Rearrange the numbers into the next lexicographically greater
+// permutation. If none exists (already the largest), return the
+// smallest permutation instead (i.e. fully sorted ascending).
+//
+// Example: nextPermutation([1,2,3]) → [1,3,2]
+//          nextPermutation([3,2,1]) → [1,2,3]   (wrapped around)
+//          nextPermutation([1,1,5]) → [1,5,1]
+//
+// Constraints:
+// - In-place, O(n) time, O(1) extra space
+// - Three steps: (1) scan from the right for the first i where
+//   nums[i] < nums[i+1] — the "pivot"; (2) find the rightmost element
+//   greater than the pivot and swap; (3) reverse the suffix.
+
+function nextPermutation(nums) {
+  // YOUR CODE HERE
+
+  return nums;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Simple",        nextPermutation([1,2,3]),   [1,3,2]);
+test("Wrap around",   nextPermutation([3,2,1]),   [1,2,3]);
+test("Duplicates",    nextPermutation([1,1,5]),   [1,5,1]);
+test("Longer suffix", nextPermutation([1,3,2]),   [2,1,3]);
+test("Single",        nextPermutation([1]),       [1]);
+test("Two swap",      nextPermutation([2,3,1]),   [3,1,2]);`,
+      },
+      {
+        name: 'Rotate Matrix 90°',
+        patterns: ['In-Place', 'Two Pointer'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Rotate Matrix 90° Clockwise =====
+// Rotate an n x n matrix 90 degrees clockwise, in place.
+//
+// Example:  [[1,2,3],        [[7,4,1],
+//            [4,5,6],   →     [8,5,2],
+//            [7,8,9]]         [9,6,3]]
+//
+// Constraints:
+// - In-place: O(1) extra space (no new matrix)
+// - The elegant trick: TRANSPOSE (swap across the main diagonal),
+//   then REVERSE each row. Two simple passes beat index gymnastics.
+// - Anticlockwise is the same but reverse the rows FIRST (or reverse
+//   the column order after transposing).
+
+function rotate(matrix) {
+  // YOUR CODE HERE
+
+  return matrix;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("3x3", rotate([[1,2,3],[4,5,6],[7,8,9]]), [[7,4,1],[8,5,2],[9,6,3]]);
+test("2x2", rotate([[1,2],[3,4]]),              [[3,1],[4,2]]);
+test("1x1", rotate([[1]]),                      [[1]]);
+test("4x4", rotate([[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]),
+            [[13,9,5,1],[14,10,6,2],[15,11,7,3],[16,12,8,4]]);`,
+      },
+      {
+        name: 'Shuffle Array (Fisher-Yates)',
+        patterns: ['Math / Bit', 'In-Place'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Shuffle an Array (Fisher-Yates) =====
+// Return a UNIFORMLY random permutation — every ordering equally likely.
+//
+// The classic wrong answer is arr.sort(() => Math.random() - 0.5).
+// It is NOT uniform: the comparator is inconsistent, so the result
+// depends on the engine's sort algorithm and some orderings are far
+// more likely than others. Interviewers ask this to see if you know.
+//
+// Constraints:
+// - O(n) time, O(1) extra space if shuffling in place
+// - Walk from the END backwards; for each i pick j in [0, i] and swap
+// - Note the range is INCLUSIVE of i — picking from [0, i-1] gives you
+//   Sattolo's algorithm (only cyclic permutations), a classic off-by-one
+
+function shuffle(arr) {
+  // YOUR CODE HERE
+
+  return arr;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+// Statistical tests — a shuffle can't be checked by a single equality.
+const input = [1, 2, 3, 4, 5];
+const out = shuffle([...input]);
+
+test("Same length",     out.length,                       5);
+test("Same elements",   [...out].sort((a,b) => a-b),       [1,2,3,4,5]);
+test("Single element",  shuffle([7]),                      [7]);
+test("Empty",           shuffle([]),                      []);
+
+// Every element should reach every position over many runs.
+const positionSeen = [0,1,2,3,4].map(() => new Set());
+for (let t = 0; t < 2000; t++) {
+  shuffle([1,2,3,4,5]).forEach((v, i) => positionSeen[i].add(v));
+}
+test("All positions reachable", positionSeen.every(s => s.size === 5), true);`,
+      },
+      {
+        name: 'Array Intersection & Union',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Array Intersection, Union & Difference =====
+// Implement the three set operations on arrays, WITHOUT the ES2025
+// Set methods (.intersection/.union/.difference) — build them yourself.
+//
+// Example: intersection([1,2,3,4], [2,4,6]) → [2,4]
+//          union([1,2], [2,3])              → [1,2,3]
+//          difference([1,2,3], [2])         → [1,3]
+//
+// Constraints:
+// - Results must be DEDUPLICATED and preserve first-seen order
+// - O(n + m) with a Set — the nested-loop version is O(n·m)
+// - difference(a, b) = "in a but not in b" (not symmetric)
+
+function intersection(a, b) {
+  // YOUR CODE HERE
+  return [];
+}
+
+function union(a, b) {
+  // YOUR CODE HERE
+  return [];
+}
+
+function difference(a, b) {
+  // YOUR CODE HERE
+  return [];
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Intersection",        intersection([1,2,3,4], [2,4,6]), [2,4]);
+test("Intersection dedupe", intersection([1,2,2,3], [2,2]),   [2]);
+test("Intersection none",   intersection([1,2], [3,4]),       []);
+test("Union",               union([1,2], [2,3]),              [1,2,3]);
+test("Union dedupe",        union([1,1,2], [2,3,3]),          [1,2,3]);
+test("Difference",          difference([1,2,3], [2]),         [1,3]);
+test("Difference all",      difference([1,2], [1,2]),         []);
+test("Empty inputs",        union([], []),                    []);`,
+      },
+      {
+        name: 'Chunk Array',
+        patterns: ['In-Place', 'Math / Bit'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Chunk an Array =====
+// Split an array into groups of at most \`size\`. The last chunk holds
+// the remainder. This is lodash's _.chunk, and it comes up constantly
+// in real work — batching API calls, paginating, grid layouts.
+//
+// Example: chunk([1,2,3,4,5], 2) → [[1,2],[3,4],[5]]
+//          chunk([1,2,3], 5)     → [[1,2,3]]
+//
+// Constraints:
+// - Don't mutate the input
+// - size < 1 (or non-integer) should return [] rather than loop forever
+// - O(n) time; try both a slice-based and a reduce-based version
+
+function chunk(arr, size) {
+  // YOUR CODE HERE
+
+  return [];
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Uneven remainder", chunk([1,2,3,4,5], 2), [[1,2],[3,4],[5]]);
+test("Exact fit",        chunk([1,2,3,4], 2),   [[1,2],[3,4]]);
+test("Size > length",    chunk([1,2,3], 5),     [[1,2,3]]);
+test("Size 1",           chunk([1,2], 1),       [[1],[2]]);
+test("Empty array",      chunk([], 3),          []);
+test("Size 0 guard",     chunk([1,2], 0),       []);
+test("Negative guard",   chunk([1,2], -1),      []);`,
+      },
+      {
+        name: 'String Compression (RLE)',
+        patterns: ['Two Pointer', 'In-Place'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: String Compression (Run-Length Encoding) =====
+// Compress a string by replacing runs of the same character with the
+// character followed by the run length. Runs of length 1 keep no count.
+// If the "compressed" result isn't shorter, return the ORIGINAL.
+//
+// Example: compress("aabcccccaaa") → "a2bc5a3"
+//          compress("abc")         → "abc"    (compression would be longer)
+//          compress("aabb")        → "aabb"   ("a2b2" is the same length)
+//
+// Constraints:
+// - Counts of 10+ are multi-digit: "aaaaaaaaaaaa" → "a12"
+// - O(n) time, single pass with a run counter
+// - The "return original if not shorter" rule is the part people miss
+
+function compress(str) {
+  // YOUR CODE HERE
+
+  return str;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",       compress("aabcccccaaa"),  "a2bc5a3");
+test("No gain",        compress("abc"),          "abc");
+test("Equal length",   compress("aabb"),         "aabb");
+test("Multi-digit",    compress("aaaaaaaaaaaa"), "a12");
+test("Single char",    compress("a"),            "a");
+test("All same",       compress("aaaa"),         "a4");
+test("Empty",          compress(""),             "");`,
+      },
+      {
+        name: 'Integer to Roman',
+        patterns: ['Greedy', 'Hash Map / Set'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Integer to Roman =====
+// Convert an integer (1..3999) to a Roman numeral.
+// This is the mirror of the existing "Roman to Integer" challenge.
+//
+// Example: intToRoman(3)    → "III"
+//          intToRoman(58)   → "LVIII"    (50 + 5 + 3)
+//          intToRoman(1994) → "MCMXCIV"  (1000 + 900 + 90 + 4)
+//
+// Constraints:
+// - The whole trick is including the SIX subtractive pairs
+//   (900=CM, 400=CD, 90=XC, 40=XL, 9=IX, 4=IV) in your value table.
+//   With those present, a simple greedy descent works and no special
+//   cases are needed.
+// - O(1) time — the table has a fixed 13 entries
+
+function intToRoman(num) {
+  // YOUR CODE HERE
+
+  return "";
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Three",        intToRoman(3),    "III");
+test("Fifty-eight",  intToRoman(58),   "LVIII");
+test("1994",         intToRoman(1994), "MCMXCIV");
+test("Four",         intToRoman(4),    "IV");
+test("Nine",         intToRoman(9),    "IX");
+test("Forty",        intToRoman(40),   "XL");
+test("Max",          intToRoman(3999), "MMMCMXCIX");
+test("One",          intToRoman(1),    "I");`,
+      },
+      {
+        name: 'Reverse Integer',
+        patterns: ['Math / Bit'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Reverse Integer =====
+// Reverse the digits of a signed integer. If the result overflows the
+// 32-bit signed range [-2^31, 2^31 - 1], return 0.
+//
+// Example: reverse(123)  → 321
+//          reverse(-123) → -321
+//          reverse(120)  → 21     (trailing zeros vanish)
+//          reverse(1534236469) → 0  (overflows)
+//
+// Constraints:
+// - Keep the sign; reverse only the digits
+// - The overflow check is the real content of this question.
+//   JS numbers are doubles so you won't wrap like C would — you must
+//   check the bounds EXPLICITLY (INT32 range is ±2147483648).
+// - Try it with arithmetic (% and /) rather than string reversal
+
+function reverse(x) {
+  // YOUR CODE HERE
+
+  return 0;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Positive",       reverse(123),        321);
+test("Negative",       reverse(-123),      -321);
+test("Trailing zero",  reverse(120),        21);
+test("Zero",           reverse(0),          0);
+test("Overflow +",     reverse(1534236469), 0);
+test("Overflow -",     reverse(-2147483648),0);
+test("Single digit",   reverse(7),          7);
+test("Palindromic",    reverse(1221),       1221);`,
+      },
+      {
+        name: 'Isomorphic Strings',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Isomorphic Strings =====
+// Two strings are isomorphic if the characters of s can be replaced
+// to get t, with a CONSISTENT ONE-TO-ONE mapping. No two characters
+// may map to the same character, and a character maps to only one.
+//
+// Example: isIsomorphic("egg", "add")   → true   (e→a, g→d)
+//          isIsomorphic("foo", "bar")   → false  (o would map to both a and r)
+//          isIsomorphic("badc", "baba") → false  (d and c both map to a)
+//
+// Constraints:
+// - The trap is checking only ONE direction. "badc"/"baba" passes a
+//   one-way check and is still wrong — you need BOTH mappings.
+// - O(n) time with two maps (or one map plus a set of used targets)
+
+function isIsomorphic(s, t) {
+  // YOUR CODE HERE
+
+  return false;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("egg/add",     isIsomorphic("egg", "add"),   true);
+test("foo/bar",     isIsomorphic("foo", "bar"),   false);
+test("badc/baba",   isIsomorphic("badc", "baba"), false);
+test("paper/title", isIsomorphic("paper","title"),true);
+test("Same string", isIsomorphic("abc", "abc"),   true);
+test("Diff length", isIsomorphic("ab", "abc"),    false);
+test("Empty",       isIsomorphic("", ""),         true);`,
+      },
+      {
+        name: 'Longest Repeating Char Replacement',
+        patterns: ['Sliding Window', 'Hash Map / Set'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Longest Repeating Character Replacement =====
+// You may change at most k characters. Return the length of the longest
+// substring containing a single repeated character after those changes.
+//
+// Example: characterReplacement("ABAB", 2)     → 4  (change both B→A)
+//          characterReplacement("AABABBA", 1)  → 4  ("AABA" → "AAAA")
+//
+// Constraints:
+// - The key insight: a window is VALID when
+//     (window length) - (count of the most frequent char in it) <= k
+//   because everything that isn't the majority char must be changed.
+// - Grow right, shrink left while invalid: O(n) time, O(26) space
+// - You do NOT need to recompute maxCount when shrinking — the answer
+//   only ever grows, so a stale maxCount is harmless. Worth understanding
+//   why, because interviewers ask.
+
+function characterReplacement(s, k) {
+  // YOUR CODE HERE
+
+  return 0;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("ABAB k=2",      characterReplacement("ABAB", 2),     4);
+test("AABABBA k=1",   characterReplacement("AABABBA", 1),  4);
+test("k=0 no change", characterReplacement("ABCD", 0),     1);
+test("All same",      characterReplacement("AAAA", 2),     4);
+test("k >= length",   characterReplacement("ABC", 5),      3);
+test("Empty",         characterReplacement("", 2),         0);`,
+      },
+      {
+        name: 'Minimum Window Substring',
+        patterns: ['Sliding Window', 'Hash Map / Set'],
+        difficulty: 'Hard',
+        code: `// ===== CHALLENGE: Minimum Window Substring =====
+// Find the SHORTEST substring of s containing every character of t,
+// including duplicates. Return "" if there isn't one.
+//
+// Example: minWindow("ADOBECODEBANC", "ABC") → "BANC"
+//          minWindow("a", "aa")              → ""     (needs two a's)
+//
+// Constraints:
+// - Counts matter: t = "AABC" needs TWO A's in the window
+// - Grow right until valid, then shrink left while still valid,
+//   recording the best: O(|s| + |t|) time
+// - Track a "missing" counter rather than comparing whole maps on every
+//   step — comparing maps makes it O(n·k) and is the usual slow answer
+
+function minWindow(s, t) {
+  // YOUR CODE HERE
+
+  return "";
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",      minWindow("ADOBECODEBANC", "ABC"), "BANC");
+test("Insufficient",  minWindow("a", "aa"),              "");
+test("Exact match",   minWindow("ab", "ab"),             "ab");
+test("Duplicates",    minWindow("aa", "aa"),             "aa");
+test("Single char",   minWindow("a", "a"),               "a");
+test("Not present",   minWindow("abc", "xyz"),           "");
+test("Empty t",       minWindow("abc", ""),              "");`,
+      },
+      {
+        name: 'Case Converter (camel/snake/kebab)',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Case Converter =====
+// Convert between the three casings you actually meet in real code:
+// API responses in snake_case, CSS in kebab-case, JS in camelCase.
+//
+// Example: toCamel("user_first_name")  → "userFirstName"
+//          toSnake("userFirstName")    → "user_first_name"
+//          toKebab("userFirstName")    → "user-first-name"
+//
+// Constraints:
+// - toCamel must handle BOTH snake_case and kebab-case input
+// - Consecutive separators and leading/trailing ones shouldn't produce
+//   empty segments or stray capitals
+// - Already-converted input should pass through unchanged (idempotent)
+// - Bonus: deepCamelize(obj) — recursively convert every key of a
+//   nested object/array. This is the version you write at work.
+
+function toCamel(str) {
+  // YOUR CODE HERE
+  return str;
+}
+
+function toSnake(str) {
+  // YOUR CODE HERE
+  return str;
+}
+
+function toKebab(str) {
+  // YOUR CODE HERE
+  return str;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("snake → camel",    toCamel("user_first_name"),  "userFirstName");
+test("kebab → camel",    toCamel("user-first-name"),  "userFirstName");
+test("camel idempotent", toCamel("userFirstName"),    "userFirstName");
+test("double sep",       toCamel("a__b"),             "aB");
+test("camel → snake",    toSnake("userFirstName"),    "user_first_name");
+test("snake idempotent", toSnake("user_first_name"),  "user_first_name");
+test("camel → kebab",    toKebab("userFirstName"),    "user-first-name");
+test("single word",      toCamel("name"),             "name");
+test("Empty",            toCamel(""),                 "");`,
+      },
+      {
+        name: 'First Repeating Character',
+        patterns: ['Hash Map / Set'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: First Repeating Character =====
+// Return the first character that appears more than once, scanning
+// left to right. Return null if every character is unique.
+//
+// This is the MIRROR of "First Non-Repeating Char" — and note the
+// two questions want different scans, which is the point.
+//
+// Example: firstRepeating("success")  → "c"   (s repeats later, but c
+//                                              is the first char we SEE twice)
+//          firstRepeating("abcdef")   → null
+//
+// Constraints:
+// - "First" means the earliest SECOND occurrence, not the earliest
+//   character that happens to repeat. In "success": s appears at 0 and 3,
+//   c at 2 and 3... walk it carefully — the answer is the first index
+//   at which you encounter an already-seen character.
+// - O(n) time, one pass with a Set — no second pass needed
+
+function firstRepeating(str) {
+  // YOUR CODE HERE
+
+  return null;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("success",      firstRepeating("success"),  "c");
+test("All unique",   firstRepeating("abcdef"),   null);
+test("Immediate",    firstRepeating("aab"),      "a");
+test("Last pair",    firstRepeating("abcca"),    "c");
+test("Single char",  firstRepeating("a"),        null);
+test("Empty",        firstRepeating(""),         null);
+test("Spaces count", firstRepeating("a b a"),    " ");`,
+      },
+      {
+        name: 'Sum Without Loops',
+        patterns: ['Recursion / D&C', 'Math / Bit'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Sum an Array Without Loops =====
+// Sum the numbers in an array WITHOUT for / while / do-while.
+// A frequent warm-up: interviewers use it to see which tools you reach
+// for and whether you know their limits.
+//
+// Write FOUR versions:
+//   sumReduce   — Array.prototype.reduce
+//   sumRecursive — head + recurse on the tail
+//   sumTail      — tail-recursive with an accumulator
+//   sumNested    — handles arbitrarily nested arrays: [1,[2,[3,[4]]]] → 10
+//
+// Constraints:
+// - No for / while / do-while anywhere
+// - Handle the empty array (should be 0, not undefined or NaN)
+// - Know the catch: JS engines do NOT implement tail-call optimisation
+//   (despite it being in the ES2015 spec), so deep recursion still
+//   overflows the stack. reduce is the production answer.
+
+function sumReduce(arr) {
+  // YOUR CODE HERE
+  return 0;
+}
+
+function sumRecursive(arr) {
+  // YOUR CODE HERE
+  return 0;
+}
+
+function sumTail(arr, acc = 0) {
+  // YOUR CODE HERE
+  return 0;
+}
+
+function sumNested(arr) {
+  // YOUR CODE HERE — [1,[2,[3,[4]]]] → 10
+  return 0;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("reduce",           sumReduce([1,2,3,4]),        10);
+test("reduce empty",     sumReduce([]),               0);
+test("recursive",        sumRecursive([1,2,3,4]),     10);
+test("recursive empty",  sumRecursive([]),            0);
+test("tail",             sumTail([1,2,3,4]),          10);
+test("negatives",        sumReduce([-1,-2,3]),        0);
+test("nested",           sumNested([1,[2,[3,[4]]]]),  10);
+test("nested empty",     sumNested([[],[[]]]),        0);
+test("nested mixed",     sumNested([1,[2,3],[[4],5]]),15);`,
+      },
     ],
   },
   {
@@ -5688,12 +6424,20 @@ render(<Navbar />);`,
 // - Uses IntersectionObserver (no scroll event listener)
 // - Shows loading indicator
 // - Handles "no more data" state
+// - HANDLES FAILURE with a retry (the half most implementations skip —
+//   an infinite list that silently stops on a network blip looks like
+//   "no more data" to the user, which is a much worse bug than an error)
 
 function fakeAPI(page) {
   const totalPages = 8;
-  return new Promise(resolve =>
+  return new Promise((resolve, reject) =>
     setTimeout(() => {
       if (page > totalPages) return resolve({ items: [], hasMore: false });
+      // Fail page 3 once, so the error + retry path is reachable in the demo.
+      if (page === 3 && !fakeAPI.failedOnce) {
+        fakeAPI.failedOnce = true;
+        return reject(new Error("Network error loading page 3"));
+      }
       const items = Array.from({ length: 10 }, (_, i) => ({
         id: (page - 1) * 10 + i + 1,
         title: \`Post #\${(page - 1) * 10 + i + 1}\`,
@@ -5710,18 +6454,28 @@ function InfiniteScroll() {
   const [page, setPage] = React.useState(1);
   const [loading, setLoading] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(true);
+  const [error, setError] = React.useState(null);
   const sentinelRef = React.useRef(null);
 
   const loadMore = React.useCallback(() => {
-    if (loading || !hasMore) return;
+    // Guard on error too, or the observer retries in a tight loop while
+    // the sentinel stays on screen — a self-inflicted request storm.
+    if (loading || !hasMore || error) return;
     setLoading(true);
-    fakeAPI(page).then(res => {
-      setItems(prev => [...prev, ...res.items]);
-      setHasMore(res.hasMore);
-      setPage(p => p + 1);
-      setLoading(false);
-    });
-  }, [page, loading, hasMore]);
+    setError(null);
+    fakeAPI(page)
+      .then(res => {
+        setItems(prev => [...prev, ...res.items]);
+        setHasMore(res.hasMore);
+        setPage(p => p + 1);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [page, loading, hasMore, error]);
+
+  // Clearing the error re-enables the observer, which fires again if the
+  // sentinel is still visible — so retry needs no separate fetch call.
+  const retry = React.useCallback(() => setError(null), []);
 
   // Initial load
   React.useEffect(() => { loadMore(); }, []);
@@ -5765,10 +6519,31 @@ function InfiniteScroll() {
           </div>
         ))}
 
+        {/* Error state with an explicit retry. Note the sentinel is NOT
+            rendered while an error is showing — otherwise the observer
+            keeps firing and hammers the failing endpoint. */}
+        {error && (
+          <div role="alert" style={{
+            padding: 16, textAlign: "center", background: "#78350f",
+            color: "#fbbf24", borderRadius: 8, fontSize: 13,
+          }}>
+            <p style={{ margin: "0 0 10px" }}>⚠ {error}</p>
+            <button onClick={retry} style={{
+              padding: "7px 14px", borderRadius: 6, border: "none",
+              background: "#f59e0b", color: "#1c1917", cursor: "pointer", fontSize: 13,
+            }}>
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Sentinel element for IntersectionObserver */}
-        {hasMore && (
+        {hasMore && !error && (
           <div ref={sentinelRef} style={{ padding: 20, textAlign: "center" }}>
-            {loading && <span style={{ color: "#888" }}>Loading more...</span>}
+            {/* aria-live so a screen-reader user hears that more arrived */}
+            <span aria-live="polite">
+              {loading && <span style={{ color: "#888" }}>Loading more...</span>}
+            </span>
           </div>
         )}
 
@@ -6502,110 +7277,248 @@ function App() {
 render(<App />);`,
       },
       {
-        name: 'Auto-suggest',
+        name: 'Auto-Complete (ARIA combobox)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Auto-suggest / Typeahead =====
-// Filter a list as the user types. Keyboard navigation (arrow keys + Enter).
-// Click outside to close the dropdown.
+        code: `// ===== MACHINE CODING: Auto-Complete (ARIA Combobox) =====
+// Search suggestions as you type. This one question combines FOUR
+// things, and interviewers grade all four:
+//   1. Debouncing so you don't fire per keystroke
+//   2. Cancelling the previous request (or results arrive out of order)
+//   3. Keyboard navigation — ↓ ↑ Enter Esc Home End
+//   4. Accessibility — the ARIA combobox pattern
+//
+// THE MECHANISM THAT MATTERS: aria-activedescendant. DOM focus stays in
+// the INPUT while a "virtual" focus moves through the options. If you
+// move real focus onto the <li>s, typing stops working — that's the
+// single most common way this component is built wrong.
 
-const ALL_FRUITS = [
-  "Apple", "Apricot", "Avocado", "Banana", "Blackberry", "Blueberry",
-  "Cherry", "Coconut", "Cranberry", "Date", "Dragonfruit", "Durian",
-  "Fig", "Grape", "Grapefruit", "Guava", "Kiwi", "Lemon", "Lime",
-  "Mango", "Melon", "Orange", "Papaya", "Peach", "Pear", "Pineapple",
-  "Plum", "Raspberry", "Strawberry", "Watermelon",
-];
+const CITIES = ["London","Lisbon","Los Angeles","Lagos","Lahore","Leeds",
+  "Lima","Lyon","Madrid","Manchester","Melbourne","Mumbai","Munich",
+  "Nairobi","Nantes","Naples","New York","Nice"];
 
-function App() {
+function fakeSearch(q, signal) {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => {
+      if (q.toLowerCase() === "err") reject(new Error("Suggestion service failed"));
+      else resolve(CITIES.filter(c => c.toLowerCase().includes(q.toLowerCase())));
+    }, 150 + Math.random() * 450);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(id);
+      reject(new DOMException("Aborted", "AbortError"));
+    });
+  });
+}
+
+function useDebouncedValue(value, delay = 250) {
+  const [v, setV] = React.useState(value);
+  React.useEffect(() => {
+    const id = setTimeout(() => setV(value), delay);
+    return () => clearTimeout(id);   // a new keystroke cancels the pending timer
+  }, [value, delay]);
+  return v;
+}
+
+function AutoComplete() {
   const [query, setQuery] = React.useState("");
-  const [highlightIndex, setHighlightIndex] = React.useState(0);
+  const [options, setOptions] = React.useState([]);
   const [open, setOpen] = React.useState(false);
-  const containerRef = React.useRef(null);
+  const [active, setActive] = React.useState(-1);   // VIRTUAL focus index
+  const [status, setStatus] = React.useState("idle");
+  const [error, setError] = React.useState(null);
+  const [selected, setSelected] = React.useState(null);
 
-  const matches = React.useMemo(() => {
-    if (!query) return [];
-    const q = query.toLowerCase();
-    return ALL_FRUITS.filter(f => f.toLowerCase().includes(q)).slice(0, 8);
-  }, [query]);
+  const debounced = useDebouncedValue(query, 250);
+  const listId = "ac-listbox";
+  const listRef = React.useRef(null);
 
   React.useEffect(() => {
-    const onClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
+    if (!debounced.trim()) { setOptions([]); setStatus("idle"); setOpen(false); return; }
 
-  function handleKeyDown(e) {
-    if (!open || matches.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlightIndex((i) => (i + 1) % matches.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightIndex((i) => (i - 1 + matches.length) % matches.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      select(matches[highlightIndex]);
-    } else if (e.key === "Escape") {
-      setOpen(false);
+    const controller = new AbortController();
+    setStatus("loading");
+    setError(null);
+
+    fakeSearch(debounced, controller.signal)
+      .then(res => {
+        setOptions(res);
+        setStatus(res.length ? "success" : "empty");
+        setOpen(true);
+        setActive(-1);           // reset virtual focus on a new result set
+      })
+      .catch(err => {
+        if (err.name === "AbortError") return;   // never surface a cancellation
+        setError(err.message);
+        setStatus("error");
+        setOpen(true);
+      });
+
+    return () => controller.abort();   // cancel the in-flight request
+  }, [debounced]);
+
+  function commit(index) {
+    const value = options[index];
+    if (!value) return;
+    setSelected(value);
+    setQuery(value);
+    setOpen(false);
+    setActive(-1);
+  }
+
+  function onKeyDown(e) {
+    // ↓ on a closed list should REOPEN it — a small detail people miss.
+    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      if (options.length) { setOpen(true); return; }
+    }
+    if (!open) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();   // stop the caret jumping to end of input
+        setActive(i => (i + 1) % Math.max(options.length, 1));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setActive(i => (i <= 0 ? options.length - 1 : i - 1));
+        break;
+      case "Home": e.preventDefault(); setActive(0); break;
+      case "End":  e.preventDefault(); setActive(options.length - 1); break;
+      case "Enter":
+        if (active >= 0) { e.preventDefault(); commit(active); }
+        break;
+      case "Escape":
+        // First Esc closes the list; a second clears the input.
+        if (open) setOpen(false);
+        else setQuery("");
+        break;
+      case "Tab":
+        setOpen(false);   // Tab accepts and moves on — never traps focus
+        break;
+      default: break;
     }
   }
 
-  function select(item) {
-    setQuery(item);
-    setOpen(false);
-    setHighlightIndex(0);
-  }
+  // Keep the virtually-focused option scrolled into view.
+  React.useEffect(() => {
+    if (active < 0 || !listRef.current) return;
+    listRef.current.children[active]?.scrollIntoView?.({ block: "nearest" });
+  }, [active]);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
-      <h2>Auto-suggest</h2>
-      <div ref={containerRef} style={{ position: "relative", maxWidth: 320 }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 420 }}>
+      <h2 style={{ marginTop: 0 }}>Auto-Complete</h2>
+
+      <label htmlFor="ac-input" style={{ display: "block", fontSize: 14, marginBottom: 6 }}>
+        City
+      </label>
+
+      <div style={{ position: "relative" }}>
         <input
+          id="ac-input"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          // The whole trick: DOM focus stays here, virtual focus is an id.
+          aria-activedescendant={active >= 0 ? \`ac-opt-\${active}\` : undefined}
+          autoComplete="off"
           value={query}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlightIndex(0); }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a fruit..."
+          onChange={(e) => { setQuery(e.target.value); setSelected(null); }}
+          onKeyDown={onKeyDown}
+          onBlur={() => setOpen(false)}
+          placeholder='Type "l", or "err" for the error state'
           style={{
-            width: "100%", padding: "10px 14px", fontSize: 15,
-            background: "#1e293b", color: "#fff", border: "1px solid #444",
-            borderRadius: 8, outline: "none",
+            width: "100%", padding: "10px 12px", borderRadius: 6, fontSize: 15,
+            border: "1px solid #334155", background: "#1e293b", color: "#fff",
           }}
         />
-        {open && matches.length > 0 && (
-          <div style={{
-            position: "absolute", top: "100%", left: 0, right: 0,
-            background: "#0f172a", border: "1px solid #444", borderTop: "none",
-            borderRadius: "0 0 8px 8px", maxHeight: 240, overflowY: "auto",
-            zIndex: 10,
-          }}>
-            {matches.map((item, i) => (
-              <div
-                key={item}
-                onMouseEnter={() => setHighlightIndex(i)}
-                onClick={() => select(item)}
+
+        {status === "loading" && (
+          <span style={{ position: "absolute", right: 12, top: 11, color: "#64748b", fontSize: 13 }}>
+            …
+          </span>
+        )}
+
+        {open && (
+          <ul
+            id={listId}
+            role="listbox"
+            ref={listRef}
+            aria-label="City suggestions"
+            style={{
+              listStyle: "none", margin: "4px 0 0", padding: 4, position: "absolute",
+              width: "100%", maxHeight: 200, overflowY: "auto", zIndex: 10,
+              background: "#0f172a", border: "1px solid #334155", borderRadius: 6,
+            }}
+          >
+            {status === "error" && (
+              <li role="alert" style={{ padding: "8px 10px", color: "#f87171", fontSize: 13 }}>
+                ⚠ {error}
+              </li>
+            )}
+            {status === "empty" && (
+              <li style={{ padding: "8px 10px", color: "#94a3b8", fontSize: 13 }}>
+                No matches for “{debounced}”.
+              </li>
+            )}
+            {options.map((opt, i) => (
+              <li
+                key={opt}
+                id={\`ac-opt-\${i}\`}
+                role="option"
+                aria-selected={i === active}
+                // onMouseDown, not onClick: onClick fires after onBlur has
+                // already closed the list, so the selection is lost.
+                onMouseDown={(e) => { e.preventDefault(); commit(i); }}
+                onMouseEnter={() => setActive(i)}
                 style={{
-                  padding: "10px 14px", cursor: "pointer",
-                  background: i === highlightIndex ? "#1e293b" : "transparent",
-                  color: i === highlightIndex ? "#60a5fa" : "#cbd5e1",
+                  padding: "8px 10px", borderRadius: 4, cursor: "pointer",
+                  background: i === active ? "#3b82f6" : "transparent",
+                  color: i === active ? "#fff" : "#e2e8f0",
                 }}
               >
-                {item}
-              </div>
+                {opt}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
-      <p style={{ marginTop: 16, color: "#888", fontSize: 13 }}>
-        Type · Arrow keys to navigate · Enter to select · Esc to close
-      </p>
+
+      {/* Announce the result count — a sighted user sees the list appear,
+          a screen-reader user needs to be told. */}
+      <div aria-live="polite" aria-atomic="true" style={{ fontSize: 12, color: "#64748b", marginTop: 8 }}>
+        {status === "success" && \`\${options.length} suggestion\${options.length === 1 ? "" : "s"} available\`}
+        {status === "empty" && "No suggestions"}
+      </div>
+
+      {selected && (
+        <p style={{ marginTop: 12, color: "#4ade80", fontSize: 14 }}>✓ Selected: {selected}</p>
+      )}
+
+      <details style={{ marginTop: 20, fontSize: 13, color: "#94a3b8" }}>
+        <summary style={{ cursor: "pointer" }}>The five details that get graded</summary>
+        <ul style={{ lineHeight: 1.8 }}>
+          <li><b>aria-activedescendant</b> keeps DOM focus in the input while
+              virtual focus moves through the options. Moving real focus to the
+              &lt;li&gt;s breaks typing — the classic wrong implementation.</li>
+          <li><b>Cancel the previous request.</b> Without AbortController, a slow
+              response for "l" can land after a fast one for "lo" and overwrite it.</li>
+          <li><b>onMouseDown, not onClick,</b> on the options — onClick fires after
+              onBlur has closed the list, so the click never registers.</li>
+          <li><b>preventDefault on ↑/↓</b> or the caret jumps to the start/end of
+              the input while you're navigating.</li>
+          <li><b>Five states:</b> idle / loading / success / empty / error. And
+              announce the count in a live region.</li>
+          <li><b>In production</b> use React Aria's useComboBox or Radix — this
+              pattern has a long tail of screen-reader edge cases, and the honest
+              answer is that you'd style a tested primitive rather than maintain
+              your own.</li>
+        </ul>
+      </details>
     </div>
   );
 }
 
-render(<App />);`,
+render(<AutoComplete />);`,
       },
       {
         name: 'Toast / Snackbar',
@@ -6795,6 +7708,1153 @@ function App() {
 }
 
 render(<App />);`,
+      },
+      {
+        name: 'Todo List (localStorage + memo)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Todo List — localStorage + Re-render Optimization =====
+// The classic "build a to-do list" ask — but the follow-up is always
+// "now make sure typing in the input doesn't re-render all 500 items."
+// That follow-up is the actual interview. Open the React DevTools
+// Profiler with "Highlight updates" on and watch which parts flash.
+//
+// The four techniques, and why each one matters:
+//   1. Isolate the input's state in its own component, so keystrokes
+//      re-render ONE component instead of the whole list.
+//   2. React.memo on the row, so unchanged rows bail out.
+//   3. Stable callback identity (useCallback), or memo() is defeated —
+//      a new function prop every render fails the shallow compare.
+//   4. Functional setState updates, so the callbacks don't need
+//      \`todos\` in their dependency array and stay stable forever.
+
+// ---------------------------------------------------------------------
+// 1. The input owns its own draft state. The parent never re-renders
+//    while you type — it only hears about it on submit.
+// ---------------------------------------------------------------------
+const TodoInput = React.memo(function TodoInput({ onAdd }) {
+  const [draft, setDraft] = React.useState("");
+
+  function submit(e) {
+    e.preventDefault();
+    const text = draft.trim();
+    if (!text) return;
+    onAdd(text);
+    setDraft("");
+  }
+
+  return (
+    <form onSubmit={submit} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="What needs doing?"
+        aria-label="New todo"
+        style={{
+          flex: 1, padding: "8px 12px", borderRadius: 6,
+          border: "1px solid #334155", background: "#1e293b", color: "#fff",
+        }}
+      />
+      <button type="submit" style={btn}>Add</button>
+    </form>
+  );
+});
+
+// ---------------------------------------------------------------------
+// 2. React.memo means a row only re-renders when ITS OWN props change.
+//    The render counter proves it — toggle one item and watch that only
+//    one row's count goes up.
+// ---------------------------------------------------------------------
+const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete }) {
+  const renders = React.useRef(0);
+  renders.current++;
+
+  return (
+    <li style={{
+      display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+      borderRadius: 6, background: "#1e293b", marginBottom: 6,
+    }}>
+      <input
+        type="checkbox"
+        checked={todo.done}
+        onChange={() => onToggle(todo.id)}
+        aria-label={\`Mark "\${todo.text}" as \${todo.done ? "not done" : "done"}\`}
+      />
+      <span style={{
+        flex: 1,
+        textDecoration: todo.done ? "line-through" : "none",
+        opacity: todo.done ? 0.5 : 1,
+      }}>
+        {todo.text}
+      </span>
+      <span style={{ fontSize: 11, color: "#64748b" }}>
+        renders: {renders.current}
+      </span>
+      <button onClick={() => onDelete(todo.id)} style={{ ...btn, background: "#7f1d1d" }}>
+        ✕
+      </button>
+    </li>
+  );
+});
+
+const STORAGE_KEY = "todos";
+const SEED = [
+  { id: 1, text: "Read the React docs on memo", done: false },
+  { id: 2, text: "Profile a list render", done: true },
+  { id: 3, text: "Ship the feature", done: false },
+];
+
+// localStorage can THROW, not merely return null — Safari private mode,
+// blocked cookies, a full quota. It can also contain garbage from an older
+// version of your app. Both need handling, and "most people forget the
+// disabled case" is exactly what gets probed here.
+function loadTodos() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return SEED;
+    const parsed = JSON.parse(raw);
+    // VALIDATE the shape. Trusting persisted data is how you get a
+    // white screen after a deploy that changed the schema.
+    if (!Array.isArray(parsed)) return SEED;
+    return parsed.filter(
+      (t) => t && typeof t.id === "number" && typeof t.text === "string",
+    );
+  } catch {
+    return SEED;   // unavailable or malformed — degrade, never crash
+  }
+}
+
+function TodoApp() {
+  // Lazy initialiser: the function form runs ONCE, not on every render.
+  // useState(loadTodos()) would hit localStorage on every single render.
+  const [todos, setTodos] = React.useState(loadTodos);
+  const [filter, setFilter] = React.useState("all");
+  const [storageOk, setStorageOk] = React.useState(true);
+  const nextId = React.useRef(
+    todos.reduce((max, t) => Math.max(max, t.id), 0) + 1,
+  );
+
+  // Persist on change. Writing in the effect (not in the handlers) means
+  // one place to maintain and it can't drift out of sync with state.
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+      setStorageOk(true);
+    } catch {
+      setStorageOk(false);   // tell the user their work isn't being saved
+    }
+  }, [todos]);
+
+  // ---------------------------------------------------------------------
+  // 3 + 4. useCallback with an EMPTY dep array. This only works because
+  //    every updater is FUNCTIONAL — setTodos(prev => ...) rather than
+  //    reading \`todos\` from the closure. Reading \`todos\` directly would
+  //    force it into the deps, a new function every render, and memo()
+  //    on the rows would never bail out. This pairing is the whole trick.
+  // ---------------------------------------------------------------------
+  const addTodo = React.useCallback((text) => {
+    setTodos((prev) => [...prev, { id: nextId.current++, text, done: false }]);
+  }, []);
+
+  const toggleTodo = React.useCallback((id) => {
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+    );
+  }, []);
+
+  const deleteTodo = React.useCallback((id) => {
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Derived state — computed during render, NOT stored in state.
+  // Storing a filtered copy in state is the classic bug: two sources of
+  // truth that drift. useMemo here is about skipping the filter work,
+  // not about correctness.
+  const visible = React.useMemo(() => {
+    if (filter === "active") return todos.filter((t) => !t.done);
+    if (filter === "done") return todos.filter((t) => t.done);
+    return todos;
+  }, [todos, filter]);
+
+  const remaining = React.useMemo(
+    () => todos.filter((t) => !t.done).length,
+    [todos],
+  );
+
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 520 }}>
+      <h2 style={{ marginTop: 0 }}>Todo List</h2>
+      <p style={{ fontSize: 13, color: "#94a3b8" }}>
+        Type in the input — no row re-renders. Toggle one — only that row does.
+        Reload the page — your list persists.
+      </p>
+
+      {!storageOk && (
+        <p role="alert" style={{
+          fontSize: 13, color: "#fbbf24", background: "#78350f",
+          padding: "8px 10px", borderRadius: 6,
+        }}>
+          ⚠ Storage unavailable — changes won't be saved for your next visit.
+        </p>
+      )}
+
+      <TodoInput onAdd={addTodo} />
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {["all", "active", "done"].map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            aria-pressed={filter === f}
+            style={{ ...btn, background: filter === f ? "#3b82f6" : "#334155" }}
+          >
+            {f}
+          </button>
+        ))}
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "#94a3b8" }}>
+          {remaining} left
+        </span>
+      </div>
+
+      {visible.length === 0 ? (
+        <p style={{ color: "#64748b", fontStyle: "italic" }}>Nothing here.</p>
+      ) : (
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {visible.map((todo) => (
+            // key = stable ID, never the array index. An index key makes
+            // React reuse the wrong row's state after a delete or reorder.
+            <TodoItem
+              key={todo.id}
+              todo={todo}
+              onToggle={toggleTodo}
+              onDelete={deleteTodo}
+            />
+          ))}
+        </ul>
+      )}
+
+      <details style={{ marginTop: 20, fontSize: 13, color: "#94a3b8" }}>
+        <summary style={{ cursor: "pointer" }}>What to say about scaling this</summary>
+        <ul style={{ lineHeight: 1.7 }}>
+          <li><b>500+ items:</b> memo isn't enough — the DOM is the cost.
+              Virtualize with @tanstack/react-virtual so only visible rows mount.</li>
+          <li><b>React Compiler:</b> it inserts this memoization automatically,
+              so the useCallback/memo scaffolding becomes unnecessary — but the
+              functional-update discipline still matters, because mutating state
+              makes the compiler bail out silently.</li>
+          <li><b>Server persistence:</b> todos become server state → TanStack
+              Query, with useOptimistic for instant feedback and a rollback path.</li>
+          <li><b>Don't store derived state.</b> \`visible\` and \`remaining\` are
+              computed, not stored. Two sources of truth is the bug this avoids.</li>
+          <li><b>localStorage throws, it doesn't just return null.</b> Safari
+              private mode and blocked cookies raise on access. Wrap every read
+              AND write, and tell the user when persistence is unavailable.</li>
+          <li><b>Validate what you load.</b> Persisted data outlives your schema —
+              a deploy that renames a field shouldn't white-screen returning users.</li>
+          <li><b>Lazy state initialiser.</b> useState(loadTodos) not
+              useState(loadTodos()) — the latter reads storage on every render.</li>
+          <li><b>Multi-tab sync</b> is the follow-up: listen for the \`storage\`
+              event (it fires in OTHER tabs, never the one that wrote) and
+              reconcile. useSyncExternalStore is the modern way to subscribe.</li>
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+const btn = {
+  padding: "8px 14px", borderRadius: 6, border: "none",
+  background: "#334155", color: "#fff", cursor: "pointer", fontSize: 13,
+};
+
+render(<TodoApp />);`,
+      },
+      {
+        name: 'Counter (optimized re-renders)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Counter, done properly =====
+// Every React interview opens with this, and the real question is the
+// follow-up: "now optimize the re-renders and handle the edge cases."
+//
+// The five things they're actually checking:
+//   1. FUNCTIONAL UPDATES — setCount(c => c + 1), not setCount(count + 1).
+//      Batched updates and stale closures both break the second form.
+//   2. useCallback with an EMPTY dep array — only possible because of (1).
+//   3. React.memo on children, so a re-render of the parent doesn't
+//      cascade. Pointless without (2), since a fresh function prop
+//      fails memo's shallow compare every time.
+//   4. Bounds / step as props, and the disabled states that follow.
+//   5. The stale-closure trap in setInterval.
+
+// ---------------------------------------------------------------------
+// A memoized child. Watch its render counter: it should stay at 1 while
+// the count changes, because none of ITS props change.
+// ---------------------------------------------------------------------
+const CounterControls = React.memo(function CounterControls({
+  onIncrement, onDecrement, onReset, canIncrement, canDecrement,
+}) {
+  const renders = React.useRef(0);
+  renders.current++;
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onDecrement} disabled={!canDecrement} style={btn}>−</button>
+        <button onClick={onIncrement} disabled={!canIncrement} style={btn}>+</button>
+        <button onClick={onReset} style={{ ...btn, background: "#475569" }}>Reset</button>
+      </div>
+      <p style={hint}>Controls rendered {renders.current}× (stays low — memo + stable callbacks)</p>
+    </div>
+  );
+});
+
+function Counter({ initial = 0, step = 1, min = -10, max = 10 }) {
+  const [count, setCount] = React.useState(initial);
+  const renders = React.useRef(0);
+  renders.current++;
+
+  // FUNCTIONAL UPDATES are what let these deps be empty. If we wrote
+  // setCount(count + step) we'd need \`count\` in the deps, the callbacks
+  // would be new on every render, and React.memo above would never bail out.
+  const increment = React.useCallback(
+    () => setCount((c) => Math.min(max, c + step)),
+    [step, max],
+  );
+  const decrement = React.useCallback(
+    () => setCount((c) => Math.max(min, c - step)),
+    [step, min],
+  );
+  const reset = React.useCallback(() => setCount(initial), [initial]);
+
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 460 }}>
+      <h2 style={{ marginTop: 0 }}>Counter</h2>
+
+      <p style={{ fontSize: 48, margin: "8px 0", fontVariantNumeric: "tabular-nums" }}
+         aria-live="polite" aria-atomic="true">
+        {count}
+      </p>
+      <p style={hint}>range {min}…{max}, step {step} · parent rendered {renders.current}×</p>
+
+      <CounterControls
+        onIncrement={increment}
+        onDecrement={decrement}
+        onReset={reset}
+        canIncrement={count + step <= max}
+        canDecrement={count - step >= min}
+      />
+
+      <AutoCounter />
+
+      <details style={{ marginTop: 20, fontSize: 13, color: "#94a3b8" }}>
+        <summary style={{ cursor: "pointer" }}>The three traps they probe</summary>
+        <ol style={{ lineHeight: 1.8 }}>
+          <li><b>Batching.</b> Calling setCount(count + 1) twice in one handler
+              increments by ONE, because both reads see the same \`count\`.
+              With setCount(c => c + 1) it increments by two. Try it.</li>
+          <li><b>Stale closure in an interval.</b> See AutoCounter below —
+              an empty-dep useEffect captures \`count\` once, forever.
+              The functional updater is the fix; a ref is the alternative.</li>
+          <li><b>memo without stable props is a no-op.</b> Remove the
+              useCallback wrappers and the Controls render count climbs with
+              every click. That's the pairing most candidates miss.</li>
+        </ol>
+      </details>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// The stale-closure demo. The functional updater means this interval is
+// set up ONCE and still always increments from the latest value.
+// ---------------------------------------------------------------------
+function AutoCounter() {
+  const [n, setN] = React.useState(0);
+  const [running, setRunning] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!running) return;
+    // setN(n + 1) here would freeze at 1 forever — \`n\` is captured once.
+    const id = setInterval(() => setN((prev) => prev + 1), 500);
+    return () => clearInterval(id);   // cleanup, or intervals stack up
+  }, [running]);
+
+  return (
+    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #334155" }}>
+      <p style={{ margin: "0 0 8px" }}>Auto: <b>{n}</b></p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => setRunning((r) => !r)} style={btn}>
+          {running ? "Stop" : "Start"}
+        </button>
+        <button onClick={() => setN(0)} style={{ ...btn, background: "#475569" }}>Clear</button>
+      </div>
+      <p style={hint}>Interval set once; functional updater keeps it fresh.</p>
+    </div>
+  );
+}
+
+const btn = {
+  padding: "10px 18px", borderRadius: 6, border: "none", background: "#3b82f6",
+  color: "#fff", cursor: "pointer", fontSize: 15, minWidth: 44,
+};
+const hint = { fontSize: 12, color: "#64748b", margin: "6px 0 0" };
+
+render(<Counter initial={0} step={1} min={-10} max={10} />);`,
+      },
+      {
+        name: 'Search with Debounce + Cancel',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Debounced Search with Request Cancellation =====
+// "Build a search input that doesn't fire an API call on every keystroke."
+// Debouncing is the easy half. The half that separates candidates is
+// CANCELLING the in-flight request, because without it you get a race:
+//
+//   type "re"  → request A starts (slow)
+//   type "rea" → request B starts (fast) → renders results for "rea"
+//   request A finally resolves          → OVERWRITES with results for "re"
+//
+// The UI now shows stale results for a query the user already changed.
+// This is the single most common real-world search bug.
+
+// ---------------------------------------------------------------------
+// The custom hook they want to see you extract.
+// ---------------------------------------------------------------------
+function useDebouncedValue(value, delay = 300) {
+  const [debounced, setDebounced] = React.useState(value);
+
+  React.useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    // Cleanup runs on every change, so a new keystroke cancels the
+    // pending timer. THIS is the debounce — not the setTimeout.
+    return () => clearTimeout(id);
+  }, [value, delay]);
+
+  return debounced;
+}
+
+// Fake API with a deliberately variable delay, so the race is reproducible.
+const ALL = ["react", "react router", "react query", "redux", "redux saga",
+             "recoil", "remix", "rxjs", "vue", "svelte", "angular", "solid"];
+
+function fakeSearch(query, signal) {
+  return new Promise((resolve, reject) => {
+    const delay = 200 + Math.random() * 600;
+    const id = setTimeout(() => {
+      if (query === "fail") reject(new Error("Search service unavailable"));
+      else resolve(ALL.filter((x) => x.includes(query.toLowerCase())));
+    }, delay);
+
+    // The signal is what makes cancellation work.
+    signal?.addEventListener("abort", () => {
+      clearTimeout(id);
+      reject(new DOMException("Aborted", "AbortError"));
+    });
+  });
+}
+
+function SearchBox() {
+  const [query, setQuery] = React.useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
+
+  const [results, setResults] = React.useState([]);
+  const [status, setStatus] = React.useState("idle"); // idle|loading|success|error|empty
+  const [error, setError] = React.useState(null);
+  const [callCount, setCallCount] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!debouncedQuery.trim()) {
+      setStatus("idle");
+      setResults([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    setStatus("loading");
+    setError(null);
+    setCallCount((c) => c + 1);
+
+    fakeSearch(debouncedQuery, controller.signal)
+      .then((data) => {
+        setResults(data);
+        setStatus(data.length ? "success" : "empty");
+      })
+      .catch((err) => {
+        // ALWAYS distinguish an abort from a real failure. Treating an
+        // abort as an error shows a spurious message and pollutes your
+        // error rate with cancelled requests.
+        if (err.name === "AbortError") return;
+        setError(err.message);
+        setStatus("error");
+      });
+
+    // Cleanup aborts the previous request whenever the query changes
+    // or the component unmounts. This is what kills the race.
+    return () => controller.abort();
+  }, [debouncedQuery]);
+
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 480 }}>
+      <h2 style={{ marginTop: 0 }}>Search</h2>
+
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder='Try "re", or "fail" to see the error state'
+        aria-label="Search frameworks"
+        style={{
+          width: "100%", padding: "10px 12px", borderRadius: 6, fontSize: 15,
+          border: "1px solid #334155", background: "#1e293b", color: "#fff",
+        }}
+      />
+
+      <p style={hint}>
+        keystrokes: {query.length} · API calls: {callCount} · debounced to “{debouncedQuery || "—"}”
+      </p>
+
+      {/* Live region so screen readers hear the result count change. */}
+      <div aria-live="polite" aria-atomic="true" style={{ marginTop: 12, minHeight: 120 }}>
+        {status === "loading" && <p style={{ color: "#94a3b8" }}>Searching…</p>}
+        {status === "error"   && <p role="alert" style={{ color: "#f87171" }}>{error}</p>}
+        {status === "empty"   && <p style={{ color: "#94a3b8" }}>No results for “{debouncedQuery}”.</p>}
+        {status === "idle"    && <p style={{ color: "#64748b" }}>Start typing to search.</p>}
+        {status === "success" && (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {results.map((r) => (
+              <li key={r} style={{
+                padding: "8px 10px", background: "#1e293b",
+                borderRadius: 6, marginBottom: 6,
+              }}>{r}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <details style={{ marginTop: 16, fontSize: 13, color: "#94a3b8" }}>
+        <summary style={{ cursor: "pointer" }}>Debounce vs throttle, and what to say next</summary>
+        <ul style={{ lineHeight: 1.8 }}>
+          <li><b>Debounce</b> waits for a pause — right for search, because you
+              only care about the final query. <b>Throttle</b> fires at a fixed
+              rate — right for scroll and resize, where you want steady updates.</li>
+          <li><b>Five states, not two.</b> idle / loading / success / empty / error.
+              Most implementations ship loading and success and call it done —
+              "no results" rendered as a blank panel is a bug report.</li>
+          <li><b>In production use TanStack Query.</b> It gives you the
+              cancellation, caching, deduplication, retry and stale-while-revalidate
+              for free. Say this — hand-rolling it is the interview exercise,
+              not the recommendation.</li>
+          <li><b>Don't debounce the request, debounce the VALUE.</b> Debouncing a
+              callback that closes over state reintroduces stale-closure bugs;
+              debouncing the value and reacting in an effect does not.</li>
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+const hint = { fontSize: 12, color: "#64748b", margin: "8px 0 0" };
+
+render(<SearchBox />);`,
+      },
+      {
+        name: 'Modal (Portal + Focus Trap)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Accessible Modal =====
+// "Build a reusable modal triggerable from anywhere." They're testing
+// portals, focus management, event bubbling and accessibility.
+//
+// The FIVE things a correct modal must do, and the order matters:
+//   1. Render in a portal (or the top layer) so an ancestor's
+//      overflow:hidden or transform can't clip it.
+//   2. Move focus INTO the modal on open.
+//   3. TRAP focus — Tab from the last element wraps to the first.
+//   4. RETURN focus to the trigger on close. Most-forgotten step.
+//   5. Escape to close, aria-modal, and lock background scroll.
+//
+// Two implementations below: the hand-rolled portal version (what they
+// ask for) and the <dialog> version (what you should actually ship).
+
+function Modal({ isOpen, onClose, title, children }) {
+  const panelRef = React.useRef(null);
+  const openerRef = React.useRef(null);
+
+  // Remember what had focus BEFORE we opened, and restore it on close.
+  // Doing this in the effect's cleanup means it also runs on unmount.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    openerRef.current = document.activeElement;
+
+    // Focus the panel itself (tabIndex={-1}) rather than guessing at the
+    // first control — announces the dialog and works when it's empty.
+    panelRef.current?.focus();
+
+    return () => openerRef.current?.focus?.();
+  }, [isOpen]);
+
+  // Escape to close + focus trap. One keydown listener on the panel.
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    function onKeyDown(e) {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key !== "Tab") return;
+
+      // Recompute each time — the focusable set can change while open.
+      const focusables = panelRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables || focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, onClose]);
+
+  // Lock background scroll while open.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  // ReactDOM.createPortal renders into a different DOM node while staying
+  // in the React tree — so context still flows in, and React events still
+  // bubble to React ancestors even though the DOM nodes are unrelated.
+  return ReactDOM.createPortal(
+    <div
+      onClick={onClose}                       // click the backdrop to dismiss
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,.6)",
+        display: "grid", placeItems: "center", zIndex: 1000,
+      }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        tabIndex={-1}
+        // STOP PROPAGATION so a click inside doesn't hit the backdrop
+        // handler above. This is the event-bubbling bit they're testing.
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#1e293b", color: "#e2e8f0", padding: 24, borderRadius: 10,
+          minWidth: 320, maxWidth: 480, outline: "2px solid #3b82f6",
+        }}
+      >
+        <h3 id="modal-title" style={{ margin: "0 0 12px" }}>{title}</h3>
+        {children}
+        <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+          <button onClick={onClose} style={btn}>Confirm</button>
+          <button onClick={onClose} style={{ ...btn, background: "#475569" }}>Cancel</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ---------------------------------------------------------------------
+// The version to actually ship: <dialog> gives you the TOP LAYER, a real
+// focus trap, Escape, and inert-ing of the rest of the page — for free.
+// ---------------------------------------------------------------------
+function NativeDialog({ title, children }) {
+  const ref = React.useRef(null);
+  return (
+    <>
+      <button onClick={() => ref.current?.showModal()} style={btn}>
+        Open &lt;dialog&gt;
+      </button>
+      <dialog
+        ref={ref}
+        aria-labelledby="native-title"
+        style={{
+          background: "#1e293b", color: "#e2e8f0", border: "none",
+          borderRadius: 10, padding: 24, maxWidth: 420,
+        }}
+      >
+        <h3 id="native-title" style={{ marginTop: 0 }}>{title}</h3>
+        {children}
+        {/* method="dialog" closes the dialog with no JS at all */}
+        <form method="dialog" style={{ marginTop: 16 }}>
+          <button style={btn}>Close</button>
+        </form>
+      </dialog>
+    </>
+  );
+}
+
+function App() {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0" }}>
+      <h2 style={{ marginTop: 0 }}>Modal</h2>
+
+      {/* Deliberately inside a transformed ancestor — with position:fixed
+          and no portal, the modal would be clipped to THIS box. */}
+      <div style={{
+        transform: "translateZ(0)", overflow: "hidden",
+        border: "1px dashed #475569", borderRadius: 8, padding: 16, maxWidth: 320,
+      }}>
+        <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 0 }}>
+          This box has <code>transform</code> + <code>overflow:hidden</code>.
+          The portal is what lets the modal escape it.
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setOpen(true)} style={btn}>Open portal modal</button>
+          <NativeDialog title="Native dialog">
+            <p>Top layer, real focus trap, Escape — all built in.</p>
+          </NativeDialog>
+        </div>
+      </div>
+
+      <Modal isOpen={open} onClose={() => setOpen(false)} title="Delete project?">
+        <p>This cannot be undone.</p>
+        <input placeholder="Tab between me and the buttons" aria-label="Test input"
+               style={{
+                 width: "100%", padding: 8, borderRadius: 6, marginTop: 8,
+                 border: "1px solid #334155", background: "#0f172a", color: "#fff",
+               }} />
+      </Modal>
+
+      <details style={{ marginTop: 20, fontSize: 13, color: "#94a3b8" }}>
+        <summary style={{ cursor: "pointer" }}>What to say about this</summary>
+        <ul style={{ lineHeight: 1.8 }}>
+          <li><b>Portals keep the REACT tree, move the DOM node.</b> So context
+              still flows in and React events still bubble to React ancestors —
+              but CSS and TAB ORDER follow the DOM. That last part is why focus
+              management is manual.</li>
+          <li><b>Use &lt;dialog&gt; in real code.</b> Top layer beats z-index,
+              and the focus trap is where hand-rolled modals fail audits. You
+              still add scroll lock and focus return.</li>
+          <li><b>stopPropagation on the panel</b> is what stops a click inside
+              from reaching the backdrop's close handler.</li>
+          <li><b>"Triggerable from anywhere"</b> → a ModalProvider with context
+              exposing openModal(content), so any component can call it without
+              prop-drilling an isOpen flag.</li>
+          <li><b>Don't render the modal when closed.</b> Returning null keeps
+              its content out of the tab order and the accessibility tree —
+              hiding with CSS leaves focusable content reachable.</li>
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+const btn = {
+  padding: "9px 16px", borderRadius: 6, border: "none", background: "#3b82f6",
+  color: "#fff", cursor: "pointer", fontSize: 14,
+};
+
+render(<App />);`,
+      },
+      {
+        name: 'Form with Validation',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Form with Real-Time Validation =====
+// Tests controlled vs uncontrolled, validation timing, and — the part
+// most people skip — the ACCESSIBILITY of error messages.
+//
+// The UX rule that matters most: DON'T validate on every keystroke from
+// the start. Telling someone their email is invalid after they've typed
+// "a" is hostile. Validate on BLUR, then live-update once the field has
+// been touched. That single decision is what interviewers are listening
+// for, more than the regex.
+
+const validators = {
+  name: (v) => (!v.trim() ? "Name is required" : v.trim().length < 2 ? "Name is too short" : ""),
+  email: (v) =>
+    !v.trim() ? "Email is required"
+    // Deliberately simple. A "full" RFC 5322 regex is a red flag —
+    // say you'd validate loosely and confirm by sending a real email.
+    : !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v) ? "Enter an email like name@example.com"
+    : "",
+  password: (v) =>
+    !v ? "Password is required"
+    : v.length < 8 ? "Use at least 8 characters"
+    : !/[0-9]/.test(v) ? "Include at least one number"
+    : "",
+  confirm: (v, all) => (v !== all.password ? "Passwords don't match" : ""),
+};
+
+function useForm(initial) {
+  const [values, setValues] = React.useState(initial);
+  const [touched, setTouched] = React.useState({});
+  const [submitting, setSubmitting] = React.useState(false);
+
+  // Errors are DERIVED during render, never stored in state. Storing them
+  // creates a second source of truth that drifts out of sync with values —
+  // the classic bug in hand-rolled forms.
+  const errors = React.useMemo(() => {
+    const out = {};
+    for (const key of Object.keys(validators)) {
+      const msg = validators[key](values[key] ?? "", values);
+      if (msg) out[key] = msg;
+    }
+    return out;
+  }, [values]);
+
+  const isValid = Object.keys(errors).length === 0;
+
+  const handleChange = (key) => (e) =>
+    setValues((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const handleBlur = (key) => () =>
+    setTouched((prev) => ({ ...prev, [key]: true }));
+
+  // Show an error only once the field has been touched OR we've submitted.
+  const showError = (key) => Boolean(touched[key] && errors[key]);
+
+  return { values, errors, touched, setTouched, isValid, submitting,
+           setSubmitting, handleChange, handleBlur, showError };
+}
+
+function Field({ id, label, type = "text", value, error, show, onChange, onBlur, autoComplete }) {
+  const errorId = \`\${id}-error\`;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {/* A real <label htmlFor> — not a placeholder. Placeholders vanish
+          on input, usually fail contrast, and aren't reliably announced. */}
+      <label htmlFor={id} style={{ display: "block", marginBottom: 6, fontSize: 14 }}>
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        autoComplete={autoComplete}
+        aria-invalid={show || undefined}
+        aria-describedby={show ? errorId : undefined}
+        style={{
+          width: "100%", padding: "9px 12px", borderRadius: 6, fontSize: 15,
+          background: "#0f172a", color: "#fff",
+          border: \`1px solid \${show ? "#f87171" : "#334155"}\`,
+        }}
+      />
+      {show && (
+        // role="alert" so it's announced; the message says how to FIX it,
+        // not just that something is wrong. Colour is never the only signal.
+        <p id={errorId} role="alert" style={{ color: "#f87171", fontSize: 13, margin: "6px 0 0" }}>
+          ⚠ {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SignupForm() {
+  const f = useForm({ name: "", email: "", password: "", confirm: "" });
+  const [done, setDone] = React.useState(false);
+  const summaryRef = React.useRef(null);
+
+  async function onSubmit(e) {
+    e.preventDefault();
+
+    if (!f.isValid) {
+      // Mark everything touched so all errors appear at once…
+      f.setTouched({ name: true, email: true, password: true, confirm: true });
+      // …then move focus to the first invalid field. Users don't hunt.
+      const firstBad = Object.keys(validators).find((k) => f.errors[k]);
+      document.getElementById(firstBad)?.focus();
+      return;
+    }
+
+    f.setSubmitting(true);
+    await new Promise((r) => setTimeout(r, 700));
+    f.setSubmitting(false);
+    setDone(true);
+  }
+
+  if (done) {
+    return (
+      <div style={wrap}>
+        <p role="status" style={{ color: "#4ade80" }}>✓ Account created for {f.values.email}</p>
+      </div>
+    );
+  }
+
+  const errorCount = Object.keys(f.errors).filter((k) => f.touched[k]).length;
+
+  return (
+    <form onSubmit={onSubmit} noValidate style={wrap}>
+      <h2 style={{ marginTop: 0 }}>Create account</h2>
+
+      {/* An error summary at the top is a WCAG-friendly pattern for longer
+          forms — it gives a screen-reader user the count before the fields. */}
+      {errorCount > 0 && (
+        <p ref={summaryRef} aria-live="polite" style={{ color: "#f87171", fontSize: 13 }}>
+          {errorCount} field{errorCount > 1 ? "s" : ""} need attention.
+        </p>
+      )}
+
+      <Field id="name" label="Full name" autoComplete="name"
+        value={f.values.name} error={f.errors.name} show={f.showError("name")}
+        onChange={f.handleChange("name")} onBlur={f.handleBlur("name")} />
+
+      <Field id="email" label="Email" type="email" autoComplete="email"
+        value={f.values.email} error={f.errors.email} show={f.showError("email")}
+        onChange={f.handleChange("email")} onBlur={f.handleBlur("email")} />
+
+      <Field id="password" label="Password" type="password" autoComplete="new-password"
+        value={f.values.password} error={f.errors.password} show={f.showError("password")}
+        onChange={f.handleChange("password")} onBlur={f.handleBlur("password")} />
+
+      <Field id="confirm" label="Confirm password" type="password" autoComplete="new-password"
+        value={f.values.confirm} error={f.errors.confirm} show={f.showError("confirm")}
+        onChange={f.handleChange("confirm")} onBlur={f.handleBlur("confirm")} />
+
+      {/* aria-disabled rather than disabled: the button stays focusable so a
+          keyboard user can reach it and discover WHY it won't submit. */}
+      <button type="submit" aria-disabled={f.submitting} style={{
+        ...btn, width: "100%", opacity: f.submitting ? 0.6 : 1,
+      }}>
+        {f.submitting ? "Creating…" : "Create account"}
+      </button>
+
+      <details style={{ marginTop: 20, fontSize: 13, color: "#94a3b8" }}>
+        <summary style={{ cursor: "pointer" }}>The decisions being graded</summary>
+        <ul style={{ lineHeight: 1.8 }}>
+          <li><b>Validation timing.</b> On blur, then live once touched. Validating
+              from the first keystroke is hostile; validating only on submit is
+              slow feedback.</li>
+          <li><b>Controlled vs uncontrolled.</b> Controlled (value + onChange) gives
+              you live validation and derived state — the cost is a re-render per
+              keystroke. Uncontrolled (refs / FormData) is faster and fine for
+              submit-only validation. React Hook Form is popular precisely because
+              it's uncontrolled under the hood.</li>
+          <li><b>Errors are DERIVED, not stored.</b> useMemo over values — storing
+              them in state creates a second source of truth that drifts.</li>
+          <li><b>Accessibility is the differentiator here.</b> Real &lt;label
+              htmlFor&gt;, aria-invalid, aria-describedby linking the message,
+              role="alert", focus the first invalid field on failed submit,
+              and autoComplete tokens.</li>
+          <li><b>In production:</b> React Hook Form + Zod. One schema validates on
+              the client AND the server, and you infer the TypeScript type from it.</li>
+        </ul>
+      </details>
+    </form>
+  );
+}
+
+const wrap = { padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 420 };
+const btn = {
+  padding: "11px 18px", borderRadius: 6, border: "none", background: "#3b82f6",
+  color: "#fff", cursor: "pointer", fontSize: 15,
+};
+
+render(<SignupForm />);`,
+      },
+      {
+        name: 'Theme Switcher (dark/light)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Theme Switcher =====
+// "Dark/light toggle that persists across sessions." Tests Context API,
+// CSS variables, system preferences — and the one they always mention:
+// THE FLASH OF WRONG THEME on reload.
+//
+// THREE states, not two. This is the part most implementations get wrong:
+//   'light'  — user explicitly chose light
+//   'dark'   — user explicitly chose dark
+//   'system' — follow the OS, and KEEP following it if the OS changes
+// A boolean isDark cannot represent "system", so the user's explicit
+// choice gets lost the moment their OS switches at sunset.
+
+const STORAGE_KEY = "theme-preference";
+
+// ---------------------------------------------------------------------
+// THE FOUC FIX. In a real app this goes in index.html as a BLOCKING
+// inline <script> in <head>, before any CSS or JS. It must run before
+// first paint — a useEffect runs AFTER, which is exactly why the flash
+// happens. This is the single most-asked follow-up on this question.
+//
+//   <script>
+//     (function () {
+//       try {
+//         var s = localStorage.getItem('theme-preference');
+//         var dark = s === 'dark' ||
+//           ((!s || s === 'system') &&
+//            matchMedia('(prefers-color-scheme: dark)').matches);
+//         document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+//       } catch (e) {}   // localStorage can throw — see readStored()
+//     })();
+//   </script>
+//
+// It's inline (not a module) and blocking BY DESIGN. It costs ~1ms of
+// render-blocking time to avoid a visible flash, which is the right trade.
+// ---------------------------------------------------------------------
+
+// localStorage can THROW, not just return null: Safari private mode,
+// blocked cookies, or a full quota. Every access needs a try/catch.
+function readStored() {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    return v === "light" || v === "dark" || v === "system" ? v : "system";
+  } catch {
+    return "system";   // storage unavailable — degrade, don't crash
+  }
+}
+
+function writeStored(value) {
+  try { localStorage.setItem(STORAGE_KEY, value); } catch { /* ignore */ }
+}
+
+const ThemeContext = React.createContext(null);
+
+function ThemeProvider({ children }) {
+  // Lazy initialiser so localStorage is read ONCE, not on every render.
+  const [preference, setPreference] = React.useState(readStored);
+  const [systemDark, setSystemDark] = React.useState(
+    () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false,
+  );
+
+  // Keep following the OS while preference is 'system'. Without this
+  // listener the theme is only correct at page load.
+  React.useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return;
+    const onChange = (e) => setSystemDark(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  const resolved = preference === "system" ? (systemDark ? "dark" : "light") : preference;
+
+  React.useEffect(() => {
+    // Set an attribute on the ROOT and let CSS variables do the work.
+    // No re-render of consumers, no inline styles, and it cascades into
+    // shadow DOM — which a JS theme object cannot do.
+    document.documentElement.dataset.theme = resolved;
+    document.documentElement.style.colorScheme = resolved; // native controls
+    writeStored(preference);
+  }, [resolved, preference]);
+
+  // Memoized so consumers don't re-render on every provider render.
+  const value = React.useMemo(
+    () => ({ preference, resolved, setPreference }),
+    [preference, resolved],
+  );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+function useTheme() {
+  const ctx = React.useContext(ThemeContext);
+  // Throwing here beats returning undefined — the error names the mistake.
+  if (!ctx) throw new Error("useTheme must be used inside a ThemeProvider");
+  return ctx;
+}
+
+function ThemeToggle() {
+  const { preference, resolved, setPreference } = useTheme();
+  const options = ["light", "system", "dark"];
+
+  return (
+    <div role="radiogroup" aria-label="Colour theme" style={{ display: "flex", gap: 6 }}>
+      {options.map((opt) => (
+        <button
+          key={opt}
+          role="radio"
+          aria-checked={preference === opt}
+          onClick={() => setPreference(opt)}
+          style={{
+            ...btn,
+            background: preference === opt ? "var(--accent)" : "var(--surface-2)",
+            color: preference === opt ? "#fff" : "var(--text)",
+          }}
+        >
+          {opt === "light" ? "☀ Light" : opt === "dark" ? "☾ Dark" : "⚙ System"}
+        </button>
+      ))}
+      <span style={{ fontSize: 12, color: "var(--muted)", alignSelf: "center", marginLeft: 8 }}>
+        resolved: <b>{resolved}</b>
+      </span>
+    </div>
+  );
+}
+
+function Demo() {
+  const { resolved } = useTheme();
+
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "var(--bg)", color: "var(--text)", minHeight: 320 }}>
+      {/* Tokens defined on :root, redefined per [data-theme]. Components
+          reference SEMANTIC names (--bg, --text), never raw colours. */}
+      <style>{\`
+        :root {
+          --bg: #ffffff; --surface: #f1f5f9; --surface-2: #e2e8f0;
+          --text: #0f172a; --muted: #64748b; --accent: #2563eb;
+        }
+        :root[data-theme="dark"] {
+          --bg: #0f172a; --surface: #1e293b; --surface-2: #334155;
+          --text: #e2e8f0; --muted: #94a3b8; --accent: #3b82f6;
+        }
+        /* No transition on load, or you animate the initial paint. */
+        body { transition: background-color .2s ease, color .2s ease; }
+      \`}</style>
+
+      <h2 style={{ marginTop: 0 }}>Theme Switcher</h2>
+      <ThemeToggle />
+
+      <div style={{
+        marginTop: 20, padding: 16, borderRadius: 8,
+        background: "var(--surface)", border: "1px solid var(--surface-2)",
+      }}>
+        <p style={{ margin: 0 }}>Currently rendering the <b>{resolved}</b> palette.</p>
+        <p style={{ margin: "8px 0 0", color: "var(--muted)", fontSize: 13 }}>
+          Pick “System”, then change your OS appearance — it follows live.
+        </p>
+      </div>
+
+      <details style={{ marginTop: 20, fontSize: 13, color: "var(--muted)" }}>
+        <summary style={{ cursor: "pointer" }}>The four things they probe</summary>
+        <ul style={{ lineHeight: 1.8 }}>
+          <li><b>The flash (FOUC).</b> A useEffect runs after first paint, so you
+              see the wrong theme for a frame. Fix: a blocking inline script in
+              &lt;head&gt; that sets data-theme before any CSS loads. See the
+              comment block at the top.</li>
+          <li><b>Three states, not a boolean.</b> light / dark / <i>system</i>.
+              With isDark you can't represent "follow the OS", so the user's
+              choice breaks when their OS switches.</li>
+          <li><b>CSS variables, not a JS theme object.</b> Variables cascade,
+              cost no re-render, need no context in leaf components, and pierce
+              shadow DOM. Switching theme is one attribute on &lt;html&gt;.</li>
+          <li><b>localStorage can THROW.</b> Safari private mode and blocked
+              cookies raise on access — not return null. Wrap every read and
+              write in try/catch and render correctly with no stored value.</li>
+          <li><b>Also:</b> set <code>color-scheme</code> so native scrollbars and
+              form controls follow; memoize the context value or every consumer
+              re-renders; and don't transition on first paint.</li>
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+const btn = {
+  padding: "8px 14px", borderRadius: 6, border: "1px solid var(--surface-2)",
+  cursor: "pointer", fontSize: 13,
+};
+
+render(
+  <ThemeProvider>
+    <Demo />
+  </ThemeProvider>
+);`,
       },
     ],
   },

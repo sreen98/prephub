@@ -1,0 +1,48 @@
+#!/bin/sh
+#
+# Blocks a commit whose prose counts have drifted from the actual content.
+#
+# The same check runs in .github/workflows/deploy.yml before the build, so CI is
+# the real backstop. This hook exists so drift is caught in 40ms at commit time
+# instead of surfacing as a red deploy after a push.
+#
+# Wired via `core.hooksPath=.githooks` (set by the `prepare` npm script), which
+# is why this file lives in the repo instead of .git/hooks — it survives a
+# reclone and shows up in diffs.
+#
+# Escape hatch: git commit --no-verify
+
+# Called directly rather than via `npm run` — saves ~300ms of npm startup and
+# avoids needing npm on PATH.
+if ! command -v node > /dev/null 2>&1; then
+  echo "pre-commit: node not on PATH — skipping the count check."
+  echo "            CI still enforces it; see .github/workflows/deploy.yml."
+  exit 0
+fi
+
+# The check reads the working tree, not the staged index. If a file the counts
+# derive from is staged with unstaged changes on top, the number being verified
+# may not be the number being committed.
+if ! git diff --quiet -- src/data.ts src/components/playgroundTemplates.ts \
+     src/components/playgroundSolutions.ts src/components/playgroundSolutionKeys.ts \
+     README.md CLAUDE.md src/content/ 2>/dev/null; then
+  echo "pre-commit: note — verifying the working tree; you have unstaged changes"
+  echo "            in files the counts derive from."
+fi
+
+if ! node scripts/verify-counts.js; then
+  cat <<'MSG'
+
+------------------------------------------------------------------
+Commit blocked: a count stated in prose no longer matches the code.
+
+Fix the number in the file named above, or if the content genuinely
+changed, update the claim to the new figure. To register a brand-new
+claim, add a line to the `claims` array in scripts/verify-counts.js.
+
+  re-check:  npm run verify:counts
+  override:  git commit --no-verify
+------------------------------------------------------------------
+MSG
+  exit 1
+fi

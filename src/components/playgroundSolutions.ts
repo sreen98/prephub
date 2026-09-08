@@ -5225,4 +5225,1685 @@ test("Single",       findPeak([42]),                          [0]);
 test("Strictly inc", findPeak([1, 2, 3, 4, 5]),               [4]);
 test("Strictly dec", findPeak([5, 4, 3, 2, 1]),               [0]);
 test("Two elements", findPeak([1, 2]),                        [1]);`,
+
+  'Merge Intervals': `// ===== SOLUTION: Merge Intervals =====
+//
+// ┌──────────────────────────────────┬────────────┬───────┬──────────┐
+// │ Approach                         │ Time       │ Space │ Verdict  │
+// ├──────────────────────────────────┼────────────┼───────┼──────────┤
+// │ 1. Sort by start, then sweep     │ O(n log n) │ O(n)  │ BEST     │
+// │ 2. Sort + reduce (functional)    │ O(n log n) │ O(n)  │ Concise  │
+// │ 3. Compare every pair repeatedly │ O(n³)      │ O(n)  │ Avoid    │
+// └──────────────────────────────────┴────────────┴───────┴──────────┘
+//
+// The sort is what makes this linear afterwards: once sorted by start,
+// any interval can only overlap the one immediately before it, so a
+// single left-to-right pass is enough. That's the whole insight — the
+// O(n log n) is the sort, and you cannot do better without it.
+
+// ----- Approach 1: Sort then sweep (BEST) -----
+function merge(intervals) {
+  if (intervals.length === 0) return [];
+
+  // Copy before sorting — sort() mutates, and the caller didn't ask for that.
+  const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
+  const out = [sorted[0].slice()];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const last = out[out.length - 1];
+    const [start, end] = sorted[i];
+
+    if (start <= last[1]) {
+      // Overlap (or touching) — extend the current interval.
+      // Math.max matters: [1,10] then [2,3] must stay [1,10], not shrink to [1,3].
+      last[1] = Math.max(last[1], end);
+    } else {
+      out.push([start, end]);
+    }
+  }
+  return out;
+}
+
+// ----- Approach 2: Sort + reduce (same algorithm, functional style) -----
+function mergeReduce(intervals) {
+  return [...intervals]
+    .sort((a, b) => a[0] - b[0])
+    .reduce((acc, [start, end]) => {
+      const last = acc[acc.length - 1];
+      if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+      else acc.push([start, end]);
+      return acc;
+    }, []);
+}
+
+// ----- When to pick which -----
+// Approach 1 for an interview — the explicit loop is easier to narrate and
+// to debug. Approach 2 if the codebase is functional in style.
+//
+// Follow-ups you should expect:
+//  • "Insert one interval into an already-sorted list" → O(n), no sort needed.
+//  • "Count meeting rooms needed" → sort starts and ends separately and sweep,
+//    tracking concurrent overlaps (the classic Meeting Rooms II).
+//  • "Do intervals [a,b] and [c,d] overlap?" → a <= d && c <= b. Worth
+//    memorising; it's the predicate underneath all of these.
+//  • Whether touching endpoints count as overlapping is a CLARIFYING QUESTION.
+//    Here [1,4] and [4,5] merge. If they shouldn't, use \`start < last[1]\`.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Overlapping",     merge([[1,3],[2,6],[8,10],[15,18]]), [[1,6],[8,10],[15,18]]);
+test("Touching",        merge([[1,4],[4,5]]),                [[1,5]]);
+test("Fully contained", merge([[1,10],[2,3],[4,8]]),         [[1,10]]);
+test("Unsorted input",  merge([[5,6],[1,3],[2,4]]),          [[1,4],[5,6]]);
+test("Single",          merge([[1,4]]),                      [[1,4]]);
+test("Empty",           merge([]),                           []);
+test("reduce variant",  mergeReduce([[1,3],[2,6],[8,10]]),   [[1,6],[8,10]]);`,
+
+  'Minimum Size Subarray Sum': `// ===== SOLUTION: Minimum Size Subarray Sum =====
+//
+// ┌────────────────────────────────┬────────────┬───────┬──────────┐
+// │ Approach                       │ Time       │ Space │ Verdict  │
+// ├────────────────────────────────┼────────────┼───────┼──────────┤
+// │ 1. Sliding window (two ptr)    │ O(n)       │ O(1)  │ BEST     │
+// │ 2. Prefix sums + binary search │ O(n log n) │ O(n)  │ Works    │
+// │ 3. Check every subarray        │ O(n²)      │ O(1)  │ Baseline │
+// └────────────────────────────────┴────────────┴───────┴──────────┘
+//
+// WHY THE WINDOW IS VALID HERE: all numbers are positive, so the sum is
+// MONOTONIC in the window size — growing right always increases it,
+// shrinking left always decreases it. That monotonicity is what lets you
+// move each pointer forward only, never backward, giving O(n).
+// With negative numbers present this breaks entirely and you need
+// prefix sums (see the Subarray Sum Equals K challenge).
+
+// ----- Approach 1: Sliding window (BEST) -----
+function minSubArrayLen(target, nums) {
+  let left = 0;
+  let sum = 0;
+  let best = Infinity;
+
+  for (let right = 0; right < nums.length; right++) {
+    sum += nums[right];
+
+    // Shrink from the left while the window still qualifies —
+    // a \`while\`, not an \`if\`: one addition can make several
+    // shrinks valid (e.g. target 4 with [1,1,1,4]).
+    while (sum >= target) {
+      best = Math.min(best, right - left + 1);
+      sum -= nums[left];
+      left++;
+    }
+  }
+  return best === Infinity ? 0 : best;
+}
+
+// ----- Approach 2: Prefix sums + binary search -----
+// Generalises to "smallest window with sum >= target" when you also need
+// arbitrary range queries. Slower here, but the technique is worth knowing.
+function minSubArrayLenBinary(target, nums) {
+  const prefix = [0];
+  for (const n of nums) prefix.push(prefix[prefix.length - 1] + n);
+
+  let best = Infinity;
+  for (let i = 0; i < prefix.length; i++) {
+    // Find the smallest j where prefix[j] - prefix[i] >= target
+    const need = prefix[i] + target;
+    let lo = i + 1, hi = prefix.length - 1, found = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (prefix[mid] >= need) { found = mid; hi = mid - 1; }
+      else lo = mid + 1;
+    }
+    if (found !== -1) best = Math.min(best, found - i);
+  }
+  return best === Infinity ? 0 : best;
+}
+
+// ----- When to pick which -----
+// Always the sliding window for this problem. Reach for prefix sums when
+// the array can contain negatives or zeros, because the window's
+// monotonicity assumption no longer holds.
+//
+// Two details interviewers probe:
+//  • Returning 0 (not Infinity, not -1) when impossible — read the spec.
+//  • \`while\` vs \`if\` on the shrink. An \`if\` gives you the wrong answer on
+//    [1,1,1,4] with target 4: it records length 4 and never finds the 1.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",        minSubArrayLen(7,  [2,3,1,2,4,3]), 2);
+test("Impossible",      minSubArrayLen(11, [1,1,1,1]),     0);
+test("Whole array",     minSubArrayLen(11, [1,2,3,4,5]),   3);
+test("Single element",  minSubArrayLen(4,  [1,4,4]),       1);
+test("Exact match",     minSubArrayLen(6,  [1,2,3]),       3);
+test("Empty",           minSubArrayLen(1,  []),            0);
+test("Shrink > once",   minSubArrayLen(4,  [1,1,1,4]),     1);
+test("Binary variant",  minSubArrayLenBinary(7, [2,3,1,2,4,3]), 2);`,
+
+  'Sliding Window Maximum': `// ===== SOLUTION: Sliding Window Maximum =====
+//
+// ┌─────────────────────────────────┬────────────┬───────┬──────────┐
+// │ Approach                        │ Time       │ Space │ Verdict  │
+// ├─────────────────────────────────┼────────────┼───────┼──────────┤
+// │ 1. Monotonic deque of indices   │ O(n)       │ O(k)  │ BEST     │
+// │ 2. Max-heap with lazy deletion  │ O(n log n) │ O(n)  │ Works    │
+// │ 3. Re-scan each window          │ O(n·k)     │ O(1)  │ Baseline │
+// └─────────────────────────────────┴────────────┴───────┴──────────┘
+//
+// THE KEY IDEA: if nums[j] arrives and is >= nums[i] for some earlier i
+// still in the window, then i can NEVER be the max again — j is both
+// larger and stays in the window longer. So we discard it immediately.
+// What survives is a deque of indices whose VALUES are strictly
+// decreasing, which means the front is always the current maximum.
+// Each index is pushed once and popped once → O(n) total.
+
+// ----- Approach 1: Monotonic deque (BEST) -----
+function maxSlidingWindow(nums, k) {
+  if (nums.length === 0 || k <= 0) return [];
+
+  const out = [];
+  const deque = []; // holds INDICES; nums[deque[...]] is decreasing
+
+  for (let i = 0; i < nums.length; i++) {
+    // 1. Evict indices that have slid out of the window on the left.
+    while (deque.length && deque[0] <= i - k) deque.shift();
+
+    // 2. Evict smaller values from the back — they can never win again.
+    while (deque.length && nums[deque[deque.length - 1]] <= nums[i]) deque.pop();
+
+    deque.push(i);
+
+    // 3. Once the first full window exists, the front is its max.
+    if (i >= k - 1) out.push(nums[deque[0]]);
+  }
+  return out;
+}
+
+// ----- Approach 2: Heap with lazy deletion -----
+// Simpler to reason about, and the right shape when k changes dynamically.
+// Uses a sorted array as a stand-in for a heap to keep this self-contained.
+function maxSlidingWindowHeap(nums, k) {
+  if (nums.length === 0 || k <= 0) return [];
+  const out = [];
+  const heap = []; // [value, index] kept sorted by value descending
+
+  for (let i = 0; i < nums.length; i++) {
+    // insert, keeping descending order
+    let pos = heap.findIndex(([v]) => v < nums[i]);
+    if (pos === -1) pos = heap.length;
+    heap.splice(pos, 0, [nums[i], i]);
+
+    // Lazily drop the top while it's outside the window.
+    while (heap.length && heap[0][1] <= i - k) heap.shift();
+
+    if (i >= k - 1) out.push(heap[0][0]);
+  }
+  return out;
+}
+
+// ----- When to pick which -----
+// The deque, always, for a fixed k — it's the only O(n) answer and it's the
+// one being asked for. Note \`shift()\` on a JS array is O(n) in the worst
+// case, so for very large inputs use a head pointer into a plain array
+// instead of shifting; the algorithm is unchanged.
+//
+// The transferable technique is the MONOTONIC DEQUE, and it's the same idea
+// as the monotonic STACK in Daily Temperatures and Trapping Rain Water:
+// discard elements that can never be the answer, and what remains is ordered.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",     maxSlidingWindow([1,3,-1,-3,5,3,6,7], 3), [3,3,5,5,6,7]);
+test("k = 1",        maxSlidingWindow([1,3,-1], 1),            [1,3,-1]);
+test("k = length",   maxSlidingWindow([4,2,12,3], 4),          [12]);
+test("Decreasing",   maxSlidingWindow([5,4,3,2,1], 2),         [5,4,3,2]);
+test("Increasing",   maxSlidingWindow([1,2,3,4], 2),           [2,3,4]);
+test("Empty",        maxSlidingWindow([], 3),                  []);
+test("Heap variant", maxSlidingWindowHeap([1,3,-1,-3,5,3,6,7], 3), [3,3,5,5,6,7]);`,
+
+  'Longest Consecutive Sequence': `// ===== SOLUTION: Longest Consecutive Sequence =====
+//
+// ┌────────────────────────────────┬────────────┬───────┬──────────┐
+// │ Approach                       │ Time       │ Space │ Verdict  │
+// ├────────────────────────────────┼────────────┼───────┼──────────┤
+// │ 1. Set + only start at a head  │ O(n)       │ O(n)  │ BEST     │
+// │ 2. Sort then scan runs         │ O(n log n) │ O(1)* │ Simplest │
+// │ 3. Union-Find                  │ ~O(n)      │ O(n)  │ Overkill │
+// └────────────────────────────────┴────────────┴───────┴──────────┘
+//                                   * O(1) extra if sorting in place
+//
+// THE INSIGHT that makes it O(n): only start counting from a number whose
+// predecessor is absent — i.e. a genuine sequence START. Without that
+// guard, [1,2,3,...,n] would walk the whole run from every element and
+// you'd be back to O(n²). With it, each element is visited at most twice
+// (once in the outer loop, once in an inner walk), which is O(n).
+
+// ----- Approach 1: Set with sequence-start guard (BEST) -----
+function longestConsecutive(nums) {
+  const set = new Set(nums); // also deduplicates for free
+  let best = 0;
+
+  for (const n of set) {
+    if (set.has(n - 1)) continue; // not a start — someone else will count this run
+
+    let length = 1;
+    while (set.has(n + length)) length++;
+    best = Math.max(best, length);
+  }
+  return best;
+}
+
+// ----- Approach 2: Sort then scan -----
+// Perfectly acceptable if O(n log n) is fine, and much easier to get right
+// under pressure. Say this out loud, then offer the O(n) version.
+function longestConsecutiveSort(nums) {
+  if (nums.length === 0) return 0;
+
+  const sorted = [...new Set(nums)].sort((a, b) => a - b);
+  let best = 1, run = 1;
+
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === sorted[i - 1] + 1) run++;
+    else run = 1;
+    best = Math.max(best, run);
+  }
+  return best;
+}
+
+// ----- When to pick which -----
+// Lead with the sort (it's obviously correct), then improve to the Set —
+// that sequence demonstrates you can optimise rather than that you
+// memorised. The Set version is the expected final answer.
+//
+// Two gotchas:
+//  • Deduplicate. [1,2,2,3] is a run of 3, not 4 — the Set handles it, the
+//    sort version needs an explicit \`new Set\` or a skip-equal check.
+//  • \`sort()\` defaults to STRING comparison, so [10,9] sorts to [10,9].
+//    The comparator (a, b) => a - b is mandatory. This is the single most
+//    common JS-specific bug in sorting questions.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",     longestConsecutive([100,4,200,1,3,2]),        4);
+test("Longer run",   longestConsecutive([0,3,7,2,5,8,4,6,0,1]),    9);
+test("Duplicates",   longestConsecutive([1,2,2,3]),                3);
+test("No sequence",  longestConsecutive([10,30,20]),               1);
+test("Negatives",    longestConsecutive([-2,-1,0,1]),              4);
+test("Empty",        longestConsecutive([]),                       0);
+test("Sort variant", longestConsecutiveSort([100,4,200,1,3,2]),    4);`,
+
+  'Next Permutation': `// ===== SOLUTION: Next Permutation =====
+//
+// ┌──────────────────────────────────┬────────────┬───────┬──────────┐
+// │ Approach                         │ Time       │ Space │ Verdict  │
+// ├──────────────────────────────────┼────────────┼───────┼──────────┤
+// │ 1. Pivot → swap → reverse suffix │ O(n)       │ O(1)  │ BEST     │
+// │ 2. Generate all, sort, find next │ O(n!·n)    │ O(n!) │ Absurd   │
+// └──────────────────────────────────┴────────────┴───────┴──────────┘
+//
+// WHY IT WORKS — three observations:
+//  1. A suffix that is fully DESCENDING is already the largest arrangement
+//     of those digits, so the change must happen before it.
+//  2. So scan from the right for the first position i where
+//     nums[i] < nums[i+1] — the "pivot". Everything after i is descending.
+//  3. To get the NEXT permutation we want the smallest possible increase:
+//     swap nums[i] with the smallest element to its right that still
+//     EXCEEDS it (the rightmost such element, since the suffix descends),
+//     then make the suffix as small as possible by reversing it to ascending.
+//
+// If no pivot exists the whole array descends — it's the largest
+// permutation — and the spec says wrap to the smallest, which the
+// unconditional final reverse gives you for free.
+
+// ----- Approach 1: Pivot, swap, reverse (BEST — and the only real answer) -----
+function nextPermutation(nums) {
+  // 1. Find the pivot: rightmost i with nums[i] < nums[i + 1]
+  let i = nums.length - 2;
+  while (i >= 0 && nums[i] >= nums[i + 1]) i--;
+
+  // 2. If a pivot exists, swap it with the rightmost larger element
+  if (i >= 0) {
+    let j = nums.length - 1;
+    while (nums[j] <= nums[i]) j--;
+    [nums[i], nums[j]] = [nums[j], nums[i]];
+  }
+
+  // 3. Reverse the suffix after the pivot (ascending = smallest).
+  //    When i === -1 this reverses the WHOLE array, which is exactly the
+  //    "wrap around to smallest" behaviour the spec wants.
+  let lo = i + 1, hi = nums.length - 1;
+  while (lo < hi) {
+    [nums[lo], nums[hi]] = [nums[hi], nums[lo]];
+    lo++;
+    hi--;
+  }
+  return nums;
+}
+
+// ----- Previous permutation (the mirror, sometimes asked as a follow-up) -----
+// Identical shape with the comparisons flipped.
+function prevPermutation(nums) {
+  let i = nums.length - 2;
+  while (i >= 0 && nums[i] <= nums[i + 1]) i--;
+  if (i >= 0) {
+    let j = nums.length - 1;
+    while (nums[j] >= nums[i]) j--;
+    [nums[i], nums[j]] = [nums[j], nums[i]];
+  }
+  let lo = i + 1, hi = nums.length - 1;
+  while (lo < hi) { [nums[lo], nums[hi]] = [nums[hi], nums[lo]]; lo++; hi--; }
+  return nums;
+}
+
+// ----- When to pick which -----
+// There is only one sensible approach. What's being tested is whether you
+// can DERIVE the three steps rather than recall them — so narrate the
+// reasoning about the descending suffix, don't just write the code.
+//
+// Note \`nums[i] >= nums[i+1]\` and \`nums[j] <= nums[i]\` use non-strict
+// comparisons deliberately: that's what makes duplicates ([1,1,5]) work.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Simple",        nextPermutation([1,2,3]),   [1,3,2]);
+test("Wrap around",   nextPermutation([3,2,1]),   [1,2,3]);
+test("Duplicates",    nextPermutation([1,1,5]),   [1,5,1]);
+test("Longer suffix", nextPermutation([1,3,2]),   [2,1,3]);
+test("Single",        nextPermutation([1]),       [1]);
+test("Two swap",      nextPermutation([2,3,1]),   [3,1,2]);
+test("Previous perm", prevPermutation([1,3,2]),   [1,2,3]);`,
+
+  'Rotate Matrix 90°': `// ===== SOLUTION: Rotate Matrix 90° Clockwise =====
+//
+// ┌──────────────────────────────────┬───────┬───────┬──────────┐
+// │ Approach                         │ Time  │ Space │ Verdict  │
+// ├──────────────────────────────────┼───────┼───────┼──────────┤
+// │ 1. Transpose + reverse each row  │ O(n²) │ O(1)  │ BEST     │
+// │ 2. Four-way ring rotation        │ O(n²) │ O(1)  │ Clever   │
+// │ 3. Build a new matrix            │ O(n²) │ O(n²) │ Simplest │
+// └──────────────────────────────────┴───────┴───────┴──────────┘
+//
+// O(n²) is optimal — you must touch every cell. The question is really
+// about doing it IN PLACE without index gymnastics.
+
+// ----- Approach 1: Transpose then reverse rows (BEST) -----
+// Two trivially-correct passes beat one clever one.
+//   transpose:      [[1,2,3],[4,5,6],[7,8,9]] → [[1,4,7],[2,5,8],[3,6,9]]
+//   reverse rows:                             → [[7,4,1],[8,5,2],[9,6,3]]
+function rotate(matrix) {
+  const n = matrix.length;
+
+  // Transpose: swap across the main diagonal.
+  // j starts at i + 1 so each pair is swapped ONCE — starting at 0 would
+  // swap everything twice and leave the matrix unchanged.
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      [matrix[i][j], matrix[j][i]] = [matrix[j][i], matrix[i][j]];
+    }
+  }
+
+  // Reverse each row.
+  for (const row of matrix) row.reverse();
+
+  return matrix;
+}
+
+// ----- Approach 2: Rotate four cells at a time, ring by ring -----
+// One pass, no intermediate state — but the indices are easy to get wrong.
+function rotateRings(matrix) {
+  const n = matrix.length;
+  for (let layer = 0; layer < Math.floor(n / 2); layer++) {
+    const first = layer, last = n - 1 - layer;
+    for (let i = first; i < last; i++) {
+      const offset = i - first;
+      const top = matrix[first][i];
+      matrix[first][i]                 = matrix[last - offset][first];
+      matrix[last - offset][first]     = matrix[last][last - offset];
+      matrix[last][last - offset]      = matrix[i][last];
+      matrix[i][last]                  = top;
+    }
+  }
+  return matrix;
+}
+
+// ----- Anticlockwise (the follow-up) -----
+// Same transpose, but reverse the ROW ORDER instead of within each row.
+function rotateCounterClockwise(matrix) {
+  const n = matrix.length;
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++)
+      [matrix[i][j], matrix[j][i]] = [matrix[j][i], matrix[i][j]];
+  matrix.reverse();
+  return matrix;
+}
+
+// ----- When to pick which -----
+// Approach 1, every time. It's two operations you can each verify by eye,
+// it generalises (anticlockwise = transpose + reverse row order), and it's
+// far easier to narrate than the four-way swap.
+//
+// Follow-ups: 180° is reverse rows AND reverse each row (or apply 90° twice);
+// a NON-square m×n matrix cannot be rotated in place because the dimensions
+// change — you must allocate a new n×m matrix, which is a good clarifying
+// question to ask before you start.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("3x3", rotate([[1,2,3],[4,5,6],[7,8,9]]), [[7,4,1],[8,5,2],[9,6,3]]);
+test("2x2", rotate([[1,2],[3,4]]),              [[3,1],[4,2]]);
+test("1x1", rotate([[1]]),                      [[1]]);
+test("4x4", rotate([[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]),
+            [[13,9,5,1],[14,10,6,2],[15,11,7,3],[16,12,8,4]]);
+test("Rings variant", rotateRings([[1,2,3],[4,5,6],[7,8,9]]), [[7,4,1],[8,5,2],[9,6,3]]);
+test("Anticlockwise", rotateCounterClockwise([[1,2,3],[4,5,6],[7,8,9]]), [[3,6,9],[2,5,8],[1,4,7]]);`,
+
+  'Shuffle Array (Fisher-Yates)': `// ===== SOLUTION: Shuffle an Array (Fisher-Yates) =====
+//
+// ┌──────────────────────────────────┬───────┬───────┬────────────────┐
+// │ Approach                         │ Time  │ Space │ Verdict        │
+// ├──────────────────────────────────┼───────┼───────┼────────────────┤
+// │ 1. Fisher-Yates (backward)       │ O(n)  │ O(1)  │ BEST — uniform │
+// │ 2. Fisher-Yates (copy, pure)     │ O(n)  │ O(n)  │ Non-mutating   │
+// │ 3. sort(() => Math.random()-0.5) │ O(n㏒n)│ O(n)  │ WRONG — biased │
+// └──────────────────────────────────┴───────┴───────┴────────────────┘
+//
+// WHY THE SORT TRICK IS WRONG — this is the whole point of the question.
+// Array.prototype.sort requires a CONSISTENT comparator: if cmp(a,b) < 0
+// then cmp(b,a) must be > 0, and the relation must be transitive. A random
+// comparator satisfies neither, so the result depends on the engine's sort
+// algorithm and the number of comparisons it happens to make. Empirically
+// some permutations come up several times more often than others, and the
+// bias changes between V8 versions. It also isn't O(n).
+
+// ----- Approach 1: Fisher-Yates, in place (BEST) -----
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    // INCLUSIVE of i — this is the critical detail.
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ----- Approach 2: Pure version (doesn't mutate the input) -----
+function shuffled(arr) {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// ----- The off-by-one that makes it NON-uniform (Sattolo's algorithm) -----
+// Picking from [0, i-1] instead of [0, i] produces only CYCLIC permutations
+// — every element is guaranteed to move, so (n-1)! outcomes instead of n!.
+// It's a real algorithm with real uses, and an accidental bug here.
+function sattolo(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * i); // note: i, not i + 1
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ----- When to pick which -----
+// Fisher-Yates, always. Use the pure version by default in application code
+// — a shuffle that mutates its argument surprises callers, especially in
+// React where mutating state defeats change detection.
+//
+// Follow-ups worth having ready:
+//  • "Is Math.random() good enough?" For UI, yes. For anything security- or
+//    money-relevant (shuffling a deck for real stakes, sampling for an
+//    audit) use crypto.getRandomValues — Math.random is NOT cryptographically
+//    secure and is predictable from enough observed output.
+//  • "Shuffle only k elements?" Run the loop k times from the end and take
+//    the last k — that's a partial shuffle / reservoir sample, O(k).
+//  • "Prove it's uniform." Each iteration picks uniformly from the
+//    unfixed prefix, so every element has exactly 1/n chance of landing in
+//    each position: n × (n-1) × … = n! equally likely outcomes.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+const out = shuffle([1, 2, 3, 4, 5]);
+test("Same length",     out.length,                  5);
+test("Same elements",   [...out].sort((a,b) => a-b),  [1,2,3,4,5]);
+test("Single element",  shuffle([7]),                 [7]);
+test("Empty",           shuffle([]),                 []);
+test("Pure: input kept", (() => { const a = [1,2,3]; shuffled(a); return a; })(), [1,2,3]);
+
+const positionSeen = [0,1,2,3,4].map(() => new Set());
+for (let t = 0; t < 2000; t++) {
+  shuffle([1,2,3,4,5]).forEach((v, i) => positionSeen[i].add(v));
+}
+test("All positions reachable", positionSeen.every(s => s.size === 5), true);
+
+// Sattolo never leaves an element in place — demonstrable, and the reason
+// the inclusive range matters.
+const fixedPointFound = Array.from({ length: 500 }, () => sattolo([1,2,3,4,5]))
+  .some(a => a.some((v, i) => v === i + 1));
+test("Sattolo has no fixed points", fixedPointFound, false);`,
+
+  'Array Intersection & Union': `// ===== SOLUTION: Array Intersection, Union & Difference =====
+//
+// ┌──────────────────────────────┬──────────┬───────┬──────────┐
+// │ Approach                     │ Time     │ Space │ Verdict  │
+// ├──────────────────────────────┼──────────┼───────┼──────────┤
+// │ 1. Set lookup + order-keep   │ O(n + m) │ O(n)  │ BEST     │
+// │ 2. filter + includes         │ O(n · m) │ O(1)  │ Avoid    │
+// │ 3. ES2025 native Set methods │ O(n + m) │ O(n)  │ Modern   │
+// └──────────────────────────────┴──────────┴───────┴──────────┘
+//
+// The whole lesson: \`includes\` inside \`filter\` is a nested loop. It looks
+// like one line and it's O(n·m) — on two 10,000-element arrays that's
+// 100 million comparisons instead of 20,000. Converting one side to a Set
+// turns each lookup from O(m) into O(1).
+
+// ----- Approach 1: Set lookup, preserving first-seen order (BEST) -----
+function intersection(a, b) {
+  const inB = new Set(b);
+  const seen = new Set();
+  const out = [];
+  for (const x of a) {
+    if (inB.has(x) && !seen.has(x)) {
+      seen.add(x);
+      out.push(x);
+    }
+  }
+  return out;
+}
+
+function union(a, b) {
+  const seen = new Set();
+  const out = [];
+  for (const x of a) if (!seen.has(x)) { seen.add(x); out.push(x); }
+  for (const x of b) if (!seen.has(x)) { seen.add(x); out.push(x); }
+  return out;
+}
+
+function difference(a, b) {
+  const inB = new Set(b);
+  const seen = new Set();
+  const out = [];
+  for (const x of a) {
+    if (!inB.has(x) && !seen.has(x)) {
+      seen.add(x);
+      out.push(x);
+    }
+  }
+  return out;
+}
+
+// ----- Approach 3: ES2025 native Set methods -----
+// Available in modern runtimes. Non-mutating, and the argument only needs
+// to be "set-like" (size + has + keys), so a Map works too.
+function intersectionNative(a, b) {
+  return [...new Set(a).intersection(new Set(b))];
+}
+function unionNative(a, b) {
+  return [...new Set(a).union(new Set(b))];
+}
+function differenceNative(a, b) {
+  return [...new Set(a).difference(new Set(b))];
+}
+
+// ----- When to pick which -----
+// The native Set methods in new code — they're clearer and they're the
+// standard. The hand-rolled versions when you must preserve INPUT ORDER
+// (Set iteration order is insertion order of the Set, which after
+// \`new Set(a).union(new Set(b))\` is a's order then b's — usually the same,
+// but don't rely on it for intersection) or when supporting older runtimes.
+//
+// Clarify before coding:
+//  • Should the result be deduplicated? (Almost always yes.)
+//  • Does order matter? (Sorted, or first-seen?)
+//  • Objects or primitives? Sets compare by REFERENCE, so
+//    [{id:1}] and [{id:1}] have an empty intersection. For objects you need
+//    a key function: build a Map keyed by \`x.id\` instead.
+//  • \`symmetricDifference\` = "in exactly one" — a different question from
+//    \`difference\`, which is one-directional.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Intersection",        intersection([1,2,3,4], [2,4,6]), [2,4]);
+test("Intersection dedupe", intersection([1,2,2,3], [2,2]),   [2]);
+test("Intersection none",   intersection([1,2], [3,4]),       []);
+test("Union",               union([1,2], [2,3]),              [1,2,3]);
+test("Union dedupe",        union([1,1,2], [2,3,3]),          [1,2,3]);
+test("Difference",          difference([1,2,3], [2]),         [1,3]);
+test("Difference all",      difference([1,2], [1,2]),         []);
+test("Empty inputs",        union([], []),                    []);
+test("Native intersection", intersectionNative([1,2,3], [2,3,4]).sort(), [2,3]);`,
+
+  'Chunk Array': `// ===== SOLUTION: Chunk an Array =====
+//
+// ┌──────────────────────────┬───────┬───────┬────────────┐
+// │ Approach                 │ Time  │ Space │ Verdict    │
+// ├──────────────────────────┼───────┼───────┼────────────┤
+// │ 1. for loop + slice      │ O(n)  │ O(n)  │ BEST       │
+// │ 2. reduce                │ O(n)  │ O(n)  │ Functional │
+// │ 3. Array.from + slice    │ O(n)  │ O(n)  │ Declarative│
+// └──────────────────────────┴───────┴───────┴────────────┘
+//
+// All three are O(n). Pick on readability — but note that the reduce
+// version does an index modulo per element, so it's the slowest of the
+// three in practice despite the same complexity.
+
+// ----- Approach 1: for + slice, stepping by size (BEST) -----
+function chunk(arr, size) {
+  // Guard first. Without it, size = 0 loops forever and size = -1
+  // never terminates either — a real hang, not just a wrong answer.
+  if (!Number.isInteger(size) || size < 1) return [];
+
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size)); // slice clamps past the end, so the
+  }                                   // final partial chunk needs no special case
+  return out;
+}
+
+// ----- Approach 2: reduce -----
+function chunkReduce(arr, size) {
+  if (!Number.isInteger(size) || size < 1) return [];
+  return arr.reduce((acc, item, i) => {
+    if (i % size === 0) acc.push([item]);
+    else acc[acc.length - 1].push(item);
+    return acc;
+  }, []);
+}
+
+// ----- Approach 3: Array.from with a computed length -----
+function chunkFrom(arr, size) {
+  if (!Number.isInteger(size) || size < 1) return [];
+  return Array.from(
+    { length: Math.ceil(arr.length / size) },
+    (_, i) => arr.slice(i * size, i * size + size),
+  );
+}
+
+// ----- When to pick which -----
+// Approach 1 for clarity, Approach 3 if you like the declarative form.
+// What's actually being tested is the GUARD — an unguarded \`size\` of 0
+// hangs the tab, and interviewers watch for whether you validate input
+// before looping on it.
+//
+// Where this shows up for real:
+//  • Batching API calls: chunk(ids, 100).map(batch => fetch(...)) — and pair
+//    it with a concurrency pool rather than firing every batch at once.
+//  • Rendering a grid: chunk(items, columns).
+//  • Bulk database writes with a statement limit.
+//
+// Note \`slice\` gives you SHALLOW copies — the chunks share the same element
+// references as the input. That's almost always what you want, but say it
+// out loud if the elements are mutable objects.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Uneven remainder", chunk([1,2,3,4,5], 2), [[1,2],[3,4],[5]]);
+test("Exact fit",        chunk([1,2,3,4], 2),   [[1,2],[3,4]]);
+test("Size > length",    chunk([1,2,3], 5),     [[1,2,3]]);
+test("Size 1",           chunk([1,2], 1),       [[1],[2]]);
+test("Empty array",      chunk([], 3),          []);
+test("Size 0 guard",     chunk([1,2], 0),       []);
+test("Negative guard",   chunk([1,2], -1),      []);
+test("Non-integer",      chunk([1,2], 1.5),     []);
+test("reduce variant",   chunkReduce([1,2,3,4,5], 2), [[1,2],[3,4],[5]]);
+test("from variant",     chunkFrom([1,2,3,4,5], 2),   [[1,2],[3,4],[5]]);`,
+  'String Compression (RLE)': `// ===== SOLUTION: String Compression (Run-Length Encoding) =====
+//
+// ┌──────────────────────────────────┬───────┬───────┬────────────┐
+// │ Approach                         │ Time  │ Space │ Verdict    │
+// ├──────────────────────────────────┼───────┼───────┼────────────┤
+// │ 1. Single pass with a run count  │ O(n)  │ O(n)  │ BEST       │
+// │ 2. Two pointers (run boundaries) │ O(n)  │ O(n)  │ Equivalent │
+// │ 3. Regex match runs              │ O(n)  │ O(n)  │ Concise    │
+// │ 4. String += in a loop           │ O(n²) │ O(n)  │ Avoid      │
+// └──────────────────────────────────┴───────┴───────┴────────────┘
+//
+// Approach 4 is the trap: JS strings are immutable, so \`out += c\` allocates
+// a new string each time. Engines optimise this well in practice, but the
+// correct habit is to push into an array and join once — and saying so is
+// the signal the interviewer is listening for.
+
+// ----- Approach 1: Single pass with a run counter (BEST) -----
+function compress(str) {
+  if (str.length === 0) return "";
+
+  const parts = [];
+  let runChar = str[0];
+  let runLength = 1;
+
+  for (let i = 1; i <= str.length; i++) {
+    // The i === str.length iteration flushes the final run — cleaner than
+    // duplicating the flush code after the loop.
+    if (i < str.length && str[i] === runChar) {
+      runLength++;
+    } else {
+      parts.push(runChar + (runLength > 1 ? runLength : ""));
+      runChar = str[i];
+      runLength = 1;
+    }
+  }
+
+  const compressed = parts.join("");
+  // The spec's real content: only use the compression if it actually helps.
+  return compressed.length < str.length ? compressed : str;
+}
+
+// ----- Approach 2: Two pointers marking run boundaries -----
+function compressTwoPointer(str) {
+  const parts = [];
+  let read = 0;
+
+  while (read < str.length) {
+    const char = str[read];
+    let end = read;
+    while (end < str.length && str[end] === char) end++;
+
+    const len = end - read;
+    parts.push(char + (len > 1 ? len : ""));
+    read = end;
+  }
+
+  const compressed = parts.join("");
+  return compressed.length < str.length ? compressed : str;
+}
+
+// ----- Approach 3: Regex to capture runs -----
+// (.)\\1* means "any char, then that same char zero or more times" —
+// the backreference is what groups a run.
+function compressRegex(str) {
+  const compressed = str.replace(
+    /(.)\\1*/g,
+    (run, char) => char + (run.length > 1 ? run.length : ""),
+  );
+  return compressed.length < str.length ? compressed : str;
+}
+
+// ----- Decompression (the usual follow-up) -----
+function decompress(str) {
+  return str.replace(/(\\D)(\\d*)/g, (_, char, count) =>
+    char.repeat(count === "" ? 1 : Number(count)),
+  );
+}
+
+// ----- When to pick which -----
+// Approach 1 in an interview — the flush-on-overrun trick (\`i <= length\`)
+// avoids the duplicated final-run code that makes most attempts messy.
+// Approach 3 if the codebase likes regex, though the backreference needs
+// explaining.
+//
+// Three details that separate answers:
+//  • Multi-digit counts. "a12" must work — a fixed-width count is a bug.
+//  • Return the ORIGINAL when compression doesn't shrink it. "aabb" → "a2b2"
+//    is the same length, so return "aabb". People miss this constantly.
+//  • Decompression is AMBIGUOUS if the input can contain digits: "a12"
+//    could be a×12 or a,1,2. Real formats escape digits or use a length
+//    prefix — worth raising as a clarifying question.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",        compress("aabcccccaaa"),  "a2bc5a3");
+test("No gain",         compress("abc"),          "abc");
+test("Equal length",    compress("aabb"),         "aabb");
+test("Multi-digit",     compress("aaaaaaaaaaaa"), "a12");
+test("Single char",     compress("a"),            "a");
+test("All same",        compress("aaaa"),         "a4");
+test("Empty",           compress(""),             "");
+test("Two-pointer",     compressTwoPointer("aabcccccaaa"), "a2bc5a3");
+test("Regex variant",   compressRegex("aabcccccaaa"),      "a2bc5a3");
+test("Round trip",      decompress("a2bc5a3"),    "aabcccccaaa");`,
+
+  'Integer to Roman': `// ===== SOLUTION: Integer to Roman =====
+//
+// ┌────────────────────────────────────┬───────┬───────┬────────────┐
+// │ Approach                           │ Time  │ Space │ Verdict    │
+// ├────────────────────────────────────┼───────┼───────┼────────────┤
+// │ 1. Greedy over a 13-entry table    │ O(1)  │ O(1)  │ BEST       │
+// │ 2. Per-digit lookup tables         │ O(1)  │ O(1)  │ Also clean │
+// │ 3. Base symbols + subtractive rules│ O(1)  │ O(1)  │ Fiddly     │
+// └────────────────────────────────────┴───────┴───────┴────────────┘
+//
+// O(1) because the input is bounded (1..3999) and the table is fixed —
+// the loop runs at most ~13 times regardless of input.
+//
+// THE WHOLE TRICK: put the six SUBTRACTIVE pairs in the table alongside
+// the base symbols. With CM, CD, XC, XL, IX and IV present, plain greedy
+// descent is correct and needs zero special-casing. Every messy solution
+// to this problem is one that left them out and tried to handle 4s and 9s
+// with conditionals afterwards.
+
+// ----- Approach 1: Greedy over a descending value table (BEST) -----
+const ROMAN = [
+  [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"],
+  [100,  "C"], [90,  "XC"], [50,  "L"], [40,  "XL"],
+  [10,   "X"], [9,   "IX"], [5,   "V"], [4,   "IV"],
+  [1,    "I"],
+];
+
+function intToRoman(num) {
+  const parts = [];
+  for (const [value, symbol] of ROMAN) {
+    // A while, not an if: 3000 needs "MMM", i.e. M three times.
+    while (num >= value) {
+      parts.push(symbol);
+      num -= value;
+    }
+  }
+  return parts.join("");
+}
+
+// ----- Approach 2: Per-digit lookup (no arithmetic loop at all) -----
+// Roman numerals are positional in decimal, so you can index four tables
+// by each digit and concatenate. Arguably the clearest of the lot.
+function intToRomanDigits(num) {
+  const thousands = ["", "M", "MM", "MMM"];
+  const hundreds  = ["", "C", "CC", "CCC", "CD", "D", "DC", "DCC", "DCCC", "CM"];
+  const tens      = ["", "X", "XX", "XXX", "XL", "L", "LX", "LXX", "LXXX", "XC"];
+  const ones      = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"];
+
+  return thousands[Math.floor(num / 1000)]
+       + hundreds[Math.floor(num / 100) % 10]
+       + tens[Math.floor(num / 10) % 10]
+       + ones[num % 10];
+}
+
+// ----- When to pick which -----
+// Approach 1 is the one to write — it's short, obviously correct once the
+// table includes the subtractive pairs, and it extends if the range grows.
+// Approach 2 is a nice thing to mention as an alternative: it's branch-free
+// and slightly faster, at the cost of four hard-coded tables.
+//
+// Pair this with the existing "Roman to Integer" challenge — the inverse
+// uses the opposite insight (compare each symbol with its right neighbour;
+// if the left is smaller, subtract instead of add).
+//
+// Clarify the range. Classic Roman numerals stop at 3999 because there's
+// no symbol for 5000; representing larger numbers needs the vinculum
+// (an overbar meaning ×1000), which is out of scope for this question.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Three",        intToRoman(3),    "III");
+test("Fifty-eight",  intToRoman(58),   "LVIII");
+test("1994",         intToRoman(1994), "MCMXCIV");
+test("Four",         intToRoman(4),    "IV");
+test("Nine",         intToRoman(9),    "IX");
+test("Forty",        intToRoman(40),   "XL");
+test("Max",          intToRoman(3999), "MMMCMXCIX");
+test("One",          intToRoman(1),    "I");
+test("Digit table",  intToRomanDigits(1994), "MCMXCIV");
+test("Digit max",    intToRomanDigits(3999), "MMMCMXCIX");`,
+
+  'Reverse Integer': `// ===== SOLUTION: Reverse Integer =====
+//
+// ┌──────────────────────────────────────┬──────────┬───────┬──────────┐
+// │ Approach                             │ Time     │ Space │ Verdict  │
+// ├──────────────────────────────────────┼──────────┼───────┼──────────┤
+// │ 1. Arithmetic (% and /) + bounds     │ O(log n) │ O(1)  │ BEST     │
+// │ 2. String reverse + bounds           │ O(log n) │ O(n)  │ Pragmatic│
+// │ 3. No overflow check                 │ —        │ —     │ WRONG    │
+// └──────────────────────────────────────┴──────────┴───────┴──────────┘
+//
+// The complexity is O(log₁₀ n) — the number of DIGITS, not the value.
+//
+// THE POINT OF THE QUESTION IS THE OVERFLOW CHECK. In C the multiply would
+// wrap and you'd detect it by comparing against INT_MAX/10 before
+// multiplying. JS numbers are IEEE-754 doubles, so nothing wraps — which
+// means you MUST check the bounds explicitly or you'll happily return
+// 8463847412 for input 2147483647. Candidates who forget this write code
+// that "works" on every test they thought of.
+
+const INT_MIN = -(2 ** 31);      // -2147483648
+const INT_MAX = 2 ** 31 - 1;     //  2147483647
+
+// ----- Approach 1: Digit-by-digit arithmetic (BEST) -----
+function reverse(x) {
+  const negative = x < 0;
+  let n = Math.abs(x);
+  let result = 0;
+
+  while (n > 0) {
+    const digit = n % 10;
+    result = result * 10 + digit;
+    n = Math.floor(n / 10);
+  }
+
+  if (negative) result = -result;
+  // Single bounds check at the end is sufficient in JS, because doubles
+  // hold every 32-bit-overflowing intermediate exactly (up to 2^53).
+  return result < INT_MIN || result > INT_MAX ? 0 : result;
+}
+
+// ----- Approach 2: String reversal -----
+// Perfectly fine and often clearer. Note Math.sign preserves -0 correctly
+// and the parse handles the trailing-zeros case for free ("021" → 21).
+function reverseString(x) {
+  const sign = Math.sign(x);
+  const reversed = Number(String(Math.abs(x)).split("").reverse().join(""));
+  const result = sign * reversed;
+  return result < INT_MIN || result > INT_MAX ? 0 : result;
+}
+
+// ----- Approach 3: The C-style incremental check -----
+// Worth knowing because it's what you'd write in a language that DOES wrap:
+// detect the overflow BEFORE it happens rather than after.
+function reverseStrict(x) {
+  const negative = x < 0;
+  let n = Math.abs(x);
+  let result = 0;
+
+  while (n > 0) {
+    const digit = n % 10;
+    // Would multiplying overflow? Check before doing it.
+    if (result > Math.floor(INT_MAX / 10)) return 0;
+    if (result === Math.floor(INT_MAX / 10) && digit > 7) return 0;
+    result = result * 10 + digit;
+    n = Math.floor(n / 10);
+  }
+  return negative ? -result : result;
+}
+
+// ----- When to pick which -----
+// Approach 1 for the interview — it shows the arithmetic and keeps the
+// bounds check explicit. Mention Approach 2 as what you'd ship (it's
+// clearer and the perf difference is irrelevant), and Approach 3 to show
+// you know how this is done in a fixed-width language.
+//
+// Details that get probed:
+//  • Trailing zeros vanish: 120 → 21, not "021". Both approaches give this
+//    naturally — don't add code for it.
+//  • -2147483648 (INT_MIN) reverses to 8463847412, which overflows → 0.
+//    Also note Math.abs(INT_MIN) is representable in JS but is NOT in C,
+//    where it's undefined behaviour. A good aside.
+//  • The asymmetric range: INT_MIN has magnitude 2147483648 but INT_MAX is
+//    2147483647, which is why the digit check in Approach 3 uses 7.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Positive",       reverse(123),         321);
+test("Negative",       reverse(-123),       -321);
+test("Trailing zero",  reverse(120),         21);
+test("Zero",           reverse(0),           0);
+test("Overflow +",     reverse(1534236469),  0);
+test("Overflow -",     reverse(-2147483648), 0);
+test("Single digit",   reverse(7),           7);
+test("Palindromic",    reverse(1221),        1221);
+test("String variant", reverseString(-123), -321);
+test("Strict variant", reverseStrict(1534236469), 0);`,
+
+  'Isomorphic Strings': `// ===== SOLUTION: Isomorphic Strings =====
+//
+// ┌──────────────────────────────────┬───────┬───────┬────────────┐
+// │ Approach                         │ Time  │ Space │ Verdict    │
+// ├──────────────────────────────────┼───────┼───────┼────────────┤
+// │ 1. Two maps (both directions)    │ O(n)  │ O(k)  │ BEST       │
+// │ 2. One map + a set of used values│ O(n)  │ O(k)  │ Equivalent │
+// │ 3. Compare first-index patterns  │ O(n)  │ O(n)  │ Elegant    │
+// │ 4. One map only                  │ O(n)  │ O(k)  │ WRONG      │
+// └──────────────────────────────────┴───────┴───────┴────────────┘
+//
+// APPROACH 4 IS THE TRAP, and it's the entire point of the question.
+// Checking only s→t accepts "badc"/"baba": b→b, a→a, d→b, c→a all record
+// fine one-way, but now d AND b both map to 'b', which breaks the
+// one-to-one requirement. You need BOTH directions — the mapping must be
+// a bijection, not just a function.
+
+// ----- Approach 1: Two maps (BEST) -----
+function isIsomorphic(s, t) {
+  if (s.length !== t.length) return false;
+
+  const sToT = new Map();
+  const tToS = new Map();
+
+  for (let i = 0; i < s.length; i++) {
+    const a = s[i], b = t[i];
+
+    if (sToT.has(a) && sToT.get(a) !== b) return false; // a already maps elsewhere
+    if (tToS.has(b) && tToS.get(b) !== a) return false; // b already claimed
+
+    sToT.set(a, b);
+    tToS.set(b, a);
+  }
+  return true;
+}
+
+// ----- Approach 2: One map + a set of already-used targets -----
+// Same logic, slightly less bookkeeping.
+function isIsomorphicSet(s, t) {
+  if (s.length !== t.length) return false;
+
+  const map = new Map();
+  const used = new Set();
+
+  for (let i = 0; i < s.length; i++) {
+    const a = s[i], b = t[i];
+    if (map.has(a)) {
+      if (map.get(a) !== b) return false;
+    } else {
+      if (used.has(b)) return false; // b is taken by a different character
+      map.set(a, b);
+      used.add(b);
+    }
+  }
+  return true;
+}
+
+// ----- Approach 3: Normalise both to a first-occurrence pattern -----
+// "egg" → "0,1,1" and "add" → "0,1,1". Equal patterns ⇒ isomorphic.
+// Naturally symmetric, so there's no direction to forget.
+function isIsomorphicPattern(s, t) {
+  const pattern = (str) => {
+    const firstSeen = new Map();
+    return [...str]
+      .map((ch) => {
+        if (!firstSeen.has(ch)) firstSeen.set(ch, firstSeen.size);
+        return firstSeen.get(ch);
+      })
+      .join(",");
+  };
+  return s.length === t.length && pattern(s) === pattern(t);
+}
+
+// ----- When to pick which -----
+// Approach 1 or 2 in an interview. Approach 3 is the nicest to reason about
+// — it's symmetric by construction so the classic bug is impossible — and
+// it's a good one to offer after the standard answer.
+//
+// Related problems that are the SAME question in disguise:
+//  • Word Pattern — "abba" vs ["dog","cat","cat","dog"]. Identical logic
+//    with words instead of characters.
+//  • Valid Anagram is NOT this: anagrams care about counts and ignore
+//    order; isomorphism cares about structure and ignores identity.
+//
+// The join(",") in Approach 3 matters: joining without a separator makes
+// "1,11" and "11,1" collide once you have 10+ distinct characters.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("egg/add",       isIsomorphic("egg", "add"),   true);
+test("foo/bar",       isIsomorphic("foo", "bar"),   false);
+test("badc/baba",     isIsomorphic("badc", "baba"), false);
+test("paper/title",   isIsomorphic("paper","title"),true);
+test("Same string",   isIsomorphic("abc", "abc"),   true);
+test("Diff length",   isIsomorphic("ab", "abc"),    false);
+test("Empty",         isIsomorphic("", ""),         true);
+test("Set variant",   isIsomorphicSet("badc", "baba"),     false);
+test("Pattern var",   isIsomorphicPattern("badc","baba"),  false);
+test("Pattern true",  isIsomorphicPattern("paper","title"),true);`,
+
+  'Longest Repeating Char Replacement': `// ===== SOLUTION: Longest Repeating Character Replacement =====
+//
+// ┌───────────────────────────────────┬───────┬───────┬────────────┐
+// │ Approach                          │ Time  │ Space │ Verdict    │
+// ├───────────────────────────────────┼───────┼───────┼────────────┤
+// │ 1. Window with stale maxCount      │ O(n)  │ O(26) │ BEST       │
+// │ 2. Window recomputing maxCount     │ O(26n)│ O(26) │ Safe       │
+// │ 3. One window per candidate letter │ O(26n)│ O(1)  │ Clearest   │
+// └───────────────────────────────────┴───────┴───────┴────────────┘
+//
+// THE VALIDITY CONDITION is the whole problem:
+//
+//     windowLength - maxCountInWindow <= k
+//
+// because every character that ISN'T the most frequent one must be
+// changed, and you have k changes available. Once you see that, the
+// sliding window writes itself.
+
+// ----- Approach 1: Window with a never-decreasing maxCount (BEST) -----
+function characterReplacement(s, k) {
+  const count = new Map();
+  let left = 0;
+  let maxCount = 0;
+  let best = 0;
+
+  for (let right = 0; right < s.length; right++) {
+    count.set(s[right], (count.get(s[right]) ?? 0) + 1);
+    maxCount = Math.max(maxCount, count.get(s[right]));
+
+    // Shrink while invalid.
+    while (right - left + 1 - maxCount > k) {
+      count.set(s[left], count.get(s[left]) - 1);
+      left++;
+      // NOTE: we deliberately do NOT recompute maxCount here.
+    }
+
+    best = Math.max(best, right - left + 1);
+  }
+  return best;
+}
+
+// WHY THE STALE maxCount IS SAFE — the question interviewers ask.
+// maxCount may be larger than the true maximum in the current window after
+// shrinking. That can only make the validity test too PERMISSIVE, so the
+// window might be a little wider than strictly valid. But \`best\` only ever
+// records a length that was achieved when maxCount was genuinely observed,
+// and the answer is a maximum — so an over-permissive intermediate state
+// can never produce a larger-than-correct final answer. The window never
+// shrinks below the best genuine length found so far.
+
+// ----- Approach 2: Recompute the max each shrink (obviously correct) -----
+// Use this if you can't convince yourself of the above under pressure.
+// A factor of 26 slower, same complexity class in practice.
+function characterReplacementSafe(s, k) {
+  const count = new Map();
+  let left = 0, best = 0;
+
+  for (let right = 0; right < s.length; right++) {
+    count.set(s[right], (count.get(s[right]) ?? 0) + 1);
+
+    while (right - left + 1 - Math.max(...count.values()) > k) {
+      count.set(s[left], count.get(s[left]) - 1);
+      left++;
+    }
+    best = Math.max(best, right - left + 1);
+  }
+  return best;
+}
+
+// ----- Approach 3: One pass per candidate character -----
+// "What's the longest window where I turn everything into 'A'?" — then B,
+// then C… Take the best. 26 simple windows instead of one clever one.
+function characterReplacementPerChar(s, k) {
+  const alphabet = [...new Set(s)];
+  let best = 0;
+
+  for (const target of alphabet) {
+    let left = 0, others = 0;
+    for (let right = 0; right < s.length; right++) {
+      if (s[right] !== target) others++;
+      while (others > k) {
+        if (s[left] !== target) others--;
+        left++;
+      }
+      best = Math.max(best, right - left + 1);
+    }
+  }
+  return best;
+}
+
+// ----- When to pick which -----
+// Approach 1 is the expected answer; Approach 3 is the one to reach for if
+// you're stuck, because it's much easier to derive and only 26× slower.
+// Approach 2 is the honest middle ground.
+//
+// Related sliding-window problems in this playground, all the same shape
+// (grow right, shrink left while invalid): Longest Substring Without
+// Repeating, Minimum Size Subarray Sum, Minimum Window Substring. What
+// changes between them is only the VALIDITY PREDICATE — identify that
+// first and the rest is mechanical.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("ABAB k=2",      characterReplacement("ABAB", 2),     4);
+test("AABABBA k=1",   characterReplacement("AABABBA", 1),  4);
+test("k=0 no change", characterReplacement("ABCD", 0),     1);
+test("All same",      characterReplacement("AAAA", 2),     4);
+test("k >= length",   characterReplacement("ABC", 5),      3);
+test("Empty",         characterReplacement("", 2),         0);
+test("Safe variant",  characterReplacementSafe("AABABBA", 1),    4);
+test("PerChar var",   characterReplacementPerChar("AABABBA", 1), 4);`,
+
+  'Minimum Window Substring': `// ===== SOLUTION: Minimum Window Substring =====
+//
+// ┌──────────────────────────────────────┬────────────┬───────┬──────────┐
+// │ Approach                             │ Time       │ Space │ Verdict  │
+// ├──────────────────────────────────────┼────────────┼───────┼──────────┤
+// │ 1. Window + "missing" counter        │ O(n + m)   │ O(k)  │ BEST     │
+// │ 2. Window comparing full count maps  │ O(n · k)   │ O(k)  │ Slow     │
+// │ 3. Check every substring             │ O(n³)      │ O(k)  │ Baseline │
+// └──────────────────────────────────────┴────────────┴───────┴──────────┘
+//
+// The canonical hard sliding-window problem. Two ideas carry it:
+//
+//  1. COUNTS MATTER. t = "AABC" needs two A's, so you track a frequency
+//     map, not a set.
+//  2. A SINGLE \`missing\` COUNTER replaces map comparison. Decrement it
+//     only when a character's need goes from positive to zero-or-less —
+//     that way \`missing === 0\` is an O(1) validity test instead of an
+//     O(k) map walk on every step.
+
+// ----- Approach 1: Window with a missing counter (BEST) -----
+function minWindow(s, t) {
+  if (t.length === 0 || s.length < t.length) return "";
+
+  // How many of each character we still need.
+  const need = new Map();
+  for (const ch of t) need.set(ch, (need.get(ch) ?? 0) + 1);
+
+  let missing = t.length;   // total characters still required (counts included)
+  let left = 0;
+  let bestStart = 0;
+  let bestLength = Infinity;
+
+  for (let right = 0; right < s.length; right++) {
+    const ch = s[right];
+
+    // Only decrement \`missing\` if this character was still NEEDED.
+    // A surplus 'A' beyond what t requires must not count as progress.
+    if ((need.get(ch) ?? 0) > 0) missing--;
+    need.set(ch, (need.get(ch) ?? 0) - 1);   // may go negative = surplus
+
+    // Valid window — shrink from the left as far as we can.
+    while (missing === 0) {
+      if (right - left + 1 < bestLength) {
+        bestLength = right - left + 1;
+        bestStart = left;
+      }
+
+      const leftCh = s[left];
+      need.set(leftCh, need.get(leftCh) + 1);
+      // If putting it back makes the need positive, we've broken validity.
+      if (need.get(leftCh) > 0) missing++;
+      left++;
+    }
+  }
+
+  return bestLength === Infinity ? "" : s.slice(bestStart, bestStart + bestLength);
+}
+
+// ----- Approach 2: Compare full count maps (correct, slower) -----
+// Easier to reason about; the O(k) \`covers\` check on every step is what
+// makes it slower. Fine when |t| is tiny and clarity matters more.
+function minWindowMaps(s, t) {
+  if (t.length === 0 || s.length < t.length) return "";
+
+  const need = new Map();
+  for (const ch of t) need.set(ch, (need.get(ch) ?? 0) + 1);
+
+  const covers = (have) => {
+    for (const [ch, n] of need) if ((have.get(ch) ?? 0) < n) return false;
+    return true;
+  };
+
+  const have = new Map();
+  let left = 0, bestStart = 0, bestLength = Infinity;
+
+  for (let right = 0; right < s.length; right++) {
+    have.set(s[right], (have.get(s[right]) ?? 0) + 1);
+
+    while (covers(have)) {
+      if (right - left + 1 < bestLength) {
+        bestLength = right - left + 1;
+        bestStart = left;
+      }
+      have.set(s[left], have.get(s[left]) - 1);
+      left++;
+    }
+  }
+  return bestLength === Infinity ? "" : s.slice(bestStart, bestStart + bestLength);
+}
+
+// ----- When to pick which -----
+// Approach 1 is the expected answer. If you're not confident in the
+// missing-counter bookkeeping, WRITE APPROACH 2 FIRST, get it correct, and
+// then say "I can make the validity check O(1) with a counter instead of
+// comparing maps" — that's a strictly better interview outcome than an
+// incorrect optimal solution.
+//
+// The subtle line is \`if ((need.get(ch) ?? 0) > 0) missing--\`. Without the
+// \`> 0\` guard, surplus characters decrement \`missing\` below zero and the
+// window is declared valid too early. That single condition is where most
+// attempts break.
+//
+// Follow-ups: return all minimum windows (record ties); the same technique
+// with a fixed window size becomes "find all anagram start indices".
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Standard",      minWindow("ADOBECODEBANC", "ABC"), "BANC");
+test("Insufficient",  minWindow("a", "aa"),              "");
+test("Exact match",   minWindow("ab", "ab"),             "ab");
+test("Duplicates",    minWindow("aa", "aa"),             "aa");
+test("Single char",   minWindow("a", "a"),               "a");
+test("Not present",   minWindow("abc", "xyz"),           "");
+test("Empty t",       minWindow("abc", ""),              "");
+test("Surplus chars", minWindow("aaflslflsldkalskaaa", "aaa"), "aaa");
+test("Maps variant",  minWindowMaps("ADOBECODEBANC", "ABC"),   "BANC");`,
+
+  'Case Converter (camel/snake/kebab)': `// ===== SOLUTION: Case Converter =====
+//
+// ┌────────────────────────────────────┬───────┬───────┬────────────┐
+// │ Approach                           │ Time  │ Space │ Verdict    │
+// ├────────────────────────────────────┼───────┼───────┼────────────┤
+// │ 1. Regex replace with a callback   │ O(n)  │ O(n)  │ BEST       │
+// │ 2. Split into words, then rejoin   │ O(n)  │ O(n)  │ Most robust│
+// │ 3. Char-by-char loop               │ O(n)  │ O(n)  │ Verbose    │
+// └────────────────────────────────────┴───────┴───────┴────────────┘
+//
+// The robust framing is Approach 2: NORMALISE to a list of lowercase words
+// first, then render in whatever casing you want. That makes every
+// conversion a single code path and handles the awkward inputs uniformly.
+
+// ----- Approach 1: Direct regex conversions (BEST for the common cases) -----
+function toCamel(str) {
+  return str
+    // Collapse any run of separators plus the following letter into
+    // an uppercase letter. The + handles "a__b" → "aB".
+    .replace(/[-_]+(.)?/g, (_, ch) => (ch ? ch.toUpperCase() : ""))
+    // Never start with a capital.
+    .replace(/^[A-Z]/, (ch) => ch.toLowerCase());
+}
+
+function toSnake(str) {
+  return str
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")  // userName → user_Name
+    .replace(/[-\\s]+/g, "_")                 // kebab and spaces → underscore
+    .toLowerCase();
+}
+
+function toKebab(str) {
+  return str
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[_\\s]+/g, "-")
+    .toLowerCase();
+}
+
+// ----- Approach 2: Normalise to words, then render (most robust) -----
+// Handles ACRONYMS correctly, which the simple regex above does not:
+// "parseHTTPResponse" → ["parse","http","response"] → "parse_http_response".
+function toWords(str) {
+  return str
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")      // camel boundary
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")   // ACRONYMWord boundary
+    .split(/[-_\\s]+/)
+    .filter(Boolean)                              // drops empty segments
+    .map((w) => w.toLowerCase());
+}
+
+const camelFromWords = (s) =>
+  toWords(s).map((w, i) => (i === 0 ? w : w[0].toUpperCase() + w.slice(1))).join("");
+const snakeFromWords = (s) => toWords(s).join("_");
+const kebabFromWords = (s) => toWords(s).join("-");
+const pascalFromWords = (s) =>
+  toWords(s).map((w) => w[0].toUpperCase() + w.slice(1)).join("");
+
+// ----- The version you actually write at work: recursive key conversion -----
+// API returns snake_case, your app wants camelCase. Note it must recurse
+// through arrays AND objects, and must not mangle Date/null/class instances.
+function deepCamelize(value) {
+  if (Array.isArray(value)) return value.map(deepCamelize);
+
+  // Only plain objects — a Date or a class instance must pass through intact.
+  if (value !== null && typeof value === "object" && value.constructor === Object) {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [toCamel(k), deepCamelize(v)]),
+    );
+  }
+  return value;
+}
+
+// ----- When to pick which -----
+// The direct regexes for one-off conversions. The word-normalising version
+// when input is messy or acronyms appear — "parseHTTPResponse" is the test
+// case that separates the two.
+//
+// Things to raise:
+//  • IDEMPOTENCE. toCamel(toCamel(x)) must equal toCamel(x). Worth stating
+//    and testing, because a naive implementation that unconditionally
+//    uppercases after a separator breaks on already-camel input.
+//  • deepCamelize is the real-world form, and the constructor === Object
+//    check is the detail people miss — without it, Dates become {} and
+//    class instances lose their prototype.
+//  • Where this belongs architecturally: at the API boundary, in one place,
+//    not scattered per component. Better still, generate types from the
+//    schema and convert once (see the API Design guide).
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("snake → camel",    toCamel("user_first_name"),  "userFirstName");
+test("kebab → camel",    toCamel("user-first-name"),  "userFirstName");
+test("camel idempotent", toCamel("userFirstName"),    "userFirstName");
+test("double sep",       toCamel("a__b"),             "aB");
+test("camel → snake",    toSnake("userFirstName"),    "user_first_name");
+test("snake idempotent", toSnake("user_first_name"),  "user_first_name");
+test("camel → kebab",    toKebab("userFirstName"),    "user-first-name");
+test("single word",      toCamel("name"),             "name");
+test("Empty",            toCamel(""),                 "");
+test("Acronym (words)",  snakeFromWords("parseHTTPResponse"), "parse_http_response");
+test("Pascal",           pascalFromWords("user_first_name"),  "UserFirstName");
+test("deepCamelize",     deepCamelize({ user_id: 1, nested_list: [{ first_name: "a" }] }),
+                         { userId: 1, nestedList: [{ firstName: "a" }] });`,
+
+  'First Repeating Character': `// ===== SOLUTION: First Repeating Character =====
+//
+// ┌──────────────────────────────────┬───────┬───────┬────────────┐
+// │ Approach                         │ Time  │ Space │ Verdict    │
+// ├──────────────────────────────────┼───────┼───────┼────────────┤
+// │ 1. Set, return on first re-seen  │ O(n)  │ O(k)  │ BEST       │
+// │ 2. Count map, then re-scan       │ O(n)  │ O(k)  │ WRONG*     │
+// │ 3. indexOf !== lastIndexOf       │ O(n²) │ O(1)  │ Avoid      │
+// └──────────────────────────────────┴───────┴───────┴────────────┘
+//   * gives the first character that repeats, not the first REPEAT
+//
+// READ THE QUESTION CAREFULLY — this is the point of it. Two different
+// questions hide behind similar wording, and "success" distinguishes them:
+//
+//   "first character that appears more than once"  → 's' (earliest such char)
+//   "first character we ENCOUNTER a second time"   → 'c' (earliest repeat)
+//
+// s-u-c-c-e-s-s: walking left to right, the first already-seen character
+// we hit is the 'c' at index 3. The 's' doesn't repeat until index 5.
+// This challenge asks the second question, which is the one-pass version.
+
+// ----- Approach 1: Single pass with a Set (BEST) -----
+function firstRepeating(str) {
+  const seen = new Set();
+  for (const ch of str) {
+    if (seen.has(ch)) return ch;   // first character encountered twice
+    seen.add(ch);
+  }
+  return null;
+}
+
+// ----- The OTHER interpretation: earliest character that ever repeats -----
+// Needs two passes: count everything, then scan in order.
+function firstCharThatRepeats(str) {
+  const count = new Map();
+  for (const ch of str) count.set(ch, (count.get(ch) ?? 0) + 1);
+  for (const ch of str) if (count.get(ch) > 1) return ch;
+  return null;
+}
+
+// ----- The mirror problem: first NON-repeating character -----
+// Same count map, opposite predicate — see the First Non-Repeating Char
+// challenge. Worth writing all three together, because interviewers often
+// ask for one and then flip it.
+function firstNonRepeating(str) {
+  const count = new Map();
+  for (const ch of str) count.set(ch, (count.get(ch) ?? 0) + 1);
+  for (const ch of str) if (count.get(ch) === 1) return ch;
+  return null;
+}
+
+// ----- When to pick which -----
+// Approach 1 for this problem — one pass, early return, no second scan.
+// The FIRST thing to do in the interview is CLARIFY which of the two
+// questions is being asked; getting that wrong is the actual failure mode,
+// not the code. Say: "Do you want the first character I see twice, or the
+// earliest character that has a duplicate anywhere? On 'success' those are
+// 'c' and 's' respectively."
+//
+// Notes:
+//  • Iterating with for…of is Unicode-aware (it walks code points), so
+//    emoji and accented characters are handled correctly. A plain
+//    for (let i…) with str[i] splits surrogate pairs.
+//  • Spaces and punctuation are characters. Clarify whether to skip them.
+//  • Case sensitivity: "Aa" — same character or not? Clarify.
+//  • Approach 3 (indexOf !== lastIndexOf) is a one-liner people like, but
+//    it's O(n²) because each call rescans. Mention it, don't ship it.
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("success",         firstRepeating("success"),  "c");
+test("All unique",      firstRepeating("abcdef"),   null);
+test("Immediate",       firstRepeating("aab"),      "a");
+test("Last pair",       firstRepeating("abcca"),    "c");
+test("Single char",     firstRepeating("a"),        null);
+test("Empty",           firstRepeating(""),         null);
+test("Spaces count",    firstRepeating("a b a"),    " ");
+
+// The two interpretations differ on exactly this input — the reason to clarify.
+test("Other reading",   firstCharThatRepeats("success"), "s");
+test("Non-repeating",   firstNonRepeating("success"),    "u");`,
+
+  'Sum Without Loops': `// ===== SOLUTION: Sum an Array Without Loops =====
+//
+// ┌──────────────────────────────────┬───────┬────────────┬────────────┐
+// │ Approach                         │ Time  │ Space      │ Verdict    │
+// ├──────────────────────────────────┼───────┼────────────┼────────────┤
+// │ 1. reduce                        │ O(n)  │ O(1)       │ BEST       │
+// │ 2. Head + tail recursion         │ O(n)  │ O(n) stack │ Teaching   │
+// │ 3. Tail-recursive + accumulator  │ O(n)  │ O(n) stack*│ Teaching   │
+// │ 4. Divide and conquer            │ O(n)  │ O(log n)   │ Safest rec │
+// └──────────────────────────────────┴───────┴────────────┴────────────┘
+//   * would be O(1) WITH tail-call optimisation — which V8 does not implement
+//
+// THE POINT: reduce is the answer you ship. The recursive versions are
+// there to show you understand the tradeoff — and the punchline is that
+// JS engines do NOT do tail-call elimination despite it being in the
+// ES2015 spec (only JSC ever shipped it). So "tail recursive" buys you
+// nothing on stack depth in JavaScript, and a 100k-element array blows up.
+
+// ----- Approach 1: reduce (BEST — the production answer) -----
+function sumReduce(arr) {
+  // The initial value 0 is REQUIRED: reduce on an empty array with no
+  // initial value throws "Reduce of empty array with no initial value".
+  return arr.reduce((acc, n) => acc + n, 0);
+}
+
+// ----- Approach 2: Head + tail recursion (the classic teaching version) -----
+function sumRecursive(arr) {
+  if (arr.length === 0) return 0;                    // base case
+  const [head, ...tail] = arr;                       // note: O(n) copy per call
+  return head + sumRecursive(tail);                  // → O(n²) overall!
+}
+
+// The destructuring above is quietly quadratic — each call copies the tail.
+// This version indexes instead, keeping it genuinely O(n):
+function sumRecursiveIndexed(arr, i = 0) {
+  if (i >= arr.length) return 0;
+  return arr[i] + sumRecursiveIndexed(arr, i + 1);
+}
+
+// ----- Approach 3: Tail-recursive with an accumulator -----
+// The recursive call is the LAST thing evaluated, so a TCO-capable engine
+// could reuse the frame. V8 can't, so this still overflows — but it's the
+// shape you'd write in a language that optimises it.
+function sumTail(arr, acc = 0, i = 0) {
+  if (i >= arr.length) return acc;
+  return sumTail(arr, acc + arr[i], i + 1);
+}
+
+// ----- Approach 4: Divide and conquer (recursion that survives big input) -----
+// O(log n) stack depth instead of O(n), so this handles arrays that break
+// the other recursive versions.
+function sumDivide(arr, lo = 0, hi = arr.length - 1) {
+  if (hi < lo) return 0;
+  if (lo === hi) return arr[lo];
+  const mid = (lo + hi) >> 1;
+  return sumDivide(arr, lo, mid) + sumDivide(arr, mid + 1, hi);
+}
+
+// ----- Nested arrays, arbitrarily deep -----
+function sumNested(arr) {
+  return arr.reduce(
+    (acc, item) => acc + (Array.isArray(item) ? sumNested(item) : item),
+    0,
+  );
+}
+
+// Flat-then-sum: shorter, and O(n) — but allocates the flattened array.
+const sumNestedFlat = (arr) => arr.flat(Infinity).reduce((a, b) => a + b, 0);
+
+// ----- When to pick which -----
+// reduce, always, in real code. Reach for recursion only when the STRUCTURE
+// is recursive (nested arrays, trees) — which is exactly what sumNested
+// demonstrates, and why it's the one genuinely good use of recursion here.
+//
+// What the interviewer is checking:
+//  • Do you know reduce needs an initial value for the empty case?
+//  • Do you spot that [head, ...tail] makes the "elegant" recursion O(n²)?
+//  • Do you know JS has no TCO, so recursion depth is bounded (~10k frames)?
+//    Demonstrate it: sumRecursive on a 100,000-element array throws
+//    RangeError: Maximum call stack size exceeded.
+//  • Can you offer divide-and-conquer as the recursion that actually scales?
+
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("reduce",           sumReduce([1,2,3,4]),         10);
+test("reduce empty",     sumReduce([]),                0);
+test("recursive",        sumRecursive([1,2,3,4]),      10);
+test("recursive empty",  sumRecursive([]),             0);
+test("recursive indexed",sumRecursiveIndexed([1,2,3,4]), 10);
+test("tail",             sumTail([1,2,3,4]),           10);
+test("divide & conquer", sumDivide([1,2,3,4]),         10);
+test("divide empty",     sumDivide([]),                0);
+test("negatives",        sumReduce([-1,-2,3]),         0);
+test("nested",           sumNested([1,[2,[3,[4]]]]),   10);
+test("nested empty",     sumNested([[],[[]]]),         0);
+test("nested mixed",     sumNested([1,[2,3],[[4],5]]), 15);
+test("nested via flat",  sumNestedFlat([1,[2,[3,[4]]]]), 10);
+
+// Proof that JS has no tail-call optimisation.
+const big = Array.from({ length: 100000 }, () => 1);
+let overflowed = false;
+try { sumTail(big); } catch (e) { overflowed = e instanceof RangeError; }
+test("No TCO in V8",     overflowed,                   true);
+test("reduce handles it",sumReduce(big),               100000);
+test("divide handles it",sumDivide(big),               100000);`,
 };

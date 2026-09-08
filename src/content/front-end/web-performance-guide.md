@@ -645,6 +645,35 @@ I'd treat it as a negotiation backed by data rather than a technical dead end.
 
 ---
 
+**Q9: How do you explain performance metrics like FCP, TTI and CLS to non-technical stakeholders?**
+
+Translate each metric into **the moment the user experiences**, then attach it to a number the business already cares about. Never lead with the acronym.
+
+| Metric | Say this instead | The user's question it answers |
+|---|---|---|
+| **TTFB** | "how long the server takes to start replying" | — |
+| **FCP** | "when they see *something* — the page stops being blank" | "is it working?" |
+| **LCP** | "when they see **the thing they came for** — the article, the product photo" | "has it loaded?" |
+| **TTI / INP** | "when the page actually **responds** to a tap" | "is it broken?" |
+| **CLS** | "how much the page **jumps around** while loading" | "why did I tap the wrong thing?" |
+
+The framing that lands: **"there are three separate promises a page makes — I can see it, I can trust it won't move, and I can use it. Each metric measures one of those, and they can fail independently."** That explains why a page can score well on one and badly on another, which is otherwise the confusing part.
+
+**Then make it concrete, because abstractions don't get prioritised:**
+
+- **Demonstrate, don't describe.** Record a screen capture on a throttled connection and play it next to a competitor's. Thirty seconds of that does more than any slide. For CLS especially — showing someone the page shifting under their thumb as they try to tap "Buy" makes the case instantly.
+- **Use their number.** "Our checkout page's LCP is 4.2 seconds at the 75th percentile. That means a quarter of the people trying to give us money wait more than four seconds to see the page." Then, if you have the data, tie it to conversion for that cohort. Performance work gets funded when it's a revenue line, not an engineering score.
+- **Explain p75 with an analogy, because "the average is fine" is the objection you'll get.** "The average is fine because it includes everyone on fast laptops. The 75th percentile is the *slowest quarter* of our customers — and on mobile, that's most of our traffic. Optimising the average means optimising for the people who were already fine."
+- **Give them a threshold, not a score.** Google publishes good/needs-work/poor bands (LCP ≤2.5s, INP ≤200ms, CLS ≤0.1). "Good/needs work/poor" is a language stakeholders already speak, and it stops the conversation becoming "why isn't it 100?"
+- **Name the SEO consequence once**, plainly: Core Web Vitals feed into Search ranking. That converts a technical concern into a commercial one, which is often what unblocks the work.
+
+**And the two things not to do.** Don't show a Lighthouse score as the headline — it's a lab number on a simulated device, it's noisy run to run, and once someone has anchored on "we need 100" you'll spend a quarter optimising a harness instead of the experience. And don't present the full metric set; pick the **one** metric that's actually failing and the **one** journey it's failing on. A dashboard with eleven acronyms gets ignored; "checkout is slow for a quarter of mobile users, here's the fix and here's what it costs" gets scheduled.
+
+**If they ask what it'll take**, give the honest shape: the diagnosis is cheap and fast, the fixes vary enormously — an image format change is an afternoon, and "our rendering strategy puts a floor under LCP" is a quarter. Being clear about which one you're in is what makes the next conversation easier.
+
+---
+---
+
 ## 15. Tricky Questions
 
 ---

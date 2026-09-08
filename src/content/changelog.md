@@ -1,5 +1,81 @@
 # What's New
 
+## v1.2.0 (September 2026)
+
+**Fixed: the Introduction page you're reading from was showing the repo's developer README.** The build was overwriting this page with the GitHub README on every deploy, so `/` showed project structure and setup instructions instead of the study roadmap. The real Introduction — the 20-topic priority map and the themed guide index — is now what actually ships.
+
+A playground release. **171 templates, 120 challenges (94 JS + 26 React), 88 with a multi-approach Show-Solution walkthrough.**
+
+Two audits drove it: the existing array/string coverage against the questions that actually get asked, and the React Machine Coding set against the low-level-design components interviewers name directly. Sliding window went from 1 challenge to 5, and two React LLD components that were entirely absent are now covered at interview depth.
+
+### React Machine Coding &mdash; the LLD Components, Properly
+
+Audited the React Machine Coding set against a list of the low-level-design components interviewers ask for by name. Eight questions; two were **completely missing**, four existed only as shallow versions. All eight are now covered at interview depth (React Machine Coding 21 &rarr; **26**).
+
+**New:**
+
+- **Counter (optimized re-renders)** &mdash; the question every React interview opens with, and the follow-up that actually matters. Functional updates, `useCallback` with empty deps, `React.memo` on children with a live render counter, bounds and step, plus a runnable demo of the **stale-closure trap in `setInterval`** and why batched `setCount(count + 1)` twice only increments once.
+- **Search with Debounce + Cancel** &mdash; debouncing is the easy half. The half that separates candidates is **cancelling the in-flight request**: type "re" then "rea", and without an `AbortController` the slow response for "re" lands last and overwrites the results for "rea". Includes a `useDebouncedValue` hook and all five states (idle / loading / success / empty / error).
+- **Modal (Portal + Focus Trap)** &mdash; `createPortal`, focus into the modal on open, a real **Tab/Shift+Tab focus trap**, focus **returned to the trigger** on close (the most-forgotten step), Escape, `aria-modal`, scroll lock, and `stopPropagation` so a click inside doesn't hit the backdrop. Rendered inside a deliberately `transform`ed, `overflow:hidden` ancestor so you can see what the portal is escaping &mdash; plus the `<dialog>` version you should actually ship.
+- **Form with Validation** &mdash; the validation-timing decision that gets graded: **on blur, then live once touched**, because validating from the first keystroke is hostile. Errors are *derived*, never stored. Full accessibility: real `<label htmlFor>`, `aria-invalid`, `aria-describedby` linking the message, `role="alert"`, and focus moved to the first invalid field on failed submit.
+- **Theme Switcher (dark/light)** &mdash; and the two things implementations get wrong. **Three states, not a boolean**: light / dark / *system*, because `isDark` can't represent "follow the OS" and the user's choice breaks at sunset. And **the flash of wrong theme** &mdash; a `useEffect` runs after first paint, so the fix is a blocking inline script in `<head>`; the template documents exactly what to put there. CSS variables on `:root[data-theme]`, a live `prefers-color-scheme` listener, and `localStorage` wrapped in `try`/`catch` because it *throws* in Safari private mode rather than returning `null`.
+
+**Upgraded:**
+
+- **Auto-Complete (ARIA combobox)** &mdash; was "Auto-suggest" with arrow keys and nothing else. Now the full pattern: debounce, request cancellation, and the mechanism that matters &mdash; **`aria-activedescendant`**, so DOM focus stays in the input while a *virtual* focus moves through the options. Moving real focus onto the options breaks typing, and that's the classic wrong build. Plus `role="listbox"`/`option"`, `aria-expanded`, Home/End, two-stage Escape, and `onMouseDown` instead of `onClick` (because `onClick` fires after `onBlur` has already closed the list).
+- **Todo List (localStorage + memo)** &mdash; gained persistence. Lazy state initialiser so storage is read once, shape **validation** on load so a schema change doesn't white-screen returning users, and a visible warning when storage is unavailable. Notes on multi-tab sync via the `storage` event.
+- **Infinite Scroll** &mdash; gained an **error state with retry** and an `aria-live` announcement. The demo fails page 3 once so the path is reachable. Also guards the observer while an error is showing, since otherwise it retries in a tight loop against a failing endpoint.
+
+**Playground totals: 171 templates, 120 challenges (94 JS + 26 React), 88 with a Show-Solution walkthrough.**
+
+### Playground &mdash; 18 New Array & String Challenges
+
+The playground gained 18 JS coding challenges (76 &rarr; **94**), chosen by auditing the existing set against the array and string questions that actually come up. Every one ships with a **multi-approach solution** and a Time/Space/Verdict comparison table.
+
+**Arrays** &mdash; **Merge Intervals** (sort then sweep; the overlap predicate `a <= d && c <= b`), **Minimum Size Subarray Sum** (why the window only works because the values are positive), **Sliding Window Maximum** (monotonic deque &mdash; the O(n) answer where the obvious one is O(n&middot;k)), **Longest Consecutive Sequence** (the sequence-start guard that makes it O(n)), **Next Permutation** (pivot &rarr; swap &rarr; reverse suffix, derived rather than memorised), **Rotate Matrix 90&deg;** (transpose + reverse rows, plus the anticlockwise and ring variants), **Shuffle Array (Fisher-Yates)**, **Array Intersection & Union**, **Chunk Array**.
+
+**Strings** &mdash; **String Compression (RLE)**, **Integer to Roman** (the mirror of the existing Roman to Integer), **Reverse Integer** (the overflow check *is* the question), **Isomorphic Strings** (why a one-directional map is wrong), **Longest Repeating Char Replacement**, **Minimum Window Substring**, **Case Converter (camel/snake/kebab)** including the recursive `deepCamelize` you actually write at work.
+
+**Sliding window coverage went from 1 challenge to 5** &mdash; it was the biggest gap in the set, a top-five interview pattern represented by a single problem. New distribution: Hash Map/Set 20, Two Pointer 19, Recursion/D&C 12, Math/Bit 11, Closure/State 11, Greedy 10, Sorting 9, In-Place 9, DP 6, **Sliding Window 5**, Stack 4, Linked List 4, Backtracking 4, Binary Search 3. Difficulty: **38 Easy / 51 Medium / 5 Hard**.
+
+### The Solutions Teach the Trap, Not Just the Algorithm
+
+- **Fisher-Yates** explains *why* `arr.sort(() => Math.random() - 0.5)` is not a uniform shuffle (an inconsistent comparator, so the result depends on the engine's sort algorithm) &mdash; and includes **Sattolo's algorithm** as a runnable demonstration of how a one-character off-by-one silently produces only cyclic permutations.
+- **Sum Without Loops** proves V8 has **no tail-call optimisation** with an assertion that catches the `RangeError`, so "tail recursive" is shown to buy nothing in JavaScript.
+- **Longest Repeating Char Replacement** explains why the stale `maxCount` is safe rather than asking you to trust it.
+- **First Repeating Character** disambiguates the two readings of the question &mdash; on `"success"` the answer is `'c'` or `'s'` depending on which was asked &mdash; because picking the wrong one is the actual failure mode.
+- **Chunk Array**'s input guard prevents a `size: 0` infinite loop, which hangs the tab rather than just returning the wrong answer.
+
+### Also From Two Interviewer Question Lists
+
+Audited two user-supplied lists of commonly-asked questions against the app. Most were already covered (call/apply/bind polyfills, Flatten Array, Deep Clone, Sum Curry, Stopwatch, the event-loop output puzzles). The genuine gaps are now filled:
+
+- **First Repeating Character** and **Sum Without Loops** as JS challenges (above).
+- **Todo List (optimized re-renders)** &mdash; a new React Machine Coding challenge (20 &rarr; **21**). A complete reference implementation of the four re-render techniques: isolate the input's state so typing doesn't touch the list, `React.memo` on rows, stable `useCallback` identity, and functional `setState` so the dependency arrays stay empty. Each row shows a **live render counter**, so you can watch that toggling one item re-renders exactly one row. Closes with notes on what changes at 500+ items (virtualization), under the React Compiler, and once todos become server state.
+- **Modern CSS guide** &mdash; new interview question: *"lay out five divs in a row with no flexbox, grid, margin or padding."* Covers `inline-block`, the **whitespace-gap bug** that breaks it (five 20% items wrap because the newlines between tags render as real spaces), and the `table-cell` and `float` alternatives.
+
+**Playground totals: 166 templates, 115 challenges (94 JS + 21 React), 88 with a Show-Solution walkthrough.**
+
+### Interview-Round Question Audit &mdash; 7 Gaps Closed
+
+Audited a three-round interview question set (5 technical, 6 deep technical, 4 managerial) against the library. **Eight of the fifteen were already covered** &mdash; Fiber internals, reducing initial load, large-scale codebase structure, dynamic theming, dashboard filter lag, accessibility/WCAG, tight-deadline delivery, and disagreeing with a designer. Seven were genuine gaps:
+
+**Frontend Architecture** &mdash; three new questions:
+- **Large data tables with real-time updates.** Two problems that fight each other, solved separately: virtualize both axes because the DOM is the cost, then decouple ingest rate from render rate and coalesce updates by row key. Plus the table-specific parts candidates miss &mdash; server-side sort/filter, what to do when a live update reorders rows the user is reading, cell-level rather than row-level subscriptions, and `aria-rowcount` so a screen-reader user hears the real total rather than "row 3 of 30".
+- **Client-side caching, API retries and error boundaries** as one system. Retry only retryable failures (never a `400` &mdash; it fails identically forever), back off with jitter, and treat mutations differently from queries because a failed `POST` may have succeeded before the response was lost. Error boundaries per region, not one at the root &mdash; a root-only boundary turns any component error into a white screen.
+- **Global state with multiple teams contributing.** The insight is that the biggest efficiency win isn't a faster store, it's having far less in it &mdash; server data belongs in a query cache, filters belong in the URL. Then slice ownership via CODEOWNERS, cross-team reads through exported selectors rather than raw state paths, and boundaries enforced by lint because conventions don't survive a deadline.
+
+**React guide** &mdash; **debugging a memory leak.** The heap-snapshot workflow (snapshot &rarr; exercise &rarr; force GC &rarr; snapshot &rarr; compare), reading the **Retainers** panel to find what's holding a **Detached HTMLElement**, and the React-specific causes in order of likelihood &mdash; missing effect cleanup, inline listeners that can never be removed, unbounded arrays, closures in long-lived refs. Includes the things that *look* like leaks and aren't.
+
+**Modern CSS** &mdash; **cross-browser and cross-device consistency.** Starts by rejecting the goal as stated: pixel-identical everywhere isn't achievable or worth the cost. Then `browserslist` as the actual specification, feature detection over browser detection, and the device axis as a separate problem &mdash; `100vh` on iOS, touch target sizes, `:hover` not existing on touch, safe-area insets, and low-end CPU as the biggest real inconsistency.
+
+**Web Performance** &mdash; **explaining FCP, TTI and CLS to non-technical stakeholders.** A translation table (LCP is "when they see the thing they came for"), the three-promises framing that explains why a page can pass one metric and fail another, and why you show a throttled screen recording rather than a Lighthouse score.
+
+**Behavioral** &mdash; new **§9.9 "Tell me about a time your release broke production."** The structure that works, with the emphasis on **rollback before root-cause** &mdash; describing yourself debugging while customers are affected is the wrong instinct. Plus the frontend-specific failure modes to have ready: cached `index.html` pointing at purged chunks, an engine-specific CSS change, a flag defaulting to on, a service worker serving a stale shell.
+
+
+---
+
 ## v1.1.0 (September 2026)
 
 The largest content release so far: **11 new guides** and a full 2026 freshness pass across the existing ones. **Total guides: 42 &rarr; 53.**

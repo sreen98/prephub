@@ -789,7 +789,64 @@ The rule I'd state: **media queries for page-level and device concerns (print, o
 
 ---
 
-**Q4: A modal with `z-index: 9999` renders behind a header with `z-index: 10`. Why, and how do you fix it properly?**
+**Q4: Lay out five divs in a row — no flexbox, no grid, no margin, no padding. How, and what breaks?**
+
+A constrained-tools question. The point isn't nostalgia for pre-flexbox CSS; it's whether you actually understand the **display** property rather than reaching for `flex` reflexively.
+
+```css
+.item { display: inline-block; width: 20%; }
+```
+
+`div` is `display: block` by default, which is why five of them stack. `inline-block` makes each participate in inline layout — so they sit on a line — while keeping block behaviour internally (width, height and vertical padding all work, which plain `inline` ignores).
+
+**And then the classic bug bites**, which is the real content of the question:
+
+```html
+<!-- Five 20% items = 100%… and they WRAP. Why? -->
+<div class="row">
+  <div class="item"></div>
+  <div class="item"></div>
+</div>
+```
+
+Because inline-block elements are **inline**, the whitespace between the tags in your HTML is rendered as a **real space character** — roughly 4px per gap at a typical font size. Five items at 20% plus four spaces exceeds 100%, so the last one drops to the next line. Interviewers love this because the CSS looks correct and the layout is broken by the *markup formatting*.
+
+The fixes, and the trade-offs:
+
+```css
+/* 1. Kill the font on the parent, restore it on the children.
+      Ugly, but the most reliable and it needs no markup changes. */
+.row  { font-size: 0; }
+.item { font-size: 1rem; display: inline-block; width: 20%; }
+```
+
+```html
+<!-- 2. Remove the whitespace from the source. Correct, but fragile —
+        a prettier run or a template rewrite reintroduces it. -->
+<div class="item"></div><div class="item"></div>
+```
+
+Two other approaches worth naming, because they show range:
+
+```css
+/* display: table-cell — no whitespace problem at all, since table layout
+   ignores inter-element whitespace. Equal widths come free. */
+.row  { display: table; width: 100%; }
+.item { display: table-cell; }
+
+/* float: left — the pre-flexbox default. No gaps, but the parent
+   collapses because floats are out of flow, so you need a clearfix. */
+.item { float: left; width: 20%; }
+.row::after { content: ""; display: table; clear: both; }
+```
+
+**What to say at the end:** in real code this is `display: flex` (or `grid` for equal columns), because none of the above have the gap problem, none need a clearfix, and `gap` gives you spacing without margins. The constraint exists to test the mechanism. It's also worth noting `inline-block` still has legitimate uses — inline badges and buttons inside flowing text, where you genuinely want the element to sit in a line of prose.
+
+One more detail if they push: `inline-block` elements are baseline-aligned by default, so items with different content heights won't line up at the top. `vertical-align: top` fixes it, and that's another gap-class bug that looks like a CSS mystery until you know it.
+
+---
+
+**Q5: A modal with `z-index: 9999` renders behind a header with `z-index: 10`. Why, and how do you fix it properly?**
 
 Because `z-index` only orders siblings **within the same stacking context**, and children can never escape their parent's. If the modal sits inside an ancestor that forms a stacking context which is itself painted below the header, no z-index on the modal can lift it out — the parent moves as one unit.
 
@@ -805,7 +862,7 @@ And the diagnostic habit: when `fixed`, `sticky` or `z-index` misbehaves, **walk
 
 ---
 
-**Q5: What problem do cascade layers solve, and how would you structure them?**
+**Q6: What problem do cascade layers solve, and how would you structure them?**
 
 Specificity wars. The recurring pain is that a low-specificity utility (`.mt-0`, `0,1,0`) cannot override a high-specificity component rule (`#sidebar .nav a`, `1,2,2`), so people reach for `!important`, which then can only be beaten by another `!important`, and the cascade becomes unmanageable.
 
@@ -823,7 +880,7 @@ The killer use case is third-party CSS: `@import url("widget.css") layer(vendor)
 
 ---
 
-**Q6: Do you still need Sass, BEM, or CSS-in-JS? Justify your answer.**
+**Q7: Do you still need Sass, BEM, or CSS-in-JS? Justify your answer.**
 
 Each solved a real gap that the platform has now closed, so the answer is specific per tool rather than a blanket yes or no.
 
@@ -841,7 +898,7 @@ Each solved a real gap that the platform has now closed, so the answer is specif
 
 ---
 
-**Q7: How do you build a themeable design system that supports dark mode, per-product branding, and works with web components?**
+**Q8: How do you build a themeable design system that supports dark mode, per-product branding, and works with web components?**
 
 **CSS custom properties, as a token layer.** This is the decision everything else follows from, and the reasoning is worth stating: custom properties cascade and inherit at runtime, so theming becomes overriding a value on a container — no re-render, no context, no prop drilling, no JavaScript bundle cost. They also **pierce shadow DOM**, which is the standard mechanism for theming web components. And critically, tokens shipped as CSS can be shared between independently-deployed bundles on *different* component-library versions, which a JS token object cannot.
 
@@ -886,7 +943,7 @@ The rules that make this hold up:
 
 ---
 
-**Q8: Walk me through debugging a layout that looks correct on desktop, breaks on mobile Safari, and has a visible content shift on load.**
+**Q9: Walk me through debugging a layout that looks correct on desktop, breaks on mobile Safari, and has a visible content shift on load.**
 
 Three separate problems; I'd separate them before touching anything, because conflating them is how you fix the wrong one.
 
@@ -897,6 +954,48 @@ Three separate problems; I'd separate them before touching anything, because con
 **The general method**, which is really what's being tested: reproduce on a real device or a simulator rather than a narrow desktop window, because the failures are engine-specific rather than width-specific. Then in DevTools, walk the ancestor chain for `transform`, `filter`, `overflow` and `contain` (the containing-block and stacking-context traps from §11); check computed values rather than authored ones; and toggle declarations to bisect. For CLS specifically, use the Performance panel's layout-shift regions to see *what* moved rather than guessing, and confirm with **field data** — a shift that only appears on slow connections won't reproduce locally at all, which is exactly why RUM matters.
 
 
+---
+
+**Q10: How do you ensure consistent rendering and layout across browsers and devices?**
+
+Start by rejecting the goal as stated: **pixel-identical across every browser is neither achievable nor worth the cost.** The realistic target is that the layout is *correct and usable* everywhere and *visually equivalent* on your supported matrix. Saying that first is the answer — chasing identical rendering is how teams end up with a stack of hacks.
+
+**1. Define the matrix, in code.** "Modern browsers" is not a specification. `browserslist` in `package.json` is, and it's read by Autoprefixer, Babel, Lightning CSS and your bundler, so one declaration drives the whole toolchain:
+
+```json
+"browserslist": ["> 0.5%", "last 2 versions", "Firefox ESR", "not dead"]
+```
+
+Derive it from **your analytics**, not from a default. Then check features against **Baseline** (webstatus.dev) rather than guessing — "Baseline newly available" versus "widely available" is exactly the distinction that tells you whether you still need a fallback.
+
+**2. Neutralise the defaults you don't control.** A modern reset — `box-sizing: border-box` everywhere, zeroed margins, `img { max-width: 100% }`, consistent form-control inheritance. Form controls and `<select>` in particular are still styled inconsistently, which is why `appearance: none` plus your own styling is standard for them.
+
+**3. Feature detection, not browser detection.** `@supports` in CSS and capability checks in JS. User-agent sniffing breaks on the next release and on every browser that spoofs:
+
+```css
+.card { display: block; }                          /* baseline that works everywhere */
+@supports (container-type: inline-size) { … }      /* enhancement */
+```
+
+That ordering is **progressive enhancement**: write the version that works, then layer on. The inverse — building on the new feature and patching older browsers — leaves you unable to tell what's load-bearing.
+
+**4. Prefer the things that are consistent by construction.** Flexbox and Grid behave far more predictably than floats and absolute positioning ever did. **Logical properties** (`margin-inline-start`) handle RTL without a parallel stylesheet. `clamp()` and container queries remove a class of breakpoint mismatch. CSS custom properties keep one source of truth for spacing and colour so drift can't creep in per-component.
+
+**5. The device axis is a different problem from the browser axis**, and it's the one people underestimate:
+
+- **`100vh` on iOS Safari** resolves against the *largest* viewport, so a full-height layout hides content behind the toolbar. `dvh`/`svh` is the fix (§10.2).
+- **Touch targets** need 24×24 CSS px minimum (WCAG 2.5.8) — a mouse-designed 16px icon button fails on a phone.
+- **`:hover` doesn't exist on touch**, and a hover-only affordance is invisible there. Guard with `@media (hover: hover)`.
+- **Safe-area insets** for notches: `padding: env(safe-area-inset-bottom)`.
+- **The software keyboard** resizes the viewport on Android and overlays it on iOS — different behaviour for the same layout.
+- **Device pixel ratio** for images: `srcset` with `2x`/`3x` descriptors.
+- **Low-end CPUs.** This is the biggest real inconsistency and it isn't a layout issue at all — a bundle that parses in 400ms on your laptop can take 2s on a cheap Android, so the *experience* differs even where the pixels don't.
+
+**6. Verify it, don't hope.** Real devices where it matters, **BrowserStack/Sauce** or Playwright's Chromium/Firefox/**WebKit** engines in CI for the rest — Playwright bundling a real WebKit is the cheapest Safari coverage available. **Visual regression testing** (Chromium + WebKit screenshots per PR) is what actually catches drift, and it must run in a container with pinned fonts or you'll get diffs that aren't bugs. Plus zoom to 200% and 400%, and check `prefers-reduced-motion` and `prefers-color-scheme`.
+
+**7. Where inconsistency is legitimate.** Native form controls, scrollbars, date pickers, focus rings and font rendering *should* look like the platform. Overriding all of them to match a design is a large maintenance cost, usually degrades accessibility, and users generally prefer the platform behaviour. Knowing which battles not to fight is part of the answer.
+
+---
 ---
 
 ## 18. Tricky Questions
