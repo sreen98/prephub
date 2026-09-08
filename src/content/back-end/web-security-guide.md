@@ -19,7 +19,7 @@ This guide covers the threats a web engineer owns: XSS and CSP, CSRF, token thef
 - [9. Secrets Management](#9-secrets-management)
 - [10. Authentication Hardening](#10-authentication-hardening)
 - [11. Security Headers Reference](#11-security-headers-reference)
-- [12. Interview Questions & Answers](#12-interview-questions--answers)
+- [12. Interview Questions & Answers](#12-interview-questions-answers)
 - [13. Tricky Questions](#13-tricky-questions)
 - [14. Cheat Sheet](#14-cheat-sheet)
 - [15. References](#15-references)

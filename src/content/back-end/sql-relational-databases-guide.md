@@ -9,11 +9,11 @@ SQL is asked in almost every backend and full-stack loop, and it's the area wher
 ## Table of Contents
 
 - [1. The Relational Model](#1-the-relational-model)
-- [2. Querying — the Parts That Get Asked](#2-querying--the-parts-that-get-asked)
+- [2. Querying — the Parts That Get Asked](#2-querying-the-parts-that-get-asked)
 - [3. JOINs](#3-joins)
 - [4. Aggregation, Grouping and Window Functions](#4-aggregation-grouping-and-window-functions)
 - [5. CTEs and Subqueries](#5-ctes-and-subqueries)
-- [6. Indexes — How They Actually Work](#6-indexes--how-they-actually-work)
+- [6. Indexes — How They Actually Work](#6-indexes-how-they-actually-work)
 - [7. Reading a Query Plan](#7-reading-a-query-plan)
 - [8. Transactions and ACID](#8-transactions-and-acid)
 - [9. Isolation Levels and the Anomalies](#9-isolation-levels-and-the-anomalies)
@@ -22,7 +22,7 @@ SQL is asked in almost every backend and full-stack loop, and it's the area wher
 - [12. Migrations](#12-migrations)
 - [13. Scaling a Relational Database](#13-scaling-a-relational-database)
 - [14. Postgres vs MySQL](#14-postgres-vs-mysql)
-- [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [15. Interview Questions & Answers](#15-interview-questions-answers)
 - [16. Tricky Questions](#16-tricky-questions)
 - [17. Cheat Sheet](#17-cheat-sheet)
 - [18. References](#18-references)

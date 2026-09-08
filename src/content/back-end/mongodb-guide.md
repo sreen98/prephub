@@ -14,7 +14,7 @@
 - [10. Replication and Sharding](#10-replication-and-sharding)
 - [11. Performance](#11-performance)
 - [12. Security](#12-security)
-- [13. Interview Questions & Answers](#13-interview-questions--answers)
+- [13. Interview Questions & Answers](#13-interview-questions-answers)
 - [14. Tricky Output Questions](#14-tricky-output-questions)
 
 ---

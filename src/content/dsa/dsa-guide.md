@@ -7,20 +7,20 @@ A comprehensive guide to data structures, algorithms, and problem-solving patter
 ## Table of Contents
 
 - [1. Big-O Notation](#1-big-o-notation)
-- [2. Arrays & Strings](#2-arrays--strings)
-- [3. Hash Maps & Sets](#3-hash-maps--sets)
+- [2. Arrays & Strings](#2-arrays-strings)
+- [3. Hash Maps & Sets](#3-hash-maps-sets)
 - [4. Linked Lists](#4-linked-lists)
-- [5. Stacks & Queues](#5-stacks--queues)
+- [5. Stacks & Queues](#5-stacks-queues)
 - [6. Trees](#6-trees)
 - [7. Graphs](#7-graphs)
 - [8. Sorting](#8-sorting)
 - [9. Searching](#9-searching)
 - [10. Dynamic Programming](#10-dynamic-programming)
-- [11. Heaps & Priority Queues](#11-heaps--priority-queues)
+- [11. Heaps & Priority Queues](#11-heaps-priority-queues)
 - [12. Tries (Prefix Trees)](#12-tries-prefix-trees)
 - [13. Backtracking](#13-backtracking)
 - [14. Common Patterns Summary](#14-common-patterns-summary)
-- [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [15. Interview Questions & Answers](#15-interview-questions-answers)
 - [References](#references)
 
 ---

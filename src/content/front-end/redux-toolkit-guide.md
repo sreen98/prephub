@@ -14,7 +14,7 @@
 - [10. RTK Query](#10-rtk-query)
 - [11. Patterns and Best Practices](#11-patterns-and-best-practices)
 - [12. Testing](#12-testing)
-- [13. Interview Questions & Answers](#13-interview-questions--answers)
+- [13. Interview Questions & Answers](#13-interview-questions-answers)
 - [14. Tricky Output Questions](#14-tricky-output-questions)
 
 ---

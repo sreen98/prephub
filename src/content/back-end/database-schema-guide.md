@@ -16,10 +16,10 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 8. [Schema Migrations](#8-schema-migrations)
 9. [Relational Database Design](#9-relational-database-design)
 10. [Normalization](#10-normalization)
-11. [Denormalization & Performance](#11-denormalization--performance)
+11. [Denormalization & Performance](#11-denormalization-performance)
 12. [Multi-Tenancy Schema Design](#12-multi-tenancy-schema-design)
 13. [Schema Validation](#13-schema-validation)
-14. [Time-Series & Event Data](#14-time-series--event-data)
+14. [Time-Series & Event Data](#14-time-series-event-data)
 15. [Interview Questions](#15-interview-questions)
 
 ---

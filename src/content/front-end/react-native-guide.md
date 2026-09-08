@@ -3,36 +3,40 @@
 ## Table of Contents
 
 - [1. What is React Native?](#1-what-is-react-native)
-- [2. Project Setup — Expo vs Bare CLI](#2-project-setup--expo-vs-bare-cli)
+- [2. Project Setup — Expo vs Bare CLI](#2-project-setup-expo-vs-bare-cli)
 - [3. Core Components](#3-core-components)
 - [4. Styling in React Native](#4-styling-in-react-native)
 - [5. Layout with Flexbox](#5-layout-with-flexbox)
-- [6. Lists — FlatList, SectionList & Virtualization](#6-lists--flatlist-sectionlist--virtualization)
+- [6. Lists — FlatList, SectionList & Virtualization](#6-lists-flatlist-sectionlist-virtualization)
 - [7. Navigation](#7-navigation)
 - [8. State Management in Mobile Apps](#8-state-management-in-mobile-apps)
 - [9. Platform APIs](#9-platform-apis)
-- [10. Handling Keyboard & Safe Areas](#10-handling-keyboard--safe-areas)
-- [11. Networking & Data Fetching](#11-networking--data-fetching)
+- [10. Handling Keyboard & Safe Areas](#10-handling-keyboard-safe-areas)
+- [11. Networking & Data Fetching](#11-networking-data-fetching)
 - [12. Persistent Storage](#12-persistent-storage)
-- [13. Forms & TextInput](#13-forms--textinput)
-- [14. Images & Media](#14-images--media)
+- [13. Forms & TextInput](#13-forms-textinput)
+- [14. Images & Media](#14-images-media)
 - [15. Animations](#15-animations)
 - [16. Gestures](#16-gestures)
-- [17. Permissions & Device APIs](#17-permissions--device-apis)
+- [17. Permissions & Device APIs](#17-permissions-device-apis)
 - [18. Push Notifications](#18-push-notifications)
 - [19. Deep Linking](#19-deep-linking)
-- [20. Native Modules & Bridging](#20-native-modules--bridging)
-- [21. New Architecture — JSI, Fabric, TurboModules, Hermes](#21-new-architecture--jsi-fabric-turbomodules-hermes)
+- [20. Native Modules & Bridging](#20-native-modules-bridging)
+- [21. New Architecture — JSI, Fabric, TurboModules, Hermes](#21-new-architecture-jsi-fabric-turbomodules-hermes)
 - [22. Performance Optimization](#22-performance-optimization)
-- [23. Debugging & Dev Tools](#23-debugging--dev-tools)
+- [23. Debugging & Dev Tools](#23-debugging-dev-tools)
 - [24. Testing React Native Apps](#24-testing-react-native-apps)
-- [25. Build, Release & App Stores](#25-build-release--app-stores)
+- [25. Build, Release & App Stores](#25-build-release-app-stores)
 - [26. Over-the-Air Updates](#26-over-the-air-updates)
 - [27. Accessibility](#27-accessibility)
 - [28. Internationalization (i18n)](#28-internationalization-i18n)
-- [29. Common Pitfalls & Best Practices](#29-common-pitfalls--best-practices)
-- [30. Interview Questions & Answers](#30-interview-questions--answers)
-- [31. Tricky Questions](#31-tricky-questions)
+- [29. In-App Purchases & Subscriptions](#29-in-app-purchases-subscriptions)
+- [30. Crash Reporting & Monitoring](#30-crash-reporting-monitoring)
+- [31. Background Tasks](#31-background-tasks)
+- [32. App Size & Startup Time](#32-app-size-startup-time)
+- [33. Common Pitfalls & Best Practices](#33-common-pitfalls-best-practices)
+- [34. Interview Questions & Answers](#34-interview-questions-answers)
+- [35. Tricky Questions](#35-tricky-questions)
 - [References](#references)
 
 ---
@@ -1682,7 +1686,133 @@ new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(12
 
 ---
 
-## 29. Common Pitfalls & Best Practices
+## 29. In-App Purchases & Subscriptions
+
+Both stores require digital goods to be sold through their billing systems — Apple guideline 3.1.1 and Google Play Billing — with narrow carve-outs for physical goods and "reader" apps. Bypassing them is a guaranteed rejection or removal.
+
+```js
+import { requestPurchase, getSubscriptions, finishTransaction } from 'react-native-iap';
+
+const subs = await getSubscriptions({ skus: ['pro_monthly', 'pro_yearly'] });
+const purchase = await requestPurchase({ sku: 'pro_monthly' });
+
+// 1. send the receipt/token to YOUR server
+await api.post('/billing/verify', {
+  platform: Platform.OS,
+  receipt: purchase.transactionReceipt,     // iOS
+  purchaseToken: purchase.purchaseToken,    // Android
+  productId: purchase.productId,
+});
+// 2. only after the server confirms, finish the transaction
+await finishTransaction({ purchase, isConsumable: false });
+```
+
+**The whole security model is server-side receipt validation.** Never grant entitlement from the client callback — it is trivially faked, and tools exist that do exactly that. Your backend verifies against the **App Store Server API** or **Google Play Developer API**, records the entitlement against the user account, and the app asks the server what the user owns.
+
+Details that bite:
+
+- **Finish/acknowledge the transaction** after your server confirms. An unacknowledged Android purchase is **auto-refunded after three days**; an unfinished iOS transaction is re-delivered on every launch.
+- Handle the **lifecycle server-side** via App Store Server Notifications and Google's Real-time Developer Notifications: renewals, cancellations, refunds, billing retries, grace periods. A client that only checks at launch keeps serving a refunded subscriber.
+- Make verification **idempotent**, keyed on the transaction ID — mid-purchase network failures are routine and double-granting is a real bug.
+- **Restore purchases must work.** It's an App Review requirement and a common rejection.
+- Test with **sandbox accounts** (iOS) and **licence testers** (Android); sandbox renewal timings are compressed, so a "monthly" sub renews in minutes.
+
+See [Mobile App Security §11](/frontend/mobile-app-security) for the trust boundary in full.
+
+---
+
+## 30. Crash Reporting & Monitoring
+
+You cannot attach a debugger to a user's phone, so production observability is the only way you learn about failures.
+
+```js
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 0.2,
+  beforeSend(event) {
+    delete event.user?.email;              // scrub PII before it leaves the device
+    return event;
+  },
+});
+```
+
+The thing that makes or breaks this: **upload your symbols and source maps**. Without dSYMs (iOS) and the Hermes/Metro **source map**, a native crash is hex addresses and a JS error is minified single-letter frames — technically a report, practically useless. Wire the upload into CI so it can't be forgotten, and match it to the exact build.
+
+What to capture and watch:
+
+- **Crash-free session rate** — the headline mobile health metric; track it per app version and OS version.
+- **JS errors vs native crashes** — different causes. A JS error shows the red screen in dev and often an error boundary in production; a native crash kills the process.
+- **ANRs** (Android) and **watchdog terminations** (iOS) — the app was alive but unresponsive, usually blocking the main thread. Play Console and Xcode Organizer report these separately from crashes, and Play has ANR thresholds that affect discoverability.
+- **Release adoption**, so you know how many users are still on the broken version.
+- **Breadcrumbs** — but scrub them: they routinely capture tokens, request bodies and PII.
+
+Both stores give you first-party data too: **Play Console Android vitals** (crash rate, ANR rate, excessive wakeups) and **Xcode Organizer** (crashes, hangs, energy, disk writes). Store metrics affect ranking, so they matter commercially, not just diagnostically.
+
+---
+
+## 31. Background Tasks
+
+Mobile OSes aggressively suspend apps to protect battery, so "run this later" is a scheduling request, not a promise.
+
+```js
+import * as BackgroundTask from 'expo-background-task';
+import * as TaskManager from 'expo-task-manager';
+
+TaskManager.defineTask('sync-outbox', async () => {
+  await flushOutbox();                     // must finish FAST — seconds, not minutes
+  return BackgroundTask.BackgroundTaskResult.Success;
+});
+
+await BackgroundTask.registerTaskAsync('sync-outbox', { minimumInterval: 15 * 60 });
+```
+
+What actually happens:
+
+- **The OS decides when — and whether — your task runs.** iOS `BGAppRefreshTask` is budgeted by how often the user opens your app; a rarely-used app may effectively never get background time. `minimumInterval` is a floor, not a schedule.
+- **Execution windows are short** (~30 s on iOS). Exceeding it gets you terminated, and repeated overruns reduce your future budget.
+- **iOS kills background work when the user force-quits the app** — swiping it away in the app switcher stops background refresh entirely until next launch.
+- On **Android**, use **WorkManager** semantics for guaranteed, constraint-aware, retryable work (network required, charging, batched). Doze mode and OEM battery managers still delay it, and some OEMs are notoriously aggressive.
+- **Never rely on background execution for correctness.** Design an **outbox**: queue locally, flush opportunistically on foreground *and* in background, and make every operation idempotent so a duplicate flush is harmless.
+- For anything that must happen at a time you control, use a **push notification to wake the app** (silent/data push) rather than a timer — and note even that is throttled and not guaranteed.
+
+Geolocation, audio and VoIP have dedicated background modes with their own entitlements and review scrutiny; declaring a background mode you don't genuinely need is a rejection risk.
+
+---
+
+## 32. App Size & Startup Time
+
+Install size measurably affects conversion, and iOS prompts users above the **200 MB cellular limit**.
+
+```bash
+npx react-native-bundle-visualizer          # what's actually in the JS bundle
+# Android
+./gradlew :app:bundleRelease                # AAB → per-device delivery
+# iOS: App Store Connect → App Size report (the .ipa size is NOT the download size)
+```
+
+Size levers, roughly in order of payoff:
+
+- **Android App Bundle (AAB)** — Play generates per-device APKs, so users don't download every architecture and density. Mandatory for new apps anyway.
+- **Enable R8/ProGuard** shrinking and resource shrinking in release; add keep rules for anything reflected.
+- **`enableSeparateBuildPerCPUArchitecture`** if you ship APKs directly.
+- **Audit dependencies** — an unused SDK is pure size. `react-native-bundle-visualizer` finds the surprises; a moment locale bundle or an icon set is a classic.
+- **Images**: asset catalogs on iOS, WebP on Android, and correct densities rather than one oversized asset.
+- **Hermes** — smaller than JSC and much faster to start, because it ships precompiled bytecode.
+
+Startup time is the other half, and users notice it more:
+
+- **Hermes + precompiled bytecode** removes JS parse cost.
+- **Defer work off the critical path** — don't initialise analytics, crash reporting and feature flags synchronously before first render.
+- **`InteractionManager.runAfterInteractions`** for non-urgent setup.
+- **Lazy-load screens** with `React.lazy` or navigation-level code splitting.
+- Measure with the native trace (`adb shell am start -W`, Xcode's App Launch template) plus a JS-side "time to first render" marker — not by feel.
+- The **New Architecture** improves startup by removing bridge serialisation at init.
+
+---
+
+## 33. Common Pitfalls & Best Practices
 
 1. **Forgetting `flex: 1` on ancestors** — screen renders blank. A `View` without a size collapses to 0.
 2. **String outside `<Text>`** — `Text strings must be rendered within a <Text> component` error. Common when mixing literal strings into a `<View>`.
@@ -1702,7 +1832,7 @@ new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(12
 
 ---
 
-## 30. Interview Questions & Answers
+## 34. Interview Questions & Answers
 
 ### Beginner (Core concepts, components, basic styling)
 
@@ -2013,7 +2143,7 @@ Use the Xcode memory graph or Android Studio profiler to confirm — a retained 
 
 ---
 
-## 31. Tricky Questions
+## 35. Tricky Questions
 
 ### Styling & Layout
 
@@ -2407,6 +2537,22 @@ React Native Output Cheat Sheet:
 ```
 
 ---
+
+**Q17: A user reports your Android subscription was refunded automatically three days after they bought it, and they never asked for a refund. Why?**
+
+**The purchase was never acknowledged.** Google Play requires you to acknowledge (or consume) a purchase within **three days**, and if you don't, Play automatically refunds it and revokes the entitlement — a deliberate consumer-protection mechanism against apps that take money and fail to deliver. The usual cause is an implementation that grants access locally and forgets `finishTransaction`/`acknowledgePurchase`, or one where acknowledgement is gated on a server call that silently failed, so the happy path in testing worked and the timeout path in production didn't. The correct sequence is: receive the purchase token → **verify server-side** → record the entitlement → *then* acknowledge. iOS has an analogous but different failure: an unfinished transaction is re-delivered to your app on every launch, so users see repeated purchase prompts. Make verification idempotent and keyed on the transaction ID, because retries here are normal.
+
+**Q18: Your crash reporting shows hundreds of crashes, but every stack trace is unreadable — single-letter function names and hex addresses. What's missing?**
+
+**Symbols and source maps weren't uploaded for that build.** Two separate artefacts are needed. Native crashes need **dSYMs** (iOS) or the Android native symbols, or frames stay as hex offsets. JavaScript errors need the **Hermes/Metro source map**, or minified names are all you get — and because Hermes ships precompiled bytecode, the map must be the one generated for that exact build. The fix is to upload both from CI as part of the release pipeline, keyed to the build number and release version so the reporter can match a crash to the right artefacts; doing it manually guarantees it gets skipped under pressure. Two related traps: uploading a source map from a *rebuild* produces subtly wrong line numbers because the bundle isn't byte-identical, and shipping source maps inside the app bundle exposes your source to anyone — upload them to the reporter, don't ship them.
+
+**Q19: Your background sync works perfectly in development and on your own phone, but a large fraction of users never sync. Why?**
+
+**The OS decides whether background tasks run at all, and your test conditions aren't representative.** On iOS, `BGAppRefreshTask` scheduling is budgeted by **how often the user opens your app** — you and your testers open it constantly, so you always get background time, whereas a user who opens it weekly may effectively never receive any. `minimumInterval` is a floor, not a schedule. Additionally, **force-quitting the app on iOS stops background refresh entirely** until the next manual launch, and many users habitually swipe apps away. On Android, Doze mode plus aggressive OEM battery managers delay or drop work, and some manufacturers are notorious for it. The architectural answer is to never rely on background execution for correctness: implement an **outbox** that queues locally and flushes opportunistically on foreground *and* in background, make every operation idempotent, and use a **silent push** to wake the app when timing genuinely matters — accepting that even that is throttled.
+
+**Q20: Your `.ipa` is 60 MB but users report a 190 MB download and complaints about storage. How is that possible?**
+
+**The `.ipa` size is not the download size** — App Store processing re-signs and re-packages the app, and what users download depends on their device. The `.ipa` you upload is compressed and contains a single slice; the delivered app includes device-specific resources, and crucially the App Store adds **encryption padding** and per-architecture variants, so the install size is routinely two to three times the archive. The authoritative numbers are in **App Store Connect → App Size report**, broken down per device — check that, never the local file size. If you're near the **200 MB cellular limit**, users get an "are you sure" prompt that measurably reduces installs. Levers: asset catalogs so only the needed image scale ships, on-demand resources for large optional assets, dead-code stripping and dependency auditing, and Hermes to shrink the JS payload. On Android the equivalent trap is comparing a universal APK against the per-device APKs Play actually generates from your AAB.
 
 ## References
 

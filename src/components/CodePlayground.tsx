@@ -989,7 +989,12 @@ export default function CodePlayground() {
   // Editor keydown — auto-indent on Enter + bracket auto-close.
   // We mutate the textarea's value via setCode + restore caret with
   // requestAnimationFrame so React commits before we set selection.
-  const handleEditorKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+  // react-simple-code-editor types `onKeyDown` as the intersection of the div
+  // and textarea handlers, so this parameter has to accept both or it isn't
+  // assignable. At runtime the event always originates from the textarea the
+  // editor renders, which is why narrowing to it below is safe.
+  const handleEditorKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement | HTMLDivElement>): void => {
+    const e = event as React.KeyboardEvent<HTMLTextAreaElement>;
     // Cmd/Ctrl+Shift+F → format
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
       e.preventDefault();

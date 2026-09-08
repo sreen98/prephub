@@ -39,7 +39,7 @@ This guide focuses on the APIs that show up in interviews and real product work 
 - [13. Page Lifecycle and Visibility](#13-page-lifecycle-and-visibility)
 - [14. Permissions API](#14-permissions-api)
 - [15. URL and URLSearchParams](#15-url-and-urlsearchparams)
-- [16. Interview Questions & Answers](#16-interview-questions--answers)
+- [16. Interview Questions & Answers](#16-interview-questions-answers)
 - [17. Tricky Questions](#17-tricky-questions)
 - [References](#references)
 

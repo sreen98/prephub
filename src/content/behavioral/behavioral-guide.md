@@ -17,10 +17,10 @@ A comprehensive guide to mastering behavioral interviews. This is not about algo
 9. [Handling Tough Questions](#9-handling-tough-questions)
 10. [Salary Negotiation](#10-salary-negotiation)
 11. [Questions to Ask the Interviewer](#11-questions-to-ask-the-interviewer)
-12. [Body Language & Communication Tips](#12-body-language--communication-tips)
+12. [Body Language & Communication Tips](#12-body-language-communication-tips)
 13. [Preparation Checklist](#13-preparation-checklist)
 14. [The AI-Assisted Interview](#14-the-ai-assisted-interview)
-15. [Interview Questions & Answers](#15-interview-questions--answers)
+15. [Interview Questions & Answers](#15-interview-questions-answers)
 16. [References](#16-references)
 
 ---

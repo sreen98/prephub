@@ -2,7 +2,7 @@
 
 A comprehensive collection of guides covering everything a full-stack developer gets asked in interviews — from JavaScript fundamentals to frontend architecture, accessibility, security and AI engineering.
 
-**53 guides across 8 categories, plus 7 cheat sheets and an interactive Code Playground.**
+**68 guides across 8 categories, plus 14 cheat sheets and an interactive Code Playground.**
 
 ---
 
@@ -56,9 +56,9 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 ## 🗂️ What's In Here
 
-### 🎨 Front End (20 guides)
+### 🎨 Front End (23 guides)
 
-**Core React** — [React Guide](/frontend/react) (hooks, reconciliation and Fiber, performance, React 19/19.2), [React Native & Apps](/frontend/react-native), [Redux Toolkit](/frontend/redux-toolkit), [Redux Saga](/frontend/redux-saga), [TanStack Query](/frontend/tanstack-query)
+**Core React** — [React Guide](/frontend/react) (hooks, reconciliation and Fiber, performance, React 19/19.2), [Redux Toolkit](/frontend/redux-toolkit), [Redux Saga](/frontend/redux-saga), [TanStack Query](/frontend/tanstack-query)
 
 **Architecture & Platform** — [Frontend Architecture at Scale](/frontend/architecture) (monorepo vs multi-repo, micro-frontends, design systems, caching layers, real-time at scale, debugging the 1%), [Next.js & React Server Components](/frontend/nextjs-rsc) (the RSC model, App Router, the Next 16 caching model, auth defence-in-depth), [Design Patterns](/frontend/design-patterns), [Refactoring & Code Review](/frontend/refactoring-code-review)
 
@@ -66,25 +66,37 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 **Performance & Quality** — [Web Performance](/frontend/web-performance) (Core Web Vitals, the loading pipeline, INP and the main thread, budgets in CI), [Testing Strategy & E2E](/frontend/testing-strategy) (the pyramid vs the trophy, Playwright, flake, contract testing, coverage)
 
-**Tooling & Delivery** — [Frontend Tooling](/frontend/tooling) (Webpack, Vite 8/Rolldown, package managers, the 2026 toolchain), [Jest & React Testing Library](/frontend/jest-react-testing-library), [Storybook](/frontend/storybook), [Play Store Launch](/frontend/play-store-launch)
+**Tooling & Delivery** — [Frontend Tooling](/frontend/tooling) (Webpack, Vite 8/Rolldown, package managers, the 2026 toolchain), [Jest & React Testing Library](/frontend/jest-react-testing-library), [Storybook](/frontend/storybook)
+
+**Mobile** — [React Native & Apps](/frontend/react-native) (New Architecture, navigation, lists, in-app purchases, crash reporting, background tasks, app size), [Play Store Deployment](/frontend/play-store-deployment) (AAB and signing, the Data Safety form, closed testing, the 14-day soak), [iOS & App Store Deployment](/frontend/ios-app-store-deployment) (code signing, TestFlight, privacy manifests, App Review rejections, phased release), [Mobile Accessibility](/frontend/mobile-accessibility) (VoiceOver and TalkBack, grouping, Dynamic Type, touch targets, WCAG for mobile), [Mobile App Security](/frontend/mobile-app-security) (Keychain/Keystore, biometrics done right, PKCE, pinning, attestation, receipt validation)
 
 ### 💻 JavaScript & TypeScript (4 guides)
 
 [JavaScript Guide](/javascript/guide) (closures, prototypes, the event loop, ES2026 — Temporal, `using`, iterator helpers), [TypeScript Guide](/javascript/typescript) (generics, conditional and mapped types, the Go-native compiler), [Regex Guide](/javascript/regex), [JS Comparisons](/javascript/comparisons)
 
-### ⚙️ Back End (14 guides)
+### ⚙️ Back End (18 guides)
 
-**Runtime & Frameworks** — [Node.js](/backend/nodejs) (event loop, streams, Node 24/26), [Express.js](/backend/expressjs), [MongoDB](/backend/mongodb)
+**Runtime & Frameworks** — [Node.js](/backend/nodejs) (event loop, streams, Node 24/26), [Express.js](/backend/expressjs), [Python](/backend/python) (the GIL, asyncio, decorators, and Python for LLM services), [FastAPI](/backend/fastapi) (`async def` vs `def`, dependency injection, streaming), [MongoDB](/backend/mongodb)
 
-**API & Data** — [API Design](/backend/api-design), [SQL & Relational DBs](/backend/sql) (joins, indexes, query plans, transactions and isolation, the N+1 problem), [Database Schema](/backend/database-schema), [CORS](/backend/cors)
+**API & Data** — [API Design](/backend/api-design), [GraphQL](/backend/graphql) (schema design, the N+1 problem and DataLoader, why HTTP caching breaks, cost limits), [SQL & Relational DBs](/backend/sql) (joins, indexes, query plans, transactions and isolation, the N+1 problem), [PostgreSQL](/backend/postgresql) (MVCC and VACUUM, pooling, replication, pgvector), [MySQL](/backend/mysql) (the clustered index, gap locks, online DDL), [Database Schema](/backend/database-schema), [CORS](/backend/cors)
 
 **Security & Identity** — [Web Security](/backend/web-security) (XSS, CSP, CSRF, token theft, supply chain, injection), [OAuth & SSO](/backend/oauth-sso)
 
 **Architecture & Delivery** — [Microservices](/backend/microservices), [Docker, K8s & CI/CD](/backend/docker-kubernetes) (images and layers, orchestration, pipelines, deployment strategies), [Stripe Integration](/backend/stripe), [AI & LLM Engineering](/backend/ai-llm-engineering) (tokens, streaming, RAG, tool calling, MCP, agents, evals, prompt-injection security)
 
-### ☁️ AWS (7 guides)
+### ♾️ DevOps (15 guides)
 
-[IAM & Security](/aws/iam), [EC2 & Networking](/aws/ec2), [S3 & Storage](/aws/s3), [Lambda](/aws/lambda), [CloudWatch](/aws/cloudwatch), [Frontend Deployment](/aws/frontend-deployment), [AWS Comparisons](/aws/comparisons)
+**Linux & Networking** — [SSH & Linux Administration](/devops/ssh-linux) (key auth, tunnels, bastions, systemd, diagnosing a sick server, text processing)
+
+**AWS** — [IAM & Security](/aws/iam), [EC2 & Networking](/aws/ec2), [S3 & Storage](/aws/s3), [Lambda](/aws/lambda), [CloudWatch](/aws/cloudwatch), [Frontend Deployment](/aws/frontend-deployment), [AWS Comparisons](/aws/comparisons)
+
+**Containers & Orchestration** — [Docker, K8s & CI/CD](/backend/docker-kubernetes) (multi-stage builds, the three probes, requests vs limits, GitHub Actions), [Helm & GitOps](/devops/helm-gitops) (charts and templating, Argo CD, prune and selfHeal, promotion, progressive delivery)
+
+**Infrastructure as Code** — [Terraform](/devops/terraform) (state, `for_each` vs `count`, `moved` blocks, plan safety), [Ansible](/devops/ansible) (idempotence, handlers, Vault, rolling waves)
+
+**CI/CD** — [Jenkins](/devops/jenkins) (declarative pipelines, agents, credentials, the security model), [AWS CodePipeline & CodeBuild](/devops/aws-cicd) (buildspec, CodeDeploy blue/green, cross-account, IAM)
+
+**Observability & SRE** — [Observability & SRE](/devops/observability-sre) (Prometheus and PromQL, cardinality, SLIs/SLOs and error budgets, burn-rate alerting, incidents and postmortems)
 
 ### 🏗️ System Design (4 guides)
 
@@ -102,7 +114,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
 - **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.
 - **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.
-- **[Cheat Sheets](/cheatsheets)** — React Hooks, JS ES6+, Git commands and workflows, Big-O, CSS Flexbox/Grid, HTTP status codes.
+- **[Cheat Sheets](/cheatsheets)** — 14 printable quick-reference cards: [TypeScript](/cheatsheets/typescript), [Python](/cheatsheets/python), [SQL](/cheatsheets/sql), [GraphQL](/cheatsheets/graphql), [Regex](/cheatsheets/regex), [Docker & Kubernetes](/cheatsheets/docker-kubernetes), [React Hooks](/cheatsheets/react-hooks), [JS ES6+](/cheatsheets/javascript-es6), [Big-O](/cheatsheets/big-o-notation), [CSS Flexbox/Grid](/cheatsheets/css-flexbox-grid), [HTTP Status Codes](/cheatsheets/http-status-codes), [Git Commands](/cheatsheets/git-commands), [Git Workflows](/cheatsheets/git-workflows) and [Comparison Tables](/cheatsheets/comparison-tables).
 - **Bookmarks & Checkpoints** — save any heading, or drop a "where I left off" marker on any guide.
 
 ---

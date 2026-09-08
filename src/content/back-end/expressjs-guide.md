@@ -16,7 +16,7 @@
 - [12. Database Integration](#12-database-integration)
 - [13. Testing](#13-testing)
 - [14. Performance](#14-performance)
-- [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [15. Interview Questions & Answers](#15-interview-questions-answers)
 - [16. Tricky Output Questions](#16-tricky-output-questions)
 
 ---

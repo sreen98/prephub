@@ -16,7 +16,7 @@
 - [12. Modules and Declaration Files](#12-modules-and-declaration-files)
 - [13. Compiler Options](#13-compiler-options)
 - [14. Best Practices](#14-best-practices)
-- [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [15. Interview Questions & Answers](#15-interview-questions-answers)
 - [16. Tricky Output Questions](#16-tricky-output-questions)
 
 ---

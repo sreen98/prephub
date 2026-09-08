@@ -13,7 +13,7 @@
 - [9. Testing](#9-testing)
 - [10. Saga vs Thunk vs Listener Middleware](#10-saga-vs-thunk-vs-listener-middleware)
 - [11. Best Practices](#11-best-practices)
-- [12. Interview Questions & Answers](#12-interview-questions--answers)
+- [12. Interview Questions & Answers](#12-interview-questions-answers)
 - [13. Tricky Output Questions](#13-tricky-output-questions)
 
 ---

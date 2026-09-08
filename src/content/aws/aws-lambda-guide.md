@@ -6,7 +6,7 @@
 - [2. Core Concepts](#2-core-concepts)
 - [3. Lambda Function Structure](#3-lambda-function-structure)
 - [4. Event Sources and Triggers](#4-event-sources-and-triggers)
-- [5. API Gateway + Lambda](#5-api-gateway--lambda)
+- [5. API Gateway + Lambda](#5-api-gateway-lambda)
 - [6. Environment and Configuration](#6-environment-and-configuration)
 - [7. Layers](#7-layers)
 - [8. Cold Starts](#8-cold-starts)
@@ -17,7 +17,7 @@
 - [13. Security](#13-security)
 - [14. Deployment](#14-deployment)
 - [15. Patterns and Best Practices](#15-patterns-and-best-practices)
-- [16. Interview Questions & Answers](#16-interview-questions--answers)
+- [16. Interview Questions & Answers](#16-interview-questions-answers)
 
 ---
 

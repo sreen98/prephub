@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# Blocks `git push` unless the typecheck, the linter and the count check pass.
+#
+# These live here rather than in pre-commit because tsc takes ~2.5s: too slow to
+# pay on every commit, but nothing next to a failed deploy. The same three
+# checks run in .github/workflows/deploy.yml, so CI is the real backstop — this
+# just moves the failure from "red deploy after pushing" to "before pushing".
+#
+# Escape hatch: git push --no-verify
+
+if ! command -v npx > /dev/null 2>&1; then
+  echo "pre-push: npx not on PATH — skipping checks. CI still enforces them."
+  exit 0
+fi
+
+# A push that only deletes a remote branch has nothing to check. Git feeds us
+# "<local ref> <local sha> <remote ref> <remote sha>" per ref on stdin; an
+# all-zero local sha means a deletion.
+only_deletes=1
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  case "$local_sha" in
+    *[!0]*) only_deletes=0 ;;
+  esac
+done
+if [ "$only_deletes" = "1" ]; then
+  exit 0
+fi
+
+fail() {
+  echo ""
+  echo "------------------------------------------------------------------"
+  echo "Push blocked: $1 failed."
+  echo ""
+  echo "  re-run:   npm run $2"
+  echo "  override: git push --no-verify"
+  echo "------------------------------------------------------------------"
+  exit 1
+}
+
+echo "pre-push: typecheck…"
+npx tsc --noEmit || fail "the typecheck" "typecheck"
+
+echo "pre-push: lint…"
+npm run lint --silent || fail "the linter" "lint"
+
+# Cheap, and it catches drift in commits that were made with --no-verify.
+echo "pre-push: counts…"
+node scripts/verify-counts.js > /dev/null || fail "the count check" "verify:counts"
+
+echo "pre-push: all checks passed."

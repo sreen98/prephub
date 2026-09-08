@@ -97,3 +97,88 @@
 | `min-content` | Smallest without overflow |
 | `max-content` | Widest single line |
 | `fit-content(300px)` | Clamp to max |
+
+## The `min-width: auto` Bug
+```css
+/* A flex item refuses to shrink below its content — text overflows, no ellipsis */
+.item { flex: 1; min-width: 0; }        /* THE FIX */
+.grid-child { min-width: 0; }           /* grid items need it too */
+```
+Flex and grid items default to `min-width: auto`, so they won't shrink smaller than their content. It shows up in four disguises: text not truncating with `text-overflow: ellipsis`, a long URL widening the layout, a `<pre>` blowing out the page, and a nested flex container overflowing. `min-width: 0` (or `overflow: hidden`) fixes all four.
+
+## `flex` Shorthand Decoded
+```css
+flex: 1;        /* 1 1 0%    — grow, shrink, ignore content size (equal columns) */
+flex: auto;     /* 1 1 auto  — grow, shrink, START from content size */
+flex: initial;  /* 0 1 auto  — don't grow, may shrink (the default) */
+flex: none;     /* 0 0 auto  — fixed at content size, never flexes */
+flex: 0 0 250px;/* fixed 250px sidebar */
+```
+`flex: 1` vs `flex: auto` is the classic question: with `1` all items end up **equal width**; with `auto` they keep their content proportions while sharing leftover space.
+
+## auto-fit vs auto-fill
+```css
+repeat(auto-fit,  minmax(200px, 1fr))   /* empty tracks COLLAPSE → items stretch */
+repeat(auto-fill, minmax(200px, 1fr))   /* empty tracks are KEPT → items stay 200px */
+```
+
+## Subgrid
+```css
+.card { display: grid; grid-template-rows: subgrid; grid-row: span 3; }
+```
+Lets a child align to its **parent's** tracks — the proper fix for making titles and footers line up across cards of differing content length.
+
+## Container Queries
+```css
+.sidebar { container-type: inline-size; container-name: side; }
+@container side (min-width: 400px) { .card { flex-direction: row; } }
+@container style(--theme: dark) { ... }         /* style queries */
+```
+Media queries ask about the **viewport**; container queries ask about the **parent** — which is what component-level responsiveness actually needs. Note `container-type: inline-size` creates containment, so the container can no longer be sized by its children's height.
+
+## Alignment Reference
+| Property | Axis | Works on |
+|---|---|---|
+| `justify-content` | main (flex) / inline (grid) | container |
+| `align-items` | cross / block | container |
+| `align-content` | cross, multi-line | container (needs `wrap`) |
+| `justify-items` | inline | **grid only** |
+| `align-self` / `justify-self` | one item | item |
+| `place-items` / `place-content` | both axes | shorthand |
+| `gap` / `row-gap` / `column-gap` | spacing | flex **and** grid |
+
+`margin: auto` still absorbs free space — `margin-left: auto` pushes an item right in flexbox.
+
+## Modern Layout Utilities
+```css
+aspect-ratio: 16 / 9;
+inline-size / block-size;                    /* logical: works in RTL */
+padding-inline: 1rem; margin-block: 2rem;
+inset: 0;                                    /* top/right/bottom/left */
+width: min(65ch, 100%);  clamp(1rem, 2.5vw, 2rem);
+height: 100dvh;                              /* dvh/svh/lvh — mobile toolbars */
+position: sticky; top: 0;                    /* needs a scrolling ancestor */
+overflow: clip; overscroll-behavior: contain;
+```
+
+## Centring, Every Way
+```css
+.a { display: grid; place-items: center; }              /* best */
+.b { display: flex; justify-content: center; align-items: center; }
+.c { margin-inline: auto; }                             /* horizontal, known width */
+.d { position: absolute; inset: 0; margin: auto; }
+```
+
+## Gotchas
+- **`min-width: auto`** — see above. The single most common flex bug.
+- `align-content` does nothing without `flex-wrap: wrap`.
+- `justify-items` and `justify-self` **do not exist in flexbox**.
+- Percentage `height` needs a definite parent height; percentage `gap` resolves against the container.
+- `100vh` on mobile is the *largest* viewport, so content hides behind toolbars — use `100dvh`.
+- `position: sticky` silently fails if any ancestor has `overflow: hidden|auto|scroll`, or if no offset is set.
+- `transform`, `filter` and `will-change` create a **containing block**, breaking `position: fixed` children.
+- `z-index` only works on positioned or flex/grid items, and only within its stacking context.
+- `gap` is not the same as `margin` — it doesn't apply on the outer edges.
+- `order` and `flex-direction: row-reverse` change visual order but **not** tab/screen-reader order — an accessibility bug.
+- Collapsing margins don't happen inside flex or grid containers.
+- `fr` accounts for `gap`, so `repeat(3, 33.33%)` overflows where `repeat(3, 1fr)` doesn't.

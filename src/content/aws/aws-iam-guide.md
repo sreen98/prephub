@@ -30,13 +30,13 @@
 - [7. Identity Federation](#7-identity-federation)
   - [7.1 SAML 2.0](#71-saml-20)
   - [7.2 Web Identity Federation (Cognito)](#72-web-identity-federation-cognito)
-  - [7.3 SSO / IAM Identity Center](#73-sso--iam-identity-center)
+  - [7.3 SSO / IAM Identity Center](#73-sso-iam-identity-center)
 - [8. STS (Security Token Service)](#8-sts-security-token-service)
   - [8.1 Temporary Credentials](#81-temporary-credentials)
   - [8.2 AssumeRole API](#82-assumerole-api)
   - [8.3 Session Tokens](#83-session-tokens)
 - [9. IAM Access Analyzer](#9-iam-access-analyzer)
-- [10. Interview Questions & Answers](#10-interview-questions--answers)
+- [10. Interview Questions & Answers](#10-interview-questions-answers)
 
 ---
 

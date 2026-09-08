@@ -1,15 +1,15 @@
-# Google Play Store Launch — Complete Guide
+# Google Play Store Deployment — Complete Guide
 
 A practical, end-to-end playbook for shipping any Android app to the Google Play Store — whether you're using React Native (Expo or bare), native Android (Kotlin/Java), Flutter, or any other framework. Covers everything from code-side preparation, Android build internals (AAB/APK/signing), Play Console forms, Closed Testing, the 14-day soak, and Production Access. Examples use Expo / EAS where they're most concrete, but the Play Console workflow is identical for every framework.
 
 ## Table of Contents
 
-- [1. Overview & Timeline](#1-overview--timeline)
+- [1. Overview & Timeline](#1-overview-timeline)
 - [2. Code-Side Prerequisites](#2-code-side-prerequisites)
 - [3. App Configuration (`app.json`)](#3-app-configuration-appjson)
 - [4. EAS Build Setup](#4-eas-build-setup)
-- [5. Privacy Policy & Data Deletion](#5-privacy-policy--data-deletion)
-- [6. Cascade Delete — The Hidden Compliance Trap](#6-cascade-delete--the-hidden-compliance-trap)
+- [5. Privacy Policy & Data Deletion](#5-privacy-policy-data-deletion)
+- [6. Cascade Delete — The Hidden Compliance Trap](#6-cascade-delete-the-hidden-compliance-trap)
 - [7. Runtime Config from Backend](#7-runtime-config-from-backend)
 - [8. Building the AAB](#8-building-the-aab)
 - [9. Play Console Account Setup](#9-play-console-account-setup)
@@ -18,18 +18,18 @@ A practical, end-to-end playbook for shipping any Android app to the Google Play
 - [12. Target Audience](#12-target-audience)
 - [13. Data Safety Form (5 Steps)](#13-data-safety-form-5-steps)
 - [14. Other Declarations](#14-other-declarations)
-- [15. Store Settings — Category & Tags](#15-store-settings--category--tags)
-- [16. Main Store Listing — Assets](#16-main-store-listing--assets)
+- [15. Store Settings — Category & Tags](#15-store-settings-category-tags)
+- [16. Main Store Listing — Assets](#16-main-store-listing-assets)
 - [17. Closed Testing Setup](#17-closed-testing-setup)
-- [18. The 14-Day Soak & Production Access](#18-the-14-day-soak--production-access)
+- [18. The 14-Day Soak & Production Access](#18-the-14-day-soak-production-access)
 - [19. Common Pitfalls](#19-common-pitfalls)
 - [20. Pre-Launch Checklist](#20-pre-launch-checklist)
-- [21. Android Build Internals - AAB, APK & Signing](#21-android-build-internals---aab-apk--signing)
+- [21. Android Build Internals - AAB, APK & Signing](#21-android-build-internals-aab-apk-signing)
 - [22. React Native and Expo Build Concerns](#22-react-native-and-expo-build-concerns)
-- [23. Bundletool, Pre-Launch Report & Internal App Sharing](#23-bundletool-pre-launch-report--internal-app-sharing)
+- [23. Bundletool, Pre-Launch Report & Internal App Sharing](#23-bundletool-pre-launch-report-internal-app-sharing)
 - [24. Interview Questions](#24-interview-questions)
 - [25. Tricky Questions](#25-tricky-questions)
-- [26. Cheat Sheet - 20 Rules to Remember](#26-cheat-sheet---20-rules-to-remember)
+- [26. Cheat Sheet - 20 Rules to Remember](#26-cheat-sheet-20-rules-to-remember)
 - [References](#references)
 
 ---

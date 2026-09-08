@@ -26,4 +26,12 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Build/verification scripts run in Node, not the browser, so they need
+    // Node globals (`process`, `console`) rather than `globals.browser`.
+    files: ['scripts/**/*.js', '*.config.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])

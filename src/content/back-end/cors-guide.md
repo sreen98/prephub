@@ -15,7 +15,7 @@ A comprehensive guide to CORS — how browsers enforce cross-origin security, ho
 7. [Credentialed Requests](#7-credentialed-requests)
 8. [Common CORS Patterns](#8-common-cors-patterns)
 9. [CORS in Express.js](#9-cors-in-expressjs)
-10. [CORS Errors & Debugging](#10-cors-errors--debugging)
+10. [CORS Errors & Debugging](#10-cors-errors-debugging)
 11. [Security Best Practices](#11-security-best-practices)
 12. [CORS vs Other Cross-Origin Mechanisms](#12-cors-vs-other-cross-origin-mechanisms)
 13. [CORS in Different Environments](#13-cors-in-different-environments)

@@ -15,7 +15,7 @@
 - [11. Error Handling](#11-error-handling)
 - [12. Package Management (npm)](#12-package-management-npm)
 - [13. Performance and Best Practices](#13-performance-and-best-practices)
-- [14. Interview Questions & Answers](#14-interview-questions--answers)
+- [14. Interview Questions & Answers](#14-interview-questions-answers)
 - [15. Tricky Output Questions](#15-tricky-output-questions)
 
 ---

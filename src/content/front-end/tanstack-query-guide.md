@@ -8,9 +8,9 @@
 - [4. Mutations (Writing Data)](#4-mutations-writing-data)
 - [5. Cache Management](#5-cache-management)
 - [6. Advanced Patterns](#6-advanced-patterns)
-- [7. TanStack Query vs Redux — Detailed Comparison](#7-tanstack-query-vs-redux--detailed-comparison)
+- [7. TanStack Query vs Redux — Detailed Comparison](#7-tanstack-query-vs-redux-detailed-comparison)
 - [8. When to Use What](#8-when-to-use-what)
-- [9. Interview Questions & Answers](#9-interview-questions--answers)
+- [9. Interview Questions & Answers](#9-interview-questions-answers)
 
 ---
 

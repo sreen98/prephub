@@ -15,7 +15,7 @@
 - [11. Visual Testing](#11-visual-testing)
 - [12. Configuration](#12-configuration)
 - [13. Best Practices](#13-best-practices)
-- [14. Interview Questions & Answers](#14-interview-questions--answers)
+- [14. Interview Questions & Answers](#14-interview-questions-answers)
 
 ---
 

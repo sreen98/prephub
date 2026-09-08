@@ -7,11 +7,11 @@
 - [3. Vite Deep Dive](#3-vite-deep-dive)
 - [4. Webpack vs Vite Comparison](#4-webpack-vs-vite-comparison)
 - [5. Other Bundlers Overview](#5-other-bundlers-overview)
-- [6. Package Managers — npm vs yarn vs pnpm](#6-package-managers--npm-vs-yarn-vs-pnpm)
+- [6. Package Managers — npm vs yarn vs pnpm](#6-package-managers-npm-vs-yarn-vs-pnpm)
 - [7. npx](#7-npx)
 - [8. package.json Deep Dive](#8-packagejson-deep-dive)
-- [9. The 2026 Toolchain](#9-the-2026-toolchain--rust-go-and-consolidation)
-- [10. Interview Questions & Answers](#10-interview-questions--answers)
+- [9. The 2026 Toolchain](#9-the-2026-toolchain-rust-go-and-consolidation)
+- [10. Interview Questions & Answers](#10-interview-questions-answers)
 
 ---
 

@@ -8,7 +8,7 @@ A quick-reference guide organized as comparison tables covering the "X vs Y" que
 
 1. [JavaScript Comparisons](#1-javascript-comparisons)
    - 1.1 [var vs let vs const](#11-var-vs-let-vs-const)
-   - 1.2 [== vs ===](#12--vs-)
+   - 1.2 [== vs ===](#12-vs)
    - 1.3 [null vs undefined](#13-null-vs-undefined)
    - 1.4 [map vs forEach](#14-map-vs-foreach)
    - 1.5 [Promise.all vs allSettled vs race vs any](#15-promiseall-vs-allsettled-vs-race-vs-any)
@@ -29,7 +29,7 @@ A quick-reference guide organized as comparison tables covering the "X vs Y" que
    - 3.3 [Cookie vs Session vs JWT](#33-cookie-vs-session-vs-jwt)
    - 3.4 [Monolith vs Microservices](#34-monolith-vs-microservices)
    - 3.5 [Express vs Fastify vs Koa](#35-express-vs-fastify-vs-koa)
-4. [Networking & Web](#4-networking--web)
+4. [Networking & Web](#4-networking-web)
    - 4.1 [HTTP vs HTTPS](#41-http-vs-https)
    - 4.2 [TCP vs UDP](#42-tcp-vs-udp)
    - 4.3 [WebSocket vs HTTP Polling vs SSE](#43-websocket-vs-http-polling-vs-sse)

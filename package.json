@@ -1,12 +1,13 @@
 {
   "name": "prephub",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/generate-sitemap.js",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "verify:counts": "node scripts/verify-counts.js",
     "prepare": "git config core.hooksPath .githooks || true"

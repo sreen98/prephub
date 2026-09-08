@@ -24,7 +24,7 @@
   - [5.1 Creating Dashboards](#51-creating-dashboards)
   - [5.2 Widget Types](#52-widget-types)
   - [5.3 Cross-Account and Cross-Region](#53-cross-account-and-cross-region)
-- [6. CloudWatch Events / EventBridge](#6-cloudwatch-events--eventbridge)
+- [6. CloudWatch Events / EventBridge](#6-cloudwatch-events-eventbridge)
   - [6.1 Rules and Targets](#61-rules-and-targets)
   - [6.2 Event Patterns](#62-event-patterns)
   - [6.3 Scheduled Events (Cron)](#63-scheduled-events-cron)
@@ -36,7 +36,7 @@
   - [8.1 What is CloudTrail?](#81-what-is-cloudtrail)
   - [8.2 Management Events vs Data Events](#82-management-events-vs-data-events)
   - [8.3 Trail Configuration](#83-trail-configuration)
-  - [8.4 CloudTrail + CloudWatch Integration](#84-cloudtrail--cloudwatch-integration)
+  - [8.4 CloudTrail + CloudWatch Integration](#84-cloudtrail-cloudwatch-integration)
 - [9. AWS X-Ray](#9-aws-x-ray)
   - [9.1 Distributed Tracing](#91-distributed-tracing)
   - [9.2 X-Ray SDK Integration](#92-x-ray-sdk-integration)
@@ -46,7 +46,7 @@
   - [10.1 What to Monitor per Service](#101-what-to-monitor-per-service)
   - [10.2 Setting Meaningful Alarms](#102-setting-meaningful-alarms)
   - [10.3 Cost Optimization](#103-cost-optimization)
-- [11. Interview Questions & Answers](#11-interview-questions--answers)
+- [11. Interview Questions & Answers](#11-interview-questions-answers)
 
 ---
 

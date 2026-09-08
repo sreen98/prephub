@@ -4,7 +4,7 @@
 
 - [1. Overview](#1-overview)
 - [2. Architecture Options](#2-architecture-options)
-- [3. S3 + CloudFront (Recommended)](#3-s3--cloudfront-recommended)
+- [3. S3 + CloudFront (Recommended)](#3-s3-cloudfront-recommended)
 - [4. Step-by-Step Deployment](#4-step-by-step-deployment)
 - [5. Custom Domain with Route 53](#5-custom-domain-with-route-53)
 - [6. SSL/TLS with ACM](#6-ssltls-with-acm)
@@ -17,7 +17,7 @@
 - [13. Multi-Environment Setup](#13-multi-environment-setup)
 - [14. AWS Amplify (Alternative)](#14-aws-amplify-alternative)
 - [15. Cost Breakdown](#15-cost-breakdown)
-- [16. Interview Questions & Answers](#16-interview-questions--answers)
+- [16. Interview Questions & Answers](#16-interview-questions-answers)
 
 ---
 

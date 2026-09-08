@@ -25,6 +25,14 @@ jobs:
       - name: Install dependencies 🔧
         run: npm install
 
+      # Type errors and lint errors fail the deploy. These run before the
+      # content steps so a code error surfaces as fast as possible.
+      - name: Typecheck 🔎
+        run: npm run typecheck
+
+      - name: Lint 🧹
+        run: npm run lint
+
       - name: Prepare content 📝
         run: node scripts/prepare-content.js
 

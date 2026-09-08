@@ -32,7 +32,7 @@ const menu = dataTs.slice(
 
 const categories = {};
 for (const m of menu.matchAll(
-  /name: '([^']+)',\n\s*icon:[\s\S]*?items: \[([\s\S]*?)\n    \]/g
+  /name: '([^']+)',\n\s*icon:[\s\S]*?items: \[([\s\S]*?)\n {4}\]/g
 )) {
   categories[m[1]] = [...m[2].matchAll(/\{ name: '/g)].length;
 }
@@ -45,7 +45,7 @@ const cheatSheets = [
 const tpl = read('src/components/playgroundTemplates.ts').split('\n');
 const labels = [];
 tpl.forEach((line, i) => {
-  const m = line.match(/^    label: '([^']+)',$/);
+  const m = line.match(/^ {4}label: '([^']+)',$/);
   if (m) labels.push([i, m[1]]);
 });
 labels.push([tpl.length, null]);
@@ -59,8 +59,8 @@ for (let k = 0; k < labels.length - 1; k++) {
     .filter((l) => l.startsWith("        name: '")).length;
 }
 
-const solutions = [...read('src/components/playgroundSolutions.ts').matchAll(/^  '/gm)].length;
-const solutionKeys = [...read('src/components/playgroundSolutionKeys.ts').matchAll(/^  '/gm)].length;
+const solutions = [...read('src/components/playgroundSolutions.ts').matchAll(/^ {2}'/gm)].length;
+const solutionKeys = [...read('src/components/playgroundSolutionKeys.ts').matchAll(/^ {2}'/gm)].length;
 
 // Tricky questions across all guides
 const walk = (dir) =>
@@ -141,8 +141,45 @@ for (const [label, ok, detail] of consistency) {
   console.log(`  ${ok ? '✓' : '✗'} ${label.padEnd(28)} ${detail}`);
 }
 
+// In-page TOC anchors. These broke silently across 49 guides once: authors write
+// GitHub-style slugs, where "A & B" becomes `a--b`, but the app's slugify()
+// collapses `-+` to a single dash, so every heading containing "&" had a dead
+// TOC link. Nothing surfaces that in a build, hence this check.
+console.log('\nIn-page anchors');
+const slugify = (s) => s.toLowerCase()
+  .replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+  .replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+function mdFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? mdFiles(join(dir, e.name))
+      : (e.name.endsWith('.md') ? [join(dir, e.name)] : []));
+}
+
+let anchorTotal = 0;
+const deadAnchors = [];
+for (const file of mdFiles(join(root, 'src/content'))) {
+  const body = readFileSync(file, 'utf8');
+  const heads = new Set(
+    [...body.matchAll(/^#{1,6} (.+)$/gm)].map((m) => slugify(m[1])));
+  for (const m of body.matchAll(/\]\(#([^)]+)\)/g)) {
+    anchorTotal++;
+    if (!heads.has(m[1])) {
+      deadAnchors.push(`${file.replace(root + '/', '')} -> #${m[1]}`);
+    }
+  }
+}
+if (deadAnchors.length) {
+  failed++;
+  console.log(`  ✗ ${deadAnchors.length} of ${anchorTotal} in-page anchors point at no heading`);
+  for (const d of deadAnchors.slice(0, 15)) console.log(`      ${d}`);
+  if (deadAnchors.length > 15) console.log(`      … and ${deadAnchors.length - 15} more`);
+} else {
+  console.log(`  ✓ all ${anchorTotal} in-page anchors resolve`);
+}
+
 if (failed) {
-  console.error(`\n${failed} count claim(s) are stale. Update the prose, or the number in the code.`);
+  console.error(`\n${failed} check(s) failed. Update the prose, the anchor, or the number in the code.`);
   process.exit(1);
 }
 console.log('\nAll count claims match the code ✓');

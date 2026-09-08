@@ -28,6 +28,9 @@ import { useStudyStats } from './hooks/useStudyStats';
 import MermaidBlock from './components/MermaidBlock';
 import StreakCelebration from './components/StreakCelebration';
 import Toast from './components/Toast';
+// Single source of truth for the version, so the sidebar can't drift from
+// package.json. Named import so only the string is bundled, not the whole file.
+import { version as APP_VERSION } from '../package.json';
 
 // Route-level code splitting. Each gets its own bundle chunk so users on
 // other routes don't pay for code they aren't using.
@@ -66,6 +69,20 @@ const RouteFallback = () => (
     </div>
   </div>
 );
+
+// Groups a category's sidebar items by their optional `group` label, keeping
+// first-appearance order. Items with no group come first under no heading, so
+// categories that don't use grouping render exactly as before.
+function groupSidebarItems(items: MenuItem[]): { label: string | null; items: MenuItem[] }[] {
+  const buckets: { label: string | null; items: MenuItem[] }[] = [];
+  for (const item of items) {
+    const label = typeof item.group === 'string' ? item.group : null;
+    const bucket = buckets.find(b => b.label === label);
+    if (bucket) bucket.items.push(item);
+    else buckets.push({ label, items: [item] });
+  }
+  return buckets;
+}
 
 const GithubIcon = ({ size = 16, ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -1247,19 +1264,28 @@ export default function App() {
                       className="overflow-hidden"
                     >
                       <div className="ml-4 pl-3 border-l-2 border-slate-100 dark:border-slate-800 space-y-0.5 py-1">
-                        {section.items.map(item => (
-                          <Link
-                            key={item.path}
-                            to={item.path}
-                            className={cn(
-                              "flex items-center px-3 py-2 rounded-lg text-[13px] font-medium transition-all",
-                              location.pathname === item.path
-                                ? cn(section.lightBg, section.darkBg, section.accent, "shadow-sm")
-                                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900"
+                        {groupSidebarItems(section.items).map(bucket => (
+                          <div key={bucket.label ?? '_ungrouped'}>
+                            {bucket.label && (
+                              <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+                                {bucket.label}
+                              </p>
                             )}
-                          >
-                            {item.name}
-                          </Link>
+                            {bucket.items.map(item => (
+                              <Link
+                                key={item.path}
+                                to={item.path}
+                                className={cn(
+                                  "flex items-center px-3 py-2 rounded-lg text-[13px] font-medium transition-all",
+                                  location.pathname === item.path
+                                    ? cn(section.lightBg, section.darkBg, section.accent, "shadow-sm")
+                                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900"
+                                )}
+                              >
+                                {item.name}
+                              </Link>
+                            ))}
+                          </div>
                         ))}
                       </div>
                     </motion.div>
@@ -1357,6 +1383,12 @@ export default function App() {
               <span>Admin</span>
             </Link>
           )}
+
+          {/* Which build is being served. Useful when a cached service worker
+              is still handing out an older bundle than the latest deploy. */}
+          <p className="px-3 pt-2 text-[11px] tabular-nums text-slate-400 dark:text-slate-600">
+            v{APP_VERSION}
+          </p>
         </div>
       </aside>
 

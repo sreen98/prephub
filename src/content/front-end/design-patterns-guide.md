@@ -36,8 +36,8 @@ The 23 GoF patterns split into three families: **Creational** (how objects come 
   - [4.10 Visitor](#410-visitor)
 - [5. React-Specific Patterns](#5-react-specific-patterns)
 - [6. Anti-Patterns](#6-anti-patterns)
-- [7. Comparisons — Which Pattern When?](#7-comparisons--which-pattern-when)
-- [8. Interview Questions & Answers](#8-interview-questions--answers)
+- [7. Comparisons — Which Pattern When?](#7-comparisons-which-pattern-when)
+- [8. Interview Questions & Answers](#8-interview-questions-answers)
 - [9. Tricky Questions](#9-tricky-questions)
 - [References](#references)
 

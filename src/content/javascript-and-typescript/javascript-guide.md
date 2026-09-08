@@ -16,7 +16,7 @@
 - [12. Modules](#12-modules)
 - [13. DOM Manipulation](#13-dom-manipulation)
 - [14. Design Patterns](#14-design-patterns)
-- [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [15. Interview Questions & Answers](#15-interview-questions-answers)
 - [16. Tricky Output Questions](#16-tricky-output-questions)
 
 ---

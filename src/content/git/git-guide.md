@@ -4,7 +4,7 @@
 
 - [1. What is Git?](#1-what-is-git)
 - [2. Git Internals](#2-git-internals)
-- [3. Branching & Merging](#3-branching--merging)
+- [3. Branching & Merging](#3-branching-merging)
 - [4. Rebasing](#4-rebasing)
 - [5. Git Workflows](#5-git-workflows)
 - [6. Undoing Changes](#6-undoing-changes)
@@ -14,7 +14,7 @@
 - [10. Tags](#10-tags)
 - [11. Advanced Topics](#11-advanced-topics)
 - [12. Best Practices](#12-best-practices)
-- [13. Interview Questions & Answers](#13-interview-questions--answers)
+- [13. Interview Questions & Answers](#13-interview-questions-answers)
 
 ---
 

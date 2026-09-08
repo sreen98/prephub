@@ -15,7 +15,7 @@
 - [11. Elastic IP](#11-elastic-ip)
 - [12. Placement Groups](#12-placement-groups)
 - [13. Pricing Models](#13-pricing-models)
-- [14. Interview Questions & Answers](#14-interview-questions--answers)
+- [14. Interview Questions & Answers](#14-interview-questions-answers)
 
 ---
 

@@ -16,7 +16,7 @@
 - [12. Static Website Hosting](#12-static-website-hosting)
 - [13. S3 Access Points](#13-s3-access-points)
 - [14. S3 Object Lock and Compliance](#14-s3-object-lock-and-compliance)
-- [15. Interview Questions & Answers](#15-interview-questions--answers)
+- [15. Interview Questions & Answers](#15-interview-questions-answers)
 
 ---
 
