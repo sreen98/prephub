@@ -411,6 +411,34 @@ function detectTS(code: string): boolean {
          /<[A-Za-z][\w]*\s*,\s*[A-Za-z]/.test(code);   // generics like Map<string, X>
 }
 
+// The playground executes code with `new Function`, which is a *script*, not a
+// module — so an `import` statement is a hard SyntaxError ("Cannot use import
+// statement outside a module"). Babel's typescript/react presets strip types
+// and compile JSX but leave module syntax alone, so we remove it ourselves.
+//
+// This is safe here because everything a snippet would realistically import
+// (React, the hooks, render) is already injected into scope. Anything else
+// becomes a clear "x is not defined" instead of a confusing syntax error.
+function stripModuleSyntax(code: string): { code: string; stripped: boolean } {
+  const original = code;
+
+  let out = code
+    // import X, { y } from 'mod';  /  import * as X from 'mod';  /  import 'mod';
+    .replace(/^[ \t]*import\s+[\s\S]*?\s+from\s*['"][^'"]+['"]\s*;?[ \t]*$/gm, '')
+    .replace(/^[ \t]*import\s*['"][^'"]+['"]\s*;?[ \t]*$/gm, '')
+    // export { a, b };  /  export * from 'mod';
+    .replace(/^[ \t]*export\s*\{[^}]*\}\s*(?:from\s*['"][^'"]+['"])?\s*;?[ \t]*$/gm, '')
+    .replace(/^[ \t]*export\s+\*\s+from\s*['"][^'"]+['"]\s*;?[ \t]*$/gm, '')
+    // keep the declaration, drop the modifier: `export default function X` -> `function X`
+    .replace(/^([ \t]*)export\s+default\s+/gm, '$1')
+    .replace(/^([ \t]*)export\s+(?=(?:async\s+)?(?:function|class|const|let|var)\b)/gm, '$1');
+
+  // Collapse the blank lines the removals leave behind, so line numbers in the
+  // editor stay roughly aligned with what ran.
+  out = out.replace(/\n{3,}/g, '\n\n');
+  return { code: out, stripped: out !== original };
+}
+
 // ==================== Component ====================
 
 export default function CodePlayground() {
@@ -729,7 +757,16 @@ export default function CodePlayground() {
       // render function. Use a stricter pattern to avoid that false match:
       // we want `render(<...` (call with JSX argument) at the start of a
       // line / after a semicolon, not a method declaration `render() {`.
-      let sourceToTranspile = code;
+      // Remove ESM syntax first — `new Function` cannot accept it, and the
+      // render-append heuristic below should see the same source we execute.
+      const { code: moduleFree, stripped: hadModuleSyntax } = stripModuleSyntax(code);
+      if (hadModuleSyntax) {
+        logsRef.current = [...logsRef.current, {
+          type: 'warn',
+          text: 'import/export statements were ignored — the playground runs a script, not a module. React, useState, useEffect, useRef, useMemo, useCallback, useReducer, useContext, createContext, memo, Fragment and render are already in scope.',
+        }];
+      }
+      let sourceToTranspile = moduleFree;
       if (needsJSX) {
         const hasRenderCall =
           /(?:^|\n|;)\s*render\s*\(\s*</.test(sourceToTranspile) ||

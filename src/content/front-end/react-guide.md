@@ -274,102 +274,274 @@ In practice, most modern code uses class fields and only reaches for the constru
 
 #### Lifecycle Methods
 
-Class components have lifecycle methods that run at specific points during a component's existence. These cover mounting, updating, and unmounting phases.
+Lifecycle methods are the class-component equivalent of hooks: they let you run code at specific points in a component's existence. Function components have replaced them in new code, but they come up constantly in interviews and in any codebase older than a couple of years.
+
+**The order they run in:**
+
+```
+MOUNT                    UPDATE                        UNMOUNT
+constructor              getDerivedStateFromProps      componentWillUnmount
+getDerivedStateFromProps shouldComponentUpdate
+render                   render
+                         getSnapshotBeforeUpdate
+componentDidMount        componentDidUpdate
+
+ERROR (in a child)
+getDerivedStateFromError → render fallback → componentDidCatch
+```
+
+**The distinction that explains everything else** — render phase vs commit phase:
+
+| Phase | Methods | Rule |
+|---|---|---|
+| **Render** | `constructor`, `getDerivedStateFromProps`, `shouldComponentUpdate`, `render`, `getDerivedStateFromError` | must be **pure** — React may call them multiple times or throw the work away |
+| **Commit** | `getSnapshotBeforeUpdate`, `componentDidMount`, `componentDidUpdate`, `componentWillUnmount`, `componentDidCatch` | run **once** per commit, and may perform side effects |
+
+That is why the render-phase ones are `static` where possible (no `this`, so you can't reach for instance state), and why the three `UNSAFE_*` methods are unsafe: they ran in the render phase and people put side effects in them, which breaks under concurrent rendering.
+
+---
+
+##### `constructor(props)`
 
 ```tsx
-interface DataFetcherProps {
-  userId: string;
+constructor(props: Props) {
+  super(props);                       // MUST be first
+  this.state = { data: null };        // the only place to assign this.state directly
+  this.handleClick = this.handleClick.bind(this);
+}
+```
+
+**What it does:** initialises instance state and binds methods, before the first render.
+
+**When to use it:** only when you need constructor-specific work. Class fields (`state = { … }`) and arrow-function methods make it unnecessary most of the time.
+
+**Most common pitfall:** forgetting `super(props)`, which leaves `this.props` **undefined** inside the constructor. And never call `setState` here — assign `this.state` directly. Side effects (fetching, subscriptions) don't belong here either; they go in `componentDidMount`, because a constructor can run without the component ever mounting.
+
+---
+
+##### `static getDerivedStateFromProps(props, state)`
+
+```tsx
+static getDerivedStateFromProps(props: Props, state: State) {
+  if (props.userId !== state.prevUserId) {
+    return { prevUserId: props.userId, data: null };   // merged into state
+  }
+  return null;                                          // no change
+}
+```
+
+**What it does:** lets you update state in response to a prop change, immediately before `render`. Return an object to merge into state, or `null` for no change.
+
+**When to use it:** almost never. It exists for the narrow case of resetting state when a prop changes and you cannot use a `key`.
+
+**Most common pitfall:** two of them. It is **`static`**, so there is no `this` — you cannot read props/state outside the arguments or call instance methods. And it runs before **every** render, including re-renders caused by state changes and by a parent re-rendering with identical props — not only when the prop actually changed. That is why you must compare against a stored previous value yourself, which is the awkwardness that makes it a last resort.
+
+**Prefer instead:** derive the value during `render` (no state at all), or reset the component by changing its `key` — see §7.4.
+
+---
+
+##### `render()`
+
+```tsx
+render() {
+  return this.state.data ? <UserCard data={this.state.data} /> : <p>Loading…</p>;
+}
+```
+
+**What it does:** the only **required** method. Returns what to display: elements, a string, a number, a portal, an array, `null` or `false`.
+
+**When to use it:** always.
+
+**Most common pitfall:** it must be **pure** — no `setState`, no fetching, no DOM mutation, no subscriptions. Calling `setState` here is an infinite loop. Under concurrent rendering React may invoke it more than once for a single commit, or discard the result entirely, so anything with an observable effect is a bug.
+
+---
+
+##### `componentDidMount()`
+
+```tsx
+componentDidMount() {
+  this.fetchData(this.props.userId);
+  window.addEventListener('resize', this.handleResize);
+  this.timer = setInterval(this.tick, 1000);
+}
+```
+
+**What it does:** runs once, after the first render is committed to the DOM. Refs are populated and layout can be measured.
+
+**When to use it:** data fetching, subscriptions, timers, event listeners, imperative DOM setup, third-party library init.
+
+**Most common pitfall:** setting up something without a matching teardown in `componentWillUnmount` — the classic memory leak. Note `setState` here is allowed and triggers an extra render **before the browser paints**, so the user sees no flicker, but it is wasted work; prefer initialising in the constructor where you can.
+
+**Hook equivalent:** `useEffect(() => { … }, [])`.
+
+---
+
+##### `shouldComponentUpdate(nextProps, nextState)`
+
+```tsx
+shouldComponentUpdate(nextProps: Props, nextState: State) {
+  return nextProps.userId !== this.props.userId
+      || nextState.data   !== this.state.data;
+}
+```
+
+**What it does:** returning `false` skips `render` **and** the whole subtree's re-render for that update.
+
+**When to use it:** as a measured performance fix, not by default.
+
+**Most common pitfall:** writing it by hand and getting the comparison wrong, so updates are silently dropped and the UI goes stale — a far worse bug than a slow render. A deep comparison can also cost more than the render it avoids. Use `React.PureComponent` (which shallow-compares props and state for you) or, in function components, `React.memo`. Note it is **not called** on the initial render, nor when you use `forceUpdate`.
+
+**Hook equivalent:** `React.memo()`.
+
+---
+
+##### `getSnapshotBeforeUpdate(prevProps, prevState)`
+
+```tsx
+getSnapshotBeforeUpdate(prevProps: Props, prevState: State) {
+  // read the DOM before React mutates it
+  const list = this.listRef.current;
+  return { scrollHeight: list.scrollHeight, scrollTop: list.scrollTop };
 }
 
-interface DataFetcherState {
-  data: User | null;
-  prevUserId: string | null;
+componentDidUpdate(prevProps, prevState, snapshot) {
+  if (snapshot) {
+    // restore the scroll position now the new items are in
+    this.listRef.current.scrollTop += this.listRef.current.scrollHeight - snapshot.scrollHeight;
+  }
 }
+```
 
-class DataFetcher extends React.Component<DataFetcherProps, DataFetcherState> {
-  // 1. Called before render on mount and update. Return new state or null.
-  static getDerivedStateFromProps(
-    props: DataFetcherProps,
-    state: DataFetcherState
-  ) {
-    if (props.userId !== state.prevUserId) {
-      return { prevUserId: props.userId, data: null };
-    }
-    return null;
-  }
+**What it does:** runs after `render` but **before** React applies changes to the DOM. Its return value is passed as the third argument to `componentDidUpdate`.
 
-  constructor(props: DataFetcherProps) {
-    super(props); // Always call super(props)
-    this.state = { data: null, prevUserId: null };
-  }
+**When to use it:** capturing DOM measurements that the update is about to destroy. The canonical case is a chat window that must stay scrolled to the same message while new items are prepended.
 
-  // 2. Runs after first render — fetch data, set up subscriptions
-  componentDidMount() {
+**Most common pitfall:** thinking it's a general "before update" hook. It's specifically for reading the pre-mutation DOM, and the value it returns is the *only* way to get that information into `componentDidUpdate`.
+
+**Hook equivalent:** `useLayoutEffect` (which runs after mutation but before paint — close, not identical).
+
+---
+
+##### `componentDidUpdate(prevProps, prevState, snapshot)`
+
+```tsx
+componentDidUpdate(prevProps: Props) {
+  if (prevProps.userId !== this.props.userId) {   // GUARD — mandatory
     this.fetchData(this.props.userId);
-    window.addEventListener('resize', this.handleResize);
-  }
-
-  // 3. Return false to skip re-render (performance optimization)
-  shouldComponentUpdate(nextProps: DataFetcherProps, nextState: DataFetcherState) {
-    return nextProps.userId !== this.props.userId || nextState.data !== this.state.data;
-  }
-
-  // 4. Called right before DOM update; return value passed to componentDidUpdate
-  getSnapshotBeforeUpdate(prevProps: DataFetcherProps, prevState: DataFetcherState) {
-    return { scrollPosition: document.documentElement.scrollTop };
-  }
-
-  // 5. Runs after every update — compare prev props/state to decide actions
-  componentDidUpdate(
-    prevProps: DataFetcherProps,
-    prevState: DataFetcherState,
-    snapshot: { scrollPosition: number }
-  ) {
-    if (prevProps.userId !== this.props.userId) {
-      this.fetchData(this.props.userId);
-    }
-    // Use snapshot from getSnapshotBeforeUpdate
-    console.log('Scroll was at:', snapshot.scrollPosition);
-  }
-
-  // 6. Cleanup — runs before component is removed from DOM
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.handleResize);
-  }
-
-  handleResize = () => { /* ... */ };
-  fetchData = async (userId: string) => { /* ... */ };
-
-  render() {
-    return this.state.data ? <UserCard data={this.state.data} /> : <p>Loading...</p>;
   }
 }
+```
 
-// Error Boundary — only possible with class components
+**What it does:** runs after every update is committed (not after the first render).
+
+**When to use it:** reacting to a prop or state change — refetching when an id changes, syncing a non-React widget.
+
+**Most common pitfall:** **calling `setState` unconditionally causes an infinite loop** — the update triggers `componentDidUpdate`, which triggers another update. Always compare `prevProps`/`prevState` first. This is the single most common class-component bug.
+
+**Hook equivalent:** `useEffect(() => { … }, [deps])` — where the dependency array replaces the manual guard, which is a large part of why hooks are less error-prone here.
+
+---
+
+##### `componentWillUnmount()`
+
+```tsx
+componentWillUnmount() {
+  window.removeEventListener('resize', this.handleResize);
+  clearInterval(this.timer);
+  this.controller.abort();
+}
+```
+
+**What it does:** runs immediately before the component is removed from the DOM.
+
+**When to use it:** tear down exactly what `componentDidMount` set up — listeners, timers, subscriptions, in-flight requests, observers.
+
+**Most common pitfall:** calling `setState` here. The component is being destroyed, so it does nothing and React warns. Also easy to forget one of several subscriptions; keeping setup and teardown symmetrical is what prevents leaks.
+
+**Hook equivalent:** the cleanup function returned from `useEffect`.
+
+---
+
+##### `static getDerivedStateFromError(error)` and `componentDidCatch(error, info)`
+
+```tsx
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode; fallback?: React.ReactNode },
   { hasError: boolean; error: Error | null }
 > {
   state = { hasError: false, error: null };
 
-  // Update state when a child throws
+  // RENDER phase: return state to show a fallback. No side effects.
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
 
-  // Log the error (e.g., to an error reporting service)
+  // COMMIT phase: side effects are fine — log it.
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('Error caught:', error, info.componentStack);
+    reportToSentry(error, info.componentStack);
   }
 
   render() {
-    if (this.state.hasError) {
-      return this.props.fallback ?? <h2>Something went wrong.</h2>;
-    }
+    if (this.state.hasError) return this.props.fallback ?? <h2>Something went wrong.</h2>;
     return this.props.children;
   }
 }
 ```
+
+**What they do:** together they form an **error boundary**, catching errors thrown during rendering, in lifecycle methods, and in constructors of the tree **below** them.
+
+**When to use them:** wrap route segments or independent widgets so one failure degrades part of the UI instead of blanking the page.
+
+**Why there are two:** `getDerivedStateFromError` is render-phase, so it must be pure and only returns the state needed to render a fallback; `componentDidCatch` is commit-phase, so it's where logging and other side effects belong.
+
+**Most common pitfall:** expecting them to catch everything. They do **not** catch errors in event handlers, in `setTimeout`/`Promise` callbacks, during server-side rendering, or thrown by the boundary itself — use `try`/`catch` for those. And error boundaries **must be class components**; there is still no hook equivalent, which is the one remaining reason to write a class in React 19.
+
+---
+
+##### Worked example
+
+Putting the update-phase methods together:
+
+```tsx
+interface DataFetcherProps { userId: string }
+interface DataFetcherState { data: User | null }
+
+class DataFetcher extends React.Component<DataFetcherProps, DataFetcherState> {
+  state: DataFetcherState = { data: null };
+  private controller?: AbortController;
+
+  componentDidMount() {
+    this.load(this.props.userId);
+  }
+
+  componentDidUpdate(prevProps: DataFetcherProps) {
+    if (prevProps.userId !== this.props.userId) {   // guard, or infinite loop
+      this.load(this.props.userId);
+    }
+  }
+
+  componentWillUnmount() {
+    this.controller?.abort();                        // pairs with load()
+  }
+
+  private load = async (userId: string) => {
+    this.controller?.abort();
+    this.controller = new AbortController();
+    try {
+      const res = await fetch(`/api/users/${userId}`, { signal: this.controller.signal });
+      this.setState({ data: await res.json() });
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') throw err;
+    }
+  };
+
+  render() {
+    return this.state.data ? <UserCard data={this.state.data} /> : <p>Loading…</p>;
+  }
+}
+```
+
+The whole thing is roughly ten lines as a function component with `useEffect` — the guard becomes the dependency array and the teardown becomes the cleanup return, which is the argument for hooks in one comparison. See §7.2 for the mapping.
 
 #### Lifecycle Diagram
 
@@ -3125,7 +3297,91 @@ async function getData(id) {
 
 ---
 
-### 16.9 Where React Actually Is — Versions and Experimental Status
+### 16.9 What React 19 Changed — Removals, Migrations and Behaviour
+
+The subsections above cover what React 19 **added**. This one covers what it **changed or removed**, which is what an upgrade actually runs into and what "what's new in React 19?" is usually probing.
+
+#### Removed
+
+| Removed | Replacement | Codemod |
+|---|---|---|
+| **`findDOMNode`** | a `ref` on the element | — |
+| **String refs** (`ref="input"`) | callback refs — `ref={el => this.input = el}` | `react/19/replace-string-ref` |
+| **Legacy context** (`contextTypes`, `getChildContext`) | `createContext` + `static contextType` | — |
+| **`propTypes`** | TypeScript. **Silently ignored** in 19 — no warning | `react/prop-types-typescript` |
+| **`defaultProps` on function components** | ES6 default parameters. **Classes keep `defaultProps`** | — |
+| **`ReactDOM.render`** | `createRoot(el).render(…)` | `react/19/replace-reactdom-render` |
+| **`ReactDOM.hydrate`** | `hydrateRoot(el, …)` | as above |
+| **`unmountComponentAtNode`** | `root.unmount()` | as above |
+| **`react-test-utils`** | React Testing Library | — |
+
+The two that catch people out: **`propTypes` is ignored rather than removed loudly**, so runtime prop validation you thought you had silently stopped working; and **`defaultProps` still works on classes** but not on function components, so the same removal bites differently depending on the component kind.
+
+#### No lifecycle methods were removed
+
+Worth stating plainly, because it's a common assumption. Every class lifecycle method still works in React 19: `constructor`, `getDerivedStateFromProps`, `render`, `componentDidMount`, `shouldComponentUpdate`, `getSnapshotBeforeUpdate`, `componentDidUpdate`, `componentWillUnmount`, `getDerivedStateFromError`, `componentDidCatch`. The three `UNSAFE_*` methods are still documented too, described as existing "for historical reasons" — see §3 for why they're unsafe under concurrent rendering.
+
+React 19 says **"class components are still supported, but we don't recommend using them in new code"** — discouraged, not deprecated. Error boundaries remain the one thing that still *requires* a class.
+
+#### Deprecated by replacement
+
+Two long-standing APIs now have simpler forms, with the old ones slated for removal:
+
+```jsx
+// ref is a normal prop — forwardRef is no longer needed
+function MyInput({ placeholder, ref }) {
+  return <input placeholder={placeholder} ref={ref} />;
+}
+<MyInput ref={inputRef} />
+```
+
+Note `ref` on a **class** component is still the instance, not a prop.
+
+```jsx
+// <Context> is its own provider
+const ThemeContext = createContext('');
+<ThemeContext value="dark">{children}</ThemeContext>    // not <ThemeContext.Provider>
+```
+
+Both have codemods, and both old forms (`forwardRef`, `<Context.Provider>`) will be removed in a future major.
+
+#### Ref cleanup functions
+
+A ref callback can now **return a cleanup function**, which React calls on unmount:
+
+```jsx
+<input
+  ref={(node) => {
+    const observer = new ResizeObserver(onResize);
+    observer.observe(node);
+    return () => observer.disconnect();      // NEW
+  }}
+/>
+```
+
+This deprecates the old pattern of React calling your ref with `null` on unmount. One TypeScript consequence: **implicit returns are now rejected**, because a returned value is interpreted as a cleanup function — so `ref={el => (this.input = el)}` must become `ref={el => { this.input = el; }}` with a block body. That's a real upgrade error people hit.
+
+#### Behavioural improvements
+
+- **Document metadata hoists automatically.** Rendering `<title>`, `<meta>` or `<link>` anywhere in a component moves it to `<head>` — client, streaming SSR and Server Components alike. Removes the need for `react-helmet` in simple cases.
+- **Stylesheet precedence.** `<link rel="stylesheet" precedence="high" />` lets React manage insertion order and deduplicate across components, which prevents FOUC.
+- **Async scripts anywhere.** `<script async src="…" />` can be rendered in any component and is deduplicated automatically.
+- **Resource preloading APIs** from `react-dom`: `prefetchDNS`, `preconnect`, `preload`, `preinit` — prioritised by utility rather than call order. See the [Web Performance guide](/frontend/web-performance) for when each is appropriate, and note a preloaded font needs `crossorigin` or it downloads twice.
+- **Hydration errors now show a diff** in a single consolidated message rather than three vague warnings, so a mismatch tells you which node differed.
+- **`useDeferredValue` takes an `initialValue`** — `useDeferredValue(value, '')` returns the initial value on first render, then schedules a re-render with the real one.
+
+#### Upgrade order that works
+
+1. Upgrade to **18.3 first** — it's 18.2 plus the deprecation warnings, so you fix them without a behaviour change.
+2. Run the codemods: `npx codemod@latest react/19/migration-recipe`.
+3. Replace `propTypes` with TypeScript, since it now fails silently.
+4. Switch `ReactDOM.render` → `createRoot`, and check for `findDOMNode` and string refs in older code.
+5. Fix TypeScript ref callbacks with implicit returns.
+6. Only then adopt the new APIs (§16.1–16.8).
+
+---
+
+### 16.10 Where React Actually Is — Versions and Experimental Status
 
 Interviewers ask this to check whether you track the ecosystem or just repeat blog posts.
 
@@ -3981,6 +4237,12 @@ useEffect(() => {
 Five mechanisms, and the skill is picking the smallest one that fits. **Parent → child is props** — the default and it covers most cases. **Child → parent is a callback prop**: data flows one way, so a child cannot set the parent's state; the parent passes a function down and the child calls it, meaning the child reports an event and the parent decides what it means. **Siblings communicate by lifting state up** to their closest common ancestor, which then passes it back down — that is all that phrase means, and the important qualifier is *closest*, because state placed too high re-renders more of the tree than necessary. **Context is for genuine prop drilling**, where a distant descendant needs a value and every intermediate component would only forward it; two or three levels of forwarding isn't worth solving, and Context isn't free — every consumer re-renders when the value changes, and an object literal as `value` gets a new reference on every parent render, so memoise it and split rarely-changing config from frequently-changing data. **Refs are for imperative actions rather than data** — focusing an input, playing a video — and in React 19 `ref` is a normal prop so `forwardRef` isn't needed; expose a narrow API with `useImperativeHandle` rather than the raw node. Beyond that, when unrelated branches share state the answer is a store, not more lifting: TanStack Query for server state, Zustand or Redux for client state.
 
 One detail worth volunteering because it's a real performance bug: when lifting state for a controlled input, keep the transient value local to the child and notify the parent on **commit** (submit or blur) rather than on every keystroke — otherwise each character re-renders the whole subtree.
+
+**Q45: What did React 19 remove, and how would you approach upgrading a large codebase to it?**
+
+The removals are mostly long-deprecated legacy: **`findDOMNode`** (use a ref), **string refs** (`ref="input"` → a callback ref), **legacy context** (`contextTypes`/`getChildContext` → `createContext` + `static contextType`), **`propTypes`**, **`defaultProps` on function components** (classes keep it), the **`ReactDOM.render`/`hydrate`/`unmountComponentAtNode`** trio in favour of `createRoot`/`hydrateRoot`/`root.unmount()`, and `react-test-utils`. Two are worth calling out because they fail quietly rather than loudly: **`propTypes` is silently ignored** in 19, so runtime prop validation you believed you had just stopped happening with no warning; and `defaultProps` removal applies **only to function components**, so the same change bites differently depending on component kind. Notably **no lifecycle methods were removed** — classes are discouraged, not deprecated, and error boundaries still require one.
+
+For the upgrade I'd go to **18.3 first**, which is 18.2 plus the deprecation warnings, so you can fix everything without a behaviour change and with the ability to ship incrementally. Then run the official codemods (`npx codemod@latest react/19/migration-recipe`), which handle string refs, the `ReactDOM.render` swap and the `propTypes`-to-TypeScript conversion. Then the manual work: replace `propTypes` properly since it now fails silently, hunt `findDOMNode` in older code, and fix **TypeScript ref callbacks with implicit returns** — because a returned value is now treated as a cleanup function, `ref={el => (this.input = el)}` must become a block body. Only after the codebase is green would I adopt the new APIs (Compiler, Actions, `use`, `<Activity>`), since mixing a migration with feature adoption makes a regression impossible to attribute.
 
 ---
 ---
