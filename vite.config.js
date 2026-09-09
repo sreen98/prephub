@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // We register the worker ourselves in src/pwa.ts so we can poll for
+      // updates and reload when a new build takes over. The auto-injected
+      // registerSW.js does neither, which is why releases needed a hard reload.
+      injectRegister: null,
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'PrepHub — Interview Prep',

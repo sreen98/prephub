@@ -722,6 +722,102 @@ function Counter() {
 }
 ```
 
+### 5.4 Component Communication
+
+How components talk to each other is a screening-round staple. There are five mechanisms and the skill is knowing which one a given relationship needs — reaching for Context or a state library too early is the usual mistake.
+
+**1. Parent → child: props.** The default, and it covers most cases.
+
+```jsx
+function Parent() {
+  return <UserCard name="Ana" role="Engineer" />;
+}
+function UserCard({ name, role }) {
+  return <p>{name} — {role}</p>;
+}
+```
+
+**2. Child → parent: a callback prop.** Data flows one way in React, so a child cannot "set" the parent's state. The parent passes a function down and the child calls it — the child reports an event, the parent decides what it means.
+
+```jsx
+function Parent() {
+  const [query, setQuery] = useState('');
+  return (
+    <>
+      <SearchBox onSearch={setQuery} />       {/* pass the setter (or a handler) */}
+      <Results query={query} />
+    </>
+  );
+}
+
+function SearchBox({ onSearch }) {
+  const [value, setValue] = useState('');
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSearch(value); }}>
+      <input value={value} onChange={e => setValue(value => e.target.value)} />
+    </form>
+  );
+}
+```
+
+Note the child keeps its **own** input state and only notifies the parent on submit. Lifting every keystroke to the parent re-renders the whole subtree on each character — a common and avoidable performance bug.
+
+**3. Sibling ↔ sibling: lift the state up.** Siblings cannot see each other, so shared state moves to their **closest common ancestor** and comes back down as props. That is all "lifting state up" means.
+
+```jsx
+function Dashboard() {
+  const [selectedId, setSelectedId] = useState(null);   // lifted: both need it
+  return (
+    <>
+      <JobList onSelect={setSelectedId} selectedId={selectedId} />
+      <JobDetail id={selectedId} />
+    </>
+  );
+}
+```
+
+The trade-off: state placed too high re-renders more of the tree than necessary, so lift it to the **closest** common parent, not to the root.
+
+**4. Deeply nested: Context.** When a value must reach a distant descendant and every layer in between would just forward it — "prop drilling" — Context skips the middle.
+
+```jsx
+const ThemeContext = createContext('light');
+
+function App()   { return <ThemeContext.Provider value="dark"><Page /></ThemeContext.Provider>; }
+function Button() { const theme = useContext(ThemeContext); /* … */ }
+```
+
+Two or three levels of forwarding is not a problem worth solving — prop drilling is only a real smell when intermediate components take props they never use. And Context has a cost: **every consumer re-renders when the value changes**, and an object literal as `value` creates a new reference every render, so it changes on *every* parent render. Memoise it, and split rarely-changing config from frequently-changing data into separate contexts. See [§11](#11-context-api) and Q33.
+
+**5. Parent → child *imperatively*: refs.** For actions rather than data — focusing an input, playing a video, scrolling a list. In React 19 `ref` is a normal prop, so `forwardRef` is no longer needed.
+
+```jsx
+function Form() {
+  const inputRef = useRef(null);
+  return (
+    <>
+      <TextInput ref={inputRef} />
+      <button onClick={() => inputRef.current.focus()}>Focus</button>
+    </>
+  );
+}
+function TextInput({ ref, ...props }) { return <input ref={ref} {...props} />; }
+```
+
+Use `useImperativeHandle` to expose a **narrow** API (`{ focus, clear }`) rather than the raw DOM node.
+
+**Beyond that: external state.** When unrelated branches of the tree share server or global state, the answer is a store rather than more lifting — **TanStack Query** for server state, **Zustand/Redux** for client state. See [§11.3](#11-context-api) on why that distinction matters.
+
+| Relationship | Use | Notes |
+|---|---|---|
+| Parent → child | **props** | the default |
+| Child → parent | **callback prop** | keep transient state local, notify on commit |
+| Sibling ↔ sibling | **lift state** to the closest common parent | not to the root |
+| Distant descendant | **Context** | only for genuine prop drilling; memoise the value |
+| Imperative action | **ref** + `useImperativeHandle` | actions, not data |
+| Unrelated branches | **store** (TanStack Query / Zustand) | server vs client state |
+
+---
 ---
 
 ## 6. Hooks
@@ -3879,6 +3975,12 @@ useEffect(() => {
 **5. Verify the fix the same way you found it.** Repeat the snapshot-exercise-GC-snapshot cycle and confirm the delta is flat. "It feels better" is not a fix.
 
 **Two things that make this cheaper next time.** **StrictMode** double-mounts effects in development specifically to surface missing cleanup — an effect that leaks will leak twice as fast, which is the point. And in production, monitor heap size in your RUM so a leak shows up as a trend rather than as a support ticket about the app being slow after an hour.
+
+**Q44: How do components communicate in React? Walk through the options.**
+
+Five mechanisms, and the skill is picking the smallest one that fits. **Parent → child is props** — the default and it covers most cases. **Child → parent is a callback prop**: data flows one way, so a child cannot set the parent's state; the parent passes a function down and the child calls it, meaning the child reports an event and the parent decides what it means. **Siblings communicate by lifting state up** to their closest common ancestor, which then passes it back down — that is all that phrase means, and the important qualifier is *closest*, because state placed too high re-renders more of the tree than necessary. **Context is for genuine prop drilling**, where a distant descendant needs a value and every intermediate component would only forward it; two or three levels of forwarding isn't worth solving, and Context isn't free — every consumer re-renders when the value changes, and an object literal as `value` gets a new reference on every parent render, so memoise it and split rarely-changing config from frequently-changing data. **Refs are for imperative actions rather than data** — focusing an input, playing a video — and in React 19 `ref` is a normal prop so `forwardRef` isn't needed; expose a narrow API with `useImperativeHandle` rather than the raw node. Beyond that, when unrelated branches share state the answer is a store, not more lifting: TanStack Query for server state, Zustand or Redux for client state.
+
+One detail worth volunteering because it's a real performance bug: when lifting state for a controlled input, keep the transient value local to the child and notify the parent on **commit** (submit or blur) rather than on every keystroke — otherwise each character re-renders the whole subtree.
 
 ---
 ---

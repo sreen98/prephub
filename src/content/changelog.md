@@ -1,5 +1,15 @@
 # What's New
 
+## v1.4.0 (September 2026)
+
+**Fixed: new releases now appear without a hard reload.** The service worker was being registered in a way that cached the app but never told the page a newer build had taken over, so updates only showed up after a manual hard refresh — and a tab left open never noticed a release at all. The app now checks for a new version on load, on tab focus and once a minute, and refreshes itself when one is ready.
+
+**Screening-round gaps closed.** The React guide gained a **Component Communication** section (§5.4) — props down, callbacks up, lifting state to the *closest* common parent, when Context actually earns its cost, and refs for imperative actions — plus **Q44** on the same, because "how do components talk to each other" is asked in almost every screening round and was the one fundamental the guide didn't cover directly.
+
+**Two new playground templates for the hands-on exercises interviewers actually set.** **Display Data from a JSON Prop** — pass a JSON object as a prop, access it defensively, render it with a stable key, and handle the empty case. **JSON → API → React fetch** — the full-stack version, with the Express handler shown as reference (read the file once at startup, `res.json`, 404 on a missing record) and the React consumer covering loading, error and empty states with `AbortController` cleanup.
+
+The Express guide also gained **§5.4 Serving Data from a JSON File**, covering the three things graded in that task: don't read the file per request, use `res.json()` rather than a hand-stringified body, and fail at startup rather than on the first request.
+
 ## v1.3.0 (September 2026)
 
 **Three new DevOps guides, and two new sections in the sidebar.** **SSH & Linux Administration** is the layer under every other tool: how key authentication actually works, `ssh_config` and `ProxyJump`, the three kinds of port forwarding, why agent forwarding is risky, hardening `sshd` without locking yourself out, and a methodical walkthrough for diagnosing a sick server — load average, memory, the three causes of "disk full", and the text-processing one-liners you reach for in a log. **Observability & SRE** covers Prometheus metric types and PromQL, why cardinality is the thing that breaks metrics systems, Grafana dashboards that are useful under pressure, logs and traces with OpenTelemetry, SLIs/SLOs and error budgets, burn-rate alerting, and incident response and postmortems. **Helm & GitOps** covers charts and templating, Helm vs Kustomize, Argo CD with `prune` and `selfHeal`, secrets in a git repository, environment promotion, and progressive delivery that queries your metrics and rolls itself back.

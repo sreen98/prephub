@@ -5596,6 +5596,208 @@ test("nested mixed",     sumNested([1,[2,3],[[4],5]]),15);`,
     kind: 'challenge',
     templates: [
       {
+        name: 'Display Data from a JSON Prop',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Display Data from a JSON Prop =====
+// The classic screening exercise: you are handed a JSON file, pass it to a
+// component as a prop, access the data, and render what's asked for.
+//
+// TASK
+//   1. Pass \`data\` into <TeamDirectory /> as a prop
+//   2. Render each member's name, role and location
+//   3. Show the total headcount
+//   4. Handle the empty case
+//
+// WHAT INTERVIEWERS ACTUALLY CHECK
+//   - a stable \`key\` that is NOT the array index
+//   - destructuring props rather than \`props.data.members\`
+//   - defensive access: the shape may not be what you assume
+//   - the empty state, which most candidates forget
+
+// ---- the "JSON file" you were given ----
+const data = {
+  team: 'Platform',
+  members: [
+    { id: 'u1', name: 'Ana Silva',    role: 'Engineer',      location: 'Lisbon' },
+    { id: 'u2', name: 'Brij Patel',   role: 'Senior Engineer', location: 'Pune' },
+    { id: 'u3', name: 'Chen Wei',     role: 'Tech Lead',     location: 'Singapore' },
+  ],
+};
+
+function TeamDirectory({ data }) {
+  // Optional chaining + a default: the prop may be missing or malformed.
+  const members = data?.members ?? [];
+
+  if (members.length === 0) {
+    return <p style={{ color: '#888' }}>No team members to show.</p>;
+  }
+
+  return (
+    <section>
+      <h3 style={{ margin: '0 0 4px' }}>{data.team} team</h3>
+      <p style={{ margin: '0 0 12px', color: '#888', fontSize: 13 }}>
+        {members.length} {members.length === 1 ? 'member' : 'members'}
+      </p>
+
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {members.map(({ id, name, role, location }) => (
+          // key = a stable id from the data, never the array index
+          <li key={id} style={{ padding: '8px 0', borderBottom: '1px solid #333' }}>
+            <strong>{name}</strong>
+            <div style={{ fontSize: 13, color: '#aaa' }}>{role} · {location}</div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16 }}>
+      <TeamDirectory data={data} />
+
+      {/* the empty case — prove you handled it */}
+      <hr style={{ margin: '20px 0', borderColor: '#333' }} />
+      <TeamDirectory data={{ team: 'Design', members: [] }} />
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== FOLLOW-UPS THEY USUALLY ASK =====
+// Q: Why not use the array index as a key?
+//    On reorder/insert/delete React reuses the wrong DOM node and component
+//    state sticks to the wrong row (a typed input value follows the index).
+//
+// Q: What if the JSON is nested deeper?
+//    Optional chaining all the way down, or normalise it once at the boundary
+//    rather than scattering \`?.\` through the JSX.
+//
+// Q: Where would this data normally come from?
+//    A fetch — see the "JSON -> API -> React fetch" template for that version.`,
+      },
+      {
+        name: 'JSON → API → React fetch',
+        jsx: true,
+        code: `// ===== MACHINE CODING: JSON file -> Express endpoint -> React fetch -> UI =====
+// The full-stack version of the exercise above. The playground has no server,
+// so the Express half is shown as reference and the fetch is stubbed with the
+// SAME contract — the React code below is exactly what you'd ship.
+//
+// ---------------------------------------------------------------------------
+// BACKEND (reference — this is the code you'd write in the interview)
+// ---------------------------------------------------------------------------
+// import express from 'express';
+// import cors from 'cors';
+// import { readFile } from 'node:fs/promises';
+//
+// const app = express();
+// app.use(cors({ origin: 'http://localhost:5173' }));
+//
+// // Read ONCE at startup, not per request. Fail fast if it's broken.
+// const jobs = JSON.parse(await readFile('./data/jobs.json', 'utf-8'));
+//
+// app.get('/api/jobs', (req, res) => res.json(jobs));   // res.json sets the header
+// app.get('/api/jobs/:id', (req, res) => {
+//   const job = jobs.find(j => String(j.id) === req.params.id);
+//   if (!job) return res.status(404).json({ error: 'not found' });
+//   res.json(job);
+// });
+//
+// app.listen(3000);
+// ---------------------------------------------------------------------------
+
+// ---- stub standing in for the network (same shape as the endpoint above) ----
+const FAKE_JOBS = [
+  { id: 1, title: 'Frontend Engineer', company: 'Acme',   location: 'Remote' },
+  { id: 2, title: 'Backend Engineer',  company: 'Globex', location: 'Berlin' },
+  { id: 3, title: 'Platform Engineer', company: 'Initech', location: 'London' },
+];
+
+function fakeFetch(url, { signal } = {}) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      resolve({ ok: true, status: 200, json: () => Promise.resolve(FAKE_JOBS) });
+    }, 700);
+    // Honour cancellation, exactly as a real fetch does.
+    signal?.addEventListener('abort', () => {
+      clearTimeout(t);
+      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+    });
+  });
+}
+
+function useJobs() {
+  const [state, setState] = React.useState({ status: 'loading', data: null, error: null });
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fakeFetch('/api/jobs', { signal: controller.signal });
+        // fetch does NOT reject on 4xx/5xx — you must check ok yourself.
+        if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+        setState({ status: 'success', data: await res.json(), error: null });
+      } catch (err) {
+        // An abort is not a failure — it's us cancelling. Don't show an error.
+        if (err.name === 'AbortError') return;
+        setState({ status: 'error', data: null, error: err.message });
+      }
+    })();
+
+    return () => controller.abort();   // cancel on unmount / dependency change
+  }, []);
+
+  return state;
+}
+
+function JobList() {
+  const { status, data, error } = useJobs();
+
+  if (status === 'loading') return <p style={{ color: '#888' }}>Loading jobs…</p>;
+  if (status === 'error')   return <p style={{ color: '#f87171' }}>Failed: {error}</p>;
+  if (!data.length)         return <p style={{ color: '#888' }}>No jobs found.</p>;
+
+  return (
+    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+      {data.map(job => (
+        <li key={job.id} style={{ padding: '8px 0', borderBottom: '1px solid #333' }}>
+          <strong>{job.title}</strong>
+          <div style={{ fontSize: 13, color: '#aaa' }}>{job.company} · {job.location}</div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16 }}>
+      <h3 style={{ margin: '0 0 12px' }}>Jobs</h3>
+      <JobList />
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. THREE states, not one: loading / error / empty / success. Most candidates
+//    render only the success path.
+// 2. A single \`status\` field beats three booleans — isLoading + isError can
+//    represent impossible combinations.
+// 3. \`if (!res.ok) throw\` — fetch only rejects on network failure, so a 500
+//    resolves happily and you'd render garbage.
+// 4. AbortController cleanup, and treating AbortError as NOT an error. Without
+//    it you get a state update after unmount and a race where a slow first
+//    response overwrites a fast second one.
+// 5. In production this belongs in TanStack Query, which gives you caching,
+//    retries, dedup and stale-while-revalidate for free — say so.`,
+      },
+      {
         name: 'Pagination',
         jsx: true,
         code: `// ===== MACHINE CODING: Pagination Component =====

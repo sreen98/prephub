@@ -374,6 +374,73 @@ app.get('/users', (req, res) => {
 
 ---
 
+### 5.4 Serving Data from a JSON File
+
+A very common interview task: a JSON file sits on the server, expose it through an endpoint, and consume it from a frontend. It looks trivial and there are three things they're checking.
+
+```js
+import express from 'express';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_PATH = path.join(__dirname, 'data', 'jobs.json');
+
+// Read ONCE at startup, not per request — the file doesn't change.
+let jobs;
+try {
+  jobs = JSON.parse(await readFile(DATA_PATH, 'utf-8'));
+} catch (err) {
+  console.error('failed to load jobs.json', err);
+  process.exit(1);                       // fail fast: don't serve a broken API
+}
+
+app.get('/api/jobs', (req, res) => {
+  res.json(jobs);                        // sets Content-Type: application/json
+});
+
+app.get('/api/jobs/:id', (req, res, next) => {
+  const job = jobs.find(j => String(j.id) === req.params.id);
+  if (!job) return res.status(404).json({ error: 'job not found' });
+  res.json(job);
+});
+
+app.listen(3000);
+```
+
+The three things being graded:
+
+1. **Don't read the file on every request.** `readFileSync` inside a handler blocks the event loop for every caller ([Node.js guide](/backend/nodejs)); even the async version is pointless repeated I/O for a static file. Load it once at startup. If the file *can* change at runtime, cache it with an mtime check or a TTL rather than re-reading blindly.
+2. **`res.json()`, not `res.send(JSON.stringify(...))`.** `json()` sets the `Content-Type` header, handles the `ETag`, and respects `app.set('json replacer')`. Sending a hand-stringified body with no content type makes the client guess.
+3. **Handle the error paths.** A missing or malformed file should fail at **startup**, not surface as a 500 on the first request — that's the difference between a deploy that fails visibly and one that looks healthy and serves errors. And a missing record is **404**, not an empty 200.
+
+If the read must happen per request, keep it async and pass errors to the error middleware rather than swallowing them:
+
+```js
+app.get('/api/jobs', async (req, res, next) => {
+  try {
+    const raw = await readFile(DATA_PATH, 'utf-8');
+    res.json(JSON.parse(raw));
+  } catch (err) {
+    next(err);                           // let the error middleware format it (§6)
+  }
+});
+```
+
+Note that in **Express 5** a rejected promise from an `async` handler is forwarded to the error middleware automatically, so the `try/catch` is optional there — but it is **required** in Express 4, where an unhandled rejection escapes and the request hangs.
+
+To let a React app on a different port call this in development, enable CORS for that origin only:
+
+```js
+import cors from 'cors';
+app.use(cors({ origin: 'http://localhost:5173' }));   // not '*' with credentials
+```
+
+See the [CORS guide](/backend/cors) for why a wildcard plus credentials is rejected by the browser.
+
+---
 ## 6. Error Handling
 
 ### 6.1 Error-Handling Middleware
