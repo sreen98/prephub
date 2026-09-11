@@ -1,0 +1,1894 @@
+const e=`# Express.js — Complete Guide
+
+## Table of Contents
+
+- [1. What is Express.js?](#1-what-is-expressjs)
+- [2. Getting Started](#2-getting-started)
+- [3. Routing](#3-routing)
+- [4. Middleware](#4-middleware)
+- [5. Request and Response](#5-request-and-response)
+- [6. Error Handling](#6-error-handling)
+- [7. Template Engines](#7-template-engines)
+- [8. Static Files](#8-static-files)
+- [9. Security](#9-security)
+- [10. Project Structure](#10-project-structure)
+- [11. Authentication Patterns](#11-authentication-patterns)
+- [12. Database Integration](#12-database-integration)
+- [13. Testing](#13-testing)
+- [14. Performance](#14-performance)
+- [15. Interview Questions & Answers](#15-interview-questions-answers)
+- [16. Tricky Output Questions](#16-tricky-output-questions)
+
+---
+
+## 1. What is Express.js?
+
+Express.js is a **minimal, unopinionated web framework** for Node.js. It provides a thin layer of features for building web applications and REST APIs without hiding Node.js functionality.
+
+Key features:
+- **Routing** — map URLs to handler functions
+- **Middleware** — pluggable request processing pipeline
+- **Template engines** — server-side HTML rendering
+- **Static file serving** — serve CSS, JS, images
+- **Minimal** — no ORM, no auth, no opinions (bring your own)
+
+---
+
+## 2. Getting Started
+
+### 2.1 Installation and Basic Server
+
+\`\`\`bash
+npm install express
+\`\`\`
+
+\`\`\`js
+const express = require('express');
+const app = express();
+
+// Built-in middleware
+app.use(express.json());                   // parse JSON bodies
+app.use(express.urlencoded({ extended: true })); // parse form data
+
+// Route
+app.get('/', (req, res) => {
+  res.json({ message: 'Hello World' });
+});
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(\`Server running on port \${PORT}\`);
+});
+\`\`\`
+
+### 2.2 With TypeScript
+
+\`\`\`ts
+import express, { Request, Response, NextFunction } from 'express';
+
+const app = express();
+app.use(express.json());
+
+app.get('/users/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  res.json({ id, name: 'Alice' });
+});
+
+app.listen(3000);
+\`\`\`
+
+---
+
+## 3. Routing
+
+### 3.1 HTTP Methods
+
+\`\`\`js
+app.get('/users', handler);        // Read
+app.post('/users', handler);       // Create
+app.put('/users/:id', handler);    // Replace
+app.patch('/users/:id', handler);  // Partial update
+app.delete('/users/:id', handler); // Delete
+
+// All methods
+app.all('/secret', handler);
+
+// Multiple handlers (middleware chain)
+app.get('/users', authenticate, authorize('admin'), handler);
+\`\`\`
+
+### 3.2 Route Parameters
+
+\`\`\`js
+// Required params
+app.get('/users/:userId', (req, res) => {
+  console.log(req.params.userId);          // 'abc123'
+});
+
+// Optional params (use ? in route or query string)
+app.get('/users/:userId/posts/:postId?', (req, res) => {
+  console.log(req.params.postId);          // undefined if not provided
+});
+
+// Pattern matching
+app.get('/files/*', (req, res) => {
+  console.log(req.params[0]);             // everything after /files/
+});
+\`\`\`
+
+### 3.3 Query Strings
+
+\`\`\`js
+// GET /search?q=node&page=2&sort=date
+app.get('/search', (req, res) => {
+  console.log(req.query.q);               // 'node'
+  console.log(req.query.page);            // '2' (always string)
+  console.log(req.query.sort);            // 'date'
+});
+\`\`\`
+
+### 3.4 Router (Modular Routes)
+
+\`\`\`js
+// routes/users.js
+const router = express.Router();
+
+router.get('/', (req, res) => {
+  res.json({ users: [] });
+});
+
+router.get('/:id', (req, res) => {
+  res.json({ user: { id: req.params.id } });
+});
+
+router.post('/', (req, res) => {
+  res.status(201).json({ user: req.body });
+});
+
+router.put('/:id', (req, res) => {
+  res.json({ user: { ...req.body, id: req.params.id } });
+});
+
+router.delete('/:id', (req, res) => {
+  res.status(204).end();
+});
+
+module.exports = router;
+
+// app.js
+const usersRouter = require('./routes/users');
+app.use('/api/v1/users', usersRouter);
+// Routes: GET /api/v1/users, GET /api/v1/users/:id, etc.
+\`\`\`
+
+### 3.5 Route Chaining
+
+\`\`\`js
+app.route('/users')
+  .get((req, res) => { res.json([]); })
+  .post((req, res) => { res.status(201).json(req.body); });
+
+app.route('/users/:id')
+  .get((req, res) => { /* get user */ })
+  .put((req, res) => { /* update user */ })
+  .delete((req, res) => { /* delete user */ });
+\`\`\`
+
+---
+
+## 4. Middleware
+
+Middleware functions have access to \`req\`, \`res\`, and \`next\`. They execute in order and can modify request/response, end the request, or pass to the next middleware.
+
+### 4.1 Application-Level Middleware
+
+\`\`\`js
+// Runs on EVERY request
+app.use((req, res, next) => {
+  console.log(\`\${req.method} \${req.url} - \${new Date().toISOString()}\`);
+  next();                                  // MUST call next() to continue
+});
+
+// Runs on specific path
+app.use('/api', (req, res, next) => {
+  console.log('API request');
+  next();
+});
+\`\`\`
+
+### 4.2 Built-in Middleware
+
+\`\`\`js
+app.use(express.json());                   // parse JSON body
+app.use(express.urlencoded({ extended: true })); // parse URL-encoded body
+app.use(express.static('public'));         // serve static files
+app.use(express.raw());                    // parse raw Buffer body
+app.use(express.text());                   // parse text body
+\`\`\`
+
+### 4.3 Third-Party Middleware
+
+\`\`\`js
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
+
+app.use(cors());                           // CORS headers
+app.use(helmet());                         // security headers
+app.use(morgan('combined'));               // HTTP request logging
+app.use(compression());                    // gzip compression
+app.use(cookieParser());                   // parse cookies
+
+// Rate limiting
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000,               // 15 minutes
+  max: 100,                                // 100 requests per window
+  message: 'Too many requests',
+}));
+\`\`\`
+
+### 4.4 Custom Middleware
+
+\`\`\`js
+// Authentication middleware
+function authenticate(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+// Authorization middleware (factory function)
+function authorize(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    next();
+  };
+}
+
+// Usage
+app.get('/admin', authenticate, authorize('admin'), (req, res) => {
+  res.json({ message: 'Admin panel' });
+});
+\`\`\`
+
+### 4.5 Middleware Execution Order
+
+\`\`\`
+Request → middleware1 → middleware2 → route handler → Response
+
+app.use(logger);        // 1st: runs on all requests
+app.use(authenticate);  // 2nd: runs on all requests
+app.get('/users', validate, handler);  // 3rd: validate, then handler
+
+If middleware doesn't call next(), the request hangs.
+If middleware sends a response, subsequent middleware/handlers don't run.
+\`\`\`
+
+---
+
+## 5. Request and Response
+
+### 5.1 Request Object (req)
+
+\`\`\`js
+app.post('/users', (req, res) => {
+  // URL and path
+  req.url;                     // '/users?sort=name'
+  req.path;                    // '/users'
+  req.originalUrl;             // '/api/v1/users?sort=name' (before router prefix stripping)
+  req.baseUrl;                 // '/api/v1' (router mount path)
+  req.method;                  // 'POST'
+  req.protocol;                // 'https'
+  req.hostname;                // 'example.com'
+  req.ip;                      // '127.0.0.1'
+
+  // Parameters
+  req.params;                  // { userId: '123' } (route params)
+  req.query;                   // { sort: 'name' } (query string)
+  req.body;                    // { name: 'Alice' } (parsed body)
+
+  // Headers
+  req.headers;                 // all headers (lowercase keys)
+  req.get('Content-Type');     // 'application/json'
+  req.cookies;                 // { session: 'abc' } (with cookie-parser)
+
+  // Checks
+  req.is('json');              // 'json' if Content-Type matches
+  req.accepts('json');         // check Accept header
+});
+\`\`\`
+
+### 5.2 Response Object (res)
+
+\`\`\`js
+app.get('/demo', (req, res) => {
+  // Status code
+  res.status(200);
+  res.sendStatus(404);                     // sets status AND sends status text
+
+  // JSON response (most common)
+  res.json({ message: 'Success' });        // sets Content-Type and sends
+
+  // Other response types
+  res.send('text');                         // auto-detects Content-Type
+  res.send(Buffer.from('binary'));
+  res.sendFile('/absolute/path/to/file');
+  res.download('file.pdf', 'custom-name.pdf');
+  res.render('template', { data });        // render template engine
+
+  // Headers
+  res.set('X-Custom', 'value');
+  res.set({ 'X-One': '1', 'X-Two': '2' });
+  res.cookie('session', 'abc', { httpOnly: true, secure: true });
+  res.clearCookie('session');
+
+  // Redirect
+  res.redirect('/new-url');
+  res.redirect(301, '/permanent-redirect');
+
+  // Chaining
+  res.status(201).json({ user: newUser });
+
+  // End without body
+  res.status(204).end();
+});
+\`\`\`
+
+### 5.3 Response Pattern (Standard Envelope)
+
+\`\`\`js
+// Consistent response format
+function sendSuccess(res, data, statusCode = 200) {
+  res.status(statusCode).json({
+    status: 'success',
+    results: data,
+  });
+}
+
+function sendError(res, message, statusCode = 500) {
+  res.status(statusCode).json({
+    status: 'error',
+    message,
+  });
+}
+
+app.get('/users', (req, res) => {
+  const users = getUsersFromDB();
+  sendSuccess(res, users);
+});
+\`\`\`
+
+---
+
+### 5.4 Serving Data from a JSON File
+
+A very common interview task: a JSON file sits on the server, expose it through an endpoint, and consume it from a frontend. It looks trivial and there are three things they're checking.
+
+\`\`\`js
+import express from 'express';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const app = express();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_PATH = path.join(__dirname, 'data', 'jobs.json');
+
+// Read ONCE at startup, not per request — the file doesn't change.
+let jobs;
+try {
+  jobs = JSON.parse(await readFile(DATA_PATH, 'utf-8'));
+} catch (err) {
+  console.error('failed to load jobs.json', err);
+  process.exit(1);                       // fail fast: don't serve a broken API
+}
+
+app.get('/api/jobs', (req, res) => {
+  res.json(jobs);                        // sets Content-Type: application/json
+});
+
+app.get('/api/jobs/:id', (req, res, next) => {
+  const job = jobs.find(j => String(j.id) === req.params.id);
+  if (!job) return res.status(404).json({ error: 'job not found' });
+  res.json(job);
+});
+
+app.listen(3000);
+\`\`\`
+
+The three things being graded:
+
+1. **Don't read the file on every request.** \`readFileSync\` inside a handler blocks the event loop for every caller ([Node.js guide](/backend/nodejs)); even the async version is pointless repeated I/O for a static file. Load it once at startup. If the file *can* change at runtime, cache it with an mtime check or a TTL rather than re-reading blindly.
+2. **\`res.json()\`, not \`res.send(JSON.stringify(...))\`.** \`json()\` sets the \`Content-Type\` header, handles the \`ETag\`, and respects \`app.set('json replacer')\`. Sending a hand-stringified body with no content type makes the client guess.
+3. **Handle the error paths.** A missing or malformed file should fail at **startup**, not surface as a 500 on the first request — that's the difference between a deploy that fails visibly and one that looks healthy and serves errors. And a missing record is **404**, not an empty 200.
+
+If the read must happen per request, keep it async and pass errors to the error middleware rather than swallowing them:
+
+\`\`\`js
+app.get('/api/jobs', async (req, res, next) => {
+  try {
+    const raw = await readFile(DATA_PATH, 'utf-8');
+    res.json(JSON.parse(raw));
+  } catch (err) {
+    next(err);                           // let the error middleware format it (§6)
+  }
+});
+\`\`\`
+
+Note that in **Express 5** a rejected promise from an \`async\` handler is forwarded to the error middleware automatically, so the \`try/catch\` is optional there — but it is **required** in Express 4, where an unhandled rejection escapes and the request hangs.
+
+To let a React app on a different port call this in development, enable CORS for that origin only:
+
+\`\`\`js
+import cors from 'cors';
+app.use(cors({ origin: 'http://localhost:5173' }));   // not '*' with credentials
+\`\`\`
+
+See the [CORS guide](/backend/cors) for why a wildcard plus credentials is rejected by the browser.
+
+---
+## 6. Error Handling
+
+### 6.1 Error-Handling Middleware
+
+Error middleware has **4 parameters** (err, req, res, next). Express recognizes it by the arity.
+
+\`\`\`js
+// Route that throws
+app.get('/error', (req, res, next) => {
+  try {
+    throw new Error('Something broke');
+  } catch (err) {
+    next(err);                             // pass to error handler
+  }
+});
+
+// Async route (Express 5 auto-catches, Express 4 needs wrapper)
+app.get('/users', async (req, res, next) => {
+  try {
+    const users = await User.find();
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Error-handling middleware (MUST be defined LAST)
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.statusCode || 500).json({
+    status: 'error',
+    message: err.message || 'Internal server error',
+  });
+});
+\`\`\`
+
+### 6.2 Async Error Wrapper (Express 4)
+
+\`\`\`js
+// Wrapper that catches async errors
+function asyncHandler(fn) {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
+// Usage: no try/catch needed
+app.get('/users', asyncHandler(async (req, res) => {
+  const users = await User.find();         // if this throws, it's caught
+  res.json(users);
+}));
+\`\`\`
+
+### 6.3 Custom Error Classes
+
+\`\`\`js
+class AppError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = true;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+class NotFoundError extends AppError {
+  constructor(resource = 'Resource') {
+    super(\`\${resource} not found\`, 404);
+  }
+}
+
+class ValidationError extends AppError {
+  constructor(message, errors = []) {
+    super(message, 400);
+    this.errors = errors;
+  }
+}
+
+// Usage
+app.get('/users/:id', asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) throw new NotFoundError('User');
+  res.json(user);
+}));
+\`\`\`
+
+### 6.4 404 Handler
+
+\`\`\`js
+// Catch-all for unmatched routes (AFTER all routes, BEFORE error handler)
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: \`Route \${req.originalUrl} not found\`,
+  });
+});
+\`\`\`
+
+---
+
+## 7. Template Engines
+
+\`\`\`js
+// Setup (EJS example)
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// Route
+app.get('/profile', (req, res) => {
+  res.render('profile', {
+    user: { name: 'Alice', email: 'alice@example.com' },
+    title: 'User Profile',
+  });
+});
+\`\`\`
+
+\`\`\`html
+<!-- views/profile.ejs -->
+<html>
+<head><title><%= title %></title></head>
+<body>
+  <h1>Hello, <%= user.name %></h1>
+  <p>Email: <%= user.email %></p>
+  <% if (user.isAdmin) { %>
+    <p>Admin Panel</p>
+  <% } %>
+</body>
+</html>
+\`\`\`
+
+Popular engines: **EJS**, **Pug** (formerly Jade), **Handlebars**, **Nunjucks**.
+
+---
+
+## 8. Static Files
+
+\`\`\`js
+// Serve files from 'public' directory
+app.use(express.static('public'));
+// GET /style.css -> public/style.css
+// GET /images/logo.png -> public/images/logo.png
+
+// With virtual prefix
+app.use('/static', express.static('public'));
+// GET /static/style.css -> public/style.css
+
+// Multiple directories (checked in order)
+app.use(express.static('public'));
+app.use(express.static('uploads'));
+
+// Options
+app.use(express.static('public', {
+  maxAge: '1d',                            // cache for 1 day
+  etag: true,                              // enable ETag
+  index: 'index.html',                     // default index file
+  dotfiles: 'ignore',                      // ignore .hidden files
+}));
+\`\`\`
+
+---
+
+## 9. Security
+
+### 9.1 Helmet (Security Headers)
+
+\`\`\`js
+const helmet = require('helmet');
+app.use(helmet());
+
+// Sets headers like:
+// X-Content-Type-Options: nosniff
+// X-Frame-Options: DENY
+// Strict-Transport-Security: max-age=...
+// Content-Security-Policy: ...
+\`\`\`
+
+### 9.2 CORS
+
+\`\`\`js
+const cors = require('cors');
+
+// Allow all origins
+app.use(cors());
+
+// Specific origins
+app.use(cors({
+  origin: ['https://example.com', 'https://app.example.com'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,                       // allow cookies
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+\`\`\`
+
+### 9.3 Rate Limiting
+
+\`\`\`js
+const rateLimit = require('express-rate-limit');
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,               // 15 minutes
+  max: 100,                                // 100 requests per window
+  standardHeaders: true,                   // RateLimit-* headers
+  legacyHeaders: false,
+  message: { error: 'Too many requests, try again later' },
+});
+
+app.use('/api', limiter);
+
+// Stricter limit for auth routes
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,               // 1 hour
+  max: 5,                                  // 5 attempts
+});
+app.use('/api/auth/login', authLimiter);
+\`\`\`
+
+### 9.4 Input Validation
+
+\`\`\`js
+const { body, param, query, validationResult } = require('express-validator');
+
+app.post('/users',
+  body('email').isEmail().normalizeEmail(),
+  body('password').isLength({ min: 8 }),
+  body('name').trim().notEmpty(),
+  (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    // safe to use req.body
+  }
+);
+\`\`\`
+
+### 9.5 Common Security Practices
+
+\`\`\`js
+// 1. Never trust user input
+// Always validate, sanitize, escape
+
+// 2. Use parameterized queries (prevent SQL injection)
+// db.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
+
+// 3. Hash passwords
+const bcrypt = require('bcrypt');
+const hash = await bcrypt.hash(password, 12);
+
+// 4. Use HTTPS in production
+// 5. Set secure cookie flags
+res.cookie('session', token, {
+  httpOnly: true,                          // no JS access
+  secure: true,                            // HTTPS only
+  sameSite: 'strict',                      // CSRF protection
+  maxAge: 3600000,                         // 1 hour
+});
+
+// 6. Don't expose stack traces in production
+app.use((err, req, res, next) => {
+  res.status(err.statusCode || 500).json({
+    message: err.isOperational ? err.message : 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+});
+\`\`\`
+
+---
+
+## 10. Project Structure
+
+### 10.1 Feature-Based Structure (Recommended)
+
+\`\`\`
+src/
+  features/
+    users/
+      users.controller.ts
+      users.service.ts
+      users.model.ts
+      users.routes.ts
+      users.validation.ts
+      users.types.ts
+    auth/
+      auth.controller.ts
+      auth.service.ts
+      auth.routes.ts
+    jobs/
+      ...
+  middleware/
+    authenticate.ts
+    authorize.ts
+    error-handler.ts
+    validate.ts
+  lib/
+    database.ts
+    logger.ts
+    email.ts
+  config/
+    index.ts
+  app.ts                    # Express app setup (middleware, routes)
+  server.ts                 # Server startup (listen, graceful shutdown)
+\`\`\`
+
+### 10.2 Controller-Service-Model Pattern
+
+\`\`\`js
+// users.model.ts - data access
+class UserModel {
+  static async findById(id) {
+    return db.collection('users').findOne({ _id: id });
+  }
+  static async create(data) {
+    return db.collection('users').insertOne(data);
+  }
+}
+
+// users.service.ts - business logic
+class UserService {
+  static async getUser(id) {
+    const user = await UserModel.findById(id);
+    if (!user) throw new NotFoundError('User');
+    return user;
+  }
+  static async createUser(data) {
+    // validation, password hashing, etc.
+    const hash = await bcrypt.hash(data.password, 12);
+    return UserModel.create({ ...data, password: hash });
+  }
+}
+
+// users.controller.ts - HTTP handling
+class UserController {
+  static async getUser(req, res) {
+    const user = await UserService.getUser(req.params.id);
+    res.json({ status: 'success', results: user });
+  }
+  static async createUser(req, res) {
+    const user = await UserService.createUser(req.body);
+    res.status(201).json({ status: 'success', results: user });
+  }
+}
+
+// users.routes.ts - route definitions
+const router = express.Router();
+router.get('/:id', asyncHandler(UserController.getUser));
+router.post('/', validateUser, asyncHandler(UserController.createUser));
+\`\`\`
+
+---
+
+## 11. Authentication Patterns
+
+### 11.1 JWT Authentication
+
+\`\`\`js
+const jwt = require('jsonwebtoken');
+
+// Login - generate token
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findByEmail(email);
+  if (!user || !await bcrypt.compare(password, user.password)) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const token = jwt.sign(
+    { userId: user.id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  res.json({ token });
+});
+
+// Middleware - verify token
+function authenticate(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
+
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
+\`\`\`
+
+### 11.2 Cookie-Based Sessions
+
+\`\`\`js
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000,          // 1 day
+    sameSite: 'strict',
+  },
+}));
+
+// Login
+app.post('/login', async (req, res) => {
+  const user = await authenticate(req.body);
+  req.session.userId = user.id;
+  res.json({ message: 'Logged in' });
+});
+
+// Check auth
+function requireAuth(req, res, next) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  next();
+}
+\`\`\`
+
+---
+
+## 12. Database Integration
+
+### 12.1 MongoDB with Mongoose
+
+\`\`\`js
+const mongoose = require('mongoose');
+
+await mongoose.connect(process.env.MONGO_URI);
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  createdAt: { type: Date, default: Date.now },
+});
+
+const User = mongoose.model('User', userSchema);
+
+// CRUD
+const user = await User.create({ name: 'Alice', email: 'a@b.com' });
+const users = await User.find({ name: /alice/i });
+const one = await User.findById(id);
+await User.findByIdAndUpdate(id, { name: 'Bob' });
+await User.findByIdAndDelete(id);
+\`\`\`
+
+### 12.2 Connection Handling
+
+\`\`\`js
+mongoose.connection.on('connected', () => console.log('DB connected'));
+mongoose.connection.on('error', (err) => console.error('DB error:', err));
+mongoose.connection.on('disconnected', () => console.log('DB disconnected'));
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await mongoose.connection.close();
+  process.exit(0);
+});
+\`\`\`
+
+---
+
+## 13. Testing
+
+### 13.1 Integration Testing with Supertest
+
+\`\`\`js
+const request = require('supertest');
+const app = require('./app');
+
+describe('GET /api/users', () => {
+  it('should return list of users', async () => {
+    const res = await request(app)
+      .get('/api/users')
+      .set('Authorization', \`Bearer \${token}\`)
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(res.body.status).toBe('success');
+    expect(res.body.results).toBeInstanceOf(Array);
+  });
+
+  it('should return 401 without auth', async () => {
+    await request(app)
+      .get('/api/users')
+      .expect(401);
+  });
+});
+
+describe('POST /api/users', () => {
+  it('should create a user', async () => {
+    const res = await request(app)
+      .post('/api/users')
+      .send({ name: 'Alice', email: 'alice@example.com', password: 'pass1234' })
+      .expect(201);
+
+    expect(res.body.results.name).toBe('Alice');
+  });
+
+  it('should validate required fields', async () => {
+    const res = await request(app)
+      .post('/api/users')
+      .send({})
+      .expect(400);
+
+    expect(res.body.errors).toBeDefined();
+  });
+});
+\`\`\`
+
+### 13.2 Separate App from Server
+
+\`\`\`js
+// app.js - export app (for testing)
+const app = express();
+// ... setup middleware, routes ...
+module.exports = app;
+
+// server.js - start listening (not imported in tests)
+const appV2 = require('./appV2');
+appV2.listen(3000);
+\`\`\`
+
+---
+
+## 14. Performance
+
+### 14.1 Compression
+
+\`\`\`js
+const compression = require('compression');
+app.use(compression());                   // gzip responses
+\`\`\`
+
+### 14.2 Caching
+
+\`\`\`js
+// Response caching headers
+app.get('/api/data', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300'); // 5 minutes
+  res.json(data);
+});
+
+// In-memory caching
+const NodeCache = require('node-cache');
+const cache = new NodeCache({ stdTTL: 300 });
+
+app.get('/api/data', async (req, res) => {
+  const cached = cache.get('data');
+  if (cached) return res.json(cached);
+
+  const data = await fetchExpensiveData();
+  cache.set('data', data);
+  res.json(data);
+});
+\`\`\`
+
+### 14.3 Connection Pooling
+
+\`\`\`js
+// MongoDB (Mongoose handles pooling automatically)
+mongoose.connect(uri, {
+  maxPoolSize: 10,                         // default: 100
+});
+
+// PostgreSQL
+const { Pool } = require('pg');
+const pool = new Pool({
+  max: 20,                                 // max connections
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+\`\`\`
+
+---
+
+## 15. Interview Questions & Answers
+
+### Beginner
+
+---
+
+**Q1: What is Express.js? Why use it instead of raw Node.js HTTP?**
+
+Express.js is a minimal web framework for Node.js. You'd use it over raw \`http\` module because:
+- **Routing**: Clean URL-to-handler mapping (\`app.get('/users/:id', handler)\`)
+- **Middleware**: Pluggable request processing pipeline
+- **Request parsing**: Built-in JSON/form body parsing
+- **Response helpers**: \`res.json()\`, \`res.redirect()\`, \`res.sendFile()\`
+- **Ecosystem**: Thousands of middleware packages (cors, helmet, morgan, etc.)
+
+The raw HTTP module gives you one callback for all requests — you'd have to manually parse URLs, bodies, methods, and content types.
+
+---
+
+**Q2: What is middleware in Express?**
+
+Middleware is a function with access to \`req\`, \`res\`, and \`next\`. It sits in the request-response pipeline and can:
+1. Execute code
+2. Modify \`req\` and \`res\`
+3. End the request-response cycle
+4. Call \`next()\` to pass control to the next middleware
+
+\`\`\`js
+function logger(req, res, next) {
+  console.log(\`\${req.method} \${req.url}\`);
+  next();                                  // pass to next middleware
+}
+app.use(logger);
+\`\`\`
+
+Middleware runs in the order it's registered with \`app.use()\`.
+
+---
+
+**Q3: What is the difference between \`app.use()\` and \`app.get()\`?**
+
+- \`app.use()\`: Matches ALL HTTP methods and any path that STARTS WITH the given prefix
+- \`app.get()\`: Matches only GET requests to the EXACT path
+
+\`\`\`js
+app.use('/api', middleware);    // matches GET /api/users, POST /api/data, etc.
+app.get('/api', handler);      // matches only GET /api (exact)
+\`\`\`
+
+\`app.use()\` is for middleware; \`app.get()\` (and \`.post()\`, \`.put()\`, etc.) is for route handlers.
+
+---
+
+**Q4: How do you handle errors in Express?**
+
+1. Synchronous errors in route handlers are caught automatically (Express 5) or need try/catch (Express 4)
+2. Async errors must be passed to \`next(err)\`
+3. Define an error-handling middleware with 4 parameters \`(err, req, res, next)\` as the LAST middleware
+
+\`\`\`js
+// Error handler
+app.use((err, req, res, next) => {
+  res.status(err.statusCode || 500).json({
+    error: err.message || 'Internal server error',
+  });
+});
+\`\`\`
+
+---
+
+**Q5: What is \`req.params\` vs \`req.query\` vs \`req.body\`?**
+
+\`\`\`js
+// Route: PUT /users/123?active=true
+// Body: { "name": "Alice" }
+
+req.params;   // { id: '123' }        — from URL path (:id)
+req.query;    // { active: 'true' }   — from query string (?key=value)
+req.body;     // { name: 'Alice' }    — from request body (needs parser middleware)
+\`\`\`
+
+---
+
+### Intermediate
+
+---
+
+**Q6: Explain the middleware execution order in Express.**
+
+Middleware executes in the order it's registered:
+
+\`\`\`js
+app.use(cors());           // 1st
+app.use(helmet());         // 2nd
+app.use(express.json());   // 3rd
+app.use('/api', authMiddleware);  // 4th (only /api routes)
+app.get('/api/users', handler);   // 5th (route handler)
+app.use(notFoundHandler);  // 6th (unmatched routes)
+app.use(errorHandler);     // 7th (error handler - LAST)
+\`\`\`
+
+Key rules:
+- Middleware without a path runs on ALL requests
+- Each middleware must call \`next()\` or send a response
+- Error handlers (4 params) only run when \`next(err)\` is called
+- Route-specific middleware runs only when the route matches
+
+---
+
+**Q7: How would you structure a large Express.js application?**
+
+Feature-based structure with separation of concerns:
+
+1. **Routes** — define URL-to-controller mapping
+2. **Controllers** — handle HTTP (parse req, send res)
+3. **Services** — business logic (reusable, framework-agnostic)
+4. **Models** — data access (database queries)
+5. **Middleware** — cross-cutting concerns (auth, validation, logging)
+
+\`\`\`
+src/
+  features/users/    (routes, controller, service, model)
+  features/auth/
+  middleware/
+  config/
+  app.ts             (setup)
+  server.ts          (listen)
+\`\`\`
+
+This separates HTTP concerns from business logic, making services testable without Express.
+
+---
+
+**Q8: How do you handle CORS in Express?**
+
+CORS (Cross-Origin Resource Sharing) controls which domains can make requests to your API.
+
+\`\`\`js
+const cors = require('cors');
+
+// Allow all
+app.use(cors());
+
+// Allow specific origins with credentials
+app.use(cors({
+  origin: ['https://myapp.com'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+}));
+\`\`\`
+
+Without CORS, browsers block cross-origin requests. The \`cors\` middleware sets the \`Access-Control-Allow-*\` headers that browsers check.
+
+---
+
+**Q9: What is the difference between \`res.send()\`, \`res.json()\`, and \`res.end()\`?**
+
+- \`res.send(body)\`: Sends response, auto-sets Content-Type based on body type (string -> text/html, object -> application/json, Buffer -> application/octet-stream)
+- \`res.json(obj)\`: Converts to JSON string, sets Content-Type to application/json. Also handles \`null\`, \`undefined\`, etc. correctly.
+- \`res.end()\`: Ends response without body. Use for 204 No Content.
+
+\`\`\`js
+res.send('Hello');          // text/html
+res.send({ a: 1 });        // application/json (same as res.json)
+res.json({ a: 1 });        // application/json (explicit, preferred)
+res.status(204).end();      // no body
+\`\`\`
+
+Use \`res.json()\` for APIs — it's more explicit and handles edge cases.
+
+---
+
+**Q10: How do you implement authentication in Express?**
+
+Two main approaches:
+
+1. **JWT (stateless)**: Token in Authorization header, verified on each request
+   \`\`\`js
+   // Login: generate token
+   const token = jwt.sign({ userId }, secret, { expiresIn: '1h' });
+   // Middleware: verify token on each request
+   const decoded = jwt.verify(token, secret);
+   \`\`\`
+
+2. **Session (stateful)**: Server stores session, client sends session ID cookie
+   \`\`\`js
+   req.session.userId = user.id;  // store on login
+   req.session.userId;            // check on each request
+   \`\`\`
+
+JWT is better for APIs and microservices (no shared state). Sessions are better for traditional web apps (easier to revoke).
+
+---
+
+### Advanced
+
+---
+
+**Q11: How does Express handle async errors? What changed in Express 5?**
+
+**Express 4**: Async errors must be caught and passed to \`next(err)\`. Unhandled promise rejections crash or hang the request.
+
+\`\`\`js
+// Express 4 - must catch manually
+app.get('/users', async (req, res, next) => {
+  try {
+    const users = await User.find();
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+});
+\`\`\`
+
+**Express 5**: Automatically catches rejected promises from async route handlers and passes them to error middleware.
+
+\`\`\`js
+// Express 5 - auto-caught
+app.get('/users', async (req, res) => {
+  const users = await User.find();  // if this throws, error handler gets it
+  res.json(users);
+});
+\`\`\`
+
+For Express 4, use an \`asyncHandler\` wrapper to avoid repetitive try/catch.
+
+---
+
+**Q12: How would you implement rate limiting with different tiers?**
+
+\`\`\`js
+const rateLimit = require('express-rate-limit');
+const RedisStore = require('rate-limit-redis');
+
+// Global rate limit
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  store: new RedisStore({ client: redisClient }), // distributed
+}));
+
+// Strict for auth
+app.use('/auth/login', rateLimit({ windowMs: 3600000, max: 5 }));
+
+// Per-user with dynamic limit
+function dynamicLimit(req, res, next) {
+  const tier = req.user?.tier || 'free';
+  const limits = { free: 100, pro: 1000, enterprise: 10000 };
+  const limiter = rateLimit({
+    windowMs: 3600000,
+    max: limits[tier],
+    keyGenerator: (req) => req.user.id,
+  });
+  limiter(req, res, next);
+}
+\`\`\`
+
+For distributed systems, use Redis-backed stores so rate limits are shared across instances.
+
+---
+
+**Q13: How do you handle file uploads in Express?**
+
+\`\`\`js
+const multer = require('multer');
+
+// Memory storage (buffer)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },    // 10MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only images allowed'), false);
+  },
+});
+
+// Single file
+app.post('/upload', upload.single('avatar'), (req, res) => {
+  console.log(req.file);                       // { buffer, mimetype, size, ... }
+  // Upload to S3, save to disk, etc.
+});
+
+// Multiple files
+app.post('/gallery', upload.array('photos', 10), (req, res) => {
+  console.log(req.files);                      // array of files
+});
+
+// Disk storage
+const diskUpload = multer({
+  storage: multer.diskStorage({
+    destination: 'uploads/',
+    filename: (req, file, cb) => {
+      cb(null, \`\${Date.now()}-\${file.originalname}\`);
+    },
+  }),
+});
+\`\`\`
+
+---
+
+**Q14: How would you implement API versioning?**
+
+Three approaches:
+
+\`\`\`js
+// 1. URL prefix (most common)
+app.use('/api/v1/users', v1UsersRouter);
+app.use('/api/v2/users', v2UsersRouter);
+
+// 2. Custom header
+app.use('/api/users', (req, res, next) => {
+  const version = req.get('API-Version') || 'v1';
+  if (version === 'v2') return v2Handler(req, res, next);
+  v1Handler(req, res, next);
+});
+
+// 3. Accept header (content negotiation)
+app.use('/api/users', (req, res, next) => {
+  if (req.accepts('application/vnd.api.v2+json')) {
+    return v2Handler(req, res, next);
+  }
+  v1Handler(req, res, next);
+});
+\`\`\`
+
+URL prefix is simplest and most widely used. It's clear, cacheable, and easy to deprecate.
+
+---
+
+**Q15: Explain the difference between Express.js and other Node.js frameworks (Fastify, Koa, NestJS).**
+
+| Feature | Express | Fastify | Koa | NestJS |
+|---------|---------|---------|-----|--------|
+| Philosophy | Minimal, unopinionated | Performance-focused | Minimal, modern | Full-featured, opinionated |
+| Performance | Good | Best (2-3x Express) | Good | Good (uses Express/Fastify under the hood) |
+| Middleware | Callback-based | Plugin system | async/await native | Decorators, dependency injection |
+| Validation | Third-party (express-validator) | Built-in (JSON schema) | Third-party | Built-in (class-validator) |
+| TypeScript | Community types | First-class | Community types | First-class |
+| Learning curve | Low | Low | Low | High |
+| Ecosystem | Largest | Growing | Small | Growing |
+| Use case | Most projects | High-performance APIs | Modern, lightweight | Enterprise, large teams |
+
+Express is the most popular and has the largest ecosystem. Choose others when you need specific advantages (performance, TypeScript, structure).
+
+---
+
+**Q16: How do you implement graceful shutdown with Express?**
+
+\`\`\`js
+const server = app.listen(3000);
+
+async function gracefulShutdown(signal) {
+  console.log(\`\${signal} received. Shutting down gracefully...\`);
+
+  // 1. Stop accepting new connections
+  server.close(async () => {
+    // 2. Close database connections
+    await mongoose.connection.close();
+
+    // 3. Close Redis, message queues, etc.
+    await redis.quit();
+
+    console.log('Server closed');
+    process.exit(0);
+  });
+
+  // 4. Force exit after timeout
+  setTimeout(() => {
+    console.error('Forced shutdown');
+    process.exit(1);
+  }, 30000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+\`\`\`
+
+---
+
+**Q17: How do you handle multipart/form-data vs application/json in the same route?**
+
+\`\`\`js
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
+
+app.post('/roles',
+  // Conditionally apply multer based on content type
+  (req, res, next) => {
+    const contentType = req.get('content-type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      upload.array('files')(req, res, next);
+    } else {
+      express.json()(req, res, next);
+    }
+  },
+  asyncHandler(async (req, res) => {
+    // req.body has JSON fields
+    // req.files has uploaded files (if multipart)
+    const result = await RoleService.create(req.body, req.files);
+    res.status(201).json(result);
+  })
+);
+\`\`\`
+
+---
+
+**Q18: How would you implement request validation middleware?**
+
+\`\`\`js
+const { z } = require('zod');
+
+function validate(schema) {
+  return (req, res, next) => {
+    try {
+      const validated = schema.parse({
+        body: req.body,
+        query: req.query,
+        params: req.params,
+      });
+      req.body = validated.body;
+      req.query = validated.query;
+      req.params = validated.params;
+      next();
+    } catch (err) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Validation failed',
+        errors: err.errors,
+      });
+    }
+  };
+}
+
+// Usage
+const createUserSchema = z.object({
+  body: z.object({
+    name: z.string().min(1).max(100),
+    email: z.string().email(),
+    password: z.string().min(8),
+  }),
+  query: z.object({}),
+  params: z.object({}),
+});
+
+app.post('/users', validate(createUserSchema), handler);
+\`\`\`
+
+---
+
+## 16. Tricky Output Questions
+
+Practice questions testing your understanding of Express middleware execution order, error handling flow, and request/response lifecycle.
+
+### Middleware Execution Order
+
+---
+
+**Q1: In what exact order will the five log statements fire for \`GET /\` given three middleware layers where code runs both before and after \`next()\`?**
+
+\`\`\`js
+app.use((req, res, next) => {
+  console.log("A");
+  next();
+  console.log("B");
+});
+
+app.use((req, res, next) => {
+  console.log("C");
+  next();
+  console.log("D");
+});
+
+app.get("/", (req, res) => {
+  console.log("E");
+  res.send("OK");
+});
+\`\`\`
+
+**Output for \`GET /\`:**
+\`\`\`
+A
+C
+E
+D
+B
+\`\`\`
+
+**Explanation:**
+
+Express keeps every registered handler in an ordered **router stack** of layers. When a request arrives, Express iterates the stack, invokes the first layer whose path/method match, and hands it a \`next\` function. Calling \`next()\` is a **synchronous function call** into the next matching layer — it is NOT "schedule the next step and return immediately". That is why execution proceeds in an onion / nested pattern.
+
+Step by step: layer 1 fires and logs \`A\`, then calls \`next()\`. Control flows into layer 2 which logs \`C\`, then calls \`next()\`. Control flows into the route handler which logs \`E\` and sends the response. That inner call returns, so we are back inside layer 2, which now runs the code after its \`next()\` and logs \`D\`. Layer 2 returns, unwinding back into layer 1, which runs the code after its \`next()\` and logs \`B\`. The stack fully unwinds.
+
+This "post-next()" window is the idiomatic place to put response-timing, logging, or cleanup logic, because the response body has already been produced by downstream handlers by the time we get there.
+
+**Takeaway:** \`next()\` is a synchronous descent into the next layer, so code after \`next()\` runs during stack unwind — middleware behaves like nested function calls, not a queue.
+
+---
+
+**Q2: If one middleware in the chain sends a response but never calls \`next()\`, what do the logs show for \`GET /\` and why do the later handlers never fire?**
+
+\`\`\`js
+app.use((req, res, next) => {
+  console.log("A");
+  next();
+});
+
+app.use((req, res, next) => {
+  console.log("B");
+  res.send("stopped");
+  // no next() call
+});
+
+app.use((req, res, next) => {
+  console.log("C");
+  next();
+});
+
+app.get("/", (req, res) => {
+  console.log("D");
+  res.send("OK");
+});
+\`\`\`
+
+**Output for \`GET /\`:**
+\`\`\`
+A
+B
+\`\`\`
+
+**Explanation:**
+
+Express advances through the router stack **only** when the current layer calls \`next()\`. There is no implicit "auto-advance" based on sending a response — if a middleware omits \`next()\`, the dispatch loop has nowhere to go and simply stops.
+
+Here the first layer logs \`A\` and calls \`next()\`, so Express moves on. The second layer logs \`B\`, ends the response with \`res.send("stopped")\`, and then **returns without invoking \`next()\`**. At that point Express's internal iterator never advances to the third \`app.use\` or to the \`app.get("/")\` route, so \`C\` and \`D\` are never logged. The client receives the body \`"stopped"\` with status 200, and the request is finished.
+
+This short-circuit behaviour is exactly how authentication, authorization, rate limiting, and caching middleware work: they send a 401 / 403 / 304 / cached-body response and simply skip \`next()\`. Conversely, it is also the #1 cause of "hanging" requests — if a middleware neither responds nor calls \`next()\`, the client waits until the connection times out.
+
+**Takeaway:** A middleware must either call \`next()\` (to continue) or end the response (to stop) — omitting both hangs the request, and omitting \`next()\` after a response ends the chain entirely.
+
+---
+
+**Q3: Given one global \`app.use\` and two \`app.get("/api", …)\` handlers registered separately, what prints for \`GET /api\` versus \`GET /other\`, and why does \`app.use\` run for both paths?**
+
+\`\`\`js
+app.use((req, res, next) => {
+  console.log("global");
+  next();
+});
+
+app.get("/api", (req, res, next) => {
+  console.log("route 1");
+  next();
+});
+
+app.get("/api", (req, res) => {
+  console.log("route 2");
+  res.send("OK");
+});
+\`\`\`
+
+**Output for \`GET /api\`:**
+\`\`\`
+global
+route 1
+route 2
+\`\`\`
+
+**Output for \`GET /other\`:**
+\`\`\`
+global
+\`\`\`
+
+**Explanation:**
+
+\`app.use\` and \`app.get\` register layers on the same router stack but with different **path matchers**. \`app.use(fn)\` with no path mounts at \`/\`, which matches any URL that **starts with** \`/\` — effectively every request. \`app.get("/api", fn)\`, on the other hand, uses exact path matching plus a method check, so it only fires for \`GET /api\`.
+
+For \`GET /api\`, the dispatcher walks the stack in registration order. The global \`app.use\` layer matches on path and method (any method), so \`global\` is logged and \`next()\` advances. The first \`app.get("/api", …)\` layer matches, logs \`route 1\`, calls \`next()\`. Express does NOT stop at the first matching route — multiple \`app.get\` registrations for the same path form a chain, and \`next()\` moves to the next matching route. So the second \`app.get("/api", …)\` fires, logs \`route 2\`, and sends the response.
+
+For \`GET /other\`, only the \`app.use\` matches. After \`next()\` there are no more matching layers, so Express's default 404 handler sends \`Cannot GET /other\`. That is why \`app.use\` shows up in both outputs but the \`app.get\` layers never do.
+
+**Takeaway:** \`app.use\` is path-prefix + any-method, \`app.get\` is exact-path + GET — multiple handlers on the same route chain via \`next()\`, not fall-through on first match.
+
+---
+
+### Error Handling
+
+---
+
+**Q4: When a route handler throws synchronously, does the next regular \`app.use\` run, or does Express skip straight to the 4-arg error middleware?**
+
+\`\`\`js
+app.get("/", (req, res, next) => {
+  console.log("A");
+  throw new Error("boom");
+});
+
+app.use((req, res, next) => {
+  console.log("B");
+  next();
+});
+
+app.use((err, req, res, next) => {
+  console.log("C:", err.message);
+  res.status(500).send("error");
+});
+\`\`\`
+
+**Output for \`GET /\`:**
+\`\`\`
+A
+C: boom
+\`\`\`
+
+**Explanation:**
+
+Express classifies every registered layer by the **arity** (number of parameters) of its handler function. A function with three parameters \`(req, res, next)\` is a **regular middleware layer**; a function with four parameters \`(err, req, res, next)\` is an **error-handling middleware layer**. Internally this is literally \`fn.length === 4\`.
+
+When the route handler logs \`A\` and throws, Express wraps the synchronous handler in a try/catch, catches the thrown \`Error\`, and enters "error dispatch mode". In error mode the dispatcher iterates the remaining stack but **skips every layer whose handler does not have 4 parameters**. So the 3-arg \`app.use\` that would have logged \`B\` is bypassed. The next layer is the 4-arg handler, which matches error mode: it logs \`C: boom\` and sends the 500 response.
+
+Equivalently, calling \`next(err)\` explicitly from any middleware produces the same skip-to-error-handler behaviour. If no error-handling middleware were registered, Express would fall back to its built-in default error handler, which responds with a 500 and the stack trace in development.
+
+**Takeaway:** In error dispatch mode Express only runs handlers with arity 4 \`(err, req, res, next)\` — regular 3-arg middleware is skipped until an error handler (or the default) takes over.
+
+---
+
+**Q5: An \`async\` route handler throws after logging \`A\`. In Express 4 vs Express 5, does the 4-arg error middleware fire, and why does the behaviour differ?**
+
+\`\`\`js
+app.get("/", async (req, res) => {
+  console.log("A");
+  throw new Error("async boom");
+});
+
+app.use((err, req, res, next) => {
+  console.log("caught:", err.message);
+  res.status(500).send("error");
+});
+\`\`\`
+
+**Output (Express 4):**
+\`\`\`
+A
+(UnhandledPromiseRejection: "async boom" — request hangs, no "caught" log)
+\`\`\`
+
+**Output (Express 5):**
+\`\`\`
+A
+caught: async boom
+\`\`\`
+
+**Explanation:**
+
+Express's error-forwarding is built on a plain synchronous \`try/catch\` wrapped around each handler invocation. That works for \`throw\` statements in sync code, because the throw propagates up through the call frame and is caught. But when you mark a handler \`async\`, the function implicitly returns a \`Promise\`. A \`throw\` inside an async function does NOT propagate synchronously — it turns into a **rejected promise** that surfaces on the microtask queue.
+
+In Express 4 the router ignores the returned value of your handler, so the rejected promise has no handler attached and becomes an \`UnhandledPromiseRejection\`. The error-handling middleware never fires, no response is sent, and the client hangs until timeout. The standard fix is an async wrapper — \`const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);\` — which explicitly forwards rejections to \`next(err)\`.
+
+Express 5 fixes this at the framework level: the router awaits the handler's return value and automatically calls \`next(err)\` on rejection. So with Express 5 the code above logs \`A\`, the promise rejects, the router catches it, and the 4-arg error middleware logs \`caught: async boom\` and responds with 500 — no wrapper needed.
+
+**Takeaway:** Express 4 does not catch rejected promises from async handlers (wrap with \`.catch(next)\` or use \`express-async-errors\`); Express 5 auto-forwards them to error middleware.
+
+---
+
+**Q6: Inside a chain of route handlers the first one calls \`next("route")\`. Which handlers run, and why is the 4-arg error middleware NOT triggered even though a string was passed to \`next\`?**
+
+\`\`\`js
+app.get("/",
+  (req, res, next) => {
+    console.log("handler 1");
+    next("route");
+  },
+  (req, res, next) => {
+    console.log("handler 2");
+    next();
+  }
+);
+
+app.get("/", (req, res) => {
+  console.log("handler 3");
+  res.send("OK");
+});
+
+app.use((err, req, res, next) => {
+  console.log("error:", err);
+  res.status(500).send("error");
+});
+\`\`\`
+
+**Output for \`GET /\`:**
+\`\`\`
+handler 1
+handler 3
+\`\`\`
+
+**Explanation:**
+
+\`next\` accepts three distinct signals: \`next()\` → "go to the next layer", \`next(err)\` → "go into error-dispatch mode with this error", and \`next("route")\` → "skip the remaining sub-handlers **of the current route** and continue with the next matching route/layer". The string literal \`"route"\` is a special-cased sentinel; any other truthy value is treated as an error.
+
+The first \`app.get("/", …)\` registers TWO sub-handlers as a single route: handler 1 and handler 2. When handler 1 logs and calls \`next("route")\`, Express aborts the sub-handler chain for this route, so handler 2 is skipped. The dispatcher then resumes with the next layer on the app stack that matches \`GET /\`, which is the separate \`app.get("/", …)\` containing handler 3. Handler 3 runs, logs, and sends the response. Because this is NOT an error dispatch, the 4-arg error middleware is never entered.
+
+Note the scope limitation: \`next("route")\` only works inside handlers registered via \`app.METHOD()\` or \`router.METHOD()\` (i.e. real routes). Calling it from within a plain \`app.use\` middleware throws, because there is no "current route" to skip out of.
+
+**Takeaway:** \`next("route")\` skips the remaining sub-handlers of the current route and resumes at the next matching route — it is NOT an error and does not trigger error middleware.
+
+---
+
+### Request/Response Quirks
+
+---
+
+**Q7: A handler calls \`res.send()\` twice with logs in between. What does the client see, what prints to the console, and what error is thrown on the second send?**
+
+\`\`\`js
+app.get("/", (req, res) => {
+  res.send("first");
+  console.log("A");
+  res.send("second");
+  console.log("B");
+});
+\`\`\`
+
+**Output:**
+\`\`\`
+A
+Error [ERR_HTTP_HEADERS_SENT]: Cannot set headers after they are sent to the client
+\`\`\`
+
+**Explanation:**
+
+\`res.send()\` is not a \`return\` — it writes the HTTP status line, headers, and body to the underlying Node.js \`ServerResponse\`, then calls \`res.end()\` to flush and close the response stream. It does NOT abort the rest of your function. Execution continues to the next statement normally.
+
+So the trace is: \`res.send("first")\` serializes the payload, writes \`Content-Type\` and \`Content-Length\` headers, and ends the response — the client now has \`"first"\`. Next, \`console.log("A")\` runs and prints \`A\`. Then \`res.send("second")\` tries to set headers again on an already-finished response. Node throws \`Error [ERR_HTTP_HEADERS_SENT]: Cannot set headers after they are sent to the client\`, which aborts the handler so \`console.log("B")\` never runs.
+
+If the error isn't caught by a global error handler or \`uncaughtException\`, it crashes the process on older Node versions or just logs with a broken response on newer ones. The canonical fixes are: (a) \`return res.send(...)\` to stop execution after a response, (b) branch with \`if/else\` so only one path sends, or (c) use \`res.headersSent\` as a guard before subsequent \`res.*\` calls.
+
+**Takeaway:** \`res.send()\` completes the response but does not return from the function — always \`return res.send(...)\` or guard with \`if (!res.headersSent)\` to avoid \`ERR_HTTP_HEADERS_SENT\`.
+
+---
+
+**Q8: For the same plain object, what \`Content-Type\` does \`res.send(data)\` set versus \`res.json(data)\`, and where do the two methods actually diverge in behaviour?**
+
+\`\`\`js
+app.get("/", (req, res) => {
+  const data = { status: "ok", count: 0 };
+
+  res.send(data);   // A: Content-Type?
+  // vs
+  res.json(data);   // B: Content-Type?
+});
+\`\`\`
+
+**Output:**
+- A: \`Content-Type: application/json; charset=utf-8\` — body \`{"status":"ok","count":0}\`
+- B: \`Content-Type: application/json; charset=utf-8\` — body \`{"status":"ok","count":0}\`
+
+**Explanation:**
+
+Internally, \`res.send()\` is a generic responder that branches on the type of its argument: a \`Buffer\` becomes \`application/octet-stream\`, a string becomes \`text/html\` (unless already set), and an **object or array is JSON-stringified and delegated to \`res.json()\`**. So for a plain object the two calls converge on the same code path and produce identical wire output.
+
+The real differences show up at the edges. \`res.json()\` always runs the value through \`JSON.stringify\` (respecting \`app.get('json spaces')\`, \`json replacer\`, \`json escape\`), which means \`res.json(null)\` writes the literal four-character body \`null\`, while \`res.send(null)\` sends a \`204\`-like empty body with \`Content-Length: 0\`. Likewise \`res.json("hi")\` sends the JSON string \`"hi"\` (with quotes) as \`application/json\`, whereas \`res.send("hi")\` sends \`hi\` as \`text/html\`. For primitives like numbers — \`res.send(404)\` is historically interpreted as "set status 404" (deprecated pitfall) while \`res.json(404)\` sends the body \`404\`.
+
+For REST APIs the recommendation is to use \`res.json()\` explicitly. It documents intent, avoids the type-dispatch surprises of \`res.send()\`, and guarantees correct JSON semantics for \`null\`, arrays, and numbers.
+
+**Takeaway:** For objects they behave identically, but \`res.json()\` forces JSON serialization for every input (including \`null\` and primitives) — prefer it for API responses.
+
+---
+
+**Q9: An \`app.param("id", ...)\` handler is registered once. How often does it fire for \`GET /users/42\` vs \`GET /posts/7\`, and at what point in the dispatch does it run?**
+
+\`\`\`js
+app.param("id", (req, res, next, id) => {
+  console.log("param:", id);
+  next();
+});
+
+app.get("/users/:id", (req, res) => {
+  console.log("route:", req.params.id);
+  res.send("OK");
+});
+
+app.get("/posts/:id", (req, res) => {
+  console.log("posts:", req.params.id);
+  res.send("OK");
+});
+\`\`\`
+
+**Output for \`GET /users/42\`:**
+\`\`\`
+param: 42
+route: 42
+\`\`\`
+
+**Output for \`GET /posts/7\`:**
+\`\`\`
+param: 7
+posts: 7
+\`\`\`
+
+**Explanation:**
+
+\`app.param(name, fn)\` registers a **parameter-processing middleware** keyed by parameter name, not by route path. When Express is about to enter any route whose pattern contains \`:name\`, it first runs all registered \`app.param\` callbacks for that name. The callback has the special 4-arg signature \`(req, res, next, value [, name])\` — the value is passed as the fourth argument so you can validate or hydrate it without re-reading \`req.params\`.
+
+For \`GET /users/42\` the dispatcher matches the \`/users/:id\` route. Before invoking the route handler, Express notices that \`:id\` has a registered param processor, so it runs that processor first: it logs \`param: 42\` and calls \`next()\`, which now enters the route handler itself — \`route: 42\`. The same happens for \`/posts/:id\`: the param callback runs once because that route also contains \`:id\`, then the \`/posts/:id\` handler prints \`posts: 7\`. Importantly, param callbacks run **once per request, per matching route**, and are cached so a single callback won't fire twice if the same param name appears repeatedly in one route's chain.
+
+This makes \`app.param\` the idiomatic place for concerns like "look up a user by id and attach \`req.user\`" or "reject a non-numeric id with 400" — the logic lives in one place and automatically applies to every route that uses \`:id\`.
+
+**Takeaway:** \`app.param(name, fn)\` runs once before any route containing \`:name\`, making it the canonical hook for parameter validation or resource hydration across routes.
+
+---
+
+**Q10: Two versions of the same app differ only in whether \`app.use(express.json())\` is registered before or after the \`POST /api\` route. For a request with body \`{"name":"John"}\`, why is \`req.body\` parsed in one and \`undefined\` in the other?**
+
+\`\`\`js
+app.use(express.json());
+
+app.post("/api", (req, res) => {
+  console.log("body:", req.body);
+  res.send("OK");
+});
+
+// vs
+
+app.post("/api", (req, res) => {
+  console.log("body:", req.body);
+  res.send("OK");
+});
+
+app.use(express.json());
+\`\`\`
+
+**Output (first version):** \`body: { name: 'John' }\` — parsed JSON
+
+**Output (second version):** \`body: undefined\`
+
+**Explanation:**
+
+Layers in Express are stored in a single ordered array inside the router stack, and request dispatch walks that array **top-to-bottom in registration order**. There is no hoisting, no priority system, no automatic "body parsers always run first". The only thing that decides execution order is the order you called \`app.use\` / \`app.METHOD\` at startup.
+
+\`express.json()\` is a body-parsing middleware that reads the raw request stream, parses it as JSON if \`Content-Type: application/json\`, and assigns the parsed value to \`req.body\`. In the first version it is registered **before** the POST route, so on every request the parser runs first, \`req.body\` is populated, and by the time the route handler logs it, the object is there.
+
+In the second version the parser is still registered, but **after** the route. Dispatch enters the route handler first; at that moment \`req.body\` has not been parsed (it defaults to \`undefined\`). The handler logs \`undefined\` and sends the response, which ends the request — the \`app.use(express.json())\` layer further down the stack is never reached. Because the handler short-circuits with \`res.send(...)\`, the parser below it is effectively dead code for this route.
+
+**Takeaway:** Express dispatches middleware in registration order — always register body parsers, CORS, cookies, and session middleware before the routes that depend on them.
+
+---
+
+### Key Rules
+
+\`\`\`
+Express Output Cheat Sheet:
+1. Middleware executes in registration order — first registered, first called
+2. Code after next() runs in reverse order (stack unwinding)
+3. No next() = chain stops (short-circuit)
+4. Sync errors auto-forward to error middleware; async errors don't (Express 4)
+5. Error middleware must have exactly 4 params (err, req, res, next)
+6. next('route') skips current route's handlers, not all routes
+7. res.send() doesn't stop execution — use return
+8. app.param() fires for all routes with matching parameter
+9. Middleware order = registration order (body parser before routes)
+10. Multiple handlers on same route chain via next()
+\`\`\`
+
+---
+
+## References
+
+- [Express.js Documentation](https://expressjs.com) — Official API reference and guides
+- [Express.js GitHub](https://github.com/expressjs/express) — Source code and middleware list
+- [Express Best Practices](https://expressjs.com/en/advanced/best-practice-security.html) — Security and performance guidelines
+`;export{e as default};
