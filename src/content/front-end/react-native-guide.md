@@ -157,14 +157,20 @@ All on-screen text must be inside `<Text>`. You cannot put a string directly in 
 ```tsx
 import { Text } from 'react-native';
 
-<Text style={{ fontSize: 18, fontWeight: '600' }}>
-  Hello mobile world
-</Text>
+function Example() {
+  return (
+    <>
+      <Text style={{ fontSize: 18, fontWeight: '600' }}>
+        Hello mobile world
+      </Text>
 
-// Nested Text inherits styles (unlike View)
-<Text style={{ color: 'black' }}>
-  Hello <Text style={{ fontWeight: 'bold' }}>bold</Text> world
-</Text>
+      {/* Nested Text inherits styles (unlike View) */}
+      <Text style={{ color: 'black' }}>
+        Hello <Text style={{ fontWeight: 'bold' }}>bold</Text> world
+      </Text>
+    </>
+  );
+}
 ```
 
 Why the rule? Native text rendering on iOS (`UILabel` / `NSAttributedString`) is fundamentally different from layout containers. RN enforces the distinction.
@@ -174,14 +180,20 @@ Why the rule? Native text rendering on iOS (`UILabel` / `NSAttributedString`) is
 ```tsx
 import { Image } from 'react-native';
 
-// Bundled asset — require() resolves at build time
-<Image source={require('./assets/logo.png')} style={{ width: 80, height: 80 }} />
+function Example() {
+  return (
+    <>
+      {/* Bundled asset — require() resolves at build time */}
+      <Image source={require('./assets/logo.png')} style={{ width: 80, height: 80 }} />
 
-// Remote image — you MUST specify width/height, RN won't infer
-<Image source={{ uri: 'https://example.com/pic.jpg' }} style={{ width: 200, height: 200 }} />
+      {/* Remote image — you MUST specify width/height, RN won't infer */}
+      <Image source={{ uri: 'https://example.com/pic.jpg' }} style={{ width: 200, height: 200 }} />
 
-// resizeMode: cover, contain, stretch, repeat, center
-<Image source={{ uri }} style={{ width: 200, height: 200 }} resizeMode="cover" />
+      {/* resizeMode: cover, contain, stretch, repeat, center */}
+      <Image source={{ uri }} style={{ width: 200, height: 200 }} resizeMode="cover" />
+    </>
+  );
+}
 ```
 
 ### ScrollView
@@ -327,11 +339,17 @@ const styles = StyleSheet.create({
 ### Combining styles
 
 ```tsx
-// Array — later overrides earlier
-<View style={[styles.card, styles.shadow, isActive && styles.cardActive]} />
+function Example() {
+  return (
+    <>
+      {/* Array — later overrides earlier */}
+      <View style={[styles.card, styles.shadow, isActive && styles.cardActive]} />
 
-// Falsy entries are ignored (great for conditional classes)
-<Text style={[styles.text, error && { color: 'red' }]} />
+      {/* Falsy entries are ignored (great for conditional classes) */}
+      <Text style={[styles.text, error && { color: 'red' }]} />
+    </>
+  );
+}
 ```
 
 ### Platform-specific styles
@@ -387,24 +405,30 @@ So on RN, `<View>` lays children **top-to-bottom** by default.
 ### Common patterns
 
 ```tsx
-// Full-height container
-<View style={{ flex: 1 }} />
+function Example() {
+  return (
+    <>
+      {/* Full-height container */}
+      <View style={{ flex: 1 }} />
 
-// Center content
-<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-  <Text>Centered</Text>
-</View>
+      {/* Center content */}
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Centered</Text>
+      </View>
 
-// Horizontal row with space between
-<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-  <Text>Left</Text>
-  <Text>Right</Text>
-</View>
+      {/* Horizontal row with space between */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Text>Left</Text>
+        <Text>Right</Text>
+      </View>
 
-// 3-column grid
-<View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-  {items.map(i => <View key={i.id} style={{ width: '33.33%' }} />)}
-</View>
+      {/* 3-column grid */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {items.map(i => <View key={i.id} style={{ width: '33.33%' }} />)}
+      </View>
+    </>
+  );
+}
 ```
 
 ### `flex: 1` vs `height: '100%'`
@@ -487,7 +511,7 @@ The #1 perf mistake is passing an inline arrow that recreates every render, forc
 const Row = React.memo(({ item, onPress }: RowProps) => (
   <Pressable onPress={() => onPress(item.id)}><Text>{item.name}</Text></Pressable>
 ));
-const handlePress = useCallback((id: string) => { ... }, []);
+const handlePress = useCallback((id: string) => { /* … */ }, []);
 const renderItem = useCallback(({ item }) => (
   <Row item={item} onPress={handlePress} />
 ), [handlePress]);
@@ -955,8 +979,8 @@ function LoginForm() {
 ```tsx
 const passwordRef = useRef<TextInput>(null);
 
-<TextInput returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
-<TextInput ref={passwordRef} secureTextEntry returnKeyType="done" onSubmitEditing={handleSubmit} />
+<TextInput returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />;
+<TextInput ref={passwordRef} secureTextEntry returnKeyType="done" onSubmitEditing={handleSubmit} />;
 ```
 
 ---
@@ -1582,22 +1606,28 @@ Accessibility is not optional — both stores test for it, and millions of users
 ### Labels & roles
 
 ```tsx
-<Pressable
-  accessible
-  accessibilityRole="button"
-  accessibilityLabel="Submit form"
-  accessibilityHint="Sends your answers to the server"
-  accessibilityState={{ disabled: isSubmitting }}
-  onPress={submit}
->
-  <Text>Submit</Text>
-</Pressable>
+function Example() {
+  return (
+    <>
+      <Pressable
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel="Submit form"
+        accessibilityHint="Sends your answers to the server"
+        accessibilityState={{ disabled: isSubmitting }}
+        onPress={submit}
+      >
+        <Text>Submit</Text>
+      </Pressable>
 
-<Image
-  source={{ uri }}
-  accessible
-  accessibilityLabel="Profile photo of Alice"
-/>
+      <Image
+        source={{ uri }}
+        accessible
+        accessibilityLabel="Profile photo of Alice"
+      />
+    </>
+  );
+}
 ```
 
 ### Dynamic type / font scaling
@@ -1605,8 +1635,14 @@ Accessibility is not optional — both stores test for it, and millions of users
 iOS and Android let users scale system font size. By default RN scales your `Text` — sometimes you don't want that (e.g., a logo).
 
 ```tsx
-<Text allowFontScaling={false}>LOGO</Text>
-<Text maxFontSizeMultiplier={1.5}>Capped growth</Text>
+function Example() {
+  return (
+    <>
+      <Text allowFontScaling={false}>LOGO</Text>
+      <Text maxFontSizeMultiplier={1.5}>Capped growth</Text>
+    </>
+  );
+}
 ```
 
 ### Reduce motion

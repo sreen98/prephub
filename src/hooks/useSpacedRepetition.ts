@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { getJSON, setJSON } from '../lib/storage';
 
 const STORAGE_KEY = 'sr-schedule' as const;
 
@@ -38,8 +39,7 @@ export interface UseSpacedRepetitionReturn {
 }
 
 function load(): ScheduleMap {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) as string) || {}; }
-  catch { return {}; }
+  return getJSON(STORAGE_KEY, {});
 }
 
 function today(): string {
@@ -83,7 +83,7 @@ export function useSpacedRepetition(): UseSpacedRepetitionReturn {
   const [schedule, setSchedule] = useState<ScheduleMap>(load);
 
   const save = useCallback((next: ScheduleMap): void => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setJSON(STORAGE_KEY, next);
     setSchedule(next);
   }, []);
 

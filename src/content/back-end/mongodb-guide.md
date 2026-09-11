@@ -49,7 +49,7 @@ Key characteristics:
 
 ### 2.1 Documents
 
-```js
+```json
 // A MongoDB document (stored as BSON)
 {
   _id: ObjectId("65a1b2c3d4e5f6a7b8c9d0e1"),  // auto-generated unique ID
@@ -97,7 +97,7 @@ id.toString();        // "65a1b2c3d4e5f6a7b8c9d0e1"
 ### 2.4 Data Types
 
 ```js
-{
+const bsonTypes = {
   string: "hello",
   number: 42,                       // stored as int32, int64, or double
   decimal: NumberDecimal("19.99"),   // exact decimal (financial data)
@@ -110,7 +110,7 @@ id.toString();        // "65a1b2c3d4e5f6a7b8c9d0e1"
   binary: BinData(0, "base64data"),
   regex: /pattern/i,
   timestamp: Timestamp()             // internal, for replication
-}
+};
 ```
 
 ---
@@ -295,7 +295,7 @@ db.users.find({ $text: { $search: "senior developer" } });
 
 ### 4.6 Update Operators
 
-```js
+```json
 // Set fields
 { $set: { name: "Alice", age: 31 } }
 
@@ -386,7 +386,7 @@ db.orders.aggregate([
 
 ### 5.2 Common Stages
 
-```js
+```json
 // $match - filter documents
 { $match: { age: { $gte: 18 } } }
 
@@ -451,48 +451,48 @@ db.orders.aggregate([
 
 ```js
 // String
-{ $concat: ["$firstName", " ", "$lastName"] }
-{ $toUpper: "$name" }
-{ $toLower: "$email" }
-{ $substr: ["$name", 0, 3] }
+({ $concat: ["$firstName", " ", "$lastName"] });
+({ $toUpper: "$name" });
+({ $toLower: "$email" });
+({ $substr: ["$name", 0, 3] });
 
 // Math
-{ $add: ["$price", "$tax"] }
-{ $subtract: ["$total", "$discount"] }
-{ $multiply: ["$price", "$qty"] }
-{ $divide: ["$total", "$count"] }
-{ $round: ["$avg", 2] }
+({ $add: ["$price", "$tax"] });
+({ $subtract: ["$total", "$discount"] });
+({ $multiply: ["$price", "$qty"] });
+({ $divide: ["$total", "$count"] });
+({ $round: ["$avg", 2] });
 
 // Date
-{ $year: "$createdAt" }
-{ $month: "$createdAt" }
-{ $dayOfMonth: "$createdAt" }
-{ $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }
+({ $year: "$createdAt" });
+({ $month: "$createdAt" });
+({ $dayOfMonth: "$createdAt" });
+({ $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } });
 
 // Conditional
-{ $cond: {
+({ $cond: {
   if: { $gte: ["$score", 90] },
   then: "A",
   else: "B"
-}}
+}});
 
-{ $switch: {
+({ $switch: {
   branches: [
     { case: { $gte: ["$score", 90] }, then: "A" },
     { case: { $gte: ["$score", 80] }, then: "B" },
     { case: { $gte: ["$score", 70] }, then: "C" },
   ],
   default: "F"
-}}
+}});
 
 // Array
-{ $size: "$skills" }
-{ $arrayElemAt: ["$scores", 0] }
-{ $filter: {
+({ $size: "$skills" });
+({ $arrayElemAt: ["$scores", 0] });
+({ $filter: {
   input: "$scores",
   as: "score",
   cond: { $gte: ["$$score", 70] }
-}}
+}});
 ```
 
 ---
@@ -572,7 +572,7 @@ db.users.find({ email: "alice@example.com" }).explain("executionStats");
 
 ### 7.1 Embedding vs Referencing
 
-```js
+```json
 // EMBEDDING (denormalized) — good for 1:few, data read together
 {
   _id: ObjectId("..."),
@@ -614,7 +614,7 @@ db.users.find({ email: "alice@example.com" }).explain("executionStats");
 
 ### 7.3 Common Patterns
 
-```js
+```json
 // Pattern 1: Subset pattern — embed frequently accessed fields, reference the rest
 // User profile (embedded subset)
 {
@@ -718,8 +718,8 @@ const User = mongoose.model('User', userSchema);
 // Create
 const user = await User.create({ name: 'Alice', email: 'a@b.com' });
 // or
-const user = new User({ name: 'Alice' });
-await user.save();
+const userV2 = new User({ name: 'Alice' });
+await userV2.save();
 
 // Read
 const users = await User.find({ isActive: true })
@@ -729,8 +729,8 @@ const users = await User.find({ isActive: true })
   .skip(0)
   .lean();                                 // return plain objects (faster)
 
-const user = await User.findById(id);
-const user = await User.findOne({ email: 'a@b.com' });
+const userV2V2 = await User.findById(id);
+const userV2V2V2 = await User.findOne({ email: 'a@b.com' });
 
 // Update
 await User.findByIdAndUpdate(id, { name: 'Bob' }, { new: true, runValidators: true });
@@ -757,7 +757,7 @@ const order = await Order.findById(id)
   .populate('product');
 
 // Deep populate
-const order = await Order.findById(id)
+const orderV2 = await Order.findById(id)
   .populate({
     path: 'user',
     select: 'name department',
@@ -945,7 +945,7 @@ await User.bulkWrite([
 
 ```js
 // 1. Authentication
-mongod --auth                              // enable auth
+// mongod --auth                           — enable auth (shell, not JS)
 
 // 2. Role-based access control
 db.createUser({
@@ -1035,7 +1035,7 @@ Use `findOne()` when you need a single document (by ID or unique field). Use `fi
 - **Embedding**: Store related data inside the same document (nested objects/arrays). Good for data that's always read together.
 - **Referencing**: Store related data in separate collections and link via `ObjectId`. Good for large, independent, or many-to-many data.
 
-```js
+```json
 // Embedded
 { name: "Alice", address: { city: "NYC" } }
 
@@ -1123,7 +1123,7 @@ Limitations: Transactions add overhead, require replica sets, and have a 60-seco
 
 `$lookup` performs a left outer join with another collection, similar to SQL JOIN:
 
-```js
+```json
 { $lookup: {
   from: "orders",              // collection to join
   localField: "_id",           // field from input documents
@@ -1136,7 +1136,7 @@ The result adds an array field (`userOrders`) to each document. If no match, the
 
 For complex joins, use the pipeline form:
 ```js
-{ $lookup: {
+const recentOrdersLookup = { $lookup: {
   from: "orders",
   let: { userId: "$_id" },
   pipeline: [
@@ -1156,7 +1156,7 @@ For complex joins, use the pipeline form:
 
 **Q11: How would you design a schema for a social media feed (posts, comments, likes)?**
 
-```js
+```json
 // Posts — own collection (queried independently, can grow large)
 {
   _id: ObjectId("..."),

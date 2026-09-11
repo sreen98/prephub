@@ -639,24 +639,26 @@ The path: app server → push provider (FCM for Chrome/Edge/Firefox; APNs for Sa
 ### Client — subscribe
 
 ```js
-// Register a Service Worker first.
-const reg = await navigator.serviceWorker.register('/sw.js');
+async function run() {
+  // Register a Service Worker first.
+  const reg = await navigator.serviceWorker.register('/sw.js');
 
-// Ask permission.
-const permission = await Notification.requestPermission();
-if (permission !== 'granted') return;
+  // Ask permission.
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') return;
 
-// Subscribe to push. VAPID public key identifies your app to the push service.
-const sub = await reg.pushManager.subscribe({
-  userVisibleOnly: true, // browser policy: must show a notification
-  applicationServerKey: VAPID_PUBLIC_KEY_AS_UINT8ARRAY,
-});
+  // Subscribe to push. VAPID public key identifies your app to the push service.
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true, // browser policy: must show a notification
+    applicationServerKey: VAPID_PUBLIC_KEY_AS_UINT8ARRAY,
+  });
 
-// Send `sub.endpoint`, `sub.toJSON().keys.p256dh`, and `keys.auth` to your server.
-await fetch('/api/push/subscribe', {
-  method: 'POST',
-  body: JSON.stringify(sub),
-});
+  // Send `sub.endpoint`, `sub.toJSON().keys.p256dh`, and `keys.auth` to your server.
+  await fetch('/api/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(sub),
+  });
+}
 ```
 
 ### Service Worker — receive

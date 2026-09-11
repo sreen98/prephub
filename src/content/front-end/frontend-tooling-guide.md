@@ -55,7 +55,7 @@ const App = () => <div className="app"><h1>Hello</h1></div>;
 
 // What the bundler produces (React 17+ automatic runtime)
 import { jsx as _jsx } from 'react/jsx-runtime';
-const App = () => _jsx('div', {
+const AppV2 = () => _jsx('div', {
   className: 'app',
   children: _jsx('h1', { children: 'Hello' })
 });
@@ -474,7 +474,9 @@ How it works:
 export function add(a, b) { return a + b; }      // USED — kept
 export function subtract(a, b) { return a - b; }  // UNUSED — removed
 export function multiply(a, b) { return a * b; }  // UNUSED — removed
+```
 
+```js
 // app.js
 import { add } from './math';
 console.log(add(2, 3));
@@ -657,8 +659,7 @@ Key difference from webpack's HMR: Vite only sends the changed module. Webpack m
 // vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';     // uses Babel
-// OR
-import react from '@vitejs/plugin-react-swc'; // uses SWC (faster)
+// OR: import react from '@vitejs/plugin-react-swc';  — uses SWC, faster
 
 export default defineConfig({
   // Plugins

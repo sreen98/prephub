@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { getJSON, setJSON } from '../lib/storage';
 
 const STORAGE_KEY = 'checkpoints' as const;
 
@@ -20,15 +21,14 @@ export interface UseCheckpointsReturn {
 }
 
 function load(): CheckpointsMap {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) as string) || {}; }
-  catch { return {}; }
+  return getJSON(STORAGE_KEY, {});
 }
 
 export function useCheckpoints(): UseCheckpointsReturn {
   const [checkpoints, setCheckpoints] = useState<CheckpointsMap>(load);
 
   const save = useCallback((next: CheckpointsMap): void => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setJSON(STORAGE_KEY, next);
     setCheckpoints(next);
   }, []);
 

@@ -67,13 +67,19 @@ Both platforms build a tree of accessible elements from the view hierarchy. An e
 Native components populate it automatically. Custom ones don't:
 
 ```jsx
-// invisible to a screen reader — announces nothing, cannot be activated
-<View onTouchEnd={submit}><Text>Submit</Text></View>
+function Example() {
+  return (
+    <>
+      {/* invisible to a screen reader — announces nothing, cannot be activated */}
+      <View onTouchEnd={submit}><Text>Submit</Text></View>
 
-// correct
-<Pressable accessibilityRole="button" accessibilityLabel="Submit application" onPress={submit}>
-  <Text>Submit</Text>
-</Pressable>
+      {/* correct */}
+      <Pressable accessibilityRole="button" accessibilityLabel="Submit application" onPress={submit}>
+        <Text>Submit</Text>
+      </Pressable>
+    </>
+  );
+}
 ```
 
 Three ways elements get removed from the tree, and confusing them causes real bugs:
@@ -109,13 +115,15 @@ The distinction interviewers probe: **`accessibilityLabel` is the name, `accessi
 Platform-specific props worth knowing:
 
 ```jsx
-accessibilityViewIsModal={true}              // iOS: trap VO inside this view
-accessibilityElementsHidden={true}           // iOS: hide subtree
-importantForAccessibility="no-hide-descendants"  // Android: hide subtree
-accessibilityLiveRegion="polite"             // Android: announce changes
-accessibilityLabelledBy={id}                 // Android: label from another element
-accessibilityActions={[{ name: 'activate', label: 'Open' }]}
-onAccessibilityAction={e => …}               // custom rotor/menu actions
+<View
+  accessibilityViewIsModal={true}              // iOS: trap VO inside this view
+  accessibilityElementsHidden={true}           // iOS: hide subtree
+  importantForAccessibility="no-hide-descendants"  // Android: hide subtree
+  accessibilityLiveRegion="polite"             // Android: announce changes
+  accessibilityLabelledBy={id}                 // Android: label from another element
+  accessibilityActions={[{ name: 'activate', label: 'Open' }]}
+  onAccessibilityAction={handleAction}         // custom rotor/menu actions
+/>
 ```
 
 ---
@@ -136,6 +144,8 @@ Common accessibilityRole values:
 ```jsx
 <Pressable accessibilityRole="tab"
            accessibilityState={{ selected: activeTab === 'jobs' }}>
+  <Text>Jobs</Text>
+</Pressable>
 ```
 
 `accessibilityState` keys: `disabled`, `selected`, `checked` (supports `'mixed'`), `busy`, `expanded`. Note `checked` is for checkboxes and radios while `selected` is for tabs and list selection — mixing them produces odd announcements.
@@ -149,21 +159,27 @@ Common accessibilityRole values:
 By default every `Text` is its own focusable element, so a card with five text nodes takes five swipes and announces fragments. Group it:
 
 ```jsx
-// 5 stops, fragmented
-<View>
-  <Text>Senior Engineer</Text><Text>Acme Ltd</Text>
-  <Text>London</Text><Text>£90k</Text><Text>2 days ago</Text>
-</View>
+function Example() {
+  return (
+    <>
+      {/* 5 stops, fragmented */}
+      <View>
+        <Text>Senior Engineer</Text><Text>Acme Ltd</Text>
+        <Text>London</Text><Text>£90k</Text><Text>2 days ago</Text>
+      </View>
 
-// 1 stop, coherent
-<Pressable
-  accessible={true}
-  accessibilityRole="button"
-  accessibilityLabel="Senior Engineer at Acme Ltd, London, £90,000, posted 2 days ago"
-  onPress={open}
->
-  {/* visual children unchanged */}
-</Pressable>
+      {/* 1 stop, coherent */}
+      <Pressable
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel="Senior Engineer at Acme Ltd, London, £90,000, posted 2 days ago"
+        onPress={open}
+      >
+        {/* visual children unchanged */}
+      </Pressable>
+    </>
+  );
+}
 ```
 
 `accessible={true}` on the container makes it a single element and suppresses child elements on iOS. This is the highest-leverage change in most React Native apps — it turns a 60-swipe list screen into a 12-swipe one.
@@ -240,14 +256,20 @@ Support **switch control** and external keyboards by keeping everything reachabl
 Users routinely set text to 200% or more. On iOS this is **Dynamic Type**; on Android, **font size** and **display size** (which scales `dp` too).
 
 ```jsx
-// RN scales `fontSize` with the OS setting by default — keep it that way
-<Text style={{ fontSize: 16 }}>Scales automatically</Text>
+function Example() {
+  return (
+    <>
+      {/* RN scales `fontSize` with the OS setting by default — keep it that way */}
+      <Text style={{ fontSize: 16 }}>Scales automatically</Text>
 
-// clamp rather than disable, when a layout genuinely can't take 300%
-<Text maxFontSizeMultiplier={1.8}>Title</Text>
+      {/* clamp rather than disable, when a layout genuinely can't take 300% */}
+      <Text maxFontSizeMultiplier={1.8}>Title</Text>
 
-// never do this — it opts the user out entirely
-<Text allowFontScaling={false}>Broken</Text>
+      {/* never do this — it opts the user out entirely */}
+      <Text allowFontScaling={false}>Broken</Text>
+    </>
+  );
+}
 ```
 
 `allowFontScaling={false}` is an accessibility failure and a common one, usually added to "fix" a layout. Fix the layout instead:
@@ -312,20 +334,26 @@ Also honour **Reduce Transparency** (iOS blur effects) and **prefers-crossfade-t
 The classic mobile bug: a modal opens, but the screen reader stays on the content behind it, so a user swipes through invisible controls.
 
 ```jsx
-<Modal visible={open} onRequestClose={close}>
-  <View
-    accessibilityViewIsModal={true}          // iOS: trap VoiceOver here
-    accessibilityRole="alert"                 // announce on appear
-  >
-    <Text ref={titleRef} accessibilityRole="header">Delete application?</Text>
-    …
-  </View>
-</Modal>
+function Example() {
+  return (
+    <>
+      <Modal visible={open} onRequestClose={close}>
+        <View
+          accessibilityViewIsModal={true}          // iOS: trap VoiceOver here
+          accessibilityRole="alert"                 // announce on appear
+        >
+          <Text ref={titleRef} accessibilityRole="header">Delete application?</Text>
+          …
+        </View>
+      </Modal>
 
-// Android: hide the background subtree explicitly
-<View importantForAccessibility={open ? 'no-hide-descendants' : 'auto'}>
-  {screenContent}
-</View>
+      {/* Android: hide the background subtree explicitly */}
+      <View importantForAccessibility={open ? 'no-hide-descendants' : 'auto'}>
+        {screenContent}
+      </View>
+    </>
+  );
+}
 ```
 
 The two props do the same job on different platforms and **both are required** — this is the single most commonly missed pair in React Native accessibility. On open, move focus to the modal's heading with `setAccessibilityFocus`; on close, return focus to the control that opened it, which is the same discipline as the web.
@@ -337,21 +365,27 @@ For screen transitions, React Navigation announces the new screen on both platfo
 ## 13. Forms and Errors
 
 ```jsx
-<Text nativeID="emailLabel">Email address</Text>
-<TextInput
-  accessibilityLabel="Email address"
-  accessibilityLabelledBy="emailLabel"        // Android
-  accessibilityHint="We'll send your confirmation here"
-  accessibilityState={{ invalid: !!error }}
-  keyboardType="email-address"
-  autoComplete="email"                        // enables autofill + password managers
-  textContentType="emailAddress"              // iOS autofill
-  importantForAutofill="yes"
-  returnKeyType="next"
-/>
-{error && (
-  <Text accessibilityLiveRegion="assertive" accessibilityRole="alert">{error}</Text>
-)}
+function Example() {
+  return (
+    <>
+      <Text nativeID="emailLabel">Email address</Text>
+      <TextInput
+        accessibilityLabel="Email address"
+        accessibilityLabelledBy="emailLabel"        // Android
+        accessibilityHint="We'll send your confirmation here"
+        accessibilityState={{ invalid: !!error }}
+        keyboardType="email-address"
+        autoComplete="email"                        // enables autofill + password managers
+        textContentType="emailAddress"              // iOS autofill
+        importantForAutofill="yes"
+        returnKeyType="next"
+      />
+      {error && (
+        <Text accessibilityLiveRegion="assertive" accessibilityRole="alert">{error}</Text>
+      )}
+    </>
+  );
+}
 ```
 
 Points that matter on mobile specifically: a `TextInput` **placeholder is not a label** — it disappears on focus and some readers ignore it; **`autoComplete`/`textContentType` are accessibility features**, because autofill removes typing for people for whom typing is expensive; the right **`keyboardType`** reduces effort; and errors must be announced, not only coloured. On submit, move focus to the **first invalid field** and announce a summary.
@@ -363,8 +397,14 @@ Points that matter on mobile specifically: a `TextInput` **placeholder is not a 
 **Images.** Every meaningful image needs a label; decorative ones must be hidden, not labelled with empty text:
 
 ```jsx
-<Image source={logo} accessibilityRole="image" accessibilityLabel="Acme Ltd logo" />
-<Image source={divider} accessible={false} accessibilityElementsHidden />
+function Example() {
+  return (
+    <>
+      <Image source={logo} accessibilityRole="image" accessibilityLabel="Acme Ltd logo" />
+      <Image source={divider} accessible={false} accessibilityElementsHidden />
+    </>
+  );
+}
 ```
 
 Never include "image of" — the role already conveys that.

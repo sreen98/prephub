@@ -68,7 +68,7 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 
 ### Document Structure
 
-```javascript
+```json
 // A MongoDB document is a JSON-like object
 {
   _id: ObjectId("507f1f77bcf86cd799439011"),
@@ -97,7 +97,7 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 
 ### Data Types
 
-```javascript
+```json
 // Common MongoDB/BSON types
 {
   stringField: "hello",                        // String
@@ -120,7 +120,7 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 
 ### When to Embed
 
-```javascript
+```json
 // Embed when:
 // 1. Data is always accessed together
 // 2. Child data belongs to exactly one parent
@@ -154,7 +154,7 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 
 ### When to Reference
 
-```javascript
+```json
 // Reference when:
 // 1. Related data is accessed independently
 // 2. Array can grow unbounded
@@ -202,7 +202,7 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 // "Denormalized reference"
 
 // Job document with partial department data
-{
+const jobWithDenormalisedDepartment = {
   _id: ObjectId("job-123"),
   title: "React Developer",
   department: {
@@ -210,7 +210,7 @@ A comprehensive guide to database schema design for MongoDB and relational datab
     name: "Engineering"       // Denormalized for read performance
   }
   // Full department data lives in departments collection
-}
+};
 
 // Pros: Fast reads (no join needed for display name)
 // Cons: Must update denormalized data when department name changes
@@ -240,7 +240,7 @@ Write performance   Atomic update        Separate updates
 
 Store varying attributes as key-value pairs when different documents have different fields.
 
-```javascript
+```json
 // Instead of many sparse fields:
 // BAD: { color: "red", size: "L", voltage: null, material: null, ... }
 
@@ -264,7 +264,7 @@ Store varying attributes as key-value pairs when different documents have differ
 
 Group time-series or streaming data into buckets to reduce document count.
 
-```javascript
+```json
 // Instead of one document per event:
 // BAD: 1 million sensor readings = 1 million documents
 
@@ -292,7 +292,7 @@ Pre-compute frequently accessed derived values.
 
 ```javascript
 // Instead of calculating on every read:
-{
+const jobWithPrecomputedStats = {
   _id: ObjectId("job-123"),
   title: "React Developer",
   candidates: [/* ... */],
@@ -311,7 +311,7 @@ Pre-compute frequently accessed derived values.
     }
   },
   lastUpdated: ISODate("2026-03-06T10:00:00Z")
-}
+};
 
 // Update stats when a candidate is added/updated
 await db.jobs.updateOne(
@@ -329,7 +329,7 @@ Store different entity types in the same collection with a `type` discriminator.
 
 ```javascript
 // Notifications collection
-{
+const emailNotification = {
   _id: ObjectId("..."),
   type: "email",
   recipientId: ObjectId("user-1"),
@@ -337,9 +337,9 @@ Store different entity types in the same collection with a `type` discriminator.
   body: "Alice Smith applied for React Developer...",
   sentAt: ISODate("2026-03-06T10:00:00Z"),
   status: "delivered"
-}
+};
 
-{
+const pushNotification = {
   _id: ObjectId("..."),
   type: "push",
   recipientId: ObjectId("user-1"),
@@ -348,9 +348,9 @@ Store different entity types in the same collection with a `type` discriminator.
   deviceToken: "token-xyz",
   sentAt: ISODate("2026-03-06T10:00:00Z"),
   status: "sent"
-}
+};
 
-{
+const smsNotification = {
   _id: ObjectId("..."),
   type: "sms",
   recipientId: ObjectId("user-1"),
@@ -358,14 +358,14 @@ Store different entity types in the same collection with a `type` discriminator.
   message: "Your interview is confirmed",
   sentAt: ISODate("2026-03-06T10:00:00Z"),
   status: "delivered"
-}
+};
 ```
 
 ### Outlier Pattern
 
 Handle documents that deviate from the norm differently.
 
-```javascript
+```json
 // Most users have 1-10 addresses, but some have 1000+
 // Store overflow in a separate collection
 
@@ -393,7 +393,7 @@ Handle documents that deviate from the norm differently.
 
 ### Tree Structures
 
-```javascript
+```json
 // 1. Parent Reference (simplest)
 {
   _id: "Engineering",
@@ -628,7 +628,7 @@ const job = await Job.findById(jobId)
   .populate('createdBy', 'name email');  // Only name and email
 
 // Nested populate
-const job = await Job.findById(jobId)
+const jobV2 = await Job.findById(jobId)
   .populate({
     path: 'department',
     populate: {
@@ -638,7 +638,7 @@ const job = await Job.findById(jobId)
   });
 
 // Conditional populate
-const job = await Job.findById(jobId)
+const jobV2V2 = await Job.findById(jobId)
   .populate({
     path: 'candidates',
     match: { status: 'active' },

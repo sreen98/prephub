@@ -200,7 +200,7 @@ const {
 
   // Actions
   refetch,             // () => Promise - manually trigger a refetch
-} = useQuery({ ... });
+} = useQuery({ /* … */ });
 ```
 
 ### 3.4 Important Distinction: isPending vs isFetching vs isLoading
@@ -269,7 +269,9 @@ const { data } = useQuery({
   refetchInterval: 3000,                       // poll every 3 seconds
   refetchIntervalInBackground: false,          // stop polling when tab is hidden
 });
+```
 
+```tsx
 // Dynamic: stop when done
 const { data } = useQuery({
   queryKey: ['processing', jobId],
@@ -385,7 +387,7 @@ const {
   submittedAt,         // timestamp of last mutate() call
   failureCount,        // number of retries so far
   failureReason,       // error that caused the last retry
-} = useMutation({ ... });
+} = useMutation({ /* … */ });
 ```
 
 ### 4.3 Mutation Callbacks
@@ -563,7 +565,7 @@ function InfiniteList() {
 
 ### 6.2 Custom Hooks (Recommended Pattern)
 
-```ts
+```tsx
 // hooks/use-todos.ts
 export function useTodos(status?: string) {
   return useQuery({
@@ -705,7 +707,7 @@ RQ:     "Server data has its own lifecycle. Let me handle fetch, cache, sync, GC
 
 **Redux + Saga approach (5 files, ~120 lines):**
 
-```ts
+```tsx
 // 1. types.ts
 interface TodosState {
   items: Todo[];
@@ -784,16 +786,18 @@ Same result. No slice, no saga, no selectors, no dispatch, no useEffect.
 
 ```ts
 // slice.ts - add more actions
-updateTodoRequest: (state, action) => { state.updating = true; },
+const extraReducers = {
+  updateTodoRequest: (state, action) => { state.updating = true; },
 updateTodoSuccess: (state, action) => {
   state.updating = false;
   const index = state.items.findIndex(t => t.id === action.payload.id);
   if (index !== -1) state.items[index] = action.payload;
 },
-updateTodoFailure: (state, action) => {
-  state.updating = false;
-  state.error = action.payload;
-},
+  updateTodoFailure: (state, action) => {
+    state.updating = false;
+    state.error = action.payload;
+  },
+};
 
 // saga.ts - add another saga
 function* updateTodoSaga(action) {
@@ -1006,7 +1010,7 @@ useMutation({
     const previous = queryClient.getQueryData(['todos']);
 
     // 3. Optimistically update cache
-    queryClient.setQueryData(['todos'], (old) => /* apply update */);
+    queryClient.setQueryData(['todos'], (old) => undefined /* apply update */);
 
     // 4. Return context with snapshot
     return { previous };
@@ -1086,7 +1090,7 @@ The `enabled` option controls whether the query automatically fires. When `enabl
 Common use cases:
 - **Dependent queries**: Wait for a previous query to finish before fetching
   ```ts
-  useQuery({ queryKey: ['projects', userId], queryFn: ..., enabled: !!userId })
+useQuery({ queryKey: ['projects', userId], queryFn: fetchProjects, enabled: !!userId });
   ```
 - **User-triggered queries**: Only fetch when the user clicks a button (combine with `refetch()`)
 - **Conditional data**: Don't fetch if a feature flag is off or a permission is missing
@@ -1180,7 +1184,7 @@ Three strategies depending on UX requirements:
 
 3. **Wait for all** — Use `useQueries` and derive combined loading state.
    ```tsx
-   const results = useQueries({ queries: [...] });
+   const results = useQueries({ queries: [ /* … */ ] });
    const isAnyLoading = results.some(r => r.isPending);
    ```
 

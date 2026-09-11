@@ -745,7 +745,7 @@ This is the "component design" variant of frontend system design — common in S
 ### Public API
 
 ```tsx
-<Tabs defaultValue="overview" onChange={(v) => …}>
+<Tabs defaultValue="overview" onChange={(v) => {}}>
   <TabList>
     <Tab value="overview">Overview</Tab>
     <Tab value="specs">Specs</Tab>
@@ -850,6 +850,8 @@ For URL-driven tabs (`/product/123?tab=specs`), you'd accept `value` / `onChange
 ```tsx
 const [searchParams, setSearchParams] = useSearchParams();
 <Tabs value={searchParams.get('tab') ?? 'overview'} onChange={(v) => setSearchParams({ tab: v })}>
+  <TabPanel value="overview">…</TabPanel>
+</Tabs>
 ```
 
 The component itself doesn't know about the router — the parent wires it. Keeps the component agnostic.

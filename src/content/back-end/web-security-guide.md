@@ -69,11 +69,17 @@ DOM-based XSS is the one that survives server-side defences, because the payload
 The framework does this for you, which is why modern XSS is almost always a case of *escaping the framework*:
 
 ```jsx
-// Safe — React escapes text children
-<div>{userInput}</div>
+function Example() {
+  return (
+    <>
+      {/* Safe — React escapes text children */}
+      <div>{userInput}</div>
 
-// Unsafe — the escape hatch is literally named after the risk
-<div dangerouslySetInnerHTML={{ __html: userInput }} />
+      {/* Unsafe — the escape hatch is literally named after the risk */}
+      <div dangerouslySetInnerHTML={{ __html: userInput }} />
+    </>
+  );
+}
 ```
 
 The critical concept is that **escaping depends on context**. The same string needs different treatment in HTML text, an HTML attribute, a URL, inside a `<script>`, and inside CSS:
@@ -118,11 +124,12 @@ Why not a regex: HTML is not a regular language, and the bypass space is enormou
 ### 2.4 The DOM Sinks
 
 ```js
-element.innerHTML = x;        outerHTML,  insertAdjacentHTML
-document.write(x);            eval(x),  new Function(x)
-setTimeout(x)  /* string form */         setInterval(x) /* string */
-element.setAttribute('onclick', x);      location = x  /* javascript: */
-el.srcdoc = x;                jQuery: $(x), .html(x), .append(x)
+// Every one of these parses its argument as HTML or as code.
+element.innerHTML = x;                    // also: outerHTML, insertAdjacentHTML
+document.write(x);                        // also: eval(x), new Function(x)
+setTimeout(x);                            // string form only — also setInterval(x)
+element.setAttribute('onclick', x);       // and: location = x  (javascript: URLs)
+el.srcdoc = x;                            // jQuery: $(x), .html(x), .append(x)
 ```
 
 Anything assigning attacker-influenced data into one of these is a potential DOM XSS. A React codebase's realistic list is short — `dangerouslySetInnerHTML`, `href`/`src` interpolation, a third-party widget, and any direct DOM manipulation in a `useEffect`.

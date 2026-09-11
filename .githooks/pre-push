@@ -1,11 +1,13 @@
 #!/bin/sh
 #
-# Blocks `git push` unless the typecheck, the linter and the count check pass.
+# Blocks `git push` unless the typecheck, the linter, the unit tests, the count
+# check and the architecture invariants all pass.
 #
-# These live here rather than in pre-commit because tsc takes ~2.5s: too slow to
-# pay on every commit, but nothing next to a failed deploy. The same three
-# checks run in .github/workflows/deploy.yml, so CI is the real backstop — this
-# just moves the failure from "red deploy after pushing" to "before pushing".
+# These live here rather than in pre-commit because they take a few seconds:
+# too slow to pay on every commit, but nothing next to a failed deploy. The
+# same gates run in .github/workflows/deploy.yml, so CI is the real backstop —
+# this just moves the failure from "red deploy after pushing" to "before
+# pushing". The linter is type-aware, so it is the slowest of the five.
 #
 # Escape hatch: git push --no-verify
 
@@ -44,8 +46,21 @@ npx tsc --noEmit || fail "the typecheck" "typecheck"
 echo "pre-push: lint…"
 npm run lint --silent || fail "the linter" "lint"
 
+echo "pre-push: tests…"
+npm run test --silent || fail "the unit tests" "test"
+
 # Cheap, and it catches drift in commits that were made with --no-verify.
 echo "pre-push: counts…"
 node scripts/verify-counts.js > /dev/null || fail "the count check" "verify:counts"
+
+# Guards the guards: an ESLint glob that matches nothing, a storage call that
+# bypasses the wrapper, an eager content glob. See scripts/verify-architecture.js
+echo "pre-push: architecture…"
+node scripts/verify-architecture.js > /dev/null || fail "the architecture check" "verify:arch"
+
+# Every runnable code block gets a "Try it" button, so one that cannot parse
+# ships a button that always fails. Ratcheted — see scripts/verify-code-blocks.js
+echo "pre-push: code blocks…"
+node scripts/verify-code-blocks.js > /dev/null || fail "the code-block check" "verify:blocks"
 
 echo "pre-push: all checks passed."

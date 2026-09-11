@@ -219,7 +219,7 @@ export default router;
 
 ### Request Body Conventions
 
-```javascript
+```json
 // POST /api/v1/jobs
 // Content-Type: application/json
 {
@@ -248,7 +248,7 @@ export default router;
 
 ### Response Envelope Pattern
 
-```javascript
+```json
 // Success response
 {
   "status": "success",
@@ -771,7 +771,7 @@ router.delete('/users/:id', authenticate, authorize('admin'), deleteUser);
 
 ```javascript
 // For service-to-service or public API access
-function apiKeyAuth(req, res, next) {
+async function apiKeyAuth(req, res, next) {
   const apiKey = req.headers['x-api-key'] || req.query.api_key;
 
   if (!apiKey) {
@@ -874,7 +874,7 @@ Breaking (requires new version):
 
 ### Error Response Format
 
-```javascript
+```json
 // Standard error envelope
 {
   "status": "error",
@@ -1075,7 +1075,7 @@ RateLimit-Reset: 1709722800
 
 HATEOAS (Hypermedia as the Engine of Application State) means API responses include links to related actions and resources.
 
-```javascript
+```json
 // GET /api/v1/orders/123
 {
   "status": "success",

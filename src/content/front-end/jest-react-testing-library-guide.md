@@ -252,18 +252,18 @@ expect(mockFn).toHaveBeenLastCalledWith('arg3');  // last call's args
 expect(mockFn).toHaveBeenNthCalledWith(1, 'arg1', 'arg2'); // first call's args
 
 // Return values
-const mockFn = jest.fn()
+const mockFnV2 = jest.fn()
   .mockReturnValue('default')                    // always return
   .mockReturnValueOnce('first')                  // return once, then fallback
   .mockReturnValueOnce('second');
 
-mockFn(); // 'first'
-mockFn(); // 'second'
-mockFn(); // 'default'
+mockFnV2(); // 'first'
+mockFnV2(); // 'second'
+mockFnV2(); // 'default'
 
 // Mock implementation
-const mockFn = jest.fn((a, b) => a + b);
-mockFn(2, 3); // 5
+const mockFnV2V2 = jest.fn((a, b) => a + b);
+mockFnV2V2(2, 3); // 5
 
 // Mock resolved value (async)
 const mockAsync = jest.fn()
@@ -733,7 +733,7 @@ await waitForElementToBeRemoved(screen.getByText('Loading...'));
 const element = await screen.findByText('Loaded!');
 
 // Same as:
-const element = await waitFor(() => screen.getByText('Loaded!'));
+const elementV2 = await waitFor(() => screen.getByText('Loaded!'));
 ```
 
 ### 9.4 Common Async Patterns
@@ -1261,13 +1261,17 @@ export const handlers = [
     }, { status: 201 });
   }),
 ];
+```
 
+```ts
 // mocks/server.ts
 import { setupServer } from 'msw/node';
 import { handlers } from './handlers';
 
 export const server = setupServer(...handlers);
+```
 
+```ts
 // setup.ts
 beforeAll(() => server.listen());
 afterEach(() => server.resetHandlers());
@@ -1976,7 +1980,7 @@ it('shows fallback while loading lazy component', async () => {
 
 jsdom doesn't implement all browser APIs. Mock them in setup:
 
-```ts
+```tsx
 // setup.ts — runs before all tests
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -2028,7 +2032,7 @@ RTL's query priority (getByRole first) already encourages accessible markup. If 
 
 **Q16: How do you test components that use `IntersectionObserver` or `ResizeObserver`?**
 
-```ts
+```tsx
 // Mock IntersectionObserver
 let intersectionCallback: IntersectionObserverCallback;
 

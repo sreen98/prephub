@@ -2,9 +2,10 @@
 
 ## Creating
 ```js
-/pattern/flags                       // literal — compiled once
-new RegExp('pat\\d', 'g')            // from a string: escapes need DOUBLING
-new RegExp(RegExp.escape(userInput)) // escape untrusted input
+// /pattern/flags                  — the literal form; compiled once
+/\d+/g;                              // e.g. digits, global
+new RegExp('pat\\d', 'g');           // from a string: escapes need DOUBLING
+new RegExp(RegExp.escape(userInput)); // escape untrusted input
 ```
 
 ## Flags
@@ -78,27 +79,27 @@ Lookarounds are **zero-width** — they assert without consuming.
 
 ## JS API
 ```js
-re.test(s)                    // boolean
-re.exec(s)                    // one match + groups; advances lastIndex with /g
-s.match(re)                   // /g → all matches (no groups); else first + groups
-s.matchAll(re)                // iterator of full match objects — needs /g
-s.replace(re, '$1-$2')        // $1 $<name> $& $` $'
-s.replace(re, (m, g1) => ...) // function replacer
-s.replaceAll(re, r)           // regex must have /g
-s.search(re)                  // index or -1
-s.split(re)                   // capture groups get INCLUDED in the result
+re.test(s);                   // boolean
+re.exec(s);                   // one match + groups; advances lastIndex with /g
+s.match(re);                  // /g → all matches (no groups); else first + groups
+s.matchAll(re);               // iterator of full match objects — needs /g
+s.replace(re, '$1-$2');       // $1 $<name> $& $` $'
+s.replace(re, (m, g1) => g1); // function replacer
+s.replaceAll(re, r);          // regex must have /g
+s.search(re);                 // index or -1
+s.split(re);                  // capture groups get INCLUDED in the result
 ```
 
 ## Common Patterns
 ```js
-/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/           // pragmatic email (never RFC 5322)
-/^https?:\/\/[^\s/$.?#].[^\s]*$/i          // URL
-/^\d{4}-\d{2}-\d{2}$/                      // ISO date
-/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i          // hex colour
-/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/    // password rules via lookahead
-/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i  // UUIDv4
-/\s+/g                                     // whitespace runs → collapse
-/[A-Z]/g   → '-$&'.toLowerCase()           // camelCase → kebab-case
+/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;          // pragmatic email (never RFC 5322)
+/^https?:\/\/[^\s/$.?#].[^\s]*$/i;         // URL
+/^\d{4}-\d{2}-\d{2}$/;                     // ISO date
+/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;         // hex colour
+/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;   // password rules via lookahead
+/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;  // UUIDv4
+/\s+/g;                                    // whitespace runs → collapse
+s.replace(/[A-Z]/g, m => '-' + m.toLowerCase());  // camelCase → kebab-case
 ```
 
 ## The `lastIndex` Trap
@@ -111,8 +112,8 @@ A `/g` or `/y` regex is **stateful**. Fixes: create it inside the function, drop
 
 ## Catastrophic Backtracking (ReDoS)
 ```js
-/^(a+)+$/.test('a'.repeat(30) + 'b')   // exponential — hangs
-/^(\w+\s?)*$/                          // classic vulnerable shape
+/^(a+)+$/.test('a'.repeat(30) + 'b');  // exponential — hangs
+/^(\w+\s?)*$/;                         // classic vulnerable shape
 ```
 Nested quantifiers over overlapping character sets explode. Fix by removing the nesting, using a possessive/atomic form, anchoring, or bounding input length. Never build a regex from untrusted input without `RegExp.escape`.
 

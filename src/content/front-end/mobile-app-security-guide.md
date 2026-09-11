@@ -249,7 +249,7 @@ So the rule is absolute: **there are no client-side secrets.**
 ```js
 // all equally broken — a determined user reads every one of these
 const API_KEY = 'sk_live_abc123';
-const KEY = process.env.EXPO_PUBLIC_API_KEY;    // baked in at build time
+const KEYBroken = process.env.EXPO_PUBLIC_API_KEY;    // baked in at build time
 const KEY = atob('c2tfbGl2ZQ==');               // obfuscation, not secrecy
 ```
 

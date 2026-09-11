@@ -211,7 +211,7 @@ RTK uses Immer internally, so you can write "mutating" code that produces immuta
 // These are equivalent:
 
 // "Mutating" syntax (Immer — recommended)
-reducers: {
+const mutatingReducers = {
   updateUser(state, action: PayloadAction<Partial<User>>) {
     Object.assign(state.user, action.payload);
   },
@@ -222,17 +222,17 @@ reducers: {
     const index = state.items.findIndex(i => i.id === action.payload);
     if (index !== -1) state.items.splice(index, 1);
   },
-}
+};
 
 // Immutable syntax (manual — more verbose)
-reducers: {
+const immutableReducers = {
   updateUser(state, action) {
     return { ...state, user: { ...state.user, ...action.payload } };
   },
   addItem(state, action) {
     return { ...state, items: [...state.items, action.payload] };
   },
-}
+};
 ```
 
 ### 4.4 Extra Reducers (Handle External Actions)
@@ -405,8 +405,8 @@ export const fetchUserById = createAsyncThunk(
 );
 
 // With conditions (skip if already fetched)
-export const fetchUsers = createAsyncThunk(
-  'users/fetchUsers',
+export const fetchUsersV2 = createAsyncThunk(
+  'users/fetchUsersV2',
   async () => await api.getUsers(),
   {
     condition: (_, { getState }) => {
@@ -735,7 +735,7 @@ src/store/
 
 ### 11.2 Normalizing State
 
-```ts
+```json
 // BAD: nested/duplicated data
 {
   users: [
@@ -891,7 +891,7 @@ The three principles: single store, read-only state (dispatch actions), pure red
 
 An action is a plain JavaScript object with a `type` field describing what happened, and an optional `payload` with data:
 
-```ts
+```json
 { type: 'todos/addTodo', payload: { title: 'Buy milk' } }
 ```
 
@@ -1085,7 +1085,7 @@ If you already use Redux, RTK Query integrates naturally. If you don't, React Qu
 
 Normalization means storing data in a flat structure indexed by ID, instead of nested/duplicated:
 
-```ts
+```json
 // Normalized state
 {
   ids: ['1', '2'],
@@ -1196,7 +1196,7 @@ batch(() => {
 ```ts
 extraReducers: (builder) => {
   builder
-    .addCase(specificAction, (state, action) => { ... })
+    .addCase(specificAction, (state, action) => { /* … */ })
     .addMatcher(
       (action) => action.type.endsWith('/rejected'), // match pattern
       (state, action) => { state.error = action.error.message; }
@@ -1513,7 +1513,7 @@ To get behavior that throws on rejection, wrap the result with `unwrapResult(res
 
 **Q8: If a click handler dispatches `increment()` three times in a row on React 18, how many times does the component re-render and what are the logged values?**
 
-```js
+```jsx
 function MyComponent() {
   const dispatch = useDispatch();
   const count = useSelector(state => state.counter.value);

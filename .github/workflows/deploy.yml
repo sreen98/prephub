@@ -32,11 +32,31 @@ jobs:
       - name: Generate content metadata 🗂️
         run: npm run content:meta
 
+      # Both generated + gitignored, and both are imported by src/, so they must
+      # exist before the typecheck runs.
+      - name: Generate playground index 🧩
+        run: npm run playground:index
+
       - name: Typecheck 🔎
         run: npm run typecheck
 
       - name: Lint 🧹
         run: npm run lint
+
+      - name: Unit tests 🧪
+        run: npm run test
+
+      # Guards the guards: an ESLint glob that matches no application file, a
+      # storage call that bypasses the safe wrapper, an eager content glob, a
+      # renamed vendor chunk. Each of these has silently broken before.
+      - name: Verify architecture invariants 🏛️
+        run: npm run verify:arch
+
+      # Every runnable code block gets a "Try it" button in the app, so one
+      # that cannot parse ships a guaranteed-failing button. Ratcheted against
+      # scripts/code-block-baseline.json — counts may fall, never rise.
+      - name: Verify code blocks 🧩
+        run: npm run verify:blocks
 
       - name: Prepare content 📝
         run: node scripts/prepare-content.js

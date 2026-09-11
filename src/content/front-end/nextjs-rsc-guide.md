@@ -132,7 +132,9 @@ export default function ProductPage({ product }) {
     </div>
   );
 }
+```
 
+```tsx
 // ✅ Only the interactive bit is client
 // app/product/page.tsx — Server Component
 export default async function ProductPage({ params }) {
@@ -212,7 +214,9 @@ A Next.js 16 breaking change that trips up everyone upgrading:
 export default function Page({ params, searchParams }) {
   return <div>{params.slug}</div>;
 }
+```
 
+```tsx
 // ✅ Next 15+/16 — params and searchParams are Promises
 export default async function Page({ params, searchParams }) {
   const { slug } = await params;
@@ -362,10 +366,14 @@ This is the idiomatic replacement for prop-drilling data down from a layout: eac
 // ❌ Sequential — total time is the sum
 const user = await getUser(id);
 const posts = await getPosts(id);
+```
 
+```tsx
 // ✅ Parallel — total time is the max
 const [user, posts] = await Promise.all([getUser(id), getPosts(id)]);
+```
 
+```tsx
 // ✅ Better still — start both, stream each in as it resolves
 export default function Page({ params }) {
   const userPromise = getUser(params.id);     // no await

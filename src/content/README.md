@@ -45,7 +45,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 | # | Topic | Where |
 |---|---|---|
 | 16 | **Event Delegation & Bubbling** | [React Guide §15.11](/frontend/react) |
-| 17 | **Debouncing & Throttling** | [Playground — implement both from scratch](/playground) |
+| 17 | **Debouncing & Throttling** | [Code Playground — implement both from scratch](/playground) |
 | 18 | **Error Boundaries & Error Handling** | [React Guide §17 Q18](/frontend/react) |
 | 19 | **Browser Storage** (localStorage, sessionStorage, IndexedDB) | [Browser APIs Guide](/frontend/browser-apis) |
 | 20 | **REST APIs & HTTP Methods** | [API Design Guide](/backend/api-design) |
@@ -110,6 +110,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 ## 🛠️ Interactive Tools
 
+- **[Query Playground](/query-playground)** — **34 write-and-check questions**, 20 PostgreSQL and 14 MongoDB. You write the query, run it against real seeded data and your answer is checked automatically. It runs an actual PostgreSQL build in the browser, so window functions, `DISTINCT ON`, `FILTER` and recursive CTEs all behave exactly as they would on a server; MongoDB questions run real aggregation pipelines.
 - **[Code Playground](/playground)** — **180 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **35 React machine-coding** challenges — **129 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
 - **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.

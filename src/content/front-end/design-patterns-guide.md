@@ -9,36 +9,43 @@ The 23 GoF patterns split into three families: **Creational** (how objects come 
 ## Table of Contents
 
 - [1. Why Design Patterns Matter](#1-why-design-patterns-matter)
-- [2. Creational Patterns](#2-creational-patterns)
-  - [2.1 Factory Method](#21-factory-method)
-  - [2.2 Abstract Factory](#22-abstract-factory)
-  - [2.3 Builder](#23-builder)
-  - [2.4 Prototype](#24-prototype)
-  - [2.5 Singleton](#25-singleton)
-- [3. Structural Patterns](#3-structural-patterns)
-  - [3.1 Adapter](#31-adapter)
-  - [3.2 Bridge](#32-bridge)
-  - [3.3 Composite](#33-composite)
-  - [3.4 Decorator](#34-decorator)
-  - [3.5 Facade](#35-facade)
-  - [3.6 Flyweight](#36-flyweight)
-  - [3.7 Proxy](#37-proxy)
-- [4. Behavioral Patterns](#4-behavioral-patterns)
-  - [4.1 Chain of Responsibility](#41-chain-of-responsibility)
-  - [4.2 Command](#42-command)
-  - [4.3 Iterator](#43-iterator)
-  - [4.4 Mediator](#44-mediator)
-  - [4.5 Memento](#45-memento)
-  - [4.6 Observer](#46-observer)
-  - [4.7 State](#47-state)
-  - [4.8 Strategy](#48-strategy)
-  - [4.9 Template Method](#49-template-method)
-  - [4.10 Visitor](#410-visitor)
-- [5. React-Specific Patterns](#5-react-specific-patterns)
-- [6. Anti-Patterns](#6-anti-patterns)
-- [7. Comparisons — Which Pattern When?](#7-comparisons-which-pattern-when)
-- [8. Interview Questions & Answers](#8-interview-questions-answers)
-- [9. Tricky Questions](#9-tricky-questions)
+- [2. SOLID — The Principles the Patterns Serve](#2-solid-the-principles-the-patterns-serve)
+  - [2.1 S — Single Responsibility](#21-s-single-responsibility)
+  - [2.2 O — Open/Closed](#22-o-openclosed)
+  - [2.3 L — Liskov Substitution](#23-l-liskov-substitution)
+  - [2.4 I — Interface Segregation](#24-i-interface-segregation)
+  - [2.5 D — Dependency Inversion](#25-d-dependency-inversion)
+  - [2.6 When SOLID Becomes the Problem](#26-when-solid-becomes-the-problem)
+- [3. Creational Patterns](#3-creational-patterns)
+  - [3.1 Factory Method](#31-factory-method)
+  - [3.2 Abstract Factory](#32-abstract-factory)
+  - [3.3 Builder](#33-builder)
+  - [3.4 Prototype](#34-prototype)
+  - [3.5 Singleton](#35-singleton)
+- [4. Structural Patterns](#4-structural-patterns)
+  - [4.1 Adapter](#41-adapter)
+  - [4.2 Bridge](#42-bridge)
+  - [4.3 Composite](#43-composite)
+  - [4.4 Decorator](#44-decorator)
+  - [4.5 Facade](#45-facade)
+  - [4.6 Flyweight](#46-flyweight)
+  - [4.7 Proxy](#47-proxy)
+- [5. Behavioral Patterns](#5-behavioral-patterns)
+  - [5.1 Chain of Responsibility](#51-chain-of-responsibility)
+  - [5.2 Command](#52-command)
+  - [5.3 Iterator](#53-iterator)
+  - [5.4 Mediator](#54-mediator)
+  - [5.5 Memento](#55-memento)
+  - [5.6 Observer](#56-observer)
+  - [5.7 State](#57-state)
+  - [5.8 Strategy](#58-strategy)
+  - [5.9 Template Method](#59-template-method)
+  - [5.10 Visitor](#510-visitor)
+- [6. React-Specific Patterns](#6-react-specific-patterns)
+- [7. Anti-Patterns](#7-anti-patterns)
+- [8. Comparisons — Which Pattern When?](#8-comparisons-which-pattern-when)
+- [9. Interview Questions & Answers](#9-interview-questions-answers)
+- [10. Tricky Questions](#10-tricky-questions)
 - [References](#references)
 
 ---
@@ -57,11 +64,182 @@ The frequent failure mode is the opposite: applying patterns mechanically, befor
 
 ---
 
-## 2. Creational Patterns
+## 2. SOLID — The Principles the Patterns Serve
+
+The GoF catalog can look like twenty-three unrelated recipes. It isn't. Almost every pattern in this guide exists to resolve one specific tension, and SOLID is the set of names for those tensions. Learn the principles and the patterns stop being a list to memorise — you derive them.
+
+The five were collected by Robert Martin in the late 1990s from principles already circulating (Barbara Liskov's substitution rule dates to a 1987 keynote; Bertrand Meyer coined open/closed in 1988). The acronym came later, and the ordering is a mnemonic, not a ranking.
+
+| Principle | The tension it names | Patterns it leads you to |
+|---|---|---|
+| **S**ingle Responsibility | One class, many reasons to change | Facade, Mediator |
+| **O**pen/Closed | Adding a case means editing existing code | Strategy, Factory Method, Decorator, Chain of Responsibility |
+| **L**iskov Substitution | A subclass that can't stand in for its parent | Composition — Strategy, Decorator, Composite |
+| **I**nterface Segregation | Implementations forced to stub methods they don't want | Adapter, role interfaces |
+| **D**ependency Inversion | Business logic wired directly to I/O | Abstract Factory, Strategy, Observer |
+
+The **Low-Level Design guide** works each principle through a full design (parking lot, rate limiter, elevator, vending machine) and is the place to go for that. What follows is the shorter question this guide cares about: *which pattern does each principle point at, and how do you spot the violation?*
+
+---
+
+### 2.1 S — Single Responsibility
+
+**"A class should have one reason to change."** The common misreading is "a class should do one thing", which is unfalsifiable — you can always describe any class as doing one sufficiently vague thing. The useful test is about *change*: how many different people, for how many different reasons, can demand an edit to this file?
+
+An `Invoice` class that calculates tax, renders HTML and writes to the database has three: the finance team, the design team, and whoever owns persistence. A tax-rate change and a redesign land in the same file and conflict in the same pull request.
+
+**The smell:** a class name containing "And", or — more reliably — an import list spanning unrelated domains. If the top of the file pulls in both `stripe` and `react-dom`, something is wrong.
+
+```js
+// One reason to change each. The Facade below restores the convenient call site.
+class InvoiceCalculator { total(invoice) { /* tax rules */ } }
+class InvoiceRenderer   { toHtml(invoice) { /* markup */ } }
+class InvoiceRepository { save(invoice) { /* persistence */ } }
+```
+
+**Where it leads:** splitting is the easy half; the hard half is that callers now need three objects instead of one. That is exactly what **Facade** is for — one entry point over a decomposed subsystem — and what **Mediator** does when the pieces need to talk to each other without knowing about each other.
+
+---
+
+### 2.2 O — Open/Closed
+
+**"Open for extension, closed for modification."** Adding a new case should mean *adding* code, not editing code that already works and already has tests.
+
+This is the principle interviewers actually probe, because the violation is so easy to demonstrate: the `switch` on a type field that you have to edit every single time a type is added.
+
+```js
+// ✗ Every new shipping method edits this function — and every function like it.
+function shippingCost(order) {
+  if (order.method === 'standard') return 5;
+  if (order.method === 'express')  return 15;
+  if (order.method === 'overnight') return 30;   // and next quarter: 'freight'? 'pickup'?
+}
+
+// ✓ A new method is a new entry. Nothing existing is touched.
+const shipping = {
+  standard:  (order) => 5,
+  express:   (order) => 15,
+  overnight: (order) => 30,
+};
+function shippingCostOpen(order) {
+  const rate = shipping[order.method];
+  if (!rate) throw new Error(`Unknown shipping method: ${order.method}`);
+  return rate(order);
+}
+```
+
+**The smell:** the same `if`/`switch` on a type field, repeated across several functions. One conditional is fine. The same conditional in four places is the signal — every new type means four edits, and missing one is a bug that only shows up for that type.
+
+**Where it leads:** **Strategy** (swap the algorithm), **Factory Method** (swap what gets constructed), **Decorator** (add behaviour without touching the original), **Chain of Responsibility** (add a handler to the chain). In JavaScript a plain object map, as above, is often the whole pattern — you rarely need a class hierarchy to get the benefit.
+
+**The honest caveat:** you cannot be open to *every* axis of change. Guessing wrong produces indirection that buys nothing. Wait until a second case arrives, then generalise along the axis that actually varied.
+
+---
+
+### 2.3 L — Liskov Substitution
+
+**"A subtype must be usable anywhere its supertype is, without the caller noticing."** Not "is-a" in the taxonomic sense — substitutable in *behaviour*.
+
+The canonical counter-example is the one that sounds most obviously fine. A square is a rectangle, mathematically. But `Rectangle` has independent `setWidth` and `setHeight`, and `Square` cannot honour both — setting one must change the other. Any caller that does `setWidth(5); setHeight(4)` and expects an area of 20 gets 16.
+
+```js
+class Rectangle {
+  setWidth(w)  { this.w = w; }
+  setHeight(h) { this.h = h; }
+  area() { return this.w * this.h; }
+}
+class Square extends Rectangle {
+  setWidth(w)  { this.w = this.h = w; }   // breaks the caller's expectation
+  setHeight(h) { this.w = this.h = h; }
+}
+```
+
+Nothing here throws. The types check. The caller is simply wrong about what it is holding — which is why this is a *design* bug rather than a type-system one.
+
+**The three tells**, in rough order of how often they show up:
+
+1. **`instanceof` checks in the caller.** If code has to ask which subclass it has before it can act, substitutability has already failed.
+2. **A subclass that throws on an inherited method.** `ReadOnlyList extends List` with `add()` throwing means `List` was the wrong abstraction — that is Interface Segregation leaking in.
+3. **A subclass that strengthens a precondition or weakens a postcondition.** The parent accepts any integer, the child rejects negatives. Every existing caller is now conditionally broken.
+
+**Where it leads:** away from inheritance. Model the varying behaviour as an object you compose in — **Strategy**, **Decorator**, **Composite** — rather than a subclass you inherit from. Inheritance is justified only when the "is-a" is stable *and* every parent method makes sense unchanged on the child.
+
+---
+
+### 2.4 I — Interface Segregation
+
+**"No client should be forced to depend on methods it does not use."** Several small role-based interfaces beat one large capability-based one.
+
+**The smell is unmissable once you know it:** implementations littered with `throw new Error('not supported')` or methods whose body is a bare `return null`. Each one is an interface promising something this implementation cannot deliver.
+
+```ts
+// ✗ Every storage backend must implement all of it, whether or not it can.
+interface Storage {
+  read(key: string): string;
+  write(key: string, value: string): void;
+  watch(key: string, cb: () => void): void;   // localStorage can't; S3 can't
+}
+
+// ✓ Roles, composed only where they apply.
+interface Readable { read(key: string): string }
+interface Writable { write(key: string, value: string): void }
+interface Watchable { watch(key: string, cb: () => void): void }
+```
+
+A consumer that only reads now depends on `Readable` alone. It cannot accidentally call `watch`, and it can be handed a test double with one method instead of three.
+
+**Where it leads:** **Adapter**, when you must consume a fat third-party interface but want to expose only the slice your code needs. In TypeScript this also plays directly into structural typing — a function taking `{ read(k: string): string }` accepts anything with that shape, no `implements` required.
+
+---
+
+### 2.5 D — Dependency Inversion
+
+**"Depend on abstractions, not concretions"** — and, the half that gets dropped, *high-level policy must not import low-level detail; both should depend on an abstraction owned by the policy.*
+
+**The smell:** a `new` of an I/O class inside business logic. `new StripeClient()` or `new PostgresPool()` in the middle of a pricing function means that function can never be tested without a network.
+
+```js
+// ✗ The policy reaches out and grabs its own dependencies.
+class OrderService {
+  async place(order) {
+    const stripe = new StripeClient(process.env.STRIPE_KEY);
+    await stripe.charge(order.total);
+  }
+}
+
+// ✓ The dependency is handed in. The test passes a fake; nothing else changes.
+class OrderServiceInverted {
+  constructor(payments) { this.payments = payments; }
+  async place(order) { await this.payments.charge(order.total); }
+}
+```
+
+**Where it leads:** **Abstract Factory** when a whole family of related objects must swap together, **Strategy** when it is one behaviour, **Observer** when the dependency is "tell me when something happens". Dependency-injection containers are just automation for the constructor argument above.
+
+Of the five, this is the one that pays back fastest, and the payback is measurable: **the test suite stops needing a database.** If mentioning SOLID in an interview, this is the principle to have a concrete story about.
+
+---
+
+### 2.6 When SOLID Becomes the Problem
+
+Every principle here trades directness for flexibility, and flexibility you never use is just indirection.
+
+A `UserService` shattered into six single-method classes with an interface each is *worse* than the version you started with: more files, more indirection, and a reader who must open five of them to follow one request. The principles were written as a response to observed pain in large, long-lived object-oriented codebases — they are a description of how such code decays, not a checklist to apply to a module on day one.
+
+Two corrections worth carrying into an interview:
+
+- **They are heuristics, not rules.** "This violates SRP" is not an argument on its own. "This file changes for both billing rules and page layout, so those teams keep colliding in it" is.
+- **They assume an OO context.** In JavaScript, a module of pure functions satisfies most of SOLID trivially, and closures often replace Strategy and Dependency Inversion outright. Reaching for a class hierarchy to demonstrate a principle is the mistake, not the demonstration.
+
+The honest summary: apply Open/Closed and Dependency Inversion early, because they are cheap and pay off immediately. Let the other three be diagnostic — reasons you can *name* a problem you have already felt.
+
+---
+
+## 3. Creational Patterns
 
 These patterns deal with **how objects are constructed**. They abstract the instantiation process so callers don't have to know which concrete class is being created or how.
 
-### 2.1 Factory Method
+### 3.1 Factory Method
 
 **Intent:** Define an interface for creating an object, but let subclasses (or a function) decide which class to instantiate.
 
@@ -94,7 +272,7 @@ function notify(type: keyof typeof notifiers, msg: string) {
 
 **Real-world examples:** `document.createElement(tag)` is a Factory Method in the DOM. `Array.from`, `Promise.resolve` are Factory Methods on built-ins. React's `React.createElement` (and JSX) is a factory for elements.
 
-### 2.2 Abstract Factory
+### 3.2 Abstract Factory
 
 **Intent:** Provide an interface for creating *families* of related objects without specifying their concrete classes.
 
@@ -125,7 +303,7 @@ const ok = factory.button();   // gets the right family automatically
 
 **Real-world examples:** Cross-platform UI toolkits (React Native components that switch styling per platform). Database driver libraries that produce a connection, a transaction, and a query builder for each backend (Postgres / MySQL / SQLite).
 
-### 2.3 Builder
+### 3.3 Builder
 
 **Intent:** Construct complex objects step-by-step. Particularly useful when an object has many optional configuration parameters.
 
@@ -151,7 +329,7 @@ const sql = new QueryBuilder()
 
 **Real-world examples:** Knex/Prisma query builders, axios request config, jQuery's chained API. In React, Apollo's `gql` query construction. Any "fluent API" is usually a Builder.
 
-### 2.4 Prototype
+### 3.4 Prototype
 
 **Intent:** Create new objects by cloning existing ones, rather than instantiating from a class.
 
@@ -172,7 +350,7 @@ admin.name = 'Ana';
 
 **Real-world examples:** `Array.prototype.slice()` clones the receiver. Redux Toolkit's Immer-based reducers are essentially Prototype operations on state.
 
-### 2.5 Singleton
+### 3.5 Singleton
 
 **Intent:** Ensure a class has only one instance and provide a global access point to it.
 
@@ -200,11 +378,11 @@ export const logger = { log: (msg: string) => console.log(msg) };
 
 ---
 
-## 3. Structural Patterns
+## 4. Structural Patterns
 
 These patterns are about **how objects compose into larger structures**.
 
-### 3.1 Adapter
+### 4.1 Adapter
 
 **Intent:** Convert the interface of a class into another interface clients expect. Lets classes work together that couldn't otherwise because of incompatible interfaces.
 
@@ -237,7 +415,7 @@ const processor: PaymentProcessor = new StripeAdapter(new StripeAPI());
 
 **Real-world examples:** Any "wrapper around fetch" library (axios, ky). Database ORMs adapt SQL to ActiveRecord-style APIs. React hooks like `useQuery` adapt async data fetching to React's render model.
 
-### 3.2 Bridge
+### 4.2 Bridge
 
 **Intent:** Decouple an abstraction from its implementation so they can vary independently. Splits a class hierarchy into two: one for the abstraction, one for the implementation.
 
@@ -266,7 +444,7 @@ new Square(new SVGRenderer(),  20).draw();
 
 **Real-world examples:** React's renderers — the same React component model runs against `react-dom`, `react-native`, `react-three-fiber`. The "abstraction" is the component tree; the "implementation" is the host platform.
 
-### 3.3 Composite
+### 4.3 Composite
 
 **Intent:** Treat individual objects and compositions of objects uniformly. Both implement the same interface, so client code doesn't care whether it's holding a leaf or a tree.
 
@@ -299,7 +477,7 @@ console.log(root.size());   // 6200, recursively summed
 
 **Real-world examples:** React itself is a Composite — every component renders either DOM nodes (leaves) or other components (composites), and they're all `ReactNode`s. The DOM is a Composite. Menu systems, file browsers, org charts.
 
-### 3.4 Decorator
+### 4.4 Decorator
 
 **Intent:** Attach additional responsibilities to an object dynamically, without modifying the underlying class. A flexible alternative to subclassing.
 
@@ -335,7 +513,7 @@ const src = new EncryptedDataSource(new CompressedDataSource(new FileDataSource(
 
 **Real-world examples:** TypeScript decorators (`@Component`, `@Inject`). Express/Koa middleware (each adds behavior to the request). React's HOCs (`withAuth(Component)` is a decorator). Python's `@functools.lru_cache`.
 
-### 3.5 Facade
+### 4.5 Facade
 
 **Intent:** Provide a simplified, unified interface to a complex subsystem.
 
@@ -367,7 +545,7 @@ const out = new VideoConverter().convert('input.mp4', 'avi');
 
 **Real-world examples:** `fetch` is a Facade over `XMLHttpRequest` (and the lower-level network stack). `console.log` hides terminal/devtools complexity. jQuery was famously a Facade over the inconsistent DOM APIs of its era.
 
-### 3.6 Flyweight
+### 4.6 Flyweight
 
 **Intent:** Use sharing to support large numbers of fine-grained objects efficiently. Separate the *intrinsic* state (shareable) from the *extrinsic* state (per-instance).
 
@@ -402,7 +580,7 @@ const forest = Array.from({ length: 100000 }, () =>
 
 **Real-world examples:** Browser's text rendering (one glyph object per font/size, used for every occurrence). Game engines (sprite sheets are flyweights). React's element pool — JSX expressions create lightweight `ReactElement` objects, not heavy DOM nodes.
 
-### 3.7 Proxy
+### 4.7 Proxy
 
 **Intent:** Provide a placeholder or surrogate for another object to control access to it. Same interface as the wrapped object, but with extra logic.
 
@@ -433,11 +611,11 @@ guarded._secret;          // throws — access control via proxy
 
 ---
 
-## 4. Behavioral Patterns
+## 5. Behavioral Patterns
 
 These patterns are about **how objects communicate and distribute responsibility**.
 
-### 4.1 Chain of Responsibility
+### 5.1 Chain of Responsibility
 
 **Intent:** Pass a request along a chain of handlers; each handler decides to process or pass on.
 
@@ -474,7 +652,7 @@ chain.handle(request);
 
 **Real-world examples:** Express middleware (`app.use` chain). DOM event bubbling itself is a Chain of Responsibility. Logging libraries with handler chains. Redux middleware (each can short-circuit or pass on).
 
-### 4.2 Command
+### 5.2 Command
 
 **Intent:** Encapsulate a request as an object, letting you parameterize callers with different requests, queue/log requests, and support undo.
 
@@ -501,13 +679,13 @@ class History {
 
 **Real-world examples:** Undo/redo in editors. Redux actions are Commands (each is an object describing a state change). Job queues (Sidekiq, BullMQ — each job is a Command). Keyboard shortcuts mapped to operations.
 
-### 4.3 Iterator
+### 5.3 Iterator
 
 **Intent:** Provide a way to access elements of a collection sequentially without exposing its underlying representation.
 
 **Use when:** You need to traverse different data structures uniformly, support multiple traversal strategies, or hide the internals of a collection.
 
-```js
+```ts
 // JavaScript has it built-in via the iterable protocol
 class Range {
   constructor(public start: number, public end: number) {}
@@ -522,7 +700,7 @@ const arr = [...new Range(1, 5)];                  // [1, 2, 3, 4]
 
 **Real-world examples:** Every `for...of`, `[...spread]`, and `Array.from` consumes an Iterator. `Map`, `Set`, generators are all iterables. Database cursors. React's Children API (`React.Children.map`) is an iterator over children.
 
-### 4.4 Mediator
+### 5.4 Mediator
 
 **Intent:** Define an object that encapsulates how a set of objects interact. Promotes loose coupling by keeping objects from referring to each other explicitly.
 
@@ -546,7 +724,7 @@ class User {
 
 **Real-world examples:** Redux store is a Mediator (components dispatch through it; the store distributes). React Context is a lightweight Mediator. Air-traffic-control systems are the classic example. Event buses are degenerate Mediators (no logic, just routing).
 
-### 4.5 Memento
+### 5.5 Memento
 
 **Intent:** Capture and externalize an object's internal state without violating encapsulation, so the object can be restored to that state later.
 
@@ -567,7 +745,7 @@ class EditorMemento {
 
 **Real-world examples:** Game save states. Database transactions (snapshot before, restore on rollback). React DevTools' time-travel debugging. Browser's `history.state` is a Memento for navigation.
 
-### 4.6 Observer
+### 5.6 Observer
 
 **Intent:** Define a one-to-many dependency between objects so that when one object changes state, all dependents are notified automatically.
 
@@ -591,7 +769,7 @@ unsub();
 
 **Real-world examples:** DOM `addEventListener`. RxJS Observables. React's `useEffect` is consumer-side observer of dependency-array changes. Redux subscribers. Vue/Mobx reactivity. WebSocket onmessage. Pub/sub messaging systems.
 
-### 4.7 State
+### 5.7 State
 
 **Intent:** Allow an object to alter its behavior when its internal state changes. The object appears to change its class.
 
@@ -630,7 +808,7 @@ class Order {
 
 **State vs Strategy.** Mechanically identical (delegate to a swappable object). Different *intent*: Strategy chooses the algorithm at construction; State changes the behavior over time as conditions evolve.
 
-### 4.8 Strategy
+### 5.8 Strategy
 
 **Intent:** Define a family of interchangeable algorithms; encapsulate each one and make them substitutable.
 
@@ -661,7 +839,7 @@ function total(items, strategy = 'standard') { return pricers[strategy](items); 
 
 **Real-world examples:** `Array.prototype.sort(compareFn)` — `compareFn` is a strategy. Validation libraries (Yup/Zod use schemas as strategies). Authentication strategies in Passport.js. Test runners selecting between Jest/Vitest/Mocha config strategies.
 
-### 4.9 Template Method
+### 5.9 Template Method
 
 **Intent:** Define the skeleton of an algorithm in a base class, deferring some steps to subclasses. Subclasses redefine certain steps without changing the algorithm's structure.
 
@@ -688,7 +866,7 @@ class PDFReport extends ReportGenerator {
 
 **Real-world examples:** React class lifecycle methods (`componentDidMount`, `render`) override steps in React's Template Method. Express `Router.use` middleware overrides. Django/Rails framework methods.
 
-### 4.10 Visitor
+### 5.10 Visitor
 
 **Intent:** Represent an operation to be performed on elements of an object structure. Lets you define a new operation without changing the classes of the elements.
 
@@ -725,7 +903,7 @@ class FindByNameVisitor implements Visitor { /* ... */ }
 
 ---
 
-## 5. React-Specific Patterns
+## 6. React-Specific Patterns
 
 React has its own canon that doesn't map cleanly to GoF.
 
@@ -850,7 +1028,7 @@ Same as GoF Command + Mediator combined. Redux is this scaled up to a global sto
 
 ---
 
-## 6. Anti-Patterns
+## 7. Anti-Patterns
 
 Patterns become anti-patterns when applied wrong:
 
@@ -865,7 +1043,7 @@ Patterns become anti-patterns when applied wrong:
 
 ---
 
-## 7. Comparisons — Which Pattern When?
+## 8. Comparisons — Which Pattern When?
 
 ```
 | If you want to...                                 | Use                       |
@@ -903,7 +1081,7 @@ Patterns become anti-patterns when applied wrong:
 
 ---
 
-## 8. Interview Questions & Answers
+## 9. Interview Questions & Answers
 
 ### Beginner
 
@@ -1126,7 +1304,33 @@ The pattern's payoff is exactly what Visitor sells: adding a new operation (a ne
 
 ---
 
-## 9. Tricky Questions
+**Q12: How do SOLID and the GoF patterns relate to each other?**
+
+The patterns are largely *solutions* to the tensions SOLID *names*. Open/Closed says "adding a case shouldn't mean editing existing code"; Strategy, Factory Method, Decorator and Chain of Responsibility are four different ways to achieve that, depending on what varies. Dependency Inversion says "policy shouldn't import detail"; Abstract Factory and Observer are two ways to invert it.
+
+That's why learning the principles first makes the catalog smaller — you stop memorising twenty-three recipes and start deriving which one fits from the axis of change in front of you.
+
+The relationship isn't one-to-one, though, and claiming it is gets you caught out. Some patterns exist for reasons SOLID doesn't cover at all: **Flyweight** is a memory optimisation, **Iterator** is about traversal decoupling, **Memento** is about state capture. And several patterns serve more than one principle — Decorator gives you Open/Closed *and* is the composition answer to a Liskov problem.
+
+The historical ordering also runs the other way from how it's usually taught: *Design Patterns* was published in 1994 and SOLID was assembled from existing principles in the late 1990s and named in the 2000s. The principles were, in part, an attempt to explain what the patterns already had in common.
+
+---
+
+**Q13: Give an example of SOLID being applied badly.**
+
+The common failure is treating the principles as a checklist to satisfy upfront rather than a diagnosis of pain you've actually felt.
+
+The concrete version: a `UserService` with five methods gets "SRP-ified" into `UserCreator`, `UserUpdater`, `UserDeleter`, `UserFinder` and `UserValidator`, each with an interface, each registered in a DI container. Nothing was gained — those five methods always changed together, for the same reason, at the request of the same team. What was lost is real: following one request now means opening six files, and the abstraction boundaries are guesses nobody validated.
+
+Speculative Open/Closed is the same mistake in a different costume. Introducing a Strategy interface for a rule that has exactly one implementation, on the theory that more will arrive, gives you indirection today for flexibility you may never need — and when the second case does arrive, it usually varies along a *different* axis than the one you generalised.
+
+**The signal an interviewer is listening for** is that you can argue the trade-off in both directions. "This violates SRP" is not an argument. "This file changes for both billing rules and page layout, so those two teams keep colliding in it" is — it names the cost. If you can't name the cost, the principle isn't the reason you want the change.
+
+A JavaScript-specific version worth mentioning: reaching for class hierarchies and interfaces to *demonstrate* SOLID, when a module of pure functions already satisfies most of it and a closure replaces Strategy outright. The principles were written for large object-oriented codebases; applying their OO mechanics literally to idiomatic JS is itself a misapplication.
+
+---
+
+## 10. Tricky Questions
 
 Practice questions on the subtle aspects of pattern selection and trade-offs.
 

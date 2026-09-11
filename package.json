@@ -4,22 +4,30 @@
   "version": "1.6.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/generate-content-meta.js && vite",
-    "build": "node scripts/generate-content-meta.js && vite build && node scripts/generate-sitemap.js",
+    "dev": "node scripts/generate-content-meta.js && node scripts/generate-playground-index.js && vite",
+    "build": "node scripts/generate-content-meta.js && node scripts/generate-playground-index.js && vite build && node scripts/generate-sitemap.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "verify:counts": "node scripts/verify-counts.js",
     "prepare": "git config core.hooksPath .githooks || true",
-    "content:meta": "node scripts/generate-content-meta.js"
+    "content:meta": "node scripts/generate-content-meta.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:arch": "node scripts/verify-architecture.js",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run verify:counts && npm run verify:arch && npm run verify:blocks",
+    "playground:index": "node scripts/generate-playground-index.js",
+    "verify:blocks": "node scripts/verify-code-blocks.js"
   },
   "dependencies": {
     "@babel/standalone": "^7.29.2",
+    "@electric-sql/pglite": "^0.5.8",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
     "fs-extra": "^11.3.4",
     "lucide-react": "^1.6.0",
     "mermaid": "^11.13.0",
+    "mingo": "^7.2.4",
     "prettier": "^3.8.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -32,18 +40,23 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@types/node": "^22.20.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^5.0.0",
     "autoprefixer": "^10.4.27",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.2",
+    "typescript-eslint": "^8.70.0",
     "vite": "^6.4.1",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^5.0.0"
   }
 }

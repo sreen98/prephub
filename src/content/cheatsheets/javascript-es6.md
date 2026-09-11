@@ -58,8 +58,13 @@ const [a, b] = await Promise.all([fetchA(), fetchB()]);
 
 ## Modules
 ```js
+// math.js
 export const PI = 3.14;
 export default function add(a, b) { return a + b; }
+```
+
+```js
+// app.js
 import add, { PI } from './math.js';
 ```
 
@@ -105,11 +110,11 @@ class Animal {
   speak() { return 'generic'; }
   static create(n) { return new this(n); }   // `this` = the subclass
   static { /* static init block */ }
+  static isAnimal(obj) { return #secret in obj; }   // private brand check
 }
 class Dog extends Animal {
   speak() { return `${super.speak()} woof`; }
 }
-#secret in obj                   // private brand check
 ```
 
 ## Generators & Iterators
@@ -150,30 +155,30 @@ const { promise, resolve, reject } = Promise.withResolvers();   // ES2024
 
 ## Modern Additions (ES2020 → ES2026)
 ```js
-arr.at(-1)                                  // last element
-arr.findLast(fn)  arr.findLastIndex(fn)
-arr.toSorted()  arr.toReversed()  arr.with(0, x)   // IMMUTABLE copies
-Object.groupBy(items, x => x.type)          // → { type: [...] }
-Map.groupBy(items, fn)
-Object.hasOwn(obj, 'k')                     // safer than hasOwnProperty
-structuredClone(obj)                        // deep clone incl. Map/Set/Date/cycles
-Array.fromAsync(asyncIterable)
-Promise.try(fn)
-Error.isError(e)                            // survives cross-realm
-RegExp.escape(str)
-str.replaceAll('a', 'b')
-new Set([1,2]).union(other).intersection(other).difference(other)
+arr.at(-1);                                  // last element
+arr.findLast(fn); arr.findLastIndex(fn);
+arr.toSorted(); arr.toReversed(); arr.with(0, x);   // IMMUTABLE copies
+Object.groupBy(items, x => x.type);          // → { type: [...] }
+Map.groupBy(items, fn);
+Object.hasOwn(obj, 'k');                     // safer than hasOwnProperty
+structuredClone(obj);                        // deep clone incl. Map/Set/Date/cycles
+Array.fromAsync(asyncIterable);
+Promise.try(fn);
+Error.isError(e);                            // survives cross-realm
+RegExp.escape(str);
+str.replaceAll('a', 'b');
+new Set([1,2]).union(other).intersection(other).difference(other);
 using file = open();                        // explicit resource management
 await using conn = await connect();         // disposed in reverse order
-Temporal.Now.plainDateISO()                 // the Date replacement
-label: { if (x) break label; }              // labeled block
+Temporal.Now.plainDateISO();                 // the Date replacement
+label: { if (x) break label; };              // labeled block
 ```
 
 ## Symbols & Well-Known Symbols
 ```js
 const key = Symbol('desc');                 // unique, non-enumerable key
-Symbol.iterator  Symbol.asyncIterator  Symbol.toPrimitive  Symbol.toStringTag
-class T { get [Symbol.toStringTag]() { return 'T'; } }
+Symbol.iterator; Symbol.asyncIterator; Symbol.toPrimitive; Symbol.toStringTag;
+class T { get [Symbol.toStringTag]() { return 'T'; } };
 ```
 
 ## Proxy & Reflect
@@ -186,13 +191,13 @@ const p = new Proxy(target, {
 
 ## Equality & Coercion
 ```js
-0 == '0'          // true  — loose equality coerces
-0 === '0'         // false
-NaN === NaN       // false;  Object.is(NaN, NaN) → true
-[] == false       // true  (!)
-null == undefined // true;  null === undefined → false
-typeof null       // 'object' — a historical bug
-0.1 + 0.2         // 0.30000000000000004
+0 == '0';          // true  — loose equality coerces
+0 === '0';         // false
+NaN === NaN;       // false;  Object.is(NaN, NaN) → true
+[] == false;       // true  (!)
+null == undefined; // true;  null === undefined → false
+typeof null;       // 'object' — a historical bug
+0.1 + 0.2;         // 0.30000000000000004
 ```
 Always `===`. The only defensible `==` is `x == null` to test both null and undefined.
 

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { getJSON, setJSON } from '../lib/storage';
 
 const STORAGE_KEY = 'guide-progress' as const;
 
@@ -35,15 +36,14 @@ export interface UseProgressReturn {
 }
 
 function load(): ProgressMap {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) as string) || {}; }
-  catch { return {}; }
+  return getJSON(STORAGE_KEY, {});
 }
 
 export function useProgress(): UseProgressReturn {
   const [progress, setProgress] = useState<ProgressMap>(load);
 
   const save = useCallback((next: ProgressMap): void => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setJSON(STORAGE_KEY, next);
     setProgress(next);
   }, []);
 

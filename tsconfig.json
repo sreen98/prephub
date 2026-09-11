@@ -18,7 +18,9 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    // Test files read the source tree to assert architecture invariants.
+    "types": ["node", "vite/client"]
   },
   "include": ["src"]
 }

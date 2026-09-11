@@ -745,11 +745,11 @@ Forgetting port in origin            localhost:3000 ≠ localhost:5000
 
 ```javascript
 // ❌ BAD: Regex that can be bypassed
-const isAllowed = /example\.com/.test(origin);
+const isAllowedBrokenBroken = /example\.com/.test(origin);
 // Matches: evil-example.com, example.com.evil.com
 
 // ❌ BAD: Partial string match
-const isAllowed = origin.includes("example.com");
+const isAllowedBroken = origin.includes("example.com");
 // Matches: evil.com?example.com, example.com.evil.com
 
 // ✅ GOOD: Exact match against whitelist
@@ -760,7 +760,7 @@ const allowedOrigins = new Set([
 const isAllowed = allowedOrigins.has(origin);
 
 // ✅ GOOD: Safe subdomain check with URL parsing
-function isAllowed(origin) {
+function isAllowedV2(origin) {
   try {
     const { hostname, protocol } = new URL(origin);
     return protocol === "https:" &&
@@ -956,9 +956,9 @@ export default defineConfig({
 
 // Create React App proxy
 // package.json
-{
+const craProxyConfig = {
   "proxy": "http://localhost:4000"
-}
+};
 
 // In development, fetch("/api/data") proxies to http://localhost:4000/api/data
 // No CORS needed — browser sees same-origin request

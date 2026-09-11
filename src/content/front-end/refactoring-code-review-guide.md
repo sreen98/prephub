@@ -99,12 +99,12 @@ Code that has grown too large to comprehend at a glance.
 | **Long Parameter List** | More than 3–4 parameters; callers can't remember the order | Introduce Parameter Object, Preserve Whole Object |
 | **Data Clumps** | The same group of fields (`startDate`, `endDate`, `timezone`) appears in many places | Extract Class for the clump (`DateRange`) |
 
-```js
+```ts
 // Smell: Long Parameter List + Primitive Obsession
-function createBooking(userId, hotelId, checkIn, checkOut, guests, currency, amount) { ... }
+function createBookingBefore(userId, hotelId, checkIn, checkOut, guests, currency, amount) { /* … */ }
 
 // Refactored: Introduce Parameter Object + value objects
-function createBooking({ user, hotel, dates, guests, price }: BookingArgs) { ... }
+function createBooking({ user, hotel, dates, guests, price }: BookingArgs) { /* … */ }
 ```
 
 ### 4.2 Object-Orientation Abusers
@@ -181,7 +181,7 @@ function totalForOrder(order) {
 }
 
 // After: Extract Method, Extract Variable
-function totalForOrder(order) {
+function totalForOrderV2(order) {
   const subtotal = sumLineItems(order.items);
   return applyTax(subtotal);
 }
@@ -233,7 +233,7 @@ function shippingCost(order) {
 }
 
 // After: Guard Clauses
-function shippingCost(order) {
+function shippingCostV2(order) {
   if (order.country !== 'US') return 80;
   if (order.weight <= 10) return 10;
   return order.express ? 50 : 25;
@@ -680,7 +680,7 @@ The smell is **Inappropriate Intimacy** in disguise: the calling method has too 
 const balance = customer.getAccount().getBalance().getValue();
 
 // After — the customer hides its account internals
-const balance = customer.getCurrentBalance();   // returns a number
+const balanceV2 = customer.getCurrentBalance();   // returns a number
 ```
 
 Now the customer's implementation of "what is the balance" can change freely without any caller noticing. There's a counter-smell to watch for: if `Customer` ends up with 50 pass-through methods that just delegate to its account, you've created **Middle Man** and the next refactor is to give callers direct access to the account *or* fold the account into the customer entirely.

@@ -104,17 +104,21 @@ enum Direction {
   Up = "UP",
   Down = "DOWN",
 }
+```
 
+```typescript
 // =================== OUTPUT (JavaScript) ===================
 // Notice: ALL type annotations are gone. Interfaces are completely erased.
 
-function greet(user) {
+function greetV2(user) {
   return `Hello ${user.name}, age ${user.age}`;
 }
 
-const alice = { name: "Alice", age: 30 };
-console.log(greet(alice));
+const aliceV2 = { name: "Alice", age: 30 };
+console.log(greetV2(aliceV2));
+```
 
+```typescript
 // Enums are one of the few TS features that produce runtime code:
 var Direction;
 (function (Direction) {
@@ -175,7 +179,9 @@ export class Calculator {
     return result;
   }
 }
+```
 
+```typescript
 // =================== GENERATED: math.d.ts ===================
 // Contains ONLY type information — no implementation code
 export declare function add(a: number, b: number): number;
@@ -470,7 +476,7 @@ function greet(name: string, greeting?: string): string {
 }
 
 // Default parameters
-function greet(name: string, greeting: string = 'Hello'): string {
+function greetV2(name: string, greeting: string = 'Hello'): string {
   return `${greeting}, ${name}`;
 }
 
@@ -541,12 +547,12 @@ function identity(value: any): any {
 }
 
 // With generics (preserves type info)
-function identity<T>(value: T): T {
+function identityV2<T>(value: T): T {
   return value;
 }
 
-identity<string>('hello');              // type: string
-identity(42);                           // type: 42 (inferred)
+identityV2<string>('hello');              // type: string
+identityV2(42);                           // type: 42 (inferred)
 ```
 
 ### 5.2 Generic Interfaces and Types
@@ -970,10 +976,14 @@ enum Status {
   Active = 'active',
   Inactive = 'inactive',
 }
+```
 
+```ts
 // Union type (preferred in modern TS)
 type Status = 'active' | 'inactive';
+```
 
+```ts
 // Why prefer unions:
 // - No runtime overhead (unions are erased)
 // - Simpler, more idiomatic
@@ -1397,7 +1407,9 @@ Using `import type` ensures the import is completely erased at runtime, producin
 ```ts
 // Import only the type (erased at runtime, no bundle impact)
 import type { User } from './types';
+```
 
+```ts
 // Inline type import
 import { createUser, type User } from './user';
 ```
@@ -1548,7 +1560,7 @@ namespace Legacy { export const x = 1; }  // emits an IIFE
 class User {
   constructor(private name: string) {}    // parameter property emits an assignment
 }
-import Legacy = require('./legacy');      // import-equals emits a require
+// import Legacy = require('./legacy');  — import-equals emits a require
 ```
 
 Turn `erasableSyntaxOnly` on and all four become errors, pushing you toward `const` objects with `as const` instead of `enum`, ES modules instead of `namespace`, and explicit field assignment instead of parameter properties. The payoff is that your source runs unbuilt under Node, Deno, Bun and every native bundler identically.
@@ -1605,36 +1617,36 @@ These are common TypeScript anti-patterns that weaken type safety or add unneces
 ```ts
 // 1. Don't use `any` as escape hatch
 // BAD
-function parse(input: any): any { ... }
+function parseBad(input: any): any { /* … */ }
 // GOOD
-function parse(input: unknown): Result { ... }
+function parse(input: unknown): Result { /* … */ }
 
 // 2. Don't use enums (prefer union types)
 // BAD
-enum Status { Active = 'active', Inactive = 'inactive' }
+enum StatusEnum { Active = 'active', Inactive = 'inactive' }
 // GOOD
 type Status = 'active' | 'inactive';
 
 // 3. Don't use `!` (non-null assertion) unless truly necessary
 // BAD
-const el = document.getElementById('app')!;
+const elBad = document.getElementById('app')!;
 // GOOD
 const el = document.getElementById('app');
 if (!el) throw new Error('Missing #app');
 
 // 4. Don't over-type (let TypeScript infer)
 // BAD
-const name: string = 'Alice';
-const numbers: number[] = [1, 2, 3];
+const nameBad: string = 'Alice';
+const numbersBad: number[] = [1, 2, 3];
 // GOOD
 const name = 'Alice';
 const numbers = [1, 2, 3];
 
 // 5. Don't use `object` or `Function` types
 // BAD
-function process(obj: object, fn: Function) { ... }
+function processBad(obj: object, fn: Function) { /* … */ }
 // GOOD
-function process(obj: Record<string, unknown>, fn: () => void) { ... }
+function process(obj: Record<string, unknown>, fn: () => void) { /* … */ }
 ```
 
 ---
@@ -1821,7 +1833,7 @@ const config = { port: 3000, host: 'localhost' };
 // type: { port: number; host: string }
 
 // With as const
-const config = { port: 3000, host: 'localhost' } as const;
+const configV2 = { port: 3000, host: 'localhost' } as const;
 // type: { readonly port: 3000; readonly host: 'localhost' }
 ```
 
@@ -2043,7 +2055,7 @@ const user: User = { name: 'Alice', email: 'a@b.com' };
 // Error if value doesn't match User shape
 
 // Type assertion (as) - you tell TS "trust me"
-const user = { name: 'Alice' } as User;
+const userV2 = { name: 'Alice' } as User;
 // No error even though email is missing (dangerous!)
 
 // When assertions are valid:
@@ -2057,7 +2069,7 @@ const data = await response.json() as ApiResponse;
 const x = someValue as string;
 
 // Double assertion (escape hatch - almost never use)
-const x = someValue as unknown as TargetType;
+const xBroken = someValue as unknown as TargetType;
 ```
 
 Rule: prefer declarations (annotations) over assertions. Assertions bypass type checking.
@@ -2104,15 +2116,15 @@ const colors = {
 colors.red;    // type: [number, number, number] | string (widened)
 
 // With `satisfies` - validates AND preserves literal types
-const colors = {
+const colorsV2 = {
   red: [255, 0, 0],
   green: '#00ff00',
 } satisfies Colors;
-colors.red;    // type: [number, number, number] (specific!)
-colors.green;  // type: string
+colorsV2.red;    // type: [number, number, number] (specific!)
+colorsV2.green;  // type: string
 
 // catches errors too:
-const colors = {
+const colorsV2V2 = {
   red: [255, 0, 0],
   green: true,             // Error: boolean doesn't satisfy Colors
 } satisfies Colors;
@@ -2171,7 +2183,7 @@ namespace Legacy { export const x = 1; }  // emits an IIFE
 class User {
   constructor(private name: string) {}    // parameter property emits this.name = name
 }
-import Legacy = require('./legacy');      // import-equals emits a require call
+// import Legacy = require('./legacy');  — import-equals emits a require call
 ```
 
 Each of these *generates code*, so stripping the types would silently change what the program does — hence Node rejects them rather than guessing.
@@ -2196,7 +2208,9 @@ It breaks as soon as a single-file transpiler is in the pipeline. esbuild, SWC, 
 ```ts
 import { getUser, type User } from './user';   // inline type modifier — clear
 import type { Config } from './config';         // whole import is type-only
+```
 
+```ts
 // With the flag on, this is an error if `User` is a type:
 import { User } from './user';
 ```
@@ -2297,10 +2311,10 @@ There are three standard fixes, each with different tradeoffs:
 const config = { mode: "production", port: 3000 } as const;
 
 // 2. Annotate just the property with the narrow type
-const config: { mode: "production" | "development"; port: number } = { ... };
+const configV2: { mode: "production" | "development"; port: number } = { /* … */ };
 
 // 3. Assert at the call site (blunt; only use when you know better than the compiler)
-start(config.mode as "production");
+start(configV2.mode as "production");
 ```
 
 **Takeaway:** Object property types are widened because properties are mutable; use `as const` or an explicit literal-union annotation to preserve literal types through a property access.

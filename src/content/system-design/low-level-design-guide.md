@@ -107,7 +107,7 @@ One reason to change. The practical test is the one-sentence description above.
 
 ```ts
 // ✗ Three reasons to change: parking rules, pricing, notifications
-class ParkingLot {
+class ParkingLotBroken {
   park(v: Vehicle) {}
   calculateFee(t: Ticket) {}
   sendReceiptEmail(t: Ticket) {}
@@ -125,17 +125,21 @@ Open to extension, closed to modification. **This is the one the requirement-cha
 
 ```ts
 // ✗ Every new type means editing this method — and every other method like it
-calculateFee(ticket: Ticket): number {
-  if (ticket.type === 'car')   return hours * 2;
-  if (ticket.type === 'bike')  return hours * 1;
-  if (ticket.type === 'truck') return hours * 5;   // and now electric? and weekends?
+class FeeCalculator {
+  calculateFee(ticket: Ticket): number {
+    if (ticket.type === 'car')   return hours * 2;
+    if (ticket.type === 'bike')  return hours * 1;
+    if (ticket.type === 'truck') return hours * 5;   // and now electric? and weekends?
+  }
 }
 
 // ✓ A new type is a new class, registered. Nothing existing is edited.
 const strategies = new Map<VehicleType, FeeStrategy>([
   ['car', new HourlyFee(2)], ['bike', new HourlyFee(1)], ['truck', new HourlyFee(5)],
 ]);
-calculateFee(t: Ticket) { return strategies.get(t.type)!.calculate(t); }
+class StrategyFeeCalculator {
+  calculateFee(t: Ticket) { return strategies.get(t.type)!.calculate(t); }
+}
 ```
 
 **How to spot the violation:** a `switch` or `if`/`else` chain on a type field, repeated in more than one place. That's the smell that says "polymorphism goes here."
@@ -145,7 +149,7 @@ calculateFee(t: Ticket) { return strategies.get(t.type)!.calculate(t); }
 A subtype must be usable wherever the base type is, **without the caller knowing**. The canonical violation:
 
 ```ts
-class Rectangle { setWidth(w) {…} setHeight(h) {…} }
+class Rectangle { setWidth(w) {} setHeight(h) {} }
 class Square extends Rectangle {
   setWidth(w)  { this.w = this.h = w; }   // breaks the caller's expectation
   setHeight(h) { this.w = this.h = h; }
@@ -177,7 +181,7 @@ Depend on abstractions, and **inject** them rather than constructing them:
 
 ```ts
 // ✗ ParkingLot is welded to one fee strategy and one repository
-class ParkingLot {
+class ParkingLotBroken {
   private fees = new HourlyFeeCalculator();      // untestable, unswappable
 }
 
@@ -201,8 +205,8 @@ Inheritance couples you to a hierarchy you must predict up front. Requirements r
 
 ```ts
 // ✗ The combinatorial explosion. Now add "electric" and it doubles again.
-class Vehicle {}
-class Car extends Vehicle {}
+class VehicleBroken {}
+class Car extends VehicleBroken {}
 class ElectricCar extends Car {}
 class LargeElectricCar extends ElectricCar {}
 class LargeElectricCarWithTrailer extends LargeElectricCar {}   // …
@@ -698,10 +702,12 @@ class Spot {
 **The JavaScript-specific point worth making**, and it's a genuinely good answer in a JS/TS interview: **JavaScript is single-threaded, so there is no preemption between statements** — a synchronous check-then-act cannot interleave. But `await` **is** a yield point, so this *is* racy:
 
 ```ts
-async park(v: Vehicle) {
-  const spot = this.find(v);              // spot is free
-  await this.repo.reserve(spot.id);       // ← another request runs during this await
-  spot.occupy(v);                         // may now be occupied
+class ParkingLot {
+  async park(v: Vehicle) {
+    const spot = this.find(v);              // spot is free
+    await this.repo.reserve(spot.id);       // ← another request runs during this await
+    spot.occupy(v);                         // may now be occupied
+  }
 }
 ```
 
@@ -762,11 +768,17 @@ I'd focus on the two that earn their keep in this round.
 
 ```ts
 // ✗ Every new vehicle type edits this method. And every method like it.
-if (type === 'car') return hours * 2;
-if (type === 'bike') return hours * 1;
+function calculateFee(type: VehicleType, hours: number): number {
+  if (type === 'car') return hours * 2;
+  if (type === 'bike') return hours * 1;
+  return 0;
+}
 
 // ✓ A new type is a new class, registered. Nothing existing is touched.
-const strategies = new Map<VehicleType, FeeStrategy>([...]);
+const strategies = new Map<VehicleType, FeeStrategy>([
+  ['car', new HourlyFee(2)],
+  ['bike', new HourlyFee(1)],
+]);
 ```
 
 **Dependency Inversion pays off immediately in testability**, which is the practical argument rather than the abstract one. A `ParkingLot` that does `new HourlyFeeCalculator()` internally can't be tested without that calculator, or with a fixed clock. Inject it and I can unit-test with a stub. **If a class is hard to test, it's usually because it constructs its own dependencies** — so "how would I test this?" is a useful self-check on any design.
@@ -821,8 +833,9 @@ Rarely, and I'd want a specific justification.
 **Composition by default**, because inheritance couples you to a hierarchy you must predict up front, and requirements don't cooperate:
 
 ```ts
-// ✗ Combinatorial explosion — and "electric" doubles it again
-class LargeElectricCarWithTrailer extends ElectricCar extends Car extends Vehicle
+// ✗ Combinatorial explosion — and "electric" doubles it again.
+//   (Not even expressible: JavaScript has single inheritance.)
+//   class LargeElectricCarWithTrailer extends ElectricCar extends Car extends Vehicle
 
 // ✓ Capabilities composed at runtime
 new Vehicle(Size.LARGE, new Set([Capability.ELECTRIC, Capability.TRAILER]))
@@ -926,11 +939,13 @@ Concretely, "monthly subscriber" forces you to add conditionals to `calculateFee
 
 ```ts
 // The shape this degenerates into
-processPayment(ticket) {
-  if (ticket.vehicle.hasSubscription) { /* skip */ }
-  else if (ticket.isValidated) { /* discount */ }
-  else if (isWeekend) { /* surcharge */ }
-  // …and every future requirement adds another branch, in every method
+class ParkingLot {
+  processPayment(ticket) {
+    if (ticket.vehicle.hasSubscription) { /* skip */ }
+    else if (ticket.isValidated) { /* discount */ }
+    else if (isWeekend) { /* surcharge */ }
+    // …and every future requirement adds another branch, in every method
+  }
 }
 ```
 
@@ -1019,9 +1034,11 @@ return 0
 Or, for a fixed window, the built-in atomic primitive:
 
 ```ts
-const count = await redis.incr(key);            // atomic
-if (count === 1) await redis.expire(key, windowSec);
-return count <= limit;
+async function run() {
+  const count = await redis.incr(key);            // atomic
+  if (count === 1) await redis.expire(key, windowSec);
+  return count <= limit;
+}
 ```
 
 **The remaining subtlety worth volunteering**, because it's the one nobody mentions: even with atomic Redis operations, `INCR` then `EXPIRE` as two commands has a window where a crash between them leaves a key with **no TTL** — permanently blocking that client. Use `SET key val EX n NX`, a Lua script, or a pipeline/`MULTI` so both happen together.

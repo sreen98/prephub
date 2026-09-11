@@ -114,13 +114,13 @@ for (const a of xs) {} for (const b of xs) {} // O(n) + O(n) = O(n)
 
 ## Hidden Costs in JavaScript
 ```js
-arr.shift() / arr.unshift()      // O(n) — reindexes everything. Use a deque.
-[...acc, item]                   // O(n) INSIDE a loop → O(n²) overall
-str += x                         // O(n) per concat → O(n²). Use array + join.
-arr.includes(x)                  // O(n) — inside a loop it's O(n·m). Use a Set.
-Object.keys(o) / spread          // O(n) each call
-arr.splice(i, 1)                 // O(n)
-arr.sort()                       // O(n log n) — and coerces to STRING by default
+arr.shift() / arr.unshift();      // O(n) — reindexes everything. Use a deque.
+[...acc, item];                   // O(n) INSIDE a loop → O(n²) overall
+str += x;                         // O(n) per concat → O(n²). Use array + join.
+arr.includes(x);                  // O(n) — inside a loop it's O(n·m). Use a Set.
+Object.keys(o) / spread;          // O(n) each call
+arr.splice(i, 1);                 // O(n)
+arr.sort();                       // O(n log n) — and coerces to STRING by default
 ```
 ```js
 // O(n²) → O(n)

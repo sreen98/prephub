@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { safeGet, safeSet } from '../lib/storage';
 
 export type Theme = 'light' | 'dark';
 
@@ -14,10 +15,10 @@ export function useDarkMode(): UseDarkModeReturn {
   // resolution logic ever changes.
   const [theme, setTheme] = useState<Theme>(() => {
     if (document.documentElement.classList.contains('dark')) return 'dark';
-    try {
-      const stored = localStorage.getItem('theme') as Theme | null;
-      if (stored) return stored;
-    } catch { /* localStorage unavailable */ }
+    // Only honour a stored value that is actually one of the two themes — a
+    // stale or hand-edited entry must not widen the union.
+    const stored = safeGet('theme');
+    if (stored === 'dark' || stored === 'light') return stored;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
@@ -30,9 +31,7 @@ export function useDarkMode(): UseDarkModeReturn {
     }
     // Clear the inline colour the blocking script set, so CSS owns it from here.
     root.style.removeProperty('background-color');
-    try {
-      localStorage.setItem('theme', theme);
-    } catch { /* localStorage unavailable — theme just won't persist */ }
+    safeSet('theme', theme);
   }, [theme]);
 
   const toggleTheme = (): void => {

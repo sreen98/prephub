@@ -1,14 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-let mermaidModule: any = null;
+// Mermaid ships its own types, so use them rather than a hand-rolled shape —
+// a local `{ initialize, render }` guess drifts from the real API and hides
+// signature changes across versions.
+type MermaidApi = Awaited<typeof import('mermaid')>['default'];
+
+let mermaidModule: MermaidApi | null = null;
 let mermaidReady: boolean = false;
 
-async function getMermaid(): Promise<any> {
-  if (!mermaidModule) {
-    mermaidModule = (await import('mermaid')).default;
-  }
+async function getMermaid(): Promise<MermaidApi> {
+  const mermaid = mermaidModule ?? (await import('mermaid')).default;
+  mermaidModule = mermaid;
   if (!mermaidReady) {
-    mermaidModule.initialize({
+    mermaid.initialize({
       startOnLoad: false,
       theme: 'neutral',
       securityLevel: 'loose',
@@ -18,7 +22,7 @@ async function getMermaid(): Promise<any> {
     });
     mermaidReady = true;
   }
-  return mermaidModule;
+  return mermaid;
 }
 
 let counter: number = 0;
@@ -37,16 +41,16 @@ export default function MermaidBlock({ chart }: MermaidBlockProps) {
     const id = `mermaid-${++counter}`;
 
     getMermaid()
-      .then(mermaid => mermaid.render(id, chart.trim(), containerRef.current))
+      .then(mermaid => mermaid.render(id, chart.trim(), containerRef.current ?? undefined))
       .then(({ svg: renderedSvg }: { svg: string }) => {
         if (!cancelled) {
           setSvg(renderedSvg);
           setError(null);
         }
       })
-      .catch((err: any) => {
+      .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err?.message || 'Failed to render diagram');
+          setError(err instanceof Error ? err.message : 'Failed to render diagram');
           setSvg('');
         }
       })
@@ -74,7 +78,7 @@ export default function MermaidBlock({ chart }: MermaidBlockProps) {
     return (
       <div className="mermaid-container">
         <div ref={containerRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} />
-        <div className="text-slate-400 text-sm">Loading diagram...</div>
+        <div className="text-slate-500 dark:text-slate-400 text-sm">Loading diagram...</div>
       </div>
     );
   }

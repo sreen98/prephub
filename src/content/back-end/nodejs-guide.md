@@ -119,7 +119,9 @@ function subtract(a, b) { return a - b; }
 module.exports = { add, subtract };
 // or
 exports.add = add;
+```
 
+```js
 // app.js — import
 const { add, subtract } = require('./math');
 const fs = require('fs');
@@ -132,7 +134,9 @@ const express = require('express');
 // math.mjs (or .js with "type": "module" in package.json)
 export function add(a, b) { return a + b; }
 export default function multiply(a, b) { return a * b; }
+```
 
+```js
 // app.mjs
 import multiply, { add } from './math.mjs';
 import { readFile } from 'fs/promises';
@@ -178,12 +182,12 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 
 // Synchronous (blocks event loop - avoid in servers)
-const data = fs.readFileSync('file.txt', 'utf8');
+const dataBroken = fs.readFileSync('file.txt', 'utf8');
 
 // Callback-based
-fs.readFile('file.txt', 'utf8', (err, data) => {
+fs.readFile('file.txt', 'utf8', (err, dataBroken) => {
   if (err) throw err;
-  console.log(data);
+  console.log(dataBroken);
 });
 
 // Promise-based (recommended)
@@ -1025,7 +1029,9 @@ The loop has phases: timers -> pending callbacks -> poll (I/O) -> check (setImme
 ```js
 // CJS
 const express = require('express');
+```
 
+```js
 // ESM
 import express from 'express';
 ```

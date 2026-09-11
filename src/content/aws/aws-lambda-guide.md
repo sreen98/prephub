@@ -156,7 +156,7 @@ exports.handler = async (event, context) => {
 
 The `event` structure depends on the trigger:
 
-```js
+```json
 // API Gateway (REST API) event
 {
   httpMethod: 'POST',
@@ -485,7 +485,7 @@ const config = loadConfig();                // loaded once
 
 export const handler = async (event) => {
   // This runs on EVERY invocation
-  const result = await dynamodb.send(new GetCommand({ ... }));
+  const result = await dynamodb.send(new GetCommand({ /* … */ }));
   return { statusCode: 200, body: JSON.stringify(result) };
 };
 ```

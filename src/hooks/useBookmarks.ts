@@ -1,13 +1,35 @@
 import { useState, useCallback } from 'react';
+import { getJSON, setJSON } from '../lib/storage';
 
 const STORAGE_KEY = 'bookmarks' as const;
 
-export interface Bookmark {
+/**
+ * A bookmark is one of two genuinely different things, so it's modelled as a
+ * discriminated union rather than one bag with optional fields. It previously
+ * carried `[key: string]: unknown`, which made every field `unknown` at the
+ * call site — the consumer cast to `any[]` to compensate, and that cast was
+ * hiding the fact that nothing about the shape was actually being checked.
+ */
+interface BookmarkBase {
   id: string;
   guideName?: string;
   createdAt?: string;
-  [key: string]: unknown;
 }
+
+export interface HeadingBookmark extends BookmarkBase {
+  type: 'heading';
+  guidePath: string;
+  headingId: string;
+  headingText: string;
+}
+
+export interface QuizBookmark extends BookmarkBase {
+  type: 'quiz';
+  questionId: string;
+  questionText: string;
+}
+
+export type Bookmark = HeadingBookmark | QuizBookmark;
 
 export interface BookmarksByGuide {
   [guideName: string]: Bookmark[];
@@ -24,15 +46,14 @@ export interface UseBookmarksReturn {
 }
 
 function load(): Bookmark[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) as string) || []; }
-  catch { return []; }
+  return getJSON(STORAGE_KEY, []);
 }
 
 export function useBookmarks(): UseBookmarksReturn {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(load);
 
   const save = useCallback((next: Bookmark[]): void => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setJSON(STORAGE_KEY, next);
     setBookmarks(next);
   }, []);
 

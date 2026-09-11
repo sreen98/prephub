@@ -403,7 +403,7 @@ if (config) {
 }
 ```
 
-```typescript
+```tsx
 // SettingsScreen.tsx
 const config = useConfigStore((s) => s.config);
 const privacyPolicyUrl = config?.privacyPolicyUrl ?? FALLBACK_URL;

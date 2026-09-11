@@ -967,7 +967,7 @@ npx test-storybook --coverage
 
 ### 11.3 Snapshot Testing
 
-```ts
+```tsx
 // Using test-runner, stories are automatically snapshot tested
 // Or manually with a test file:
 
@@ -1132,7 +1132,7 @@ CSF is the standard format for writing stories. A file has:
 
 ```tsx
 export default { title: 'UI/Button', component: Button };  // meta
-export const Primary: Story = { args: { ... } };            // story
+export const Primary: Story = { args: { /* … */ } };            // story
 export const Disabled: Story = { args: { disabled: true } }; // story
 ```
 

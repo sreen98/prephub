@@ -96,10 +96,12 @@ Two services can talk to each other two ways. Both have a place.
 Service A calls Service B and waits for a response. The simplest model. Trade-off: A is now coupled to B's availability and latency.
 
 ```js
-// Service A
-const user = await fetch(`http://user-service/users/${id}`).then(r => r.json());
-const orders = await fetch(`http://order-service/users/${id}/orders`).then(r => r.json());
-return { user, orders };
+async function run() {
+  // Service A
+  const user = await fetch(`http://user-service/users/${id}`).then(r => r.json());
+  const orders = await fetch(`http://order-service/users/${id}/orders`).then(r => r.json());
+  return { user, orders };
+}
 ```
 
 **Failures cascade.** If user-service is down, A's response fails. If user-service is slow, A is slow. This is why circuit breakers and timeouts exist (§9).

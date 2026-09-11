@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { getJSON, setJSON } from '../lib/storage';
 
 const STORAGE_KEY = 'study-stats' as const;
 const MILESTONES = [3, 7, 14, 30, 60, 100, 365] as const;
@@ -33,16 +34,12 @@ function today(): string {
 }
 
 function load(): StudyStatsData {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) as string) || {
-      visitDates: [],
-      totalQuestionsReviewed: 0,
-      totalGuidesCompleted: 0,
-      milestonesSeen: [],
-    };
-  } catch {
-    return { visitDates: [], totalQuestionsReviewed: 0, totalGuidesCompleted: 0, milestonesSeen: [] };
-  }
+  return getJSON(STORAGE_KEY, {
+    visitDates: [],
+    totalQuestionsReviewed: 0,
+    totalGuidesCompleted: 0,
+    milestonesSeen: [],
+  });
 }
 
 function calcStreak(dates: string[]): number {
@@ -84,7 +81,7 @@ export function useStudyStats(): UseStudyStatsReturn {
   const [stats, setStats] = useState<StudyStatsData>(load);
 
   const save = useCallback((next: StudyStatsData): void => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setJSON(STORAGE_KEY, next);
     setStats(next);
   }, []);
 

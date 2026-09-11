@@ -110,16 +110,18 @@ Effects are plain JavaScript objects (instructions) that the saga middleware int
 ```ts
 import { call } from 'redux-saga/effects';
 
-// Call an async function and wait for result
-const users = yield call(api.getUsers);
+function* saga() {
+  // Call an async function and wait for result
+  const users = yield call(api.getUsers);
 
-// With arguments
-const user = yield call(api.getUser, userId);
+  // With arguments
+  const user = yield call(api.getUser, userId);
 
-// Call a method on an object
-const data = yield call([obj, obj.method], arg1, arg2);
+  // Call a method on an object
+  const data = yield call([obj, obj.method], arg1, arg2);
 
-// call is blocking — saga pauses until the function resolves
+  // call is blocking — saga pauses until the function resolves
+}
 ```
 
 ### 3.2 put — Dispatch an Action
@@ -127,9 +129,11 @@ const data = yield call([obj, obj.method], arg1, arg2);
 ```ts
 import { put } from 'redux-saga/effects';
 
-// Dispatch a Redux action
-yield put(fetchUsersSuccess(users));
-yield put({ type: 'FETCH_SUCCESS', payload: data });
+function* saga() {
+  // Dispatch a Redux action
+  yield put(fetchUsersSuccess(users));
+  yield put({ type: 'FETCH_SUCCESS', payload: data });
+}
 ```
 
 ### 3.3 select — Read from Store
@@ -137,17 +141,19 @@ yield put({ type: 'FETCH_SUCCESS', payload: data });
 ```ts
 import { select } from 'redux-saga/effects';
 
-// Get entire state
-const state = yield select();
+function* saga() {
+  // Get entire state
+  const state = yield select();
 
-// Get specific slice
-const users = yield select(state => state.users.items);
+  // Get specific slice
+  const users = yield select(state => state.users.items);
 
-// Use a selector
-const activeUsers = yield select(selectActiveUsers);
+  // Use a selector
+  const activeUsers = yield select(selectActiveUsers);
 
-// Get specific value
-const userId = yield select(state => state.auth.userId);
+  // Get specific value
+  const userId = yield select(state => state.auth.userId);
+}
 ```
 
 ### 3.4 take — Wait for an Action
@@ -155,15 +161,17 @@ const userId = yield select(state => state.auth.userId);
 ```ts
 import { take } from 'redux-saga/effects';
 
-// Wait for a specific action type
-const action = yield take('LOGIN_REQUEST');
-console.log(action.payload);               // { email, password }
+function* saga() {
+  // Wait for a specific action type
+  const login = yield take('LOGIN_REQUEST');
+  console.log(login.payload);              // { email, password }
 
-// Wait for any of multiple actions
-const action = yield take(['LOGOUT', 'SESSION_EXPIRED']);
+  // Wait for any of multiple actions
+  const ended = yield take(['LOGOUT', 'SESSION_EXPIRED']);
 
-// Wait with pattern (function)
-const action = yield take(action => action.type.endsWith('_FAILURE'));
+  // Wait with pattern (function)
+  const failure = yield take(a => a.type.endsWith('_FAILURE'));
+}
 ```
 
 ### 3.5 fork — Non-Blocking Call
@@ -171,14 +179,16 @@ const action = yield take(action => action.type.endsWith('_FAILURE'));
 ```ts
 import { fork } from 'redux-saga/effects';
 
-// Fork starts a task without waiting for it to complete
-const task = yield fork(backgroundSync);
+function* saga() {
+  // Fork starts a task without waiting for it to complete
+  const task = yield fork(backgroundSync);
 
-// Parent continues immediately
-yield put(syncStarted());
+  // Parent continues immediately
+  yield put(syncStarted());
 
-// Later, cancel the forked task if needed
-yield cancel(task);
+  // Later, cancel the forked task if needed
+  yield cancel(task);
+}
 ```
 
 ### 3.6 delay — Wait for Time
@@ -186,14 +196,16 @@ yield cancel(task);
 ```ts
 import { delay } from 'redux-saga/effects';
 
-// Wait 2 seconds
-yield delay(2000);
+function* saga() {
+  // Wait 2 seconds
+  yield delay(2000);
 
-// Polling pattern
-while (true) {
-  const data = yield call(api.fetchStatus);
-  yield put(statusUpdated(data));
-  yield delay(5000);                       // poll every 5 seconds
+  // Polling pattern
+  while (true) {
+    const data = yield call(api.fetchStatus);
+    yield put(statusUpdated(data));
+    yield delay(5000);                       // poll every 5 seconds
+  }
 }
 ```
 
@@ -202,15 +214,17 @@ while (true) {
 ```ts
 import { all, call } from 'redux-saga/effects';
 
-// Run multiple effects in parallel (like Promise.all)
-const [users, posts, comments] = yield all([
-  call(api.getUsers),
-  call(api.getPosts),
-  call(api.getComments),
-]);
+function* saga() {
+  // Run multiple effects in parallel (like Promise.all)
+  const [users, posts, comments] = yield all([
+    call(api.getUsers),
+    call(api.getPosts),
+    call(api.getComments),
+  ]);
 
-// All three API calls fire simultaneously
-// Saga waits until ALL complete
+  // All three API calls fire simultaneously
+  // Saga waits until ALL complete
+}
 ```
 
 ### 3.8 race — First to Complete Wins
@@ -218,19 +232,21 @@ const [users, posts, comments] = yield all([
 ```ts
 import { race, call, delay } from 'redux-saga/effects';
 
-// Race between API call and timeout
-const { response, timeout } = yield race({
-  response: call(api.fetchData),
-  timeout: delay(5000),
-});
+function* saga() {
+  // Race between API call and timeout
+  const { response, timeout } = yield race({
+    response: call(api.fetchData),
+    timeout: delay(5000),
+  });
 
-if (timeout) {
-  yield put(fetchTimedOut());
-} else {
-  yield put(fetchSuccess(response));
+  if (timeout) {
+    yield put(fetchTimedOut());
+  } else {
+    yield put(fetchSuccess(response));
+  }
+
+  // The losing effect is automatically cancelled
 }
-
-// The losing effect is automatically cancelled
 ```
 
 ### 3.9 Effects Summary
@@ -314,53 +330,63 @@ function* watchFetchUser() {
 ### 5.1 takeEvery
 
 ```ts
-// Handles EVERY dispatched action (multiple concurrent)
-yield takeEvery('FETCH_REQUESTED', fetchSaga);
+function* saga() {
+  // Handles EVERY dispatched action (multiple concurrent)
+  yield takeEvery('FETCH_REQUESTED', fetchSaga);
 
-// If user clicks 3 times, 3 sagas run in parallel
-// Use for: actions where every instance matters (analytics events, batch operations)
+  // If user clicks 3 times, 3 sagas run in parallel
+  // Use for: actions where every instance matters (analytics events, batch operations)
+}
 ```
 
 ### 5.2 takeLatest
 
 ```ts
-// Cancels previous running saga, starts new one
-yield takeLatest('SEARCH_CHANGED', searchSaga);
+function* saga() {
+  // Cancels previous running saga, starts new one
+  yield takeLatest('SEARCH_CHANGED', searchSaga);
 
-// If user types "a", "ab", "abc" — only "abc" search runs
-// Previous requests are cancelled automatically
-// Use for: search, filters, form auto-save
+  // If user types "a", "ab", "abc" — only "abc" search runs
+  // Previous requests are cancelled automatically
+  // Use for: search, filters, form auto-save
+}
 ```
 
 ### 5.3 takeLeading
 
 ```ts
-// Ignores new actions while saga is running
-yield takeLeading('SUBMIT_FORM', submitSaga);
+function* saga() {
+  // Ignores new actions while saga is running
+  yield takeLeading('SUBMIT_FORM', submitSaga);
 
-// If user double-clicks submit, only first click is processed
-// Use for: form submission, prevent double-actions
+  // If user double-clicks submit, only first click is processed
+  // Use for: form submission, prevent double-actions
+}
 ```
 
 ### 5.4 debounce
 
 ```ts
-// Waits for N ms of inactivity before running
-yield debounce(300, 'SEARCH_CHANGED', searchSaga);
+function* saga() {
+  // Waits for N ms of inactivity before running
+  yield debounce(300, 'SEARCH_CHANGED', searchSaga);
 
-// User types "a" (wait 300ms) — no new input — runs search for "a"
-// User types "a", "b", "c" rapidly — only runs search for "c"
-// Use for: search input, auto-save, resize handlers
+  // User types "a" (wait 300ms) — no new input — runs search for "a"
+  // User types "a", "b", "c" rapidly — only runs search for "c"
+  // Use for: search input, auto-save, resize handlers
+}
 ```
 
 ### 5.5 throttle
 
 ```ts
-// Runs at most once per N ms
-yield throttle(1000, 'SCROLL', handleScroll);
+function* saga() {
+  // Runs at most once per N ms
+  yield throttle(1000, 'SCROLL', handleScroll);
 
-// User scrolls continuously — handler runs once per second
-// Use for: scroll handlers, resize, rate-limited APIs
+  // User scrolls continuously — handler runs once per second
+  // Use for: scroll handlers, resize, rate-limited APIs
+}
 ```
 
 ### 5.6 Comparison
@@ -943,8 +969,10 @@ function* mySaga() {
 - `put(action)`: Dispatches a Redux action. Used to update the store.
 
 ```ts
-const users = yield call(api.getUsers);    // call API, wait for response
-yield put(fetchUsersSuccess(users));       // dispatch to store
+function* saga() {
+  const users = yield call(api.getUsers);    // call API, wait for response
+  yield put(fetchUsersSuccess(users));       // dispatch to store
+}
 ```
 
 ---
@@ -955,8 +983,10 @@ yield put(fetchUsersSuccess(users));       // dispatch to store
 - `takeLatest`: Cancels any previous running instance and runs a new one. Only the latest matters.
 
 ```ts
-yield takeEvery('FETCH', fetchSaga);    // 3 clicks = 3 API calls
-yield takeLatest('FETCH', fetchSaga);   // 3 clicks = only last one runs
+function* saga() {
+  yield takeEvery('FETCH', fetchSaga);    // 3 clicks = 3 API calls
+  yield takeLatest('FETCH', fetchSaga);   // 3 clicks = only last one runs
+}
 ```
 
 Use `takeLatest` for searches/filters. Use `takeEvery` when every action matters (analytics events).
@@ -1009,15 +1039,17 @@ Use `fork` for critical tasks. Use `spawn` for independent, non-critical tasks.
 `race` runs multiple effects in parallel and completes when the FIRST one finishes. The losers are automatically cancelled.
 
 ```ts
-const { response, timeout } = yield race({
-  response: call(api.fetchData),
-  timeout: delay(5000),
-});
+function* saga() {
+  const { response, timeout } = yield race({
+    response: call(api.fetchData),
+    timeout: delay(5000),
+  });
 
-if (timeout) {
-  // API took too long
-} else {
-  // Got response
+  if (timeout) {
+    // API took too long
+  } else {
+    // Got response
+  }
 }
 ```
 
@@ -1160,7 +1192,7 @@ function* watchProcess() {
 }
 
 // Or manual cancel
-function* watchProcess() {
+function* watchProcessV2() {
   while (true) {
     const action = yield take('PROCESS_JOB');
     const task = yield fork(processJobSaga, action);
@@ -1180,11 +1212,13 @@ function* watchProcess() {
 - Like `Promise.all`
 
 ```ts
-try {
-  const [a, b, c] = yield all([call(api.a), call(api.b), call(api.c)]);
-  // Only reaches here if ALL succeed
-} catch (error) {
-  // If ANY fails, all others are cancelled
+function* saga() {
+  try {
+    const [a, b, c] = yield all([call(api.a), call(api.b), call(api.c)]);
+    // Only reaches here if ALL succeed
+  } catch (error) {
+    // If ANY fails, all others are cancelled
+  }
 }
 ```
 
@@ -1194,11 +1228,13 @@ try {
 - If the winner throws, race throws
 
 ```ts
-const { response, timeout } = yield race({
-  response: call(api.fetch),
-  timeout: delay(5000),
-});
-// One of these will be defined, the other will be undefined
+function* saga() {
+  const { response, timeout } = yield race({
+    response: call(api.fetch),
+    timeout: delay(5000),
+  });
+  // One of these will be defined, the other will be undefined
+}
 ```
 
 ---
@@ -1257,10 +1293,12 @@ expect(gen.next(data).value).toEqual(put(success(data)));
 
 **Integration testing** (redux-saga-test-plan):
 ```ts
-return expectSaga(fetchSaga)
-  .provide([[call.fn(api.fetch), data]])
-  .put(success(data))
-  .run();
+async function run() {
+  return expectSaga(fetchSaga)
+    .provide([[call.fn(api.fetch), data]])
+    .put(success(data))
+    .run();
+}
 ```
 - Pros: Tests behavior (what actions are dispatched), not implementation order
 - Cons: Slightly more setup, less granular

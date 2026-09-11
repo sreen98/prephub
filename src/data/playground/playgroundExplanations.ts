@@ -1,0 +1,8717 @@
+// Step-by-step explanations for Coding Challenge templates.
+// Loaded lazily from CodePlayground only when the user opens the explanation
+// modal — keeps this off the initial route chunk.
+//
+// Data model is intentionally narrow: the modal renders a few primitive
+// "snapshot" views (array, hash map, pseudocode) and walks through `steps`
+// frame-by-frame. Adding a new explanation means filling out the same shape
+// for whatever data structures the algorithm uses.
+
+export type Highlight = 'i' | 'j' | 'hit' | 'new' | 'compare' | 'found';
+
+export interface ArrayCell {
+  value: string | number;
+  highlight?: Highlight;
+}
+
+export interface ArraySnapshot {
+  cells: ArrayCell[];
+  pointers?: { index: number; label: string; color: 'red' | 'amber' | 'emerald' | 'indigo' }[];
+}
+
+export interface MapEntry {
+  key: string | number;
+  value: string | number;
+  highlight?: 'new' | 'hit';
+}
+
+export interface MapSnapshot {
+  entries: MapEntry[];
+}
+
+// ===== Extra snapshot primitives for non-iterative algorithms =====
+
+export interface StackSnapshot {
+  // First item is the BOTTOM of the stack, last is the TOP.
+  items: ArrayCell[];
+  // What's happening this step at the top of the stack.
+  action?: 'push' | 'pop' | 'peek' | 'idle';
+}
+
+export interface SetSnapshot {
+  items: { value: string | number; highlight?: 'new' | 'hit' }[];
+}
+
+// Two arrays side by side — useful for merge / compare visualizations.
+export interface DualArraySnapshot {
+  left: { label: string; cells: ArrayCell[]; pointer?: number };
+  right: { label: string; cells: ArrayCell[]; pointer?: number };
+  result?: { label: string; cells: ArrayCell[] };
+}
+
+// Function call frames for recursion (top is most recent).
+export interface CallStackSnapshot {
+  frames: { call: string; status?: 'active' | 'returned' | 'pending'; returns?: string }[];
+}
+
+// Linked-list nodes drawn left-to-right with → arrows.
+export interface LinkedListSnapshot {
+  nodes: { value: string | number; highlight?: Highlight; label?: string }[];
+  // Optional next pointer label between nodes ("null" or other).
+  tail?: string;
+}
+
+// Horizontal timeline — for debounce/throttle/event-loop kinds of problems.
+export interface TimelineSnapshot {
+  events: { t: number; label: string; kind: 'input' | 'fire' | 'skip' | 'pending' }[];
+  windowMs?: number;
+}
+
+export interface ExplanationStep {
+  // One-sentence summary that appears below the visual.
+  title: string;
+  // Optional longer paragraph for the "Why?" panel.
+  detail?: string;
+  // Highlighted pseudocode line index (0-based into approach.pseudocode).
+  pseudoLine?: number;
+  // Visual frames — render whichever ones are present.
+  array?: ArraySnapshot;
+  map?: MapSnapshot;
+  stack?: StackSnapshot;
+  set?: SetSnapshot;
+  dualArray?: DualArraySnapshot;
+  callStack?: CallStackSnapshot;
+  linkedList?: LinkedListSnapshot;
+  timeline?: TimelineSnapshot;
+  // The math/comparison being performed this step (e.g., "9 - 2 = 7").
+  computation?: { label: string; lhs?: string; op?: string; rhs?: string; result?: string };
+  // Inline lookup outcome: 'hit' (found) / 'miss' (not found) / undefined.
+  lookupOutcome?: { kind: 'hit' | 'miss'; key: string | number; at?: string };
+  // Free-form note rendered as a soft callout.
+  note?: string;
+  // Final output once the algorithm decides.
+  result?: { found: true; value: string } | { found: false; value?: string };
+}
+
+// Reference to a polyfill template that this approach leans on. The modal
+// renders these as clickable chips — clicking loads that polyfill template
+// in the playground so the user can see how the built-in works under the
+// hood.
+export interface PolyfillRef {
+  /** Built-in name, e.g. "Array.prototype.reduce" */
+  builtin: string;
+  /** Matches a `name` in playgroundTemplates.ts JS Polyfills category */
+  templateName: string;
+  /** Optional one-liner explaining how this approach uses the built-in */
+  why?: string;
+}
+
+export interface Approach {
+  id: string;
+  name: string;
+  badge: 'best' | 'baseline' | 'alternative';
+  intuition: string;
+  complexity: { time: string; space: string; verdict: string };
+  pseudocode: string[];
+  example: { input: string; output: string };
+  steps: ExplanationStep[];
+  tradeoffs: string;
+  /** Built-ins this approach uses that have a polyfill template in the playground */
+  usesPolyfills?: PolyfillRef[];
+  /** Optional side-by-side comparison blocks. When present, the modal renders
+   *  the primary pseudocode + each compare block as columns. Useful for
+   *  paired algorithms like rotate-left vs rotate-right. The primary's
+   *  pseudoLine highlight applies only to the primary column. */
+  pseudocodeCompare?: { label: string; lines: string[]; highlightLine?: number }[];
+  /** Optional label for the primary pseudocode when shown alongside compare blocks. */
+  pseudocodeLabel?: string;
+}
+
+export interface Explanation {
+  problem: string;
+  problemStatement: string;
+  approaches: Approach[];
+}
+
+// ====================================================================
+
+const twoSum: Explanation = {
+  problem: 'Two Sum',
+  problemStatement:
+    'Given an array of integers `nums` and a target integer `target`, return the indices of the two numbers that add up to target. Each input has exactly one solution and the same element may not be used twice.',
+  approaches: [
+    // --------------------------- BRUTE FORCE ---------------------------
+    {
+      id: 'brute-force',
+      name: 'Brute Force — Nested Loops',
+      badge: 'baseline',
+      intuition:
+        "Try every possible pair (i, j) with j > i. For each pair, check if nums[i] + nums[j] equals the target. Guaranteed correct, but you do up to n·(n−1)/2 comparisons.",
+      complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'Don\'t ship — too slow on large inputs' },
+      pseudocode: [
+        'for i from 0 to n-1:',
+        '  for j from i+1 to n-1:',
+        '    if nums[i] + nums[j] === target:',
+        '      return [i, j]',
+        'return [] // no solution',
+      ],
+      example: { input: 'nums = [3, 2, 4], target = 6', output: '[1, 2]' },
+      steps: [
+        {
+          title: 'Start with i = 0. We will pair nums[0] = 3 with every j > 0.',
+          pseudoLine: 0,
+          array: {
+            cells: [
+              { value: 3, highlight: 'i' },
+              { value: 2 },
+              { value: 4 },
+            ],
+            pointers: [{ index: 0, label: 'i', color: 'red' }],
+          },
+        },
+        {
+          title: 'i=0, j=1. Check 3 + 2.',
+          detail: '3 + 2 = 5, which is not equal to target 6. Move j forward.',
+          pseudoLine: 2,
+          array: {
+            cells: [
+              { value: 3, highlight: 'i' },
+              { value: 2, highlight: 'j' },
+              { value: 4 },
+            ],
+            pointers: [
+              { index: 0, label: 'i', color: 'red' },
+              { index: 1, label: 'j', color: 'amber' },
+            ],
+          },
+          computation: { label: 'nums[i] + nums[j] vs target', lhs: '3', op: '+', rhs: '2', result: '5 ≠ 6' },
+        },
+        {
+          title: 'i=0, j=2. Check 3 + 4.',
+          detail: '3 + 4 = 7, also not 6. j has run off the end, so move i forward.',
+          pseudoLine: 2,
+          array: {
+            cells: [
+              { value: 3, highlight: 'i' },
+              { value: 2 },
+              { value: 4, highlight: 'j' },
+            ],
+            pointers: [
+              { index: 0, label: 'i', color: 'red' },
+              { index: 2, label: 'j', color: 'amber' },
+            ],
+          },
+          computation: { label: 'nums[i] + nums[j] vs target', lhs: '3', op: '+', rhs: '4', result: '7 ≠ 6' },
+        },
+        {
+          title: 'i=1, j=2. Check 2 + 4.',
+          detail: '2 + 4 = 6 — match! Return [1, 2].',
+          pseudoLine: 3,
+          array: {
+            cells: [
+              { value: 3 },
+              { value: 2, highlight: 'i' },
+              { value: 4, highlight: 'found' },
+            ],
+            pointers: [
+              { index: 1, label: 'i', color: 'red' },
+              { index: 2, label: 'j', color: 'emerald' },
+            ],
+          },
+          computation: { label: 'nums[i] + nums[j] vs target', lhs: '2', op: '+', rhs: '4', result: '6 = 6 ✓' },
+          result: { found: true, value: '[1, 2]' },
+        },
+      ],
+      tradeoffs:
+        "Pick this only if n is tiny (say, ≤ 100) or if you need a baseline you're certain is correct. For typical interview inputs (n up to 10,000+), nested loops will time out — recruiters expect you to recognize this and switch.",
+    },
+    // ----------------------------- HASH MAP -----------------------------
+    {
+      id: 'hash-map',
+      name: 'Hash Map — One Pass',
+      badge: 'best',
+      intuition:
+        "Walk the array once. At each index i, ask: have I seen the complement (target − nums[i]) already? If a hash map says yes, you've found the pair. If not, store the current number → its index and keep going. The trick: you only need to look back, never forward, because pairs are symmetric.",
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Ship this — the canonical answer' },
+      pseudocode: [
+        'map = {}',
+        'for i from 0 to n-1:',
+        '  complement = target - nums[i]',
+        '  if complement in map:',
+        '    return [map[complement], i]',
+        '  map[nums[i]] = i',
+        'return [] // no solution',
+      ],
+      example: { input: 'nums = [2, 7, 11, 15], target = 9', output: '[0, 1]' },
+      steps: [
+        {
+          title: 'Start with an empty map.',
+          detail: 'The map will store numbers we have already seen, mapped to their index.',
+          pseudoLine: 0,
+          array: {
+            cells: [
+              { value: 2 },
+              { value: 7 },
+              { value: 11 },
+              { value: 15 },
+            ],
+          },
+          map: { entries: [] },
+        },
+        {
+          title: 'i = 0, nums[i] = 2. Compute complement = 9 − 2 = 7.',
+          detail: 'We need to find a 7 somewhere. Check the map.',
+          pseudoLine: 2,
+          array: {
+            cells: [
+              { value: 2, highlight: 'i' },
+              { value: 7 },
+              { value: 11 },
+              { value: 15 },
+            ],
+            pointers: [{ index: 0, label: 'i', color: 'indigo' }],
+          },
+          map: { entries: [] },
+          computation: { label: 'complement = target − nums[i]', lhs: '9', op: '−', rhs: '2', result: '7' },
+        },
+        {
+          title: 'Is 7 in the map? No — map is empty.',
+          detail: "Store the current number 2 → its index 0 in the map. Then move on to i = 1.",
+          pseudoLine: 5,
+          array: {
+            cells: [
+              { value: 2, highlight: 'i' },
+              { value: 7 },
+              { value: 11 },
+              { value: 15 },
+            ],
+            pointers: [{ index: 0, label: 'i', color: 'indigo' }],
+          },
+          map: { entries: [{ key: 2, value: 0, highlight: 'new' }] },
+          lookupOutcome: { kind: 'miss', key: 7 },
+        },
+        {
+          title: 'i = 1, nums[i] = 7. Compute complement = 9 − 7 = 2.',
+          detail: 'We need to find a 2. Check the map.',
+          pseudoLine: 2,
+          array: {
+            cells: [
+              { value: 2 },
+              { value: 7, highlight: 'i' },
+              { value: 11 },
+              { value: 15 },
+            ],
+            pointers: [{ index: 1, label: 'i', color: 'indigo' }],
+          },
+          map: { entries: [{ key: 2, value: 0 }] },
+          computation: { label: 'complement = target − nums[i]', lhs: '9', op: '−', rhs: '7', result: '2' },
+        },
+        {
+          title: 'Is 2 in the map? YES — at index 0.',
+          detail: 'Return [map[2], i] = [0, 1]. Done in one pass with two lookups.',
+          pseudoLine: 4,
+          array: {
+            cells: [
+              { value: 2, highlight: 'found' },
+              { value: 7, highlight: 'found' },
+              { value: 11 },
+              { value: 15 },
+            ],
+            pointers: [{ index: 1, label: 'i', color: 'emerald' }],
+          },
+          map: { entries: [{ key: 2, value: 0, highlight: 'hit' }] },
+          lookupOutcome: { kind: 'hit', key: 2, at: '0' },
+          result: { found: true, value: '[0, 1]' },
+        },
+      ],
+      tradeoffs:
+        "Trades O(n) extra space for O(n) time. Always the right answer in interviews unless the interviewer explicitly bans extra space (in which case fall back to sorting + two pointers — but that needs O(n log n) and loses the original indices unless you keep them paired).",
+    },
+  ],
+};
+
+// ====================================================================
+
+const reverseString: Explanation = {
+  problem: 'Reverse String',
+  problemStatement: 'Reverse a string with no use of the built-in reverse. The interviewer is looking for the two-pointer pattern; the one-liner with split/reverse/join is acceptable in real code but in interviews you should articulate what those built-ins do internally.',
+  approaches: [{
+    id: 'two-pointer',
+    name: 'Two-Pointer Swap (Best)',
+    badge: 'best',
+    intuition:
+      "Strings in JavaScript are immutable, so we can't mutate them in place — we convert to an array first. Then place a pointer at each end. " +
+      "On each iteration, swap the characters at the two pointers and step them inward. When the pointers meet (odd length) or cross (even length), we're done. " +
+      "The key insight is that **each pair of mirror positions is touched exactly once** — position 0 swaps with position n-1, position 1 with n-2, etc. That's why this runs in O(n/2) iterations. The middle character of an odd-length string never moves: it's already in its final spot.",
+    complexity: { time: 'O(n)', space: 'O(n) for the array intermediate; O(1) extra beyond that', verdict: 'Ship this — what interviewers expect' },
+    pseudocode: [
+      'arr = str.split("")              // immutable string → mutable array',
+      'left = 0, right = arr.length - 1',
+      'while left < right:',
+      '  swap arr[left] with arr[right] // [arr[left], arr[right]] = [arr[right], arr[left]]',
+      '  left++, right--',
+      'return arr.join("")              // array back to string',
+    ],
+    example: { input: '"hello"', output: '"olleh"' },
+    steps: [
+      {
+        title: 'Convert "hello" to a 5-cell array. Place L at index 0 and R at index 4.',
+        detail: 'Strings are immutable in JS — `s[0] = "x"` does nothing. We need a mutable buffer to swap into.',
+        pseudoLine: 1,
+        array: { cells: [{ value: 'h', highlight: 'i' }, { value: 'e' }, { value: 'l' }, { value: 'l' }, { value: 'o', highlight: 'j' }],
+          pointers: [{ index: 0, label: 'L', color: 'red' }, { index: 4, label: 'R', color: 'amber' }] },
+      },
+      {
+        title: 'Swap arr[L]=h with arr[R]=o. Array is now [o, e, l, l, h]. L→1, R→3.',
+        detail: 'A destructuring swap `[a[i], a[j]] = [a[j], a[i]]` does this without a temp variable, but conceptually it is still three moves: temp = a[i]; a[i] = a[j]; a[j] = temp.',
+        pseudoLine: 3,
+        array: { cells: [{ value: 'o' }, { value: 'e', highlight: 'i' }, { value: 'l' }, { value: 'l', highlight: 'j' }, { value: 'h' }],
+          pointers: [{ index: 1, label: 'L', color: 'red' }, { index: 3, label: 'R', color: 'amber' }] },
+      },
+      {
+        title: 'Swap arr[L]=e with arr[R]=l. Array is [o, l, l, e, h]. L→2, R→2.',
+        detail: 'Now L === R — they point at the same middle slot. The loop condition `left < right` is now false, so we exit without touching the middle.',
+        pseudoLine: 3,
+        array: { cells: [{ value: 'o' }, { value: 'l' }, { value: 'l', highlight: 'i' }, { value: 'e' }, { value: 'h' }],
+          pointers: [{ index: 2, label: 'L=R', color: 'emerald' }] },
+      },
+      {
+        title: 'Loop exits. Join the array back into a string and return.',
+        detail: 'The middle character ("l" at index 2) was never moved — that is correct, the middle of an odd-length palindrome-shaped buffer is already in place.',
+        pseudoLine: 5,
+        array: { cells: [{ value: 'o', highlight: 'found' }, { value: 'l', highlight: 'found' }, { value: 'l', highlight: 'found' }, { value: 'e', highlight: 'found' }, { value: 'h', highlight: 'found' }] },
+        result: { found: true, value: '"olleh"' },
+      },
+    ],
+    tradeoffs: "This is the answer the interviewer wants — it shows you understand the two-pointer pattern, can manipulate indices, and recognize that strings are immutable. The split-reverse-join one-liner is essentially this same algorithm wrapped behind built-ins (V8's `reverse` is in fact a two-pointer swap loop in C++).",
+  },
+  {
+    id: 'split-reverse-join',
+    name: 'Built-in Chain — split → reverse → join (Alternative)',
+    badge: 'alternative',
+    intuition:
+      "The whole problem becomes a one-liner if you're allowed to use the built-ins: `str.split('').reverse().join('')`. This is fine in production code but it's almost always rejected in interviews because it sidesteps the algorithm. The teaching value is: knowing what each built-in does internally. " +
+      "`split('')` splits a string into an array of single characters (O(n) time, O(n) space). `Array.prototype.reverse()` is exactly the two-pointer swap loop, just inside the engine. `join('')` walks the array and concatenates (O(n)). So the one-liner is three O(n) passes — about 3× the work of a hand-rolled single-pass two-pointer.",
+    complexity: { time: 'O(n) but with a 3× constant factor', space: 'O(n)', verdict: 'Real-world: fine. Interview: explain what the built-ins do, then offer the two-pointer.' },
+    pseudocode: [
+      'return str.split("").reverse().join("")',
+      '// equivalent to:',
+      '// arr = str.split("")     ← O(n)',
+      '// arr.reverse()           ← O(n) two-pointer swap',
+      '// return arr.join("")     ← O(n)',
+    ],
+    example: { input: '"hello"', output: '"olleh"' },
+    steps: [
+      {
+        title: 'split("") — turn "hello" into ["h", "e", "l", "l", "o"].',
+        detail: 'split with an empty separator yields one entry per UTF-16 code unit. Beware: this breaks emoji and other surrogate-pair characters into halves. For Unicode-correct splitting use [...str] instead.',
+        pseudoLine: 0,
+        array: { cells: [{ value: 'h' }, { value: 'e' }, { value: 'l' }, { value: 'l' }, { value: 'o' }] },
+      },
+      {
+        title: 'reverse() — engine runs two-pointer swap internally → ["o", "l", "l", "e", "h"].',
+        detail: 'Internally the engine does the same thing as approach 1: walk from both ends, swap, advance until they meet.',
+        pseudoLine: 3,
+        array: { cells: [{ value: 'o', highlight: 'compare' }, { value: 'l', highlight: 'compare' }, { value: 'l', highlight: 'compare' }, { value: 'e', highlight: 'compare' }, { value: 'h', highlight: 'compare' }] },
+      },
+      {
+        title: 'join("") — walk the array and concatenate to "olleh".',
+        detail: 'join with empty separator just stringifies and concatenates each element with no glue between them.',
+        pseudoLine: 4,
+        array: { cells: [{ value: 'o', highlight: 'found' }, { value: 'l', highlight: 'found' }, { value: 'l', highlight: 'found' }, { value: 'e', highlight: 'found' }, { value: 'h', highlight: 'found' }] },
+        result: { found: true, value: '"olleh"' },
+      },
+    ],
+    tradeoffs: "Use this one-liner in everyday code. In an interview, expect a follow-up: 'now do it without reverse'. That's your cue to switch to two-pointer.",
+    usesPolyfills: [
+      { builtin: 'Array.prototype.reverse', templateName: 'Array.reverse',
+        why: 'reverse() is the two-pointer swap loop wrapped in a built-in' },
+      { builtin: 'Array.prototype.join', templateName: 'Array.prototype.join',
+        why: 'join concatenates the reversed character array back to a string' },
+    ],
+  }],
+};
+
+// ====================================================================
+
+const validPalindrome: Explanation = {
+  problem: 'Valid Palindrome',
+  problemStatement: 'Determine if a string reads the same forwards and backwards, ignoring case and non-alphanumeric characters. Punctuation, spaces, and case differences should NOT cause a false negative — `"A man, a plan, a canal: Panama"` is a palindrome.',
+  approaches: [{
+    id: 'two-pointer',
+    name: 'Two-Pointer Compare (Best — O(1) space)',
+    badge: 'best',
+    intuition:
+      "Two pointers, one at each end, walk toward each other. The 'ignore non-alphanumeric and case' rule is handled inline: at each step, before comparing, advance each pointer past any non-alphanumeric character (commas, spaces, colons). Then compare the lowercased characters. Mismatch → return false; match → step inward and continue. " +
+      "This is strictly better than building a cleaned copy of the string because it uses O(1) extra space — no allocation, no second pass. The double inner-while loops to skip non-alphanumeric look weird at first but are linear overall: each character is visited at most twice across all iterations (once by L scanning forward, once by R scanning backward), which is still O(n).",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Best — no allocation' },
+    pseudocode: [
+      'left = 0, right = s.length - 1',
+      'while left < right:',
+      '  while left<right and !isAlnum(s[left]):  left++   // skip non-alnum on left',
+      '  while left<right and !isAlnum(s[right]): right--  // skip non-alnum on right',
+      '  if lower(s[left]) !== lower(s[right]): return false',
+      '  left++, right--',
+      'return true',
+    ],
+    example: { input: '"racecar"', output: 'true' },
+    steps: [
+      { title: 'Initial pointers at both ends of "racecar".', pseudoLine: 0,
+        array: { cells: 'racecar'.split('').map(c => ({ value: c })), pointers: [{ index: 0, label: 'L', color: 'red' }, { index: 6, label: 'R', color: 'amber' }] } },
+      { title: 'Compare r === r ✓. Step both pointers inward.',
+        detail: 'Both characters are alphanumeric, so the inner skip-loops do nothing. Lowercased comparison passes.',
+        pseudoLine: 4,
+        array: { cells: 'racecar'.split('').map((c, i) => ({ value: c, highlight: (i === 0 || i === 6) ? 'i' as const : undefined })),
+          pointers: [{ index: 0, label: 'L', color: 'red' }, { index: 6, label: 'R', color: 'amber' }] },
+        computation: { label: 'lower(s[L]) vs lower(s[R])', lhs: 'r', op: '=', rhs: 'r', result: 'match' } },
+      { title: 'Compare a === a ✓. Step inward.', pseudoLine: 4,
+        array: { cells: 'racecar'.split('').map((c, i) => ({ value: c, highlight: (i === 1 || i === 5) ? 'i' as const : undefined })),
+          pointers: [{ index: 1, label: 'L', color: 'red' }, { index: 5, label: 'R', color: 'amber' }] },
+        computation: { label: 'lower(s[L]) vs lower(s[R])', lhs: 'a', op: '=', rhs: 'a', result: 'match' } },
+      { title: 'Compare c === c ✓. Step inward.', pseudoLine: 4,
+        array: { cells: 'racecar'.split('').map((c, i) => ({ value: c, highlight: (i === 2 || i === 4) ? 'i' as const : undefined })),
+          pointers: [{ index: 2, label: 'L', color: 'red' }, { index: 4, label: 'R', color: 'amber' }] },
+        computation: { label: 'lower(s[L]) vs lower(s[R])', lhs: 'c', op: '=', rhs: 'c', result: 'match' } },
+      { title: 'Pointers meet at center "e". Loop exits — return true.',
+        detail: 'The middle character of an odd-length palindrome is unreachable to the comparison; that is correct because a single character is trivially a palindrome with itself.',
+        pseudoLine: 6,
+        array: { cells: 'racecar'.split('').map((c, i) => ({ value: c, highlight: i === 3 ? 'found' as const : undefined })),
+          pointers: [{ index: 3, label: 'L=R', color: 'emerald' }] },
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: "This is the canonical answer. It is harder to write correctly (off-by-one in the inner skip-loops is the classic bug — be careful with the `left<right` guard) but interviewers want to see you handle the 'ignore certain chars' rule without allocating a new string.",
+  },
+  {
+    id: 'regex-strip',
+    name: 'Strip with Regex + Compare Reversed (Alternative — readable)',
+    badge: 'alternative',
+    intuition:
+      "Build a clean version of the string — only alphanumeric, lowercased — then check if it equals its own reverse. Less code, easier to reason about, easier to extend (e.g., 'also ignore underscores' is a single character class change). The cost is O(n) extra space for the cleaned copy.\n\n" +
+      "**The regex `/[^a-z0-9]/gi` is the centerpiece. Let's break it down piece by piece:**\n\n" +
+      "• `[ ]` — a *character class*, meaning 'any one character from this set'.\n" +
+      "• `^` (only when it's the first thing inside `[]`) — *negation*. Now the class means 'any character NOT in this set'.\n" +
+      "• `a-z` — a range: lowercase letters a through z.\n" +
+      "• `0-9` — another range: digits.\n" +
+      "• `g` flag (after the closing `/`) — *global*: replace ALL occurrences, not just the first.\n" +
+      "• `i` flag — *case-insensitive*: `a-z` also matches `A-Z` because of `i`. (Without `i` we would write `[^a-zA-Z0-9]` instead.)\n\n" +
+      "So the whole pattern reads: 'every character that is not a lowercase letter, not an uppercase letter (because of `i`), and not a digit'. We hand it to `replace(re, '')` to delete each such character. After that, we lowercase what remains and compare with its reverse.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Use when readability matters more than the constant-factor space savings' },
+    pseudocode: [
+      'cleaned = s.replace(/[^a-z0-9]/gi, "").toLowerCase()',
+      'reversed = cleaned.split("").reverse().join("")',
+      'return cleaned === reversed',
+    ],
+    example: { input: '"A man, a plan, a canal: Panama"', output: 'true' },
+    steps: [
+      {
+        title: 'Strip non-alphanumeric. "A man, a plan, a canal: Panama" → "AmanaplanacanalPanama".',
+        detail: 'The regex `/[^a-z0-9]/gi` matches every space, comma, colon. The `g` flag means replace ALL occurrences. The `i` flag means a-z also matches A-Z, so we keep both cases in this step.',
+        pseudoLine: 0,
+        note: '**The regex breakdown:** `[^a-z0-9]` = any one char NOT in (lowercase letters | digits). The `i` flag extends this to uppercase letters too. The `g` flag triggers global replace.',
+        computation: { label: 'replace', lhs: 'long input', op: '→', result: '"AmanaplanacanalPanama"' },
+      },
+      {
+        title: 'Lowercase it: "amanaplanacanalpanama".',
+        pseudoLine: 0,
+        computation: { label: 'toLowerCase', result: '"amanaplanacanalpanama"' },
+      },
+      {
+        title: 'Reverse: split → reverse → join → "amanaplanacanalpanama".',
+        detail: 'It happens to be the same forward and backward (that is what palindrome means).',
+        pseudoLine: 1,
+        computation: { label: 'split→reverse→join', result: '"amanaplanacanalpanama"' },
+      },
+      {
+        title: 'Compare. cleaned === reversed → return true.',
+        pseudoLine: 2,
+        computation: { label: 'strict equality', lhs: 'cleaned', op: '===', rhs: 'reversed', result: 'true' },
+        result: { found: true, value: 'true' },
+      },
+    ],
+    tradeoffs: "Three passes over the string (replace, toLowerCase, reverse) plus the equality check — about 4× the work of the two-pointer approach, plus O(n) memory. Real-world: this is fine; the readability is worth it. Interview: be ready for 'now do it in O(1) space' which is the cue to switch to two-pointer.",
+    usesPolyfills: [
+      { builtin: 'String.prototype.replace', templateName: 'Array.prototype.join',
+        why: 'replace deletes every match of the regex (uses the regex engine, not directly polyfilled here)' },
+      { builtin: 'Array.prototype.reverse', templateName: 'Array.reverse',
+        why: 'reverse the cleaned character array to compare against the original' },
+    ],
+  }],
+};
+
+// ====================================================================
+
+const fizzBuzz: Explanation = {
+  problem: 'FizzBuzz',
+  problemStatement: 'For numbers 1..n: print "Fizz" for multiples of 3, "Buzz" for multiples of 5, "FizzBuzz" for multiples of 15 (which are multiples of both), otherwise the number itself. The classic screening question — designed to filter out candidates who cannot translate plain-English rules into code.',
+  approaches: [{
+    id: 'modulo',
+    name: 'Modulo Branching (Best)',
+    badge: 'best',
+    intuition:
+      "The trick is **order of checks**. A multiple of 15 is also a multiple of 3 AND of 5. If you check `%3` first, you print 'Fizz' for 15 and never get to the combined case. So the rule is: **most-specific case first**. Check `%15` (or equivalently, check `%3 && %5`) before checking `%3` or `%5` alone.\n\n" +
+      "Once that's clear, the rest is a simple loop with `if/else if/else`. Each iteration is O(1) (three modulo operations and a push), the whole thing is O(n).",
+    complexity: { time: 'O(n)', space: 'O(n) for the output array; O(1) extra', verdict: 'Canonical — what every interviewer expects' },
+    pseudocode: [
+      'for i from 1 to n:',
+      '  if i % 15 === 0: push "FizzBuzz"',
+      '  else if i % 3 === 0: push "Fizz"',
+      '  else if i % 5 === 0: push "Buzz"',
+      '  else: push String(i)',
+    ],
+    example: { input: 'n = 15', output: '[1,2,Fizz,4,Buzz,Fizz,7,8,Fizz,Buzz,11,Fizz,13,14,FizzBuzz]' },
+    steps: [
+      { title: 'i=1: not divisible by 3 or 5 → push "1".', pseudoLine: 4,
+        array: { cells: [{ value: 1, highlight: 'i' }] } },
+      { title: 'i=3: 3 % 3 === 0, 3 % 15 !== 0 → push "Fizz".', pseudoLine: 2,
+        computation: { label: '3 % 3', result: '0 → Fizz' } },
+      { title: 'i=5: 5 % 5 === 0 → push "Buzz".', pseudoLine: 3,
+        computation: { label: '5 % 5', result: '0 → Buzz' } },
+      { title: 'i=15: 15 % 15 === 0 → push "FizzBuzz". This is why we check 15 FIRST.', pseudoLine: 1,
+        computation: { label: '15 % 15', result: '0 → FizzBuzz' },
+        note: 'If you check %3 first, you would print "Fizz" and miss the combined case. Order matters.',
+        result: { found: true, value: '[1,2,Fizz,...,FizzBuzz]' } },
+    ],
+    tradeoffs: "A 'string-build' variant concatenates: `s = (i%3?'':'Fizz') + (i%5?'':'Buzz') || String(i)`. Same output, slightly slower in tight loops, more readable to some. Lookup-table variants exist but rarely win on n ≤ 10⁶.",
+  },
+  {
+    id: 'string-concat',
+    name: 'String Concatenation — No Branching (Alternative)',
+    badge: 'alternative',
+    intuition:
+      "Avoid the `if/else if` ladder entirely. Build the output string by concatenating 'Fizz' if divisible by 3 plus 'Buzz' if divisible by 5. If the result is empty (neither), fall back to `String(i)`. The clever bit is using the fact that an empty string is falsy in JavaScript, so `'' || String(i)` evaluates to `String(i)`.\n\n" +
+      "Why this is interesting: it eliminates the multi-of-15 special case naturally. If a number is divisible by both, both 'Fizz' and 'Buzz' get concatenated, giving 'FizzBuzz' — no explicit check needed. This generalizes well: adding a 'Bazz for multiples of 7' is one more line, no order rearrangement.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Cleaner for extending; slightly slower per iteration' },
+    pseudocode: [
+      'for i from 1 to n:',
+      '  s = ""',
+      '  if i % 3 === 0: s += "Fizz"',
+      '  if i % 5 === 0: s += "Buzz"',
+      '  push(s || String(i))',
+    ],
+    example: { input: 'n = 15', output: '[1,2,Fizz,4,Buzz,Fizz,7,8,Fizz,Buzz,11,Fizz,13,14,FizzBuzz]' },
+    steps: [
+      { title: 'i=3: 3 % 3 === 0 → s = "Fizz". 3 % 5 ≠ 0 → s stays "Fizz".', pseudoLine: 2,
+        computation: { label: 's', result: '"Fizz"' } },
+      { title: 'i=15: 15 % 3 === 0 → s = "Fizz". 15 % 5 === 0 → s = "FizzBuzz".',
+        detail: 'No special "multiple of 15" branch needed — both conditions fire and concatenate naturally.',
+        pseudoLine: 3,
+        computation: { label: 's', result: '"FizzBuzz"' } },
+      { title: 'i=4: neither condition fires → s stays "". Push String(4) via the `s || String(i)` trick.',
+        detail: 'Empty string is falsy in JS, so `"" || "4"` evaluates to "4". This is the elegant fallback that replaces the explicit else branch.',
+        pseudoLine: 4,
+        computation: { label: 's || String(i)', lhs: '""', op: '||', rhs: '"4"', result: '"4"' },
+        result: { found: true, value: '4 → pushed as String' } },
+    ],
+    tradeoffs: "Slightly slower in microbenchmarks (string concat allocates) but more elegant when the rules grow (Fizz/Buzz/Bazz/Quux/...). For interview purposes the modulo version is more conventional; this version is the senior-level 'I see the pattern' answer.",
+  }],
+};
+
+// ====================================================================
+
+const maxProfit: Explanation = {
+  problem: 'Max Profit (Best Time to Buy/Sell Stock)',
+  problemStatement: 'Given an array `prices` where `prices[i]` is the stock price on day i, return the maximum profit from one buy and one sell. You must buy before you sell. If no profit is possible, return 0.',
+  approaches: [{
+    id: 'one-pass',
+    name: 'Single Pass — Track Min So Far (Best)',
+    badge: 'best',
+    intuition:
+      "Imagine walking through the prices left-to-right. At each day, ask one question: **if I sold today, what would my profit be if I had bought on the cheapest day I've seen so far?** That profit is `today_price − min_seen_so_far`. Keep the maximum of these as you go.\n\n" +
+      "Two scalar variables, `minPrice` (initially +∞) and `maxProfit` (initially 0). For each price: if it's a new low, update `minPrice` and skip — no profit can be realized today by buying today and selling today. Otherwise, compute today's hypothetical profit and update `maxProfit` if it beats the previous best.\n\n" +
+      "**Why this is correct:** any optimal buy/sell pair has *some* buy day. For that buy day to be optimal, no earlier day can have been cheaper (otherwise we'd have bought earlier). So at each sell day, considering only the running minimum is sufficient — any other earlier 'buy candidate' is dominated.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical — single linear pass' },
+    pseudocode: [
+      'minPrice = Infinity, maxProfit = 0',
+      'for price in prices:',
+      '  if price < minPrice: minPrice = price',
+      '  else: maxProfit = max(maxProfit, price - minPrice)',
+      'return maxProfit',
+    ],
+    example: { input: '[7, 1, 5, 3, 6, 4]', output: '5' },
+    steps: [
+      { title: 'i=0, price=7. minPrice=7. Cannot sell yet.', pseudoLine: 2,
+        array: { cells: [{ value: 7, highlight: 'i' }, { value: 1 }, { value: 5 }, { value: 3 }, { value: 6 }, { value: 4 }] },
+        computation: { label: 'minPrice', result: '7' } },
+      { title: 'i=1, price=1. New low → minPrice=1.', pseudoLine: 2,
+        array: { cells: [{ value: 7 }, { value: 1, highlight: 'i' }, { value: 5 }, { value: 3 }, { value: 6 }, { value: 4 }] },
+        computation: { label: 'minPrice', result: '1' } },
+      { title: 'i=2, price=5. profit = 5−1 = 4. maxProfit=4.', pseudoLine: 3,
+        array: { cells: [{ value: 7 }, { value: 1, highlight: 'compare' }, { value: 5, highlight: 'i' }, { value: 3 }, { value: 6 }, { value: 4 }] },
+        computation: { label: 'price − minPrice', lhs: '5', op: '−', rhs: '1', result: '4' } },
+      { title: 'i=4, price=6. profit = 6−1 = 5. maxProfit=5.', pseudoLine: 3,
+        array: { cells: [{ value: 7 }, { value: 1, highlight: 'compare' }, { value: 5 }, { value: 3 }, { value: 6, highlight: 'found' }, { value: 4 }] },
+        computation: { label: 'price − minPrice', lhs: '6', op: '−', rhs: '1', result: '5' },
+        result: { found: true, value: '5' } },
+    ],
+    tradeoffs: 'Brute force checks every (i, j) pair → O(n²). The single-pass trick is the gold standard. Generalizes to "k transactions" via DP but that is a different problem.',
+  },
+  {
+    id: 'brute-force',
+    name: 'Brute Force — Try Every Pair (Baseline)',
+    badge: 'baseline',
+    intuition:
+      "The literal reading of the problem: for every possible buy day i and every sell day j > i, compute `prices[j] − prices[i]` and remember the maximum. The two nested loops produce all n·(n−1)/2 valid pairs. Easy to write, easy to verify correctness — and impossibly slow on big inputs.\n\n" +
+      "Worth knowing because the path from this brute force to the O(n) one-pass is a beautiful illustration of how a key insight (`only the running minimum matters`) collapses an O(n²) algorithm into O(n).",
+    complexity: { time: 'O(n²)', space: 'O(1)', verdict: "Don't ship — for any n > 10⁴ this times out" },
+    pseudocode: [
+      'maxProfit = 0',
+      'for i from 0 to n-1:',
+      '  for j from i+1 to n-1:',
+      '    profit = prices[j] - prices[i]',
+      '    if profit > maxProfit: maxProfit = profit',
+      'return maxProfit',
+    ],
+    example: { input: '[7, 1, 5, 3, 6, 4]', output: '5' },
+    steps: [
+      { title: 'i=0 (price=7). Try j=1..5. Best profit so far: 0 (selling 7→1, 7→5… all losses).', pseudoLine: 2,
+        array: { cells: [{ value: 7, highlight: 'i' }, { value: 1, highlight: 'j' }, { value: 5 }, { value: 3 }, { value: 6 }, { value: 4 }] },
+        computation: { label: 'prices[j] − prices[i]', lhs: '1', op: '−', rhs: '7', result: '−6 (skip)' } },
+      { title: 'i=1 (price=1). Try j=2..5. profit at j=4: 6−1 = 5.', pseudoLine: 4,
+        array: { cells: [{ value: 7 }, { value: 1, highlight: 'i' }, { value: 5 }, { value: 3 }, { value: 6, highlight: 'found' }, { value: 4 }] },
+        computation: { label: 'prices[j] − prices[i]', lhs: '6', op: '−', rhs: '1', result: '5 (new max)' } },
+      { title: 'Continue for i=2..4. No pair beats 5. Return 5.', pseudoLine: 5,
+        result: { found: true, value: '5' } },
+    ],
+    tradeoffs: 'Useful as a sanity check against the optimized version on small inputs (their outputs must match). Never the answer to ship.',
+  }],
+};
+
+// ====================================================================
+
+const validParentheses: Explanation = {
+  problem: 'Valid Parentheses',
+  problemStatement: 'Given a string of brackets `()[]{}`, return true if every opener has a matching closer in the correct order. `"({[]})"` is valid; `"([)]"` is not (the brackets cross). Compare with the simpler "Balanced Brackets (Count)" challenge which only checks counts and ignores ordering.',
+  approaches: [{
+    id: 'stack',
+    name: 'Stack — Match Most-Recent Opener (Best)',
+    badge: 'best',
+    intuition:
+      "Brackets nest like Russian dolls. The most recently opened bracket must be the next one to close — it's a strict last-in-first-out discipline. That's exactly what a stack provides.\n\n" +
+      "**Algorithm:** scan the string left-to-right. On an opener (`(`, `[`, `{`), push it. On a closer (`)`, `]`, `}`), peek at the stack: it must be a matching opener, so pop it. If the popped opener doesn't match (or the stack was empty), the string is invalid. At the end of the scan, the stack must be empty (every opener got closed).\n\n" +
+      "A small map `{ ')': '(', ']': '[', '}': '{' }` makes the closer-to-opener lookup O(1). Many candidates instead store opener-to-closer and check the inverse — works either way; pick whichever you find easier to read.",
+    complexity: { time: 'O(n)', space: 'O(n) — worst case all openers on the stack', verdict: 'Canonical — what every interviewer expects' },
+    pseudocode: [
+      'stack = [], pairs = { ")": "(", "]": "[", "}": "{" }',
+      'for ch in s:',
+      '  if ch is opener: stack.push(ch)',
+      '  else if stack.pop() !== pairs[ch]: return false',
+      'return stack.length === 0',
+    ],
+    example: { input: '"({[]})"', output: 'true' },
+    steps: [
+      { title: 'Read "(". Push to stack.', pseudoLine: 2, stack: { items: [{ value: '(', highlight: 'new' }], action: 'push' } },
+      { title: 'Read "{". Push.', pseudoLine: 2, stack: { items: [{ value: '(' }, { value: '{', highlight: 'new' }], action: 'push' } },
+      { title: 'Read "[". Push.', pseudoLine: 2, stack: { items: [{ value: '(' }, { value: '{' }, { value: '[', highlight: 'new' }], action: 'push' } },
+      { title: 'Read "]". Pop "[" — matches. Continue.', pseudoLine: 3, stack: { items: [{ value: '(' }, { value: '{' }], action: 'pop' },
+        computation: { label: 'pop & compare', lhs: '[', op: '↔', rhs: ']', result: 'match' } },
+      { title: 'Read "}". Pop "{" — matches.', pseudoLine: 3, stack: { items: [{ value: '(' }], action: 'pop' } },
+      { title: 'Read ")". Pop "(" — matches. Stack empty.', pseudoLine: 4, stack: { items: [], action: 'pop' },
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: "A counter-only approach (track depth of each kind) is wrong — `([)]` would pass. The stack is what enforces correct nesting order. Don't confuse this with the simpler 'Balanced Brackets (Count)' challenge.",
+  },
+  {
+    id: 'replace-pairs',
+    name: 'Replace Inner Pairs (Cute but Slow)',
+    badge: 'alternative',
+    intuition:
+      "A clever non-stack approach: notice that any valid bracket string must contain an *innermost* pair `()`, `[]`, or `{}` — a pair with nothing between the opener and closer. Repeatedly delete those pairs. If the string is valid, you'll eventually delete everything; if it's invalid, you'll get stuck with leftover characters.\n\n" +
+      "Implementation: while the string contains `()`, `[]`, or `{}` as a substring, replace it with empty. Stop when no more replacements happen. If the result is the empty string, the input was valid.\n\n" +
+      "**Why this is O(n²):** each `replace` call is O(n), and you may need O(n) passes (one per nesting level). For deeply nested input like `(((((...)))))`, that's O(n²) total. The stack approach is O(n) — strictly better. So why teach this? Because it's a beautiful constructive proof that a valid bracket string can always be reduced to nothing by removing innermost pairs.",
+    complexity: { time: 'O(n²)', space: 'O(n)', verdict: "Don't ship at scale — but a fun alternative to think with" },
+    pseudocode: [
+      'while s.length > 0:',
+      '  prev = s',
+      '  s = s.replace("()", "").replace("[]", "").replace("{}", "")',
+      '  if s === prev: break  // no progress → invalid',
+      'return s.length === 0',
+    ],
+    example: { input: '"({[]})"', output: 'true' },
+    steps: [
+      { title: 'Pass 1: replace "[]" → s becomes "({})".', pseudoLine: 2,
+        computation: { label: 'replace', lhs: '"({[]})"', op: '→', result: '"({})"' } },
+      { title: 'Pass 2: replace "{}" → s becomes "()".', pseudoLine: 2,
+        computation: { label: 'replace', lhs: '"({})"', op: '→', result: '"()"' } },
+      { title: 'Pass 3: replace "()" → s becomes "". Length 0 → valid.', pseudoLine: 4,
+        computation: { label: 'replace', lhs: '"()"', op: '→', result: '""' },
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'A nice teaching tool to convince yourself that the rule "every valid bracket string reduces to nothing by removing inner pairs" is true. But quadratic time makes it a non-starter for large inputs — always reach for the stack in production.',
+  }],
+};
+
+// ====================================================================
+
+const mergeSortedArrays: Explanation = {
+  problem: 'Merge Sorted Arrays',
+  problemStatement: 'Given two arrays already sorted in ascending order, merge them into one sorted array.',
+  approaches: [{
+    id: 'two-pointer',
+    name: 'Two-Pointer Merge',
+    badge: 'best',
+    intuition: 'Pointer at the head of each array. Compare the two heads, take the smaller, advance that pointer. When one runs out, append the rest of the other. Each element copied exactly once.',
+    complexity: { time: 'O(m + n)', space: 'O(m + n)', verdict: 'Canonical' },
+    pseudocode: [
+      'i = 0, j = 0, out = []',
+      'while i < m and j < n:',
+      '  if a[i] <= b[j]: out.push(a[i++])',
+      '  else: out.push(b[j++])',
+      'append leftover from a or b',
+      'return out',
+    ],
+    example: { input: 'a=[1,3,5], b=[2,4,6]', output: '[1,2,3,4,5,6]' },
+    steps: [
+      { title: 'i=0, j=0. Compare 1 vs 2.', pseudoLine: 2,
+        dualArray: { left: { label: 'a', cells: [{ value: 1, highlight: 'i' }, { value: 3 }, { value: 5 }], pointer: 0 },
+          right: { label: 'b', cells: [{ value: 2, highlight: 'j' }, { value: 4 }, { value: 6 }], pointer: 0 },
+          result: { label: 'merged', cells: [] } },
+        computation: { label: 'a[i] <= b[j]', lhs: '1', op: '<=', rhs: '2', result: 'yes → take 1' } },
+      { title: 'Take 1, advance i. Compare 3 vs 2.', pseudoLine: 3,
+        dualArray: { left: { label: 'a', cells: [{ value: 1 }, { value: 3, highlight: 'i' }, { value: 5 }], pointer: 1 },
+          right: { label: 'b', cells: [{ value: 2, highlight: 'j' }, { value: 4 }, { value: 6 }], pointer: 0 },
+          result: { label: 'merged', cells: [{ value: 1 }] } },
+        computation: { label: 'a[i] <= b[j]', lhs: '3', op: '<=', rhs: '2', result: 'no → take 2' } },
+      { title: 'Take 2, advance j. Continue 3 vs 4 → take 3.', pseudoLine: 2,
+        dualArray: { left: { label: 'a', cells: [{ value: 1 }, { value: 3, highlight: 'i' }, { value: 5 }], pointer: 1 },
+          right: { label: 'b', cells: [{ value: 2 }, { value: 4, highlight: 'j' }, { value: 6 }], pointer: 1 },
+          result: { label: 'merged', cells: [{ value: 1 }, { value: 2 }] } } },
+      { title: 'a exhausted at i=3. Append remaining b: [6].', pseudoLine: 4,
+        dualArray: { left: { label: 'a', cells: [{ value: 1 }, { value: 3 }, { value: 5 }] },
+          right: { label: 'b', cells: [{ value: 2 }, { value: 4 }, { value: 6, highlight: 'j' }], pointer: 2 },
+          result: { label: 'merged', cells: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }] } },
+        result: { found: true, value: '[1,2,3,4,5,6]' } },
+    ],
+    tradeoffs: 'Concat-and-sort works but is O((m+n) log(m+n)) — wasteful when both inputs are already sorted. The merge step of mergesort is exactly this routine.',
+  },
+  {
+    id: 'concat-sort',
+    name: 'Concat + Sort (Lazy Alternative)',
+    badge: 'baseline',
+    intuition:
+      "If you don't care about preserving the sorted-ness of the inputs, the laziest answer is `[...a, ...b].sort((x,y) => x − y)`. One spread to merge into a new array, one sort.\n\n" +
+      "**Why this is wasteful:** the engine's sort is general-purpose — it doesn't know the inputs are already sorted, so it does O((m+n) log(m+n)) comparisons. The two-pointer merge does exactly m+n comparisons. On 100k+m100k arrays, that's a 17× difference.\n\n" +
+      "**Why people still write it:** it's three characters of code. In real code, when n is small or the arrays aren't actually sorted, this is the right call. In an interview, mention this as the 'if I didn't know they were sorted' baseline, then switch to two-pointer.",
+    complexity: { time: 'O((m+n) log(m+n))', space: 'O(m+n)', verdict: 'Acceptable for tiny inputs; wasteful otherwise' },
+    pseudocode: [
+      'return [...a, ...b].sort((x, y) => x - y)',
+    ],
+    example: { input: 'a=[1,3,5], b=[2,4,6]', output: '[1,2,3,4,5,6]' },
+    steps: [
+      { title: 'Spread both arrays into a new one: [1,3,5,2,4,6].', pseudoLine: 0,
+        array: { cells: [1,3,5,2,4,6].map(v => ({ value: v })) } },
+      { title: 'Sort with numeric comparator (default sort is lexicographic — easy to forget!). Result: [1,2,3,4,5,6].',
+        detail: '`.sort()` without a comparator sorts as strings, so [10, 2] sorts to [10, 2] — looks right, but [10, 2, 1] sorts to [1, 10, 2]. Always pass `(a,b) => a-b` for numbers.',
+        pseudoLine: 0,
+        array: { cells: [1,2,3,4,5,6].map(v => ({ value: v, highlight: 'found' as const })) },
+        result: { found: true, value: '[1,2,3,4,5,6]' } },
+    ],
+    tradeoffs: 'Use when the inputs might not actually be sorted, or when n is small enough that the constant factor difference does not matter. For 99% of "merge two sorted lists" problems, the two-pointer is strictly better.',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.sort', templateName: 'Array.sort',
+        why: "the engine's general-purpose sort runs over the concatenated array" },
+    ],
+  }],
+};
+
+// ====================================================================
+
+const flattenArray: Explanation = {
+  problem: 'Flatten Array (Deep)',
+  problemStatement: 'Given a nested array, flatten it to a single level — `[1, [2, [3, 4], 5]] → [1,2,3,4,5]`.',
+  approaches: [{
+    id: 'recursive',
+    name: 'Recursive Reduce',
+    badge: 'best',
+    intuition: 'For each element, if it is an array, recursively flatten and concatenate; otherwise append. The recursion mirrors the structure of the data.',
+    complexity: { time: 'O(n)', space: 'O(d) call-stack where d is nesting depth', verdict: 'Canonical for arbitrary depth' },
+    pseudocode: [
+      'function flat(arr):',
+      '  return arr.reduce((acc, x) =>',
+      '    Array.isArray(x) ? acc.concat(flat(x)) : acc.concat(x),',
+      '    [])',
+    ],
+    example: { input: '[1, [2, [3, 4]]]', output: '[1, 2, 3, 4]' },
+    steps: [
+      { title: 'Top call: flat([1, [2, [3, 4]]])', pseudoLine: 0,
+        callStack: { frames: [{ call: 'flat([1, [2, [3, 4]]])', status: 'active' }] } },
+      { title: 'Element 1 is not an array → push. Element [2, [3, 4]] is → recurse.', pseudoLine: 1,
+        callStack: { frames: [{ call: 'flat([1, [2, [3, 4]]])', status: 'pending' }, { call: 'flat([2, [3, 4]])', status: 'active' }] } },
+      { title: 'Inside flat([2, [3, 4]]): element 2 plain, [3, 4] is an array → recurse again.', pseudoLine: 1,
+        callStack: { frames: [{ call: 'flat([1, [2, [3, 4]]])', status: 'pending' }, { call: 'flat([2, [3, 4]])', status: 'pending' }, { call: 'flat([3, 4])', status: 'active' }] } },
+      { title: 'flat([3, 4]) returns [3, 4]. Bubble up: parent gets [2, 3, 4].', pseudoLine: 2,
+        callStack: { frames: [{ call: 'flat([1, [2, [3, 4]]])', status: 'pending' }, { call: 'flat([2, [3, 4]])', status: 'returned', returns: '[2,3,4]' }] } },
+      { title: 'Top returns [1, 2, 3, 4].', pseudoLine: 2,
+        callStack: { frames: [{ call: 'flat([1, [2, [3, 4]]])', status: 'returned', returns: '[1,2,3,4]' }] },
+        result: { found: true, value: '[1, 2, 3, 4]' } },
+    ],
+    tradeoffs: 'Iterative version with a stack avoids recursion-depth limits — necessary if input nesting can be 10,000+ deep. ES2019 `Array.prototype.flat(Infinity)` is the modern shortcut for non-pathological inputs.',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.reduce', templateName: 'Array.reduce',
+        why: 'folds each item into an accumulating result array' },
+      { builtin: 'Array.prototype.concat', templateName: 'Array.concat',
+        why: 'merges nested results one level at a time' },
+      { builtin: 'Array.prototype.flat', templateName: 'Array.flat & flatMap',
+        why: 'the modern one-liner replacement (`arr.flat(Infinity)`)' },
+    ],
+  },
+  {
+    id: 'iterative-stack',
+    name: 'Iterative with Stack (Recursion-Safe)',
+    badge: 'alternative',
+    intuition:
+      "The recursive version is elegant but has a hard ceiling: V8's JS call stack is around 10–15k frames. If your input is `[[[[[...[1]...]]]]]` nested 20k deep, recursion overflows. The fix: simulate recursion explicitly with a stack.\n\n" +
+      "Push the input onto a stack. While the stack is non-empty, pop a value. If it's an array, push its elements back (reversed, so the first child comes off next — preserving order). If it's a primitive, prepend to the result. The trick of pushing children **in reverse** is what keeps the output in left-to-right order even though the stack is LIFO.\n\n" +
+      "This is the same algorithm as the recursive version — depth-first, left-to-right — but with the call stack moved into our heap-allocated `stack` array, which has no fixed limit (other than memory).",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Use when input nesting depth could blow the call stack' },
+    pseudocode: [
+      'stack = [...arr]                  // shallow copy so we can pop',
+      'out = []',
+      'while stack.length > 0:',
+      '  x = stack.pop()',
+      '  if Array.isArray(x): stack.push(...x)   // push items in original order',
+      '  else: out.unshift(x)            // prepend so order stays left-to-right',
+      'return out',
+    ],
+    example: { input: '[1, [2, [3, 4]]]', output: '[1, 2, 3, 4]' },
+    steps: [
+      { title: 'Initial stack: [1, [2, [3, 4]]]. Pop right side first.',
+        pseudoLine: 3,
+        stack: { items: [{ value: 1 }, { value: '[2,[3,4]]' as const }], action: 'pop' } },
+      { title: 'Popped [2, [3, 4]] — it is an array. Push its elements: 2, then [3,4].',
+        pseudoLine: 4,
+        stack: { items: [{ value: 1 }, { value: 2 }, { value: '[3,4]' as const, highlight: 'new' as const }], action: 'push' } },
+      { title: 'Pop [3,4]. It is an array. Push 3, 4.',
+        pseudoLine: 4,
+        stack: { items: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4, highlight: 'new' as const }], action: 'push' } },
+      { title: 'Pop 4 (primitive) → out=[4]. Pop 3 → out=[3,4]. Pop 2 → out=[2,3,4]. Pop 1 → out=[1,2,3,4].',
+        pseudoLine: 5,
+        stack: { items: [], action: 'pop' },
+        result: { found: true, value: '[1,2,3,4]' } },
+    ],
+    tradeoffs: "Always safe regardless of nesting depth, but slightly more code than the recursive version. Use when you don't trust the input depth. Note: `Array.prototype.flat(Infinity)` is the modern one-liner that is also iterative under the hood — prefer it in production unless you need to support very old browsers.",
+  }],
+};
+
+// ====================================================================
+
+const debounce: Explanation = {
+  problem: 'Debounce',
+  problemStatement: 'Wrap a function so it only fires after `wait` ms of silence. Every call within the wait window cancels the pending fire and restarts the timer.',
+  approaches: [{
+    id: 'trailing',
+    name: 'Trailing-Edge Debounce',
+    badge: 'best',
+    intuition: 'Keep a single timeout reference. Every call clears the previous timeout and schedules a fresh one. The wrapped function only runs when `wait` ms have passed without any new call.',
+    complexity: { time: 'O(1) per call', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'function debounce(fn, wait):',
+      '  let timer = null',
+      '  return (...args) =>',
+      '    clearTimeout(timer)',
+      '    timer = setTimeout(() => fn(...args), wait)',
+    ],
+    example: { input: 'debounced("a"), …300ms…, debounced("b"), …500ms idle…', output: 'fn("b")' },
+    steps: [
+      { title: 't=0: call with "a". Schedule fire at t=500.', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: 'call "a"', kind: 'input' }, { t: 500, label: 'pending', kind: 'pending' }], windowMs: 500 } },
+      { title: 't=300: call with "b". Cancel pending, reschedule fire at t=800.', pseudoLine: 3,
+        timeline: { events: [{ t: 0, label: '"a"', kind: 'skip' }, { t: 300, label: 'call "b"', kind: 'input' }, { t: 800, label: 'pending', kind: 'pending' }], windowMs: 500 } },
+      { title: 't=800: 500ms of silence after the last call → fire fn("b").', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: '"a"', kind: 'skip' }, { t: 300, label: '"b"', kind: 'input' }, { t: 800, label: 'fire("b")', kind: 'fire' }], windowMs: 500 },
+        result: { found: true, value: 'fn("b")' } },
+    ],
+    tradeoffs: "Leading-edge debounce fires immediately and ignores follow-ups — better for 'first click wins' (e.g., submit). Most search inputs want trailing. The 'cancellable' variant exposes `.cancel()` so unmounting components don't fire stale callbacks — a real-world must-have in React.",
+  },
+  {
+    id: 'leading-edge',
+    name: 'Leading-Edge Debounce (First Wins)',
+    badge: 'alternative',
+    intuition:
+      "Inverse of trailing-edge: fire the function **immediately** on the first call, then ignore every subsequent call until `wait` ms of silence have passed. Use when 'first click wins' matters — preventing double-submits, handling the first key in a sequence, etc.\n\n" +
+      "Implementation has a flag (`waiting`) instead of a pending timer. On call: if not `waiting`, fire immediately and start a timeout to clear `waiting` after `wait` ms. Subsequent calls during the wait window do nothing. After the timeout, the flag clears and the next call fires again.",
+    complexity: { time: 'O(1) per call', space: 'O(1)', verdict: 'For "first click wins" scenarios' },
+    pseudocode: [
+      'function debounceLeading(fn, wait):',
+      '  let waiting = false',
+      '  return (...args) =>',
+      '    if (!waiting):',
+      '      fn(...args)',
+      '      waiting = true',
+      '      setTimeout(() => { waiting = false }, wait)',
+    ],
+    example: { input: 'click at t=0, t=100, t=600', output: 'fire at t=0; t=100 ignored; fire at t=600' },
+    steps: [
+      { title: 't=0: first click. waiting=false → fire immediately, set waiting=true.', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }], windowMs: 500 } },
+      { title: 't=100: click during wait. waiting=true → ignored.', pseudoLine: 3,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }, { t: 100, label: 'ignored', kind: 'skip' }], windowMs: 500 } },
+      { title: 't=500: timeout fires, waiting=false again.', pseudoLine: 6,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }, { t: 100, label: 'skip', kind: 'skip' }, { t: 500, label: 'unlocked', kind: 'pending' }], windowMs: 500 } },
+      { title: 't=600: next click. waiting=false → fire again.', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }, { t: 100, label: 'skip', kind: 'skip' }, { t: 600, label: 'fire', kind: 'fire' }], windowMs: 500 },
+        result: { found: true, value: 'fired at t=0 and t=600' } },
+    ],
+    tradeoffs: 'Leading-edge for: submit buttons, "load more" buttons, anywhere the first action matters and follow-ups are noise. Trailing-edge for: search-as-you-type, scroll-stop detection. Both-edges variants exist for completeness.',
+  }],
+};
+
+// ====================================================================
+
+const groupAnagrams: Explanation = {
+  problem: 'Group Anagrams',
+  problemStatement: 'Given an array of strings, group strings that are anagrams of each other.',
+  approaches: [{
+    id: 'sorted-key',
+    name: 'Sorted-Letter Key',
+    badge: 'best',
+    intuition: 'Two strings are anagrams iff they have the same letters. Sort each string\'s letters to get a canonical key, then bucket by that key in a map.',
+    complexity: { time: 'O(n · k log k)', space: 'O(n · k)', verdict: 'Canonical and short' },
+    pseudocode: [
+      'map = {}',
+      'for s in strs:',
+      '  key = [...s].sort().join("")',
+      '  if !map[key]: map[key] = []',
+      '  map[key].push(s)',
+      'return Object.values(map)',
+    ],
+    example: { input: '["eat","tea","tan","ate","nat","bat"]', output: '[["eat","tea","ate"], ["tan","nat"], ["bat"]]' },
+    steps: [
+      { title: '"eat" → key "aet". Map: { aet: ["eat"] }.', pseudoLine: 4,
+        map: { entries: [{ key: 'aet', value: '["eat"]', highlight: 'new' }] } },
+      { title: '"tea" → key "aet". Match! Map: { aet: ["eat","tea"] }.', pseudoLine: 4,
+        map: { entries: [{ key: 'aet', value: '["eat","tea"]', highlight: 'hit' }] } },
+      { title: '"tan" → key "ant". New bucket.', pseudoLine: 3,
+        map: { entries: [{ key: 'aet', value: '["eat","tea"]' }, { key: 'ant', value: '["tan"]', highlight: 'new' }] } },
+      { title: 'After all: 3 buckets.', pseudoLine: 5,
+        map: { entries: [{ key: 'aet', value: '["eat","tea","ate"]' }, { key: 'ant', value: '["tan","nat"]' }, { key: 'abt', value: '["bat"]' }] },
+        result: { found: true, value: '3 groups' } },
+    ],
+    tradeoffs: 'Char-count signature ("a:1,e:1,t:1") avoids the sort, giving O(n·k). Slightly more code, faster on long strings. Prime-product trick (multiply primes assigned to each letter) is cute but overflows 64-bit on long inputs.',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.sort', templateName: 'Array.sort',
+        why: 'sorts the letters of each string into a canonical key' },
+      { builtin: 'Array.prototype.join', templateName: 'Array.prototype.join',
+        why: 'concatenates the sorted letters into a hashable string key' },
+    ],
+  },
+  {
+    id: 'char-count-key',
+    name: 'Char-Count Signature (Faster on Long Strings)',
+    badge: 'alternative',
+    intuition:
+      "The sort-based key takes O(k log k) per word. We can build a canonical signature in O(k) by counting characters and producing a fixed-shape string like `\"1,0,0,...,2,0,1\"` (26 numbers, comma-separated). Two anagrams produce identical signatures because they have identical letter counts.\n\n" +
+      "Total work: O(n·k) — strictly better than O(n·k log k) when k is large. For 100-char words this beats sort by ~6×; for tiny words (3–4 chars) the sort version's tiny constant factors usually win in practice.",
+    complexity: { time: 'O(n·k)', space: 'O(n·k)', verdict: 'Best when k (word length) is large' },
+    pseudocode: [
+      'map = {}',
+      'for s in strs:',
+      '  counts = new Array(26).fill(0)',
+      '  for ch in s: counts[ch.charCodeAt(0) - 97]++',
+      '  key = counts.join(",")',
+      '  map[key] = (map[key] || []).concat(s)',
+      'return Object.values(map)',
+    ],
+    example: { input: '["eat","tea","tan"]', output: '[["eat","tea"], ["tan"]]' },
+    steps: [
+      { title: '"eat" → counts: a=1, e=1, t=1 → key "1,0,0,0,1,0,...,1,0,...".',
+        detail: 'Each letter increments its slot. Position 0 = a, 1 = b, ... 19 = t. The full 26-element comma-separated string is the canonical key.',
+        pseudoLine: 4,
+        map: { entries: [{ key: '"1,0,...1,..."', value: '["eat"]', highlight: 'new' }] } },
+      { title: '"tea" → same counts → same key. Add to bucket.',
+        pseudoLine: 5,
+        map: { entries: [{ key: '"1,0,...1,..."', value: '["eat","tea"]', highlight: 'hit' }] } },
+      { title: '"tan" → counts: a=1, n=1, t=1 → different key. New bucket.',
+        pseudoLine: 5,
+        map: { entries: [{ key: '"1,0,...,n=1..."', value: '["eat","tea"]' }, { key: '"a=1,n=1,t=1"', value: '["tan"]', highlight: 'new' }] },
+        result: { found: true, value: '2 buckets' } },
+    ],
+    tradeoffs: 'Strictly faster than sort for long words. The 26-element fixed array assumes ASCII lowercase only; for arbitrary Unicode you would use a hash map of code points and serialize that — slightly more code but the same idea.',
+  }],
+};
+
+// ====================================================================
+
+const findDuplicates: Explanation = {
+  problem: 'Find Duplicates',
+  problemStatement: 'Return all values that appear more than once in an array.',
+  approaches: [{
+    id: 'two-sets',
+    name: 'Two Sets — Seen + Duplicates',
+    badge: 'best',
+    intuition: 'One pass. Track every value you have seen. The second time you see one, add it to a duplicates set so you do not record it more than once.',
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'seen = new Set(), dups = new Set()',
+      'for x in arr:',
+      '  if seen.has(x): dups.add(x)',
+      '  else: seen.add(x)',
+      'return [...dups]',
+    ],
+    example: { input: '[1, 2, 3, 2, 4, 1]', output: '[2, 1]' },
+    steps: [
+      { title: '1 → not in seen. Add to seen.', pseudoLine: 3, set: { items: [{ value: 1, highlight: 'new' }] } },
+      { title: '2 → not in seen. Add.', pseudoLine: 3, set: { items: [{ value: 1 }, { value: 2, highlight: 'new' }] } },
+      { title: '3 → not in seen. Add.', pseudoLine: 3, set: { items: [{ value: 1 }, { value: 2 }, { value: 3, highlight: 'new' }] } },
+      { title: '2 → in seen! Add to dups.', pseudoLine: 2, set: { items: [{ value: 2, highlight: 'hit' }] }, note: 'dups now contains {2}' },
+      { title: '4 → new. 1 → in seen, add to dups. Final dups = {2, 1}.', pseudoLine: 2,
+        set: { items: [{ value: 2 }, { value: 1, highlight: 'hit' }] },
+        result: { found: true, value: '[2, 1]' } },
+    ],
+    tradeoffs: 'Frequency map (`Map<x, count>`) is identical work but lets you also report counts. Sort-then-scan is O(n log n) but O(1) space — pick when memory is tight.',
+  },
+  {
+    id: 'sort-scan',
+    name: 'Sort-Then-Scan (O(1) Extra Space)',
+    badge: 'alternative',
+    intuition:
+      "Sort the array first. Now any duplicates sit next to each other. Walk once and emit any element equal to its predecessor. The trade is O(n log n) time for O(1) extra space — useful when memory is the constraint or the input can be mutated.\n\n" +
+      "Caveat: this destroys the original order of the input (the sort mutates). If you need to preserve the input, copy first — but then you've spent O(n) space again, defeating the point.",
+    complexity: { time: 'O(n log n)', space: 'O(1) if mutating allowed; O(n) for a copy', verdict: 'When memory matters more than time' },
+    pseudocode: [
+      'arr.sort((a,b) => a - b)',
+      'dups = []',
+      'for i from 1 to n-1:',
+      '  if arr[i] === arr[i-1] and arr[i] !== arr[i-2]:',
+      '    dups.push(arr[i])',
+      'return dups',
+    ],
+    example: { input: '[1, 2, 3, 2, 4, 1]', output: '[1, 2]' },
+    steps: [
+      { title: 'Sort: [1, 2, 3, 2, 4, 1] → [1, 1, 2, 2, 3, 4].', pseudoLine: 0,
+        array: { cells: [1,1,2,2,3,4].map(v => ({ value: v, highlight: 'compare' as const })) } },
+      { title: 'i=1: arr[1]=1, arr[0]=1 — duplicate found. Push 1.', pseudoLine: 4,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 2 }, { value: 2 }, { value: 3 }, { value: 4 }] } },
+      { title: 'i=3: arr[3]=2, arr[2]=2 — duplicate. Check arr[i-2]=1 ≠ 2 → not yet recorded. Push 2.', pseudoLine: 4,
+        detail: 'The `arr[i] !== arr[i-2]` guard handles triples (e.g., [2,2,2] only emits 2 once, not twice).',
+        result: { found: true, value: '[1, 2]' } },
+    ],
+    tradeoffs: 'Cleanest if you can mutate the input. The triple-equal-guard is the part candidates often miss — without it, [1,1,1] would emit 1 twice.',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.sort', templateName: 'Array.sort',
+        why: 'sorting groups equal elements together for the linear scan' },
+    ],
+  }],
+};
+
+// ====================================================================
+
+const removeDuplicates: Explanation = {
+  problem: 'Remove Duplicates',
+  problemStatement: 'Return the array with duplicates removed (keep first occurrence).',
+  approaches: [{
+    id: 'set',
+    name: 'Set Pass',
+    badge: 'best',
+    intuition: 'Walk the array. If you have not seen the value, add to result and to a "seen" set. Single pass, O(n).',
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'seen = new Set(), out = []',
+      'for x in arr:',
+      '  if !seen.has(x):',
+      '    seen.add(x); out.push(x)',
+      'return out',
+    ],
+    example: { input: '[1, 2, 2, 3, 1, 4]', output: '[1, 2, 3, 4]' },
+    steps: [
+      { title: 'Start. seen = {}, out = [].', pseudoLine: 0, set: { items: [] } },
+      { title: '1 → new. seen={1}, out=[1].', pseudoLine: 3, set: { items: [{ value: 1, highlight: 'new' }] } },
+      { title: '2 → new. seen={1,2}, out=[1,2].', pseudoLine: 3, set: { items: [{ value: 1 }, { value: 2, highlight: 'new' }] } },
+      { title: '2 → hit. Skip.', pseudoLine: 2, set: { items: [{ value: 1 }, { value: 2, highlight: 'hit' }] } },
+      { title: 'Final: out=[1,2,3,4].', pseudoLine: 4,
+        set: { items: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] },
+        result: { found: true, value: '[1, 2, 3, 4]' } },
+    ],
+    tradeoffs: '`[...new Set(arr)]` is the one-liner equivalent. The Set version is O(n) average; sort-then-uniq is O(n log n). For tiny arrays, `arr.filter((x, i) => arr.indexOf(x) === i)` is acceptable but is O(n²).',
+  },
+  {
+    id: 'spread-set',
+    name: 'Set Spread (One-Liner)',
+    badge: 'alternative',
+    intuition:
+      "The idiomatic JS one-liner: `[...new Set(arr)]`. Construct a Set from the array (Set deduplicates by `===` equality), then spread it back into an array. Insertion order is preserved because Set guarantees iteration order matches insertion.\n\n" +
+      "Two passes total: one to build the Set, one to spread it back. Identical asymptotic complexity to the manual approach but a fraction of the code. The downside: zero opportunity to do anything else during the dedup (counting frequencies, conditional inclusion, etc.) — those need the explicit loop.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'The one-liner — use in production' },
+    pseudocode: [
+      'return [...new Set(arr)]',
+    ],
+    example: { input: '[1, 2, 2, 3, 1, 4]', output: '[1, 2, 3, 4]' },
+    steps: [
+      { title: 'Build Set from [1, 2, 2, 3, 1, 4]. Duplicates ignored. Set: {1, 2, 3, 4}.', pseudoLine: 0,
+        set: { items: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] } },
+      { title: 'Spread to array: [1, 2, 3, 4]. Order preserved because Set iteration is insertion order.', pseudoLine: 0,
+        array: { cells: [1,2,3,4].map(v => ({ value: v, highlight: 'found' as const })) },
+        result: { found: true, value: '[1, 2, 3, 4]' } },
+    ],
+    tradeoffs: "Beautifully concise. Use unless you need to do something extra during dedup. NaN gotcha: `Set` treats two NaNs as equal (so they dedupe correctly), but `Array.prototype.indexOf` doesn't — that's why `arr.filter((x,i) => arr.indexOf(x) === i)` doesn't dedupe NaNs.",
+  }],
+};
+
+// ====================================================================
+
+const findMissingNumber: Explanation = {
+  problem: 'Find Missing Number',
+  problemStatement: 'Given an array of n distinct numbers from 0..n with one missing, find the missing number.',
+  approaches: [{
+    id: 'sum',
+    name: 'Sum Formula',
+    badge: 'best',
+    intuition: 'The sum of 0..n is known: n·(n+1)/2. Subtract the actual sum from the expected sum — what is left is the missing number.',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'expected = n * (n + 1) / 2',
+      'actual = sum(arr)',
+      'return expected - actual',
+    ],
+    example: { input: '[3, 0, 1] (n=3)', output: '2' },
+    steps: [
+      { title: 'n=3 → expected = 3·4/2 = 6.', pseudoLine: 0,
+        computation: { label: 'expected', lhs: '3·4', op: '/', rhs: '2', result: '6' } },
+      { title: 'actual = 3 + 0 + 1 = 4.', pseudoLine: 1,
+        array: { cells: [{ value: 3, highlight: 'i' }, { value: 0, highlight: 'i' }, { value: 1, highlight: 'i' }] },
+        computation: { label: 'actual', result: '4' } },
+      { title: 'missing = 6 − 4 = 2.', pseudoLine: 2,
+        computation: { label: 'expected − actual', lhs: '6', op: '−', rhs: '4', result: '2' },
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'XOR variant (`xor of indices xor of values`) avoids potential overflow on huge n in fixed-width languages — irrelevant in JS bigint, but the canonical answer in C/C++ interviews. Set lookup is O(n) time + space, slower in practice.',
+  },
+  {
+    id: 'xor',
+    name: 'XOR Trick (Overflow-Safe)',
+    badge: 'alternative',
+    intuition:
+      "**The key property:** XOR is its own inverse. `a ^ a === 0` and `a ^ 0 === a`. So if we XOR every index 0..n with every value in the array, every number that appears in BOTH sets cancels out, leaving only the missing one.\n\n" +
+      "**Why this matters:** the sum approach can overflow in C/C++/Java for very large n (n=2³² overflows int). XOR has no such risk — it's a bitwise operation that works on each bit independently. In JS where numbers are 64-bit floats, sum is safe up to ~9 quadrillion so the overflow argument is academic, but XOR remains the canonical 'overflow-safe' answer in interviews.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Best for C/C++/Java; equivalent in JS' },
+    pseudocode: [
+      'result = 0',
+      'for i from 0 to n:        // include n itself',
+      '  result ^= i',
+      'for x in arr:',
+      '  result ^= x',
+      'return result',
+    ],
+    example: { input: '[3, 0, 1] (n=3)', output: '2' },
+    steps: [
+      { title: 'XOR all indices 0..3: 0^1^2^3 = 0.', pseudoLine: 2,
+        computation: { label: '0 ^ 1 ^ 2 ^ 3', result: '0' } },
+      { title: 'XOR all array values: 0 ^ (3 ^ 0 ^ 1) = 0 ^ 2 = 2. The 0, 1, 3 from indices cancel with 0, 1, 3 in array; 2 has no twin.', pseudoLine: 4,
+        computation: { label: '0 ^ 3 ^ 0 ^ 1', result: '2' },
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'Same complexity as the sum approach in JS. The key skill being tested is recognizing the XOR identity — interviewers often follow up with the related "find the duplicate" or "every-element-twice-except-one" problems where XOR shines.',
+  }],
+};
+
+// ====================================================================
+
+const moveZeros: Explanation = {
+  problem: 'Move Zeros',
+  problemStatement: 'Move all zeros to the end of an array, in place, preserving the relative order of non-zero elements.',
+  approaches: [{
+    id: 'write-pointer',
+    name: 'Write Pointer (Two Pointer)',
+    badge: 'best',
+    intuition: 'Walk with a read pointer. Maintain a write pointer for the next non-zero slot. When a non-zero is read, copy to write and advance write. After the pass, fill the rest with zeros.',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'w = 0',
+      'for r from 0 to n-1:',
+      '  if arr[r] !== 0: arr[w++] = arr[r]',
+      'while w < n: arr[w++] = 0',
+    ],
+    example: { input: '[0, 1, 0, 3, 12]', output: '[1, 3, 12, 0, 0]' },
+    steps: [
+      { title: 'r=0, arr[0]=0. Skip — write does not advance.', pseudoLine: 1,
+        array: { cells: [{ value: 0, highlight: 'i' }, { value: 1 }, { value: 0 }, { value: 3 }, { value: 12 }],
+          pointers: [{ index: 0, label: 'r/w', color: 'red' }] } },
+      { title: 'r=1, arr[1]=1. Copy to w=0, w→1.', pseudoLine: 2,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 1, highlight: 'i' }, { value: 0 }, { value: 3 }, { value: 12 }],
+          pointers: [{ index: 0, label: 'w', color: 'emerald' }, { index: 1, label: 'r', color: 'red' }] } },
+      { title: 'r=3, arr[3]=3. Copy to w=1, w→2.', pseudoLine: 2,
+        array: { cells: [{ value: 1 }, { value: 3, highlight: 'found' }, { value: 0 }, { value: 3, highlight: 'i' }, { value: 12 }],
+          pointers: [{ index: 1, label: 'w', color: 'emerald' }, { index: 3, label: 'r', color: 'red' }] } },
+      { title: 'r=4, arr[4]=12 → arr[2]=12, w→3. End of read pass.', pseudoLine: 2,
+        array: { cells: [{ value: 1 }, { value: 3 }, { value: 12, highlight: 'found' }, { value: 3 }, { value: 12, highlight: 'i' }] } },
+      { title: 'Fill positions 3..n-1 with zeros.', pseudoLine: 3,
+        array: { cells: [{ value: 1 }, { value: 3 }, { value: 12 }, { value: 0, highlight: 'new' }, { value: 0, highlight: 'new' }] },
+        result: { found: true, value: '[1, 3, 12, 0, 0]' } },
+    ],
+    tradeoffs: 'Single-pass swap variant `if (arr[r]) [arr[w], arr[r]] = [arr[r], arr[w]], w++` skips the second loop but does redundant swaps when w === r. The write-pointer + zero-fill is the cleanest pattern.',
+  },
+  {
+    id: 'single-swap',
+    name: 'Single-Pass Swap (One Loop)',
+    badge: 'alternative',
+    intuition:
+      "Same two-pointer idea, one loop instead of two. As you scan with `r`, every time you see a non-zero, **swap** it with `arr[w]` and advance `w`. Zeros end up on the right naturally because non-zeros 'leapfrog' over them.\n\n" +
+      "Why prefer the two-pass version? When `w === r` (no zeros encountered yet), the swap is a no-op but still costs the destructuring assignment. Two-pass is conceptually simpler. In practice both are O(n) and the difference is microseconds.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Slightly less code; same complexity' },
+    pseudocode: [
+      'w = 0',
+      'for r from 0 to n-1:',
+      '  if arr[r] !== 0:',
+      '    [arr[w], arr[r]] = [arr[r], arr[w]]',
+      '    w++',
+    ],
+    example: { input: '[0, 1, 0, 3, 12]', output: '[1, 3, 12, 0, 0]' },
+    steps: [
+      { title: 'r=0: 0. Skip — no swap.', pseudoLine: 2,
+        array: { cells: [{ value: 0, highlight: 'i' }, { value: 1 }, { value: 0 }, { value: 3 }, { value: 12 }],
+          pointers: [{ index: 0, label: 'r/w', color: 'red' }] } },
+      { title: 'r=1: 1 ≠ 0. Swap arr[0]↔arr[1]. Array becomes [1, 0, 0, 3, 12]. w→1.', pseudoLine: 3,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 0 }, { value: 0 }, { value: 3 }, { value: 12 }],
+          pointers: [{ index: 1, label: 'w', color: 'emerald' }] } },
+      { title: 'r=3: 3 ≠ 0. Swap arr[1]↔arr[3]. Array [1, 3, 0, 0, 12]. w→2.', pseudoLine: 3,
+        array: { cells: [{ value: 1 }, { value: 3, highlight: 'found' }, { value: 0 }, { value: 0 }, { value: 12 }] } },
+      { title: 'r=4: 12 ≠ 0. Swap arr[2]↔arr[4]. Array [1, 3, 12, 0, 0]. Done.', pseudoLine: 3,
+        array: { cells: [{ value: 1 }, { value: 3 }, { value: 12, highlight: 'found' }, { value: 0 }, { value: 0 }] },
+        result: { found: true, value: '[1, 3, 12, 0, 0]' } },
+    ],
+    tradeoffs: 'Slightly more elegant. The two-pass version separates concerns (compact, then fill) which some readers find clearer.',
+  }],
+};
+
+// ====================================================================
+
+const rotateArray: Explanation = {
+  problem: 'Rotate Array',
+  problemStatement: 'Rotate an array right by k steps. `[1,2,3,4,5,6,7]`, k=3 → `[5,6,7,1,2,3,4]`.',
+  approaches: [{
+    id: 'reverse-3',
+    name: 'Reverse Three Times',
+    badge: 'best',
+    intuition:
+      "Reverse the entire array, then reverse the first k, then reverse the rest. The clever observation: rotating right by k is the same as a sequence of three reversals — and reversal is in-place O(1) extra space.\n\n" +
+      "**Mirror with Rotate Array Left:** both algorithms use the EXACT SAME three reversals, just in opposite order.\n\n" +
+      "• Right rotation: reverse-WHOLE → reverse-first-k → reverse-rest\n" +
+      "• Left rotation:  reverse-first-k → reverse-rest → reverse-WHOLE\n\n" +
+      "There's also a direct equivalence: `rotateRight(arr, k) === rotateLeft(arr, n - k)`. If you have one, the other is one line.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical, O(1) space' },
+    pseudocode: [
+      'k = k % n',
+      'reverse(arr, 0, n-1)   // whole',
+      'reverse(arr, 0, k-1)   // first k',
+      'reverse(arr, k, n-1)   // rest',
+    ],
+    pseudocodeLabel: 'Rotate RIGHT',
+    pseudocodeCompare: [
+      { label: 'Rotate LEFT', lines: [
+        'k = k % n',
+        'reverse(arr, 0, k-1)   // first k',
+        'reverse(arr, k, n-1)   // rest',
+        'reverse(arr, 0, n-1)   // whole',
+      ] },
+    ],
+    example: { input: '[1,2,3,4,5,6,7], k=3', output: '[5,6,7,1,2,3,4]' },
+    steps: [
+      { title: 'Original.', pseudoLine: 0,
+        array: { cells: [1, 2, 3, 4, 5, 6, 7].map(v => ({ value: v })) } },
+      { title: 'Reverse all → [7,6,5,4,3,2,1].', pseudoLine: 1,
+        array: { cells: [7, 6, 5, 4, 3, 2, 1].map(v => ({ value: v, highlight: 'compare' as const })) } },
+      { title: 'Reverse first k=3 → [5,6,7, 4,3,2,1].', pseudoLine: 2,
+        array: { cells: [{ value: 5, highlight: 'found' }, { value: 6, highlight: 'found' }, { value: 7, highlight: 'found' }, { value: 4 }, { value: 3 }, { value: 2 }, { value: 1 }] } },
+      { title: 'Reverse rest [3..n-1] → [5,6,7, 1,2,3,4].', pseudoLine: 3,
+        array: { cells: [{ value: 5 }, { value: 6 }, { value: 7 }, { value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 4, highlight: 'found' }] },
+        result: { found: true, value: '[5,6,7,1,2,3,4]' } },
+      { title: 'Compare with Rotate Array LEFT (same reversals, opposite order).',
+        detail:
+          "Right and Left rotation use exactly the same primitive (reverse a slice) — only the ORDER differs. Memorize one rule and you have both.\n\n" +
+          "→ RIGHT by k: whole, then first-k, then rest.\n" +
+          "← LEFT  by k: first-k, then rest, then whole.\n\n" +
+          "Or use the identity: rotateLeft(arr, k) === rotateRight(arr, n − k).",
+        note: "Both produce a rotation; the order of the three reversals decides direction. See the 'Rotate Array Left' challenge for the mirrored walkthrough.",
+        result: { found: true, value: 'right ↔ left mirror' } },
+    ],
+    tradeoffs: 'Slice-and-concat (`arr.slice(-k).concat(arr.slice(0, -k))`) is O(n) extra space — fine for typical inputs. Cyclic-replacement is O(1) space too but needs gcd-cycle math to avoid double work. Reverse-3 is the cleanest interview answer.',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.reverse', templateName: 'Array.reverse',
+        why: 'each of the three reversals is a two-pointer in-place swap' },
+      { builtin: 'Array.prototype.slice', templateName: 'Array.slice',
+        why: 'the slice-and-concat alternative implementation' },
+      { builtin: 'Array.prototype.concat', templateName: 'Array.concat',
+        why: 'merges the two slices in the alternative implementation' },
+    ],
+  },
+  {
+    id: 'slice-concat',
+    name: 'Slice + Concat (Allocates)',
+    badge: 'alternative',
+    intuition:
+      "The simplest mental model: 'rotate right by k = take the last k elements and stick them in front'. Two slices, one concat. Easier to reason about than the three-reversal trick — it does the same thing visually as you'd describe to a colleague.\n\n" +
+      "Trade-off: allocates a new array (O(n) extra space). Reverse-3 mutates in place. For most inputs neither difference matters; for interview purposes, lead with the in-place answer to demonstrate you can do it without extra allocation.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Best for clarity; uses extra memory' },
+    pseudocode: [
+      'k = k % n           // normalize',
+      'return arr.slice(-k).concat(arr.slice(0, -k))',
+    ],
+    example: { input: '[1,2,3,4,5,6,7], k=3', output: '[5,6,7,1,2,3,4]' },
+    steps: [
+      { title: 'arr.slice(-3) = [5,6,7] — last 3 elements.', pseudoLine: 1,
+        array: { cells: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5, highlight: 'found' }, { value: 6, highlight: 'found' }, { value: 7, highlight: 'found' }] } },
+      { title: 'arr.slice(0, -3) = [1,2,3,4] — everything except last 3.', pseudoLine: 1,
+        array: { cells: [{ value: 1, highlight: 'compare' }, { value: 2, highlight: 'compare' }, { value: 3, highlight: 'compare' }, { value: 4, highlight: 'compare' }, { value: 5 }, { value: 6 }, { value: 7 }] } },
+      { title: 'concat → [5,6,7,1,2,3,4].', pseudoLine: 1,
+        result: { found: true, value: '[5,6,7,1,2,3,4]' } },
+    ],
+    tradeoffs: 'Most readable. Use in production unless memory is tight or the array is huge. The trick of negative indices in slice is the key teaching moment — `slice(-k)` means "last k elements".',
+  }],
+};
+
+// ====================================================================
+
+const bubbleSort: Explanation = {
+  problem: 'Bubble Sort',
+  problemStatement: 'Sort an array by repeatedly swapping adjacent out-of-order pairs.',
+  approaches: [{
+    id: 'classic',
+    name: 'Classic Bubble Sort with Early Exit',
+    badge: 'baseline',
+    intuition: 'Walk the array, swap any adjacent pair where left > right. After one pass, the largest element has "bubbled" to the end. Repeat for the remaining unsorted prefix. If a pass does no swaps, you are done.',
+    complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'Educational only' },
+    pseudocode: [
+      'for i from 0 to n-1:',
+      '  swapped = false',
+      '  for j from 0 to n-i-2:',
+      '    if arr[j] > arr[j+1]: swap, swapped = true',
+      '  if !swapped: break',
+    ],
+    example: { input: '[5, 1, 4, 2, 8]', output: '[1, 2, 4, 5, 8]' },
+    steps: [
+      { title: 'Pass 1 starts. Compare 5 vs 1 → swap.', pseudoLine: 3,
+        array: { cells: [{ value: 5, highlight: 'i' }, { value: 1, highlight: 'j' }, { value: 4 }, { value: 2 }, { value: 8 }] } },
+      { title: 'After swap: [1,5,4,2,8]. Compare 5 vs 4 → swap.', pseudoLine: 3,
+        array: { cells: [{ value: 1 }, { value: 5, highlight: 'i' }, { value: 4, highlight: 'j' }, { value: 2 }, { value: 8 }] } },
+      { title: '5 vs 2 → swap. [1,4,2,5,8]. 5 vs 8 → no swap. End of pass 1, 8 is sorted.', pseudoLine: 3,
+        array: { cells: [{ value: 1 }, { value: 4 }, { value: 2 }, { value: 5 }, { value: 8, highlight: 'found' }] } },
+      { title: 'Pass 2: 1<4 ok, 4>2 swap → [1,2,4,5]. Pass 3 finds no swaps → done.', pseudoLine: 5,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 4, highlight: 'found' }, { value: 5, highlight: 'found' }, { value: 8, highlight: 'found' }] },
+        result: { found: true, value: '[1,2,4,5,8]' } },
+    ],
+    tradeoffs: 'Never use in production — quicksort/mergesort/Timsort are faster on every realistic input. The early-exit makes it O(n) on already-sorted arrays. Cocktail sort variant alternates direction and reduces passes on certain inputs.',
+  },
+  {
+    id: 'cocktail',
+    name: 'Cocktail Sort (Bidirectional)',
+    badge: 'alternative',
+    intuition:
+      "A bubble-sort variant that alternates direction every pass. Forward pass bubbles the largest unsorted element to the end (like classic bubble sort). The next pass goes backward, bubbling the smallest to the front. Repeat until no swaps occur in either direction.\n\n" +
+      "Why it sometimes wins: classic bubble sort has 'turtles' — small elements near the end of the array — that take O(n) passes to crawl forward, since each forward pass only moves them one step left. Cocktail sort fixes that: the backward pass moves them left in O(n) work per pass, so the algorithm completes in fewer passes on near-sorted arrays. The asymptotic complexity is still O(n²) worst case.",
+    complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'Slightly better on near-sorted; still educational only' },
+    pseudocode: [
+      'low = 0, high = n - 1, swapped = true',
+      'while swapped:',
+      '  swapped = false',
+      '  for i from low to high-1:    // forward',
+      '    if arr[i] > arr[i+1]: swap, swapped = true',
+      '  high--',
+      '  for i from high-1 down to low:  // backward',
+      '    if arr[i] > arr[i+1]: swap, swapped = true',
+      '  low++',
+    ],
+    example: { input: '[5, 1, 4, 2, 8]', output: '[1, 2, 4, 5, 8]' },
+    steps: [
+      { title: 'Forward pass: 5↔1, 5↔4, 5↔2 → [1,4,2,5,8]. 5 bubbles to position before 8.', pseudoLine: 4,
+        array: { cells: [{ value: 1 }, { value: 4 }, { value: 2 }, { value: 5 }, { value: 8, highlight: 'found' }] } },
+      { title: 'Backward pass: 4>2 swap → [1,2,4,5,8]. Smallest unsorted reached front.', pseudoLine: 7,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 4 }, { value: 5 }, { value: 8 }] } },
+      { title: 'Next pass: no swaps in either direction → done.', pseudoLine: 1,
+        result: { found: true, value: '[1,2,4,5,8]' } },
+    ],
+    tradeoffs: 'Slightly fewer passes on average than classic bubble sort. Still O(n²) — never the right answer when quicksort/mergesort are available. Useful as a teaching example for bidirectional thinking.',
+  }],
+};
+
+// ====================================================================
+
+const quickSort: Explanation = {
+  problem: 'Quick Sort',
+  problemStatement: 'Sort an array using divide-and-conquer with a pivot.',
+  approaches: [{
+    id: 'lomuto',
+    name: 'Lomuto Partition (Last-Pivot)',
+    badge: 'best',
+    intuition: 'Pick a pivot. Partition: rearrange so everything ≤ pivot is left, > pivot is right. Recurse on each side. Average O(n log n); worst case O(n²) on already-sorted input with bad pivot.',
+    complexity: { time: 'O(n log n) avg, O(n²) worst', space: 'O(log n) stack', verdict: 'Canonical for in-place sort' },
+    pseudocode: [
+      'function quickSort(arr, lo, hi):',
+      '  if lo >= hi: return',
+      '  pivot = arr[hi]; i = lo',
+      '  for j from lo to hi-1:',
+      '    if arr[j] <= pivot: swap arr[i++], arr[j]',
+      '  swap arr[i], arr[hi] // place pivot',
+      '  quickSort(arr, lo, i-1)',
+      '  quickSort(arr, i+1, hi)',
+    ],
+    example: { input: '[3, 6, 1, 5, 2, 4]', output: '[1, 2, 3, 4, 5, 6]' },
+    steps: [
+      { title: 'Pick last element 4 as pivot.', pseudoLine: 2,
+        array: { cells: [{ value: 3 }, { value: 6 }, { value: 1 }, { value: 5 }, { value: 2 }, { value: 4, highlight: 'compare' }] } },
+      { title: 'Partition: scan, move ≤4 to the left. After: [3,1,2 | 5,6,4].', pseudoLine: 4,
+        array: { cells: [{ value: 3, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 5 }, { value: 6 }, { value: 4, highlight: 'compare' }] } },
+      { title: 'Place pivot in its final spot at index 3 → [3,1,2,4,6,5].', pseudoLine: 5,
+        array: { cells: [{ value: 3 }, { value: 1 }, { value: 2 }, { value: 4, highlight: 'found' }, { value: 6 }, { value: 5 }] } },
+      { title: 'Recurse left subarray [3,1,2] and right [6,5].', pseudoLine: 6,
+        callStack: { frames: [{ call: 'quickSort([3,1,2,4,6,5], 0, 5)', status: 'returned' }, { call: 'quickSort([3,1,2], 0, 2)', status: 'active' }, { call: 'quickSort([6,5], 4, 5)', status: 'pending' }] } },
+      { title: 'Both sides recurse to base case → fully sorted.', pseudoLine: 1,
+        result: { found: true, value: '[1, 2, 3, 4, 5, 6]' } },
+    ],
+    tradeoffs: 'Random pivot avoids the O(n²) worst case on sorted inputs. Three-way partition (Dutch national flag) handles many duplicates better. Engine sort (`Array.prototype.sort`) is Timsort or Powersort — use it unless the interviewer asks you to roll your own.',
+  },
+  {
+    id: 'three-way',
+    name: 'Three-Way Partition (Duplicate-Heavy)',
+    badge: 'alternative',
+    intuition:
+      "When inputs have many duplicates, Lomuto's partition wastes work — it puts all elements equal to the pivot in the right partition, which then needs another pass. Three-way partition (a.k.a. Dutch National Flag) splits into THREE regions: less-than-pivot, equal-to-pivot, greater-than-pivot. Recurse on the two outer regions only; the middle is already in its final place.\n\n" +
+      "Walk with three pointers: `lt` (next slot for <pivot), `gt` (next slot for >pivot), `i` (current). For each `i`: if less, swap with `lt` and advance both. If greater, swap with `gt` and decrement `gt` (don't advance `i` — the swapped-in value is unread). If equal, just advance `i`. After the pass, the array is partitioned `[<pivot | =pivot | >pivot]` and we recurse only on the two outer regions.",
+    complexity: { time: 'O(n log n) avg, O(n) when many duplicates', space: 'O(log n)', verdict: 'Best for duplicate-heavy inputs' },
+    pseudocode: [
+      'function quickSort3(arr, lo, hi):',
+      '  if lo >= hi: return',
+      '  pivot = arr[lo]; lt = lo; gt = hi; i = lo + 1',
+      '  while i <= gt:',
+      '    if arr[i] < pivot: swap(i++, lt++)',
+      '    else if arr[i] > pivot: swap(i, gt--)',
+      '    else: i++',
+      '  quickSort3(arr, lo, lt - 1)',
+      '  quickSort3(arr, gt + 1, hi)',
+    ],
+    example: { input: '[3, 5, 3, 1, 5, 3, 2]', output: '[1, 2, 3, 3, 3, 5, 5]' },
+    steps: [
+      { title: 'Pivot = 3 (first). After partition: [<3 | =3 | >3] = [1,2 | 3,3,3 | 5,5].', pseudoLine: 3,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 3, highlight: 'compare' }, { value: 3, highlight: 'compare' }, { value: 3, highlight: 'compare' }, { value: 5 }, { value: 5 }] } },
+      { title: 'Three 3s already in their final positions. Recurse only on [1,2] and [5,5].', pseudoLine: 7,
+        result: { found: true, value: '[1,2,3,3,3,5,5]' } },
+    ],
+    tradeoffs: 'Big win when the input has many duplicate keys. Adds complexity vs Lomuto. JS engine sort handles duplicates natively — only roll your own when the interviewer asks for in-place quicksort.',
+  }],
+};
+
+// ====================================================================
+
+const mergeSort: Explanation = {
+  problem: 'Merge Sort',
+  problemStatement: 'Sort by recursively splitting the array in half, sorting each half, then merging.',
+  approaches: [{
+    id: 'top-down',
+    name: 'Top-Down Recursive',
+    badge: 'best',
+    intuition: 'Split the array in half, recursively sort each half, then merge them with a two-pointer linear merge. The recursion gives a tree of depth log n; each level does O(n) merging.',
+    complexity: { time: 'O(n log n)', space: 'O(n)', verdict: 'Canonical, stable sort' },
+    pseudocode: [
+      'function mergeSort(arr):',
+      '  if arr.length <= 1: return arr',
+      '  mid = floor(arr.length / 2)',
+      '  left = mergeSort(arr.slice(0, mid))',
+      '  right = mergeSort(arr.slice(mid))',
+      '  return merge(left, right)',
+    ],
+    example: { input: '[5, 2, 4, 1]', output: '[1, 2, 4, 5]' },
+    steps: [
+      { title: 'Top call: mergeSort([5,2,4,1]).', pseudoLine: 0,
+        callStack: { frames: [{ call: 'mergeSort([5,2,4,1])', status: 'active' }] } },
+      { title: 'Split → mergeSort([5,2]) and mergeSort([4,1]).', pseudoLine: 3,
+        callStack: { frames: [{ call: 'mergeSort([5,2,4,1])', status: 'pending' }, { call: 'mergeSort([5,2])', status: 'active' }, { call: 'mergeSort([4,1])', status: 'pending' }] } },
+      { title: '[5,2] splits to [5] and [2]; both base case. Merge → [2,5].', pseudoLine: 5,
+        dualArray: { left: { label: '[5]', cells: [{ value: 5 }] }, right: { label: '[2]', cells: [{ value: 2 }] }, result: { label: 'merged', cells: [{ value: 2 }, { value: 5 }] } } },
+      { title: '[4,1] merges to [1,4].', pseudoLine: 5,
+        dualArray: { left: { label: '[4]', cells: [{ value: 4 }] }, right: { label: '[1]', cells: [{ value: 1 }] }, result: { label: 'merged', cells: [{ value: 1 }, { value: 4 }] } } },
+      { title: 'Final merge of [2,5] and [1,4] → [1,2,4,5].', pseudoLine: 5,
+        dualArray: { left: { label: '[2,5]', cells: [{ value: 2 }, { value: 5 }] }, right: { label: '[1,4]', cells: [{ value: 1 }, { value: 4 }] }, result: { label: 'merged', cells: [{ value: 1 }, { value: 2 }, { value: 4 }, { value: 5 }] } },
+        result: { found: true, value: '[1, 2, 4, 5]' } },
+    ],
+    tradeoffs: 'Stable (preserves order of equal keys) — important for tagging-then-sorting. Bottom-up iterative version avoids recursion overhead for very deep arrays. JS engine sort is Timsort, which is mergesort-with-runs and is what mergesort would be in production.',
+  },
+  {
+    id: 'bottom-up',
+    name: 'Bottom-Up Iterative (No Recursion)',
+    badge: 'alternative',
+    intuition:
+      "Same algorithm, no call stack. Instead of splitting top-down, **build up** by merging successively larger windows: first merge every adjacent pair (window=1), then every adjacent quadruple (window=2), then 8s, 16s, ... until the window size covers the whole array.\n\n" +
+      "Why use it: avoids the O(log n) recursion stack. For very large arrays (say 100M elements) the recursive version's stack overhead is real. The iterative version is also slightly cache-friendlier because the merge work is tighter.",
+    complexity: { time: 'O(n log n)', space: 'O(n)', verdict: 'When recursion depth or stack overhead matters' },
+    pseudocode: [
+      'for size = 1; size < n; size *= 2:',
+      '  for left = 0; left < n - size; left += 2*size:',
+      '    mid = left + size - 1',
+      '    right = min(left + 2*size - 1, n - 1)',
+      '    merge(arr, left, mid, right)',
+    ],
+    example: { input: '[5, 2, 4, 1]', output: '[1, 2, 4, 5]' },
+    steps: [
+      { title: 'size=1: merge pairs (5,2)→(2,5) and (4,1)→(1,4). Array: [2,5,1,4].', pseudoLine: 4,
+        array: { cells: [{ value: 2, highlight: 'compare' }, { value: 5, highlight: 'compare' }, { value: 1, highlight: 'compare' }, { value: 4, highlight: 'compare' }] } },
+      { title: 'size=2: merge ([2,5], [1,4]) → [1,2,4,5].', pseudoLine: 4,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 4, highlight: 'found' }, { value: 5, highlight: 'found' }] },
+        result: { found: true, value: '[1,2,4,5]' } },
+    ],
+    tradeoffs: 'Same complexity, no recursion stack, slightly trickier indexing. Tim sort (used by V8) is bottom-up mergesort + run detection — already what JS gives you for free.',
+  }],
+};
+
+// ====================================================================
+
+const anagramCheck: Explanation = {
+  problem: 'Anagram Check',
+  problemStatement: 'Are two strings anagrams of each other (same letters, possibly reordered)?',
+  approaches: [{
+    id: 'frequency',
+    name: 'Frequency Map',
+    badge: 'best',
+    intuition: 'Length must match. Count letters in one, decrement counts in the other. If any count goes non-zero at the end, not an anagram. Single-map variant is the cleanest.',
+    complexity: { time: 'O(n)', space: 'O(k) where k is alphabet size', verdict: 'Canonical' },
+    pseudocode: [
+      'if a.length !== b.length: return false',
+      'count = {}',
+      'for ch in a: count[ch] = (count[ch] || 0) + 1',
+      'for ch in b:',
+      '  if !count[ch]: return false',
+      '  count[ch]--',
+      'return true',
+    ],
+    example: { input: '"listen", "silent"', output: 'true' },
+    steps: [
+      { title: 'Count letters of "listen".', pseudoLine: 2,
+        map: { entries: [{ key: 'l', value: 1, highlight: 'new' }, { key: 'i', value: 1, highlight: 'new' }, { key: 's', value: 1, highlight: 'new' }, { key: 't', value: 1, highlight: 'new' }, { key: 'e', value: 1, highlight: 'new' }, { key: 'n', value: 1, highlight: 'new' }] } },
+      { title: 'Decrement for each letter of "silent".', pseudoLine: 5,
+        map: { entries: [{ key: 'l', value: 0 }, { key: 'i', value: 0 }, { key: 's', value: 0 }, { key: 't', value: 0 }, { key: 'e', value: 0 }, { key: 'n', value: 0 }] } },
+      { title: 'All zero → anagram.', pseudoLine: 6,
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'Sort-and-compare is O(n log n) but a one-liner: `[...a].sort().join("") === [...b].sort().join("")`. Char-code array (size 26) avoids hash-map overhead for ASCII-only inputs.',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.sort', templateName: 'Array.sort',
+        why: 'the sort-and-compare alternative leans on a stable sort' },
+      { builtin: 'Array.prototype.join', templateName: 'Array.prototype.join',
+        why: 'collapses the sorted letters into a comparable string' },
+    ],
+  },
+  {
+    id: 'sort-compare',
+    name: 'Sort and Compare (One-Liner)',
+    badge: 'alternative',
+    intuition:
+      "If two strings are anagrams, sorting their letters gives the same string. So compare the sorted forms directly: `[...a].sort().join('') === [...b].sort().join('')`. One line, easy to read.\n\n" +
+      "Cost: O(k log k) for the sort vs O(k) for the frequency map. For short words (k < 100), the constant factors of the sort are tiny and this can win in practice. For long words, the frequency map wins.",
+    complexity: { time: 'O(k log k)', space: 'O(k)', verdict: 'Most readable; slower for long inputs' },
+    pseudocode: [
+      'function isAnagram(a, b):',
+      '  if a.length !== b.length: return false',
+      '  return [...a].sort().join("") === [...b].sort().join("")',
+    ],
+    example: { input: '"listen", "silent"', output: 'true' },
+    steps: [
+      { title: '[..."listen"].sort() = ["e","i","l","n","s","t"]. join → "eilnst".', pseudoLine: 2,
+        computation: { label: 'sort', lhs: '"listen"', op: '→', result: '"eilnst"' } },
+      { title: '[..."silent"].sort() = ["e","i","l","n","s","t"]. join → "eilnst".', pseudoLine: 2,
+        computation: { label: 'sort', lhs: '"silent"', op: '→', result: '"eilnst"' } },
+      { title: 'Strings match → anagram.', pseudoLine: 2,
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: "Use the one-liner in everyday code. For interviews, follow up the frequency-map answer with 'and the one-liner is sort-compare' to demonstrate breadth.",
+  }],
+};
+
+// ====================================================================
+
+const longestSubstring: Explanation = {
+  problem: 'Longest Substring Without Repeating Characters',
+  problemStatement: 'Return the length of the longest contiguous substring with all distinct characters.',
+  approaches: [{
+    id: 'sliding-window',
+    name: 'Sliding Window with Set',
+    badge: 'best',
+    intuition: 'Two pointers form a window. Right expands while characters are new. When a duplicate is encountered, shrink the left until the duplicate is gone. Track max window size.',
+    complexity: { time: 'O(n)', space: 'O(min(n, k))', verdict: 'Canonical' },
+    pseudocode: [
+      'set = new Set(), left = 0, best = 0',
+      'for right from 0 to n-1:',
+      '  while set.has(s[right]): set.delete(s[left++])',
+      '  set.add(s[right])',
+      '  best = max(best, right - left + 1)',
+      'return best',
+    ],
+    example: { input: '"abcabcbb"', output: '3 ("abc")' },
+    steps: [
+      { title: 'right=0..2: a, b, c added. Window "abc", best=3.', pseudoLine: 3,
+        set: { items: [{ value: 'a' }, { value: 'b' }, { value: 'c', highlight: 'new' }] } },
+      { title: 'right=3, char a is in set. Shrink left: drop a. Window now "bc".', pseudoLine: 2,
+        set: { items: [{ value: 'b' }, { value: 'c' }] } },
+      { title: 'Add a → "bca". Continue. Each new dup forces a shrink, but window length never exceeds 3.', pseudoLine: 3,
+        set: { items: [{ value: 'b' }, { value: 'c' }, { value: 'a', highlight: 'new' }] } },
+      { title: 'Final answer best=3.', pseudoLine: 5,
+        result: { found: true, value: '3' } },
+    ],
+    tradeoffs: 'Index-map variant `Map<char, lastIndex>` lets `left` jump in O(1) instead of advancing one-by-one — strictly faster on adversarial inputs but slightly more code.',
+  },
+  {
+    id: 'index-map',
+    name: 'Index-Map Sliding Window (Faster Shrink)',
+    badge: 'alternative',
+    intuition:
+      "Same sliding window, smarter shrink. Instead of inching `left` forward one character at a time when a duplicate is found, store `Map<char, lastSeenIndex>` so we can **jump** `left` directly past the previous occurrence.\n\n" +
+      "**Why it's faster:** the original approach is O(n) because each character enters the window once and leaves once — but the leaves can be slow when the window shrinks character-by-character. The map approach makes the shrink O(1) per duplicate, which matters on inputs like `\"abcdefghigj\"` where the duplicate is far back. In the worst case both are O(n), but the constants differ.",
+    complexity: { time: 'O(n)', space: 'O(min(n, k))', verdict: 'Best on long inputs with infrequent duplicates' },
+    pseudocode: [
+      'lastSeen = new Map(), left = 0, best = 0',
+      'for right from 0 to n-1:',
+      '  if lastSeen.has(s[right]) and lastSeen.get(s[right]) >= left:',
+      '    left = lastSeen.get(s[right]) + 1     // jump past the duplicate',
+      '  lastSeen.set(s[right], right)',
+      '  best = max(best, right - left + 1)',
+      'return best',
+    ],
+    example: { input: '"abba"', output: '2 ("ab" or "ba")' },
+    steps: [
+      { title: 'right=0..1: a, b added. Window "ab" length 2.', pseudoLine: 4,
+        map: { entries: [{ key: 'a', value: 0 }, { key: 'b', value: 1, highlight: 'new' }] } },
+      { title: 'right=2: b is in map at index 1, ≥ left=0 → jump left to 2. Window "b".', pseudoLine: 3,
+        map: { entries: [{ key: 'a', value: 0 }, { key: 'b', value: 1, highlight: 'hit' }] } },
+      { title: 'Update b\'s index to 2. right=3: a is in map at index 0, but 0 < left=2 → no jump. Add a, best=2 ("ba").', pseudoLine: 4,
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'The `>= left` guard is the subtle part — without it, we would jump backward when the duplicate is already outside the window. Use this when input is long and duplicates are rare.',
+  }],
+};
+
+// ====================================================================
+
+const firstNonRepeating: Explanation = {
+  problem: 'First Non-Repeating Character',
+  problemStatement: 'Return the first character in a string that appears exactly once. If none, return null.',
+  approaches: [{
+    id: 'two-pass',
+    name: 'Two-Pass Frequency Map',
+    badge: 'best',
+    intuition: 'First pass: count each character. Second pass: walk the original order; the first character with count 1 wins. Two passes preserves order without an ordered map.',
+    complexity: { time: 'O(n)', space: 'O(k)', verdict: 'Canonical' },
+    pseudocode: [
+      'count = {}',
+      'for ch in s: count[ch] = (count[ch] || 0) + 1',
+      'for ch in s:',
+      '  if count[ch] === 1: return ch',
+      'return null',
+    ],
+    example: { input: '"leetcode"', output: '"l"' },
+    steps: [
+      { title: 'Pass 1: count letters of "leetcode".', pseudoLine: 1,
+        map: { entries: [{ key: 'l', value: 1 }, { key: 'e', value: 3 }, { key: 't', value: 1 }, { key: 'c', value: 1 }, { key: 'o', value: 1 }, { key: 'd', value: 1 }] } },
+      { title: 'Pass 2 ch=l, count=1 → return "l".', pseudoLine: 3,
+        map: { entries: [{ key: 'l', value: 1, highlight: 'hit' }, { key: 'e', value: 3 }, { key: 't', value: 1 }, { key: 'c', value: 1 }, { key: 'o', value: 1 }, { key: 'd', value: 1 }] },
+        result: { found: true, value: '"l"' } },
+    ],
+    tradeoffs: "One-pass variant uses an ordered map (or `Map` in JS, which preserves insertion order) and a 'first single' marker — same complexity, slightly trickier code.",
+  },
+  {
+    id: 'one-pass-map',
+    name: 'One-Pass Ordered Map',
+    badge: 'alternative',
+    intuition:
+      "Use a `Map` instead of a plain object — `Map` preserves insertion order. As you walk the string, set each character's count. After the single pass, iterate the map in insertion order and return the first key whose count is 1.\n\n" +
+      "Why this works in one pass over the string: the map's iteration order is INSERTION order, which matches the string order for first-seen characters. So 'first key with count 1 in iteration order' = 'first non-repeating character in the original string'.",
+    complexity: { time: 'O(n)', space: 'O(k)', verdict: 'Slightly more elegant when single-pass matters' },
+    pseudocode: [
+      'count = new Map()',
+      'for ch in s: count.set(ch, (count.get(ch) || 0) + 1)',
+      'for [ch, n] of count:',
+      '  if n === 1: return ch',
+      'return null',
+    ],
+    example: { input: '"loveleetcode"', output: '"v"' },
+    steps: [
+      { title: 'Single pass: build Map. Insertion order: l, o, v, e, t, c, d.',
+        detail: 'Each new character is added to the map in the order it first appears. Subsequent occurrences only increment the count without changing position.',
+        pseudoLine: 1,
+        map: { entries: [{ key: 'l', value: 2 }, { key: 'o', value: 2 }, { key: 'v', value: 1 }, { key: 'e', value: 4 }, { key: 't', value: 1 }, { key: 'c', value: 1 }, { key: 'd', value: 1 }] } },
+      { title: 'Iterate map. l: count 2, skip. o: 2, skip. v: 1 — return "v".',
+        pseudoLine: 3,
+        map: { entries: [{ key: 'l', value: 2 }, { key: 'o', value: 2 }, { key: 'v', value: 1, highlight: 'hit' }] },
+        result: { found: true, value: '"v"' } },
+    ],
+    tradeoffs: "Same complexity as two-pass; the iteration order trick depends on `Map` (NOT a plain object — object key order is not 100% guaranteed for non-integer keys across all engines, though in practice insertion order is preserved in modern JS).",
+  }],
+};
+
+// ====================================================================
+
+const sumCurry: Explanation = {
+  problem: 'Sum Curry — sum(1)(2)(3)(...)',
+  problemStatement: 'Build a function so `sum(1)(2)(3)()` returns 6. Each call adds, the empty call ends and returns the total.',
+  approaches: [{
+    id: 'closure',
+    name: 'Closure Accumulator',
+    badge: 'best',
+    intuition: 'Each call returns a new function that closes over the running total. The empty call is the terminator: when no argument is passed, return the accumulated value.',
+    complexity: { time: 'O(1) per call', space: 'O(n) chained closures', verdict: 'Canonical' },
+    pseudocode: [
+      'function sum(a):',
+      '  return function inner(b):',
+      '    if b === undefined: return a',
+      '    return sum(a + b)',
+    ],
+    example: { input: 'sum(1)(2)(3)()', output: '6' },
+    steps: [
+      { title: 'sum(1) returns inner closure with a=1.', pseudoLine: 0,
+        callStack: { frames: [{ call: 'sum(1) → inner', status: 'returned', returns: 'fn(a=1)' }] } },
+      { title: 'inner(2): b=2 → return sum(1+2). New inner with a=3.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'inner(2)', status: 'returned', returns: 'fn(a=3)' }] } },
+      { title: 'inner(3) similarly → new inner with a=6.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'inner(3)', status: 'returned', returns: 'fn(a=6)' }] } },
+      { title: 'inner() with no arg → return a (=6).', pseudoLine: 2,
+        callStack: { frames: [{ call: 'inner()', status: 'returned', returns: '6' }] },
+        result: { found: true, value: '6' } },
+    ],
+    tradeoffs: 'A `valueOf` trick lets `sum(1)(2)(3) + 0` work without the empty terminator — clever but surprising. The undefined-check terminator is the most-asked variant.',
+  },
+  {
+    id: 'valueof-trick',
+    name: 'valueOf Coercion (No Terminator)',
+    badge: 'alternative',
+    intuition:
+      "Avoid the empty `()` terminator by overriding the function's `valueOf`. JavaScript calls `valueOf` automatically when a function is used in a numeric or string context (`+ 0`, template literal, comparison). So `sum(1)(2)(3) + 0` triggers `valueOf` which returns the accumulated total.\n\n" +
+      "**The trick:** functions are objects. You can attach properties to them, including `valueOf`. When the engine coerces the function to a primitive (which the `+` operator does), it calls `valueOf` first. So returning a function with a `valueOf` set to the running total gives you both the chainable behavior AND the primitive coercion.\n\n" +
+      "Beautiful but surprising. Senior interviewers love it; junior reviewers may flag it as 'magic'. Use sparingly.",
+    complexity: { time: 'O(1) per call', space: 'O(n) chained closures', verdict: 'Clever; surprising; use only if the team knows the pattern' },
+    pseudocode: [
+      'function sum(a):',
+      '  function inner(b):',
+      '    return sum(a + b)',
+      '  inner.valueOf = () => a',
+      '  return inner',
+    ],
+    example: { input: 'sum(1)(2)(3) + 0', output: '6' },
+    steps: [
+      { title: 'sum(1) returns inner with valueOf=() => 1.', pseudoLine: 4,
+        callStack: { frames: [{ call: 'sum(1)', status: 'returned', returns: 'fn{valueOf:1}' }] } },
+      { title: 'inner(2) calls sum(1+2) → returns inner with valueOf=() => 3.', pseudoLine: 2,
+        callStack: { frames: [{ call: 'inner(2)', status: 'returned', returns: 'fn{valueOf:3}' }] } },
+      { title: 'inner(3) similarly → fn with valueOf=() => 6.', pseudoLine: 2,
+        callStack: { frames: [{ call: 'inner(3)', status: 'returned', returns: 'fn{valueOf:6}' }] } },
+      { title: '`+ 0` triggers ToPrimitive → calls valueOf() → returns 6. Final: 0 + 6 = 6.',
+        pseudoLine: 3,
+        result: { found: true, value: '6' } },
+    ],
+    tradeoffs: "Implicit coercion is rare in modern JS code (we usually go explicit with `Number()`). This pattern works but feels like a parlor trick. The `()` terminator version is more conventional.",
+  }],
+};
+
+// ====================================================================
+
+const memoize: Explanation = {
+  problem: 'Memoize',
+  problemStatement: 'Wrap any pure function so repeated calls with the same arguments return cached results.',
+  approaches: [{
+    id: 'map-cache',
+    name: 'Map<key, value> Cache',
+    badge: 'best',
+    intuition: 'Serialize args to a string key. On call, look up the cache; on hit, return immediately; on miss, run the function, store, return.',
+    complexity: { time: 'O(1) per cached hit', space: 'O(unique-call-count)', verdict: 'Canonical' },
+    pseudocode: [
+      'function memoize(fn):',
+      '  cache = new Map()',
+      '  return (...args) =>',
+      '    key = JSON.stringify(args)',
+      '    if !cache.has(key): cache.set(key, fn(...args))',
+      '    return cache.get(key)',
+    ],
+    example: { input: 'memo(slowSquare); memo(5); memo(5);', output: 'second call instant' },
+    steps: [
+      { title: 'First memo(5): key="[5]", cache miss. Run slowSquare(5)=25, store.', pseudoLine: 4,
+        map: { entries: [{ key: '[5]', value: 25, highlight: 'new' }] },
+        lookupOutcome: { kind: 'miss', key: '[5]' } },
+      { title: 'Second memo(5): cache hit → return 25 instantly.', pseudoLine: 5,
+        map: { entries: [{ key: '[5]', value: 25, highlight: 'hit' }] },
+        lookupOutcome: { kind: 'hit', key: '[5]', at: 'cache' } },
+      { title: 'memo(7): key="[7]", miss. Compute, store.', pseudoLine: 4,
+        map: { entries: [{ key: '[5]', value: 25 }, { key: '[7]', value: 49, highlight: 'new' }] },
+        result: { found: true, value: 'cache built' } },
+    ],
+    tradeoffs: '`JSON.stringify` keys break for unserializable args (functions, circular). `WeakMap` keyed by argument identity works for object args and lets entries get GCed. LRU-bounded cache prevents unbounded memory growth.',
+  },
+  {
+    id: 'weakmap',
+    name: 'WeakMap Cache (Object Args)',
+    badge: 'alternative',
+    intuition:
+      "`JSON.stringify` for keys breaks the moment your args include unserializable values (functions, circular references, Maps, Sets, Symbols). Worse, two different objects with the same shape would hash to the same key — possibly correct for value-equality, possibly a bug.\n\n" +
+      "When the function takes a single object argument, use a `WeakMap` keyed by the argument's identity. WeakMap holds the key as a weak reference, so when the original object is garbage-collected, the cache entry vanishes too — no memory leak. Pure objects, no JSON dance.",
+    complexity: { time: 'O(1) per call', space: 'O(unique-objects)', verdict: 'Best for single-object args' },
+    pseudocode: [
+      'function memoize(fn):',
+      '  cache = new WeakMap()',
+      '  return (obj) =>',
+      '    if (cache.has(obj)): return cache.get(obj)',
+      '    result = fn(obj)',
+      '    cache.set(obj, result)',
+      '    return result',
+    ],
+    example: { input: 'memo(processUser); memo(alice); memo(alice);', output: 'second call hits cache' },
+    steps: [
+      { title: 'memo(alice): WeakMap miss → run processUser → store result keyed by alice (identity).',
+        pseudoLine: 4,
+        map: { entries: [{ key: 'alice', value: '{...}', highlight: 'new' }] } },
+      { title: 'memo(alice): WeakMap hit (same object identity) → return cached result.',
+        pseudoLine: 3,
+        lookupOutcome: { kind: 'hit', key: 'alice', at: 'WeakMap' },
+        result: { found: true, value: 'cached' } },
+      { title: 'When `alice` becomes unreachable elsewhere, WeakMap entry GCs automatically.',
+        pseudoLine: 1,
+        note: 'WeakMap holds keys weakly — no cleanup code needed, no memory leak.' },
+    ],
+    tradeoffs: 'Only works when the cache key is an object (WeakMap requires object keys). For mixed args, layer a regular Map on top: `if (typeof arg === "object") use WeakMap else use Map`.',
+  }],
+};
+
+// ====================================================================
+
+const deepClone: Explanation = {
+  problem: 'Deep Clone',
+  problemStatement: 'Return a deep copy of an arbitrarily nested object/array. No shared references at any depth.',
+  approaches: [{
+    id: 'recursion',
+    name: 'Recursion + WeakMap (Cycle-Safe)',
+    badge: 'best',
+    intuition: 'Recurse into every property. For arrays, build a new array; for objects, build a new object. A `WeakMap<original, clone>` short-circuits cycles and shared references so each source object is cloned once.',
+    complexity: { time: 'O(n) total props', space: 'O(d) call stack + O(n) WeakMap', verdict: 'Canonical' },
+    pseudocode: [
+      'function clone(obj, seen = new WeakMap()):',
+      '  if obj is primitive: return obj',
+      '  if seen.has(obj): return seen.get(obj)',
+      '  copy = Array.isArray(obj) ? [] : {}',
+      '  seen.set(obj, copy)',
+      '  for key in obj: copy[key] = clone(obj[key], seen)',
+      '  return copy',
+    ],
+    example: { input: '{ a: 1, b: { c: [2, 3] } }', output: 'deep-equal copy with no shared refs' },
+    steps: [
+      { title: 'Top call: clone({a:1, b:{c:[2,3]}}).', pseudoLine: 0,
+        callStack: { frames: [{ call: 'clone({a, b})', status: 'active' }] } },
+      { title: 'a=1 is primitive → 1. b is an object → recurse.', pseudoLine: 5,
+        callStack: { frames: [{ call: 'clone({a, b})', status: 'pending' }, { call: 'clone({c})', status: 'active' }] } },
+      { title: 'c is an array → recurse. Each element primitive.', pseudoLine: 5,
+        callStack: { frames: [{ call: 'clone({a, b})', status: 'pending' }, { call: 'clone({c})', status: 'pending' }, { call: 'clone([2,3])', status: 'active' }] } },
+      { title: 'Bubble back up. Final structure cloned with WeakMap protecting against cycles.', pseudoLine: 6,
+        callStack: { frames: [{ call: 'clone({a, b})', status: 'returned', returns: 'deep-copy' }] },
+        result: { found: true, value: 'cloned object' } },
+    ],
+    tradeoffs: '`structuredClone(obj)` (built into modern JS) is the right answer in production — handles cycles, Maps, Sets, Dates, typed arrays. JSON round-trip is fast for plain JSON-able data but drops functions/Dates and chokes on cycles.',
+    usesPolyfills: [
+      { builtin: 'JSON.stringify', templateName: 'JSON.stringify',
+        why: 'the JSON-round-trip alternative serializes the input' },
+      { builtin: 'JSON.parse', templateName: 'JSON.parse',
+        why: 'pairs with stringify to rebuild the object from text' },
+    ],
+  },
+  {
+    id: 'json-roundtrip',
+    name: 'JSON Round-Trip (Quick & Lossy)',
+    badge: 'baseline',
+    intuition:
+      "The two-line classic: `JSON.parse(JSON.stringify(obj))`. Serialize the object to a string, then parse it back. Strings are immutable so the parse builds an entirely new graph — no shared references with the original.\n\n" +
+      "**What it loses:** `Date` becomes a string (and `parse` doesn't know to revive it). `undefined` is dropped from objects (set to nothing) and turned to `null` in arrays. Functions are dropped silently. `RegExp` becomes `{}`. Circular references throw `TypeError: Converting circular structure to JSON`. `Map`, `Set`, `Symbol` keys all get lost.\n\n" +
+      "**When it's still fine:** plain JSON-shaped data (numbers, strings, booleans, null, arrays of those, plain objects of those). Configuration objects, API request bodies, etc. For anything richer use `structuredClone` (browser/Node native, ~2022+).",
+    complexity: { time: 'O(n) where n = total chars in serialized form', space: 'O(n)', verdict: 'Quick & dirty for plain data' },
+    pseudocode: [
+      'return JSON.parse(JSON.stringify(obj))',
+    ],
+    example: { input: '{ a: 1, b: { c: [2, 3] } }', output: 'deep copy with no shared refs' },
+    steps: [
+      { title: 'stringify({a:1, b:{c:[2,3]}}) → \'{"a":1,"b":{"c":[2,3]}}\'.', pseudoLine: 0,
+        computation: { label: 'stringify', op: '→', result: '"{...}" (string)' } },
+      { title: 'parse the string → fresh object {a:1, b:{c:[2,3]}}, no shared refs.', pseudoLine: 0,
+        result: { found: true, value: 'cloned' } },
+      { title: 'Test: original.b.c === clone.b.c is FALSE (different array instances).',
+        note: 'That is the whole point — independent reference graphs.' },
+    ],
+    tradeoffs: 'Two lines. Use only when the data is JSON-safe. Throws on cycles. The full recursion+WeakMap version handles edge cases; structuredClone is the modern best answer.',
+    usesPolyfills: [
+      { builtin: 'JSON.stringify', templateName: 'JSON.stringify',
+        why: 'serialize the input object to a string' },
+      { builtin: 'JSON.parse', templateName: 'JSON.parse',
+        why: 'parse the string back into a fresh object graph' },
+    ],
+  }],
+};
+
+// ====================================================================
+
+const throttle: Explanation = {
+  problem: 'Throttle',
+  problemStatement: 'Wrap a function so it runs at most once every `wait` ms. Bursty calls collapse to a steady stream.',
+  approaches: [{
+    id: 'timestamp',
+    name: 'Timestamp-Based',
+    badge: 'best',
+    intuition: 'Remember when the function last ran. On each call, fire only if `wait` ms have passed since the last fire. Drops everything in between.',
+    complexity: { time: 'O(1) per call', space: 'O(1)', verdict: 'Canonical leading-edge throttle' },
+    pseudocode: [
+      'function throttle(fn, wait):',
+      '  last = 0',
+      '  return (...args) =>',
+      '    now = Date.now()',
+      '    if now - last >= wait:',
+      '      last = now; fn(...args)',
+    ],
+    example: { input: 'throttle(fn, 200); calls at t=0,50,150,300', output: 'fires at t=0, t=300' },
+    steps: [
+      { title: 't=0: first call. last=0, now=0, diff=0 ≥ 200? No initially we set last=now and fire.', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }], windowMs: 200 } },
+      { title: 't=50: now-last = 50 < 200 → skip.', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }, { t: 50, label: 'skip', kind: 'skip' }], windowMs: 200 } },
+      { title: 't=150: 150 < 200 → skip.', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }, { t: 50, label: 'skip', kind: 'skip' }, { t: 150, label: 'skip', kind: 'skip' }], windowMs: 200 } },
+      { title: 't=300: 300 ≥ 200 → fire. last=300.', pseudoLine: 5,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }, { t: 150, label: 'skip', kind: 'skip' }, { t: 300, label: 'fire', kind: 'fire' }], windowMs: 200 },
+        result: { found: true, value: 'fires at t=0 and t=300' } },
+    ],
+    tradeoffs: 'Trailing throttle (fire AFTER the wait window with the last args) is friendlier for "scroll position" — you do not lose the final position. Both-edges variant fires on first AND last call. Pick by use case: animations want trailing; rate-limiting wants leading.',
+  },
+  {
+    id: 'trailing',
+    name: 'Trailing-Edge Throttle (Catches Final Args)',
+    badge: 'alternative',
+    intuition:
+      "The leading-edge version drops everything in the wait window — including the most recent call. For 'track scroll position' or 'autosave on type', you actually want the LAST args, not the first, because the user's final position/state is what matters.\n\n" +
+      "Implementation: on each call, store the latest args. If no timer is pending, schedule one for `wait` ms; the timer's job is to fire `fn(latestArgs)` and clear itself. Subsequent calls during the window just update `latestArgs` without re-scheduling.",
+    complexity: { time: 'O(1) per call', space: 'O(1)', verdict: 'For scroll/autosave/animation' },
+    pseudocode: [
+      'function throttleTrailing(fn, wait):',
+      '  let timer = null, latestArgs',
+      '  return (...args) =>',
+      '    latestArgs = args',
+      '    if (timer === null):',
+      '      timer = setTimeout(() => { fn(...latestArgs); timer = null }, wait)',
+    ],
+    example: { input: 'calls at t=0,50,150,300', output: 'fires at t=200 with args from t=150 (latest)' },
+    steps: [
+      { title: 't=0: first call. timer null → schedule fire at t=200 with args from t=0.', pseudoLine: 5,
+        timeline: { events: [{ t: 0, label: 'call', kind: 'input' }, { t: 200, label: 'pending', kind: 'pending' }], windowMs: 200 } },
+      { title: 't=50, t=150: update latestArgs to most recent. Timer still pending.', pseudoLine: 3,
+        timeline: { events: [{ t: 0, label: 'call', kind: 'input' }, { t: 50, label: 'update', kind: 'input' }, { t: 150, label: 'update', kind: 'input' }, { t: 200, label: 'pending', kind: 'pending' }], windowMs: 200 } },
+      { title: 't=200: timer fires fn(latestArgs from t=150). Reset timer to null.', pseudoLine: 5,
+        timeline: { events: [{ t: 0, label: 'call', kind: 'input' }, { t: 150, label: 'final', kind: 'input' }, { t: 200, label: 'fire', kind: 'fire' }], windowMs: 200 },
+        result: { found: true, value: 'fires once with latest args' } },
+    ],
+    tradeoffs: 'Trailing for scroll/autosave/animation. Leading for rate limits where the first signal matters. Both-edges (`{ leading: true, trailing: true }`) is what lodash defaults to — fires twice per burst, once on the leading edge and once with the latest args at the trailing edge.',
+  }],
+};
+
+// ====================================================================
+
+const eventEmitter: Explanation = {
+  problem: 'EventEmitter',
+  problemStatement: 'Implement on, off, and emit. on(event, fn) registers; off removes; emit(event, ...args) fires every registered handler in order.',
+  approaches: [{
+    id: 'map-set',
+    name: 'Map<event, Set<fn>>',
+    badge: 'best',
+    intuition: 'A map from event name to a set of handlers. Set automatically dedupes if the same handler is registered twice. emit walks the set and calls each.',
+    complexity: { time: 'O(1) on/off, O(n) emit', space: 'O(handlers)', verdict: 'Canonical' },
+    pseudocode: [
+      'class EventEmitter:',
+      '  events = new Map()',
+      '  on(name, fn): get-or-create set, add fn',
+      '  off(name, fn): set.delete(fn)',
+      '  emit(name, ...args): for fn in set: fn(...args)',
+    ],
+    example: { input: 'on("greet", a); on("greet", b); emit("greet", "hi")', output: 'a("hi"), b("hi")' },
+    steps: [
+      { title: 'Empty emitter.', pseudoLine: 1, map: { entries: [] } },
+      { title: 'on("greet", a) → events.greet = Set{a}.', pseudoLine: 2,
+        map: { entries: [{ key: 'greet', value: '{a}', highlight: 'new' }] } },
+      { title: 'on("greet", b) → Set{a, b}.', pseudoLine: 2,
+        map: { entries: [{ key: 'greet', value: '{a, b}', highlight: 'hit' }] } },
+      { title: 'emit("greet", "hi") → call a("hi"), then b("hi").', pseudoLine: 4,
+        map: { entries: [{ key: 'greet', value: '{a, b}' }] },
+        note: 'Order is insertion order. Set guarantees no duplicate handlers.',
+        result: { found: true, value: 'fired 2 handlers' } },
+    ],
+    tradeoffs: 'Array variant `Map<event, Array<fn>>` allows duplicates and preserves order more obviously, but `off` becomes O(n). Once-handlers wrap the original to remove itself after firing — common extension.',
+  },
+  {
+    id: 'array',
+    name: 'Map<event, Array<fn>> (Order-Visible)',
+    badge: 'alternative',
+    intuition:
+      "Use `Map<event, fn[]>` instead of `Map<event, Set<fn>>`. Two trade-offs: (1) duplicates are allowed (the same handler can register twice and fire twice — sometimes desired, sometimes a bug), and (2) `off` must scan the array to find and remove (O(n) instead of Set's O(1)).\n\n" +
+      "Why some prefer it: ordering is unambiguous (insertion order in arrays is bullet-proof), and arrays are easier to reason about than Sets for engineers less familiar with the latter. Node's built-in `EventEmitter` uses arrays.",
+    complexity: { time: 'O(1) on, O(n) off, O(n) emit', space: 'O(handlers)', verdict: 'When duplicates allowed or to mirror Node EventEmitter' },
+    pseudocode: [
+      'class EventEmitter:',
+      '  events = new Map()',
+      '  on(name, fn): get-or-create array, push fn',
+      '  off(name, fn): array.indexOf(fn) → splice',
+      '  emit(name, ...args): for fn of array: fn(...args)',
+    ],
+    example: { input: 'on("greet", a); on("greet", a); emit("greet", "hi")', output: 'a("hi") fires TWICE' },
+    steps: [
+      { title: 'on("greet", a) twice → array [a, a]. Set version would have just {a}.',
+        pseudoLine: 2,
+        map: { entries: [{ key: 'greet', value: '[a, a]', highlight: 'new' }] },
+        note: 'Set dedups; array does not. Choose based on whether double-registration should fire double.' },
+      { title: 'emit fires every entry → a("hi") runs twice.',
+        pseudoLine: 4,
+        result: { found: true, value: '2 firings' } },
+    ],
+    tradeoffs: 'Mirror Node\'s native `EventEmitter` (which uses arrays). For dedup-by-default behavior, use Set. For "register once, fire once even if registered twice" semantics, Set wins.',
+  }],
+};
+
+// ====================================================================
+
+const lruCache: Explanation = {
+  problem: 'LRU Cache',
+  problemStatement: 'Cache with capacity N. get and put are O(1). When full, evict the least-recently-used entry.',
+  approaches: [{
+    id: 'map-trick',
+    name: 'Map Insertion-Order Trick',
+    badge: 'best',
+    intuition: 'JavaScript Map preserves insertion order. On get/put, delete-then-set the key — that bumps it to the most-recent position. The first key in the map is always the LRU; on overflow, take Map.keys().next().value and delete it.',
+    complexity: { time: 'O(1) get/put', space: 'O(N)', verdict: 'Canonical for JS' },
+    pseudocode: [
+      'class LRUCache(capacity):',
+      '  cache = new Map()',
+      '  get(k): if has, delete & re-set; return value',
+      '  put(k, v): if has, delete; set; if size > cap, delete first key',
+    ],
+    example: { input: 'cap=2; put(1,A); put(2,B); get(1); put(3,C)', output: 'evicts 2 (LRU)' },
+    steps: [
+      { title: 'put(1, A). Cache: { 1→A }.', pseudoLine: 3,
+        map: { entries: [{ key: 1, value: 'A', highlight: 'new' }] } },
+      { title: 'put(2, B). Cache: { 1→A, 2→B }. Order: 1 is oldest.', pseudoLine: 3,
+        map: { entries: [{ key: 1, value: 'A' }, { key: 2, value: 'B', highlight: 'new' }] } },
+      { title: 'get(1). Bump 1 to most-recent. Cache: { 2→B, 1→A }.', pseudoLine: 2,
+        map: { entries: [{ key: 2, value: 'B' }, { key: 1, value: 'A', highlight: 'hit' }] } },
+      { title: 'put(3, C). Size > cap → evict first key (2).', pseudoLine: 3,
+        map: { entries: [{ key: 1, value: 'A' }, { key: 3, value: 'C', highlight: 'new' }] },
+        note: 'Key 2 was the LRU — bumped to oldest by the get(1) above.',
+        result: { found: true, value: 'evicted 2' } },
+    ],
+    tradeoffs: 'Textbook implementation is doubly-linked-list + hash map: HashMap<key, Node>, DLL maintains LRU order. More code, language-agnostic. The Map trick is JS-specific but every bit as O(1) and a quarter of the lines.',
+  },
+  {
+    id: 'dll-map',
+    name: 'Doubly-Linked-List + Hash Map (Textbook)',
+    badge: 'alternative',
+    intuition:
+      "The language-agnostic textbook answer. Two data structures cooperate:\n\n" +
+      "• **Hash map** `Map<key, Node>` for O(1) key→node lookup.\n" +
+      "• **Doubly-linked list** of (key, value) nodes, **head = most-recent, tail = least-recent**.\n\n" +
+      "On `get(k)`: hash lookup the node; if found, move it to the head of the DLL (O(1) with prev/next pointers); return its value.\n" +
+      "On `put(k, v)`: if key exists, update and move to head. If new, create a node, insert at head, set hash entry. If size now exceeds capacity, remove the tail node and delete its key from the map.\n\n" +
+      "Every operation is O(1) and the LRU ordering is maintained explicitly. The Map insertion-order trick is JS-specific; this is what you'd write in Java or C++.",
+    complexity: { time: 'O(1) get/put', space: 'O(N)', verdict: 'Universal — works in any language' },
+    pseudocode: [
+      'class Node { key, value, prev, next }',
+      'head ↔ ... ↔ tail (DLL)',
+      'map: Map<key, Node>',
+      'get(k): if !map.has(k) return -1',
+      '  node = map.get(k); moveToHead(node); return node.value',
+      'put(k, v): if has → update + moveToHead',
+      '  else: addToHead(new Node); if size > cap: removeTail',
+    ],
+    example: { input: 'cap=2; put(1,A); put(2,B); get(1); put(3,C)', output: 'evicts 2 (the tail)' },
+    steps: [
+      { title: 'put(1, A): create Node(1,A), insert at head. DLL: head ↔ Node(1,A) ↔ tail.',
+        pseudoLine: 5,
+        linkedList: { nodes: [{ value: '1:A', label: 'head/tail', highlight: 'new' }], tail: 'tail' } },
+      { title: 'put(2, B): insert at head. DLL: head ↔ Node(2,B) ↔ Node(1,A) ↔ tail.',
+        pseudoLine: 5,
+        linkedList: { nodes: [{ value: '2:B', label: 'head', highlight: 'new' }, { value: '1:A', label: 'tail' }], tail: 'tail' } },
+      { title: 'get(1): hash hit. Move Node(1,A) to head. DLL now: head ↔ 1:A ↔ 2:B ↔ tail.',
+        pseudoLine: 4,
+        linkedList: { nodes: [{ value: '1:A', label: 'head', highlight: 'hit' }, { value: '2:B', label: 'tail' }], tail: 'tail' } },
+      { title: 'put(3, C): insert at head, size > cap → remove tail (Node(2,B)).',
+        pseudoLine: 7,
+        linkedList: { nodes: [{ value: '3:C', label: 'head', highlight: 'new' }, { value: '1:A', label: 'tail' }], tail: 'tail' },
+        result: { found: true, value: 'evicted 2' } },
+    ],
+    tradeoffs: '~3x more code than the Map-trick version. Use when targeting languages without ordered hash maps, or when interviewers explicitly ask for the textbook DLL approach.',
+  }],
+};
+
+// ====================================================================
+
+const composePipe: Explanation = {
+  problem: 'Compose & Pipe',
+  problemStatement: 'compose(f, g, h)(x) = f(g(h(x))). pipe is the same in left-to-right order.',
+  approaches: [{
+    id: 'reduce',
+    name: 'Reduce-Based',
+    badge: 'best',
+    intuition: 'compose folds right; pipe folds left. Each fold step wraps the accumulator: `(acc, fn) => x => fn(acc(x))` for pipe, swap for compose.',
+    complexity: { time: 'O(n) functions', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'pipe = (...fns) => x => fns.reduce((v, fn) => fn(v), x)',
+      'compose = (...fns) => x => fns.reduceRight((v, fn) => fn(v), x)',
+    ],
+    example: { input: 'pipe(double, addOne, square)(3) = ((3*2)+1)² = 49', output: '49' },
+    steps: [
+      { title: 'Start: x=3.', pseudoLine: 0,
+        callStack: { frames: [{ call: 'pipe(double, addOne, square)(3)', status: 'active' }] } },
+      { title: 'Reduce step 1: double(3) = 6.', pseudoLine: 0,
+        callStack: { frames: [{ call: 'double(3)', status: 'returned', returns: '6' }] } },
+      { title: 'Reduce step 2: addOne(6) = 7.', pseudoLine: 0,
+        callStack: { frames: [{ call: 'addOne(6)', status: 'returned', returns: '7' }] } },
+      { title: 'Reduce step 3: square(7) = 49.', pseudoLine: 0,
+        callStack: { frames: [{ call: 'square(7)', status: 'returned', returns: '49' }] },
+        result: { found: true, value: '49' } },
+    ],
+    tradeoffs: 'Async pipe (returning a function that awaits each step) is the same shape — wrap reduce with await. RxJS, Ramda, lodash/fp all use the same algebra under the hood.',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.reduce', templateName: 'Array.reduce',
+        why: 'pipe folds left-to-right, applying each fn to the running value' },
+    ],
+  },
+  {
+    id: 'async-pipe',
+    name: 'Async Pipe (Awaits Each Step)',
+    badge: 'alternative',
+    intuition:
+      "Real-world pipes often need to handle async functions: `pipe(fetchUser, validateData, saveToDb)`. Each step might return a Promise. Wrapping `reduce` with `await` makes the pipe await each step before passing the result to the next.\n\n" +
+      "**The key change:** the reducer becomes `async (acc, fn) => fn(await acc)`. Every step both awaits the previous result and produces a new (possibly Promise-wrapped) value. JavaScript handles the auto-await/auto-wrap because `async` functions always return Promises.",
+    complexity: { time: 'O(n) functions × cost of each', space: 'O(n) for the reduce chain', verdict: 'For pipelines with async steps' },
+    pseudocode: [
+      'pipeAsync = (...fns) => async (x) =>',
+      '  fns.reduce(async (acc, fn) => fn(await acc), Promise.resolve(x))',
+    ],
+    example: { input: 'pipeAsync(fetchUser, validate, save)(123)', output: 'Promise → final saved record' },
+    steps: [
+      { title: 'Reduce starts with Promise.resolve(123).', pseudoLine: 1,
+        callStack: { frames: [{ call: 'pipeAsync(fetchUser, validate, save)(123)', status: 'active' }] } },
+      { title: 'Step 1: await initial → 123. Call fetchUser(123) → Promise<user>.',
+        pseudoLine: 1,
+        callStack: { frames: [{ call: 'fetchUser(123)', status: 'active', returns: 'Promise<user>' }] } },
+      { title: 'Step 2: await user → call validate(user) → Promise<validated>.',
+        pseudoLine: 1,
+        callStack: { frames: [{ call: 'validate(user)', status: 'active', returns: 'Promise<validated>' }] } },
+      { title: 'Step 3: await validated → call save → final result.',
+        pseudoLine: 1,
+        callStack: { frames: [{ call: 'save(validated)', status: 'returned', returns: 'Promise<saved>' }] },
+        result: { found: true, value: 'Promise<saved record>' } },
+    ],
+    tradeoffs: 'Async pipe handles both sync and async functions transparently — sync return values get auto-wrapped in `Promise.resolve` thanks to `async`. Trade-off: every step now returns a Promise (extra microtask). For purely-sync pipelines, the regular pipe is faster.',
+  }],
+};
+
+// ====================================================================
+
+const binarySearch: Explanation = {
+  problem: 'Binary Search',
+  problemStatement: 'Find the index of target in a sorted array, or -1 if absent. Run in O(log n).',
+  approaches: [{
+    id: 'iterative',
+    name: 'Iterative Two-Pointer',
+    badge: 'best',
+    intuition: 'Maintain low/high bounds. Each step, look at mid = (low+high)/2. If arr[mid] is target, done. If less, target is in the right half; otherwise the left half. Halve the search range every iteration → log₂(n) steps.',
+    complexity: { time: 'O(log n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'low = 0, high = n - 1',
+      'while low <= high:',
+      '  mid = floor((low + high) / 2)',
+      '  if arr[mid] === target: return mid',
+      '  if arr[mid] < target: low = mid + 1',
+      '  else: high = mid - 1',
+      'return -1',
+    ],
+    example: { input: '[1,3,5,7,9,11], target=7', output: '3' },
+    steps: [
+      { title: 'low=0, high=5, mid=2 → arr[2]=5.', pseudoLine: 2,
+        array: { cells: [{ value: 1 }, { value: 3 }, { value: 5, highlight: 'i' }, { value: 7 }, { value: 9 }, { value: 11 }],
+          pointers: [{ index: 0, label: 'lo', color: 'red' }, { index: 2, label: 'mid', color: 'indigo' }, { index: 5, label: 'hi', color: 'amber' }] },
+        computation: { label: 'arr[mid] vs target', lhs: '5', op: '<', rhs: '7', result: 'go right' } },
+      { title: 'low=3, high=5, mid=4 → arr[4]=9.', pseudoLine: 2,
+        array: { cells: [{ value: 1 }, { value: 3 }, { value: 5 }, { value: 7 }, { value: 9, highlight: 'i' }, { value: 11 }],
+          pointers: [{ index: 3, label: 'lo', color: 'red' }, { index: 4, label: 'mid', color: 'indigo' }, { index: 5, label: 'hi', color: 'amber' }] },
+        computation: { label: 'arr[mid] vs target', lhs: '9', op: '>', rhs: '7', result: 'go left' } },
+      { title: 'low=3, high=3, mid=3 → arr[3]=7. Match!', pseudoLine: 3,
+        array: { cells: [{ value: 1 }, { value: 3 }, { value: 5 }, { value: 7, highlight: 'found' }, { value: 9 }, { value: 11 }],
+          pointers: [{ index: 3, label: 'lo=mid=hi', color: 'emerald' }] },
+        result: { found: true, value: '3' } },
+    ],
+    tradeoffs: 'Off-by-one is the classic bug: write the loop condition as `low <= high` (inclusive) and update with `mid + 1` / `mid - 1`. Use `mid = low + Math.floor((high - low) / 2)` to avoid integer overflow in non-JS languages.',
+  },
+  {
+    id: 'recursive',
+    name: 'Recursive Binary Search',
+    badge: 'alternative',
+    intuition:
+      "Same algorithm, expressed recursively. Pass `low` and `high` as arguments, recurse into the half that could contain the target.\n\n" +
+      "**Why some interviewers ask for it:** to test whether you can convert iteration into recursion (and to see if you understand tail-call optimization, which JavaScript famously **does not** implement consistently — meaning you can stack-overflow on large arrays). The iterative version is strictly safer.",
+    complexity: { time: 'O(log n)', space: 'O(log n) call stack', verdict: 'Cleaner code; risk of stack overflow on huge arrays' },
+    pseudocode: [
+      'function search(arr, target, low = 0, high = arr.length - 1):',
+      '  if low > high: return -1',
+      '  mid = (low + high) >> 1',
+      '  if arr[mid] === target: return mid',
+      '  if arr[mid] < target: return search(arr, target, mid + 1, high)',
+      '  return search(arr, target, low, mid - 1)',
+    ],
+    example: { input: '[1,3,5,7,9,11], target=7', output: '3' },
+    steps: [
+      { title: 'search(low=0, high=5). mid=2, arr[2]=5 < 7 → recurse(3, 5).', pseudoLine: 4,
+        callStack: { frames: [{ call: 'search(0,5) mid=5', status: 'pending' }, { call: 'search(3,5)', status: 'active' }] } },
+      { title: 'search(3, 5). mid=4, arr[4]=9 > 7 → recurse(3, 3).', pseudoLine: 5,
+        callStack: { frames: [{ call: 'search(3,5)', status: 'pending' }, { call: 'search(3,3)', status: 'active' }] } },
+      { title: 'search(3, 3). mid=3, arr[3]=7 — match! Return 3 up the call stack.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'search(3,3)', status: 'returned', returns: '3' }] },
+        result: { found: true, value: '3' } },
+    ],
+    tradeoffs: 'Iterative is preferred unless the interviewer explicitly asks for recursion. JS engines do not reliably eliminate tail calls, so deep recursion blows the stack — for n=10⁹, log₂(n) ≈ 30 frames is fine, but most interview engines reject recursion on principle.',
+  }],
+};
+
+// ====================================================================
+
+const romanToInteger: Explanation = {
+  problem: 'Roman to Integer',
+  problemStatement: 'Convert a Roman numeral string to an integer. Handle subtractive cases (IV=4, IX=9, etc.) by checking if the next symbol is larger.',
+  approaches: [{
+    id: 'peek-next',
+    name: 'Peek Next, Subtract on Mismatch',
+    badge: 'best',
+    intuition: 'Walk left to right. Add the current value, but if the next value is larger, subtract twice (because we already added once). One pass, O(n).',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'val = { I:1, V:5, X:10, L:50, C:100, D:500, M:1000 }',
+      'total = 0',
+      'for i from 0 to n-1:',
+      '  if i+1 < n and val[s[i]] < val[s[i+1]]: total -= val[s[i]]',
+      '  else: total += val[s[i]]',
+      'return total',
+    ],
+    example: { input: '"MCMXCIV"', output: '1994' },
+    steps: [
+      { title: 'i=0: M(1000), next=C(100). 1000 ≥ 100, add. total=1000.', pseudoLine: 4,
+        computation: { label: 'add', lhs: '1000', result: 'total=1000' } },
+      { title: 'i=1: C(100), next=M(1000). 100 < 1000 → subtract. total=900.', pseudoLine: 3,
+        computation: { label: 'subtract', lhs: '100', result: 'total=900' } },
+      { title: 'i=2: M(1000), next=X(10). add. total=1900.', pseudoLine: 4,
+        computation: { label: 'add', lhs: '1000', result: 'total=1900' } },
+      { title: 'Continue: X(10) before C(100) → subtract; C → +100; I before V → −1; V → +5. Total=1994.', pseudoLine: 5,
+        result: { found: true, value: '1994' } },
+    ],
+    tradeoffs: 'Right-to-left scan with a "running max" is symmetric and avoids the `i+1 < n` bound-check; some find it more readable. Replace-pairs (IV→4, IX→9, …) is fun but slow for long inputs.',
+  },
+  {
+    id: 'right-to-left',
+    name: 'Right-to-Left with Running Max',
+    badge: 'alternative',
+    intuition:
+      "Walk **backward**. Keep a 'previous' value (initially 0). For each character: if its value is less than the previous, subtract; otherwise add. Update previous to the current value as you go.\n\n" +
+      "**Why this works:** in Roman numerals, the subtractive cases (IV, IX, XL, XC, CD, CM) are precisely those where a smaller numeral immediately PRECEDES a larger one. Walking backward, we encounter the larger first, then the smaller — and the rule 'smaller-than-just-seen → subtract' captures exactly the subtractive cases.\n\n" +
+      "Same complexity as the forward peek-next approach, but no `i + 1 < n` boundary check is needed because we're never looking ahead.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Equally good; symmetric, no peek' },
+    pseudocode: [
+      'val = { I:1, V:5, X:10, L:50, C:100, D:500, M:1000 }',
+      'total = 0, prev = 0',
+      'for i from n-1 down to 0:',
+      '  curr = val[s[i]]',
+      '  total += curr < prev ? -curr : curr',
+      '  prev = curr',
+      'return total',
+    ],
+    example: { input: '"MCMXCIV"', output: '1994' },
+    steps: [
+      { title: 'i=6 (V=5): curr=5 < prev=0? no → add. total=5, prev=5.', pseudoLine: 4,
+        computation: { label: 'add', lhs: '5', op: '+', rhs: '0', result: 'total=5' } },
+      { title: 'i=5 (I=1): curr=1 < prev=5? yes → subtract. total=4, prev=1.', pseudoLine: 4,
+        computation: { label: 'subtract', lhs: '5', op: '−', rhs: '1', result: 'total=4' } },
+      { title: 'Continue backward. C(100)+X(10)→subtract→90 partial; XC pair contributes 90; M+C→subtract→900 partial; final = 1000+(−100)+1000+(−10)+100+(−1)+5 = 1994.',
+        pseudoLine: 6,
+        result: { found: true, value: '1994' } },
+    ],
+    tradeoffs: 'Same complexity, slightly more elegant — no boundary check, no peek-ahead. Choose by readability preference.',
+  }],
+};
+
+// ====================================================================
+
+const reverseLinkedList: Explanation = {
+  problem: 'Reverse Linked List',
+  problemStatement: 'Given the head of a singly linked list, reverse it in place and return the new head.',
+  approaches: [{
+    id: 'three-pointer',
+    name: 'Iterative Three-Pointer',
+    badge: 'best',
+    intuition: 'Maintain prev (initially null), curr (head), and next (lookahead). At each step, save next, redirect curr.next = prev, advance prev and curr. When curr is null, prev is the new head.',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'prev = null, curr = head',
+      'while curr !== null:',
+      '  next = curr.next',
+      '  curr.next = prev',
+      '  prev = curr; curr = next',
+      'return prev',
+    ],
+    example: { input: '1 → 2 → 3 → 4 → null', output: '4 → 3 → 2 → 1 → null' },
+    steps: [
+      { title: 'Initial. prev=null, curr=1.', pseudoLine: 0,
+        linkedList: { nodes: [{ value: 1, label: 'curr' }, { value: 2 }, { value: 3 }, { value: 4 }], tail: 'null' } },
+      { title: 'Save next=2. Redirect 1→null. Advance prev=1, curr=2.', pseudoLine: 4,
+        linkedList: { nodes: [{ value: 1, label: 'prev', highlight: 'i' }, { value: 2, label: 'curr' }, { value: 3 }, { value: 4 }] } },
+      { title: 'Continue. After step on 2: 2→1, prev=2, curr=3.', pseudoLine: 4,
+        linkedList: { nodes: [{ value: 2, label: 'prev', highlight: 'i' }, { value: 1 }, { value: 3, label: 'curr' }, { value: 4 }] } },
+      { title: 'Continue until curr=null. Return prev as new head.', pseudoLine: 5,
+        linkedList: { nodes: [{ value: 4, label: 'head', highlight: 'found' }, { value: 3 }, { value: 2 }, { value: 1 }] },
+        result: { found: true, value: '4 → 3 → 2 → 1' } },
+    ],
+    tradeoffs: 'Recursive variant is elegant but uses O(n) call-stack — risky for very long lists. Iterative is the safe default. Reversing in groups of k is a follow-up question that uses the same three-pointer pattern within each group.',
+  },
+  {
+    id: 'recursive',
+    name: 'Recursive Reverse',
+    badge: 'alternative',
+    intuition:
+      "A beautifully short version: recurse to the end of the list, then on the way back up, reverse one pointer at a time.\n\n" +
+      "**The key insight:** at each call, after the recursive call returns the new head (the deepest node), we know `head.next` (the *current* second node) should now point to `head`. Set `head.next.next = head`, then `head.next = null` (so the original head doesn't dangle into a cycle), then return the new head up the call stack unchanged.\n\n" +
+      "The recursion depth equals the list length — for a 10,000-node list that's 10,000 stack frames, which V8 will refuse. Iterative is preferred for lists of unknown length.",
+    complexity: { time: 'O(n)', space: 'O(n) call stack', verdict: 'Elegant; risky for long lists' },
+    pseudocode: [
+      'function reverse(head):',
+      '  if (head === null || head.next === null) return head',
+      '  newHead = reverse(head.next)',
+      '  head.next.next = head     // make next point back',
+      '  head.next = null          // break original forward link',
+      '  return newHead',
+    ],
+    example: { input: '1→2→3→null', output: '3→2→1→null' },
+    steps: [
+      { title: 'reverse(1) → recurse(2) → recurse(3). 3 returns itself (base case).',
+        pseudoLine: 1,
+        callStack: { frames: [{ call: 'reverse(1)', status: 'pending' }, { call: 'reverse(2)', status: 'pending' }, { call: 'reverse(3)', status: 'returned', returns: '3 (newHead)' }] } },
+      { title: 'Back in reverse(2): 2.next.next = 2 (so 3→2), 2.next = null. Return 3.',
+        pseudoLine: 4,
+        linkedList: { nodes: [{ value: 3 }, { value: 2, highlight: 'i' }, { value: 1 }] } },
+      { title: 'Back in reverse(1): 1.next.next = 1 (so 2→1), 1.next = null. Return 3.',
+        pseudoLine: 4,
+        linkedList: { nodes: [{ value: 3, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 1, highlight: 'found' }] },
+        result: { found: true, value: '3 → 2 → 1' } },
+    ],
+    tradeoffs: '5 lines vs 7 for iterative. Same correctness, worse worst-case stack usage. Prefer iterative in production; mention recursive in interviews to show fluency.',
+  }],
+};
+
+// ====================================================================
+
+const containerWater: Explanation = {
+  problem: 'Container With Most Water',
+  problemStatement: 'Given heights, find two lines that with the x-axis form a container holding the most water. Return that area.',
+  approaches: [{
+    id: 'two-pointer',
+    name: 'Two-Pointer Greedy',
+    badge: 'best',
+    intuition: 'Start with widest container (l=0, r=n-1). Area = min(h[l], h[r]) · (r-l). Move the pointer at the SHORTER line inward — moving the taller would only decrease both width and the binding height. One pass, O(n).',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'l = 0, r = n - 1, best = 0',
+      'while l < r:',
+      '  area = min(h[l], h[r]) * (r - l)',
+      '  best = max(best, area)',
+      '  if h[l] < h[r]: l++ else r--',
+      'return best',
+    ],
+    example: { input: '[1,8,6,2,5,4,8,3,7]', output: '49' },
+    steps: [
+      { title: 'l=0(h=1), r=8(h=7). area=min(1,7)·8 = 8. h[l] shorter → l++.', pseudoLine: 2,
+        array: { cells: [{ value: 1, highlight: 'i' }, { value: 8 }, { value: 6 }, { value: 2 }, { value: 5 }, { value: 4 }, { value: 8 }, { value: 3 }, { value: 7, highlight: 'j' }] },
+        computation: { label: 'min·width', lhs: '1', op: '·', rhs: '8', result: '8' } },
+      { title: 'l=1(h=8), r=8(h=7). area=min(8,7)·7 = 49. h[r] shorter → r--.', pseudoLine: 2,
+        array: { cells: [{ value: 1 }, { value: 8, highlight: 'i' }, { value: 6 }, { value: 2 }, { value: 5 }, { value: 4 }, { value: 8 }, { value: 3 }, { value: 7, highlight: 'j' }] },
+        computation: { label: 'min·width', lhs: '7', op: '·', rhs: '7', result: '49' } },
+      { title: 'No later pair beats 49. Return 49.', pseudoLine: 5,
+        result: { found: true, value: '49' } },
+    ],
+    tradeoffs: 'Brute force checks every pair → O(n²). The two-pointer move-the-shorter-side rule is what makes the algorithm correct in a single pass — moving the taller side cannot increase the area because the new width is smaller AND the binding height is still capped by the shorter side.',
+  },
+  {
+    id: 'brute-force',
+    name: 'Brute Force — All Pairs',
+    badge: 'baseline',
+    intuition:
+      "Try every possible (i, j) pair, compute the area, keep the max. O(n²) — straightforward, slow.\n\n" +
+      "**Worth knowing because:** it's the path to the two-pointer optimization. The leap from 'try every pair' to 'two pointers, move the shorter' is the kind of insight interviewers reward. Articulate the brute force first, then explain why the greedy two-pointer is provably correct.",
+    complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'Times out for n > 10⁴' },
+    pseudocode: [
+      'best = 0',
+      'for i from 0 to n-2:',
+      '  for j from i+1 to n-1:',
+      '    area = min(h[i], h[j]) * (j - i)',
+      '    if area > best: best = area',
+      'return best',
+    ],
+    example: { input: '[1,8,6,2,5,4,8,3,7]', output: '49' },
+    steps: [
+      { title: 'i=0, j=1..8: try (1,8), (1,6), (1,2)... best for i=0 is 8 at j=8.', pseudoLine: 3,
+        computation: { label: 'min(1,7)*8', result: '8' } },
+      { title: 'i=1, j=8: min(8,7)*7 = 49 — new max.', pseudoLine: 4,
+        computation: { label: 'min(8,7)*7', result: '49' } },
+      { title: 'No later pair beats 49. Return 49.', pseudoLine: 5,
+        result: { found: true, value: '49' } },
+    ],
+    tradeoffs: 'Useful as a sanity check (output must match the optimized version). Never the answer to ship — the two-pointer is strictly better and just as readable.',
+  }],
+};
+
+// ====================================================================
+
+const climbingStairs: Explanation = {
+  problem: 'Climbing Stairs',
+  problemStatement: 'How many distinct ways to climb n stairs taking 1 or 2 steps at a time?',
+  approaches: [{
+    id: 'dp-o1',
+    name: 'O(1)-Space DP — Two Variables',
+    badge: 'best',
+    intuition: 'ways(n) = ways(n-1) + ways(n-2) — Fibonacci. You only need the last two values, so iterate with two scalars, no array.',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'if n <= 2: return n',
+      'a = 1, b = 2',
+      'for i from 3 to n:',
+      '  c = a + b; a = b; b = c',
+      'return b',
+    ],
+    example: { input: 'n = 5', output: '8' },
+    steps: [
+      { title: 'Base: ways(1)=1, ways(2)=2.', pseudoLine: 1,
+        array: { cells: [{ value: 'i:1', highlight: 'found' }, { value: 'i:2', highlight: 'found' }] },
+        computation: { label: 'a, b', result: '1, 2' } },
+      { title: 'i=3: c = 1+2 = 3. a=2, b=3.', pseudoLine: 3,
+        computation: { label: 'a + b', lhs: '1', op: '+', rhs: '2', result: '3' } },
+      { title: 'i=4: c = 2+3 = 5. a=3, b=5.', pseudoLine: 3,
+        computation: { label: 'a + b', lhs: '2', op: '+', rhs: '3', result: '5' } },
+      { title: 'i=5: c = 3+5 = 8.', pseudoLine: 3,
+        computation: { label: 'a + b', lhs: '3', op: '+', rhs: '5', result: '8' },
+        result: { found: true, value: '8' } },
+    ],
+    tradeoffs: 'Memoized recursion is the same complexity but eats stack on big n. Naive recursion is O(2ⁿ) — never use. Binet\'s formula is O(1) but loses precision past n ≈ 70.',
+  },
+  {
+    id: 'memoized',
+    name: 'Memoized Recursion (Top-Down DP)',
+    badge: 'alternative',
+    intuition:
+      "Express the problem recursively: `ways(n) = ways(n-1) + ways(n-2)`, base cases `ways(0) = 1`, `ways(1) = 1`. Naive recursion recomputes overlapping subproblems exponentially — `ways(5)` calls `ways(3)` twice (via ways(4) and directly).\n\n" +
+      "**Memoization fix:** cache the result of each subproblem. The first call to `ways(3)` runs the recursion; the second call hits the cache in O(1). Total work drops from O(2ⁿ) to O(n).\n\n" +
+      "Same complexity as the iterative two-variable solution, but the recursive expression is closer to how you'd describe the problem in plain English. Pedagogically useful; in production prefer the iterative scalar version (no stack risk, no map allocation).",
+    complexity: { time: 'O(n)', space: 'O(n) cache + O(n) call stack', verdict: 'Closest to the natural problem statement' },
+    pseudocode: [
+      'memo = new Map([[0,1],[1,1]])',
+      'function ways(n):',
+      '  if memo.has(n): return memo.get(n)',
+      '  result = ways(n-1) + ways(n-2)',
+      '  memo.set(n, result)',
+      '  return result',
+    ],
+    example: { input: 'n=5', output: '8' },
+    steps: [
+      { title: 'ways(5) → ways(4) + ways(3). Cache miss for both, recurse.',
+        pseudoLine: 3,
+        callStack: { frames: [{ call: 'ways(5)', status: 'pending' }, { call: 'ways(4) + ways(3)', status: 'active' }] } },
+      { title: 'ways(3) memoized after first compute. Second call (from ways(4)) hits cache.',
+        pseudoLine: 2,
+        map: { entries: [{ key: 0, value: 1 }, { key: 1, value: 1 }, { key: 2, value: 2 }, { key: 3, value: 3, highlight: 'hit' }] } },
+      { title: 'All values bubble back up. ways(5) = 8.',
+        pseudoLine: 4,
+        result: { found: true, value: '8' } },
+    ],
+    tradeoffs: 'Same O(n) time and O(n) space as the iterative DP table. The trade is recursion stack vs explicit array — iterative wins on safety, recursive wins on readability.',
+  }],
+};
+
+// ====================================================================
+
+const balancedBracketsCount: Explanation = {
+  problem: 'Balanced Brackets (Count)',
+  problemStatement: 'Given a string with parens, brackets, braces, return true if the COUNT of opens equals the count of closes for each pair. Note: this is different from Valid Parentheses — order does NOT matter here.',
+  approaches: [{
+    id: 'counters',
+    name: 'Three Counters',
+    badge: 'best',
+    intuition: 'Track running counts for each pair. Ignore order entirely. At the end, all counts must be zero.',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'paren = 0, bracket = 0, brace = 0',
+      'for ch in s:',
+      '  if ch === "(": paren++ else if ch === ")": paren--',
+      '  if ch === "[": bracket++ else if ch === "]": bracket--',
+      '  if ch === "{": brace++ else if ch === "}": brace--',
+      'return paren === 0 && bracket === 0 && brace === 0',
+    ],
+    example: { input: '"([)]"', output: 'true (counts balance)' },
+    steps: [
+      { title: 'String "([)]". Track counters.', pseudoLine: 0,
+        map: { entries: [{ key: '()', value: 0 }, { key: '[]', value: 0 }, { key: '{}', value: 0 }] } },
+      { title: '"(" → paren=1.', pseudoLine: 2,
+        map: { entries: [{ key: '()', value: 1, highlight: 'new' }, { key: '[]', value: 0 }, { key: '{}', value: 0 }] } },
+      { title: '"[" → bracket=1. "(" still 1.', pseudoLine: 3,
+        map: { entries: [{ key: '()', value: 1 }, { key: '[]', value: 1, highlight: 'new' }, { key: '{}', value: 0 }] } },
+      { title: '")" → paren=0.', pseudoLine: 2,
+        map: { entries: [{ key: '()', value: 0, highlight: 'hit' }, { key: '[]', value: 1 }, { key: '{}', value: 0 }] } },
+      { title: '"]" → bracket=0. All counters zero → balanced.', pseudoLine: 3,
+        map: { entries: [{ key: '()', value: 0 }, { key: '[]', value: 0, highlight: 'hit' }, { key: '{}', value: 0 }] },
+        note: 'Note: Valid Parentheses (the stack version) would call this string INVALID because the order is wrong — "(" pairs with "]" interleaved. This count-only version sees only totals.',
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'If you actually need nesting validation, use the stack approach (Valid Parentheses challenge). The count-only version is the simpler "are all opens closed somewhere" check — useful for code-formatter sanity checks, not for parser validation.',
+  },
+  {
+    id: 'object-counters',
+    name: 'Object as Counter Map',
+    badge: 'alternative',
+    intuition:
+      "Use a single object `{ '(': 0, '[': 0, '{': 0 }` instead of three separate variables. For each character, look up its associated counter (e.g., `)` increments `(`'s counter as a closer would). Cleaner if you ever need to add another bracket type.\n\n" +
+      "Functionally identical to three counters; the choice is stylistic. The map version scales: adding `<...>` (angle brackets) is one entry change instead of three new variables.",
+    complexity: { time: 'O(n)', space: 'O(k) where k = number of bracket kinds', verdict: 'Same as three counters; more extensible' },
+    pseudocode: [
+      'pairs = { ")":"(", "]":"[", "}":"{" }',
+      'count = { "(": 0, "[": 0, "{": 0 }',
+      'for ch in s:',
+      '  if ch in count: count[ch]++',
+      '  else if ch in pairs: count[pairs[ch]]--',
+      'return count["("]===0 && count["["]===0 && count["{"]===0',
+    ],
+    example: { input: '"([)]"', output: 'true (counts balance)' },
+    steps: [
+      { title: 'Walk "([)]". (→ count["("]=1. [ → count["["]=1.', pseudoLine: 4,
+        map: { entries: [{ key: '(', value: 1, highlight: 'new' }, { key: '[', value: 1, highlight: 'new' }] } },
+      { title: ') → count["("]=0. ] → count["["]=0. All zero → true.', pseudoLine: 5,
+        map: { entries: [{ key: '(', value: 0 }, { key: '[', value: 0 }, { key: '{', value: 0 }] },
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'Slightly nicer for extensibility. The order-aware Valid Parentheses problem still requires a stack — these counter-based approaches only verify totals balance, not that nesting is correct.',
+  }],
+};
+
+// ====================================================================
+
+const secondLargest: Explanation = {
+  problem: 'Second Largest Number',
+  problemStatement: 'Find the second-largest UNIQUE value in an array, without using sort.',
+  approaches: [{
+    id: 'single-pass',
+    name: 'Single Pass — Two Variables',
+    badge: 'best',
+    intuition: 'Track first (largest) and second (next-largest, distinct from first). For each x: if x > first, second becomes first and first becomes x. Else if x > second AND x !== first, second becomes x.',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'first = -Infinity, second = -Infinity',
+      'for x in arr:',
+      '  if x > first: second = first; first = x',
+      '  else if x > second && x !== first: second = x',
+      'return second',
+    ],
+    example: { input: '[3, 1, 4, 4, 5, 5, 2]', output: '4' },
+    steps: [
+      { title: 'x=3. first=3, second=-∞.', pseudoLine: 2,
+        computation: { label: 'first / second', result: '3 / -∞' } },
+      { title: 'x=1. Not > 3, but > -∞ → second=1.', pseudoLine: 3,
+        computation: { label: 'first / second', result: '3 / 1' } },
+      { title: 'x=4. > 3 → second=3, first=4.', pseudoLine: 2,
+        computation: { label: 'first / second', result: '4 / 3' } },
+      { title: 'x=4. Not > 4, and equal to first → skip.', pseudoLine: 3,
+        note: 'The x !== first check is what enforces "unique" — without it, [4, 4] would say second=4.' },
+      { title: 'x=5. > 4 → second=4, first=5. After array: 4.', pseudoLine: 2,
+        computation: { label: 'first / second', result: '5 / 4' },
+        result: { found: true, value: '4' } },
+    ],
+    tradeoffs: 'Two-pass version (find max, then max of rest) is fine — same complexity, easier to read, but two scans. Set + sort is O(n log n). Heap is overkill at k=2 but generalizes to "k-th largest" in O(n log k).',
+  },
+  {
+    id: 'set-sort',
+    name: 'Set + Sort (Most Readable)',
+    badge: 'alternative',
+    intuition:
+      "Dedupe with `new Set(arr)`, sort descending, take index 1. Three lines that read like English: 'unique values, biggest first, second one'.\n\n" +
+      "**Trade:** O(n log n) sort cost instead of O(n) single-pass. For typical interview inputs (n ≤ 10⁵), the difference is microseconds. The clarity cost is zero.",
+    complexity: { time: 'O(n log n)', space: 'O(n)', verdict: 'Pick this when readability matters more than the optimal complexity' },
+    pseudocode: [
+      'unique = [...new Set(arr)]',
+      'unique.sort((a, b) => b - a)         // descending',
+      'return unique.length >= 2 ? unique[1] : null',
+    ],
+    example: { input: '[3, 1, 4, 4, 5, 5, 2]', output: '4' },
+    steps: [
+      { title: 'new Set → {3,1,4,5,2}. Spread: [3,1,4,5,2].', pseudoLine: 0,
+        set: { items: [{ value: 3 }, { value: 1 }, { value: 4 }, { value: 5 }, { value: 2 }] } },
+      { title: 'Sort descending: [5,4,3,2,1].', pseudoLine: 1,
+        array: { cells: [{ value: 5 }, { value: 4, highlight: 'found' }, { value: 3 }, { value: 2 }, { value: 1 }] } },
+      { title: 'Index 1 = 4 → return 4.', pseudoLine: 2,
+        result: { found: true, value: '4' } },
+    ],
+    tradeoffs: 'Three readable lines for the price of O(n log n). Use unless n is huge or someone explicitly says "must be O(n)".',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.sort', templateName: 'Array.sort',
+        why: 'sort the deduped values descending to pick index 1' },
+    ],
+  }],
+};
+
+// ==================== Batch: DP / Greedy ====================
+
+const maximumSubarray: Explanation = {
+  problem: 'Maximum Subarray (Kadane\'s)',
+  problemStatement: 'Given an integer array, find the contiguous subarray with the largest sum and return that sum.',
+  approaches: [{
+    id: 'kadane',
+    name: "Kadane's Algorithm (Best — O(1) Space)",
+    badge: 'best',
+    intuition:
+      "At each position i, the best subarray ENDING at i is either (a) just nums[i] alone, or (b) nums[i] extended onto the best subarray ending at i-1. The choice: if the previous running sum is negative, dropping it strictly improves things (negative + anything < anything alone).\n\n" +
+      "Maintain two scalars: `current` (best sum ending at the current position) and `best` (best seen anywhere). On each step: `current = max(nums[i], current + nums[i])`; `best = max(best, current)`.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical — the textbook answer' },
+    pseudocode: [
+      'current = nums[0], best = nums[0]',
+      'for i from 1 to n-1:',
+      '  current = max(nums[i], current + nums[i])',
+      '  best = max(best, current)',
+      'return best',
+    ],
+    example: { input: '[-2,1,-3,4,-1,2,1,-5,4]', output: '6 (subarray [4,-1,2,1])' },
+    steps: [
+      { title: 'Start: current = -2, best = -2.', pseudoLine: 0,
+        computation: { label: 'current / best', result: '-2 / -2' } },
+      { title: 'i=1, nums=1. max(1, -2+1=-1) = 1. current=1, best=1.', pseudoLine: 2,
+        computation: { label: 'max(1, -1)', result: '1' } },
+      { title: 'i=2, nums=-3. max(-3, 1-3=-2) = -2. current=-2, best stays 1.', pseudoLine: 2,
+        computation: { label: 'max(-3, -2)', result: '-2' } },
+      { title: 'i=3, nums=4. max(4, -2+4=2) = 4. current=4, best=4.', pseudoLine: 2,
+        computation: { label: 'max(4, 2)', result: '4 — restart from here' } },
+      { title: 'Continue: 4 → 3 → 5 → 6 → 1 → 5. Max seen = 6.', pseudoLine: 3,
+        result: { found: true, value: '6' } },
+    ],
+    tradeoffs: "Beats brute-force O(n²) by recognizing that the best subarray ending at i depends only on the best ending at i-1. Divide-and-conquer also solves it in O(n log n) but is overkill — Kadane's is strictly better.",
+  }],
+};
+
+const trappingRainWater: Explanation = {
+  problem: 'Trapping Rain Water',
+  problemStatement: 'Given non-negative bar heights, compute how much rainwater the structure can trap.',
+  approaches: [{
+    id: 'two-pointer',
+    name: 'Two-Pointer (Best — O(1) Space)',
+    badge: 'best',
+    intuition:
+      "Water above index i = min(maxLeftOf_i, maxRightOf_i) - height[i]. The two-pointer trick avoids computing left/right max arrays upfront.\n\n" +
+      "Start `left=0, right=n-1`. Track `leftMax, rightMax`. At each step, move the pointer at the SHORTER side inward: that side's local max is the binding constraint (water level is capped by the shorter of the two walls), so the water at that position equals its side's max minus its height. The taller side is irrelevant until we reach it.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'left=0, right=n-1, leftMax=0, rightMax=0, total=0',
+      'while left < right:',
+      '  if height[left] < height[right]:',
+      '    if height[left] >= leftMax: leftMax = height[left]',
+      '    else: total += leftMax - height[left]',
+      '    left++',
+      '  else:',
+      '    if height[right] >= rightMax: rightMax = height[right]',
+      '    else: total += rightMax - height[right]',
+      '    right--',
+    ],
+    example: { input: '[0,1,0,2,1,0,1,3,2,1,2,1]', output: '6' },
+    steps: [
+      { title: "Compare ends: h[0]=0 < h[11]=1. Move left.", pseudoLine: 2,
+        array: { cells: [{value:0,highlight:'i'},{value:1},{value:0},{value:2},{value:1},{value:0},{value:1},{value:3},{value:2},{value:1},{value:2},{value:1,highlight:'j'}] } },
+      { title: 'h[left]=0 ≥ leftMax=0 → update leftMax=0. No water yet.', pseudoLine: 3 },
+      { title: 'Continue. When h[left] < leftMax, water += leftMax - h[left].',
+        note: 'The trick: water at position i is bounded by min(leftMax, rightMax). Since we only move the SHORTER side, that side\'s max IS the binding constraint at that position.' },
+      { title: 'After full sweep: total = 6.',
+        result: { found: true, value: '6' } },
+    ],
+    tradeoffs: 'Brute force checks each position\'s leftMax/rightMax separately (O(n²)). DP precomputes leftMax[]/rightMax[] (O(n) time, O(n) space). Two-pointer is the gold standard.',
+  }],
+};
+
+const threeSum: Explanation = {
+  problem: '3Sum',
+  problemStatement: 'Given an integer array, return all unique triplets [a, b, c] such that a + b + c === 0.',
+  approaches: [{
+    id: 'sort-two-pointer',
+    name: 'Sort + Two-Pointer (Best)',
+    badge: 'best',
+    intuition:
+      "Sort the array first. Then fix each index i in turn and run a TWO-POINTER scan on the slice [i+1..n-1] to find pairs that sum to -nums[i]. Sorting is what lets the two-pointer work: if the sum is too small, move left pointer right (bigger numbers); too big, move right pointer left.\n\n" +
+      "Skip duplicates at both levels: at the outer i (if nums[i] === nums[i-1], skip — would produce duplicate triplets) and at the inner level after finding a match (advance left/right past duplicates of the matched value).",
+    complexity: { time: 'O(n²)', space: 'O(1) extra (sort in-place)', verdict: 'Canonical' },
+    pseudocode: [
+      'sort(nums)',
+      'result = []',
+      'for i from 0 to n-3:',
+      '  if i > 0 and nums[i] === nums[i-1]: continue   // skip dup',
+      '  l = i+1, r = n-1',
+      '  while l < r:',
+      '    s = nums[i] + nums[l] + nums[r]',
+      '    if s === 0: push triplet, skip dups, l++, r--',
+      '    else if s < 0: l++',
+      '    else: r--',
+      'return result',
+    ],
+    example: { input: '[-1,0,1,2,-1,-4]', output: '[[-1,-1,2], [-1,0,1]]' },
+    steps: [
+      { title: 'Sort: [-4,-1,-1,0,1,2].', pseudoLine: 0,
+        array: { cells: [-4,-1,-1,0,1,2].map(v => ({ value: v })) } },
+      { title: 'i=0 (nums[i]=-4). l=1, r=5. Sum=-4+(-1)+2=-3 < 0 → l++. Continue... no triplet for i=0.', pseudoLine: 5 },
+      { title: 'i=1 (nums[i]=-1). l=2, r=5. -1+(-1)+2=0 ✓. Push [-1,-1,2].', pseudoLine: 7,
+        result: { found: true, value: '[-1,-1,2]' } },
+      { title: 'Skip duplicates at l. Continue to find [-1,0,1]. Final: 2 triplets.', pseudoLine: 6,
+        result: { found: true, value: '[[-1,-1,2], [-1,0,1]]' } },
+    ],
+    tradeoffs: 'Brute force is O(n³). Hash-set approach is O(n²) but messier dedup logic. Sort+two-pointer is the cleanest and the interview standard.',
+  }],
+};
+
+const generateParentheses: Explanation = {
+  problem: 'Generate Parentheses',
+  problemStatement: 'Given n pairs of parentheses, return all combinations of well-formed parentheses.',
+  approaches: [{
+    id: 'backtracking',
+    name: 'Backtracking with Two Counters',
+    badge: 'best',
+    intuition:
+      "Build the string character by character. Track two counters: `open` (count of '(' used so far) and `close` (count of ')'). The rules:\n\n" +
+      "• Can add '(' if `open < n` (not yet at max opens).\n" +
+      "• Can add ')' if `close < open` (a closer needs a prior unmatched opener).\n\n" +
+      "When length === 2n, the string is complete and well-formed. Recurse from both choices when both are legal, branching the search tree. The two-counter pruning ensures we never produce malformed strings — no need to validate at the end.",
+    complexity: { time: 'O(4ⁿ / √n) — Catalan number', space: 'O(n) recursion depth', verdict: 'Canonical' },
+    pseudocode: [
+      'result = []',
+      'function back(s, open, close):',
+      '  if s.length === 2*n: push(s); return',
+      '  if open < n: back(s + "(", open+1, close)',
+      '  if close < open: back(s + ")", open, close+1)',
+      'back("", 0, 0)',
+    ],
+    example: { input: 'n = 3', output: '["((()))","(()())","(())()","()(())","()()()"]' },
+    steps: [
+      { title: 'back("", 0, 0). Both branches legal: try "(" first.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'back("", 0, 0)', status: 'active' }] } },
+      { title: 'back("(", 1, 0). open=1<3, close=0<1 → both branches. Try "(" deeper.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'back("(", 1, 0)', status: 'pending' }, { call: 'back("((", 2, 0)', status: 'active' }] } },
+      { title: 'Continue depth-first. Hit length 6: push "((()))". Backtrack and explore alternatives.', pseudoLine: 1,
+        result: { found: true, value: '5 valid strings (Catalan(3) = 5)' } },
+    ],
+    tradeoffs: 'Brute-force "generate all 2ⁿ strings then filter" is O(2²ⁿ · n). The counter-based pruning is the key insight.',
+  }],
+};
+
+const subsets: Explanation = {
+  problem: 'Subsets (Power Set)',
+  problemStatement: 'Given an array of distinct integers, return all 2ⁿ possible subsets.',
+  approaches: [{
+    id: 'backtracking',
+    name: 'Backtracking (Best)',
+    badge: 'best',
+    intuition:
+      "At each index, decide INCLUDE the element or EXCLUDE it. Two choices × n elements = 2ⁿ subsets. The recursion tree has depth n, and at each leaf you record the current subset.\n\n" +
+      "Maintain a running `path` array. At index i: push nums[i], recurse to i+1, pop nums[i], recurse to i+1. Record `path` at every entry (including the empty array at the root).",
+    complexity: { time: 'O(n · 2ⁿ)', space: 'O(n) recursion + O(n·2ⁿ) output', verdict: 'Canonical' },
+    pseudocode: [
+      'result = []',
+      'function back(i, path):',
+      '  result.push([...path])      // every node, not just leaves',
+      '  for j from i to n-1:',
+      '    path.push(nums[j])',
+      '    back(j+1, path)',
+      '    path.pop()                // undo the choice',
+      'back(0, [])',
+    ],
+    example: { input: '[1,2,3]', output: '[[],[1],[1,2],[1,2,3],[1,3],[2],[2,3],[3]]' },
+    steps: [
+      { title: 'back(0, []). Push []. Loop j=0: include 1.', pseudoLine: 2,
+        callStack: { frames: [{ call: 'back(0, [])', status: 'active' }] } },
+      { title: 'back(1, [1]). Push [1]. Loop j=1: include 2.', pseudoLine: 2,
+        callStack: { frames: [{ call: 'back(0, [])', status: 'pending' }, { call: 'back(1, [1])', status: 'active' }] } },
+      { title: 'Recursion bottoms out at [1,2,3], then unwinds, exploring alternatives.', pseudoLine: 5,
+        result: { found: true, value: '8 subsets' } },
+    ],
+    tradeoffs: 'Iterative bit-mask: each subset corresponds to an n-bit number 0..2ⁿ-1. Bit i set = include nums[i]. Same complexity, no recursion stack.',
+  }],
+};
+
+const permutations: Explanation = {
+  problem: 'Permutations',
+  problemStatement: 'Given an array of distinct integers, return all n! permutations.',
+  approaches: [{
+    id: 'backtracking',
+    name: 'Backtracking with Used Set',
+    badge: 'best',
+    intuition:
+      "At each position in the permutation, pick any unused element. Track 'used' status with a boolean array. When path.length === n, record a copy. Then backtrack: unmark the last choice and try the next unused element.\n\n" +
+      "The recursion tree branches n × (n-1) × (n-2) × ... = n! ways. Each leaf is one permutation. The `used` array prevents picking the same element twice in the same permutation.",
+    complexity: { time: 'O(n · n!)', space: 'O(n) recursion + O(n!·n) output', verdict: 'Canonical' },
+    pseudocode: [
+      'result = []',
+      'function back(path, used):',
+      '  if path.length === n: push([...path]); return',
+      '  for i from 0 to n-1:',
+      '    if used[i]: continue',
+      '    used[i] = true; path.push(nums[i])',
+      '    back(path, used)',
+      '    used[i] = false; path.pop()',
+      'back([], new Array(n).fill(false))',
+    ],
+    example: { input: '[1,2,3]', output: '6 permutations' },
+    steps: [
+      { title: 'back([], all unused). Try i=0: path=[1].', pseudoLine: 5,
+        callStack: { frames: [{ call: 'back([1], used={1})', status: 'active' }] } },
+      { title: 'back([1]). Try i=1: path=[1,2]. Then i=2: path=[1,2,3]. Push.', pseudoLine: 2,
+        result: { found: true, value: '[1,2,3] added' } },
+      { title: 'Backtrack, try [1,3,2], then [2,...], etc. Final: 6 permutations.',
+        result: { found: true, value: '3! = 6' } },
+    ],
+    tradeoffs: 'Swap-based version reduces space: maintain a single array, swap the current position with each candidate index, recurse, swap back. Same complexity, slightly less allocation.',
+  }],
+};
+
+const minStack: Explanation = {
+  problem: 'Min Stack',
+  problemStatement: 'Implement a stack with push, pop, top, and getMin all O(1).',
+  approaches: [{
+    id: 'parallel-stack',
+    name: 'Parallel Min Stack',
+    badge: 'best',
+    intuition:
+      "Two stacks. The main one holds values; the second holds the running minimum at each level. On push: also push min(currentTop_of_minStack, newValue) — this preserves the minimum across pops. On pop: pop both. getMin: peek the min stack.\n\n" +
+      "The key insight: at any moment, the min should reflect ALL currently-pushed elements. Storing per-level mins means popping a level automatically restores the previous min.",
+    complexity: { time: 'O(1) all ops', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'class MinStack:',
+      '  stack = []; mins = []',
+      '  push(x): stack.push(x); mins.push(mins.length ? Math.min(mins.last(), x) : x)',
+      '  pop():   stack.pop(); mins.pop()',
+      '  top():   return stack.last()',
+      '  getMin(): return mins.last()',
+    ],
+    example: { input: 'push -2, push 0, push -3; getMin → -3; pop; getMin → -2', output: 'works in O(1)' },
+    steps: [
+      { title: 'push(-2): stack=[-2], mins=[-2].', pseudoLine: 2,
+        stack: { items: [{ value: -2, highlight: 'new' }], action: 'push' } },
+      { title: 'push(0): stack=[-2,0], mins=[-2,-2] (min stays -2).', pseudoLine: 2,
+        stack: { items: [{ value: -2 }, { value: 0, highlight: 'new' }], action: 'push' } },
+      { title: 'push(-3): stack=[-2,0,-3], mins=[-2,-2,-3] (new min).', pseudoLine: 2,
+        stack: { items: [{ value: -2 }, { value: 0 }, { value: -3, highlight: 'new' }], action: 'push' } },
+      { title: 'getMin → -3. pop. mins=[-2,-2] → getMin → -2.', pseudoLine: 5,
+        result: { found: true, value: 'O(1) min restored' } },
+    ],
+    tradeoffs: 'Space-optimized: store (value, diffFromMin) pairs in one stack — O(n) space but constant per element. Not worth the complexity in interviews.',
+  }],
+};
+
+const dailyTemperatures: Explanation = {
+  problem: 'Daily Temperatures',
+  problemStatement: 'For each day, return the number of days until a warmer temperature (0 if never).',
+  approaches: [{
+    id: 'monotonic-stack',
+    name: 'Monotonic Stack (Best)',
+    badge: 'best',
+    intuition:
+      "Stack holds INDICES of days waiting for a warmer one. The invariant: temperatures at these indices form a non-increasing sequence top-to-bottom.\n\n" +
+      "Walk forward. For each day i: while the stack is non-empty AND temps[i] > temps[top of stack], pop the top index j and set answer[j] = i - j (number of days waited). Then push i.\n\n" +
+      "Each index gets pushed once and popped at most once — O(n) total.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical monotonic-stack pattern' },
+    pseudocode: [
+      'stack = [], answer = new Array(n).fill(0)',
+      'for i from 0 to n-1:',
+      '  while stack.length && temps[i] > temps[top]:',
+      '    j = stack.pop()',
+      '    answer[j] = i - j',
+      '  stack.push(i)',
+      'return answer',
+    ],
+    example: { input: '[73,74,75,71,69,72,76,73]', output: '[1,1,4,2,1,1,0,0]' },
+    steps: [
+      { title: 'i=0 (73). Stack empty → push 0. Stack: [0].', pseudoLine: 5,
+        stack: { items: [{ value: '73@0', highlight: 'new' }], action: 'push' } },
+      { title: 'i=1 (74). 74 > 73 → pop 0, answer[0]=1. Push 1.', pseudoLine: 3,
+        stack: { items: [{ value: '74@1', highlight: 'new' }], action: 'push' } },
+      { title: 'Continue. The "4" at index 2: temp 75 waits days 3,4,5,6 → 76 at 6 triggers pop. answer[2]=4.',
+        pseudoLine: 4 },
+      { title: 'Final: [1,1,4,2,1,1,0,0].', pseudoLine: 6,
+        result: { found: true, value: '[1,1,4,2,1,1,0,0]' } },
+    ],
+    tradeoffs: 'Brute force: for each i, scan forward until warmer = O(n²). Monotonic stack ensures each index is processed once each direction.',
+  }],
+};
+
+const coinChange: Explanation = {
+  problem: 'Coin Change',
+  problemStatement: 'Given coin denominations and an amount, return the FEWEST coins to make that amount; -1 if impossible.',
+  approaches: [{
+    id: 'dp',
+    name: 'Bottom-Up DP',
+    badge: 'best',
+    intuition:
+      "Define dp[a] = fewest coins to make amount `a`. Base: dp[0] = 0 (no coins). For each a from 1 to amount, try every coin c: if c ≤ a, then dp[a] could be dp[a-c] + 1 (use one coin of denomination c, plus whatever made a-c). Take the minimum across all coins.\n\n" +
+      "Initialize dp[1..amount] to Infinity (or amount+1 as a sentinel — any value > amount means 'impossible so far'). After the fill, if dp[amount] is still the sentinel, no combination works → return -1.",
+    complexity: { time: 'O(amount · #coins)', space: 'O(amount)', verdict: 'Canonical' },
+    pseudocode: [
+      'dp = new Array(amount + 1).fill(amount + 1)',
+      'dp[0] = 0',
+      'for a from 1 to amount:',
+      '  for c in coins:',
+      '    if c <= a: dp[a] = min(dp[a], dp[a - c] + 1)',
+      'return dp[amount] > amount ? -1 : dp[amount]',
+    ],
+    example: { input: 'coins=[1,2,5], amount=11', output: '3 (5+5+1)' },
+    steps: [
+      { title: 'dp[0]=0. For a=1: only coin 1 fits. dp[1] = dp[0]+1 = 1.', pseudoLine: 4,
+        computation: { label: 'dp[1]', result: '1' } },
+      { title: 'a=2: coin 1 → dp[1]+1=2. coin 2 → dp[0]+1=1. min=1.', pseudoLine: 4,
+        computation: { label: 'dp[2]', result: '1' } },
+      { title: 'a=5: coin 5 wins → dp[0]+1=1. dp[5]=1.', pseudoLine: 4,
+        computation: { label: 'dp[5]', result: '1' } },
+      { title: 'a=11: coin 5 → dp[6]+1=3. dp[11]=3.', pseudoLine: 5,
+        result: { found: true, value: '3' } },
+    ],
+    tradeoffs: 'Memoized recursion (top-down) is equivalent in complexity. Greedy "always pick largest" FAILS for non-standard coin sets (e.g., [1,3,4] amount=6: greedy gives 4+1+1=3, optimal is 3+3=2).',
+  }],
+};
+
+const houseRobber: Explanation = {
+  problem: 'House Robber',
+  problemStatement: 'Each house holds money. You cannot rob two adjacent houses. Return the max amount.',
+  approaches: [{
+    id: 'dp-o1',
+    name: 'O(1) Space DP — Two Scalars',
+    badge: 'best',
+    intuition:
+      "At house i, you choose either (a) rob house i — gain nums[i] + best from i-2, OR (b) skip house i — best from i-1. Take the better.\n\n" +
+      "Recurrence: `dp[i] = max(dp[i-1], dp[i-2] + nums[i])`. You only need the last two values, so use two scalars: `prev2` (best up to i-2), `prev1` (best up to i-1). Iterate, updating in place.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'prev2 = 0, prev1 = 0',
+      'for x in nums:',
+      '  curr = max(prev1, prev2 + x)',
+      '  prev2 = prev1; prev1 = curr',
+      'return prev1',
+    ],
+    example: { input: '[2,7,9,3,1]', output: '12 (rob houses 0, 2, 4)' },
+    steps: [
+      { title: 'x=2: curr=max(0, 0+2)=2. prev2=0, prev1=2.', pseudoLine: 2,
+        computation: { label: 'curr', result: '2' } },
+      { title: 'x=7: curr=max(2, 0+7)=7. prev2=2, prev1=7.', pseudoLine: 2,
+        computation: { label: 'curr', result: '7' } },
+      { title: 'x=9: curr=max(7, 2+9)=11. prev1=11.', pseudoLine: 2,
+        computation: { label: 'curr', result: '11' } },
+      { title: 'x=3: curr=max(11, 7+3)=11. x=1: curr=max(11, 11+1)=12.', pseudoLine: 2,
+        result: { found: true, value: '12' } },
+    ],
+    tradeoffs: 'Recursive + memoization is the same complexity but eats stack. The two-scalar trick is the canonical "DP with O(1) space" pattern.',
+  }],
+};
+
+const jumpGame: Explanation = {
+  problem: 'Jump Game',
+  problemStatement: 'Each nums[i] is the max jump length from index i. Return true if you can reach the last index.',
+  approaches: [{
+    id: 'greedy',
+    name: 'Greedy — Track Farthest Reachable',
+    badge: 'best',
+    intuition:
+      "Sweep left to right. Maintain `farthest` = the maximum index reachable from any position seen so far. At each index i: if i > farthest, you can't even reach here — return false. Otherwise, update farthest = max(farthest, i + nums[i]).\n\n" +
+      "After the loop (or once farthest ≥ n-1), return true. This is O(n) — vastly better than the obvious O(2ⁿ) recursion or O(n²) DP.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'farthest = 0',
+      'for i from 0 to n-1:',
+      '  if i > farthest: return false',
+      '  farthest = max(farthest, i + nums[i])',
+      'return true',
+    ],
+    example: { input: '[2,3,1,1,4]', output: 'true' },
+    steps: [
+      { title: 'i=0, farthest=0. 0≤0 ok. Update: max(0, 0+2)=2.', pseudoLine: 3,
+        computation: { label: 'farthest', result: '2' } },
+      { title: 'i=1: 1≤2 ok. max(2, 1+3)=4.', pseudoLine: 3,
+        computation: { label: 'farthest', result: '4' } },
+      { title: 'i=2,3,4: all ≤ farthest. Reached last index → true.', pseudoLine: 4,
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'DP variant: dp[i] = reachable from 0. O(n²) — strictly worse than the greedy. The greedy "farthest reachable" is one of the cleanest greedy proofs in competitive programming.',
+  }],
+};
+
+// ==================== Batch: Linked List + Sorting ====================
+
+const detectCycle: Explanation = {
+  problem: 'Detect Cycle in Linked List',
+  problemStatement: 'Return true if the linked list has a cycle, otherwise false.',
+  approaches: [{
+    id: 'floyd',
+    name: "Floyd's Tortoise & Hare",
+    badge: 'best',
+    intuition:
+      "Two pointers: slow advances 1 step, fast advances 2 steps. If there's a cycle, fast eventually laps slow and they meet INSIDE the cycle. If there's no cycle, fast hits null first.\n\n" +
+      "Why they meet: once both pointers are in the cycle, fast closes the gap by 1 step every iteration. With a cycle of length k, fast catches up in at most k iterations. Total O(n) time, O(1) space — beats the hash-set approach's O(n) space.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'slow = head, fast = head',
+      'while fast && fast.next:',
+      '  slow = slow.next',
+      '  fast = fast.next.next',
+      '  if slow === fast: return true',
+      'return false',
+    ],
+    example: { input: '3 → 2 → 0 → -4 ↻ (back to 2)', output: 'true' },
+    steps: [
+      { title: 'slow=3, fast=3. Step: slow=2, fast=0.', pseudoLine: 3,
+        linkedList: { nodes: [{ value: 3 }, { value: 2, label: 's' }, { value: 0, label: 'f' }, { value: -4 }] } },
+      { title: 'Step: slow=0, fast=2 (fast wrapped). Step: slow=-4, fast=-4. MEET!', pseudoLine: 4,
+        linkedList: { nodes: [{ value: 3 }, { value: 2 }, { value: 0 }, { value: -4, label: 's=f', highlight: 'found' }] },
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'Hash-set approach: walk forward, add each node to a Set; if a node is already in the set, cycle detected. Same O(n) time but O(n) space. Floyd\'s is strictly better.',
+  }],
+};
+
+const mergeTwoSortedLists: Explanation = {
+  problem: 'Merge Two Sorted Lists',
+  problemStatement: 'Given heads of two sorted lists, splice them together into one sorted list.',
+  approaches: [{
+    id: 'dummy-head',
+    name: 'Dummy Head + Tail Pointer',
+    badge: 'best',
+    intuition:
+      "Create a dummy node so you never need to special-case 'the very first node'. Walk both lists with a `tail` pointer. At each step, take the smaller of l1.val and l2.val, attach it after `tail`, and advance.\n\n" +
+      "When one list runs out, attach the rest of the other directly — it's already sorted, no further work needed. Return `dummy.next` (the real head of the merged list).",
+    complexity: { time: 'O(m + n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'dummy = new ListNode(0); tail = dummy',
+      'while l1 && l2:',
+      '  if l1.val <= l2.val: tail.next = l1; l1 = l1.next',
+      '  else: tail.next = l2; l2 = l2.next',
+      '  tail = tail.next',
+      'tail.next = l1 || l2     // attach the leftover',
+      'return dummy.next',
+    ],
+    example: { input: '1→2→4, 1→3→4', output: '1→1→2→3→4→4' },
+    steps: [
+      { title: 'l1=1, l2=1. Both equal — take l1. tail=1.', pseudoLine: 3,
+        linkedList: { nodes: [{ value: 1, label: 'merged' }] } },
+      { title: 'l1=2, l2=1. l2 smaller. tail=1→1.', pseudoLine: 4,
+        linkedList: { nodes: [{ value: 1 }, { value: 1 }] } },
+      { title: 'Continue: 2, 3, 4 from l1, 4 from l2. Final: 1→1→2→3→4→4.', pseudoLine: 6,
+        result: { found: true, value: '1→1→2→3→4→4' } },
+    ],
+    tradeoffs: 'Recursive variant: merge(l1, l2) = head + merge(rest of smaller, other). Same complexity, O(m+n) stack space.',
+  }],
+};
+
+const sortColors: Explanation = {
+  problem: 'Sort Colors (Dutch National Flag)',
+  problemStatement: 'Sort an array of 0s, 1s, and 2s in place in one pass.',
+  approaches: [{
+    id: 'dutch-flag',
+    name: "Three-Pointer (Dutch Flag)",
+    badge: 'best',
+    intuition:
+      "Three pointers: `low` (next slot for a 0), `high` (next slot for a 2), `mid` (cursor). Invariant: nums[0..low-1] all 0s, nums[low..mid-1] all 1s, nums[high+1..n-1] all 2s, nums[mid..high] unknown.\n\n" +
+      "At each step: if nums[mid] === 0, swap with low and advance both. If 2, swap with high and decrement high (don't advance mid — the swapped-in value is unread). If 1, just advance mid.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical — one pass' },
+    pseudocode: [
+      'low = 0, mid = 0, high = n - 1',
+      'while mid <= high:',
+      '  if nums[mid] === 0: swap(low++, mid++)',
+      '  else if nums[mid] === 2: swap(mid, high--)',
+      '  else: mid++',
+    ],
+    example: { input: '[2,0,2,1,1,0]', output: '[0,0,1,1,2,2]' },
+    steps: [
+      { title: 'low=0, mid=0, high=5. nums[0]=2 → swap with high=5. Array: [0,0,2,1,1,2]. high=4.', pseudoLine: 3,
+        array: { cells: [0,0,2,1,1,2].map(v => ({ value: v })) } },
+      { title: 'nums[mid=0]=0 → swap with low=0 (self). low=1, mid=1.', pseudoLine: 2 },
+      { title: 'Continue. After pass: [0,0,1,1,2,2].', pseudoLine: 4,
+        array: { cells: [0,0,1,1,2,2].map(v => ({ value: v, highlight: 'found' as const })) },
+        result: { found: true, value: '[0,0,1,1,2,2]' } },
+    ],
+    tradeoffs: 'Counting sort: two passes — count 0s/1s/2s, then write back. Same complexity, less elegant. Dutch flag is the canonical one-pass answer.',
+  }],
+};
+
+const topKFrequent: Explanation = {
+  problem: 'Top K Frequent Elements',
+  problemStatement: 'Return the k most frequent elements (order does not matter).',
+  approaches: [{
+    id: 'bucket-sort',
+    name: 'Bucket Sort by Frequency (Best — O(n))',
+    badge: 'best',
+    intuition:
+      "Count frequencies with a Map. Frequencies are bounded: any frequency is between 1 and n. So create `n+1` buckets (an array of arrays); `buckets[f]` is the list of values with frequency exactly f. Walk buckets from high to low, collecting k values.\n\n" +
+      "This avoids the O(n log k) heap cost and runs strictly in O(n).",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Best asymptotic' },
+    pseudocode: [
+      'count = new Map()',
+      'for x in nums: count.set(x, (count.get(x) || 0) + 1)',
+      'buckets = Array(n+1).fill(null).map(() => [])',
+      'for [val, freq] of count: buckets[freq].push(val)',
+      'result = []',
+      'for f from n down to 1:',
+      '  for v of buckets[f]:',
+      '    result.push(v)',
+      '    if result.length === k: return result',
+    ],
+    example: { input: '[1,1,1,2,2,3], k=2', output: '[1, 2]' },
+    steps: [
+      { title: 'count: {1:3, 2:2, 3:1}.', pseudoLine: 1,
+        map: { entries: [{ key: 1, value: 3 }, { key: 2, value: 2 }, { key: 3, value: 1 }] } },
+      { title: 'buckets: [[], [3], [2], [1], [], [], []]. Walk high→low.', pseudoLine: 3 },
+      { title: 'f=3: push 1. f=2: push 2. result=[1,2]. Length k=2 → return.', pseudoLine: 8,
+        result: { found: true, value: '[1, 2]' } },
+    ],
+    tradeoffs: 'Heap of size k: O(n log k). Sort all entries by frequency: O(n log n). Bucket sort wins on raw speed but allocates n+1 buckets.',
+  }],
+};
+
+// ==================== Batch: Hash Map / Math ====================
+
+const subarraySumK: Explanation = {
+  problem: 'Subarray Sum Equals K',
+  problemStatement: 'Return the number of contiguous subarrays whose sum equals k.',
+  approaches: [{
+    id: 'prefix-sum',
+    name: 'Prefix Sum + Hash Map (Best)',
+    badge: 'best',
+    intuition:
+      "Walk the array maintaining a running sum S. A subarray (i..j] has sum = S[j] - S[i]. So we want pairs (i, j) where S[j] - S[i] === k, i.e., S[i] = S[j] - k.\n\n" +
+      "Use a hash map of prefix-sum frequencies. At each index, look up how many times `S - k` has appeared as a prior prefix; that count is the number of subarrays ENDING at this index with sum k. Then record the current S in the map. Start with `{0: 1}` to handle subarrays starting at index 0.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'sums = new Map([[0, 1]])      // base case: empty prefix',
+      'S = 0, count = 0',
+      'for x in nums:',
+      '  S += x',
+      '  if sums.has(S - k): count += sums.get(S - k)',
+      '  sums.set(S, (sums.get(S) || 0) + 1)',
+      'return count',
+    ],
+    example: { input: '[1,1,1], k=2', output: '2' },
+    steps: [
+      { title: 'Start sums={0:1}. x=1: S=1. Look up 1-2=-1 (miss). Record S=1. sums={0:1, 1:1}.', pseudoLine: 4,
+        map: { entries: [{ key: 0, value: 1 }, { key: 1, value: 1, highlight: 'new' }] } },
+      { title: 'x=1: S=2. Look up 2-2=0 → HIT, count=1. Record S=2.', pseudoLine: 4,
+        map: { entries: [{ key: 0, value: 1, highlight: 'hit' }, { key: 1, value: 1 }, { key: 2, value: 1, highlight: 'new' }] },
+        lookupOutcome: { kind: 'hit', key: 0, at: 'sums' } },
+      { title: 'x=1: S=3. Look up 3-2=1 → HIT, count=2.', pseudoLine: 4,
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'Brute force checks every subarray = O(n²). The prefix-sum trick is one of the most-asked patterns in interviews.',
+  }],
+};
+
+const singleNumber: Explanation = {
+  problem: 'Single Number',
+  problemStatement: 'Every element appears twice except one. Find it in O(n) time and O(1) space.',
+  approaches: [{
+    id: 'xor',
+    name: 'XOR All Elements',
+    badge: 'best',
+    intuition:
+      "The key identity: `a ^ a === 0` and `a ^ 0 === a`. XOR is commutative and associative, so the order of elements doesn't matter.\n\n" +
+      "XOR every element together. Every duplicate cancels itself (because a ^ a = 0). The lone element survives the cancellation cascade and is what remains.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'result = 0',
+      'for x in nums: result ^= x',
+      'return result',
+    ],
+    example: { input: '[4,1,2,1,2]', output: '4' },
+    steps: [
+      { title: '0 ^ 4 = 4. 4 ^ 1 = 5. 5 ^ 2 = 7. 7 ^ 1 = 6. 6 ^ 2 = 4. The 4 was never XOR\'d with itself.',
+        pseudoLine: 1,
+        computation: { label: '4 ^ 1 ^ 2 ^ 1 ^ 2', result: '4' },
+        result: { found: true, value: '4' } },
+    ],
+    tradeoffs: 'Hash-set approach: O(n) time and O(n) space. Sum-and-subtract approach: 2·sum(set) - sum(array) — same complexity. XOR is the cleanest.\n\n**Important constraint to flag in interviews:** this XOR trick is tightly coupled to the "exactly twice" assumption. The moment the problem becomes "every element appears three times except one", XOR alone breaks — XOR is addition mod 2 per bit, so triples mod 2 leave bits set just like a singleton would. The fix is bit-counting mod 3 (see the **Single Number II** challenge).',
+  }],
+};
+
+const singleNumberII: Explanation = {
+  problem: 'Single Number II',
+  problemStatement: 'Every element appears THREE times except one. Find it in O(n) time and O(1) space.',
+  approaches: [
+    {
+      id: 'bit-count',
+      name: 'Bit-count mod 3',
+      badge: 'best',
+      intuition:
+        "The XOR trick from Single Number doesn't work here. XOR is addition mod 2 per bit — pairs cancel, singletons survive. But here every element appears THREE times. 3 mod 2 = 1, so XOR'ing triples leaves bits set just like a singleton would.\n\n" +
+        "**Generalize XOR to mod 3.** For each bit position (0..31), count how many numbers have that bit set. Modulo 3:\n" +
+        "• Bits that appeared 3 times contribute 0 mod 3.\n" +
+        "• Bits in the singleton contribute 1 mod 3.\n\n" +
+        "So a bit is set in the answer iff (count of that bit across all numbers) % 3 !== 0. Reassemble the 32 bits and you've isolated the lone element.\n\n" +
+        "This generalizes cleanly to \"every element appears K times except one\": count each bit and take mod K.",
+      complexity: { time: 'O(32·n)', space: 'O(1)', verdict: 'Most clear' },
+      pseudocode: [
+        'result = 0',
+        'for bit in 0..31:',
+        '  sum = 0',
+        '  for x in nums:',
+        '    sum += (x >> bit) & 1',
+        '  if sum % 3 !== 0:',
+        '    result |= (1 << bit)',
+        'return result',
+      ],
+      example: { input: '[2,2,3,2]', output: '3' },
+      steps: [
+        { title: 'bit=0: count set bits in [2,2,3,2] at position 0. 2=10₂ (bit 0 = 0), 3=11₂ (bit 0 = 1). Sum = 1. 1 % 3 = 1 → set bit 0 in result. result = 1.',
+          pseudoLine: 4,
+          computation: { label: 'bit 0 set-count', result: '1 → set in result' } },
+        { title: 'bit=1: 2=10₂ (bit 1 = 1) × 3 + 3=11₂ (bit 1 = 1) = sum 4. 4 % 3 = 1 → set bit 1. result = 0b11 = 3.',
+          pseudoLine: 4,
+          computation: { label: 'bit 1 set-count', result: '4 % 3 = 1 → set in result' } },
+        { title: 'bits 2..31: all sums are multiples of 3, so result stays 0b11 = 3.',
+          pseudoLine: 6 },
+        { title: 'Final result: 3 — the singleton.',
+          pseudoLine: 7,
+          result: { found: true, value: '3' } },
+      ],
+      tradeoffs: '32 passes feels expensive but is still O(n) (constant factor 32). Easy to explain on the spot — just generalize "XOR cancels mod 2" to "count mod 3". Approach 2 (state machine) does it in a single pass but is harder to derive.',
+    },
+    {
+      id: 'state-machine',
+      name: 'Two-bit State Machine',
+      badge: 'alternative',
+      intuition:
+        "Single-pass, O(1) space, O(n) time — but the derivation is subtle. We maintain TWO integers, `ones` and `twos`, encoding the count of each bit mod 3:\n" +
+        "• `(ones, twos) = (0, 0)` → bit appeared 0 mod 3 times\n" +
+        "• `(ones, twos) = (1, 0)` → bit appeared 1 mod 3 times\n" +
+        "• `(ones, twos) = (0, 1)` → bit appeared 2 mod 3 times\n\n" +
+        "On each new number, we transition. The magic update:\n" +
+        "```\nones = (ones ^ x) & ~twos\ntwos = (twos ^ x) & ~ones\n```\n\n" +
+        "These come from working through the truth table — for each bit position, you want `ones` to be 1 only when seen 1 mod 3 times. After processing all numbers, `ones` holds the singleton's bit pattern (because triples cycle back to (0,0); the lone element ends at (1,0)).\n\n" +
+        "Beautiful but interview-risky: if you can't derive it, don't use it.",
+      complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Single-pass, hard to derive' },
+      pseudocode: [
+        'ones = 0, twos = 0',
+        'for x in nums:',
+        '  ones = (ones ^ x) & ~twos',
+        '  twos = (twos ^ x) & ~ones',
+        'return ones',
+      ],
+      example: { input: '[2,2,3,2]', output: '3' },
+      steps: [
+        { title: 'Start: ones=0, twos=0.', pseudoLine: 0 },
+        { title: 'x=2 (10₂). ones = (0 ^ 2) & ~0 = 2. twos = (0 ^ 2) & ~2 = 0.',
+          pseudoLine: 3,
+          computation: { label: '(ones, twos)', result: '(2, 0) — bit 1 seen once' } },
+        { title: 'x=2 again. ones = (2 ^ 2) & ~0 = 0. twos = (0 ^ 2) & ~0 = 2.',
+          pseudoLine: 3,
+          computation: { label: '(ones, twos)', result: '(0, 2) — bit 1 seen twice' } },
+        { title: 'x=3 (11₂). ones = (0 ^ 3) & ~2 = 3 & ~2 = 1. twos = (2 ^ 3) & ~1 = 1 & ~1 = 0.',
+          pseudoLine: 3,
+          computation: { label: '(ones, twos)', result: '(1, 0) — bit 0 from 3, bit 1 now 0' } },
+        { title: 'x=2. ones = (1 ^ 2) & ~0 = 3. twos = (0 ^ 2) & ~3 = 2 & ~3 = 0. Wait — recompute carefully…',
+          pseudoLine: 3 },
+        { title: 'After all four numbers, ones holds the bit pattern of 3 (the singleton). Triples have cycled back through (1,0) → (0,1) → (0,0); 3 remained at (1,0).',
+          pseudoLine: 4,
+          result: { found: true, value: '3' } },
+      ],
+      tradeoffs: 'Single pass, no inner loop — fastest in practice. But the derivation is tricky and easy to misstate. Most interviewers prefer the bit-count approach because it shows you reasoned from "XOR is mod 2" to "I need mod 3".',
+    },
+  ],
+};
+
+const majorityElement: Explanation = {
+  problem: 'Majority Element',
+  problemStatement: 'Find the element that appears more than ⌊n/2⌋ times.',
+  approaches: [{
+    id: 'boyer-moore',
+    name: 'Boyer-Moore Voting Algorithm',
+    badge: 'best',
+    intuition:
+      "Maintain a candidate and a counter. For each element: if counter is 0, adopt this element as candidate. If the element matches candidate, increment; otherwise decrement.\n\n" +
+      "Why it works: every non-majority element 'cancels out' a majority one. Since the majority appears more than n/2 times, after all cancellations, the surviving candidate IS the majority. The intuition: imagine pairs of (majority, non-majority) cancelling — there are strictly more majority elements than all others combined.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'candidate = null, count = 0',
+      'for x in nums:',
+      '  if count === 0: candidate = x',
+      '  count += (x === candidate ? 1 : -1)',
+      'return candidate',
+    ],
+    example: { input: '[2,2,1,1,1,2,2]', output: '2' },
+    steps: [
+      { title: 'x=2: count=0 → candidate=2, count=1.', pseudoLine: 3 },
+      { title: 'x=2: matches → count=2. x=1: mismatch → count=1. x=1: count=0.', pseudoLine: 4 },
+      { title: 'x=1: count=0 → candidate=1, count=1. x=2: count=0. x=2: candidate=2, count=1.', pseudoLine: 3 },
+      { title: 'Final candidate: 2. Survives cancellation.', pseudoLine: 5,
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'Sort then take middle element: O(n log n). Hash-map count: O(n) time + O(n) space. Boyer-Moore is the only one with O(1) space.',
+  }],
+};
+
+const productExceptSelf: Explanation = {
+  problem: 'Product of Array Except Self',
+  problemStatement: 'Return an array where output[i] = product of all elements EXCEPT nums[i]. No division.',
+  approaches: [{
+    id: 'left-right-product',
+    name: 'Left + Right Product Two-Pass',
+    badge: 'best',
+    intuition:
+      "output[i] = (product of everything left of i) × (product of everything right of i). Compute these in two passes.\n\n" +
+      "**Pass 1** (left-to-right): output[i] = product of all nums[0..i-1]. output[0] = 1 (nothing to the left).\n" +
+      "**Pass 2** (right-to-left): maintain a running `rightProduct` (initially 1). Multiply output[i] by rightProduct, then update rightProduct *= nums[i].\n\n" +
+      "This gives O(1) extra space (the output array doesn't count as extra space by convention).",
+    complexity: { time: 'O(n)', space: 'O(1) extra', verdict: 'Canonical' },
+    pseudocode: [
+      'output = new Array(n)',
+      'output[0] = 1',
+      'for i from 1 to n-1: output[i] = output[i-1] * nums[i-1]   // left products',
+      'right = 1',
+      'for i from n-1 down to 0:',
+      '  output[i] *= right',
+      '  right *= nums[i]',
+      'return output',
+    ],
+    example: { input: '[1,2,3,4]', output: '[24,12,8,6]' },
+    steps: [
+      { title: 'Pass 1 — left products: [1, 1, 2, 6].', pseudoLine: 2,
+        array: { cells: [1,1,2,6].map(v => ({ value: v })) } },
+      { title: 'Pass 2 — multiply by right, accumulate right: [1·24, 1·12, 2·4, 6·1] = [24,12,8,6].', pseudoLine: 5,
+        array: { cells: [24,12,8,6].map(v => ({ value: v, highlight: 'found' as const })) },
+        result: { found: true, value: '[24,12,8,6]' } },
+    ],
+    tradeoffs: 'The "use division" approach is the obvious answer but fails with zeros and is often disallowed. The two-pass trick is the elegant workaround.',
+  }],
+};
+
+const plusOne: Explanation = {
+  problem: 'Plus One',
+  problemStatement: 'Increment a non-negative integer represented as a digit array.',
+  approaches: [{
+    id: 'right-to-left',
+    name: 'Right-to-Left Carry Walk',
+    badge: 'best',
+    intuition:
+      "Walk right to left. If the digit < 9, increment it and return — no carry, done. If the digit IS 9, set it to 0 and carry over to the next-higher position.\n\n" +
+      "If you walk all the way past the leftmost digit while still carrying (the all-nines case: [9,9,9] → [1,0,0,0]), prepend a 1.",
+    complexity: { time: 'O(n)', space: 'O(1) (or O(n) for the all-nines case)', verdict: 'Canonical' },
+    pseudocode: [
+      'for i from n-1 down to 0:',
+      '  if digits[i] < 9:',
+      '    digits[i]++',
+      '    return digits',
+      '  digits[i] = 0',
+      'return [1, ...digits]   // all-nines case',
+    ],
+    example: { input: '[1,2,9]', output: '[1,3,0]' },
+    steps: [
+      { title: 'i=2: digits[2]=9 → set to 0, carry.', pseudoLine: 4,
+        array: { cells: [{value:1},{value:2},{value:0,highlight:'i'}] } },
+      { title: 'i=1: digits[1]=2 < 9 → increment to 3, return.', pseudoLine: 2,
+        array: { cells: [{value:1},{value:3,highlight:'found'},{value:0}] },
+        result: { found: true, value: '[1,3,0]' } },
+    ],
+    tradeoffs: 'Cute alternative: convert to BigInt, add 1, convert back to digits. Fine for non-leetcode-style usage. For interviews, the array walk is what they want.',
+  }],
+};
+
+// ==================== Batch: Strings ====================
+
+const longestCommonPrefix: Explanation = {
+  problem: 'Longest Common Prefix',
+  problemStatement: 'Find the longest common prefix string amongst an array of strings.',
+  approaches: [{
+    id: 'vertical-scan',
+    name: 'Vertical Scan (Best for Many Strings)',
+    badge: 'best',
+    intuition:
+      "Pick the first string as a 'reference'. Walk character by character (column-by-column). At each column index i, check that strs[0][i] equals strs[j][i] for every j. If any string is shorter than i or has a different character, return strs[0].slice(0, i).\n\n" +
+      "If you walk past the end of strs[0] without a mismatch, return strs[0] itself.",
+    complexity: { time: 'O(S) where S = total chars', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'if strs.length === 0: return ""',
+      'for i from 0 to strs[0].length - 1:',
+      '  c = strs[0][i]',
+      '  for j from 1 to strs.length - 1:',
+      '    if i >= strs[j].length || strs[j][i] !== c:',
+      '      return strs[0].slice(0, i)',
+      'return strs[0]',
+    ],
+    example: { input: '["flower","flow","flight"]', output: '"fl"' },
+    steps: [
+      { title: 'i=0: "f"=="f"=="f" ✓.', pseudoLine: 2 },
+      { title: 'i=1: "l"=="l"=="l" ✓.', pseudoLine: 2 },
+      { title: 'i=2: "o"=="o"=="i" ✗ → return "fl".', pseudoLine: 5,
+        result: { found: true, value: '"fl"' } },
+    ],
+    tradeoffs: 'Horizontal scan: take the prefix of strs[0]∩strs[1], intersect with strs[2], etc. Same complexity. Sort + compare first/last: O(n log n) sort + O(m) compare — sometimes faster if the prefix is very short, but more code.',
+  }],
+};
+
+const longestPalindromicSubstring: Explanation = {
+  problem: 'Longest Palindromic Substring',
+  problemStatement: 'Return the longest palindromic substring of s.',
+  approaches: [{
+    id: 'expand-center',
+    name: 'Expand Around Center',
+    badge: 'best',
+    intuition:
+      "A palindrome is symmetric around its center. A string of length n has 2n-1 possible centers: n single-character centers (for odd-length palindromes) and n-1 between-character centers (for even-length).\n\n" +
+      "For each center, expand outward two pointers as long as characters match. Track the longest palindrome found. O(n²) overall — for each center O(n) expansion.",
+    complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'Canonical for interview' },
+    pseudocode: [
+      'function expand(l, r):',
+      '  while l >= 0 && r < n && s[l] === s[r]: l--; r++',
+      '  return s.slice(l+1, r)',
+      'best = ""',
+      'for i from 0 to n-1:',
+      '  odd = expand(i, i)',
+      '  even = expand(i, i+1)',
+      '  if odd.length > best.length: best = odd',
+      '  if even.length > best.length: best = even',
+      'return best',
+    ],
+    example: { input: '"babad"', output: '"bab" or "aba"' },
+    steps: [
+      { title: 'i=0 odd: expand("b") → "b". even: s[0]="b", s[1]="a" mismatch → "".', pseudoLine: 5 },
+      { title: 'i=1 odd: expand around "a" — s[0]=s[2]="b" ✓ → "bab" length 3.', pseudoLine: 5,
+        computation: { label: 'expand(1,1)', result: '"bab"' } },
+      { title: 'Continue. Final: longest is "bab" (or "aba").', pseudoLine: 9,
+        result: { found: true, value: '"bab"' } },
+    ],
+    tradeoffs: 'Manacher\'s algorithm solves it in O(n) but is complex enough that interviewers rarely expect it. Expand-around-center is the sweet spot of correctness, readability, and speed.',
+  }],
+};
+
+const reverseVowels: Explanation = {
+  problem: 'Reverse Vowels of a String',
+  problemStatement: 'Reverse only the vowels in the string. All other characters stay in place.',
+  approaches: [{
+    id: 'two-pointer',
+    name: 'Two-Pointer Swap',
+    badge: 'best',
+    intuition:
+      "Two pointers, one at each end. Advance `left` forward until it hits a vowel; advance `right` backward until it hits a vowel. Swap, step inward, repeat until they meet.\n\n" +
+      "Same shape as Reverse String, but with the 'is vowel' filter making it skip consonants instead of swapping every character.",
+    complexity: { time: 'O(n)', space: 'O(n) for the char array; O(1) extra', verdict: 'Canonical' },
+    pseudocode: [
+      'arr = s.split("")',
+      'vowels = new Set(["a","e","i","o","u","A","E","I","O","U"])',
+      'left = 0, right = arr.length - 1',
+      'while left < right:',
+      '  while left < right && !vowels.has(arr[left]):  left++',
+      '  while left < right && !vowels.has(arr[right]): right--',
+      '  swap(arr[left], arr[right])',
+      '  left++; right--',
+      'return arr.join("")',
+    ],
+    example: { input: '"hello"', output: '"holle"' },
+    steps: [
+      { title: 'arr=["h","e","l","l","o"]. left=0 ("h", not vowel) → skip to 1.', pseudoLine: 4,
+        array: { cells: ['h','e','l','l','o'].map(c => ({ value: c })),
+          pointers: [{ index: 1, label: 'L', color: 'red' }, { index: 4, label: 'R', color: 'amber' }] } },
+      { title: 'Both at vowels: swap "e" and "o". arr=["h","o","l","l","e"].', pseudoLine: 6,
+        array: { cells: [{value:'h'},{value:'o',highlight:'found'},{value:'l'},{value:'l'},{value:'e',highlight:'found'}] } },
+      { title: 'Step inward. left=2, right=3. No vowels in middle. Done.', pseudoLine: 7,
+        result: { found: true, value: '"holle"' } },
+    ],
+    tradeoffs: 'Filter-collect-reverse-merge alternative: extract vowels, reverse, splice back. Same complexity, two passes vs one.',
+  }],
+};
+
+const myAtoi: Explanation = {
+  problem: 'String to Integer (atoi)',
+  problemStatement: 'Convert a string to a 32-bit signed integer, clamping to [-2³¹, 2³¹−1].',
+  approaches: [{
+    id: 'state-machine',
+    name: 'Manual State Walk',
+    badge: 'best',
+    intuition:
+      "Walk the string in four phases:\n\n" +
+      "1. **Skip whitespace** at the start.\n" +
+      "2. **Read sign** — at most one '+' or '-'.\n" +
+      "3. **Read digits** until a non-digit or end.\n" +
+      "4. **Clamp** the result to INT32 bounds.\n\n" +
+      "The tricky parts: stopping at the first non-digit (any leading non-whitespace, non-sign, non-digit means return 0); handling overflow BEFORE multiplying (check `result > Math.floor((INT_MAX - digit) / 10)` to detect impending overflow).",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical (interview-grade)' },
+    pseudocode: [
+      'INT_MAX = 2**31 - 1, INT_MIN = -(2**31)',
+      'i = 0',
+      'while s[i] === " ": i++          // skip whitespace',
+      'sign = 1',
+      'if s[i] === "-": sign = -1; i++',
+      'else if s[i] === "+": i++',
+      'result = 0',
+      'while s[i] is a digit:',
+      '  result = result * 10 + parseInt(s[i])',
+      '  if sign * result > INT_MAX: return INT_MAX',
+      '  if sign * result < INT_MIN: return INT_MIN',
+      '  i++',
+      'return sign * result',
+    ],
+    example: { input: '"   -42abc"', output: '-42' },
+    steps: [
+      { title: 'Skip 3 spaces. i=3.', pseudoLine: 3 },
+      { title: 's[3]="-" → sign=-1, i=4.', pseudoLine: 5 },
+      { title: 'Read "4" → result=4. Read "2" → result=42. s[6]="a" → stop.', pseudoLine: 9 },
+      { title: 'Return sign * result = -42.', pseudoLine: 13,
+        result: { found: true, value: '-42' } },
+    ],
+    tradeoffs: 'Native parseInt does most of this but skips the strict INT32 clamping and accepts edge cases atoi rejects. Rolling your own forces you to think about each phase explicitly.',
+  }],
+};
+
+const letterCombinations: Explanation = {
+  problem: 'Letter Combinations of Phone Number',
+  problemStatement: 'Return all possible letter combinations the digits could represent on a phone keypad.',
+  approaches: [{
+    id: 'backtracking',
+    name: 'Backtracking',
+    badge: 'best',
+    intuition:
+      "Build the result string one character at a time. For each digit, branch into 3-4 candidate letters (e.g., '2' → 'a', 'b', 'c'). Recurse for the rest of the digits. When the string length equals the number of digits, record a copy.\n\n" +
+      "The recursion tree has 3-4 children per level and `digits.length` levels deep. Total leaves = product of branching factors — exactly the number of combinations.",
+    complexity: { time: 'O(4ⁿ · n)', space: 'O(n) recursion', verdict: 'Canonical' },
+    pseudocode: [
+      'map = { "2":"abc", "3":"def", ..., "9":"wxyz" }',
+      'result = []',
+      'function back(i, path):',
+      '  if i === digits.length: result.push(path); return',
+      '  for c of map[digits[i]]:',
+      '    back(i+1, path + c)',
+      'if digits: back(0, "")',
+      'return result',
+    ],
+    example: { input: '"23"', output: '["ad","ae","af","bd","be","bf","cd","ce","cf"]' },
+    steps: [
+      { title: 'back(0, ""). digits[0]="2" → try "a", "b", "c".', pseudoLine: 4,
+        callStack: { frames: [{ call: 'back(0, "")', status: 'active' }] } },
+      { title: 'back(1, "a"). digits[1]="3" → try "d", "e", "f".', pseudoLine: 4,
+        callStack: { frames: [{ call: 'back(0, "")', status: 'pending' }, { call: 'back(1, "a")', status: 'active' }] } },
+      { title: 'back(2, "ad"). i=length → push "ad". Backtrack, try "ae", "af", then "b...", "c...".', pseudoLine: 3,
+        result: { found: true, value: '9 combinations' } },
+    ],
+    tradeoffs: 'Iterative BFS variant: start with [""], for each digit replace each existing entry with its letter-extended versions. Same complexity, different shape.',
+  }],
+};
+
+const reverseWordsString: Explanation = {
+  problem: 'Reverse Words in a String',
+  problemStatement: 'Reverse the order of words in a string. Collapse multiple spaces; trim ends.',
+  approaches: [{
+    id: 'split-reverse-join',
+    name: 'Split → Filter → Reverse → Join',
+    badge: 'best',
+    intuition:
+      "The cleanest path: split on whitespace, filter out empty strings (from double-spaces), reverse the array, join with single space.\n\n" +
+      "`s.split(/\\s+/).filter(Boolean).reverse().join(' ')` — the regex `\\s+` matches one or more whitespace characters as a single delimiter, so multiple spaces don't produce empty tokens. The `filter(Boolean)` catches the rare leading-whitespace empty entry.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical' },
+    pseudocode: [
+      'return s.split(/\\s+/).filter(Boolean).reverse().join(" ")',
+    ],
+    example: { input: '"  hello   world  "', output: '"world hello"' },
+    steps: [
+      { title: 'split(/\\s+/) → ["", "hello", "world", ""].', pseudoLine: 0 },
+      { title: 'filter(Boolean) → ["hello", "world"] (drops empties).', pseudoLine: 0 },
+      { title: 'reverse() → ["world", "hello"]. join(" ") → "world hello".', pseudoLine: 0,
+        result: { found: true, value: '"world hello"' } },
+    ],
+    tradeoffs: 'In-place O(1)-space variant: reverse the whole string, then reverse each word in place. Twice the work; useful when the input is mutable bytes (C/Java). In JS strings are immutable so allocation is unavoidable.',
+  }],
+};
+
+// ==================== Batch: Rotate / Spiral / Search ====================
+
+const rotateArrayLeft: Explanation = {
+  problem: 'Rotate Array Left',
+  problemStatement: 'Rotate the array LEFT by k positions in place.',
+  approaches: [{
+    id: 'reverse-three',
+    name: 'Three-Reversal Trick',
+    badge: 'best',
+    intuition:
+      "Same insight as right-rotation, three reversals in a different ORDER:\n\n" +
+      "1. Reverse the FIRST k elements.\n" +
+      "2. Reverse the REST.\n" +
+      "3. Reverse the WHOLE array.\n\n" +
+      "**Mirror with Rotate Array Right:** both directions use the EXACT SAME three reversals — only the order differs.\n\n" +
+      "← Left  by k: reverse-first-k → reverse-rest → reverse-WHOLE\n" +
+      "→ Right by k: reverse-WHOLE → reverse-first-k → reverse-rest\n\n" +
+      "There's also a direct equivalence: `rotateLeft(arr, k) === rotateRight(arr, n − k)`. So if you already have right-rotation working, left-rotation is one line of code.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'k = k % n',
+      'reverse(arr, 0, k-1)   // first k',
+      'reverse(arr, k, n-1)   // rest',
+      'reverse(arr, 0, n-1)   // whole',
+    ],
+    pseudocodeLabel: 'Rotate LEFT',
+    pseudocodeCompare: [
+      { label: 'Rotate RIGHT', lines: [
+        'k = k % n',
+        'reverse(arr, 0, n-1)   // whole',
+        'reverse(arr, 0, k-1)   // first k',
+        'reverse(arr, k, n-1)   // rest',
+      ] },
+    ],
+    example: { input: '[1,2,3,4,5,6,7], k=3', output: '[4,5,6,7,1,2,3]' },
+    steps: [
+      { title: 'Original: [1,2,3,4,5,6,7].', pseudoLine: 0,
+        array: { cells: [1,2,3,4,5,6,7].map(v => ({ value: v })) } },
+      { title: 'Reverse [0..2]: [3,2,1, 4,5,6,7].', pseudoLine: 1,
+        array: { cells: [{value:3,highlight:'compare'},{value:2,highlight:'compare'},{value:1,highlight:'compare'},{value:4},{value:5},{value:6},{value:7}] } },
+      { title: 'Reverse [3..6]: [3,2,1, 7,6,5,4].', pseudoLine: 2,
+        array: { cells: [{value:3},{value:2},{value:1},{value:7,highlight:'compare'},{value:6,highlight:'compare'},{value:5,highlight:'compare'},{value:4,highlight:'compare'}] } },
+      { title: 'Reverse whole: [4,5,6,7,1,2,3].', pseudoLine: 3,
+        array: { cells: [{value:4,highlight:'found'},{value:5,highlight:'found'},{value:6,highlight:'found'},{value:7,highlight:'found'},{value:1,highlight:'found'},{value:2,highlight:'found'},{value:3,highlight:'found'}] },
+        result: { found: true, value: '[4,5,6,7,1,2,3]' } },
+      { title: 'Compare with Rotate Array RIGHT (same reversals, opposite order).',
+        detail:
+          "Left and Right rotation use exactly the same primitive (reverse a slice) — only the ORDER differs. Memorize one rule and you have both.\n\n" +
+          "← LEFT  by k: first-k, then rest, then whole.\n" +
+          "→ RIGHT by k: whole, then first-k, then rest.\n\n" +
+          "Or use the identity: rotateLeft(arr, k) === rotateRight(arr, n − k).",
+        note: "Both produce a rotation; the order of the three reversals decides direction. See the 'Rotate Array' challenge for the mirrored walkthrough.",
+        result: { found: true, value: 'left ↔ right mirror' } },
+    ],
+    tradeoffs: 'Equivalent to `rotateRight(arr, n - k)`. If you already have a working right-rotation, just call it with the complementary k. Both algorithms differ ONLY in the order of three reversals — memorize one and the other follows.',
+  }],
+};
+
+const spiralMatrix: Explanation = {
+  problem: 'Spiral Matrix',
+  problemStatement: 'Return all elements of a matrix in spiral order.',
+  approaches: [{
+    id: 'four-boundary',
+    name: 'Four-Boundary Walk',
+    badge: 'best',
+    intuition:
+      "Maintain four cursors: `top, bottom, left, right`. Each cycle of the outer loop traverses one full layer of the spiral:\n\n" +
+      "1. Left → right along row `top`, then top++.\n" +
+      "2. Top → bottom along column `right`, then right--.\n" +
+      "3. Right → left along row `bottom` (only if top ≤ bottom), then bottom--.\n" +
+      "4. Bottom → top along column `left` (only if left ≤ right), then left++.\n\n" +
+      "Stop when top > bottom or left > right. The conditional checks on steps 3 and 4 are crucial for non-square matrices to avoid double-traversal.",
+    complexity: { time: 'O(m·n)', space: 'O(1) extra', verdict: 'Canonical' },
+    pseudocode: [
+      'top=0, bottom=m-1, left=0, right=n-1, out=[]',
+      'while top <= bottom && left <= right:',
+      '  for c from left to right: out.push(matrix[top][c]); top++',
+      '  for r from top to bottom: out.push(matrix[r][right]); right--',
+      '  if top <= bottom:',
+      '    for c from right downto left: out.push(matrix[bottom][c]); bottom--',
+      '  if left <= right:',
+      '    for r from bottom downto top: out.push(matrix[r][left]); left++',
+      'return out',
+    ],
+    example: { input: '[[1,2,3],[4,5,6],[7,8,9]]', output: '[1,2,3,6,9,8,7,4,5]' },
+    steps: [
+      { title: 'Row 0 LR: 1,2,3. top=1.', pseudoLine: 2 },
+      { title: 'Col 2 TB: 6,9. right=1.', pseudoLine: 3 },
+      { title: 'Row 2 RL: 8,7. bottom=1.', pseudoLine: 5 },
+      { title: 'Col 0 BT: 4. left=1.', pseudoLine: 7 },
+      { title: 'Row 1 LR: 5. Done.', pseudoLine: 2,
+        result: { found: true, value: '[1,2,3,6,9,8,7,4,5]' } },
+    ],
+    tradeoffs: 'Direction-vector variant: track a (dx, dy) pair and rotate on hitting a boundary or a visited cell. Same complexity, more "general" but with extra bookkeeping.',
+  }],
+};
+
+const searchRotated: Explanation = {
+  problem: 'Search in Rotated Sorted Array',
+  problemStatement: 'Find the index of target in a rotated sorted array, or -1, in O(log n).',
+  approaches: [{
+    id: 'modified-binary',
+    name: 'Modified Binary Search',
+    badge: 'best',
+    intuition:
+      "At any mid, one half of the split (left or right of mid) is GUARANTEED to be sorted. Identify which: if nums[lo] ≤ nums[mid], the left half is sorted; otherwise the right half is.\n\n" +
+      "Once you know which half is sorted, check if the target falls within its range. If yes, search there; otherwise search the OTHER half. The rotated half might contain the target — when we recurse there, the same identify-which-half logic applies again.",
+    complexity: { time: 'O(log n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'lo = 0, hi = n - 1',
+      'while lo <= hi:',
+      '  mid = (lo + hi) >> 1',
+      '  if nums[mid] === target: return mid',
+      '  if nums[lo] <= nums[mid]:        // left half sorted',
+      '    if nums[lo] <= target && target < nums[mid]: hi = mid - 1',
+      '    else: lo = mid + 1',
+      '  else:                             // right half sorted',
+      '    if nums[mid] < target && target <= nums[hi]: lo = mid + 1',
+      '    else: hi = mid - 1',
+      'return -1',
+    ],
+    example: { input: '[4,5,6,7,0,1,2], target=0', output: '4' },
+    steps: [
+      { title: 'lo=0, hi=6, mid=3 → nums[3]=7. Left half [4,5,6,7] sorted. 0 not in [4,7] → search right.', pseudoLine: 5,
+        array: { cells: [{value:4},{value:5},{value:6},{value:7,highlight:'i'},{value:0},{value:1},{value:2}] } },
+      { title: 'lo=4, hi=6, mid=5 → nums[5]=1. Left half [0,1] sorted. 0 in [0,1) → search left.', pseudoLine: 5,
+        array: { cells: [{value:4},{value:5},{value:6},{value:7},{value:0},{value:1,highlight:'i'},{value:2}] } },
+      { title: 'lo=4, hi=4, mid=4 → nums[4]=0 = target. Return 4.', pseudoLine: 3,
+        array: { cells: [{value:4},{value:5},{value:6},{value:7},{value:0,highlight:'found'},{value:1},{value:2}] },
+        result: { found: true, value: '4' } },
+    ],
+    tradeoffs: 'Brute linear scan: O(n) — fine for tiny arrays. Two-pass approach (find rotation pivot, then binary search either half): cleaner conceptually but two passes vs one combined.',
+  }],
+};
+
+// ==================== Batch: Find Max Family ====================
+
+const findMaximum: Explanation = {
+  problem: 'Find Maximum in Array',
+  problemStatement: 'Return the largest number in the array, or null if empty.',
+  approaches: [{
+    id: 'running-max',
+    name: 'Single-Pass Running Max',
+    badge: 'best',
+    intuition:
+      "Initialize a `max` variable with -Infinity (so any real number beats it). Walk the array; update `max` whenever you find something larger. After the pass, return `max` (or null if the array was empty).",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'if nums.length === 0: return null',
+      'max = -Infinity',
+      'for x in nums:',
+      '  if x > max: max = x',
+      'return max',
+    ],
+    example: { input: '[3, 7, 1, 9, 4]', output: '9' },
+    steps: [
+      { title: 'max=-∞. x=3 > -∞ → max=3.', pseudoLine: 3,
+        computation: { label: 'max', result: '3' } },
+      { title: 'x=7 > 3 → max=7. x=1 not > 7 → unchanged. x=9 > 7 → max=9.', pseudoLine: 3,
+        computation: { label: 'max', result: '9' } },
+      { title: 'x=4 not > 9 → unchanged. Return 9.', pseudoLine: 4,
+        result: { found: true, value: '9' } },
+    ],
+    tradeoffs: '`Math.max(...nums)` is the one-liner — but spread for huge arrays can hit stack limits (~10⁵ elements). Use `nums.reduce((m, x) => x > m ? x : m, -Infinity)` for big inputs.',
+  }],
+};
+
+const findMinMax: Explanation = {
+  problem: 'Find Min and Max (Single Pass)',
+  problemStatement: 'Return both the smallest and largest values as { min, max }.',
+  approaches: [{
+    id: 'pairwise',
+    name: 'Single Pass with Two Running Vars',
+    badge: 'best',
+    intuition:
+      "Track `min` (initially +∞) and `max` (initially -∞). One pass, two comparisons per element: 2n total. Returns both in O(n) time and O(1) space.\n\n" +
+      "**Optimization (3n/2 comparisons):** process elements in PAIRS. For each pair (a, b), first compare a and b (1 comparison); the smaller candidate competes with `min`, the larger with `max` (2 more). Three comparisons per pair = 3n/2 total. Marginal in practice but a classic interview detail.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'if nums.length === 0: return { min: null, max: null }',
+      'min = +Infinity, max = -Infinity',
+      'for x in nums:',
+      '  if x < min: min = x',
+      '  if x > max: max = x',
+      'return { min, max }',
+    ],
+    example: { input: '[3, 7, 1, 9, 4]', output: '{ min: 1, max: 9 }' },
+    steps: [
+      { title: 'x=3: min=3, max=3.', pseudoLine: 3,
+        computation: { label: 'min/max', result: '3 / 3' } },
+      { title: 'x=7: max=7. x=1: min=1. x=9: max=9. x=4: unchanged.', pseudoLine: 4,
+        result: { found: true, value: '{ min: 1, max: 9 }' } },
+    ],
+    tradeoffs: 'Calling Math.min(...arr) + Math.max(...arr) is 2 passes plus the spread limit. Single-pass version is both faster and safer for big inputs.',
+  }],
+};
+
+const thirdLargest: Explanation = {
+  problem: 'Third Largest Number',
+  problemStatement: 'Return the third DISTINCT largest number, or the max if fewer than 3 distinct.',
+  approaches: [{
+    id: 'three-sentinels',
+    name: 'Three Sentinel Variables',
+    badge: 'best',
+    intuition:
+      "Track three running variables: `first` (largest), `second`, `third` — all initialized to -Infinity. For each x: skip if x equals any of them (must be DISTINCT). Else, cascade-shift:\n\n" +
+      "• If x > first: third = second, second = first, first = x.\n" +
+      "• Else if x > second: third = second, second = x.\n" +
+      "• Else if x > third: third = x.\n\n" +
+      "At the end, if `third` is still -Infinity (fewer than 3 distinct values), return `first`. Otherwise return `third`.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'first = second = third = -Infinity',
+      'for x in nums:',
+      '  if x === first || x === second || x === third: continue',
+      '  if x > first: third = second; second = first; first = x',
+      '  else if x > second: third = second; second = x',
+      '  else if x > third: third = x',
+      'return third === -Infinity ? first : third',
+    ],
+    example: { input: '[2,2,3,1]', output: '1' },
+    steps: [
+      { title: 'x=2: first=2.', pseudoLine: 4,
+        computation: { label: '1st/2nd/3rd', result: '2 / -∞ / -∞' } },
+      { title: 'x=2: duplicate of first → skip.', pseudoLine: 2 },
+      { title: 'x=3: > first → cascade. first=3, second=2.', pseudoLine: 4,
+        computation: { label: '1st/2nd/3rd', result: '3 / 2 / -∞' } },
+      { title: 'x=1: < second → check third. third=1. Return 1.', pseudoLine: 6,
+        result: { found: true, value: '1' } },
+    ],
+    tradeoffs: '[...new Set(arr)].sort((a,b)=>b-a)[2] is the readable one-liner. Slower asymptotically but fine for small inputs. Senior interviewers prefer the explicit-sentinel approach.',
+  }],
+};
+
+const kthLargest: Explanation = {
+  problem: 'Kth Largest Element',
+  problemStatement: 'Return the k-th largest element (1-indexed: k=1 means largest).',
+  approaches: [{
+    id: 'sort-index',
+    name: 'Sort + Index (Simplest)',
+    badge: 'best',
+    intuition:
+      "Sort the array ascending; the k-th largest sits at index `n-k`. O(n log n) — slower than the heap or quickselect approaches but the simplest correct answer.",
+    complexity: { time: 'O(n log n)', space: 'O(1) in-place sort', verdict: 'Simple; use when n is moderate' },
+    pseudocode: [
+      'nums.sort((a, b) => a - b)',
+      'return nums[nums.length - k]',
+    ],
+    example: { input: '[3,2,1,5,6,4], k=2', output: '5' },
+    steps: [
+      { title: 'Sort: [1,2,3,4,5,6].', pseudoLine: 0,
+        array: { cells: [1,2,3,4,5,6].map(v => ({ value: v })) } },
+      { title: 'Index n-k = 6-2 = 4 → 5.', pseudoLine: 1,
+        array: { cells: [{value:1},{value:2},{value:3},{value:4},{value:5,highlight:'found'},{value:6}] },
+        result: { found: true, value: '5' } },
+    ],
+    tradeoffs: 'Min-heap of size k: O(n log k) — keep heap small, anything that drops out can\'t be in the top k. Quickselect: O(n) average, O(n²) worst case — the asymptotic winner but tricky to implement correctly.',
+  },
+  {
+    id: 'heap',
+    name: 'Min-Heap of Size K',
+    badge: 'alternative',
+    intuition:
+      "Maintain a MIN-heap of size k. For each element: push it; if the heap exceeds size k, pop the smallest. After processing all n elements, the heap contains exactly the k LARGEST values, with the k-th largest at the root.\n\n" +
+      "Why min-heap (not max-heap): we want to easily discard the smallest of our current top-k whenever a bigger candidate arrives. The min-root makes that O(log k).",
+    complexity: { time: 'O(n log k)', space: 'O(k)', verdict: 'Best when k ≪ n or for streaming' },
+    pseudocode: [
+      'heap = new MinHeap()',
+      'for x in nums:',
+      '  heap.push(x)',
+      '  if heap.size > k: heap.pop()',
+      'return heap.peek()',
+    ],
+    example: { input: '[3,2,1,5,6,4], k=2', output: '5' },
+    steps: [
+      { title: 'Push 3, 2 (heap full). Push 1 → push then pop smallest. Heap: [2, 3].', pseudoLine: 3 },
+      { title: 'Push 5 → pop 2. Push 6 → pop 3. Push 4 → pop 4. Heap: [5, 6].', pseudoLine: 3 },
+      { title: 'Root = 5 = answer.', pseudoLine: 4,
+        result: { found: true, value: '5' } },
+    ],
+    tradeoffs: 'Win when k is small compared to n (e.g., k=10 out of 10⁶). For large k (k ≈ n/2), sorting is just as fast and simpler.',
+  }],
+};
+
+const findPeakElement: Explanation = {
+  problem: 'Find Peak Element',
+  problemStatement: 'Return the index of any peak element (strictly greater than its neighbors).',
+  approaches: [{
+    id: 'binary-search',
+    name: 'Binary Search (Best — O(log n))',
+    badge: 'best',
+    intuition:
+      "Boundaries are treated as -∞, so a peak ALWAYS exists. At mid: if nums[mid] > nums[mid+1], a peak lies on the left (including mid itself — possibly the peak we want). Else a peak lies strictly to the right.\n\n" +
+      "Why this works: if nums[mid] < nums[mid+1], the right side is 'going up' at this point; somewhere to the right, the slope must turn (since nums[n] = -∞), creating a peak. Same argument mirror-imaged for the left.",
+    complexity: { time: 'O(log n)', space: 'O(1)', verdict: 'Canonical' },
+    pseudocode: [
+      'lo = 0, hi = n - 1',
+      'while lo < hi:',
+      '  mid = (lo + hi) >> 1',
+      '  if nums[mid] > nums[mid+1]: hi = mid     // peak on left, including mid',
+      '  else: lo = mid + 1                       // peak strictly right',
+      'return lo',
+    ],
+    example: { input: '[1,2,3,1]', output: '2 (value 3)' },
+    steps: [
+      { title: 'lo=0, hi=3, mid=1 → nums[1]=2, nums[2]=3. 2 < 3 → peak right. lo=2.', pseudoLine: 4 },
+      { title: 'lo=2, hi=3, mid=2 → nums[2]=3, nums[3]=1. 3 > 1 → peak left. hi=2.', pseudoLine: 3 },
+      { title: 'lo === hi === 2. Return 2.', pseudoLine: 5,
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'Linear scan: O(n). The binary search trick is surprising — most peak-finding problems are linear. The key insight is that we don\'t need to find THE peak, just ANY peak.',
+  }],
+};
+
+// ==================== Template Explanations: JS Fundamentals ====================
+
+const helloWorld: Explanation = {
+  problem: 'Hello World',
+  problemStatement: 'The simplest possible JavaScript program — log a value to the console. The starting point for every "is this environment alive?" check.',
+  approaches: [{
+    id: 'console-log',
+    name: 'console.log Basics',
+    badge: 'best',
+    intuition:
+      "`console.log(...args)` writes any number of arguments to the runtime's standard log channel, separated by spaces. Each argument is serialized — primitives render as their string form, objects render with a structured representation that varies by runtime.\n\n" +
+      "The console is part of the **Web Console API**, not JavaScript itself. In a browser it writes to DevTools. In Node it writes to stdout (and `console.error` to stderr). Knowing this matters when running JavaScript headlessly: a missing console (e.g., in some embedded JS engines) would crash unsuspecting code.\n\n" +
+      "**Variants worth knowing:** `console.warn` (yellow), `console.error` (red), `console.table` (formatted tables), `console.group`/`groupEnd` (collapsible groups), `console.time`/`timeEnd` (perf), `console.assert(condition, msg)` (conditional log).",
+    complexity: { time: 'O(args)', space: 'O(args)', verdict: 'Always available' },
+    pseudocode: ['console.log("Hello, World!")'],
+    example: { input: '"Hello, World!"', output: 'Hello, World!' },
+    steps: [
+      { title: 'JavaScript executes the call. The Console API serializes "Hello, World!" and writes it to the runtime log.', pseudoLine: 0,
+        result: { found: true, value: 'Hello, World!' } },
+    ],
+    tradeoffs: 'For production logs in Node, prefer a structured logger (pino, winston) — `console.log` is fine for debugging but slower and lacks log levels, transports, and machine-readable output.',
+  }],
+};
+
+const arrayMethods: Explanation = {
+  problem: 'Array Methods',
+  problemStatement: 'A whirlwind tour of the most-used `Array.prototype` methods: map, filter, reduce, find, some, every, flatMap, etc.',
+  approaches: [{
+    id: 'overview',
+    name: 'Pure vs Mutating Methods',
+    badge: 'best',
+    intuition:
+      "Array methods split into two families based on whether they MUTATE the array:\n\n" +
+      "**Pure (return a new array, leave the original alone):** `map`, `filter`, `reduce` (returns a value, not array), `slice`, `concat`, `flat`, `flatMap`, `find`, `findIndex`, `some`, `every`, `includes`, `indexOf`. These are the functional core — composable, predictable, what 90% of modern code uses.\n\n" +
+      "**Mutating (modify in place, return the same array or a removed slice):** `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin`. Use sparingly; mutating shared state is the #1 cause of weird React bugs.\n\n" +
+      "**ES2023 immutable methods:** `toSorted`, `toReversed`, `toSpliced`, `with` — the pure equivalents of the mutating four. Use these in React state updates.\n\n" +
+      "**The reducer mental model:** `reduce((acc, x) => ..., initial)` is the most powerful — `map` and `filter` can both be expressed as `reduce` (and so can almost everything else).",
+    complexity: { time: 'Varies — most are O(n)', space: 'O(n) for pure methods', verdict: 'Know the pure ones cold' },
+    pseudocode: [
+      '[1,2,3].map(x => x*2)       // [2,4,6]  (pure)',
+      '[1,2,3].filter(x => x>1)    // [2,3]    (pure)',
+      '[1,2,3].reduce((a,x) => a+x, 0)  // 6   (pure)',
+      'arr.push(4)                  // mutates arr, returns new length',
+      'arr.sort()                   // mutates arr',
+      'arr.toSorted()               // ES2023 — returns new sorted',
+    ],
+    example: { input: 'demo of each common method', output: 'see template' },
+    steps: [
+      { title: 'map / filter / reduce: the functional triumvirate. Compose freely; never mutate.', pseudoLine: 0 },
+      { title: 'push / pop / shift / unshift: mutate. Cheap O(1) at the end (push/pop), O(n) at the start (shift/unshift).', pseudoLine: 3 },
+      { title: 'sort / reverse: mutate AND return the same array. Wrap in [...arr] when you need to preserve the original.', pseudoLine: 4,
+        result: { found: true, value: 'pure vs mutating — pick on purpose' } },
+    ],
+    tradeoffs: 'In hot loops, classic `for` loops outperform `forEach`/`map` by ~10-30% because they skip function-call overhead. For everything else, prefer the functional methods — readability wins.',
+  }],
+};
+
+const closures: Explanation = {
+  problem: 'Closures',
+  problemStatement: 'A closure is a function that "remembers" the variables from its surrounding scope, even after that scope has finished executing.',
+  approaches: [{
+    id: 'lexical-capture',
+    name: 'Lexical Scope Capture',
+    badge: 'best',
+    intuition:
+      "JavaScript uses **lexical scoping**: a function's scope is determined by WHERE it's defined, not where it's called. When a function references a variable, the engine looks it up in the chain of scopes that surrounded the function's definition.\n\n" +
+      "A **closure** is what happens when an inner function holds a reference to an outer function's variables, keeping those variables alive in memory even after the outer function returned. The function and its referenced environment are bundled together.\n\n" +
+      "**Classic uses:**\n" +
+      "• **Data privacy** — module pattern: an IIFE returns an object whose methods close over private state.\n" +
+      "• **Function factories** — `makeAdder(x)` returns `(y) => x + y`.\n" +
+      "• **Currying** — chains of closures each remembering one argument.\n" +
+      "• **Event handlers** — the handler closes over the component scope, accessing state when fired.\n\n" +
+      "**The `var`-in-loop gotcha:** `for (var i=0; i<3; i++) setTimeout(() => console.log(i), 0)` prints `3, 3, 3` because all three closures share the same `i`. Fix with `let` (per-iteration binding) or an IIFE.",
+    complexity: { time: 'O(1) per call', space: 'O(captured vars) — kept alive', verdict: 'Foundational JS concept' },
+    pseudocode: [
+      'function makeCounter() {',
+      '  let count = 0;          // private',
+      '  return () => ++count;   // closure over count',
+      '}',
+      'const c = makeCounter(); c(); c(); c();   // 1, 2, 3',
+    ],
+    example: { input: 'makeCounter() called 3 times', output: '1, 2, 3' },
+    steps: [
+      { title: 'makeCounter() runs. Allocates `count = 0` in its scope. Returns an inner function.', pseudoLine: 1 },
+      { title: 'makeCounter() returns. Normally `count` would be garbage-collected — but the returned function holds a reference to it, keeping it alive.', pseudoLine: 2 },
+      { title: 'c() runs. Inner function looks up `count` in its captured scope, increments, returns 1. Repeat: 2, 3.', pseudoLine: 4,
+        result: { found: true, value: '1, 2, 3' } },
+    ],
+    tradeoffs: 'Closures can leak memory if you accidentally retain large objects in the captured scope. Common React bug: a stale closure captures an old prop/state value. The fix: useCallback with proper dependencies, or use a ref for always-fresh access.',
+  }],
+};
+
+const promisesAsync: Explanation = {
+  problem: 'Promises & Async',
+  problemStatement: 'A Promise is a placeholder for a value that may not exist yet. async/await is sugar for chaining Promises with synchronous-looking syntax.',
+  approaches: [{
+    id: 'three-states',
+    name: 'The Three-State Machine',
+    badge: 'best',
+    intuition:
+      "A Promise is in exactly one of three states:\n\n" +
+      "1. **Pending** — the async operation hasn't completed.\n" +
+      "2. **Fulfilled** — completed successfully with a value.\n" +
+      "3. **Rejected** — failed with an error.\n\n" +
+      "Once a Promise leaves Pending (settled), its state is permanent. `.then(onFulfilled, onRejected)` schedules callbacks. `.catch(fn)` is shorthand for `.then(undefined, fn)`. `.finally(fn)` runs in either case without affecting the value.\n\n" +
+      "**async/await:** `async function` always returns a Promise. `await p` pauses the function until `p` settles, then resumes with the resolved value (or throws if rejected). Under the hood, `await` is sugar over `.then`.\n\n" +
+      "**Microtask queue:** `.then` callbacks run in the MICROTASK queue, which drains BEFORE the next macrotask (setTimeout, I/O). This is why `Promise.resolve().then(...)` fires before `setTimeout(..., 0)`.\n\n" +
+      "**Concurrency helpers:** `Promise.all` (all succeed or first error), `Promise.allSettled` (waits for all, never rejects), `Promise.race` (first to settle), `Promise.any` (first to fulfill).",
+    complexity: { time: 'Depends on the async op', space: 'O(handlers)', verdict: 'Foundational' },
+    pseudocode: [
+      'const p = new Promise((resolve, reject) => {',
+      '  setTimeout(() => resolve("done"), 1000);',
+      '});',
+      'p.then(v => console.log(v))   // "done" after 1s',
+      '',
+      'async function run() {',
+      '  const v = await p;            // pauses; resumes with "done"',
+      '  console.log(v);',
+      '}',
+    ],
+    example: { input: 'new Promise that resolves to "done"', output: '"done" (after delay)' },
+    steps: [
+      { title: 'new Promise(executor) runs executor SYNCHRONOUSLY. The executor schedules the eventual resolve.', pseudoLine: 0 },
+      { title: 'setTimeout fires after 1s. Calls resolve("done"). Promise transitions Pending → Fulfilled.', pseudoLine: 1 },
+      { title: 'Any pending .then callbacks (and awaiting async functions) are queued in the microtask queue and run next.', pseudoLine: 3,
+        result: { found: true, value: '"done"' } },
+    ],
+    tradeoffs: 'Top-level await (modules only) makes startup code linear. Unhandled rejections crash Node 16+ and warn in browsers — always handle errors. `for await...of` iterates async iterables (streams, async generators) one chunk at a time.',
+  }],
+};
+
+const mapSet: Explanation = {
+  problem: 'Map & Set',
+  problemStatement: 'Map: ordered key-value collection with any-type keys. Set: ordered unique-value collection. Both built into ES2015.',
+  approaches: [{
+    id: 'why-not-object',
+    name: 'Why Not Plain Object / Array?',
+    badge: 'best',
+    intuition:
+      "Before Map: people used plain objects as hash maps. That had problems:\n\n" +
+      "• Keys could only be strings (or coerced to strings). `{ [obj]: 'x' }` becomes `'[object Object]': 'x'` — useless.\n" +
+      "• Inherited prototype methods (toString, hasOwnProperty) collided with data keys.\n" +
+      "• No `size` property; you had to `Object.keys(obj).length` (O(n)).\n" +
+      "• Iteration order historically unreliable (now guaranteed in modern engines).\n\n" +
+      "**Map fixes all of this.** Keys can be ANY value (including objects, functions, NaN). `.size` is O(1). Iteration order is insertion order. No prototype pollution.\n\n" +
+      "**Set** is the same shape for unique values. `arr.includes(x)` is O(n); `set.has(x)` is O(1) — use Set for membership checks in hot paths.\n\n" +
+      "**The NaN gotcha:** in Map and Set, NaN is considered equal to NaN (so they dedupe correctly). In Array.indexOf and === comparisons, NaN !== NaN. Map/Set use SameValueZero equality.",
+    complexity: { time: 'O(1) avg for get/set/has', space: 'O(n)', verdict: 'Use for non-trivial key-value work' },
+    pseudocode: [
+      'const m = new Map();',
+      'm.set("k", 1); m.set(obj, "objKey"); m.set(NaN, "nanWorks");',
+      'm.has(NaN);   // true (Map handles NaN)',
+      'm.size;       // O(1)',
+      '',
+      'const s = new Set([1, 2, 2, 3]);   // {1, 2, 3}',
+      's.add(NaN); s.has(NaN);   // true',
+    ],
+    example: { input: 'Map with object keys + Set with NaN', output: 'both work' },
+    steps: [
+      { title: 'Map.set(obj, value): stores by object identity. Different objects with same shape are different keys.', pseudoLine: 1 },
+      { title: 'Set deduplicates by SameValueZero — NaN === NaN inside Set/Map, unlike with ===.', pseudoLine: 6,
+        result: { found: true, value: 'true' } },
+    ],
+    tradeoffs: 'Plain object is still fine when keys are known strings and you want JSON-serializability. Map/Set are NOT JSON-serializable directly (you have to convert via `[...map.entries()]`). Choose based on whether you need rich keys and O(1) size.',
+  }],
+};
+
+const spreadRest: Explanation = {
+  problem: 'Spread & Rest',
+  problemStatement: 'The `...` operator: spreads an iterable into its elements (spread) or collects multiple elements into an array (rest). Same syntax, opposite directions.',
+  approaches: [{
+    id: 'two-roles',
+    name: 'Same Syntax, Two Roles',
+    badge: 'best',
+    intuition:
+      "**Spread (...iterable) — expansion:** unpacks an array/string/iterable into its elements. Used in function calls, array literals, object literals.\n\n" +
+      "• `Math.max(...[1, 2, 3])` → `Math.max(1, 2, 3)`\n" +
+      "• `[...a, ...b]` concatenates\n" +
+      "• `{...obj}` shallow-copies (own enumerable properties only)\n\n" +
+      "**Rest (...name) — collection:** gathers remaining arguments into an array. Used in function parameters and destructuring patterns.\n\n" +
+      "• `function f(first, ...rest) { ... }` — rest is an array of all args past first\n" +
+      "• `const [head, ...tail] = arr` — tail is everything after head\n" +
+      "• `const { a, ...rest } = obj` — rest is a new object without `a`\n\n" +
+      "**Subtle behaviors:**\n" +
+      "• Spread on objects copies OWN ENUMERABLE properties (no inherited / non-enumerable).\n" +
+      "• Spread is SHALLOW. `{...nested}` doesn't deep-clone — nested objects share references.\n" +
+      "• Spread invokes the iterator protocol: works on arrays, strings, Maps, Sets, generators.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Workhorse syntax — use freely' },
+    pseudocode: [
+      'const arr = [1, 2, 3];',
+      'Math.max(...arr);            // SPREAD → Math.max(1, 2, 3)',
+      'const copy = [...arr];       // SPREAD into new array',
+      '',
+      'function sum(...nums) {      // REST: gather args',
+      '  return nums.reduce((a, b) => a + b, 0);',
+      '}',
+      'const { x, ...rest } = { x: 1, y: 2, z: 3 };  // REST in destructure',
+    ],
+    example: { input: 'mixed spread/rest patterns', output: 'see template' },
+    steps: [
+      { title: 'Spread in a function call expands an array into separate arguments — replacing the legacy `apply` pattern.', pseudoLine: 1 },
+      { title: 'Spread in array/object literals does a SHALLOW copy — nested references are shared.', pseudoLine: 2,
+        note: '`a = {nested: {n: 1}}; b = {...a}; b.nested === a.nested` → true. To deep-copy, use structuredClone.' },
+      { title: 'Rest in parameters or destructuring collects the leftovers into an array (positional) or object (named).', pseudoLine: 4,
+        result: { found: true, value: 'rest = { y: 2, z: 3 }' } },
+    ],
+    tradeoffs: 'Spread can hit stack limits for very large arrays (~10⁵+) because each element becomes a separate stack arg. For huge arrays, use array methods or concat instead of spread.',
+  }],
+};
+
+// ==================== Template Explanations: JS Interview Topics ====================
+
+const eventLoopMicrotasks: Explanation = {
+  problem: 'Event Loop & Microtasks',
+  problemStatement: 'JavaScript is single-threaded. The event loop is what lets it handle async work without blocking.',
+  approaches: [{
+    id: 'queue-model',
+    name: 'Call Stack + Microtask + Macrotask Queues',
+    badge: 'best',
+    intuition:
+      "JavaScript runs on ONE thread with a CALL STACK. Async APIs (setTimeout, fetch, DOM events) schedule callbacks via the runtime, not the engine. The event loop pulls one task at a time onto the empty stack.\n\n" +
+      "**The order matters:**\n\n" +
+      "1. Run the current synchronous code to completion (call stack empties).\n" +
+      "2. Drain the **microtask queue** entirely — Promise callbacks, queueMicrotask, MutationObserver.\n" +
+      "3. Render (if browser; one frame's worth).\n" +
+      "4. Pop one **macrotask** from the queue (setTimeout, setInterval, I/O, UI events) and run it.\n" +
+      "5. Go to step 2.\n\n" +
+      "**The key consequence:** microtasks run BEFORE the next macrotask. `Promise.resolve().then(...)` runs before `setTimeout(..., 0)` even though setTimeout was scheduled first.\n\n" +
+      "**Be careful:** an infinite chain of microtasks can starve macrotasks and freeze the UI. `for (let i = 0; i < 1000000; i++) Promise.resolve().then(...)` is bad.",
+    complexity: { time: 'Each task O(its work)', space: 'O(queued tasks)', verdict: 'Core mental model' },
+    pseudocode: [
+      'console.log(1);                                  // sync',
+      'setTimeout(() => console.log(2), 0);             // macrotask',
+      'Promise.resolve().then(() => console.log(3));    // microtask',
+      'console.log(4);                                  // sync',
+      '// Output: 1, 4, 3, 2',
+    ],
+    example: { input: 'mix of sync, microtask, macrotask logs', output: '1, 4, 3, 2' },
+    steps: [
+      { title: 'Sync runs first: logs 1, schedules timeout (macrotask), schedules .then (microtask), logs 4.', pseudoLine: 0,
+        result: { found: false, value: 'queue: [microtask: 3] [macrotask: 2]' } },
+      { title: 'Call stack empty. Drain microtasks → logs 3.', pseudoLine: 2 },
+      { title: 'Microtask queue empty. Process one macrotask → logs 2.', pseudoLine: 1,
+        result: { found: true, value: '1, 4, 3, 2' } },
+    ],
+    tradeoffs: 'requestAnimationFrame runs BEFORE the next render — between macrotasks but separate from the microtask queue. Use rAF for visual changes; microtasks for "do this right after the current sync chunk".',
+  }],
+};
+
+const thisKeyword: Explanation = {
+  problem: 'this Keyword',
+  problemStatement: '`this` is the implicit context of a function call. Its value is determined by HOW the function is called, not where it was defined.',
+  approaches: [{
+    id: 'four-rules',
+    name: 'Four Binding Rules + Arrow Exception',
+    badge: 'best',
+    intuition:
+      "There are **four rules** that determine `this`, applied in this order of precedence:\n\n" +
+      "1. **`new` binding:** `new fn()` makes `this` the newly-created object.\n" +
+      "2. **Explicit binding:** `fn.call(ctx)`, `fn.apply(ctx)`, `fn.bind(ctx)` — `this` is `ctx`.\n" +
+      "3. **Implicit binding:** `obj.fn()` — `this` is `obj`.\n" +
+      "4. **Default binding:** plain `fn()` — `this` is the global object (window in browser, undefined in strict mode).\n\n" +
+      "**Arrow functions are the exception:** they do NOT have their own `this`. They inherit `this` from the LEXICAL enclosing scope. This is why arrow functions are perfect for callbacks inside class methods — no `.bind(this)` needed.\n\n" +
+      "**The classic pitfall:** detaching a method from its object loses the binding.\n" +
+      "```js\n" +
+      "const obj = { name: 'Ana', say() { return this.name; } };\n" +
+      "obj.say();              // 'Ana' (implicit)\n" +
+      "const fn = obj.say;\n" +
+      "fn();                   // undefined (default binding, no obj)\n" +
+      "```",
+    complexity: { time: 'O(1)', space: 'O(1)', verdict: 'Core JS concept' },
+    pseudocode: [
+      "// Rule 1: new — new object",
+      "// Rule 2: call/apply/bind — explicit",
+      "// Rule 3: obj.fn() — implicit (the object before the dot)",
+      "// Rule 4: plain fn() — global / undefined (strict)",
+      "// Exception: arrow function inherits this from lexical scope",
+    ],
+    example: { input: 'fn called four different ways', output: 'four different this values' },
+    steps: [
+      { title: '`new Foo()` — creates an object, sets `this` to it, calls Foo with that this.', pseudoLine: 1 },
+      { title: '`obj.method()` — `this` is `obj`. Pure dot-call.', pseudoLine: 3 },
+      { title: '`const ref = obj.method; ref()` — DETACHED. `this` falls back to default (undefined in strict mode).', pseudoLine: 4,
+        note: 'This is the #1 React bug source: passing `this.handleClick` as a prop. Fix with `.bind(this)` in constructor, or use arrow methods.' },
+      { title: '`() => this` — arrow ignores all four rules and inherits from where it was defined.', pseudoLine: 5,
+        result: { found: true, value: 'four rules + arrow exception' } },
+    ],
+    tradeoffs: 'In class fields, `method = () => { ... }` creates an arrow bound to the instance — pre-bound, no .bind needed, but uses more memory (one closure per instance) versus prototype methods (one shared method).',
+  }],
+};
+
+const debounceThrottleTemplate: Explanation = {
+  problem: 'Debounce & Throttle',
+  problemStatement: 'Two rate-limiting patterns. Debounce: fire only after a quiet period. Throttle: fire at most once per window.',
+  approaches: [{
+    id: 'difference',
+    name: 'The Key Difference',
+    badge: 'best',
+    intuition:
+      "**Debounce — silence-triggered:** the function fires only AFTER `wait` ms of silence. Every new call CANCELS any pending fire and restarts the timer. Use for: search-as-you-type (wait for the user to stop typing), resize handlers (wait for resize to finish).\n\n" +
+      "**Throttle — pace-limited:** the function fires AT MOST once per `wait` window. Calls between fires are dropped (leading) or queued for the next window (trailing). Use for: scroll position tracking (continuous updates capped at e.g. 60 FPS), button rate-limiting.\n\n" +
+      "**Picture them on a timeline of inputs:**\n" +
+      "```\n" +
+      "Inputs:    | | | |        | | |   |\n" +
+              "wait=200ms\n" +
+      "Debounce:  ----------|------------------|----  (fires after silence)\n" +
+      "Throttle:  |---|---|---|----|---|---|--------  (fires every 200ms max)\n" +
+      "```\n\n" +
+      "Both are closures — they remember state across calls (the pending timeout or last-fire timestamp).",
+    complexity: { time: 'O(1) per call', space: 'O(1)', verdict: 'Both are everyday tools' },
+    pseudocode: [
+      'function debounce(fn, wait) {',
+      '  let timer;',
+      '  return (...args) => {',
+      '    clearTimeout(timer);',
+      '    timer = setTimeout(() => fn(...args), wait);',
+      '  };',
+      '}',
+      '',
+      'function throttle(fn, wait) {',
+      '  let last = 0;',
+      '  return (...args) => {',
+      '    if (Date.now() - last >= wait) {',
+      '      last = Date.now();',
+      '      fn(...args);',
+      '    }',
+      '  };',
+      '}',
+    ],
+    example: { input: 'rapid clicks every 50ms, wait=200ms', output: 'debounce: 1 fire after stop; throttle: every 4th call fires' },
+    steps: [
+      { title: 'Debounce on rapid input: each call clears the previous pending timer, reschedules.', pseudoLine: 4,
+        timeline: { events: [{ t: 0, label: 'in', kind: 'input' }, { t: 50, label: 'in', kind: 'input' }, { t: 100, label: 'in', kind: 'input' }, { t: 300, label: 'fire', kind: 'fire' }], windowMs: 200 } },
+      { title: 'Throttle: first call fires immediately, subsequent within 200ms drop. After 200ms a new fire is allowed.', pseudoLine: 12,
+        timeline: { events: [{ t: 0, label: 'fire', kind: 'fire' }, { t: 50, label: 'skip', kind: 'skip' }, { t: 100, label: 'skip', kind: 'skip' }, { t: 200, label: 'fire', kind: 'fire' }], windowMs: 200 },
+        result: { found: true, value: 'two patterns, two use cases' } },
+    ],
+    tradeoffs: 'Most production libraries (lodash) offer both leading + trailing variants of each. Debounce defaults trailing; throttle defaults leading. Real-world: search uses debounce (trailing), scroll uses throttle (leading).',
+  }],
+};
+
+const curryingTemplate: Explanation = {
+  problem: 'Currying',
+  problemStatement: 'Transform a multi-argument function into a chain of single-argument functions: `f(a, b, c)` becomes `f(a)(b)(c)`.',
+  approaches: [{
+    id: 'closure-chain',
+    name: 'Closure-Chain Currying',
+    badge: 'best',
+    intuition:
+      "Currying is partial application of one argument at a time. Each call captures one parameter in a closure and returns a function expecting the next. When all parameters are collected, the original function runs.\n\n" +
+      "**Why it matters:** enables function composition, point-free style, and easy reuse. `const addFive = add(5)` makes a specialized function from a general one.\n\n" +
+      "**Implementation pattern:** a generic `curry(fn)` wraps any function. It collects arguments across calls; once collected enough to match `fn.length` (the arity), it invokes `fn`. Otherwise it returns a new function that continues collecting.\n\n" +
+      "**Variadic curry (sum(1)(2)(3)()):** a different pattern — terminator-based. The empty call signals the end.",
+    complexity: { time: 'O(1) per call; O(n) closures in chain', space: 'O(n)', verdict: 'Pattern, not algorithm' },
+    pseudocode: [
+      'function curry(fn) {',
+      '  return function curried(...args) {',
+      '    if (args.length >= fn.length) return fn(...args);',
+      '    return (...next) => curried(...args, ...next);',
+      '  };',
+      '}',
+      '',
+      'const add = (a, b, c) => a + b + c;',
+      'const cAdd = curry(add);',
+      'cAdd(1)(2)(3);      // 6',
+      'cAdd(1, 2)(3);      // 6',
+      'cAdd(1)(2, 3);      // 6',
+    ],
+    example: { input: 'curry(add)(1)(2)(3)', output: '6' },
+    steps: [
+      { title: 'curry(add) returns `curried`. curried(1) — args=[1], length 1 < arity 3 → return new collector.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'curry(add) → curried', status: 'returned' }, { call: 'curried(1)', status: 'returned', returns: 'fn(args=[1])' }] } },
+      { title: 'curried(1)(2) — accumulates to args=[1,2]. Still < 3 → another collector.', pseudoLine: 3,
+        callStack: { frames: [{ call: 'curried(1)(2)', status: 'returned', returns: 'fn(args=[1,2])' }] } },
+      { title: 'curried(1)(2)(3) — args=[1,2,3]. Length === arity → call add(1,2,3) → 6.', pseudoLine: 2,
+        callStack: { frames: [{ call: 'curried(1)(2)(3)', status: 'returned', returns: '6' }] },
+        result: { found: true, value: '6' } },
+    ],
+    tradeoffs: 'Auto-curry (lodash/curry) handles arbitrary arity and supports placeholders. The hand-rolled version is simpler but assumes you know fn.length. Ramda goes further and curries every function by default.',
+  }],
+};
+
+const prototypesClasses: Explanation = {
+  problem: 'Prototypes & Classes',
+  problemStatement: 'ES2015 classes are syntactic sugar over JavaScript\'s prototypal inheritance. Understanding both layers prevents subtle bugs.',
+  approaches: [{
+    id: 'prototype-chain',
+    name: 'The Prototype Chain',
+    badge: 'best',
+    intuition:
+      "Every JavaScript object has an internal `[[Prototype]]` slot (accessed via `Object.getPrototypeOf(obj)` or the legacy `__proto__`). When you read a property, the engine walks the chain: own property first, then prototype, then prototype's prototype, until it hits null.\n\n" +
+      "**class syntax (ES2015):**\n" +
+      "```js\n" +
+      "class Animal {\n" +
+      "  constructor(name) { this.name = name; }\n" +
+      "  speak() { return this.name + ' speaks'; }\n" +
+      "}\n" +
+      "```\n" +
+      "Is equivalent to:\n" +
+      "```js\n" +
+      "function Animal(name) { this.name = name; }\n" +
+      "Animal.prototype.speak = function () { return this.name + ' speaks'; };\n" +
+      "```\n\n" +
+      "**Instance methods** live on `Animal.prototype` — shared across instances, accessed via the prototype chain. **`static` methods** live on `Animal` itself.\n\n" +
+      "**`extends` sets up the chain:** `class Dog extends Animal` makes `Dog.prototype.__proto__ === Animal.prototype`, so `dog.speak()` finds speak on Animal's prototype.",
+    complexity: { time: 'O(chain depth) per property lookup', space: 'O(1) per instance', verdict: 'Core OO model' },
+    pseudocode: [
+      'class Animal {',
+      '  constructor(name) { this.name = name; }',
+      '  speak() { return this.name + " speaks"; }',
+      '}',
+      '',
+      'class Dog extends Animal {',
+      '  bark() { return "Woof!"; }',
+      '}',
+      '',
+      'const d = new Dog("Rex");',
+      'd.speak();   // "Rex speaks" — found on Animal.prototype',
+      'd.bark();    // "Woof!"     — found on Dog.prototype',
+    ],
+    example: { input: 'new Dog("Rex").speak()', output: '"Rex speaks"' },
+    steps: [
+      { title: 'new Dog("Rex"): creates obj, sets [[Prototype]] to Dog.prototype, runs constructor (which calls Animal.call(this)).', pseudoLine: 8 },
+      { title: 'd.speak(): not found on d → check Dog.prototype → not there → check Animal.prototype → found!', pseudoLine: 9,
+        callStack: { frames: [{ call: 'd.speak()', status: 'active' }, { call: 'lookup: d → Dog.prototype → Animal.prototype.speak ✓', status: 'returned' }] } },
+      { title: 'd.bark(): found on Dog.prototype directly.', pseudoLine: 10,
+        result: { found: true, value: 'inheritance via the chain' } },
+    ],
+    tradeoffs: 'Class fields (`name = "default"`) put properties on each instance (not the prototype). Arrow methods (`fn = () => {}`) similarly per-instance — bind `this` automatically but cost memory. Pick prototype methods for shared behavior, instance fields for state.',
+  }],
+};
+
+const destructuringDeepDive: Explanation = {
+  problem: 'Destructuring Deep Dive',
+  problemStatement: 'Destructuring lets you extract values from arrays/objects with a syntax that mirrors how you build them. Supports defaults, renaming, nesting, and rest.',
+  approaches: [{
+    id: 'patterns',
+    name: 'The Five Patterns',
+    badge: 'best',
+    intuition:
+      "**1. Basic positional (array):**\n" +
+      "`const [a, b] = [1, 2]` — by index.\n\n" +
+      "**2. Basic named (object):**\n" +
+      "`const { x, y } = { x: 1, y: 2 }` — by key.\n\n" +
+      "**3. Renaming (object only):**\n" +
+      "`const { x: xVal } = { x: 1 }` — extracts `x`, binds to `xVal`.\n\n" +
+      "**4. Defaults:**\n" +
+      "`const { x = 10 } = {}` → `x === 10`. Default only applies if the property is `undefined` (NOT if it's null or 0 or empty string).\n\n" +
+      "**5. Rest pattern:**\n" +
+      "`const [first, ...rest] = arr` — `rest` is everything past `first`. `const { x, ...rest } = obj` — `rest` is a new object missing `x`.\n\n" +
+      "**Combine freely:**\n" +
+      "```js\n" +
+      "const { a: { b = 5 } = {}, c = 'default' } = obj;\n" +
+      "// extract obj.a.b (default 5, with safe fallback {} if obj.a is undefined),\n" +
+      "// and obj.c (default 'default')\n" +
+      "```",
+    complexity: { time: 'O(props extracted)', space: 'O(props extracted)', verdict: 'Use liberally' },
+    pseudocode: [
+      'const [a, b, c = 10] = [1, 2];           // a=1, b=2, c=10 (default)',
+      'const { name: n, age = 18 } = user;       // rename + default',
+      'const [first, ...rest] = [1, 2, 3, 4];   // rest=[2,3,4]',
+      'const { x, ...rest } = { x: 1, y: 2 };   // rest={y:2}',
+      '',
+      '// Nested:',
+      'const { addr: { city } } = user;',
+      '',
+      '// In function params:',
+      'function greet({ name = "stranger" } = {}) { return "Hi " + name; }',
+    ],
+    example: { input: 'various patterns', output: 'see template' },
+    steps: [
+      { title: 'Array destructuring is positional (by index). Object destructuring is named (by key).', pseudoLine: 0 },
+      { title: 'Defaults apply ONLY when the source value is undefined. `null`, `0`, `""` skip the default — they\'re defined, just falsy.', pseudoLine: 1,
+        note: 'Common bug: `const { count = 5 } = { count: 0 }` → count is 0, not 5. To force-default falsy values, use ?? operator separately.' },
+      { title: 'Function parameter destructuring + default braces (`= {}`) lets callers omit the object entirely.', pseudoLine: 7,
+        result: { found: true, value: 'greet() works without args' } },
+    ],
+    tradeoffs: 'Destructuring is a readability multiplier when used moderately. Over-destructuring in function signatures (5+ params) hurts readability — at that point, consider a named params object that\'s NOT destructured at the function boundary.',
+  }],
+};
+
+const trickyInterviewQ: Explanation = {
+  problem: 'Tricky Interview Q',
+  problemStatement: 'A curated collection of classic JavaScript gotchas — type coercion, hoisting, scoping, and async surprises.',
+  approaches: [{
+    id: 'gotchas',
+    name: 'The Most-Asked Tricks',
+    badge: 'best',
+    intuition:
+      "**1. `==` vs `===`:** `==` coerces types. `1 == '1'` → true; `1 === '1'` → false. Always use `===` unless you specifically want coercion.\n\n" +
+      "**2. NaN strangeness:** `NaN !== NaN`. Use `Number.isNaN(x)` (NOT global `isNaN(x)` which coerces first).\n\n" +
+      "**3. Hoisting:** `var` declarations hoist (but not initializations) — referencing before declaring gives `undefined`. `let`/`const` hoist into the temporal dead zone — referencing before declaring throws ReferenceError.\n\n" +
+      "**4. typeof null === 'object':** historical bug, never fixed for backward compat.\n\n" +
+      "**5. [] + [] === '':** array → string via .join(',') → '', then '' + '' === ''.\n\n" +
+      "**6. var in loop with closures:** `for (var i=0; i<3; i++) setTimeout(() => console.log(i))` prints 3,3,3 (var is function-scoped, shared). With let: 0,1,2 (let is block-scoped, fresh per iteration).\n\n" +
+      "**7. Object key coercion:** `obj[true] = 'a'; obj['true']` returns 'a' — all object keys are strings (or symbols).\n\n" +
+      "**8. Floating point:** `0.1 + 0.2 !== 0.3`. It's `0.30000000000000004`. Use rounding for comparisons.",
+    complexity: { time: 'N/A', space: 'N/A', verdict: 'Pattern recognition' },
+    pseudocode: [
+      '0.1 + 0.2 === 0.3                    // false  (floating point)',
+      'NaN === NaN                          // false  (use Number.isNaN)',
+      'typeof null                          // "object"  (historical bug)',
+      '[] + []                              // ""  (toString coercion)',
+      'for (var i=0; i<3; i++) setTimeout(() => console.log(i))   // 3 3 3',
+      'for (let i=0; i<3; i++) setTimeout(() => console.log(i))   // 0 1 2',
+    ],
+    example: { input: 'various gotchas', output: 'all surprising' },
+    steps: [
+      { title: 'Type coercion: `[] + []` triggers Array → primitive → string. Empty array becomes "". Concatenation: "" + "" = "".', pseudoLine: 3 },
+      { title: 'Floating point: doubles have ~15 decimal digits of precision. Repeating binary fractions like 0.1 + 0.2 don\'t add cleanly.', pseudoLine: 0 },
+      { title: '`var` is function-scoped, `let` is block-scoped. The loop-closure gotcha is the single most-asked variant.', pseudoLine: 4,
+        result: { found: true, value: 'know these cold' } },
+    ],
+    tradeoffs: 'These quirks are mostly about pattern recognition, not understanding. Interviewers ask them to test whether you have years of JS pain accumulated. Use === everywhere, let everywhere, Number.isNaN — and you avoid 90% of them.',
+  }],
+};
+
+// ==================== Template Explanations: React ====================
+
+const useStateCounter: Explanation = {
+  problem: 'useState Counter',
+  problemStatement: 'The simplest possible React state hook: a counter with increment/decrement/reset buttons.',
+  approaches: [{
+    id: 'usestate',
+    name: 'useState Fundamentals',
+    badge: 'best',
+    intuition:
+      "`const [state, setState] = useState(initialValue)` does three things:\n\n" +
+      "1. **On first render:** allocates a slot in React's internal state for this component, initialized to `initialValue`.\n" +
+      "2. **On subsequent renders:** returns the LATEST value, not the initial. React preserves state across re-renders.\n" +
+      "3. **`setState(next)`:** queues an update. On the NEXT render, `state` reflects `next`. Calling setState does NOT immediately change `state` within the current render — it's async-feeling.\n\n" +
+      "**The functional form** `setState(prev => prev + 1)` is essential when next state depends on previous — multiple calls in a row work correctly:\n" +
+      "```js\n" +
+      "setCount(c => c + 1);  // count + 1\n" +
+      "setCount(c => c + 1);  // count + 2 (uses the previous setter's result)\n" +
+      "```\n" +
+      "Whereas `setCount(count + 1)` twice would only add 1 (both calls read the stale `count`).",
+    complexity: { time: 'O(1) per setState call', space: 'O(1)', verdict: 'Most-used React hook' },
+    pseudocode: [
+      'function Counter() {',
+      '  const [count, setCount] = useState(0);',
+      '  return (',
+      '    <button onClick={() => setCount(c => c + 1)}>{count}</button>',
+      '  );',
+      '}',
+    ],
+    example: { input: 'click increment 3 times', output: 'count = 3' },
+    steps: [
+      { title: 'First render: useState(0) allocates the slot. Returns [0, setter].', pseudoLine: 1 },
+      { title: 'Click → setCount(c => c+1) queued. React schedules a re-render.', pseudoLine: 3 },
+      { title: 'Re-render: useState now returns [1, setter]. Component re-renders with count=1.', pseudoLine: 1,
+        result: { found: true, value: 'state persists; setter triggers re-render' } },
+    ],
+    tradeoffs: 'useState batches multiple setState calls within the same event handler into a single re-render (React 18+). Outside React events (setTimeout callbacks, native event listeners), each setState triggers a re-render — wrap in flushSync or move state to useReducer for complex updates.',
+  }],
+};
+
+const useEffectLifecycle: Explanation = {
+  problem: 'useEffect Lifecycle',
+  problemStatement: 'useEffect runs side effects AFTER the render commits to the DOM. It replaces componentDidMount/Update/Unmount in one unified API.',
+  approaches: [{
+    id: 'three-phases',
+    name: 'Three Phases: Mount, Update, Cleanup',
+    badge: 'best',
+    intuition:
+      "**The signature:** `useEffect(setup, deps?)`\n\n" +
+      "1. **Setup function** runs after every render where dependencies changed.\n" +
+      "2. **Cleanup function** (returned from setup) runs BEFORE the next setup AND on unmount.\n\n" +
+      "**Dependency-array behavior:**\n" +
+      "• **`undefined`** (omitted): runs after EVERY render. Almost always wrong.\n" +
+      "• **`[]`** (empty): runs ONCE after mount, cleanup runs on unmount. The classic 'componentDidMount' replacement.\n" +
+      "• **`[a, b]`** (specific deps): runs after mount + any render where `a` or `b` changed.\n\n" +
+      "**Common uses:** subscriptions (DOM events, websockets), data fetching (with AbortController in cleanup), DOM measurements.\n\n" +
+      "**Modern guidance:** prefer `useState` for derived state, `event handlers` for user actions, `Suspense + a data library` (TanStack Query) for fetching — useEffect is for synchronizing with EXTERNAL systems, not for kicking off rendering work.",
+    complexity: { time: 'O(setup)', space: 'O(closure)', verdict: 'For sync with the outside world' },
+    pseudocode: [
+      'useEffect(() => {',
+      '  console.log("mounted or deps changed");',
+      '  const id = setInterval(tick, 1000);',
+      '  return () => {',
+      '    console.log("cleanup before next setup or unmount");',
+      '    clearInterval(id);',
+      '  };',
+      '}, [someDep]);',
+    ],
+    example: { input: 'component mounts, deps change, unmounts', output: 'setup → cleanup → setup → ... → cleanup' },
+    steps: [
+      { title: 'Mount: render commits → effect setup runs (logs "mounted"). Cleanup is REMEMBERED for next phase.', pseudoLine: 0 },
+      { title: 'someDep changes → new render commits → React runs PREVIOUS cleanup, then NEW setup.', pseudoLine: 3 },
+      { title: 'Component unmounts → React runs the FINAL cleanup.', pseudoLine: 5,
+        result: { found: true, value: 'setup/cleanup pair on each dep change' } },
+    ],
+    tradeoffs: 'StrictMode in dev runs setup → cleanup → setup TWICE to flush bugs from missing cleanups. Don\'t disable StrictMode — fix the cleanup. The official guidance "You Might Not Need an Effect" in React docs is required reading.',
+  }],
+};
+
+const customHook: Explanation = {
+  problem: 'Custom Hook',
+  problemStatement: 'A function that starts with `use` and calls other hooks inside. The mechanism for extracting and reusing stateful logic across components.',
+  approaches: [{
+    id: 'pattern',
+    name: 'The Custom-Hook Pattern',
+    badge: 'best',
+    intuition:
+      "A custom hook is just a function that:\n" +
+      "1. Has a name starting with `use` (so the linter can validate hook rules).\n" +
+      "2. Calls one or more built-in hooks (useState, useEffect, etc.).\n" +
+      "3. Returns whatever the caller needs (value, setter, object, tuple — your call).\n\n" +
+      "**Each component that calls your hook gets its OWN STATE.** Hooks don't share state across instances. `useCounter()` in component A and `useCounter()` in component B are completely independent. The hook just packages the logic; React wires up per-instance state via the call order.\n\n" +
+      "**What to extract into a hook:** logic that\n" +
+      "• combines multiple useState + useEffect calls coherently,\n" +
+      "• you'd otherwise copy-paste into multiple components,\n" +
+      "• has its own conceptual identity (useFetch, useLocalStorage, useToggle).\n\n" +
+      "**The rules of hooks still apply:** only call hooks at the top level of your custom hook, never conditionally or in loops.",
+    complexity: { time: 'O(work)', space: 'O(state)', verdict: 'The composition mechanism for hooks' },
+    pseudocode: [
+      'function useCounter(initial = 0) {',
+      '  const [count, setCount] = useState(initial);',
+      '  const inc = useCallback(() => setCount(c => c + 1), []);',
+      '  const reset = useCallback(() => setCount(initial), [initial]);',
+      '  return { count, inc, reset };',
+      '}',
+      '',
+      'function App() {',
+      '  const { count, inc, reset } = useCounter(0);',
+      '  return <button onClick={inc}>{count}</button>;',
+      '}',
+    ],
+    example: { input: 'useCounter(10) in two components', output: 'each gets its own count' },
+    steps: [
+      { title: 'useCounter(10) called: allocates new state slot scoped to the calling component instance. Returns the API.', pseudoLine: 1 },
+      { title: 'Component A renders with count=10. Component B with its own count=10.', pseudoLine: 6 },
+      { title: 'A clicks inc → only A re-renders. B unaffected. State is isolated per call site.', pseudoLine: 8,
+        result: { found: true, value: 'per-instance state via React internals' } },
+    ],
+    tradeoffs: 'For shared state across components (theme, current user), use Context — not a hook. Hooks share LOGIC; Context shares VALUES.',
+  }],
+};
+
+const useReducerTodo: Explanation = {
+  problem: 'useReducer Todo',
+  problemStatement: 'useReducer is useState for complex state — you pass actions to a reducer function instead of values to a setter.',
+  approaches: [{
+    id: 'reducer',
+    name: 'When useReducer Beats useState',
+    badge: 'best',
+    intuition:
+      "**Signature:** `const [state, dispatch] = useReducer(reducer, initialState)`. The reducer is `(state, action) => newState`.\n\n" +
+      "**Use useReducer when:**\n" +
+      "• State has MULTIPLE sub-values that update together (a todo list with filter, sort, edit-in-progress).\n" +
+      "• Next state often depends on previous state in non-trivial ways.\n" +
+      "• You want to centralize all the update logic in one testable function.\n" +
+      "• You'd like to log/replay actions (great for debugging).\n\n" +
+      "**Stick with useState when:**\n" +
+      "• State is a single value or two related values.\n" +
+      "• Updates are mostly independent.\n\n" +
+      "**The reducer MUST be pure:** no side effects, no API calls, no time-dependent values. It's just `(state, action) => newState`. Side effects go in event handlers or effects.\n\n" +
+      "**Action shape convention:** `{ type: 'add', payload: ... }`. Many people use Redux Toolkit-style action creators even with useReducer for consistency.",
+    complexity: { time: 'O(reducer work)', space: 'O(state size)', verdict: 'For complex state updates' },
+    pseudocode: [
+      'function reducer(state, action) {',
+      '  switch (action.type) {',
+      '    case "add":    return [...state, action.todo];',
+      '    case "remove": return state.filter(t => t.id !== action.id);',
+      '    case "toggle": return state.map(t => t.id === action.id ? {...t, done: !t.done} : t);',
+      '    default: throw new Error("unknown action " + action.type);',
+      '  }',
+      '}',
+      'const [todos, dispatch] = useReducer(reducer, []);',
+      'dispatch({ type: "add", todo: { id: 1, text: "buy milk", done: false } });',
+    ],
+    example: { input: 'add, toggle, remove actions', output: 'todos state transitions' },
+    steps: [
+      { title: 'dispatch({type:"add",...}) → React calls reducer(currentTodos, action) → returns new array → state updates.', pseudoLine: 8 },
+      { title: 'Subsequent dispatch with the same state shape → reducer runs purely → React batches re-render.', pseudoLine: 2 },
+      { title: 'Centralized logic: one function describes every legal transition. Easy to test, easy to log.', pseudoLine: 0,
+        result: { found: true, value: 'predictable state machine' } },
+    ],
+    tradeoffs: 'Verbose compared to useState. Redux Toolkit\'s createSlice generates reducers + action creators with much less boilerplate — for app-wide state, it\'s often the better choice than ad-hoc useReducer hooks scattered around.',
+  }],
+};
+
+const contextAPI: Explanation = {
+  problem: 'Context API',
+  problemStatement: 'Context lets you pass values through the component tree without prop-drilling. Created with createContext, consumed with useContext.',
+  approaches: [{
+    id: 'provider-consumer',
+    name: 'Provider + Consumer Pattern',
+    badge: 'best',
+    intuition:
+      "**Three pieces:**\n" +
+      "1. `const Ctx = createContext(defaultValue)` — creates the context object.\n" +
+      "2. `<Ctx.Provider value={...}>{children}</Ctx.Provider>` — provides a value to all descendants.\n" +
+      "3. `const v = useContext(Ctx)` — any descendant reads the nearest Provider's value.\n\n" +
+      "**The re-render rule:** every consumer re-renders WHENEVER the Provider's `value` prop changes by reference. So:\n" +
+      "```js\n" +
+      "// BAD — new object every render\n" +
+      "<Ctx.Provider value={{ user, setUser }}>...</Ctx.Provider>\n" +
+      "\n" +
+      "// GOOD — stable reference\n" +
+      "const value = useMemo(() => ({ user, setUser }), [user]);\n" +
+      "<Ctx.Provider value={value}>...</Ctx.Provider>\n" +
+      "```\n\n" +
+      "**When NOT to use Context:**\n" +
+      "• High-frequency updates (typing into an input). Every consumer re-renders on every keystroke.\n" +
+      "• Server state (fetched data). Use TanStack Query or SWR instead.\n" +
+      "• When two props deep would do.",
+    complexity: { time: 'O(consumers) per change', space: 'O(1)', verdict: 'For low-frequency cross-cutting state' },
+    pseudocode: [
+      'const ThemeCtx = createContext("light");',
+      '',
+      'function App() {',
+      '  return (',
+      '    <ThemeCtx.Provider value="dark">',
+      '      <Toolbar />',
+      '    </ThemeCtx.Provider>',
+      '  );',
+      '}',
+      '',
+      'function Button() {',
+      '  const theme = useContext(ThemeCtx);',
+      '  return <button className={theme}>Click</button>;',
+      '}',
+    ],
+    example: { input: 'theme="dark" provided at App, consumed in Button', output: 'Button gets "dark"' },
+    steps: [
+      { title: 'createContext("light") makes the Ctx object. The "light" is the default — only used if NO Provider exists above the consumer.', pseudoLine: 0 },
+      { title: 'Provider value="dark" → walks the tree. Any useContext(Ctx) finds this as the nearest provider.', pseudoLine: 4 },
+      { title: 'Button calls useContext → gets "dark". When Provider value changes, Button re-renders.', pseudoLine: 11,
+        result: { found: true, value: 'value flows through the tree' } },
+    ],
+    tradeoffs: 'For high-frequency state, split into multiple contexts (one for value, one for setter) or use a state library (Zustand, Jotai) that doesn\'t re-render all consumers on every change.',
+  }],
+};
+
+const reactCompilerPatterns: Explanation = {
+  problem: 'React Compiler Patterns',
+  problemStatement: 'React Compiler (RC, formerly React Forget) auto-memoizes components so you don\'t need useMemo/useCallback/React.memo. This template shows the patterns it handles.',
+  approaches: [{
+    id: 'auto-memo',
+    name: 'Automatic Memoization',
+    badge: 'best',
+    intuition:
+      "React Compiler is a Babel plugin that analyzes your component code at build time and inserts memoization automatically. Where you'd write `useMemo(() => expensiveCompute(a, b), [a, b])` by hand, the compiler does it for you — for every computation that survives re-renders.\n\n" +
+      "**What the compiler enables:**\n" +
+      "• Object/array literals as props don't cause child re-renders (auto-memoized).\n" +
+      "• Inline event handlers don't break React.memo.\n" +
+      "• Derived state is essentially free.\n" +
+      "• Most uses of useMemo/useCallback become unnecessary.\n\n" +
+      "**What it requires:** your code follows the Rules of React (no mutation, pure components, no calling hooks conditionally). The compiler bails out gracefully if it sees violations.\n\n" +
+      "**Stable in React 19+.** When stable, the recommended path is: write idiomatic React without manual memoization, let the compiler optimize. For now (2026), the compiler is opt-in via the eslint plugin react-compiler/react-compiler.",
+    complexity: { time: 'Compile-time analysis', space: 'O(memo cache)', verdict: 'The future of React perf' },
+    pseudocode: [
+      '// Before compiler:',
+      'const items = useMemo(() => [1, 2, 3], []);',
+      'const handle = useCallback((e) => { ... }, [dep]);',
+      '<Child items={items} onClick={handle} />',
+      '',
+      '// After compiler — write the natural code:',
+      'const items = [1, 2, 3];',
+      'const handle = (e) => { ... };',
+      '<Child items={items} onClick={handle} />   // still memoized, automatically',
+    ],
+    example: { input: 'idiomatic React', output: 'auto-memoized output' },
+    steps: [
+      { title: 'Compiler sees `const items = [1, 2, 3]` — pure, no external deps. Wraps in implicit memoization.', pseudoLine: 5 },
+      { title: 'Compiler sees the arrow handler. Identifies closed-over values. Memoizes when those don\'t change.', pseudoLine: 6 },
+      { title: '<Child> receives stable refs. If Child is also compiler-optimized, it skips re-render.', pseudoLine: 7,
+        result: { found: true, value: 'manual memoization removed' } },
+    ],
+    tradeoffs: 'Until React Compiler is widely adopted, you may still need useMemo/useCallback for libraries that haven\'t been re-compiled. The compiler doesn\'t help if you mutate state — write functional updates.',
+  }],
+};
+
+// ==================== Template Explanations: Polyfills (compact) ====================
+
+// Helper to make polyfill explanations compact and consistent.
+// Auto-generates one step per pseudocode line so learners can step through
+// the implementation. Callers can pass `lineNotes` (a Map of pseudoLineIndex → comment)
+// to override the default "walk this line" title with a deeper explanation
+// of what that specific line does and why.
+function polyfillExplanation(
+  name: string,
+  builtinSig: string,
+  oneLineIntent: string,
+  intuition: string,
+  pseudocode: string[],
+  example: { input: string; output: string },
+  gotchas: string,
+  lineNotes?: Record<number, string>,
+): Explanation {
+  // Build a contract-then-implementation framing for the intuition. Every
+  // polyfill walkthrough now starts with "how to write a polyfill" mental
+  // model so learners can transfer the technique to other built-ins.
+  const intuitionExpanded =
+    `**Why polyfills matter.** A polyfill recreates a built-in feature in plain JavaScript. ` +
+    `Writing them is the canonical interview test of how well you understand the language: you need to know the *contract* of the built-in, then build it from first principles using only primitives.\n\n` +
+    `**The four parts of every polyfill:**\n` +
+    `1. **Validate inputs** — match the built-in's TypeError messages (e.g. "Reduce of empty array with no initial value").\n` +
+    `2. **Walk the data** — typically a single \`for\` loop. For sparse-array correctness use \`i in this\` not just \`this[i]\` so holes are skipped (matches native).\n` +
+    `3. **Apply the callback / transform** — pass the canonical \`(value, index, array)\` signature; honor \`thisArg\` via \`callback.call(thisArg, …)\`.\n` +
+    `4. **Return the right shape** — same length for map, smaller for filter, accumulator for reduce, the array itself for in-place mutators like reverse.\n\n` +
+    `**Specific to this built-in:** ${intuition}`;
+
+  // Auto-generate one step per line of pseudocode so the modal can render
+  // a true line-by-line walkthrough. lineNotes augments specific lines with
+  // a deeper explanation. Empty / brace-only lines collapse into a single
+  // continue-arrow step so the modal isn't cluttered.
+  const lineSteps = pseudocode.map((line, i) => {
+    const trimmed = line.trim();
+    const annotation = lineNotes?.[i];
+    let title: string;
+    if (annotation) {
+      title = annotation;
+    } else if (!trimmed || trimmed === '};' || trimmed === '}' || trimmed === '{') {
+      title = `Line ${i + 1}: scope marker — function body boundary.`;
+    } else if (trimmed.startsWith('//')) {
+      title = `Line ${i + 1}: comment — sets context for the next line.`;
+    } else if (trimmed.startsWith('return')) {
+      title = `Line ${i + 1}: return the result. This is the polyfill's contract value — matches the native return type.`;
+    } else if (trimmed.startsWith('for') || trimmed.startsWith('while')) {
+      title = `Line ${i + 1}: walk the source. Single-pass is canonical — built-ins are optimized for O(n).`;
+    } else if (trimmed.startsWith('if')) {
+      title = `Line ${i + 1}: guard. Polyfills must match the native edge-case behavior, not throw on edge cases the native handles.`;
+    } else if (trimmed.includes('throw')) {
+      title = `Line ${i + 1}: throw on invalid input. Match the native TypeError message format so callers can pattern-match errors.`;
+    } else {
+      title = `Line ${i + 1}: ${trimmed.length > 80 ? trimmed.slice(0, 80) + '…' : trimmed}`;
+    }
+    return { title, pseudoLine: i };
+  });
+
+  return {
+    problem: `${name} (Polyfill)`,
+    problemStatement: `Polyfill for ${builtinSig}. ${oneLineIntent}`,
+    approaches: [{
+      id: 'polyfill',
+      name: `Polyfill: ${name}`,
+      badge: 'best',
+      intuition: intuitionExpanded,
+      complexity: { time: '—', space: '—', verdict: 'Re-implement the built-in to understand it' },
+      pseudocode,
+      example,
+      steps: [
+        ...lineSteps,
+        { title: 'Verify the polyfill matches native: run a few test cases and compare outputs to the native built-in.',
+          result: { found: true, value: 'native-equivalent behavior' },
+          note: gotchas },
+      ],
+      tradeoffs: gotchas,
+    }],
+  };
+}
+
+const arrayMap = polyfillExplanation(
+  'Array.prototype.map',
+  '`Array.prototype.map(callback, thisArg)`',
+  'Transform each element via the callback into a NEW array of the same length.',
+  "map walks the array, calls `callback(element, index, array)` for each item, and collects the return values into a new array. The original is untouched (pure).\n\n" +
+  "Key contract: the result array has the **same length** as the source. Even sparse arrays preserve holes — the callback isn't called for holes (a subtle point that breaks naive `for` loops).\n\n" +
+  "If a second argument is provided, it becomes `this` inside the callback. Rarely used today since arrow functions handle scoping cleanly.",
+  [
+    'Array.prototype.myMap = function (callback, thisArg) {',
+    '  if (this == null) throw new TypeError("...");',
+    '  if (typeof callback !== "function") throw new TypeError("...");',
+    '  const result = new Array(this.length);',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (i in this) result[i] = callback.call(thisArg, this[i], i, this);',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, 2, 3].myMap(x => x * 2)', output: '[2, 4, 6]' },
+  'Two subtle behaviors: (1) the `i in this` check skips holes in sparse arrays, matching native behavior; (2) preallocating `new Array(this.length)` is faster than `push` for known size.',
+  {
+    0: 'Attach to `Array.prototype` using a regular `function` (not arrow) so `this` binds to the array on which `.myMap()` is called.',
+    1: 'Reject `null` / `undefined` receivers. Native throws "Cannot convert undefined or null to object" — this matches the spec\'s ToObject step.',
+    2: 'Validate the callback. Without this, calling with a non-function throws a confusing "is not a function" deep inside the loop. Fail fast at the boundary.',
+    3: 'Pre-allocate the result with the right length. `new Array(n)` reserves capacity in V8, faster than repeated `push()` which causes hidden-class transitions.',
+    4: 'Walk indices 0..length-1. Use a counter loop, not `for…of`, because we need the index and need to preserve sparse-array holes.',
+    5: '`i in this` — this is the sparse-array correctness check. For `[1, , 3]`, position 1 is a HOLE (not undefined). Native map SKIPS holes. We call the callback with `(value, index, originalArray)` and bind `thisArg` via `.call()`.',
+    7: 'Return the new array. Note: original is untouched — this is a pure transform.',
+  },
+);
+
+const arrayFilter = polyfillExplanation(
+  'Array.prototype.filter',
+  '`Array.prototype.filter(predicate, thisArg)`',
+  'Return a NEW array containing only the elements for which the predicate returns truthy.',
+  "filter walks the source, calls `predicate(item, index, array)` for each, and pushes the item to the result if the return value is truthy.\n\n" +
+  "Unlike map, the result length is variable (≤ source length). Holes in sparse arrays are skipped silently — same as map.",
+  [
+    'Array.prototype.myFilter = function (predicate, thisArg) {',
+    '  const result = [];',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (i in this && predicate.call(thisArg, this[i], i, this)) {',
+    '      result.push(this[i]);',
+    '    }',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4].myFilter(x => x > 2)', output: '[3, 4]' },
+  'Truthy/falsy coercion: anything other than 0, "", null, undefined, NaN, false passes. Be careful with `[].myFilter(Boolean)` to clear out empty/falsy values — it works but also drops 0 and "".',
+  {
+    1: 'Empty result accumulator. Unlike map, we DON\'T preallocate because the final length is unknown (≤ source length).',
+    2: 'Standard counter loop. Sparse-array hole check happens inside the condition.',
+    3: '`i in this` skips holes; `predicate.call(thisArg, ...)` invokes the predicate with the canonical `(value, index, array)` signature. Truthy return = keep. Falsy = drop.',
+    4: 'Push only the elements that survived — preserves original order.',
+    7: 'Return the filtered subset. Original is never mutated.',
+  },
+);
+
+const arrayReduce = polyfillExplanation(
+  'Array.prototype.reduce',
+  '`Array.prototype.reduce(reducer, initialValue?)`',
+  'Fold the array into a single value by applying the reducer left-to-right.',
+  "reduce is the most general iteration primitive — map, filter, find, even forEach can all be expressed as reduce.\n\n" +
+  "The reducer signature: `(accumulator, currentValue, index, array) => nextAccumulator`. Two modes:\n" +
+  "• **With initialValue:** accumulator starts as initialValue, iteration starts at index 0.\n" +
+  "• **Without initialValue:** accumulator starts as arr[0], iteration starts at index 1. Throws on empty array.\n\n" +
+  "Always pass initialValue when the result type differs from the element type, or to avoid the empty-array crash.",
+  [
+    'Array.prototype.myReduce = function (reducer, initialValue) {',
+    '  let acc = initialValue, startIdx = 0;',
+    '  if (arguments.length < 2) {',
+    '    if (this.length === 0) throw new TypeError("...");',
+    '    acc = this[0]; startIdx = 1;',
+    '  }',
+    '  for (let i = startIdx; i < this.length; i++) {',
+    '    if (i in this) acc = reducer(acc, this[i], i, this);',
+    '  }',
+    '  return acc;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4].myReduce((a, b) => a + b, 0)', output: '10' },
+  'reduceRight is the same shape iterating right-to-left. Useful for compose() and right-associative operations.',
+  {
+    1: 'Start state: accumulator and start index. Both will be reassigned if initialValue was omitted.',
+    2: 'Detect "no initial value" via `arguments.length` (the only reliable way — passing `undefined` explicitly is different from omitting the argument).',
+    3: 'The empty-array-no-initial trap. Native throws TypeError("Reduce of empty array with no initial value"). Match the message format exactly so calling code can pattern-match.',
+    4: 'When no initial value, the first element BECOMES the accumulator and we start iteration at index 1. This is why `[5].reduce(fn)` returns 5 without calling `fn` at all.',
+    6: 'Walk from startIdx. The branch above sets startIdx=0 for the with-initial case and startIdx=1 for the without-initial case.',
+    7: '`acc = reducer(acc, value, index, array)` is the entire essence of reduce. The reducer\'s job is to produce the next accumulator. Notice the same `i in this` sparse-hole skip used by map/filter.',
+    9: 'Return the final accumulator. Any value type — number, string, object, array — reduce is shape-agnostic.',
+  },
+);
+
+const arrayForEach = polyfillExplanation(
+  'Array.prototype.forEach',
+  '`Array.prototype.forEach(callback, thisArg)`',
+  'Iterate without producing a new array. Side effects only.',
+  "forEach is just a for loop with a function-call signature. It returns undefined — you can't chain it. Use map/filter/reduce when you need a result.\n\n" +
+  "Cannot be broken out of (no `break`, no early return). If you need that, use a classic `for` loop or `some`/`every` which short-circuit.",
+  [
+    'Array.prototype.myForEach = function (callback, thisArg) {',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (i in this) callback.call(thisArg, this[i], i, this);',
+    '  }',
+    '};',
+  ],
+  { input: '[1, 2, 3].myForEach(x => console.log(x))', output: 'logs 1, 2, 3' },
+  'No early termination. To stop early, use `some` (returns true to stop) or a regular for loop.',
+);
+
+const arrayFindFindIndex = polyfillExplanation(
+  'Array.find / findIndex',
+  '`Array.prototype.find(predicate)` and `findIndex(predicate)`',
+  'Return the first element (or its index) that satisfies the predicate.',
+  "find returns the matching element or undefined. findIndex returns the matching index or -1. Both short-circuit on the first match — unlike filter which scans the whole array.\n\n" +
+  "Use find when you want the element, findIndex when you want the position (to splice, replace, etc.).",
+  [
+    'Array.prototype.myFind = function (predicate) {',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (predicate(this[i], i, this)) return this[i];',
+    '  }',
+    '  return undefined;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4].myFind(x => x > 2)', output: '3' },
+  'find returns undefined for no-match (cleaner than null). To distinguish "value undefined was found" vs "no match", use findIndex (-1 means no match).',
+);
+
+const arraySomeEvery = polyfillExplanation(
+  'Array.some / every',
+  '`Array.prototype.some(predicate)` and `every(predicate)`',
+  'Boolean reducers: `some` returns true if ANY element passes; `every` returns true if ALL do.',
+  "Both short-circuit. `some` stops at the first true. `every` stops at the first false. They're the boolean counterparts to find/findIndex.\n\n" +
+  "**Edge cases for empty arrays:** `[].some(...) === false` (no element passes); `[].every(...) === true` (vacuously true — every element passes since there are none to check).",
+  [
+    'Array.prototype.mySome = function (p) {',
+    '  for (let i = 0; i < this.length; i++) if (p(this[i], i, this)) return true;',
+    '  return false;',
+    '};',
+    'Array.prototype.myEvery = function (p) {',
+    '  for (let i = 0; i < this.length; i++) if (!p(this[i], i, this)) return false;',
+    '  return true;',
+    '};',
+  ],
+  { input: '[1, 2, 3].mySome(x => x > 2)', output: 'true' },
+  '`[].every(...)` returns true (vacuously) — a common surprise. Always guard with `.length > 0` if you require at least one element.',
+);
+
+const arrayFlatFlatMap = polyfillExplanation(
+  'Array.flat / flatMap',
+  '`Array.prototype.flat(depth = 1)` and `flatMap(callback)`',
+  'flat unnests one (or more) levels of nested arrays. flatMap maps then flattens by one level.',
+  "**flat(depth):** depth defaults to 1. `flat(Infinity)` flattens fully.\n\n" +
+  "**flatMap(fn):** equivalent to `map(fn).flat(1)` — useful when each element produces a variable-length result (e.g., split words).",
+  [
+    'Array.prototype.myFlat = function (depth = 1) {',
+    '  const result = [];',
+    '  for (const item of this) {',
+    '    if (Array.isArray(item) && depth > 0) result.push(...item.myFlat(depth - 1));',
+    '    else result.push(item);',
+    '  }',
+    '  return result;',
+    '};',
+    'Array.prototype.myFlatMap = function (cb) {',
+    '  return this.map(cb).myFlat(1);',
+    '};',
+  ],
+  { input: '[[1,2],[3,[4,5]]].myFlat()', output: '[1, 2, 3, [4, 5]]' },
+  'flatMap flattens only ONE level, regardless of how nested your callback returns. For deeper flattening of map output, use map().flat(depth).',
+);
+
+const functionBind = polyfillExplanation(
+  'Function.prototype.bind',
+  '`Function.prototype.bind(thisArg, ...presetArgs)`',
+  'Return a new function with `this` permanently bound and optional preset arguments (partial application).',
+  "bind creates a NEW function that, when called, invokes the original with `this` set to `thisArg` (regardless of how the new function is called). Preset arguments are PREPENDED to whatever arguments the new function receives.\n\n" +
+  "Crucial property: the bound function ignores subsequent rebinding. `boundFn.call(otherCtx)` still uses the original thisArg.",
+  [
+    'Function.prototype.myBind = function (thisArg, ...presetArgs) {',
+    '  const fn = this;',
+    '  return function (...callArgs) {',
+    '    return fn.apply(thisArg, [...presetArgs, ...callArgs]);',
+    '  };',
+    '};',
+  ],
+  { input: 'greet.myBind({ name: "Ana" }, "Hello")("!")', output: '"Hello, Ana!"' },
+  'Arrow functions cannot be bound — their `this` is lexical. If you bind an arrow, the thisArg is silently ignored. Bind on regular functions only.',
+  {
+    0: 'Attach to `Function.prototype` with a regular function so `this` is the function being bound.',
+    1: 'Capture `this` (the original function) in a closure variable. The returned function will use this later.',
+    2: 'Return a NEW function. Whatever args it gets at call time go into `callArgs`.',
+    3: 'Invoke the original with `apply` — passes `thisArg` as the explicit context and merges presetArgs first (partial application), then the call-time args. This achieves both fixed-`this` and curry-like behavior in one mechanism.',
+  },
+);
+
+const functionCallApply = polyfillExplanation(
+  'Function.call / apply',
+  '`fn.call(thisArg, ...args)` and `fn.apply(thisArg, argsArray)`',
+  'Call a function with explicit `this`. call takes args separately; apply takes them as an array.',
+  "Both immediately invoke `fn`. The only difference is argument shape:\n" +
+  "• `fn.call(ctx, a, b, c)` — args as separate parameters.\n" +
+  "• `fn.apply(ctx, [a, b, c])` — args as one array.\n\n" +
+  "With ES2015 spread (`fn(...args)`), apply is largely redundant. call remains useful when you want to invoke a generic function on a specific object (e.g., `Array.prototype.slice.call(arguments)`).",
+  [
+    'Function.prototype.myCall = function (thisArg, ...args) {',
+    '  thisArg = thisArg ?? globalThis;',
+    '  const key = Symbol("fn");',
+    '  thisArg[key] = this;',
+    '  const result = thisArg[key](...args);',
+    '  delete thisArg[key];',
+    '  return result;',
+    '};',
+    'Function.prototype.myApply = function (thisArg, argsArray) {',
+    '  return this.myCall(thisArg, ...(argsArray ?? []));',
+    '};',
+  ],
+  { input: 'greet.myCall({ name: "Ana" }, "Hello")', output: '"Hello, Ana"' },
+  'Using a Symbol key avoids overwriting an existing property on thisArg. Modern code often uses `Reflect.apply` which is cleaner.',
+);
+
+const promiseAllExpl = polyfillExplanation(
+  'Promise.all',
+  '`Promise.all(iterable) → Promise<array>`',
+  'Wait for all promises to fulfill. If ANY rejects, fail fast with that rejection.',
+  "Returns a single Promise that fulfills with an array of resolved values (in the same order as the input). If any input rejects, the returned Promise rejects immediately with that error — no waiting for the rest.\n\n" +
+  "Empty iterable resolves immediately with `[]`. Non-Promise values are wrapped with Promise.resolve.",
+  [
+    'Promise.myAll = function (promises) {',
+    '  return new Promise((resolve, reject) => {',
+    '    const arr = [...promises];',
+    '    if (arr.length === 0) return resolve([]);',
+    '    const results = new Array(arr.length);',
+    '    let remaining = arr.length;',
+    '    arr.forEach((p, i) => {',
+    '      Promise.resolve(p).then(v => {',
+    '        results[i] = v;',
+    '        if (--remaining === 0) resolve(results);',
+    '      }, reject);',
+    '    });',
+    '  });',
+    '};',
+  ],
+  { input: 'Promise.myAll([Promise.resolve(1), Promise.resolve(2)])', output: '[1, 2]' },
+  'Fail-fast semantics: as soon as one rejects, the returned Promise rejects, but other in-flight promises CONTINUE running (you cannot cancel them). For "wait for all regardless", use allSettled.',
+  {
+    0: 'Static method on the Promise constructor, not on a prototype — matches the native API.',
+    1: 'Return a new Promise wrapped around our internal coordination logic. Caller awaits this single Promise.',
+    2: 'Spread the iterable into an array. Native accepts any iterable (Array, Set, Map, generator) — `[...iterable]` normalizes.',
+    3: 'Empty-iterable edge case: resolve immediately with `[]`. Without this, `remaining` would start at 0 and never decrement, hanging forever.',
+    4: 'Pre-allocate results array. Order MUST match input order, so we assign by index, not push.',
+    5: 'Counter to track how many promises are still pending. Decrement on each fulfillment.',
+    6: 'Loop over each input, capturing its index in the closure.',
+    7: '`Promise.resolve(p)` wraps non-promise values into a promise — supports calling with `[1, Promise.resolve(2)]`.',
+    8: 'On fulfill: store the value at the input\'s original index — preserves order even if promises settle out of order.',
+    9: 'Pre-decrement check: when the LAST promise settles, resolve the outer Promise with the full results array.',
+    10: 'Pass the rejection handler as the second `.then()` argument — that\'s how Promise.all\'s fail-fast works. The first rejection wins the race for the outer Promise; subsequent rejections are ignored (Promise can only settle once).',
+  },
+);
+
+const promiseAllSettledExpl = polyfillExplanation(
+  'Promise.allSettled',
+  '`Promise.allSettled(iterable) → Promise<array of {status, value/reason}>`',
+  'Wait for ALL promises to settle (fulfill or reject). Never rejects.',
+  "Like Promise.all but never short-circuits. Each result is `{status: 'fulfilled', value}` or `{status: 'rejected', reason}`. Use when you want every result regardless of failures.",
+  [
+    'Promise.myAllSettled = function (promises) {',
+    '  return Promise.all([...promises].map(p =>',
+    '    Promise.resolve(p).then(',
+    '      v => ({ status: "fulfilled", value: v }),',
+    '      r => ({ status: "rejected", reason: r }),',
+    '    )',
+    '  ));',
+    '};',
+  ],
+  { input: 'allSettled([Promise.resolve(1), Promise.reject(2)])', output: '[{status:"fulfilled",value:1}, {status:"rejected",reason:2}]' },
+  'Use for parallel requests where some failures are tolerable (e.g., load 10 widgets, render the ones that succeeded).',
+);
+
+const promiseRaceAny = polyfillExplanation(
+  'Promise.race / any',
+  '`Promise.race(iterable)` and `Promise.any(iterable)`',
+  'race: first to settle wins (fulfilled or rejected). any: first to FULFILL wins.',
+  "**race:** returns the first promise to settle, in either direction. Useful for timeouts: `Promise.race([fetch(...), timeout(5000)])`.\n\n" +
+  "**any:** returns the first to FULFILL. If all reject, throws AggregateError with all reasons. Useful for trying multiple sources where any success is enough.",
+  [
+    'Promise.myRace = function (promises) {',
+    '  return new Promise((resolve, reject) => {',
+    '    for (const p of promises) Promise.resolve(p).then(resolve, reject);',
+    '  });',
+    '};',
+    'Promise.myAny = function (promises) {',
+    '  return new Promise((resolve, reject) => {',
+    '    const arr = [...promises]; const errors = []; let rejected = 0;',
+    '    arr.forEach((p, i) => Promise.resolve(p).then(resolve, e => {',
+    '      errors[i] = e; if (++rejected === arr.length) reject(new AggregateError(errors));',
+    '    }));',
+    '  });',
+    '};',
+  ],
+  { input: 'race([slow, fast])', output: 'fast result' },
+  'race with timeout = standard fetch-with-timeout pattern. any is rarer but handy for parallel API fallbacks.',
+);
+
+const arrayIncludes = polyfillExplanation(
+  'Array.prototype.includes',
+  '`Array.prototype.includes(value, fromIndex = 0)`',
+  'Return true if the array contains the value. Uses SameValueZero equality (NaN === NaN is true).',
+  "Like indexOf but: (a) returns boolean not index, (b) treats NaN equally (indexOf doesn't).",
+  [
+    'Array.prototype.myIncludes = function (target, fromIndex = 0) {',
+    '  const start = fromIndex < 0 ? Math.max(0, this.length + fromIndex) : fromIndex;',
+    '  for (let i = start; i < this.length; i++) {',
+    '    if (this[i] === target || (Number.isNaN(this[i]) && Number.isNaN(target))) return true;',
+    '  }',
+    '  return false;',
+    '};',
+  ],
+  { input: '[1, NaN, 3].myIncludes(NaN)', output: 'true' },
+  'NaN handling is the key behavior — indexOf returns -1 for NaN, includes returns true. Most search bugs come from this difference.',
+);
+
+const objectAssign = polyfillExplanation(
+  'Object.assign',
+  '`Object.assign(target, ...sources)`',
+  'Copy enumerable OWN properties from sources to target. Mutates and returns target.',
+  "Sequential shallow copies. Later sources overwrite earlier ones for overlapping keys. Only OWN enumerable properties are copied — inherited or non-enumerable ones are skipped.\n\n" +
+  "Mutates the target. To avoid mutation, use Object.assign({}, ...sources) or the spread `{...a, ...b}`.",
+  [
+    'Object.myAssign = function (target, ...sources) {',
+    '  if (target == null) throw new TypeError("...");',
+    '  const to = Object(target);',
+    '  for (const src of sources) {',
+    '    if (src == null) continue;',
+    '    for (const key of Object.keys(src)) to[key] = src[key];',
+    '  }',
+    '  return to;',
+    '};',
+  ],
+  { input: 'Object.myAssign({a:1}, {b:2}, {a:3})', output: '{a: 3, b: 2}' },
+  'Shallow merge only — nested objects share references. For deep merge, use a recursive helper or a library (lodash.merge).',
+);
+
+const arrayFrom = polyfillExplanation(
+  'Array.from',
+  '`Array.from(arrayLike, mapFn?, thisArg?)`',
+  'Create a new array from an array-like or iterable. Optional mapFn applies to each.',
+  "Two source types: (1) array-likes with `length` and indexed properties (arguments, NodeList, strings), and (2) iterables (Map, Set, generators).\n\n" +
+  "The optional mapFn is more efficient than `Array.from(x).map(fn)` because it maps in a single pass without intermediate array.",
+  [
+    'Array.myFrom = function (arrLike, mapFn, thisArg) {',
+    '  const result = [];',
+    '  if (arrLike[Symbol.iterator]) {',
+    '    let i = 0;',
+    '    for (const v of arrLike) result.push(mapFn ? mapFn.call(thisArg, v, i++) : v);',
+    '  } else {',
+    '    for (let i = 0; i < arrLike.length; i++) result.push(mapFn ? mapFn.call(thisArg, arrLike[i], i) : arrLike[i]);',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: 'Array.myFrom("abc", c => c.toUpperCase())', output: '["A", "B", "C"]' },
+  'Array.from({length: n}, (_, i) => f(i)) is the canonical way to create a range or pre-fill an array — faster than push in a loop.',
+);
+
+const arraySort = polyfillExplanation(
+  'Array.prototype.sort',
+  '`Array.prototype.sort(compareFn?)`',
+  'Sort the array IN PLACE. Default comparator sorts as STRINGS (the #1 gotcha).',
+  "Without a comparator, elements are converted to strings and sorted lexicographically. `[10, 2].sort()` → `[10, 2]` (10 < 2 as strings).\n\n" +
+  "For numbers, ALWAYS pass `(a, b) => a - b` (ascending) or `(a, b) => b - a` (descending). The result must be a number; negative means a < b, positive means a > b, zero means equal.\n\n" +
+  "V8's sort is Timsort (mergesort-with-runs) — stable, O(n log n).",
+  [
+    'Array.prototype.mySort = function (compareFn) {',
+    '  // Simple insertion sort — O(n²) but stable',
+    '  for (let i = 1; i < this.length; i++) {',
+    '    let j = i;',
+    '    while (j > 0 && compare(this[j - 1], this[j]) > 0) {',
+    '      [this[j - 1], this[j]] = [this[j], this[j - 1]];',
+    '      j--;',
+    '    }',
+    '  }',
+    '  function compare(a, b) {',
+    '    if (compareFn) return compareFn(a, b);',
+    '    return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;',
+    '  }',
+    '  return this;',
+    '};',
+  ],
+  { input: '[10, 2, 5].mySort((a, b) => a - b)', output: '[2, 5, 10]' },
+  'Default string sort is the most-asked gotcha. Engine sort uses Timsort (better than insertion sort but with the same contract).',
+);
+
+const arrayIndexOf = polyfillExplanation(
+  'Array.indexOf / lastIndexOf',
+  '`Array.prototype.indexOf(value, fromIndex)` and `lastIndexOf`',
+  'Return the first (or last) index of value, or -1. Uses strict equality (===), so NaN never matches.',
+  "indexOf walks forward, lastIndexOf walks backward. Both use `===` for comparison. The NaN limitation is the difference vs `includes` — `[NaN].indexOf(NaN)` returns -1.",
+  [
+    'Array.prototype.myIndexOf = function (target, fromIndex = 0) {',
+    '  const start = fromIndex < 0 ? Math.max(0, this.length + fromIndex) : fromIndex;',
+    '  for (let i = start; i < this.length; i++) if (this[i] === target) return i;',
+    '  return -1;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 2].myIndexOf(2)', output: '1' },
+  'For NaN searches use `includes` or `findIndex(x => Number.isNaN(x))`. Negative fromIndex counts from the end.',
+);
+
+const arrayReverse = polyfillExplanation(
+  'Array.prototype.reverse',
+  '`Array.prototype.reverse()`',
+  'Reverse the array in place. Returns the same array.',
+  "Two-pointer swap from both ends inward. Same algorithm as the Reverse String challenge. Mutates the array.\n\n" +
+  "For non-mutating reverse, use ES2023 `toReversed()` or `[...arr].reverse()`.",
+  [
+    'Array.prototype.myReverse = function () {',
+    '  let l = 0, r = this.length - 1;',
+    '  while (l < r) {',
+    '    [this[l], this[r]] = [this[r], this[l]];',
+    '    l++; r--;',
+    '  }',
+    '  return this;',
+    '};',
+  ],
+  { input: '[1, 2, 3].myReverse()', output: '[3, 2, 1]' },
+  'Mutates! `const original = [1,2,3]; original.reverse()` → original is now [3,2,1]. Use `[...arr].reverse()` or `toReversed()` to keep the original intact.',
+);
+
+const arraySlice = polyfillExplanation(
+  'Array.prototype.slice',
+  '`Array.prototype.slice(start, end)`',
+  'Return a new array containing arr[start..end). Both args optional and support negative indices.',
+  "Pure — does NOT mutate the original. Negative indices count from the end: `slice(-2)` returns the last two elements. Omitting `end` slices to the end.\n\n" +
+  "Shallow copy: nested references are shared. Often used to defensively copy arrays (`[...arr]` is the modern equivalent).",
+  [
+    'Array.prototype.mySlice = function (start = 0, end = this.length) {',
+    '  const s = start < 0 ? Math.max(0, this.length + start) : Math.min(start, this.length);',
+    '  const e = end < 0 ? Math.max(0, this.length + end) : Math.min(end, this.length);',
+    '  const result = [];',
+    '  for (let i = s; i < e; i++) result.push(this[i]);',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4, 5].mySlice(1, -1)', output: '[2, 3, 4]' },
+  'slice() with no args = shallow copy. Best concise way to clone an array. `[...arr]` does the same.',
+);
+
+const arraySplice = polyfillExplanation(
+  'Array.prototype.splice',
+  '`Array.prototype.splice(start, deleteCount, ...items)`',
+  'Remove `deleteCount` items at `start` and insert new ones in their place. Three jobs in one method.',
+  "Mutates. Returns the array of REMOVED items. Variadic: passing items after deleteCount inserts them at `start`.\n\n" +
+  "**Three modes:**\n" +
+  "• `splice(i, 1)` — remove one item at i.\n" +
+  "• `splice(i, 0, x, y)` — insert x, y at i (no removal).\n" +
+  "• `splice(i, n, x)` — replace n items at i with x.",
+  [
+    'Array.prototype.mySplice = function (start, deleteCount = this.length - start, ...items) {',
+    '  start = start < 0 ? Math.max(0, this.length + start) : Math.min(start, this.length);',
+    '  const removed = [];',
+    '  for (let i = 0; i < deleteCount; i++) removed.push(this[start + i]);',
+    '  // shift / insert logic ...',
+    '  return removed;',
+    '};',
+  ],
+  { input: '[1, 2, 3, 4].mySplice(1, 2, "a", "b")', output: 'removed: [2, 3]; array now [1, "a", "b", 4]' },
+  'Mutates. ES2023 toSpliced() is the immutable equivalent — same args, returns a new array.',
+);
+
+const arrayConcat = polyfillExplanation(
+  'Array.prototype.concat',
+  '`Array.prototype.concat(...args)`',
+  'Return a new array combining the current array with args. Flattens args ONE LEVEL.',
+  "Pure. Each argument: if it's an array, its elements are spread into the result. Otherwise it's added as a single element.\n\n" +
+  "Spread (`[...a, ...b]`) is the modern equivalent and slightly more flexible.",
+  [
+    'Array.prototype.myConcat = function (...args) {',
+    '  const result = [...this];',
+    '  for (const arg of args) {',
+    '    if (Array.isArray(arg)) result.push(...arg);',
+    '    else result.push(arg);',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, 2].myConcat([3, 4], 5)', output: '[1, 2, 3, 4, 5]' },
+  'Only ONE level of flattening — `concat([[1, 2]])` gives `[..., [1, 2]]`, not `[..., 1, 2]`. For deeper, use flat().',
+);
+
+const stringPadStartEnd = polyfillExplanation(
+  'String.padStart / padEnd',
+  '`String.prototype.padStart(targetLength, padString = " ")` and `padEnd`',
+  'Pad the string with padString until it reaches targetLength. padStart pads the left; padEnd pads the right.',
+  "If already at or beyond targetLength, returns the original unchanged. If padString is multi-character, repeats and truncates to fit exactly.",
+  [
+    'String.prototype.myPadStart = function (target, pad = " ") {',
+    '  if (this.length >= target) return String(this);',
+    '  let padding = "";',
+    '  while (padding.length < target - this.length) padding += pad;',
+    '  return padding.slice(0, target - this.length) + this;',
+    '};',
+  ],
+  { input: '"42".myPadStart(5, "0")', output: '"00042"' },
+  'Classic use: zero-pad numbers for date/time formatting. Don\'t use for currency — Intl.NumberFormat is more correct.',
+);
+
+const jsonStringifyExpl = polyfillExplanation(
+  'JSON.stringify',
+  '`JSON.stringify(value, replacer, space)`',
+  'Serialize a JavaScript value to a JSON string.',
+  "Recursive descent. Strings get quotes + escapes; numbers/booleans/null serialize directly; arrays as [...]; objects as {...}. Functions, undefined, symbols are DROPPED in objects or become `null` in arrays.\n\n" +
+  "Circular references throw `TypeError`. The replacer arg can filter or transform; the space arg pretty-prints.",
+  [
+    'JSON.myStringify = function (val) {',
+    '  if (val === null) return "null";',
+    '  if (typeof val === "string") return \'"\' + val.replace(/"/g, \'\\\\"\') + \'"\';',
+    '  if (typeof val === "number" || typeof val === "boolean") return String(val);',
+    '  if (Array.isArray(val)) return "[" + val.map(JSON.myStringify).join(",") + "]";',
+    '  if (typeof val === "object") {',
+    '    const pairs = Object.keys(val).map(k => \'"\' + k + \'":\' + JSON.myStringify(val[k]));',
+    '    return "{" + pairs.join(",") + "}";',
+    '  }',
+    '  return undefined;   // function, undefined, symbol',
+    '};',
+  ],
+  { input: 'JSON.myStringify({a: 1, b: [2, 3]})', output: '\'{"a":1,"b":[2,3]}\'' },
+  'Date becomes a string. Map/Set become {}. Functions drop. The pair JSON.parse(JSON.stringify(x)) is the most-misused "deep clone" — works only for plain JSON-able data.',
+);
+
+const objectKeysValuesEntries = polyfillExplanation(
+  'Object.keys / values / entries',
+  '`Object.keys(obj)`, `Object.values(obj)`, `Object.entries(obj)`',
+  'Return arrays of OWN ENUMERABLE properties: keys, values, or [key, value] pairs.',
+  "All three iterate own enumerable string-keyed properties. Symbols and inherited properties are excluded. Order follows insertion order in modern engines.",
+  [
+    'Object.myKeys = function (obj) {',
+    '  const result = [];',
+    '  for (const key in obj) if (Object.prototype.hasOwnProperty.call(obj, key)) result.push(key);',
+    '  return result;',
+    '};',
+    'Object.myValues = obj => Object.myKeys(obj).map(k => obj[k]);',
+    'Object.myEntries = obj => Object.myKeys(obj).map(k => [k, obj[k]]);',
+  ],
+  { input: 'Object.myEntries({a: 1, b: 2})', output: '[["a", 1], ["b", 2]]' },
+  'For-in iterates inherited too (use hasOwnProperty to filter). Reflect.ownKeys includes symbols and non-enumerables.',
+);
+
+const jsonParseExpl = polyfillExplanation(
+  'JSON.parse',
+  '`JSON.parse(text, reviver?)`',
+  'Parse a JSON string into a JavaScript value via recursive descent.',
+  "State-machine parser: skip whitespace, then match on first char — `\"` (string), `{` (object), `[` (array), digit/`-` (number), `t/f` (boolean), `n` (null). Recursive for nested structures.",
+  [
+    'JSON.myParse = function (text) {',
+    '  let i = 0;',
+    '  function parse() {',
+    '    skipWs();',
+    '    const ch = text[i];',
+    '    if (ch === \'"\') return parseString();',
+    '    if (ch === "{") return parseObject();',
+    '    if (ch === "[") return parseArray();',
+    '    return parseLiteral();',
+    '  }',
+    '  return parse();',
+    '};',
+  ],
+  { input: 'JSON.myParse(\'{"a":1,"b":[2,3]}\')', output: '{a: 1, b: [2, 3]}' },
+  'Native JSON.parse is hand-tuned in C++ and much faster than any JS polyfill. Polyfill exists to TEACH the parser pattern, not for production use.',
+);
+
+const arrayIsArrayExpl = polyfillExplanation(
+  'Array.isArray',
+  '`Array.isArray(value)`',
+  'Type-check for arrays. Returns true for arrays, false for everything else (including array-likes).',
+  "Implementation uses `Object.prototype.toString.call(val) === '[object Array]'` — the tag-based check that works across realms (iframes have a different Array constructor; `instanceof Array` fails for arrays from another iframe).",
+  [
+    'Array.myIsArray = function (val) {',
+    '  return Object.prototype.toString.call(val) === "[object Array]";',
+    '};',
+  ],
+  { input: 'Array.myIsArray([1, 2])', output: 'true' },
+  'instanceof Array fails for arrays from iframes / VM contexts. Array.isArray is realm-safe. typeof [] === "object" — useless without isArray.',
+);
+
+const objectCreateExpl = polyfillExplanation(
+  'Object.create',
+  '`Object.create(proto, propertyDescriptors?)`',
+  'Create a new object with `proto` as its prototype. The classic ES5 inheritance pattern.',
+  "Implementation: create a temporary constructor with `prototype = proto`, then `new` it. Optional descriptors merge in own properties.",
+  [
+    'Object.myCreate = function (proto, descriptors) {',
+    '  function F() {}',
+    '  F.prototype = proto;',
+    '  const obj = new F();',
+    '  if (descriptors) Object.defineProperties(obj, descriptors);',
+    '  return obj;',
+    '};',
+  ],
+  { input: 'Object.myCreate({greet: () => "hi"})', output: 'obj with greet inherited' },
+  'Object.create(null) makes a "dict" object with no inherited keys — useful as a map. Object.create(SomeClass.prototype) is the pre-ES2015 way to set up inheritance.',
+);
+
+const objectFreezeExpl = polyfillExplanation(
+  'Object.freeze + deepFreeze',
+  '`Object.freeze(obj)`',
+  'Make obj immutable (shallow). Strict-mode writes throw; sloppy writes silently no-op.',
+  "Native freeze marks the object non-extensible (no new properties), each property non-configurable and non-writable. Returns the same object.\n\n" +
+  "Shallow! Nested objects are still mutable. The deepFreeze pattern recurses.",
+  [
+    'Object.myFreeze = function (obj) {',
+    '  if (Object(obj) !== obj) return obj;',
+    '  Object.preventExtensions(obj);',
+    '  for (const key of Object.getOwnPropertyNames(obj)) {',
+    '    Object.defineProperty(obj, key, { writable: false, configurable: false });',
+    '  }',
+    '  return obj;',
+    '};',
+    'function deepFreeze(obj) {',
+    '  if (Object(obj) !== obj) return obj;',
+    '  Object.values(obj).forEach(deepFreeze);',
+    '  return Object.myFreeze(obj);',
+    '};',
+  ],
+  { input: 'const o = Object.myFreeze({a: 1}); o.a = 2;', output: 'o.a still 1' },
+  'Frozen objects are not deeply frozen. To enforce real immutability, deepFreeze recursively. Even then, Date/Map/Set internals are not protected.',
+);
+
+const arrayFillExpl = polyfillExplanation(
+  'Array.prototype.fill',
+  '`Array.prototype.fill(value, start = 0, end = length)`',
+  'Fill a slice of the array with value. Mutates in place.',
+  "Variadic-position version of `for (let i=start; i<end; i++) arr[i] = value`. The same VALUE reference fills every slot — gotcha for objects.",
+  [
+    'Array.prototype.myFill = function (value, start = 0, end = this.length) {',
+    '  const s = start < 0 ? Math.max(0, this.length + start) : Math.min(start, this.length);',
+    '  const e = end < 0 ? Math.max(0, this.length + end) : Math.min(end, this.length);',
+    '  for (let i = s; i < e; i++) this[i] = value;',
+    '  return this;',
+    '};',
+  ],
+  { input: 'new Array(3).myFill(0)', output: '[0, 0, 0]' },
+  'BIG gotcha: `new Array(3).fill([])` gives three slots pointing to the SAME empty array. Pushing to one pushes to all. Use Array.from({length:3}, () => []) for fresh arrays.',
+);
+
+const stringRepeatExpl = polyfillExplanation(
+  'String.prototype.repeat',
+  '`String.prototype.repeat(count)`',
+  'Return a new string with the value repeated `count` times.',
+  "Throws RangeError on negative count or Infinity. Returns empty string for count=0. The O(log n) doubling trick squares the chunk each iteration to minimize concatenations.",
+  [
+    'String.prototype.myRepeat = function (count) {',
+    '  if (count < 0 || count === Infinity) throw new RangeError("...");',
+    '  if (count === 0) return "";',
+    '  // O(log n) doubling',
+    '  let result = "", chunk = String(this);',
+    '  while (count > 0) {',
+    '    if (count & 1) result += chunk;',
+    '    count >>= 1;',
+    '    chunk += chunk;',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '"ab".myRepeat(3)', output: '"ababab"' },
+  'Native is the fastest. Doubling polyfill is O(log n) string concats, naive is O(n) — both fast in practice for small counts.',
+);
+
+const arrayJoinExpl = polyfillExplanation(
+  'Array.prototype.join',
+  '`Array.prototype.join(separator = ",")`',
+  'Concatenate array elements into a string, separated by separator. null/undefined become empty strings.',
+  "Default separator is comma. Each element is coerced to string via String() — except null and undefined which become empty.",
+  [
+    'Array.prototype.myJoin = function (sep = ",") {',
+    '  let result = "";',
+    '  for (let i = 0; i < this.length; i++) {',
+    '    if (i > 0) result += sep;',
+    '    const v = this[i];',
+    '    if (v !== null && v !== undefined) result += String(v);',
+    '  }',
+    '  return result;',
+    '};',
+  ],
+  { input: '[1, null, 3].myJoin("-")', output: '"1--3"' },
+  '[null, undefined, NaN].join() → ",,NaN" — null/undefined drop, NaN stringifies normally. Subtle.',
+);
+
+
+// ===================================================================
+// Async / runtime challenges
+// ===================================================================
+
+const autoRetryExpl: Explanation = {
+  problem: 'Auto-Retry for Promises',
+  problemStatement:
+    'Wrap a promise-returning function so that a rejection is retried up to N times, '
+    + 'waiting longer before each attempt. Throw the last error if every attempt fails.',
+  approaches: [
+    {
+      id: 'loop',
+      name: 'Loop + exponential back-off',
+      badge: 'best',
+      intuition:
+        'The whole problem is one loop with a try/catch inside it. Attempt the call; if it '
+        + 'resolves, return immediately and the loop never continues. If it throws, remember the '
+        + 'error, sleep, and go round again.\n\n'
+        + 'The loop runs retries + 1 times, not retries times — one initial attempt plus the '
+        + 'retries. Getting that off by one is the most common mistake, and it means you either '
+        + 'call once too few or once too many.\n\n'
+        + 'Why the delay doubles: if the service is down or rate-limiting you, hammering it every '
+        + '100 ms makes things worse for everyone including you. Doubling (100, 200, 400, 800) '
+        + 'backs off fast enough to let a struggling service breathe, while still recovering '
+        + 'quickly from a one-off blip.\n\n'
+        + 'Why we keep lastErr: when everything fails, the caller needs to know WHY. Throwing a '
+        + 'generic "retries exhausted" destroys the ECONNREFUSED or the 503 that would have told '
+        + 'them what to fix. Keep the real error and re-throw it.\n\n'
+        + 'And do not sleep after the final failure — the loop is about to exit and throw, so that '
+        + 'sleep is pure added latency on the unhappy path.',
+      complexity: { time: 'O(retries)', space: 'O(1)', verdict: 'The version to write' },
+      pseudocode: [
+        'for attempt = 0 .. retries:',
+        '  try:',
+        '    return await fn()          // success exits immediately',
+        '  catch err:',
+        '    lastErr = err',
+        '    if attempt < retries:',
+        '      await sleep(delay * 2^attempt)',
+        'throw lastErr                  // the real error, not a wrapper',
+      ],
+      example: { input: 'fn fails twice then succeeds, retries = 3, delay = 100', output: 'resolves on attempt 3' },
+      steps: [
+        {
+          title: 'Attempt 0 — the call fails',
+          detail: 'First try. It rejects with "ECONNRESET", so we store the error rather than letting it escape.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 0, label: 'attempt 0', kind: 'input' }, { t: 0, label: 'reject', kind: 'skip' }] },
+          note: 'lastErr = ECONNRESET',
+        },
+        {
+          title: 'Back off 100 ms — delay × 2⁰',
+          detail: 'attempt is 0, so the wait is delay × 2⁰ = 100 ms. We are still below `retries`, so a sleep is worth paying for.',
+          pseudoLine: 6,
+          timeline: { events: [{ t: 0, label: 'fail', kind: 'skip' }, { t: 100, label: 'wait 100ms', kind: 'pending' }] },
+          computation: { label: 'back-off', lhs: '100', op: '× 2^0', rhs: '', result: '100 ms' },
+        },
+        {
+          title: 'Attempt 1 — fails again',
+          detail: 'Second try, still rejecting. lastErr is overwritten with the newer error, which is the one the caller will eventually see.',
+          pseudoLine: 4,
+          timeline: { events: [{ t: 100, label: 'attempt 1', kind: 'input' }, { t: 100, label: 'reject', kind: 'skip' }] },
+          note: 'lastErr = ECONNRESET (attempt 1)',
+        },
+        {
+          title: 'Back off 200 ms — the delay doubles',
+          detail: 'attempt is now 1, so delay × 2¹ = 200 ms. This is the exponential part: each failure buys the struggling service twice as much room.',
+          pseudoLine: 6,
+          timeline: { events: [{ t: 100, label: 'fail', kind: 'skip' }, { t: 300, label: 'wait 200ms', kind: 'pending' }] },
+          computation: { label: 'back-off', lhs: '100', op: '× 2^1', rhs: '', result: '200 ms' },
+        },
+        {
+          title: 'Attempt 2 — resolves',
+          detail: 'The call succeeds. `return await fn()` exits the function immediately, so no further attempts and no further sleeping.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 300, label: 'attempt 2', kind: 'input' }, { t: 300, label: 'resolve ✓', kind: 'fire' }] },
+          result: { found: true, value: 'resolved after 3 attempts, ~300 ms of waiting' },
+        },
+      ],
+      tradeoffs:
+        'O(retries) attempts, constant memory. Total worst-case wait is delay × (2^retries − 1), '
+        + 'which grows fast — 3 retries at 100 ms is 700 ms, but 10 retries is over 100 seconds. '
+        + 'Cap the back-off in anything real.',
+    },
+    {
+      id: 'jitter',
+      name: 'Full jitter (what you ship)',
+      badge: 'alternative',
+      intuition:
+        'Plain exponential back-off has a failure mode that only shows up at scale, and it is the '
+        + 'thing a senior interviewer is listening for.\n\n'
+        + 'Picture a service that goes down. A thousand clients all get an error at roughly the '
+        + 'same instant. Every one of them sleeps exactly 100 ms, so a thousand retries arrive '
+        + 'simultaneously. The service, which is already struggling, is hit by a synchronised wave '
+        + '— and then another at 200 ms, and another at 400 ms. The retries themselves keep it '
+        + 'down. This is the thundering herd.\n\n'
+        + 'The fix is to make the waits disagree. Instead of sleeping exactly `backoff`, sleep a '
+        + 'random amount between 0 and `backoff`. Now those thousand clients spread themselves '
+        + 'evenly across the window and arrive as a trickle rather than a wall.\n\n'
+        + "AWS published a comparison of the variants and found full jitter — random(0, backoff) — "
+        + 'beat both no jitter and half jitter on total work done and time to completion. It is '
+        + 'counter-intuitive that adding randomness makes things finish sooner, but reducing '
+        + 'contention matters more than any individual client waiting optimally.',
+      complexity: { time: 'O(retries)', space: 'O(1)', verdict: 'Correct at scale' },
+      pseudocode: [
+        'for attempt = 0 .. retries:',
+        '  try: return await fn()',
+        '  catch err:',
+        '    lastErr = err',
+        '    backoff = min(cap, base * 2^attempt)',
+        '    await sleep(random(0, backoff))   // ← the spread',
+        'throw lastErr',
+      ],
+      example: { input: '1000 clients fail at t=0, base = 100ms', output: 'retries spread across 0–100ms instead of all at 100ms' },
+      steps: [
+        {
+          title: 'Without jitter: everyone sleeps exactly 100 ms',
+          detail: 'Three clients fail together. All three compute the same back-off, so all three retry at the same instant.',
+          pseudoLine: 4,
+          timeline: {
+            events: [
+              { t: 0, label: 'A fails', kind: 'skip' }, { t: 0, label: 'B fails', kind: 'skip' }, { t: 0, label: 'C fails', kind: 'skip' },
+              { t: 100, label: 'A+B+C retry together', kind: 'fire' },
+            ],
+          },
+          note: 'The spike at 100 ms is as big as the original load.',
+        },
+        {
+          title: 'Compute the ceiling, then pick below it',
+          detail: 'backoff is still the exponential value — it is the UPPER bound now, not the wait itself.',
+          pseudoLine: 4,
+          computation: { label: 'window', lhs: 'min(cap, 100 × 2^0)', op: '=', rhs: '', result: '100 ms ceiling' },
+        },
+        {
+          title: 'Each client draws its own wait',
+          detail: 'random(0, 100) gives A 12 ms, B 61 ms, C 94 ms. The same code produced three different waits.',
+          pseudoLine: 5,
+          timeline: {
+            events: [
+              { t: 12, label: 'A retries', kind: 'fire' }, { t: 61, label: 'B retries', kind: 'fire' }, { t: 94, label: 'C retries', kind: 'fire' },
+            ],
+          },
+          note: 'Same total retries, spread over the window instead of stacked on one instant.',
+        },
+        {
+          title: 'The herd is dispersed',
+          detail: 'Peak load per instant drops by roughly the number of clients, which is often the difference between a service recovering and staying down.',
+          pseudoLine: 5,
+          result: { found: true, value: 'Peak concurrent retries: 3 → 1' },
+        },
+      ],
+      tradeoffs:
+        'Identical complexity; the only change is which number you sleep for. An individual client '
+        + 'may occasionally wait longer than it strictly needed to, and the system as a whole '
+        + 'recovers faster. Always the right trade in a shared system.',
+    },
+  ],
+};
+
+const batchPromisesExpl: Explanation = {
+  problem: 'Batch Promises by Concurrency',
+  problemStatement:
+    'Run an array of async tasks with at most N in flight at any moment, returning the results '
+    + 'in the original order.',
+  approaches: [
+    {
+      id: 'chunk',
+      name: 'Chunk into groups of N',
+      badge: 'baseline',
+      intuition:
+        'The obvious reading of "run 5 at a time" is: slice the list into groups of 5 and '
+        + 'Promise.all each group in turn. It is three lines and it looks right.\n\n'
+        + 'The flaw only shows up when the tasks take different amounts of time — which is always, '
+        + 'because they are network calls. Promise.all waits for the SLOWEST member of the chunk. '
+        + 'So if one task in a group of five takes 3 seconds and the other four take 50 ms, you '
+        + 'spend 2.95 seconds running exactly one task while four slots sit empty.\n\n'
+        + 'You have not built a concurrency limit. You have built a lock-step batch processor, and '
+        + 'its throughput is set by the slowest item in each group rather than by your cap.\n\n'
+        + 'Recognising this distinction is the entire point of the question. Interviewers ask it '
+        + 'because the naive answer runs correctly and produces the right output — it is only '
+        + 'slow, which is the kind of bug that survives code review.',
+      complexity: { time: 'O(n) tasks, Σ max(chunk)', space: 'O(n)', verdict: 'Correct but stalls' },
+      pseudocode: [
+        'for i = 0; i < tasks.length; i += N:',
+        '  chunk = tasks[i .. i+N]',
+        '  results.push(...await Promise.all(chunk))   // ← waits for the slowest',
+        'return results',
+      ],
+      example: { input: 'durations [60, 5, 5, 5], cap 2', output: 'takes 60 + 5 = 65ms' },
+      steps: [
+        {
+          title: 'Chunk 1: tasks 0 and 1 start together',
+          detail: 'Task 0 needs 60 ms, task 1 needs 5 ms. Both begin at t = 0.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 0, label: 'task0 (60ms)', kind: 'input' }, { t: 0, label: 'task1 (5ms)', kind: 'input' }] },
+        },
+        {
+          title: 'Task 1 finishes at 5 ms — and the slot goes idle',
+          detail: 'There is work waiting (tasks 2 and 3), but Promise.all has not resolved, so nothing can start. This is the whole problem.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 5, label: 'task1 done', kind: 'fire' }, { t: 5, label: 'slot idle 55ms', kind: 'pending' }] },
+          note: 'One of your two slots is now wasted until t = 60.',
+        },
+        {
+          title: 'Task 0 finally finishes at 60 ms',
+          detail: 'Only now does Promise.all resolve and the next chunk begin.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 60, label: 'task0 done → chunk resolves', kind: 'fire' }] },
+        },
+        {
+          title: 'Chunk 2 runs: 5 more ms',
+          detail: 'Total 65 ms. The pool version below does the same work in 60 ms, because it never leaves a slot idle.',
+          pseudoLine: 3,
+          result: { found: true, value: '65 ms — 55 of them with a slot doing nothing' },
+        },
+      ],
+      tradeoffs:
+        'Simple and order-preserving, but throughput is governed by the slowest task in each group. '
+        + 'The more variable your task durations, the worse it gets.',
+    },
+    {
+      id: 'pool',
+      name: 'Worker pool over a shared cursor',
+      badge: 'best',
+      intuition:
+        'Stop thinking about groups and think about workers. Start exactly N of them. Each one '
+        + 'loops: take the next unclaimed index, await that task, repeat until the list runs out.\n\n'
+        + 'A worker that finishes a fast task immediately grabs more work instead of waiting for '
+        + 'its peers. There are always N tasks in flight until there is genuinely nothing left, '
+        + 'which is what a concurrency cap is supposed to mean.\n\n'
+        + 'The shared cursor is the coordination, and it is safe for a reason worth stating out '
+        + 'loud: JavaScript is single-threaded, so `cursor++` — read, increment, write — cannot be '
+        + 'interrupted midway. No two workers can ever claim the same index. In a language with '
+        + 'real threads this line would need an atomic or a mutex, and saying so is a good signal.\n\n'
+        + 'Order is preserved by writing to results[i] rather than pushing. Push would record '
+        + 'completion order, so a fast task would land ahead of a slow one that started first, and '
+        + 'the output would be shuffled.',
+      complexity: { time: 'O(n) tasks, ≈ Σ/N wall clock', space: 'O(n)', verdict: 'BEST' },
+      pseudocode: [
+        'results = new Array(tasks.length)',
+        'cursor = 0',
+        'async worker():',
+        '  while cursor < tasks.length:',
+        '    i = cursor++            // atomic: JS is single-threaded',
+        '    results[i] = await tasks[i]()',
+        'await Promise.all(N workers)',
+        'return results',
+      ],
+      example: { input: 'durations [60, 5, 5, 5], cap 2', output: 'takes 60ms — no idle slot' },
+      steps: [
+        {
+          title: 'Two workers start; cursor is 0',
+          detail: 'Worker A claims index 0 (cursor becomes 1), worker B claims index 1 (cursor becomes 2).',
+          pseudoLine: 4,
+          timeline: { events: [{ t: 0, label: 'A→task0 (60ms)', kind: 'input' }, { t: 0, label: 'B→task1 (5ms)', kind: 'input' }] },
+          note: 'cursor = 2',
+        },
+        {
+          title: 'B finishes at 5 ms and immediately takes more',
+          detail: 'This is the difference. B does not wait for A — it claims index 2 and starts straight away.',
+          pseudoLine: 4,
+          timeline: { events: [{ t: 5, label: 'B done → B→task2', kind: 'fire' }] },
+          computation: { label: 'cursor', lhs: '2', op: '++', rhs: '', result: '3' },
+        },
+        {
+          title: 'B finishes again at 10 ms, takes the last one',
+          detail: 'Worker B has now run three tasks while worker A is still on its first. The cap of 2 was never exceeded and never under-used.',
+          pseudoLine: 5,
+          timeline: { events: [{ t: 10, label: 'B done → B→task3', kind: 'fire' }] },
+          note: 'cursor = 4 — the list is exhausted, so no new worker loop will claim anything.',
+        },
+        {
+          title: 'B exits its loop; A is still running',
+          detail: 'cursor is past the end, so B’s while condition fails and its promise resolves. Promise.all still waits on A.',
+          pseudoLine: 3,
+          timeline: { events: [{ t: 15, label: 'B exits', kind: 'skip' }, { t: 60, label: 'A finishes', kind: 'fire' }] },
+        },
+        {
+          title: 'Done in 60 ms, results in input order',
+          detail: 'Writing into results[i] means index 3 sits at position 3 even though it finished second. Push would have given [1, 2, 3, 0]’s values in the wrong slots.',
+          pseudoLine: 7,
+          result: { found: true, value: '60 ms vs the chunked 65 ms — and the gap widens with more variance' },
+        },
+      ],
+      tradeoffs:
+        'Same O(n) work, strictly better wall-clock time, and never exceeds the cap. Needs the '
+        + 'full task list up front; if tasks arrive over time you want the queue-based TaskRunner '
+        + 'instead. Fails fast on the first rejection — use the allSettled variant for bulk imports.',
+    },
+  ],
+};
+
+const asyncSeriesExpl: Explanation = {
+  problem: 'Async Tasks in Series',
+  problemStatement: 'Run an array of async functions strictly one at a time, collecting results in order.',
+  approaches: [
+    {
+      id: 'forof',
+      name: 'for-of + await',
+      badge: 'best',
+      intuition:
+        'This is one of the rare questions where the correct answer is the boring one, and the '
+        + 'interest is entirely in what it is being contrasted against.\n\n'
+        + '`await` inside a for-of loop genuinely suspends the loop body. The function pauses, the '
+        + 'event loop goes off and does other things, and when the promise settles execution '
+        + 'resumes at the same line with the value. Task N + 1 cannot begin until task N has '
+        + 'finished, which is exactly the requirement.\n\n'
+        + 'The reason this works while forEach does not comes down to what each construct does '
+        + 'with the callback’s return value. A for-of loop is real control flow — the `await` '
+        + 'belongs to the enclosing async function and suspends it. forEach takes a function and '
+        + 'throws away whatever it returns; an async callback returns a promise, forEach discards '
+        + 'it, and the loop races on to the next element without waiting for anything.\n\n'
+        + 'So forEach with an async callback does not run in series, does not run in parallel in '
+        + 'any controlled way, and does not let you know when it finished. It is not a slower '
+        + 'version of the right answer — it is unsynchronised.',
+      complexity: { time: 'O(Σ durations)', space: 'O(n)', verdict: 'BEST' },
+      pseudocode: [
+        'results = []',
+        'for task of tasks:',
+        '  results.push(await task())   // ← suspends the LOOP',
+        'return results',
+      ],
+      example: { input: '[slow(20ms), fast(5ms), fast(1ms)]', output: "['a','b','c'] — in that order, 26ms total" },
+      steps: [
+        {
+          title: 'Task A starts — the loop is suspended',
+          detail: 'await hands control back to the event loop. Nothing else in this function runs until A settles.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 0, label: 'A starts (20ms)', kind: 'input' }, { t: 0, label: 'loop suspended', kind: 'pending' }] },
+        },
+        {
+          title: 'A resolves at 20 ms; only now does B start',
+          detail: 'The loop resumes at the same line, pushes A’s value, then moves to the next iteration.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 20, label: "A → 'a'", kind: 'fire' }, { t: 20, label: 'B starts (5ms)', kind: 'input' }] },
+          note: "results = ['a']",
+        },
+        {
+          title: 'B resolves at 25 ms, then C runs',
+          detail: 'Each result is appended as it arrives, and because the loop is serial, arrival order IS input order.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 25, label: "B → 'b'", kind: 'fire' }, { t: 26, label: "C → 'c'", kind: 'fire' }] },
+          note: "results = ['a', 'b', 'c']",
+        },
+        {
+          title: 'Total 26 ms — the sum, not the max',
+          detail: 'Promise.all would have finished in 20 ms (the slowest task). Serial costs you that difference, and buys ordering and resource safety.',
+          pseudoLine: 3,
+          result: { found: true, value: "['a','b','c'] in 26 ms (20 + 5 + 1)" },
+        },
+      ],
+      tradeoffs:
+        'Slowest possible schedule — total time is the sum of every duration. That is the price of '
+        + 'sequencing. Only pay it when tasks depend on each other or must not overload a resource.',
+    },
+    {
+      id: 'foreach',
+      name: 'forEach + async — the trap',
+      badge: 'baseline',
+      intuition:
+        'This is the single most common async bug in JavaScript, and the reason it is so common is '
+        + 'that it looks identical to the correct version. There is an `await` right there in the '
+        + 'body. It reads like it waits.\n\n'
+        + 'It does not. `forEach` was specified long before promises existed. Its contract is: call '
+        + 'this function once per element, ignore what it returns. An async function returns a '
+        + 'promise immediately — at its first await — so forEach receives a pending promise, '
+        + 'discards it, and moves to the next element instantly.\n\n'
+        + 'The observable result is that forEach returns straight away, all the tasks are in flight '
+        + 'at once, and the array you were populating is still empty when you read it. You get an '
+        + 'empty result and no error — the worst combination, because there is nothing to debug.\n\n'
+        + '`map` has the same problem with one crucial difference: map DOES return the array of '
+        + 'promises, so `await Promise.all(arr.map(async ...))` is correct — for parallel execution. '
+        + 'This is precisely what typescript-eslint’s `no-misused-promises` rule exists to catch.',
+      complexity: { time: 'returns instantly', space: 'O(n)', verdict: 'BROKEN — know why' },
+      pseudocode: [
+        'results = []',
+        'tasks.forEach(async (task) => {',
+        '  results.push(await task())   // ← nothing awaits this callback',
+        '})',
+        'return results                  // ← still empty',
+      ],
+      example: { input: '[fast(5ms), fast(5ms)]', output: '[] — returned before either finished' },
+      steps: [
+        {
+          title: 'forEach calls the first callback',
+          detail: 'The async callback runs until its first await, then returns a pending promise. forEach drops it on the floor.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 0, label: 'cb1 starts, returns promise', kind: 'input' }, { t: 0, label: 'promise discarded', kind: 'skip' }] },
+        },
+        {
+          title: 'forEach immediately calls the second — no waiting',
+          detail: 'Both tasks are now running concurrently. This is not series; it is not even controlled parallelism.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 0, label: 'cb2 starts too', kind: 'input' }] },
+          note: 'Two tasks in flight, zero of them awaited.',
+        },
+        {
+          title: 'forEach returns; the function returns []',
+          detail: 'We are at the return statement at t ≈ 0. Nothing has pushed anything yet, because nothing has resolved.',
+          pseudoLine: 4,
+          result: { found: false, value: 'returned [] — empty, with no error' },
+        },
+        {
+          title: '5 ms later the pushes finally happen — into an array nobody is reading',
+          detail: 'The work completes and mutates the array, long after the caller received the empty version. On a good day you notice. On a bad day it is a flaky test.',
+          pseudoLine: 2,
+          timeline: { events: [{ t: 5, label: 'push x2 (too late)', kind: 'fire' }] },
+          note: 'Fix: for-of + await for series, or await Promise.all(map(...)) for parallel.',
+        },
+      ],
+      tradeoffs:
+        'Never correct for sequencing. Included because naming this failure unprompted is the real '
+        + 'signal the question is testing.',
+    },
+  ],
+};
+
+const useStateExpl: Explanation = {
+  problem: 'Implement useState (Basic)',
+  problemStatement:
+    'Build a minimal useState: hold a value, allow direct and functional updates, and trigger a '
+    + 're-render on each set.',
+  approaches: [
+    {
+      id: 'closure',
+      name: 'Closure over one cell',
+      badge: 'best',
+      intuition:
+        'State that survives across calls needs somewhere to live that is neither a local variable '
+        + '(destroyed on return) nor a global (shared by everyone). A closure is exactly that: '
+        + '`value` lives in createState’s scope, and the two functions returned both capture it.\n\n'
+        + 'A getter is returned rather than the raw value because a plain value would be a '
+        + 'snapshot — frozen at the moment of the call, unable to reflect any later set. Real React '
+        + 'does hand you a plain value, but only because it re-invokes your whole component on '
+        + 'every update, so `count` is a brand-new const each render. With no reconciler, a getter '
+        + 'is the honest model.\n\n'
+        + 'The functional form is the part worth understanding. `setValue(v => v + 1)` reads the '
+        + 'CURRENT cell at the moment the update is applied, rather than a value captured earlier. '
+        + 'That is why setCount(c => c + 1) works inside a setInterval and setCount(count + 1) '
+        + 'silently does not: the interval callback closed over `count` from the render that '
+        + 'created it, so it adds 1 to 0 forever.',
+      complexity: { time: 'O(1) per op', space: 'O(1)', verdict: 'Start here' },
+      pseudocode: [
+        'function createState(initial, render):',
+        '  let value = initial              // lives in the closure',
+        '  getValue = () => value',
+        '  setValue = (next) =>',
+        '    value = isFunction(next) ? next(value) : next',
+        '    render(value)',
+        '  return [getValue, setValue]',
+      ],
+      example: { input: 'createState(0); set(5); set(c => c + 1)', output: '6, with render called twice' },
+      steps: [
+        {
+          title: 'createState(0) captures the cell',
+          detail: 'value = 0 lives in the closure. Both returned functions share that one binding — not a copy of it.',
+          pseudoLine: 1,
+          map: { entries: [{ key: 'value', value: 0, highlight: 'new' }] },
+        },
+        {
+          title: 'setValue(5) — the direct form',
+          detail: '5 is not a function, so it is used as-is. The cell is overwritten and render is notified.',
+          pseudoLine: 4,
+          map: { entries: [{ key: 'value', value: 5, highlight: 'hit' }] },
+          computation: { label: 'update', lhs: '0', op: '→', rhs: '5', result: 'render(5)' },
+        },
+        {
+          title: 'setValue(c => c + 1) — the functional form',
+          detail: 'This time `next` IS a function, so it is invoked with the current cell value. It receives 5, not the 0 it might have closed over.',
+          pseudoLine: 4,
+          computation: { label: 'next(value)', lhs: 'c => c + 1', op: 'applied to', rhs: '5', result: '6' },
+        },
+        {
+          title: 'Cell is 6; render fires again',
+          detail: 'Two sets, two renders. Real React would batch these into one — see the batched variant in the solution.',
+          pseudoLine: 5,
+          map: { entries: [{ key: 'value', value: 6, highlight: 'hit' }] },
+          result: { found: true, value: 'value = 6, render called with 5 then 6' },
+        },
+      ],
+      tradeoffs:
+        'Models one state cell perfectly and explains the functional-update form. Does not explain '
+        + 'how React keeps MANY hooks apart — for that, see the array + cursor approach.',
+    },
+    {
+      id: 'cursor',
+      name: 'Array + cursor (how React really does it)',
+      badge: 'alternative',
+      intuition:
+        'The closure version handles one piece of state. A component calls useState five times and '
+        + 'somehow each call gets its own cell — with no name, no key, nothing to tell them apart. '
+        + 'How?\n\n'
+        + 'By position. React keeps an array of hook state on the fiber and a cursor that starts at '
+        + '0 and advances by one on every hook call. The first useState in a component is slot 0, '
+        + 'the second is slot 1, and so on. Before each render the cursor is rewound to 0, so the '
+        + 'same call reaches the same slot every time.\n\n'
+        + 'This is the entire reason for the rules of hooks, and it makes them stop feeling '
+        + 'arbitrary. Put a useState behind an `if` and one render calls three hooks while the next '
+        + 'calls two. Every slot after the conditional shifts by one. Your `username` string is now '
+        + 'read from the slot holding `isOpen`, and your setter writes over something unrelated.\n\n'
+        + 'Nothing throws. The types are fine. You just get impossible state — which is why the '
+        + 'lint rule is an error rather than a warning.',
+      complexity: { time: 'O(1) per hook', space: 'O(hooks)', verdict: 'THE insight' },
+      pseudocode: [
+        'hooks = []          // per-component state array',
+        'cursor = 0',
+        '',
+        'function useState(initial):',
+        '  slot = cursor++                     // claim by POSITION',
+        '  if hooks[slot] === undefined: hooks[slot] = initial',
+        '  setState = (next) => { hooks[slot] = ...; render() }',
+        '  return [hooks[slot], setState]',
+        '',
+        'function render(Component):',
+        '  cursor = 0                          // ← rewind every render',
+        '  Component()',
+      ],
+      example: { input: 'useState(0) then useState("ada"), twice', output: 'slot 0 → count, slot 1 → name, stable across renders' },
+      steps: [
+        {
+          title: 'Render 1 begins — cursor rewound to 0',
+          detail: 'Before calling the component, the cursor resets. This is what makes position a stable identity.',
+          pseudoLine: 10,
+          array: { cells: [{ value: 'empty' }, { value: 'empty' }], pointers: [{ index: 0, label: 'cursor', color: 'indigo' }] },
+        },
+        {
+          title: 'First useState(0) claims slot 0',
+          detail: 'cursor++ returns 0 and leaves cursor at 1. Slot 0 is undefined, so it is initialised to 0.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 0, highlight: 'new' }, { value: 'empty' }], pointers: [{ index: 1, label: 'cursor', color: 'indigo' }] },
+        },
+        {
+          title: 'Second useState("ada") claims slot 1',
+          detail: 'Different call site, different slot — purely because it ran second.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 0 }, { value: 'ada', highlight: 'new' }], pointers: [{ index: 2, label: 'cursor', color: 'indigo' }] },
+        },
+        {
+          title: 'setCount fires — render 2, cursor back to 0',
+          detail: 'The array persists; only the cursor resets. The same two calls now find their existing values instead of initialising.',
+          pseudoLine: 10,
+          array: { cells: [{ value: 1, highlight: 'hit' }, { value: 'ada' }], pointers: [{ index: 0, label: 'cursor', color: 'indigo' }] },
+          note: 'hooks[0] is 1 now, so `initial` is ignored — that is why useState(0) does not reset to 0 on every render.',
+        },
+        {
+          title: 'Now break it: wrap the first hook in an if',
+          detail: 'If the condition goes false, the name hook runs FIRST and reads slot 0 — the count. A number arrives where a string was expected.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 1, highlight: 'compare' }, { value: 'ada' }], pointers: [{ index: 0, label: 'name reads here!', color: 'red' }] },
+          result: { found: false, value: 'Silent corruption — no error, just wrong state. Hence the rules of hooks.' },
+        },
+      ],
+      tradeoffs:
+        'Explains hook identity, the rules of hooks and why useState(initial) does not re-initialise '
+        + 'on re-render. React’s real implementation is a linked list on the fiber rather than a '
+        + 'plain array, but the positional principle is identical.',
+    },
+  ],
+};
+
+const jsonPrettifierExpl: Explanation = {
+  problem: 'JSON Prettifier',
+  problemStatement:
+    'Serialise a value to indented JSON, matching JSON.stringify(value, null, indent) exactly — '
+    + 'including its edge cases.',
+  approaches: [
+    {
+      id: 'recursive',
+      name: 'Recursive descent',
+      badge: 'best',
+      intuition:
+        'JSON is a recursive grammar: a value is a primitive, or an array of values, or an object '
+        + 'of key-to-value. So the serialiser is one function that dispatches on type and calls '
+        + 'itself for anything nested, carrying the current depth so it knows how far to indent.\n\n'
+        + 'The algorithm is easy. What the question actually tests is whether you know the edge '
+        + 'cases, because there are five and each one is a real bug:\n\n'
+        + '1. typeof null === "object" — a JavaScript wart. Test null BEFORE the object branch or '
+        + 'Object.entries(null) throws.\n\n'
+        + '2. An empty array prints as [] and an empty object as {} — no inner newline. Handle this '
+        + 'explicitly or you emit "[\\n  \\n]", which parses but looks broken.\n\n'
+        + '3. undefined, functions and symbols are DROPPED from objects but become null inside '
+        + 'arrays. The asymmetry exists because dropping an array element would shift every '
+        + 'later index, silently changing the data.\n\n'
+        + '4. NaN and Infinity serialise as null. JSON has no way to spell them.\n\n'
+        + '5. Strings need escaping, and control characters below 0x20 need the \\uXXXX form — '
+        + 'otherwise you emit a string that will not parse back.',
+      complexity: { time: 'O(n)', space: 'O(d)', verdict: 'BEST — d = nesting depth' },
+      pseudocode: [
+        'walk(v, depth):',
+        '  if v === null: return "null"        // BEFORE the object check',
+        '  if primitive: return escaped form',
+        '  if array:',
+        '    if empty: return "[]"',
+        '    return "[\\n" + items.map(walk(_, depth+1)) + "\\n" + pad(depth) + "]"',
+        '  if object:',
+        '    skip keys whose value serialises to undefined',
+        '    if none left: return "{}"',
+        '    return "{\\n" + entries + "\\n" + pad(depth) + "}"',
+      ],
+      example: { input: '{ a: 1, b: [2, 3] }', output: '{\n  "a": 1,\n  "b": [\n    2,\n    3\n  ]\n}' },
+      steps: [
+        {
+          title: 'walk({a:1, b:[2,3]}, depth 0)',
+          detail: 'Not null, not primitive, not an array — so the object branch. Two entries to emit at depth 1.',
+          pseudoLine: 6,
+          callStack: { frames: [{ call: 'walk(obj, 0)', status: 'active' }] },
+        },
+        {
+          title: 'Key "a": walk(1, depth 1) returns "1"',
+          detail: 'A number is a leaf — it returns immediately without recursing. Prefixed with 2 spaces of padding for depth 1.',
+          pseudoLine: 2,
+          callStack: { frames: [{ call: 'walk(obj, 0)', status: 'pending' }, { call: 'walk(1, 1)', status: 'returned', returns: '"1"' }] },
+        },
+        {
+          title: 'Key "b": walk([2,3], depth 1) recurses',
+          detail: 'An array, and not empty, so each element is walked at depth 2 — which is where the four-space indent comes from.',
+          pseudoLine: 5,
+          callStack: { frames: [{ call: 'walk(obj, 0)', status: 'pending' }, { call: 'walk([2,3], 1)', status: 'active' }] },
+        },
+        {
+          title: 'Elements 2 and 3 return at depth 2',
+          detail: 'Both leaves. The array joins them with ",\\n" and closes with its own bracket at depth 1.',
+          pseudoLine: 5,
+          callStack: {
+            frames: [
+              { call: 'walk(obj, 0)', status: 'pending' },
+              { call: 'walk([2,3], 1)', status: 'pending' },
+              { call: 'walk(2, 2)', status: 'returned', returns: '"2"' },
+              { call: 'walk(3, 2)', status: 'returned', returns: '"3"' },
+            ],
+          },
+        },
+        {
+          title: 'The stack unwinds and the string assembles',
+          detail: 'Each frame returns its finished fragment to its caller. Depth was carried down; text comes back up.',
+          pseudoLine: 8,
+          callStack: { frames: [{ call: 'walk(obj, 0)', status: 'returned', returns: 'full string' }] },
+          result: { found: true, value: '{\n  "a": 1,\n  "b": [\n    2,\n    3\n  ]\n}' },
+        },
+        {
+          title: 'The edge case that catches people: { x: undefined }',
+          detail: 'walk returns undefined for the value, so the key is skipped entirely. No entries remain, so the result is "{}" — not "{\\n\\n}".',
+          pseudoLine: 8,
+          note: 'Inside an ARRAY the same undefined becomes null, because dropping it would shift every later index.',
+          result: { found: true, value: '{ x: undefined } → "{}"   but   [undefined] → "[\n  null\n]"' },
+        },
+      ],
+      tradeoffs:
+        'O(n) in total output, O(d) stack for nesting depth. A deeply nested structure can overflow '
+        + 'the stack, and a circular reference recurses forever — use the WeakSet variant for '
+        + 'anything you did not construct yourself.',
+    },
+    {
+      id: 'reindent',
+      name: 'Re-indent a compact string',
+      badge: 'alternative',
+      intuition:
+        'If JSON.stringify already gives you a compact string, why not just walk the characters and '
+        + 'insert newlines and padding at the punctuation? Depth goes up on { and [, down on } and '
+        + '], and a newline follows every comma.\n\n'
+        + 'The catch is that every one of those structural characters can also appear INSIDE a '
+        + 'string value. {"note":"a}b"} has a closing brace in the middle of a quoted string, and a '
+        + 'naive scanner treats it as the end of the object — corrupting the output from that point '
+        + 'onward.\n\n'
+        + 'So you have to track whether you are inside a string, which means tracking escapes too, '
+        + 'because \\" is a quote that does NOT end the string. At that point you have written the '
+        + 'beginnings of a tokeniser, and you are doing more work than just walking the value.\n\n'
+        + 'This is a useful thing to have thought about, because it generalises: any time you are '
+        + 'tempted to manipulate structured text with string operations, the escaped-delimiter case '
+        + 'is what breaks it. It is the same reason parsing HTML with regex fails.',
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Fragile — know why' },
+      pseudocode: [
+        'compact = JSON.stringify(value)',
+        'for ch of compact:',
+        '  if inString:',
+        '    handle escape; if unescaped quote -> inString = false',
+        '  else if ch is quote: inString = true',
+        '  else if ch is { or [: depth++, emit ch + newline + pad',
+        '  else if ch is } or ]: depth--, emit newline + pad + ch',
+        '  else if ch is comma: emit ",\\n" + pad',
+      ],
+      example: { input: '{"note":"a}b"}', output: 'correct only with the inString flag' },
+      steps: [
+        {
+          title: 'Scanning {"note":"a}b"} — the opening brace',
+          detail: 'Not in a string, so this is structural. depth becomes 1 and we emit a newline.',
+          pseudoLine: 5,
+          array: { cells: [{ value: '{', highlight: 'i' }, { value: '"' }, { value: 'note' }, { value: '"' }, { value: ':' }, { value: '"' }, { value: 'a' }, { value: '}' }, { value: 'b' }, { value: '"' }, { value: '}' }] },
+          note: 'depth = 1',
+        },
+        {
+          title: 'A quote flips inString on',
+          detail: 'Everything until the matching unescaped quote is content, not syntax.',
+          pseudoLine: 4,
+          array: { cells: [{ value: '{' }, { value: '"', highlight: 'new' }, { value: 'note' }, { value: '"' }, { value: ':' }, { value: '"' }, { value: 'a' }, { value: '}' }, { value: 'b' }, { value: '"' }, { value: '}' }] },
+          note: 'inString = true',
+        },
+        {
+          title: 'The brace inside the string — the whole point',
+          detail: 'inString is true, so this } is copied verbatim. Without the flag, depth would drop to 0 here and every subsequent line would be mis-indented.',
+          pseudoLine: 2,
+          array: { cells: [{ value: '{' }, { value: '"' }, { value: 'note' }, { value: '"' }, { value: ':' }, { value: '"' }, { value: 'a' }, { value: '}', highlight: 'found' }, { value: 'b' }, { value: '"' }, { value: '}' }] },
+          lookupOutcome: { kind: 'hit', key: '} inside string', at: 'copied literally, depth untouched' },
+        },
+        {
+          title: 'The real closing brace',
+          detail: 'inString is false again, so this one is structural: depth back to 0 and the object closes.',
+          pseudoLine: 6,
+          array: { cells: [{ value: '{' }, { value: '"' }, { value: 'note' }, { value: '"' }, { value: ':' }, { value: '"' }, { value: 'a' }, { value: '}' }, { value: 'b' }, { value: '"' }, { value: '}', highlight: 'found' }] },
+          result: { found: true, value: 'Correct — but only because of the inString flag' },
+        },
+      ],
+      tradeoffs:
+        'Same O(n), but O(n) extra space for the compact string and a scanner you have to get '
+        + 'exactly right. Use only when you already have JSON text and no value to walk.',
+    },
+  ],
+};
+
+const taskRunnerExpl: Explanation = {
+  problem: 'Task Runner with Concurrency Control',
+  problemStatement:
+    'A class that accepts tasks at any time and runs at most N concurrently, where each add() '
+    + 'returns a promise for that task’s result.',
+  approaches: [
+    {
+      id: 'queue',
+      name: 'Counter + queue, drained on settle',
+      badge: 'best',
+      intuition:
+        'This differs from "run this array with a cap" in one way that changes the whole design: '
+        + 'tasks arrive over time. There is no list to divide up, so a worker pool cannot work — '
+        + 'workers would exit the moment the queue emptied and nothing would pick up later '
+        + 'arrivals.\n\n'
+        + 'Instead, keep a counter of what is running and a queue of what is waiting. add() pushes '
+        + 'and then pokes the drain. The drain starts tasks while there is spare capacity. Every '
+        + 'task, on finishing, decrements and pokes the drain again — so completion is what pulls '
+        + 'the next item through.\n\n'
+        + 'Two details carry the whole implementation.\n\n'
+        + 'First: add() has to return a promise for a task that has not started yet. You cannot '
+        + 'return fn()’s promise because you have not called fn. So you construct a promise and '
+        + 'stash its resolve and reject alongside the task in the queue, to be wired up when it '
+        + 'eventually runs.\n\n'
+        + 'Second: the decrement belongs in finally, not on the success path. Put it after a .then '
+        + 'and a rejecting task never gives its slot back. Your effective concurrency drops by one '
+        + 'with each failure until it reaches zero, at which point the runner silently stops '
+        + 'forever — a queue full of work and nothing running. That is a genuinely nasty production '
+        + 'bug because it presents as a hang, not an error.',
+      complexity: { time: 'O(1) per add', space: 'O(queued)', verdict: 'BEST' },
+      pseudocode: [
+        'add(fn):',
+        '  return new Promise((resolve, reject) =>',
+        '    queue.push({ fn, resolve, reject })   // capture for later',
+        '    drain())',
+        '',
+        'drain():',
+        '  while running < cap and queue not empty:',
+        '    { fn, resolve, reject } = queue.shift()',
+        '    running++',
+        '    Promise.resolve().then(fn)            // catches sync throws too',
+        '      .then(resolve, reject)',
+        '      .finally(() => { running--; drain() })   // ← finally, always',
+      ],
+      example: { input: 'cap 2, four tasks added at once', output: 'two start, two queue, each completion pulls the next' },
+      steps: [
+        {
+          title: 'add(A) — queue it, then drain',
+          detail: 'A promise is created and its resolve/reject stored with the task. The caller can await this before A has run a single line.',
+          pseudoLine: 2,
+          stack: { items: [{ value: 'A', highlight: 'new' }], action: 'push' },
+          note: 'running = 0, queued = 1',
+        },
+        {
+          title: 'drain starts A — capacity 1 of 2 used',
+          detail: 'running < cap, so A is shifted off and started. running becomes 1.',
+          pseudoLine: 8,
+          stack: { items: [], action: 'pop' },
+          computation: { label: 'running', lhs: '0', op: '+1', rhs: '', result: '1 of 2' },
+        },
+        {
+          title: 'add(B), add(C), add(D) in quick succession',
+          detail: 'B starts immediately (capacity 2 of 2). C and D are queued — drain’s while condition now fails.',
+          pseudoLine: 6,
+          stack: { items: [{ value: 'C' }, { value: 'D' }], action: 'idle' },
+          note: 'running = 2 (A, B) — at the cap. queued = 2 (C, D).',
+        },
+        {
+          title: 'B finishes — finally fires',
+          detail: 'B’s caller gets its value via .then(resolve), then finally decrements running to 1 and calls drain again.',
+          pseudoLine: 11,
+          computation: { label: 'running', lhs: '2', op: '-1', rhs: '', result: '1 of 2' },
+        },
+        {
+          title: 'The re-entrant drain pulls C through',
+          detail: 'This is the engine of the whole class: a completion is what starts the next task. No polling, no timers.',
+          pseudoLine: 8,
+          stack: { items: [{ value: 'D' }], action: 'pop' },
+          note: 'running = 2 again (A, C).',
+        },
+        {
+          title: 'Now suppose C REJECTS',
+          detail: 'Its caller’s promise rejects via .then(resolve, reject) — and finally still runs, so running drops to 1 and D starts. The failure cost nothing but C.',
+          pseudoLine: 11,
+          stack: { items: [], action: 'pop' },
+          lookupOutcome: { kind: 'hit', key: 'finally', at: 'slot released despite the rejection' },
+        },
+        {
+          title: 'The bug if you put the decrement on the success path',
+          detail: 'running would stay at 2 forever after C failed. One more failure and it is pinned at the cap with an empty pipeline — the queue fills and nothing ever runs again.',
+          pseudoLine: 11,
+          result: { found: false, value: 'Silent deadlock: tasks queued, none running, no error thrown' },
+        },
+      ],
+      tradeoffs:
+        'O(1) per add, memory proportional to the queue. shift() on a plain array is O(n); swap in '
+        + 'a ring buffer or an index pointer if the queue gets long. Add priority, pause/resume and '
+        + 'cancellation and you have rebuilt p-queue.',
+    },
+    {
+      id: 'pool',
+      name: 'Fixed worker pool',
+      badge: 'alternative',
+      intuition:
+        'If the whole list is known up front, the simpler shape applies: start N workers, each '
+        + 'pulling from a shared cursor until the list runs out. No queue object, no captured '
+        + 'resolve/reject, no re-entrant drain.\n\n'
+        + 'It is genuinely cleaner — but it answers a different question. A worker’s loop ends '
+        + 'when the cursor passes the end of the list, and the worker’s promise resolves. '
+        + 'Anything added afterwards has no worker left to pick it up.\n\n'
+        + 'Knowing which shape a problem needs is the actual skill here. "Process these 500 URLs" '
+        + 'is a pool. "Accept uploads from a UI and never run more than 3 at once" is a queue, '
+        + 'because you cannot know the list in advance.',
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Only for a known list' },
+      pseudocode: [
+        'runAll(tasks):',
+        '  cursor = 0',
+        '  worker():',
+        '    while cursor < tasks.length:',
+        '      i = cursor++',
+        '      results[i] = await tasks[i]()',
+        '  await Promise.all(N workers)',
+        '  return results',
+      ],
+      example: { input: 'runAll([t0..t3], 2)', output: 'all four results in order; later adds impossible' },
+      steps: [
+        {
+          title: 'Two workers claim indices 0 and 1',
+          detail: 'The shared cursor is the only coordination needed; cursor++ is safe because JS is single-threaded.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 't0', highlight: 'i' }, { value: 't1', highlight: 'j' }, { value: 't2' }, { value: 't3' }], pointers: [{ index: 2, label: 'cursor', color: 'indigo' }] },
+        },
+        {
+          title: 'Whichever finishes first takes index 2',
+          detail: 'Same always-N-in-flight behaviour as the pool in the batching challenge.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 't0' }, { value: 'done' }, { value: 't2', highlight: 'j' }, { value: 't3' }], pointers: [{ index: 3, label: 'cursor', color: 'indigo' }] },
+        },
+        {
+          title: 'Cursor passes the end — workers exit',
+          detail: 'The while condition fails and each worker’s promise resolves. Promise.all settles and runAll returns.',
+          pseudoLine: 6,
+          array: { cells: [{ value: 'done' }, { value: 'done' }, { value: 'done' }, { value: 'done' }], pointers: [{ index: 4, label: 'cursor past end', color: 'emerald' }] },
+        },
+        {
+          title: 'A task added now would never run',
+          detail: 'There are no workers left. This is precisely why the queue design exists.',
+          pseudoLine: 6,
+          result: { found: false, value: 'Fine for a fixed batch; wrong for a live queue' },
+        },
+      ],
+      tradeoffs:
+        'Less code and no captured resolve/reject, but it cannot accept work after it starts. Use '
+        + 'it for a known batch; use the queue when tasks arrive over time.',
+    },
+  ],
+};
+
+
+// ===================================================================
+// Array patterns — intervals, windows, in-place transforms
+// ===================================================================
+
+const mergeIntervalsExpl: Explanation = {
+  problem: 'Merge Intervals',
+  problemStatement: 'Given a list of intervals, merge every set that overlaps and return the result.',
+  approaches: [
+    {
+      id: 'sort-sweep',
+      name: 'Sort by start, then sweep',
+      badge: 'best',
+      intuition:
+        'Unsorted, any interval could overlap any other, so you are stuck comparing all pairs. '
+        + 'Sorting by start time removes that: once the list is in order, an interval can only '
+        + 'overlap the one immediately before it in the merged output.\n\n'
+        + 'That is the insight the whole problem turns on. After sorting, walk left to right '
+        + 'holding one "current" interval. For each next interval there are exactly two cases:\n\n'
+        + 'It starts at or before current.end — they touch or overlap, so absorb it by extending '
+        + 'current.end to the larger of the two ends. The max matters: [1,10] followed by [2,3] '
+        + 'must stay [1,10], and blindly taking the new end would shrink it to 3.\n\n'
+        + 'It starts after current.end — there is a gap, so current is finished. Push it and make '
+        + 'this one the new current.\n\n'
+        + 'Because the starts are sorted, a later interval can never reach back past something '
+        + 'already pushed, so one pass is enough.',
+      complexity: { time: 'O(n log n)', space: 'O(n)', verdict: 'BEST — sorting dominates' },
+      pseudocode: [
+        'sort intervals by start',
+        'current = intervals[0]',
+        'for each next in intervals[1..]:',
+        '  if next.start <= current.end:       // overlap',
+        '    current.end = max(current.end, next.end)',
+        '  else:                                // gap',
+        '    push current; current = next',
+        'push current',
+      ],
+      example: { input: '[[1,3],[8,10],[2,6],[15,18]]', output: '[[1,6],[8,10],[15,18]]' },
+      steps: [
+        {
+          title: 'Sort by start: [1,3] [2,6] [8,10] [15,18]',
+          detail: 'This is the step that makes one pass sufficient. Without it, [15,18] might have needed comparing against [1,3].',
+          pseudoLine: 0,
+          array: { cells: [{ value: '[1,3]' }, { value: '[2,6]' }, { value: '[8,10]' }, { value: '[15,18]' }] },
+        },
+        {
+          title: 'current = [1,3]; next is [2,6]',
+          detail: '2 <= 3, so they overlap. Extend the end to max(3, 6) = 6.',
+          pseudoLine: 3,
+          array: { cells: [{ value: '[1,3]', highlight: 'i' }, { value: '[2,6]', highlight: 'j' }, { value: '[8,10]' }, { value: '[15,18]' }] },
+          computation: { label: 'overlap?', lhs: '2', op: '<=', rhs: '3', result: 'yes → end = max(3,6) = 6' },
+        },
+        {
+          title: 'current is now [1,6]; next is [8,10]',
+          detail: '8 > 6 — a real gap. [1,6] can never grow again, because every remaining start is ≥ 8.',
+          pseudoLine: 5,
+          array: { cells: [{ value: '[1,6]', highlight: 'found' }, { value: '[8,10]', highlight: 'j' }, { value: '[15,18]' }] },
+          computation: { label: 'overlap?', lhs: '8', op: '<=', rhs: '6', result: 'no → push [1,6]' },
+        },
+        {
+          title: 'current = [8,10]; next is [15,18] — another gap',
+          detail: 'Push [8,10] and carry [15,18] forward.',
+          pseudoLine: 6,
+          array: { cells: [{ value: '[1,6]' }, { value: '[8,10]', highlight: 'found' }, { value: '[15,18]', highlight: 'j' }] },
+        },
+        {
+          title: 'Loop ends — push the last current',
+          detail: 'Forgetting this final push is the classic off-by-one here: the last interval is never pushed inside the loop.',
+          pseudoLine: 7,
+          result: { found: true, value: '[[1,6],[8,10],[15,18]]' },
+        },
+      ],
+      tradeoffs:
+        'O(n log n) time from the sort, O(n) for the output (O(1) extra if you merge in place). '
+        + 'Optimal — you cannot merge without knowing the order, and finding the order needs a sort.',
+      usesPolyfills: [{ builtin: 'Array.prototype.sort', templateName: 'Array.sort', why: 'the comparator (a,b) => a[0] - b[0] orders by start' }],
+    },
+    {
+      id: 'brute',
+      name: 'Repeatedly merge any overlapping pair',
+      badge: 'baseline',
+      intuition:
+        'Without sorting, the only correct approach is to keep scanning for any two intervals that '
+        + 'overlap, merge them, and start again — because merging two can create a new overlap with '
+        + 'something you already passed.\n\n'
+        + 'Consider [1,3], [7,9], [2,8]. Merging [1,3] and [2,8] gives [1,8], which now overlaps '
+        + '[7,9] — an interval that did not overlap anything when you last looked at it. So each '
+        + 'merge invalidates your previous scan and you go round again.\n\n'
+        + 'That is O(n²) per pass and up to n passes: O(n³) worst case. Its only value is showing '
+        + 'exactly what the sort buys you. Once starts are ordered, a merge can only ever extend '
+        + 'rightward into territory you have not visited, so nothing behind you can become stale.',
+      complexity: { time: 'O(n³) worst', space: 'O(n)', verdict: 'Shows why sorting wins' },
+      pseudocode: [
+        'repeat until no merge happened:',
+        '  for each pair (i, j):',
+        '    if they overlap:',
+        '      replace both with their union',
+        '      restart the scan   // ← the expensive part',
+      ],
+      example: { input: '[[1,3],[7,9],[2,8]]', output: '[[1,9]] after two full passes' },
+      steps: [
+        {
+          title: 'Scan finds [1,3] and [2,8] overlapping',
+          detail: '[7,9] was checked against [1,3] earlier and did not overlap, so it looked settled.',
+          pseudoLine: 2,
+          array: { cells: [{ value: '[1,3]', highlight: 'i' }, { value: '[7,9]' }, { value: '[2,8]', highlight: 'j' }] },
+        },
+        {
+          title: 'Merge to [1,8] — and now [7,9] DOES overlap',
+          detail: 'The merge created an overlap with an interval already examined. Every conclusion from the previous scan is void.',
+          pseudoLine: 3,
+          array: { cells: [{ value: '[1,8]', highlight: 'found' }, { value: '[7,9]', highlight: 'compare' }] },
+          note: 'This is exactly what sorting prevents.',
+        },
+        {
+          title: 'Restart, merge [1,8] with [7,9] → [1,9]',
+          detail: 'A third pass confirms nothing overlaps and the loop finally ends.',
+          pseudoLine: 4,
+          result: { found: true, value: '[[1,9]] — correct, after O(n³) work' },
+        },
+      ],
+      tradeoffs: 'Correct but cubic. Worth being able to explain, never worth shipping.',
+    },
+  ],
+};
+
+const minSubarraySumExpl: Explanation = {
+  problem: 'Minimum Size Subarray Sum',
+  problemStatement: 'Find the shortest contiguous subarray whose sum is at least a target. Return 0 if none.',
+  approaches: [
+    {
+      id: 'window',
+      name: 'Variable-size sliding window',
+      badge: 'best',
+      intuition:
+        'Two pointers bound a window. The right edge always moves forward, adding to a running '
+        + 'sum. The moment the sum reaches the target, the window is valid — so record its length, '
+        + 'then try to make it shorter by pulling the left edge in and subtracting.\n\n'
+        + 'The shrink is a while, not an if. After removing one element the window may still meet '
+        + 'the target, and a shorter valid window is strictly better, so keep going until it no '
+        + 'longer qualifies.\n\n'
+        + 'Why this is O(n) rather than O(n²): each pointer only ever moves right, and neither can '
+        + 'pass the end. So there are at most n advances of right and n of left — 2n operations '
+        + 'total, regardless of how the shrinking interleaves with the growing. A nested loop '
+        + 'would re-examine elements; here every element is added exactly once and removed at most '
+        + 'once.\n\n'
+        + 'The one precondition: this requires all values to be non-negative. With negatives, '
+        + 'removing an element could INCREASE the sum, so shrinking is no longer safe and you need '
+        + 'prefix sums plus a monotonic structure instead.',
+      complexity: { time: 'O(n)', space: 'O(1)', verdict: 'BEST' },
+      pseudocode: [
+        'left = 0, sum = 0, best = Infinity',
+        'for right = 0 .. n-1:',
+        '  sum += nums[right]',
+        '  while sum >= target:               // while, not if',
+        '    best = min(best, right - left + 1)',
+        '    sum -= nums[left]; left++',
+        'return best === Infinity ? 0 : best',
+      ],
+      example: { input: 'target = 7, [2,3,1,2,4,3]', output: '2 — the subarray [4,3]' },
+      steps: [
+        {
+          title: 'Grow right until the sum reaches 7',
+          detail: 'After adding 2, 3, 1, 2 the sum is 8, which is ≥ 7. The window [0..3] is valid with length 4.',
+          pseudoLine: 2,
+          array: { cells: [{ value: 2, highlight: 'i' }, { value: 3 }, { value: 1 }, { value: 2, highlight: 'j' }, { value: 4 }, { value: 3 }], pointers: [{ index: 0, label: 'left', color: 'amber' }, { index: 3, label: 'right', color: 'indigo' }] },
+          computation: { label: 'sum', lhs: '2+3+1+2', op: '=', rhs: '', result: '8 ≥ 7 ✓ (len 4)' },
+        },
+        {
+          title: 'Shrink: drop the 2 at the left — sum 6, no longer valid',
+          detail: 'best is recorded as 4 first, then the shrink is attempted. 6 < 7, so the while exits and right resumes.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 2 }, { value: 3, highlight: 'i' }, { value: 1 }, { value: 2, highlight: 'j' }, { value: 4 }, { value: 3 }], pointers: [{ index: 1, label: 'left', color: 'amber' }, { index: 3, label: 'right', color: 'indigo' }] },
+          computation: { label: 'sum', lhs: '8', op: '- 2', rhs: '', result: '6 < 7 → stop shrinking' },
+        },
+        {
+          title: 'Add 4 → sum 10. Now shrink twice',
+          detail: 'Window [1..4] has length 4. Drop 3 → sum 7, still valid, length 3. Drop 1 → sum 6, invalid. best is now 3.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 2 }, { value: 3 }, { value: 1 }, { value: 2, highlight: 'i' }, { value: 4, highlight: 'j' }, { value: 3 }], pointers: [{ index: 3, label: 'left', color: 'amber' }, { index: 4, label: 'right', color: 'indigo' }] },
+          note: 'The while loop shrank twice in one iteration — an if would have stopped after one.',
+        },
+        {
+          title: 'Add 3 → sum 9. Shrink to [4,3]',
+          detail: 'Dropping the 2 leaves 4+3 = 7, exactly the target, length 2. Dropping the 4 gives 3 — invalid, so we stop.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 2 }, { value: 3 }, { value: 1 }, { value: 2 }, { value: 4, highlight: 'found' }, { value: 3, highlight: 'found' }], pointers: [{ index: 4, label: 'left', color: 'amber' }, { index: 5, label: 'right', color: 'indigo' }] },
+          result: { found: true, value: '2 — the shortest window meeting the target' },
+        },
+      ],
+      tradeoffs:
+        'O(n) time, O(1) space, and each element is touched at most twice. Requires non-negative '
+        + 'values; with negatives the shrink step is unsound.',
+    },
+    {
+      id: 'brute',
+      name: 'Check every subarray',
+      badge: 'baseline',
+      intuition:
+        'For each start index, extend forward accumulating a sum and stop as soon as the target is '
+        + 'met, recording the length. Correct, obvious, and O(n²) — the inner loop re-adds elements '
+        + 'the outer loop already summed.\n\n'
+        + 'Comparing the two makes the window’s value concrete. Both examine every element; the '
+        + 'difference is that brute force RE-examines. When the start moves from 0 to 1, brute '
+        + 'force recomputes 3+1+2+... from scratch, while the window simply subtracts nums[0] from '
+        + 'a sum it already has. That subtraction is the whole optimisation.',
+      complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'The obvious first answer' },
+      pseudocode: [
+        'best = Infinity',
+        'for start = 0 .. n-1:',
+        '  sum = 0',
+        '  for end = start .. n-1:',
+        '    sum += nums[end]',
+        '    if sum >= target: best = min(best, end - start + 1); break',
+        'return best === Infinity ? 0 : best',
+      ],
+      example: { input: 'target = 7, [2,3,1,2,4,3]', output: '2 — after ~15 additions instead of 11' },
+      steps: [
+        {
+          title: 'start = 0: accumulate 2, 5, 6, 8 → hit at length 4',
+          detail: 'Four additions to find a valid window from index 0.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 2, highlight: 'i' }, { value: 3 }, { value: 1 }, { value: 2, highlight: 'j' }, { value: 4 }, { value: 3 }] },
+        },
+        {
+          title: 'start = 1: recompute 3, 4, 6, 10 from scratch',
+          detail: 'The sum 3+1+2 was already computed as part of the previous pass. The window approach would have reused it.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 2 }, { value: 3, highlight: 'i' }, { value: 1 }, { value: 2 }, { value: 4, highlight: 'j' }, { value: 3 }] },
+          note: 'This re-summing is the O(n²).',
+        },
+        {
+          title: 'Eventually start = 4 finds [4,3] with length 2',
+          detail: 'Same answer, more work. On a 100k-element array this is 5 billion operations versus 200k.',
+          pseudoLine: 5,
+          result: { found: true, value: '2 — correct, but quadratic' },
+        },
+      ],
+      tradeoffs: 'Fine up to a few thousand elements. Replaced by the window as soon as n is large.',
+    },
+  ],
+};
+
+const slidingWindowMaxExpl: Explanation = {
+  problem: 'Sliding Window Maximum',
+  problemStatement: 'For every window of size k, report the maximum. Return the list of maxima.',
+  approaches: [
+    {
+      id: 'deque',
+      name: 'Monotonic decreasing deque',
+      badge: 'best',
+      intuition:
+        'Keep a deque of INDICES whose values are in decreasing order. The front always holds the '
+        + 'index of the current window’s maximum.\n\n'
+        + 'Two rules maintain it. Before pushing index i, pop from the back while the value there '
+        + 'is smaller than nums[i]. And pop from the front if it has fallen out of the window.\n\n'
+        + 'The back rule is the clever part, and the justification is worth saying precisely: if '
+        + 'nums[i] is greater than or equal to some earlier value still in the deque, that earlier '
+        + 'value can never be the maximum of any future window. Any window containing it that '
+        + 'still lies ahead of us must also contain i — i is further right and will leave the '
+        + 'window later. So it is dominated in every remaining window, and discarding it loses '
+        + 'nothing.\n\n'
+        + 'That gives O(n): every index is pushed exactly once and popped at most once, so the '
+        + 'total work across the whole run is 2n, even though any single step might pop several '
+        + 'items. This is amortised analysis, and saying the phrase is part of the answer.\n\n'
+        + 'Storing indices rather than values is what lets you test "has this left the window?" '
+        + 'with a comparison instead of a search.',
+      complexity: { time: 'O(n)', space: 'O(k)', verdict: 'BEST' },
+      pseudocode: [
+        'deque = []            // holds INDICES, values decreasing',
+        'for i = 0 .. n-1:',
+        '  if deque.front <= i - k: deque.popFront()      // slid out',
+        '  while deque not empty and nums[deque.back] <= nums[i]:',
+        '    deque.popBack()                               // dominated',
+        '  deque.pushBack(i)',
+        '  if i >= k-1: output.push(nums[deque.front])',
+      ],
+      example: { input: '[1,3,-1,-3,5,3,6,7], k = 3', output: '[3,3,5,5,6,7]' },
+      steps: [
+        {
+          title: 'i=0: push index 0 (value 1)',
+          detail: 'Deque is empty, nothing to pop. No output yet — the first window is not complete until i = k-1 = 2.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 1, highlight: 'i' }, { value: 3 }, { value: -1 }, { value: -3 }, { value: 5 }, { value: 3 }, { value: 6 }, { value: 7 }] },
+          stack: { items: [{ value: 'idx0 (1)', highlight: 'new' }], action: 'push' },
+        },
+        {
+          title: 'i=1 (value 3): 3 ≥ 1, so index 0 is dominated — pop it',
+          detail: 'Every future window containing index 0 also contains index 1, and 3 > 1. Index 0 can never be a maximum again.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1, highlight: 'compare' }, { value: 3, highlight: 'i' }, { value: -1 }, { value: -3 }, { value: 5 }, { value: 3 }, { value: 6 }, { value: 7 }] },
+          stack: { items: [{ value: 'idx1 (3)', highlight: 'new' }], action: 'pop' },
+        },
+        {
+          title: 'i=2 (value -1): not dominated, so it queues behind',
+          detail: '-1 < 3, so it stays. The deque is [3, -1] — decreasing, as required. Window [1,3,-1] is complete; front gives 3.',
+          pseudoLine: 6,
+          array: { cells: [{ value: 1 }, { value: 3, highlight: 'found' }, { value: -1, highlight: 'i' }, { value: -3 }, { value: 5 }, { value: 3 }, { value: 6 }, { value: 7 }] },
+          stack: { items: [{ value: 'idx1 (3)' }, { value: 'idx2 (-1)', highlight: 'new' }], action: 'push' },
+          note: 'output = [3]',
+        },
+        {
+          title: 'i=4 (value 5): pops BOTH -3 and -1, then 3',
+          detail: 'Three pops in one step — yet this is still O(n) overall, because those indices are now gone for good and can never be popped again.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 1 }, { value: 3 }, { value: -1 }, { value: -3 }, { value: 5, highlight: 'i' }, { value: 3 }, { value: 6 }, { value: 7 }] },
+          stack: { items: [{ value: 'idx4 (5)', highlight: 'new' }], action: 'pop' },
+          note: 'This is the amortised argument in action.',
+        },
+        {
+          title: 'i=6 (value 6): index 4 leaves by domination, not by expiry',
+          detail: 'Both exit routes are exercised across the run — the front pop for sliding out, the back pop for being dominated.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 1 }, { value: 3 }, { value: -1 }, { value: -3 }, { value: 5 }, { value: 3 }, { value: 6, highlight: 'i' }, { value: 7 }] },
+          stack: { items: [{ value: 'idx6 (6)', highlight: 'new' }], action: 'pop' },
+        },
+        {
+          title: 'i=7 (value 7) dominates everything',
+          detail: 'Final output [3,3,5,5,6,7], produced in a single pass.',
+          pseudoLine: 6,
+          result: { found: true, value: '[3,3,5,5,6,7] — O(n), each index pushed once and popped once' },
+        },
+      ],
+      tradeoffs:
+        'O(n) time and O(k) space — optimal. The deque never exceeds k entries because anything '
+        + 'older is evicted at the front.',
+    },
+    {
+      id: 'naive',
+      name: 'Max of every window',
+      badge: 'baseline',
+      intuition:
+        'For each of the n − k + 1 windows, scan its k elements for the maximum. O(n·k), which for '
+        + 'k = n/2 is O(n²).\n\n'
+        + 'The waste is concrete: two adjacent windows share k − 1 elements, and this recomputes '
+        + 'the maximum over all of them from scratch each time. Only one element entered and one '
+        + 'left, so almost all of that work is repeated.\n\n'
+        + 'A heap gets it to O(n log k), which is a genuine improvement — but the deque reaches '
+        + 'O(n) because it never needs full ordering. It only needs to know the maximum, and the '
+        + 'domination rule discards everything that could never hold that title.',
+      complexity: { time: 'O(n·k)', space: 'O(1)', verdict: 'Baseline' },
+      pseudocode: [
+        'for i = 0 .. n-k:',
+        '  m = -Infinity',
+        '  for j = i .. i+k-1:      // rescans k-1 shared elements',
+        '    m = max(m, nums[j])',
+        '  output.push(m)',
+      ],
+      example: { input: '[1,3,-1,-3,5,3,6,7], k = 3', output: '[3,3,5,5,6,7] after 18 comparisons' },
+      steps: [
+        {
+          title: 'Window [1,3,-1] — scan all three',
+          detail: 'Maximum is 3.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1, highlight: 'compare' }, { value: 3, highlight: 'found' }, { value: -1, highlight: 'compare' }, { value: -3 }, { value: 5 }, { value: 3 }, { value: 6 }, { value: 7 }] },
+        },
+        {
+          title: 'Window [3,-1,-3] — rescan 3 and -1',
+          detail: 'Two of the three were just examined. Only -3 is new information.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1 }, { value: 3, highlight: 'found' }, { value: -1, highlight: 'compare' }, { value: -3, highlight: 'compare' }, { value: 5 }, { value: 3 }, { value: 6 }, { value: 7 }] },
+          note: 'k-1 = 2 elements re-examined per window.',
+        },
+        {
+          title: 'Same answers, 18 comparisons instead of ~16 deque operations',
+          detail: 'At k = 3 the gap is small; at k = 1000 it is three orders of magnitude.',
+          pseudoLine: 4,
+          result: { found: true, value: '[3,3,5,5,6,7] — correct, O(n·k)' },
+        },
+      ],
+      tradeoffs: 'Fine for small k. Degrades to O(n²) as k approaches n.',
+    },
+  ],
+};
+
+const longestConsecutiveExpl: Explanation = {
+  problem: 'Longest Consecutive Sequence',
+  problemStatement: 'Find the length of the longest run of consecutive integers in an unsorted array, in O(n).',
+  approaches: [
+    {
+      id: 'set-anchor',
+      name: 'Set + only start from a sequence head',
+      badge: 'best',
+      intuition:
+        'Put everything in a Set for O(1) membership. Now for any number you could walk upward — '
+        + 'n+1, n+2, ... — counting the run. Done naively that is O(n²), because a run of length k '
+        + 'gets walked from every one of its k members.\n\n'
+        + 'The fix is one line: only start walking if n−1 is NOT in the set. That makes n the head '
+        + 'of its sequence, and every run is walked exactly once, from its smallest member.\n\n'
+        + 'That single check is what turns this from quadratic into linear, and the complexity '
+        + 'argument is the part interviewers want. Each number is visited at most twice: once by '
+        + 'the outer loop asking "am I a head?", and at most once by an inner walk — and only ever '
+        + 'by the walk belonging to its own run. So the total is O(n) even though there is a loop '
+        + 'inside a loop.\n\n'
+        + 'The Set also deduplicates for free, which matters: [1,2,2,3] must answer 3, and '
+        + 'duplicates would otherwise inflate the count.',
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'BEST' },
+      pseudocode: [
+        'set = new Set(nums)',
+        'best = 0',
+        'for n of set:',
+        '  if set.has(n - 1): continue      // not a head — skip entirely',
+        '  length = 1',
+        '  while set.has(n + length): length++',
+        '  best = max(best, length)',
+        'return best',
+      ],
+      example: { input: '[100,4,200,1,3,2]', output: '4 — the run 1,2,3,4' },
+      steps: [
+        {
+          title: 'Build the Set: {100, 4, 200, 1, 3, 2}',
+          detail: 'Membership is now O(1), which is what makes the upward walk cheap.',
+          pseudoLine: 0,
+          set: { items: [{ value: 100 }, { value: 4 }, { value: 200 }, { value: 1 }, { value: 3 }, { value: 2 }] },
+        },
+        {
+          title: '100: is 99 in the set? No → 100 is a head',
+          detail: 'Walk upward: 101 is absent, so this run has length 1.',
+          pseudoLine: 3,
+          set: { items: [{ value: 100, highlight: 'new' }, { value: 4 }, { value: 200 }, { value: 1 }, { value: 3 }, { value: 2 }] },
+          lookupOutcome: { kind: 'miss', key: 99, at: 'so 100 starts a run' },
+        },
+        {
+          title: '4: is 3 in the set? YES → skip immediately',
+          detail: 'This is the optimisation. 4 sits in the middle of a run, so walking from it would redo work that 1 will do properly.',
+          pseudoLine: 3,
+          set: { items: [{ value: 100 }, { value: 4, highlight: 'hit' }, { value: 200 }, { value: 1 }, { value: 3, highlight: 'hit' }, { value: 2 }] },
+          lookupOutcome: { kind: 'hit', key: 3, at: '4 is not a head — continue' },
+        },
+        {
+          title: '1: is 0 in the set? No → a head. Walk it.',
+          detail: 'has(2) ✓, has(3) ✓, has(4) ✓, has(5) ✗. Length 4.',
+          pseudoLine: 5,
+          set: { items: [{ value: 100 }, { value: 4, highlight: 'hit' }, { value: 200 }, { value: 1, highlight: 'new' }, { value: 3, highlight: 'hit' }, { value: 2, highlight: 'hit' }] },
+          computation: { label: 'walk from 1', lhs: '1→2→3→4', op: 'stop at', rhs: '5 absent', result: 'length 4' },
+        },
+        {
+          title: '3 and 2 are both skipped as non-heads',
+          detail: 'Every element of the run 1..4 except the head costs one Set lookup and nothing more. That is why the total stays linear.',
+          pseudoLine: 3,
+          note: 'Without the head check, 1,2,3,4 would each trigger a full walk — 4+3+2+1 steps.',
+        },
+        {
+          title: 'Answer: 4',
+          detail: '200 is also a head with length 1. Best remains 4.',
+          pseudoLine: 7,
+          result: { found: true, value: '4 — the sequence 1,2,3,4' },
+        },
+      ],
+      tradeoffs:
+        'O(n) time and O(n) space. Beats the sorting approach’s O(n log n), and the trade is memory '
+        + 'for the Set — usually the right call.',
+    },
+    {
+      id: 'sort',
+      name: 'Sort and scan',
+      badge: 'alternative',
+      intuition:
+        'Sort, then walk once counting runs. Simpler to reason about and O(1) extra space if you '
+        + 'may sort in place, at the cost of O(n log n) time.\n\n'
+        + 'The detail that catches people is duplicates. After sorting [1,2,2,3] you see 2 twice; '
+        + 'if you treat the second 2 as continuing the run, you count 4 and are wrong. If you treat '
+        + 'it as breaking the run, you count 2 and are also wrong. It must be skipped without '
+        + 'affecting the count at all — three distinct cases: same as previous (skip), exactly one '
+        + 'more (extend), anything else (reset to 1).\n\n'
+        + 'Worth offering as the answer when memory is tight or the data is already sorted. If the '
+        + 'question says "in O(n)", it is explicitly asking for the Set.',
+      complexity: { time: 'O(n log n)', space: 'O(1)', verdict: 'When memory matters' },
+      pseudocode: [
+        'sort(nums)',
+        'best = current = 1',
+        'for i = 1 .. n-1:',
+        '  if nums[i] === nums[i-1]: continue        // duplicate — no effect',
+        '  if nums[i] === nums[i-1] + 1: current++',
+        '  else: current = 1',
+        '  best = max(best, current)',
+      ],
+      example: { input: '[100,4,200,1,3,2]', output: '4 after sorting to [1,2,3,4,100,200]' },
+      steps: [
+        {
+          title: 'Sorted: [1,2,3,4,100,200]',
+          detail: 'Consecutive numbers are now adjacent, so a single scan suffices.',
+          pseudoLine: 0,
+          array: { cells: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 100 }, { value: 200 }] },
+        },
+        {
+          title: 'Each of 2, 3, 4 is exactly one more — current climbs to 4',
+          detail: 'best tracks the high-water mark as we go.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 4, highlight: 'found' }, { value: 100 }, { value: 200 }] },
+          computation: { label: 'current', lhs: '1→2→3→4', op: '', rhs: '', result: 'best = 4' },
+        },
+        {
+          title: '100 breaks the run — current resets to 1',
+          detail: '100 ≠ 4 + 1, so a new run begins. best stays at 4.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 100, highlight: 'compare' }, { value: 200 }] },
+        },
+        {
+          title: 'The duplicate case, on [1,2,2,3]',
+          detail: 'The second 2 hits the `continue`. Without it you either count 4 (wrong) or reset (also wrong). The answer is 3.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1 }, { value: 2 }, { value: 2, highlight: 'compare' }, { value: 3 }] },
+          result: { found: true, value: '4 for the original; duplicates must be skipped, not counted' },
+        },
+      ],
+      tradeoffs: 'O(n log n) but O(1) extra space. The right answer when allocation is the constraint.',
+      usesPolyfills: [{ builtin: 'Array.prototype.sort', templateName: 'Array.sort', why: 'needs a numeric comparator — the default sorts lexicographically' }],
+    },
+  ],
+};
+
+const nextPermutationExpl: Explanation = {
+  problem: 'Next Permutation',
+  problemStatement: 'Rearrange the numbers into the next lexicographically greater permutation, in place. If none exists, sort ascending.',
+  approaches: [
+    {
+      id: 'pivot',
+      name: 'Find pivot, swap successor, reverse tail',
+      badge: 'best',
+      intuition:
+        'Three steps, and each one has a reason that makes the whole thing memorable.\n\n'
+        + 'Step 1 — find the pivot. Scan from the right for the first index i where nums[i] < '
+        + 'nums[i+1]. Everything to the right of that point is in descending order, which means it '
+        + 'is already the LARGEST arrangement of those digits. No rearrangement confined to the '
+        + 'tail can produce anything bigger, so the change must happen at i.\n\n'
+        + 'Step 2 — swap with the successor. Find the rightmost element in the tail that is still '
+        + 'greater than nums[i], and swap them. That is the smallest possible increase at position '
+        + 'i, which is what "next" demands. Because the tail is descending, scanning from the right '
+        + 'finds that element first.\n\n'
+        + 'Step 3 — reverse the tail. After the swap the tail is still descending, i.e. its largest '
+        + 'arrangement. Having just increased position i, we want the SMALLEST tail. Reversing a '
+        + 'descending run makes it ascending — and that is a reverse, not a sort, which is what '
+        + 'keeps the whole thing O(n).\n\n'
+        + 'If no pivot exists the array is entirely descending: the last permutation. Reversing it '
+        + 'wraps to the first.',
+      complexity: { time: 'O(n)', space: 'O(1)', verdict: 'BEST — in place' },
+      pseudocode: [
+        'i = n - 2',
+        'while i >= 0 and nums[i] >= nums[i+1]: i--        // find pivot',
+        'if i >= 0:',
+        '  j = n - 1',
+        '  while nums[j] <= nums[i]: j--                   // rightmost bigger',
+        '  swap(nums[i], nums[j])',
+        'reverse(nums, i+1, n-1)                            // smallest tail',
+      ],
+      example: { input: '[1,3,5,4,2]', output: '[1,4,2,3,5]' },
+      steps: [
+        {
+          title: 'Scan from the right for the pivot',
+          detail: '2 < 4? No. 4 < 5? No. 5 > 3 — so i = 1 (value 3). The tail [5,4,2] is descending and already maximal.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 1 }, { value: 3, highlight: 'i' }, { value: 5 }, { value: 4 }, { value: 2 }], pointers: [{ index: 1, label: 'pivot', color: 'amber' }] },
+          computation: { label: 'pivot', lhs: 'nums[1]=3', op: '<', rhs: 'nums[2]=5', result: 'i = 1' },
+        },
+        {
+          title: 'Find the rightmost value greater than 3',
+          detail: 'From the right: 2 ≤ 3, skip. 4 > 3 — stop. j = 3. Scanning right-to-left over a descending tail lands on the smallest qualifying value.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 1 }, { value: 3, highlight: 'i' }, { value: 5 }, { value: 4, highlight: 'j' }, { value: 2 }], pointers: [{ index: 1, label: 'i', color: 'amber' }, { index: 3, label: 'j', color: 'indigo' }] },
+          lookupOutcome: { kind: 'hit', key: 4, at: 'smallest tail value still greater than 3' },
+        },
+        {
+          title: 'Swap 3 and 4 → [1,4,5,3,2]',
+          detail: 'Position 1 has increased by the least possible amount. The tail [5,3,2] is still descending.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 1 }, { value: 4, highlight: 'found' }, { value: 5 }, { value: 3, highlight: 'found' }, { value: 2 }] },
+        },
+        {
+          title: 'Reverse the tail → [1,4,2,3,5]',
+          detail: 'The descending [5,3,2] becomes the ascending [2,3,5] — the smallest arrangement of those digits, which is exactly what "next" requires.',
+          pseudoLine: 6,
+          array: { cells: [{ value: 1 }, { value: 4 }, { value: 2, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 5, highlight: 'found' }] },
+          result: { found: true, value: '[1,4,2,3,5]' },
+        },
+        {
+          title: 'The no-pivot case: [3,2,1]',
+          detail: 'Entirely descending, so the scan runs past index 0 and i is -1. Skip the swap and reverse everything → [1,2,3], the first permutation.',
+          pseudoLine: 6,
+          array: { cells: [{ value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 3, highlight: 'found' }] },
+          note: 'Handling i = -1 by reversing the whole array is what makes the wrap-around fall out for free.',
+        },
+      ],
+      tradeoffs:
+        'O(n) time, O(1) space, in place. Optimal. The insight that the tail needs reversing rather '
+        + 'than sorting is what keeps it linear.',
+      usesPolyfills: [{ builtin: 'Array.prototype.reverse', templateName: 'Array.reverse', why: 'the tail reversal is a two-pointer in-place swap' }],
+    },
+    {
+      id: 'generate',
+      name: 'Generate all permutations and pick the next',
+      badge: 'baseline',
+      intuition:
+        'Enumerate every permutation, sort them lexicographically, find yours, and return the one '
+        + 'after it. Undeniably correct and completely impractical: n! permutations means 10 '
+        + 'elements is 3.6 million and 15 elements is over a trillion.\n\n'
+        + 'It is worth stating out loud for one reason — it clarifies what "next lexicographic '
+        + 'permutation" actually means, which is the part people get stuck on. Once you can see '
+        + 'the ordered list, the pivot algorithm reads as a way to jump one place along it without '
+        + 'ever materialising it.',
+      complexity: { time: 'O(n! · n log n!)', space: 'O(n!)', verdict: 'Defines the problem only' },
+      pseudocode: [
+        'all = every permutation of nums',
+        'sort all lexicographically',
+        'idx = indexOf(nums in all)',
+        'return all[idx + 1] ?? all[0]',
+      ],
+      example: { input: '[1,3,5,4,2]', output: '[1,4,2,3,5] — after generating 120 permutations' },
+      steps: [
+        {
+          title: 'All 120 permutations of 5 elements, sorted',
+          detail: '...[1,3,5,4,2], [1,4,2,3,5], [1,4,2,5,3]... — our input sits immediately before the answer.',
+          pseudoLine: 1,
+          array: { cells: [{ value: '[1,3,5,4,2]', highlight: 'i' }, { value: '[1,4,2,3,5]', highlight: 'found' }, { value: '[1,4,2,5,3]' }] },
+        },
+        {
+          title: 'Take the next entry',
+          detail: 'Correct — but for 15 elements this list has 1.3 trillion entries and cannot be built.',
+          pseudoLine: 3,
+          result: { found: true, value: '[1,4,2,3,5] — same answer, factorially more work' },
+        },
+      ],
+      tradeoffs: 'Unusable beyond ~10 elements. Useful only as a mental model for what "next" means.',
+    },
+  ],
+};
+
+const rotateMatrixExpl: Explanation = {
+  problem: 'Rotate Matrix 90°',
+  problemStatement: 'Rotate an n×n matrix 90° clockwise, in place.',
+  approaches: [
+    {
+      id: 'transpose-reverse',
+      name: 'Transpose, then reverse each row',
+      badge: 'best',
+      intuition:
+        'A 90° clockwise rotation decomposes into two operations that are each trivial to write '
+        + 'correctly — which is the entire reason this is the standard answer. Trying to compute '
+        + 'the rotated destination of every cell directly is where people produce off-by-one bugs '
+        + 'they cannot debug.\n\n'
+        + 'Transpose first: reflect across the main diagonal, swapping [i][j] with [j][i]. Rows '
+        + 'become columns. Crucially, only iterate the upper triangle (j from i+1) — looping over '
+        + 'the whole matrix swaps every pair twice and returns you to the original.\n\n'
+        + 'Then reverse each row. The transpose put the right values in each row but in the wrong '
+        + 'order; reversing fixes that, and the composition is exactly a clockwise rotation.\n\n'
+        + 'The variant is worth remembering: for ANTI-clockwise, transpose then reverse each '
+        + 'COLUMN — or equivalently, reverse the rows first and then transpose. Same two '
+        + 'primitives, opposite order.',
+      complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'BEST — in place' },
+      pseudocode: [
+        '// 1. transpose — upper triangle only',
+        'for i = 0 .. n-1:',
+        '  for j = i+1 .. n-1:',
+        '    swap(m[i][j], m[j][i])',
+        '// 2. reverse every row',
+        'for each row: reverse(row)',
+      ],
+      example: { input: '[[1,2,3],[4,5,6],[7,8,9]]', output: '[[7,4,1],[8,5,2],[9,6,3]]' },
+      steps: [
+        {
+          title: 'Start: rows are 1,2,3 / 4,5,6 / 7,8,9',
+          detail: 'After rotating clockwise, the first COLUMN (7,4,1 bottom-to-top) should become the first row.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }, { value: 6 }, { value: 7 }, { value: 8 }, { value: 9 }] },
+          note: 'Read as a 3×3 grid, row by row.',
+        },
+        {
+          title: 'Transpose: swap [0][1] with [1][0] — the 2 and the 4',
+          detail: 'j starts at i+1, so the diagonal (1, 5, 9) is never touched and no pair is swapped twice.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1 }, { value: 4, highlight: 'found' }, { value: 3 }, { value: 2, highlight: 'found' }, { value: 5 }, { value: 6 }, { value: 7 }, { value: 8 }, { value: 9 }] },
+          computation: { label: 'swap', lhs: 'm[0][1]=2', op: '↔', rhs: 'm[1][0]=4', result: 'reflect across the diagonal' },
+        },
+        {
+          title: 'Remaining swaps: 3↔7 and 6↔8',
+          detail: 'Transposed matrix is 1,4,7 / 2,5,8 / 3,6,9. The original columns are now rows — but each is in the wrong direction.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1 }, { value: 4 }, { value: 7 }, { value: 2 }, { value: 5 }, { value: 8 }, { value: 3 }, { value: 6 }, { value: 9 } ] },
+        },
+        {
+          title: 'Reverse row 0: [1,4,7] → [7,4,1]',
+          detail: 'That is the correct first row of the rotated matrix.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 7, highlight: 'found' }, { value: 4, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 2 }, { value: 5 }, { value: 8 }, { value: 3 }, { value: 6 }, { value: 9 }] },
+        },
+        {
+          title: 'Reverse the other rows — done',
+          detail: 'Two simple passes, no index arithmetic to get wrong, no extra matrix allocated.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 7 }, { value: 4 }, { value: 1 }, { value: 8 }, { value: 5 }, { value: 2 }, { value: 9 }, { value: 6 }, { value: 3 }] },
+          result: { found: true, value: '[[7,4,1],[8,5,2],[9,6,3]]' },
+        },
+      ],
+      tradeoffs:
+        'O(n²) — every cell must move, so that is optimal — with O(1) extra space. The only trap is '
+        + 'iterating the full matrix in the transpose, which undoes itself.',
+      usesPolyfills: [{ builtin: 'Array.prototype.reverse', templateName: 'Array.reverse', why: 'each row reversal is the two-pointer swap' }],
+    },
+    {
+      id: 'layers',
+      name: 'Four-way ring rotation',
+      badge: 'alternative',
+      intuition:
+        'Rotate the matrix as concentric rings. For each ring, move four elements at a time in a '
+        + 'cycle: top-left → top-right → bottom-right → bottom-left → back to top-left, holding one '
+        + 'in a temporary so nothing is overwritten before it has been copied.\n\n'
+        + 'This is a single pass rather than two, so it is marginally faster in practice. It is '
+        + 'also far easier to get wrong: four index expressions, each involving both the layer and '
+        + 'the offset within it, and a single sign error silently corrupts one corner.\n\n'
+        + 'Worth knowing because it generalises to rotating a sub-region, and because it shows '
+        + 'that the transpose-and-reverse decomposition is a choice rather than a necessity. In an '
+        + 'interview, write transpose-and-reverse and mention this one.',
+      complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'One pass, easier to botch' },
+      pseudocode: [
+        'for layer = 0 .. n/2:',
+        '  for i = layer .. n-1-layer-1:',
+        '    tmp = top-left',
+        '    top-left    = bottom-left',
+        '    bottom-left = bottom-right',
+        '    bottom-right= top-right',
+        '    top-right   = tmp',
+      ],
+      example: { input: '[[1,2,3],[4,5,6],[7,8,9]]', output: '[[7,4,1],[8,5,2],[9,6,3]] in one pass' },
+      steps: [
+        {
+          title: 'Outer ring, first offset: the corners 1, 3, 9, 7',
+          detail: 'Save 1, then 1←7, 7←9, 9←3, 3←1. Four assignments and one temporary.',
+          pseudoLine: 2,
+          array: { cells: [{ value: 1, highlight: 'i' }, { value: 2 }, { value: 3, highlight: 'j' }, { value: 4 }, { value: 5 }, { value: 6 }, { value: 7, highlight: 'j' }, { value: 8 }, { value: 9, highlight: 'i' }] },
+        },
+        {
+          title: 'Second offset: the edge midpoints 2, 6, 8, 4',
+          detail: 'Same four-way cycle one step along the ring.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 7 }, { value: 2, highlight: 'i' }, { value: 1 }, { value: 4, highlight: 'j' }, { value: 5 }, { value: 6, highlight: 'j' }, { value: 9 }, { value: 8, highlight: 'i' }, { value: 3 }] },
+        },
+        {
+          title: 'The centre never moves',
+          detail: 'On an odd-sized matrix the middle element is its own rotation. The loop bound handles this by never reaching it.',
+          pseudoLine: 0,
+          array: { cells: [{ value: 7 }, { value: 4 }, { value: 1 }, { value: 8 }, { value: 5, highlight: 'found' }, { value: 2 }, { value: 9 }, { value: 6 }, { value: 3 }] },
+          result: { found: true, value: 'Same result, one pass, four times the index arithmetic' },
+        },
+      ],
+      tradeoffs: 'Slightly fewer writes, considerably more room for error. Prefer transpose-and-reverse unless profiling says otherwise.',
+    },
+  ],
+};
+
+
+// ===================================================================
+// Arrays — shuffling, set ops, chunking
+// ===================================================================
+
+const shuffleArrayExpl: Explanation = {
+  problem: 'Shuffle Array (Fisher-Yates)',
+  problemStatement: 'Shuffle an array so that every one of the n! orderings is equally likely.',
+  approaches: [
+    {
+      id: 'fisher-yates',
+      name: 'Fisher-Yates (modern / Durstenfeld)',
+      badge: 'best',
+      intuition:
+        'Walk backwards from the last index. At each position i, pick a random j in [0, i] — '
+        + 'crucially INCLUDING i itself — and swap. One pass, O(n), and provably uniform.\n\n'
+        + 'The uniformity argument is the answer the question is really after. Think of it as '
+        + 'drawing from a bag. At the first step you choose from i+1 candidates for the final '
+        + 'position; each has probability 1/(i+1). At the next step you choose from i candidates '
+        + 'for the next position. Multiply those out across the whole pass and every permutation '
+        + 'ends up with probability exactly 1/n!.\n\n'
+        + 'Including i in the range is essential. If you pick from [0, i-1] you forbid an element '
+        + 'from staying where it is, which excludes every permutation with a fixed point. That is '
+        + "Sattolo's algorithm — it generates uniform CYCLES, not uniform permutations, and the "
+        + 'difference is a single character in the code. It is a genuinely famous off-by-one.',
+      complexity: { time: 'O(n)', space: 'O(1)', verdict: 'BEST — provably uniform' },
+      pseudocode: [
+        'for i = n-1 down to 1:',
+        '  j = floor(random() * (i + 1))     // INCLUSIVE of i',
+        '  swap(a[i], a[j])',
+        'return a',
+      ],
+      example: { input: '[A,B,C,D]', output: 'each of the 24 orderings with probability 1/24' },
+      steps: [
+        {
+          title: 'i = 3: choose from all four positions',
+          detail: 'random() × 4 gives j = 1. Every element has a 1-in-4 chance of landing at the end — including D, which is why the range must include i.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 'A' }, { value: 'B', highlight: 'j' }, { value: 'C' }, { value: 'D', highlight: 'i' }] },
+          computation: { label: 'pick', lhs: 'random × 4', op: '→', rhs: 'j = 1', result: 'swap positions 3 and 1' },
+        },
+        {
+          title: 'After the swap: [A,D,C,B] — position 3 is settled',
+          detail: 'B is now final. The remaining problem is shuffling the first three, which is the same problem one size smaller.',
+          pseudoLine: 2,
+          array: { cells: [{ value: 'A' }, { value: 'D' }, { value: 'C' }, { value: 'B', highlight: 'found' }] },
+        },
+        {
+          title: 'i = 2: choose from the first three only',
+          detail: 'j = 0, so C and A swap. Probability 1/3 each for this position — and 1/4 × 1/3 = 1/12 for the pair so far.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 'A', highlight: 'j' }, { value: 'D' }, { value: 'C', highlight: 'i' }, { value: 'B' }] },
+        },
+        {
+          title: 'i = 1: choose from the first two. Then stop.',
+          detail: 'The loop ends at i = 1 because i = 0 has only one choice — itself — and swapping an element with itself is a no-op.',
+          pseudoLine: 0,
+          array: { cells: [{ value: 'C' }, { value: 'D', highlight: 'i' }, { value: 'A' }, { value: 'B' }] },
+          computation: { label: 'probability', lhs: '1/4 × 1/3 × 1/2', op: '=', rhs: '', result: '1/24 = 1/4!' },
+        },
+        {
+          title: "The Sattolo bug: random() × i instead of (i + 1)",
+          detail: 'Excluding i means no element can remain in place. You get uniform cycles — every permutation with a fixed point becomes impossible. One character apart from correct.',
+          pseudoLine: 1,
+          result: { found: true, value: 'Uniform over all 24 orderings — only with the inclusive range' },
+        },
+      ],
+      tradeoffs:
+        'O(n) time, O(1) space, in place, and uniform. There is no better algorithm; this is the '
+        + 'standard for a reason.',
+    },
+    {
+      id: 'sort-random',
+      name: 'sort(() => Math.random() - 0.5)',
+      badge: 'baseline',
+      intuition:
+        'The one-liner everyone reaches for, and it is genuinely broken — not merely inelegant. It '
+        + 'is worth being able to say exactly why, because "it works fine in practice" is a common '
+        + 'and wrong response.\n\n'
+        + 'A comparator is required to be consistent: if it says a < b now, it must say so every '
+        + 'time, and the ordering must be transitive. A random comparator satisfies neither. Sort '
+        + 'algorithms rely on those guarantees to prune comparisons, so what you get depends '
+        + 'entirely on the engine’s sort implementation and on n.\n\n'
+        + "V8 uses insertion sort for short arrays and TimSort above ~10 elements, and the "
+        + 'resulting distributions are measurably lopsided — elements tend to stay near where they '
+        + 'started. Empirically, shuffling [1..10] this way leaves the first element in the first '
+        + 'position far more often than 10% of the time.\n\n'
+        + 'It is also slower: O(n log n) comparisons against Fisher-Yates’ O(n) swaps. Worse '
+        + 'output, more work.',
+      complexity: { time: 'O(n log n)', space: 'O(n)', verdict: 'NOT uniform — avoid' },
+      pseudocode: [
+        'return [...a].sort(() => Math.random() - 0.5)',
+        '// comparator is inconsistent and non-transitive',
+        '// → result depends on the sort algorithm, not on chance',
+      ],
+      example: { input: '[1,2,3,4,5] shuffled 100k times', output: 'visibly skewed position frequencies' },
+      steps: [
+        {
+          title: 'The comparator contradicts itself',
+          detail: 'Asked to compare A and B twice, it can answer "A first" then "B first". Sorts assume that never happens.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 'A', highlight: 'i' }, { value: 'B', highlight: 'j' }, { value: 'C' }] },
+          computation: { label: 'compare(A,B)', lhs: '-0.2 → A first', op: 'then', rhs: '+0.3 → B first', result: 'inconsistent' },
+        },
+        {
+          title: 'Transitivity breaks too',
+          detail: 'It may report A < B, B < C and C < A simultaneously. No ordering satisfies that, so the sort produces whatever its internal path happens to yield.',
+          pseudoLine: 2,
+          array: { cells: [{ value: 'A', highlight: 'compare' }, { value: 'B', highlight: 'compare' }, { value: 'C', highlight: 'compare' }] },
+        },
+        {
+          title: 'The measurable consequence',
+          detail: 'Over 100k shuffles of five elements, a uniform shuffle puts each element in each slot ~20% of the time. This does not — the bias is easy to observe.',
+          pseudoLine: 2,
+          result: { found: false, value: 'Not uniform, and slower than the correct algorithm' },
+        },
+      ],
+      tradeoffs: 'Shorter to type and wrong. Fisher-Yates is four lines.',
+      usesPolyfills: [{ builtin: 'Array.prototype.sort', templateName: 'Array.sort', why: 'shows why the comparator contract matters' }],
+    },
+  ],
+};
+
+const intersectionUnionExpl: Explanation = {
+  problem: 'Array Intersection & Union',
+  problemStatement: 'Compute the intersection and union of two arrays, without duplicates.',
+  approaches: [
+    {
+      id: 'set',
+      name: 'Set membership',
+      badge: 'best',
+      intuition:
+        'Put one array into a Set, then filter the other by membership. Set lookup is O(1) on '
+        + 'average — it hashes — so the whole thing is O(n + m) instead of O(n × m).\n\n'
+        + 'For the union it is even simpler: `new Set([...a, ...b])` both combines and '
+        + 'deduplicates in one expression, because a Set cannot hold the same value twice.\n\n'
+        + 'One detail the naive version misses: the intersection must be deduplicated too. If a is '
+        + '[1,1,2] and b is [1,2], filtering a by membership in b gives [1,1,2] — the duplicate 1 '
+        + 'passes the test twice. Wrapping the result in a Set fixes it.\n\n'
+        + 'The equality model matters as well. Sets use SameValueZero, which behaves like === with '
+        + 'one deliberate exception: NaN equals itself. So NaN works correctly here, while '
+        + 'indexOf-based approaches silently drop it. Objects still compare by reference, so two '
+        + 'structurally identical objects are two distinct members.',
+      complexity: { time: 'O(n + m)', space: 'O(n + m)', verdict: 'BEST' },
+      pseudocode: [
+        'setB = new Set(b)',
+        'intersection = [...new Set(a.filter(x => setB.has(x)))]',
+        'union        = [...new Set([...a, ...b])]',
+      ],
+      example: { input: 'a = [1,2,2,3], b = [2,3,4]', output: 'intersection [2,3], union [1,2,3,4]' },
+      steps: [
+        {
+          title: 'Build a Set from b: {2, 3, 4}',
+          detail: 'One pass over b. Every subsequent membership test is O(1).',
+          pseudoLine: 0,
+          set: { items: [{ value: 2, highlight: 'new' }, { value: 3, highlight: 'new' }, { value: 4, highlight: 'new' }] },
+        },
+        {
+          title: 'Filter a: 1 is not in the set — dropped',
+          detail: 'A single hash lookup, not a scan of b.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 1, highlight: 'i' }, { value: 2 }, { value: 2 }, { value: 3 }] },
+          lookupOutcome: { kind: 'miss', key: 1, at: 'not in b' },
+        },
+        {
+          title: '2 is present — kept. And so is the second 2.',
+          detail: 'Both copies pass the membership test. Without the outer Set the result would contain 2 twice.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 1 }, { value: 2, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 3 }] },
+          note: 'This is why the filter result is wrapped in a Set.',
+        },
+        {
+          title: '3 is present — kept. Deduplicate → [2,3]',
+          detail: 'The Set collapses the repeated 2, giving the correct intersection.',
+          pseudoLine: 1,
+          set: { items: [{ value: 2, highlight: 'hit' }, { value: 3, highlight: 'hit' }] },
+        },
+        {
+          title: 'Union: one Set over both arrays',
+          detail: '[1,2,2,3,2,3,4] enters, and the Set keeps first occurrences only: [1,2,3,4].',
+          pseudoLine: 2,
+          set: { items: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4, highlight: 'new' }] },
+          result: { found: true, value: 'intersection [2,3], union [1,2,3,4]' },
+        },
+      ],
+      tradeoffs:
+        'Linear time for linear extra space. Insertion order is preserved because JavaScript Sets '
+        + 'iterate in insertion order. Works for primitives; objects compare by reference.',
+    },
+    {
+      id: 'includes',
+      name: 'filter + includes',
+      badge: 'baseline',
+      intuition:
+        '`a.filter(x => b.includes(x))` reads beautifully and is O(n × m), because includes is a '
+        + 'linear scan run once per element of a. On two arrays of 10,000 that is 100 million '
+        + 'comparisons instead of 20,000.\n\n'
+        + 'It also handles NaN differently from what you might expect. `includes` uses '
+        + 'SameValueZero, so it DOES find NaN — but `indexOf`, which people often reach for '
+        + 'instead, uses strict equality and never will, since NaN !== NaN. Two nearly identical '
+        + 'methods with a real behavioural difference.\n\n'
+        + 'Perfectly reasonable for small fixed-size arrays. The moment the inputs are '
+        + 'user-scaled, it is the Set.',
+      complexity: { time: 'O(n × m)', space: 'O(n)', verdict: 'Fine only when tiny' },
+      pseudocode: [
+        'intersection = a.filter(x => b.includes(x))   // scans b per element',
+        'union        = [...a, ...b.filter(x => !a.includes(x))]',
+      ],
+      example: { input: 'a = [1,2,2,3], b = [2,3,4]', output: '[2,2,3] — note the duplicate' },
+      steps: [
+        {
+          title: 'For element 1, scan all of b',
+          detail: 'Compare against 2, 3, 4 — three comparisons to establish one absence.',
+          pseudoLine: 0,
+          dualArray: { left: { label: 'a', cells: [{ value: 1, highlight: 'i' }, { value: 2 }, { value: 2 }, { value: 3 }], pointer: 0 }, right: { label: 'b (scanned fully)', cells: [{ value: 2, highlight: 'compare' }, { value: 3, highlight: 'compare' }, { value: 4, highlight: 'compare' }] } },
+        },
+        {
+          title: 'For element 2, scan b again',
+          detail: 'Found on the first comparison this time, but the work is repeated for every element of a.',
+          pseudoLine: 0,
+          dualArray: { left: { label: 'a', cells: [{ value: 1 }, { value: 2, highlight: 'i' }, { value: 2 }, { value: 3 }], pointer: 1 }, right: { label: 'b', cells: [{ value: 2, highlight: 'found' }, { value: 3 }, { value: 4 }] } },
+        },
+        {
+          title: 'Result [2,2,3] — the duplicate survives',
+          detail: 'filter tests each element independently, so it has no memory of having already kept a 2.',
+          pseudoLine: 0,
+          result: { found: false, value: '[2,2,3] — needs a Set wrapper to be correct' },
+        },
+      ],
+      tradeoffs: 'Quadratic and does not deduplicate on its own. Readable, which is its only advantage.',
+      usesPolyfills: [{ builtin: 'Array.prototype.includes', templateName: 'Array.includes', why: 'SameValueZero — finds NaN, unlike indexOf' }],
+    },
+  ],
+};
+
+const chunkArrayExpl: Explanation = {
+  problem: 'Chunk Array',
+  problemStatement: 'Split an array into groups of at most n, with the last group holding the remainder.',
+  approaches: [
+    {
+      id: 'slice',
+      name: 'Step the index by size and slice',
+      badge: 'best',
+      intuition:
+        'Walk the index forward in jumps of `size` and slice each range. slice already clamps an '
+        + 'end index past the array length, so the final short chunk needs no special handling — '
+        + 'which is why this version has no edge-case branch.\n\n'
+        + 'The guard that does matter is `size < 1`. With size 0 the loop counter never advances, '
+        + 'so it spins forever appending empty arrays until the process dies. It is the kind of '
+        + 'input that arrives from a config file or a URL parameter rather than from your own '
+        + 'code, so it is worth a line.\n\n'
+        + 'Negative sizes have the same problem in the other direction. Throwing, or returning an '
+        + 'empty array, is a decision you should state rather than leave implicit — lodash returns '
+        + '[] for size 0, which is a defensible and documented choice.',
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'BEST' },
+      pseudocode: [
+        'if size < 1: return []          // or throw — but decide',
+        'out = []',
+        'for i = 0; i < a.length; i += size:',
+        '  out.push(a.slice(i, i + size))   // slice clamps the end for you',
+        'return out',
+      ],
+      example: { input: '[1,2,3,4,5], size 2', output: '[[1,2],[3,4],[5]]' },
+      steps: [
+        {
+          title: 'i = 0: slice(0, 2) → [1,2]',
+          detail: 'A full chunk. The index then jumps to 2 rather than 1.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1, highlight: 'found' }, { value: 2, highlight: 'found' }, { value: 3 }, { value: 4 }, { value: 5 }], pointers: [{ index: 0, label: 'i', color: 'indigo' }] },
+        },
+        {
+          title: 'i = 2: slice(2, 4) → [3,4]',
+          detail: 'Same shape one step along.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1 }, { value: 2 }, { value: 3, highlight: 'found' }, { value: 4, highlight: 'found' }, { value: 5 }], pointers: [{ index: 2, label: 'i', color: 'indigo' }] },
+        },
+        {
+          title: 'i = 4: slice(4, 6) on a length-5 array → [5]',
+          detail: 'The end index of 6 is past the array. slice clamps silently, so the short final chunk falls out with no extra code.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5, highlight: 'found' }], pointers: [{ index: 4, label: 'i', color: 'indigo' }] },
+          computation: { label: 'slice(4, 6)', lhs: 'length 5', op: 'clamped to', rhs: 'slice(4, 5)', result: '[5]' },
+        },
+        {
+          title: 'i = 6 exceeds the length — loop ends',
+          detail: 'Three chunks, one pass, no remainder arithmetic anywhere.',
+          pseudoLine: 4,
+          result: { found: true, value: '[[1,2],[3,4],[5]]' },
+        },
+        {
+          title: 'Without the guard, size = 0 hangs',
+          detail: 'i += 0 leaves i at zero forever while out grows with empty arrays. The loop only ends when memory runs out.',
+          pseudoLine: 0,
+          note: 'A one-line guard prevents an unbounded loop from a bad config value.',
+        },
+      ],
+      tradeoffs:
+        'O(n) total elements copied, which is unavoidable since the output contains them all. '
+        + 'Chunks are shallow copies, so mutating a nested object shows through in both.',
+      usesPolyfills: [{ builtin: 'Array.prototype.slice', templateName: 'Array.slice', why: 'the end-index clamping is what removes the remainder branch' }],
+    },
+    {
+      id: 'reduce',
+      name: 'reduce with an index test',
+      badge: 'alternative',
+      intuition:
+        'Fold over the elements, starting a new chunk whenever the index is divisible by size and '
+        + 'otherwise appending to the last one. It is a single expression, which some codebases '
+        + 'prefer.\n\n'
+        + 'The modulo test `i % size === 0` is doing the same job the stepped loop does with '
+        + 'arithmetic, just expressed per element rather than per chunk. It touches every element '
+        + 'individually instead of letting slice copy ranges in bulk, so it tends to be slower in '
+        + 'practice even though both are O(n).\n\n'
+        + 'The same size-0 hazard applies in a different disguise: x % 0 is NaN, and NaN === 0 is '
+        + 'false, so every element appends to a chunk that was never created. You get a TypeError '
+        + 'rather than a hang — different symptom, same missing guard.',
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'One expression' },
+      pseudocode: [
+        'a.reduce((out, item, i) => {',
+        '  if (i % size === 0) out.push([item])   // start a chunk',
+        '  else out[out.length - 1].push(item)    // extend the last',
+        '  return out',
+        '}, [])',
+      ],
+      example: { input: '[1,2,3,4,5], size 2', output: '[[1,2],[3,4],[5]]' },
+      steps: [
+        {
+          title: 'i = 0: 0 % 2 === 0 → start a chunk with [1]',
+          detail: 'The first element always begins a chunk.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 1, highlight: 'new' }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }] },
+          computation: { label: 'i % size', lhs: '0 % 2', op: '=', rhs: '0', result: 'new chunk' },
+        },
+        {
+          title: 'i = 1: 1 % 2 === 1 → append to the last chunk',
+          detail: 'out[out.length - 1] is [1], which becomes [1,2].',
+          pseudoLine: 2,
+          array: { cells: [{ value: 1 }, { value: 2, highlight: 'hit' }, { value: 3 }, { value: 4 }, { value: 5 }] },
+        },
+        {
+          title: 'i = 2: divisible again → a new chunk',
+          detail: 'The modulo is what marks chunk boundaries; the accumulator carries the rest.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 1 }, { value: 2 }, { value: 3, highlight: 'new' }, { value: 4 }, { value: 5 }] },
+        },
+        {
+          title: 'i = 4 starts the final one-element chunk',
+          detail: 'No remainder logic needed here either — the fold just runs out of elements.',
+          pseudoLine: 1,
+          result: { found: true, value: '[[1,2],[3,4],[5]]' },
+        },
+      ],
+      tradeoffs: 'Same complexity, typically slower than bulk slicing, and size = 0 gives a TypeError instead of a hang.',
+      usesPolyfills: [{ builtin: 'Array.prototype.reduce', templateName: 'Array.reduce', why: 'the accumulator is the growing array of chunks' }],
+    },
+  ],
+};
+
+const stringCompressionExpl: Explanation = {
+  problem: 'String Compression (RLE)',
+  problemStatement: 'Run-length encode a string: "aabcccccaaa" → "a2b1c5a3". Return the original if the encoding is not shorter.',
+  approaches: [
+    {
+      id: 'scan',
+      name: 'Single scan with a run counter',
+      badge: 'best',
+      intuition:
+        'Walk the string holding a count of the current run. When the character changes, flush the '
+        + 'previous character and its count, then reset. The whole algorithm is one pass.\n\n'
+        + 'The part people get wrong is the last run. The flush happens when the character '
+        + 'CHANGES, and at the end of the string it never does — so the final run is silently '
+        + 'dropped. Either append after the loop, or run the loop to i = n and treat the '
+        + 'out-of-range character as a guaranteed mismatch. Both work; forgetting is the bug.\n\n'
+        + 'The return condition is the second half of the question, and it is easy to get '
+        + 'backwards. RLE only compresses when runs are long; "abcdef" encodes to "a1b1c1d1e1f1", '
+        + 'twice the length. So the result is returned only if it is strictly shorter, which is '
+        + 'why real formats like PNG combine RLE with other techniques rather than relying on it '
+        + 'alone.\n\n'
+        + 'Building the output with an array and joining at the end avoids repeated string '
+        + 'concatenation — strings are immutable in JavaScript, so += in a loop allocates a new '
+        + 'string each time.',
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'BEST' },
+      pseudocode: [
+        'parts = [], count = 1',
+        'for i = 1 .. n:                       // note: to n, not n-1',
+        '  if i < n and s[i] === s[i-1]: count++',
+        '  else:',
+        '    parts.push(s[i-1], count)          // flush the finished run',
+        '    count = 1',
+        'out = parts.join("")',
+        'return out.length < s.length ? out : s',
+      ],
+      example: { input: '"aabcccccaaa"', output: '"a2b1c5a3" — 8 chars vs 11' },
+      steps: [
+        {
+          title: 'i = 1: "a" matches "a" — count becomes 2',
+          detail: 'Still inside the same run, so nothing is emitted yet.',
+          pseudoLine: 2,
+          array: { cells: [{ value: 'a', highlight: 'i' }, { value: 'a', highlight: 'j' }, { value: 'b' }, { value: 'c' }, { value: 'c' }, { value: 'c' }, { value: 'c' }, { value: 'c' }, { value: 'a' }] },
+          computation: { label: 'run', lhs: 'a', op: 'count', rhs: '', result: '2' },
+        },
+        {
+          title: 'i = 2: "b" ≠ "a" — flush "a2"',
+          detail: 'The change is the trigger. Push the character and its count, then reset to 1 for the new run.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'a', highlight: 'found' }, { value: 'a', highlight: 'found' }, { value: 'b', highlight: 'i' }, { value: 'c' }, { value: 'c' }, { value: 'c' }, { value: 'c' }, { value: 'c' }, { value: 'a' }] },
+          note: 'parts = ["a", 2]',
+        },
+        {
+          title: 'i = 3: "c" ≠ "b" — flush "b1"',
+          detail: 'A run of one still emits a count. That is why RLE expands strings with no repetition.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'a' }, { value: 'a' }, { value: 'b', highlight: 'found' }, { value: 'c', highlight: 'i' }, { value: 'c' }, { value: 'c' }, { value: 'c' }, { value: 'c' }, { value: 'a' }] },
+          note: 'parts = ["a", 2, "b", 1]',
+        },
+        {
+          title: 'Five c’s accumulate, then flush "c5"',
+          detail: 'This is where RLE pays off — five characters become two.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'a' }, { value: 'a' }, { value: 'b' }, { value: 'c', highlight: 'found' }, { value: 'c', highlight: 'found' }, { value: 'c', highlight: 'found' }, { value: 'c', highlight: 'found' }, { value: 'c', highlight: 'found' }, { value: 'a', highlight: 'i' }] },
+        },
+        {
+          title: 'The final run: i reaches n, so the else branch fires',
+          detail: 'Looping to n rather than n-1 is what flushes "a3". Stopping at n-1 loses the last run entirely — the classic bug here.',
+          pseudoLine: 4,
+          note: 'parts = ["a",2,"b",1,"c",5,"a",3] → "a2b1c5a3"',
+        },
+        {
+          title: 'Length check: 8 < 11, so return the encoding',
+          detail: 'For "abc" the encoding is "a1b1c1" — 6 vs 3 — so the original is returned instead.',
+          pseudoLine: 7,
+          result: { found: true, value: '"a2b1c5a3" (8 chars, down from 11)' },
+        },
+      ],
+      tradeoffs:
+        'O(n) time, O(n) for the output. Only compresses data with long runs, which is why it '
+        + 'appears inside formats like PNG and BMP rather than as a general-purpose compressor.',
+      usesPolyfills: [{ builtin: 'Array.prototype.join', templateName: 'Array.prototype.join', why: 'avoids O(n²) string concatenation in the loop' }],
+    },
+    {
+      id: 'regex',
+      name: 'Regex with a backreference',
+      badge: 'alternative',
+      intuition:
+        'The pattern /(.)\\1*/g captures any character and then matches as many repeats of that '
+        + 'same character as possible. \\1 is a backreference — it means "whatever group 1 '
+        + 'matched", not "any character" — so each match is exactly one run.\n\n'
+        + 'That makes the whole encoder a one-liner: replace each match with the character plus '
+        + 'the match length. It is a genuinely elegant use of backreferences and worth knowing as '
+        + 'a demonstration that they exist.\n\n'
+        + 'In practice it is slower than the manual scan, because the regex engine backtracks '
+        + 'while extending each run, and the semantics are less obvious to a reader. It also '
+        + 'handles the last run for free, which neatly sidesteps the bug in the manual version.\n\n'
+        + 'One caveat: `.` does not match newlines without the s flag, and neither version handles '
+        + 'astral-plane characters — an emoji is two UTF-16 code units and both approaches will '
+        + 'split it.',
+      complexity: { time: 'O(n) amortised', space: 'O(n)', verdict: 'Elegant, slower' },
+      pseudocode: [
+        'out = s.replace(/(.)\\1*/g, m => m[0] + m.length)',
+        '//     ↑ capture   ↑ same char, greedily',
+        'return out.length < s.length ? out : s',
+      ],
+      example: { input: '"aabcccccaaa"', output: '"a2b1c5a3"' },
+      steps: [
+        {
+          title: '(.) captures "a" at position 0',
+          detail: 'Group 1 now holds "a" for this match attempt.',
+          pseudoLine: 0,
+          array: { cells: [{ value: 'a', highlight: 'i' }, { value: 'a' }, { value: 'b' }, { value: 'c' }, { value: 'c' }, { value: 'c' }] },
+        },
+        {
+          title: '\\1* extends over the second "a" and stops at "b"',
+          detail: 'The backreference only matches the captured character, so the run ends exactly where the character changes.',
+          pseudoLine: 0,
+          array: { cells: [{ value: 'a', highlight: 'found' }, { value: 'a', highlight: 'found' }, { value: 'b', highlight: 'compare' }, { value: 'c' }, { value: 'c' }, { value: 'c' }] },
+          computation: { label: 'match', lhs: '"aa"', op: '→', rhs: 'm[0] + m.length', result: '"a2"' },
+        },
+        {
+          title: 'The g flag restarts at "b", then at "c"',
+          detail: 'Each match is one complete run, including the final one — no off-by-one to forget.',
+          pseudoLine: 0,
+          array: { cells: [{ value: 'a' }, { value: 'a' }, { value: 'b', highlight: 'found' }, { value: 'c', highlight: 'found' }, { value: 'c', highlight: 'found' }, { value: 'c', highlight: 'found' }] },
+          result: { found: true, value: '"a2b1c5a3" — same output, one line' },
+        },
+      ],
+      tradeoffs: 'Concise and handles the tail automatically; slower than the scan and harder to read.',
+    },
+  ],
+};
+
+const firstRepeatingExpl: Explanation = {
+  problem: 'First Repeating Character',
+  problemStatement: 'Find the first repeating character — and first, be clear about which reading of "first" is meant.',
+  approaches: [
+    {
+      id: 'set',
+      name: 'Set — first character seen twice',
+      badge: 'best',
+      intuition:
+        'Before writing any code, resolve the ambiguity, because there are two defensible readings '
+        + 'and they give different answers.\n\n'
+        + 'Reading A: the first character whose SECOND occurrence comes earliest. For "success" '
+        + 'that is "c" — the "cc" pair appears before the second "s".\n\n'
+        + 'Reading B: the first character IN THE STRING that appears more than once. For "success" '
+        + 'that is "s", because s is at index 0 and does repeat later.\n\n'
+        + 'Asking which one is meant is the graded moment. Answering the wrong one confidently is '
+        + 'the actual failure mode here, and it is a two-second question.\n\n'
+        + 'Reading A is what a single Set pass gives you: walk left to right, and the first '
+        + 'character already in the set is the answer. You return the moment you find it, so on '
+        + 'average you do not even scan the whole string.',
+      complexity: { time: 'O(n)', space: 'O(k)', verdict: 'BEST — k distinct chars' },
+      pseudocode: [
+        'seen = new Set()',
+        'for ch of s:',
+        '  if seen.has(ch): return ch      // second occurrence, earliest',
+        '  seen.add(ch)',
+        'return null',
+      ],
+      example: { input: '"success"', output: '"c" — its repeat arrives before the second "s"' },
+      steps: [
+        {
+          title: '"s" is new — add it',
+          detail: 'The set is the memory of everything seen so far.',
+          pseudoLine: 3,
+          set: { items: [{ value: 's', highlight: 'new' }] },
+          array: { cells: [{ value: 's', highlight: 'i' }, { value: 'u' }, { value: 'c' }, { value: 'c' }, { value: 'e' }, { value: 's' }, { value: 's' }] },
+        },
+        {
+          title: '"u" is new, "c" is new',
+          detail: 'Still no repeat. Three distinct characters recorded.',
+          pseudoLine: 3,
+          set: { items: [{ value: 's' }, { value: 'u', highlight: 'new' }, { value: 'c', highlight: 'new' }] },
+          array: { cells: [{ value: 's' }, { value: 'u' }, { value: 'c', highlight: 'i' }, { value: 'c' }, { value: 'e' }, { value: 's' }, { value: 's' }] },
+        },
+        {
+          title: 'The second "c" — already in the set. Return immediately.',
+          detail: 'We never reach the second "s" at index 5, which is exactly why the answer is "c" under this reading.',
+          pseudoLine: 2,
+          set: { items: [{ value: 's' }, { value: 'u' }, { value: 'c', highlight: 'hit' }] },
+          array: { cells: [{ value: 's' }, { value: 'u' }, { value: 'c', highlight: 'found' }, { value: 'c', highlight: 'found' }, { value: 'e' }, { value: 's' }, { value: 's' }] },
+          lookupOutcome: { kind: 'hit', key: 'c', at: 'index 3 — its repeat is the earliest' },
+          result: { found: true, value: '"c"' },
+        },
+      ],
+      tradeoffs:
+        'O(n) worst case and often much less, since it returns early. Space is bounded by the '
+        + 'alphabet size, not the string length.',
+    },
+    {
+      id: 'counts',
+      name: 'Count first, then re-scan (reading B)',
+      badge: 'alternative',
+      intuition:
+        'For the other reading — the earliest character in the string that repeats anywhere — one '
+        + 'pass is not enough. At index 0 you cannot yet know whether "s" appears again later.\n\n'
+        + 'So count every character first, then scan from the left and return the first one whose '
+        + 'count exceeds 1. Two passes, still O(n).\n\n'
+        + 'On "success" this returns "s" rather than "c", and the difference is not a bug in '
+        + 'either version — they answer different questions. This is exactly why clarifying up '
+        + 'front matters.\n\n'
+        + 'The same two-pass shape solves the closely related "first NON-repeating character": '
+        + 'identical code with the test flipped to count === 1. Recognising that they are the same '
+        + 'algorithm is worth mentioning.',
+      complexity: { time: 'O(n)', space: 'O(k)', verdict: 'The other reading' },
+      pseudocode: [
+        'counts = new Map()',
+        'for ch of s: counts[ch]++          // pass 1',
+        'for ch of s:                        // pass 2, left to right',
+        '  if counts[ch] > 1: return ch',
+        'return null',
+      ],
+      example: { input: '"success"', output: '"s" — first in the string that repeats at all' },
+      steps: [
+        {
+          title: 'Pass 1: tally every character',
+          detail: 's appears 3 times, c twice, u and e once each.',
+          pseudoLine: 1,
+          map: { entries: [{ key: 's', value: 3, highlight: 'new' }, { key: 'u', value: 1 }, { key: 'c', value: 2 }, { key: 'e', value: 1 }] },
+        },
+        {
+          title: 'Pass 2: the first character is "s", count 3 > 1',
+          detail: 'Return immediately. Under this reading, position in the string wins over when the repeat occurs.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 's', highlight: 'found' }, { value: 'u' }, { value: 'c' }, { value: 'c' }, { value: 'e' }, { value: 's' }, { value: 's' }] },
+          lookupOutcome: { kind: 'hit', key: 's', at: 'count 3 — repeats somewhere' },
+        },
+        {
+          title: 'Different answer, same input',
+          detail: '"c" versus "s" — the whole reason to ask which definition applies before writing anything.',
+          pseudoLine: 3,
+          result: { found: true, value: '"s" (reading B) vs "c" (reading A)' },
+        },
+      ],
+      tradeoffs: 'Two passes instead of one and no early exit, but it answers the other reading. Flip the test to === 1 for first non-repeating.',
+    },
+  ],
+};
+
+
+// ===================================================================
+// Strings — encoding, windows, transforms
+// ===================================================================
+
+const integerToRomanExpl: Explanation = {
+  problem: 'Integer to Roman',
+  problemStatement: 'Convert an integer from 1 to 3999 into its Roman numeral form.',
+  approaches: [
+    {
+      id: 'greedy',
+      name: 'Greedy with subtractive pairs in the table',
+      badge: 'best',
+      intuition:
+        'The trick that makes this easy is to stop treating the subtractive forms — IV, IX, XL, '
+        + 'XC, CD, CM — as special cases and put them straight into the value table alongside the '
+        + 'ordinary symbols.\n\n'
+        + 'Once 900 → "CM" and 4 → "IV" are just entries like any other, the algorithm is pure '
+        + 'greedy: walk the table from largest to smallest, and while the number is at least the '
+        + 'current value, append the symbol and subtract. No conditionals, no exceptions.\n\n'
+        + 'Greedy is provably optimal here because the value system is constructed for it. The '
+        + 'ordering guarantees that taking the largest possible symbol at each step never strands '
+        + 'you — this is not true of arbitrary coin systems, where greedy can fail, but Roman '
+        + 'numerals were designed to be written this way.\n\n'
+        + 'The while loop rather than an if is what handles repeats: 30 needs "XXX", which is three '
+        + 'consecutive subtractions of 10 before moving on.',
+      complexity: { time: 'O(1)', space: 'O(1)', verdict: 'BEST — bounded by 3999' },
+      pseudocode: [
+        'table = [[1000,"M"],[900,"CM"],[500,"D"],[400,"CD"],',
+        '         [100,"C"],[90,"XC"],[50,"L"],[40,"XL"],',
+        '         [10,"X"],[9,"IX"],[5,"V"],[4,"IV"],[1,"I"]]',
+        'for [value, symbol] of table:',
+        '  while n >= value:                 // while, so repeats work',
+        '    out += symbol; n -= value',
+      ],
+      example: { input: '1994', output: '"MCMXCIV"' },
+      steps: [
+        {
+          title: '1994 ≥ 1000 → append "M", leaving 994',
+          detail: 'The largest symbol that fits. Only once, since 994 < 1000.',
+          pseudoLine: 4,
+          computation: { label: 'greedy', lhs: '1994', op: '- 1000', rhs: 'M', result: '994' },
+        },
+        {
+          title: '994 ≥ 900 → append "CM", leaving 94',
+          detail: 'Here is the payoff. Because 900/"CM" is a table entry, the subtractive form needs no special handling at all.',
+          pseudoLine: 4,
+          computation: { label: 'greedy', lhs: '994', op: '- 900', rhs: 'CM', result: '94' },
+          note: 'A version without CM in the table would produce "DCCCC" — valid arithmetic, invalid Roman.',
+        },
+        {
+          title: '94 ≥ 90 → append "XC", leaving 4',
+          detail: 'Same mechanism one order of magnitude down.',
+          pseudoLine: 4,
+          computation: { label: 'greedy', lhs: '94', op: '- 90', rhs: 'XC', result: '4' },
+        },
+        {
+          title: '4 ≥ 4 → append "IV", leaving 0',
+          detail: 'The loop ends with nothing left. Result: M + CM + XC + IV.',
+          pseudoLine: 5,
+          result: { found: true, value: '"MCMXCIV"' },
+        },
+        {
+          title: 'Why the while matters: 30 → "XXX"',
+          detail: '30 ≥ 10 three times over. An `if` would emit a single X and leave 20 unconverted.',
+          pseudoLine: 4,
+          computation: { label: '30', lhs: 'X, X, X', op: '', rhs: '', result: '"XXX"' },
+        },
+      ],
+      tradeoffs:
+        'O(1) because the input is capped at 3999, so the loop runs a bounded number of times. The '
+        + 'table encodes every rule, which is why there are no conditionals in the body.',
+    },
+    {
+      id: 'digits',
+      name: 'Per-digit lookup table',
+      badge: 'alternative',
+      intuition:
+        'Roman numerals are positional in a loose sense: the thousands, hundreds, tens and units '
+        + 'each have their own fixed set of ten possible strings. So you can precompute four '
+        + 'arrays of ten and simply index into them.\n\n'
+        + 'Thousands: ["", "M", "MM", "MMM"]. Hundreds: ["", "C", "CC", "CCC", "CD", "D", "DC", '
+        + '"DCC", "DCCC", "CM"]. And so on. Then 1994 is thousands[1] + hundreds[9] + tens[9] + '
+        + 'units[4], concatenated.\n\n'
+        + 'This is the fastest version — four array accesses and a join, no loop at all — and it '
+        + 'makes the structure of the numeral system explicit. The cost is that the tables must be '
+        + 'written out correctly, which is forty strings of opportunity for a typo, and none of '
+        + 'the logic is visible in the code.\n\n'
+        + 'It is a good illustration of trading derivation for enumeration, which is a real '
+        + 'engineering choice whenever the input domain is small and fixed.',
+      complexity: { time: 'O(1)', space: 'O(1)', verdict: 'Fastest, table-heavy' },
+      pseudocode: [
+        'M = ["","M","MM","MMM"]',
+        'C = ["","C","CC","CCC","CD","D","DC","DCC","DCCC","CM"]',
+        'X = ["","X","XX","XXX","XL","L","LX","LXX","LXXX","XC"]',
+        'I = ["","I","II","III","IV","V","VI","VII","VIII","IX"]',
+        'return M[n/1000] + C[(n%1000)/100] + X[(n%100)/10] + I[n%10]',
+      ],
+      example: { input: '1994', output: '"M" + "CM" + "XC" + "IV"' },
+      steps: [
+        {
+          title: 'Extract each digit by division and modulo',
+          detail: '1994 → thousands 1, hundreds 9, tens 9, units 4.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 1, highlight: 'i' }, { value: 9 }, { value: 9 }, { value: 4 }] },
+          computation: { label: 'digits', lhs: '1994', op: '→', rhs: '', result: '1 | 9 | 9 | 4' },
+        },
+        {
+          title: 'Index each table',
+          detail: 'M[1]="M", C[9]="CM", X[9]="XC", I[4]="IV". The subtractive forms are baked into the tables.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'M', highlight: 'found' }, { value: 'CM', highlight: 'found' }, { value: 'XC', highlight: 'found' }, { value: 'IV', highlight: 'found' }] },
+        },
+        {
+          title: 'Concatenate — no loop executed',
+          detail: 'Four lookups and a join. Faster than the greedy version, at the cost of 40 hand-written strings.',
+          pseudoLine: 4,
+          result: { found: true, value: '"MCMXCIV"' },
+        },
+      ],
+      tradeoffs: 'Constant time with no iteration at all. The tables are the risk — a typo produces a silently wrong numeral.',
+    },
+  ],
+};
+
+const reverseIntegerExpl: Explanation = {
+  problem: 'Reverse Integer',
+  problemStatement: 'Reverse the digits of a signed 32-bit integer. Return 0 if the result would overflow.',
+  approaches: [
+    {
+      id: 'math',
+      name: 'Digit extraction with an overflow check',
+      badge: 'best',
+      intuition:
+        'Peel digits off the right with % 10, build the reversed number by multiplying the '
+        + 'accumulator by 10 and adding, then drop the digit with integer division. Standard.\n\n'
+        + 'The actual subject of this question is the overflow check, and it has a subtlety that '
+        + 'catches people. The 32-bit signed range is −2147483648 to 2147483647. In a language '
+        + 'with real 32-bit ints you cannot compute the overflowing value and then test it — the '
+        + 'overflow has already happened and wrapped. So you must check BEFORE multiplying: if '
+        + 'result > (MAX − digit) / 10, the next step would overflow.\n\n'
+        + 'JavaScript hides this because all numbers are doubles, so you can compute the big value '
+        + 'safely and check afterwards. Saying that out loud is the mature answer: know that the '
+        + 'check-before form is what the problem is really testing, and that JS lets you cheat.\n\n'
+        + 'Two smaller traps: Math.trunc, not Math.floor, because floor(−7/10) is −1 rather than 0 '
+        + 'and the loop never terminates for negatives; and trailing zeros vanish, so 1200 '
+        + 'reverses to 21 — which is correct and not a bug.',
+      complexity: { time: 'O(log n)', space: 'O(1)', verdict: 'BEST' },
+      pseudocode: [
+        'result = 0',
+        'while n !== 0:',
+        '  digit = n % 10                    // sign follows n in JS',
+        '  n = Math.trunc(n / 10)            // trunc, NOT floor',
+        '  // the real check, before the multiply:',
+        '  if result > (MAX - digit) / 10: return 0',
+        '  result = result * 10 + digit',
+        'return result',
+      ],
+      example: { input: '-1234', output: '-4321' },
+      steps: [
+        {
+          title: 'digit = −1234 % 10 = −4',
+          detail: 'JavaScript’s % keeps the sign of the dividend, so negatives carry through automatically — no separate sign handling needed.',
+          pseudoLine: 2,
+          computation: { label: 'extract', lhs: '-1234 % 10', op: '=', rhs: '', result: '-4' },
+        },
+        {
+          title: 'n = trunc(−1234 / 10) = −123',
+          detail: 'trunc rounds toward zero. Math.floor would give −124 here, and the loop would never reach 0.',
+          pseudoLine: 3,
+          computation: { label: 'trunc vs floor', lhs: 'trunc(-123.4) = -123', op: 'vs', rhs: 'floor(-123.4) = -124', result: 'trunc is required' },
+        },
+        {
+          title: 'result = 0 × 10 + (−4) = −4',
+          detail: 'The accumulator shifts left one place each iteration and takes the new digit.',
+          pseudoLine: 6,
+          array: { cells: [{ value: -4, highlight: 'found' }] },
+        },
+        {
+          title: 'Repeat: −43, then −432, then −4321',
+          detail: 'Each pass multiplies by 10 and appends. Four digits, four iterations — O(log n) in the value.',
+          pseudoLine: 6,
+          array: { cells: [{ value: -4 }, { value: -43 }, { value: -432 }, { value: -4321, highlight: 'found' }] },
+          result: { found: true, value: '-4321' },
+        },
+        {
+          title: 'Overflow: 1534236469 reverses to 9646324351',
+          detail: 'That exceeds 2147483647, so the answer is 0. The check must happen before the multiply in a fixed-width language — JS can compute it and test after, which is a genuine difference worth naming.',
+          pseudoLine: 5,
+          result: { found: false, value: '0 — would exceed the 32-bit signed maximum' },
+        },
+      ],
+      tradeoffs:
+        'O(log n) iterations — one per digit — and constant space. Never converts to a string, so '
+        + 'no allocation.',
+    },
+    {
+      id: 'string',
+      name: 'Split, reverse, join',
+      badge: 'alternative',
+      intuition:
+        'Take the absolute value, turn it into a string, reverse the characters, parse back, and '
+        + 'reapply the sign. Three chained calls and obviously correct at a glance.\n\n'
+        + 'It allocates — a string, an array of characters, a reversed array, another string — '
+        + 'where the arithmetic version uses two numbers. For a single call that is irrelevant; in '
+        + 'a hot loop it is not.\n\n'
+        + 'The bigger objection in an interview is that it sidesteps what the question is probing. '
+        + '"Reverse an integer" is almost always a vehicle for the overflow discussion, and the '
+        + 'string version still needs that check bolted on at the end — so you do not actually '
+        + 'avoid the hard part, you just do it last.\n\n'
+        + 'Worth offering as the readable version while writing the arithmetic one.',
+      complexity: { time: 'O(log n)', space: 'O(log n)', verdict: 'Readable, allocates' },
+      pseudocode: [
+        'sign = Math.sign(n)',
+        'digits = Math.abs(n).toString().split("").reverse().join("")',
+        'result = sign * parseInt(digits, 10)',
+        'return |result| > 2147483647 ? 0 : result',
+      ],
+      example: { input: '-1234', output: '-4321' },
+      steps: [
+        {
+          title: 'Strip the sign, stringify: "1234"',
+          detail: 'Math.abs first, because "-1234".split("") would put the minus at the end after reversing.',
+          pseudoLine: 1,
+          array: { cells: [{ value: '1' }, { value: '2' }, { value: '3' }, { value: '4' }] },
+        },
+        {
+          title: 'split → reverse → join: "4321"',
+          detail: 'Three array operations and two string allocations to do what one loop does with arithmetic.',
+          pseudoLine: 1,
+          array: { cells: [{ value: '4', highlight: 'found' }, { value: '3', highlight: 'found' }, { value: '2', highlight: 'found' }, { value: '1', highlight: 'found' }] },
+        },
+        {
+          title: 'Reapply the sign and range-check',
+          detail: 'The overflow test is still required — it has just moved to the end.',
+          pseudoLine: 3,
+          result: { found: true, value: '-4321' },
+        },
+      ],
+      tradeoffs: 'Allocates O(log n) intermediates. Clear, but avoids none of the actual difficulty.',
+      usesPolyfills: [{ builtin: 'Array.prototype.reverse', templateName: 'Array.reverse', why: 'the middle link in the split-reverse-join chain' }],
+    },
+  ],
+};
+
+const isomorphicExpl: Explanation = {
+  problem: 'Isomorphic Strings',
+  problemStatement: 'Decide whether two strings are isomorphic: characters in one can be consistently replaced to produce the other.',
+  approaches: [
+    {
+      id: 'two-maps',
+      name: 'Two maps — one per direction',
+      badge: 'best',
+      intuition:
+        'The single most common wrong answer here uses one map, and it is wrong in a way that '
+        + 'passes most casual test cases.\n\n'
+        + 'With one map from s to t, "badc" and "baba" look isomorphic: b→b, a→a, d→b, c→a. Every '
+        + 'lookup is consistent in that direction. But it is not a valid mapping, because both d '
+        + 'and b now map to b — two different source characters collapsed onto one target. '
+        + 'Isomorphism requires a one-to-one correspondence, which means the reverse direction has '
+        + 'to be consistent too.\n\n'
+        + 'So keep two maps and check both on every character. If s→t already records a different '
+        + 'target, fail. If t→s already records a different source, also fail. Either violation '
+        + 'breaks the bijection.\n\n'
+        + 'This same shape solves "word pattern" and several other problems — any time the '
+        + 'requirement is a one-to-one mapping rather than merely a consistent one, you need both '
+        + 'directions.',
+      complexity: { time: 'O(n)', space: 'O(k)', verdict: 'BEST' },
+      pseudocode: [
+        'if s.length !== t.length: return false',
+        'forward = new Map(), backward = new Map()',
+        'for i = 0 .. n-1:',
+        '  a = s[i], b = t[i]',
+        '  if forward.has(a) and forward.get(a) !== b: return false',
+        '  if backward.has(b) and backward.get(b) !== a: return false',
+        '  forward.set(a, b); backward.set(b, a)',
+        'return true',
+      ],
+      example: { input: 's = "badc", t = "baba"', output: 'false — d and b would both map to b' },
+      steps: [
+        {
+          title: 'i = 0: b ↔ b — both maps empty, record it',
+          detail: 'forward: b→b. backward: b→b.',
+          pseudoLine: 6,
+          map: { entries: [{ key: 'fwd b', value: 'b', highlight: 'new' }, { key: 'bwd b', value: 'b', highlight: 'new' }] },
+        },
+        {
+          title: 'i = 1: a ↔ a — consistent, record it',
+          detail: 'Two clean pairs so far. A one-map solution is still happy at this point too.',
+          pseudoLine: 6,
+          map: { entries: [{ key: 'fwd b', value: 'b' }, { key: 'fwd a', value: 'a', highlight: 'new' }, { key: 'bwd b', value: 'b' }, { key: 'bwd a', value: 'a', highlight: 'new' }] },
+        },
+        {
+          title: 'i = 2: d ↔ b. Forward is fine — d is unseen.',
+          detail: 'A one-map solution accepts this and continues. The forward direction has no complaint.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'b' }, { value: 'a' }, { value: 'd', highlight: 'i' }, { value: 'c' }] },
+          lookupOutcome: { kind: 'miss', key: 'd', at: 'forward map — looks fine' },
+        },
+        {
+          title: 'But backward already has b → b, and we are asking for b → d',
+          detail: 'This is the violation. Two different source characters cannot both map to b. The second map is the only thing that catches it.',
+          pseudoLine: 5,
+          map: { entries: [{ key: 'bwd b', value: 'b', highlight: 'hit' }, { key: 'wants', value: 'b → d' }] },
+          result: { found: false, value: 'false — the one-map version wrongly returns true' },
+        },
+        {
+          title: 'The valid case: "egg" and "add"',
+          detail: 'e↔a, g↔d, and the second g is consistent in both directions. True.',
+          pseudoLine: 7,
+          map: { entries: [{ key: 'fwd e', value: 'a' }, { key: 'fwd g', value: 'd' }, { key: 'bwd a', value: 'e' }, { key: 'bwd d', value: 'g' }] },
+          result: { found: true, value: 'true for "egg"/"add"' },
+        },
+      ],
+      tradeoffs:
+        'One pass, O(n) time, space bounded by the alphabet. The two maps are not redundant — each '
+        + 'catches a violation the other cannot see.',
+    },
+    {
+      id: 'index',
+      name: 'Compare first-occurrence indices',
+      badge: 'alternative',
+      intuition:
+        'A neat reformulation: two strings are isomorphic exactly when, at every position, the '
+        + 'index of the FIRST occurrence of each character is the same in both.\n\n'
+        + '"egg" gives first-occurrence indices [0,1,1]; "add" gives [0,1,1]. They match, so the '
+        + 'strings are isomorphic. "foo" gives [0,1,1] while "bar" gives [0,1,2] — mismatch at the '
+        + 'last position, so not isomorphic.\n\n'
+        + 'This captures both directions at once, which is the elegant part: it encodes the SHAPE '
+        + 'of each string — the pattern of repetition — independently of which characters are '
+        + 'used, and two strings are isomorphic precisely when their shapes agree.\n\n'
+        + 'Written with indexOf it is O(n²), since indexOf scans from the start each time. Cache '
+        + 'the first index in a map and it becomes O(n), at which point it is equivalent in cost '
+        + 'to the two-map version and arguably prettier.',
+      complexity: { time: 'O(n) cached', space: 'O(k)', verdict: 'Elegant reformulation' },
+      pseudocode: [
+        'shape(str):',
+        '  first = new Map()',
+        '  return [...str].map((ch, i) => {',
+        '    if (!first.has(ch)) first.set(ch, i)',
+        '    return first.get(ch)',
+        '  })',
+        'return shape(s).join() === shape(t).join()',
+      ],
+      example: { input: 's = "foo", t = "bar"', output: 'false — shapes [0,1,1] vs [0,1,2]' },
+      steps: [
+        {
+          title: 'shape("foo") — f is new at 0, o is new at 1',
+          detail: 'Each character records where it first appeared.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 0, highlight: 'new' }, { value: 1, highlight: 'new' }, { value: '?' }] },
+        },
+        {
+          title: 'The second o reuses index 1 → [0,1,1]',
+          detail: 'The repetition is now encoded as a number rather than a character.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 0 }, { value: 1 }, { value: 1, highlight: 'hit' }] },
+        },
+        {
+          title: 'shape("bar") = [0,1,2] — every character is distinct',
+          detail: 'Three different characters, three different first indices.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 0 }, { value: 1 }, { value: 2, highlight: 'new' }] },
+        },
+        {
+          title: 'Shapes differ at position 2 → not isomorphic',
+          detail: '"foo" repeats where "bar" does not. Both mapping directions are captured by this single comparison.',
+          pseudoLine: 6,
+          result: { found: false, value: 'false — [0,1,1] ≠ [0,1,2]' },
+        },
+      ],
+      tradeoffs: 'Same complexity when the first index is cached; O(n²) if written with indexOf. Generalises to any "same pattern" question.',
+    },
+  ],
+};
+
+const longestRepeatingReplacementExpl: Explanation = {
+  problem: 'Longest Repeating Char Replacement',
+  problemStatement: 'Find the longest substring that can be made uniform by replacing at most k characters.',
+  approaches: [
+    {
+      id: 'window',
+      name: 'Sliding window with a stale max count',
+      badge: 'best',
+      intuition:
+        'A window is valid when the characters you would need to replace fit within k. That count '
+        + 'is simply windowLength − countOfTheMostFrequentCharacterInWindow. So the condition is:\n\n'
+        + '  (right − left + 1) − maxCount <= k\n\n'
+        + 'Grow the right edge; if the window becomes invalid, slide the left edge once. The window '
+        + 'never shrinks below its best size — it only ever translates — which is why a single '
+        + 'if suffices instead of a while.\n\n'
+        + 'Now the part that looks like a bug and is not. maxCount is never decreased when the '
+        + 'left edge moves, so it can be stale — it may reflect a character no longer in the '
+        + 'window.\n\n'
+        + 'That is safe, and the reason is worth stating carefully: a stale maxCount is always an '
+        + 'over-estimate, which makes the validity test more permissive, which could only let the '
+        + 'window grow. But the window can only grow if some character genuinely reaches a higher '
+        + 'count than the old maxCount — and at that moment maxCount is updated to the real value. '
+        + 'So an answer larger than the true best can never be recorded. The stale value costs '
+        + 'nothing and saves recomputing the maximum on every shrink.\n\n'
+        + 'This is a well-known interview follow-up. Being able to justify it, rather than just '
+        + 'writing it, is the difference.',
+      complexity: { time: 'O(n)', space: 'O(1)', verdict: 'BEST — 26 letters is constant' },
+      pseudocode: [
+        'counts = {}, left = 0, maxCount = 0, best = 0',
+        'for right = 0 .. n-1:',
+        '  counts[s[right]]++',
+        '  maxCount = max(maxCount, counts[s[right]])   // never decreased',
+        '  if (right - left + 1) - maxCount > k:',
+        '    counts[s[left]]--; left++                   // slide, do not shrink',
+        '  best = max(best, right - left + 1)',
+      ],
+      example: { input: 's = "AABABBA", k = 1', output: '4 — e.g. "AABA" with one B replaced' },
+      steps: [
+        {
+          title: 'right = 0,1: window "AA", maxCount 2, 0 replacements needed',
+          detail: 'Valid — 2 − 2 = 0 ≤ 1. best is 2.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 'A', highlight: 'i' }, { value: 'A', highlight: 'j' }, { value: 'B' }, { value: 'A' }, { value: 'B' }, { value: 'B' }, { value: 'A' }], pointers: [{ index: 0, label: 'left', color: 'amber' }, { index: 1, label: 'right', color: 'indigo' }] },
+          computation: { label: 'replacements', lhs: '2 - 2', op: '=', rhs: '0', result: '≤ 1 ✓' },
+        },
+        {
+          title: 'right = 2: "AAB", maxCount still 2, one replacement',
+          detail: '3 − 2 = 1 ≤ 1. Valid. Replace the B and you have "AAA". best is 3.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'A', highlight: 'i' }, { value: 'A' }, { value: 'B', highlight: 'j' }, { value: 'A' }, { value: 'B' }, { value: 'B' }, { value: 'A' }], pointers: [{ index: 0, label: 'left', color: 'amber' }, { index: 2, label: 'right', color: 'indigo' }] },
+        },
+        {
+          title: 'right = 3: "AABA", A count reaches 3, maxCount 3',
+          detail: '4 − 3 = 1 ≤ 1. Still valid, and best becomes 4 — which turns out to be the answer.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 'A', highlight: 'i' }, { value: 'A' }, { value: 'B' }, { value: 'A', highlight: 'j' }, { value: 'B' }, { value: 'B' }, { value: 'A' }], pointers: [{ index: 0, label: 'left', color: 'amber' }, { index: 3, label: 'right', color: 'indigo' }] },
+          computation: { label: 'replacements', lhs: '4 - 3', op: '=', rhs: '1', result: '≤ 1 ✓ — best = 4' },
+        },
+        {
+          title: 'right = 4: "AABAB" needs 2 replacements — slide left once',
+          detail: '5 − 3 = 2 > 1. The left edge moves to 1. The window stays size 4 rather than shrinking further.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 'A' }, { value: 'A', highlight: 'i' }, { value: 'B' }, { value: 'A' }, { value: 'B', highlight: 'j' }, { value: 'B' }, { value: 'A' }], pointers: [{ index: 1, label: 'left', color: 'amber' }, { index: 4, label: 'right', color: 'indigo' }] },
+        },
+        {
+          title: 'Here maxCount goes stale — and it still cannot mislead',
+          detail: 'The window is now "ABAB" with only 2 A’s, but maxCount is still 3. The test is too permissive — yet best can only rise if some character truly hits 4, and that would update maxCount first.',
+          pseudoLine: 3,
+          note: 'A stale over-estimate can never record an answer larger than the true best.',
+        },
+        {
+          title: 'The scan finishes with best = 4',
+          detail: 'Recomputing the true maximum on every slide would also work and would be O(26n) — same complexity, more code, no better answer.',
+          pseudoLine: 6,
+          result: { found: true, value: '4' },
+        },
+      ],
+      tradeoffs:
+        'O(n) with a fixed-size count table. The never-shrinking window and the stale maxCount are '
+        + 'both deliberate; neither is a bug, and both are common follow-up questions.',
+    },
+    {
+      id: 'brute',
+      name: 'Test every substring',
+      badge: 'baseline',
+      intuition:
+        'For every start and end, count the characters in that substring and check whether length '
+        + 'minus the most frequent count is within k. O(n²) substrings, each costing O(n) to tally '
+        + '— O(n³), or O(n²) if you maintain counts incrementally as the end extends.\n\n'
+        + 'Its value is that it makes the validity formula concrete before you optimise. Once you '
+        + 'can see that a substring is valid exactly when length − maxFrequency ≤ k, the window '
+        + 'is just a way of avoiding recomputation — and the stale-maxCount question suddenly has '
+        + 'an obvious frame of reference.',
+      complexity: { time: 'O(n²)', space: 'O(1)', verdict: 'Clarifies the formula' },
+      pseudocode: [
+        'for start = 0 .. n-1:',
+        '  counts = {}, maxFreq = 0',
+        '  for end = start .. n-1:',
+        '    counts[s[end]]++; maxFreq = max(maxFreq, counts[s[end]])',
+        '    if (end - start + 1) - maxFreq <= k: best = max(best, end - start + 1)',
+      ],
+      example: { input: 's = "AABABBA", k = 1', output: '4 — same answer, every substring examined' },
+      steps: [
+        {
+          title: 'start = 0: extend and tally',
+          detail: '"A"(0), "AA"(0), "AAB"(1), "AABA"(1) all valid; "AABAB" needs 2 — stop improving.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'A', highlight: 'found' }, { value: 'A', highlight: 'found' }, { value: 'B', highlight: 'found' }, { value: 'A', highlight: 'found' }, { value: 'B', highlight: 'compare' }, { value: 'B' }, { value: 'A' }] },
+        },
+        {
+          title: 'start = 1: rebuild the counts from scratch',
+          detail: 'The window version reuses the tally by decrementing one entry. This discards it entirely.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 'A' }, { value: 'A', highlight: 'i' }, { value: 'B' }, { value: 'A' }, { value: 'B' }, { value: 'B' }, { value: 'A' }] },
+        },
+        {
+          title: 'Same answer, O(n²) work',
+          detail: 'The formula is identical; only the bookkeeping differs.',
+          pseudoLine: 4,
+          result: { found: true, value: '4' },
+        },
+      ],
+      tradeoffs: 'Quadratic at best. Useful for establishing the validity condition, then discard.',
+    },
+  ],
+};
+
+const minWindowSubstringExpl: Explanation = {
+  problem: 'Minimum Window Substring',
+  problemStatement: 'Find the shortest substring of s containing every character of t, including duplicates.',
+  approaches: [
+    {
+      id: 'window-have-need',
+      name: 'Sliding window with a have/need counter',
+      badge: 'best',
+      intuition:
+        'This is the hardest of the classic window problems, and the thing that makes it tractable '
+        + 'is refusing to recheck the whole window on every step.\n\n'
+        + 'Keep a count of what t requires. Keep a count of what the window currently holds. Then '
+        + 'keep ONE integer, `have`, counting how many distinct required characters are currently '
+        + 'satisfied — meaning the window holds at least as many of that character as t needs.\n\n'
+        + 'Now "is this window valid?" is a single comparison, have === need, instead of a scan '
+        + 'over the map. That is what keeps the whole algorithm O(n) rather than O(n × alphabet).\n\n'
+        + 'The critical detail is when `have` changes. It increments only at the exact moment a '
+        + 'character’s count reaches its requirement — not above it. If t needs two A’s and the '
+        + 'window takes a third, nothing changes, because that character was already satisfied. '
+        + 'Symmetrically, `have` decrements only when a removal drops a count BELOW its '
+        + 'requirement. Using > instead of === here is the standard bug, and it makes the window '
+        + 'report validity it does not have.\n\n'
+        + 'Once valid, shrink from the left while it stays valid, recording the best. Each pointer '
+        + 'crosses the string once, so it is two passes at most.',
+      complexity: { time: 'O(n + m)', space: 'O(k)', verdict: 'BEST' },
+      pseudocode: [
+        'need = counts of t; required = need.size',
+        'window = {}, have = 0, left = 0, best = [Infinity, 0, 0]',
+        'for right = 0 .. n-1:',
+        '  window[s[right]]++',
+        '  if need[s[right]] and window[s[right]] === need[s[right]]: have++   // === not >=',
+        '  while have === required:',
+        '    record window if shorter',
+        '    window[s[left]]--',
+        '    if need[s[left]] and window[s[left]] < need[s[left]]: have--',
+        '    left++',
+      ],
+      example: { input: 's = "ADOBECODEBANC", t = "ABC"', output: '"BANC"' },
+      steps: [
+        {
+          title: 'need = {A:1, B:1, C:1}, required = 3',
+          detail: 'have counts satisfied characters, not total characters. It can only reach 3.',
+          pseudoLine: 0,
+          map: { entries: [{ key: 'A', value: 1, highlight: 'new' }, { key: 'B', value: 1, highlight: 'new' }, { key: 'C', value: 1, highlight: 'new' }] },
+        },
+        {
+          title: 'Expand to "ADOBEC" — have reaches 3',
+          detail: 'A satisfied at index 0, B at 3, C at 5. The first valid window, length 6.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'A', highlight: 'found' }, { value: 'D' }, { value: 'O' }, { value: 'B', highlight: 'found' }, { value: 'E' }, { value: 'C', highlight: 'found' }, { value: 'O' }, { value: 'D' }, { value: 'E' }, { value: 'B' }, { value: 'A' }, { value: 'N' }, { value: 'C' }], pointers: [{ index: 0, label: 'left', color: 'amber' }, { index: 5, label: 'right', color: 'indigo' }] },
+          computation: { label: 'have', lhs: '3', op: '===', rhs: 'required 3', result: 'valid, length 6' },
+        },
+        {
+          title: 'Shrink: drop A — its count falls below need, so have drops to 2',
+          detail: 'The window is invalid again, so the while exits and the right edge resumes.',
+          pseudoLine: 7,
+          array: { cells: [{ value: 'A', highlight: 'compare' }, { value: 'D', highlight: 'i' }, { value: 'O' }, { value: 'B' }, { value: 'E' }, { value: 'C' }, { value: 'O' }, { value: 'D' }, { value: 'E' }, { value: 'B' }, { value: 'A' }, { value: 'N' }, { value: 'C' }], pointers: [{ index: 1, label: 'left', color: 'amber' }, { index: 5, label: 'right', color: 'indigo' }] },
+        },
+        {
+          title: 'Later: a second B arrives at index 9',
+          detail: 'window[B] goes from 1 to 2, but need[B] is 1 — the === test fails, so have does NOT increment. Exactly right: B was already satisfied.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'A' }, { value: 'D' }, { value: 'O' }, { value: 'B' }, { value: 'E' }, { value: 'C' }, { value: 'O' }, { value: 'D' }, { value: 'E' }, { value: 'B', highlight: 'compare' }, { value: 'A' }, { value: 'N' }, { value: 'C' }] },
+          note: 'With >= instead of ===, have would over-count and report validity too early.',
+        },
+        {
+          title: 'A at 10 and C at 12 complete the window "BANC"',
+          detail: 'have reaches 3 again with left at 9. Length 4 — shorter than 6, so it becomes the best.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 'A' }, { value: 'D' }, { value: 'O' }, { value: 'B' }, { value: 'E' }, { value: 'C' }, { value: 'O' }, { value: 'D' }, { value: 'E' }, { value: 'B', highlight: 'found' }, { value: 'A', highlight: 'found' }, { value: 'N', highlight: 'found' }, { value: 'C', highlight: 'found' }], pointers: [{ index: 9, label: 'left', color: 'amber' }, { index: 12, label: 'right', color: 'indigo' }] },
+        },
+        {
+          title: 'Shrinking further drops B below need — done',
+          detail: 'No shorter valid window exists. Answer "BANC".',
+          pseudoLine: 7,
+          result: { found: true, value: '"BANC" — length 4' },
+        },
+      ],
+      tradeoffs:
+        'O(n + m) time, space bounded by the alphabet of t. The single `have` integer is what '
+        + 'avoids rescanning the map on every step.',
+    },
+    {
+      id: 'brute',
+      name: 'Check every substring',
+      badge: 'baseline',
+      intuition:
+        'Generate all O(n²) substrings and test each for containing t — O(n² × m) overall. On a '
+        + 'string of any real length this is hopeless, but writing the containment check first is '
+        + 'genuinely useful, because it forces you to be precise about duplicates.\n\n'
+        + '"Contains every character of t" means WITH multiplicity: if t is "AABC", the window '
+        + 'needs two A’s, not one. That is the requirement the have/need counter encodes, and '
+        + 'stating it explicitly before optimising prevents the most common misunderstanding of '
+        + 'the problem.',
+      complexity: { time: 'O(n² · m)', space: 'O(k)', verdict: 'Defines containment' },
+      pseudocode: [
+        'for start = 0 .. n-1:',
+        '  for end = start .. n-1:',
+        '    if substring(start, end) contains all of t with multiplicity:',
+        '      track the shortest',
+      ],
+      example: { input: 's = "ADOBECODEBANC", t = "ABC"', output: '"BANC" after ~90 substring checks' },
+      steps: [
+        {
+          title: 'Every start, every end',
+          detail: 'On a 13-character string that is 91 substrings, each needing its own tally.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 'A', highlight: 'i' }, { value: 'D' }, { value: 'O' }, { value: 'B' }, { value: 'E' }, { value: 'C', highlight: 'j' }] },
+        },
+        {
+          title: 'The multiplicity rule made explicit',
+          detail: 'For t = "AABC", a window with one A does not qualify. This is the requirement the window version tracks incrementally.',
+          pseudoLine: 2,
+          map: { entries: [{ key: 'A', value: 2, highlight: 'new' }, { key: 'B', value: 1 }, { key: 'C', value: 1 }] },
+        },
+        {
+          title: 'Correct, unusable',
+          detail: 'Same answer at cubic-ish cost.',
+          pseudoLine: 3,
+          result: { found: true, value: '"BANC"' },
+        },
+      ],
+      tradeoffs: 'Only worth writing to pin down what containment means, then replace.',
+    },
+  ],
+};
+
+const caseConverterExpl: Explanation = {
+  problem: 'Case Converter (camel/snake/kebab)',
+  problemStatement: 'Convert identifiers between camelCase, snake_case and kebab-case.',
+  approaches: [
+    {
+      id: 'normalise',
+      name: 'Normalise to words, then re-join',
+      badge: 'best',
+      intuition:
+        'With three formats there are six direct conversions, and writing six functions means six '
+        + 'places for a bug. Route everything through a neutral intermediate instead — a plain '
+        + 'array of lowercase words — and you need only three parsers and three formatters. Adding '
+        + 'PascalCase then costs two small functions rather than six more conversions.\n\n'
+        + 'Parsing camelCase is where the real work is. Splitting on a capital letter almost works, '
+        + 'but acronyms break it: "parseXMLFile" should give [parse, xml, file], and a naive split '
+        + 'produces [parse, x, m, l, file]. The fix is to treat a run of capitals followed by a '
+        + 'lowercase letter as a boundary before the LAST capital, since that capital starts the '
+        + 'next word.\n\n'
+        + 'Digits are a judgement call worth voicing: is "user2Name" two words or three? Both are '
+        + 'defensible, and the important thing is to pick one and be consistent — this is exactly '
+        + 'the kind of ambiguity worth surfacing rather than guessing at silently.',
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'BEST — 3 + 3, not 6' },
+      pseudocode: [
+        'toWords(s):',
+        '  if contains - or _: return s.toLowerCase().split(/[-_]/)',
+        '  return s.replace(/([a-z0-9])([A-Z])/g, "$1 $2")      // camel boundary',
+        '          .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")   // acronym boundary',
+        '          .toLowerCase().split(" ")',
+        '',
+        'camel(w)  = w[0] + w[1..].map(capitalise).join("")',
+        'snake(w)  = w.join("_")',
+        'kebab(w)  = w.join("-")',
+      ],
+      example: { input: '"parseXMLFile" → snake', output: '"parse_xml_file"' },
+      steps: [
+        {
+          title: 'No separators present, so treat it as camelCase',
+          detail: 'The presence of - or _ is the cheapest discriminator between the formats.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 'parseXMLFile', highlight: 'i' }] },
+        },
+        {
+          title: 'Rule 1: lowercase followed by uppercase → boundary',
+          detail: '"eX" in parseXMLFile matches, giving "parse XMLFile".',
+          pseudoLine: 2,
+          computation: { label: 'lower→upper', lhs: 'parseXMLFile', op: '→', rhs: '', result: 'parse XMLFile' },
+        },
+        {
+          title: 'Rule 2: the acronym boundary',
+          detail: '"XMLF" followed by "ile" — the split goes before the final F, because that F begins the next word. Result: "parse XML File".',
+          pseudoLine: 3,
+          computation: { label: 'acronym', lhs: 'XMLFile', op: '→', rhs: '', result: 'XML File' },
+          note: 'Without this rule you get [x, m, l, file] — the classic acronym bug.',
+        },
+        {
+          title: 'Lowercase and split → [parse, xml, file]',
+          detail: 'This is the neutral form. Every formatter consumes it, so none of them needs to know the input format.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'parse', highlight: 'found' }, { value: 'xml', highlight: 'found' }, { value: 'file', highlight: 'found' }] },
+        },
+        {
+          title: 'Join with underscores',
+          detail: 'kebab joins with -, camel capitalises every word after the first. Three one-liners over the same input.',
+          pseudoLine: 7,
+          result: { found: true, value: '"parse_xml_file"' },
+        },
+      ],
+      tradeoffs:
+        'O(n) and linear space. Three parsers plus three formatters instead of six conversions, '
+        + 'and each new format costs two functions rather than six.',
+    },
+    {
+      id: 'direct',
+      name: 'Direct regex per conversion',
+      badge: 'alternative',
+      intuition:
+        'Each individual conversion is a one-liner, and for a codebase that only ever needs one '
+        + 'direction that is entirely reasonable. camelToSnake is a single replace; snakeToCamel '
+        + 'is a single replace with a callback.\n\n'
+        + 'The cost appears when you need several. Six functions means the acronym rule has to be '
+        + 'correct in each of the three that parse camelCase, and in practice it ends up correct '
+        + 'in one of them and subtly wrong in the others. That is not hypothetical — it is the '
+        + 'usual outcome.\n\n'
+        + 'There is also a genuine edge case here: snake_case to camelCase on a leading underscore. '
+        + '"_private" naively becomes "Private", capitalising what was meant to stay lowercase. '
+        + 'Leading and trailing separators need an explicit decision.',
+      complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Fine for one direction' },
+      pseudocode: [
+        'camelToSnake = s => s.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase()',
+        'snakeToCamel = s => s.replace(/_(\\w)/g, (_, c) => c.toUpperCase())',
+        'kebabToCamel = s => s.replace(/-(\\w)/g, (_, c) => c.toUpperCase())',
+        '// ...and three more, each repeating the same rules',
+      ],
+      example: { input: '"user_first_name" → camel', output: '"userFirstName"' },
+      steps: [
+        {
+          title: 'Match _f and _n, capturing the letter',
+          detail: 'The capture group is what the callback receives.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 'user' }, { value: '_f', highlight: 'i' }, { value: 'irst' }, { value: '_n', highlight: 'j' }, { value: 'ame' }] },
+        },
+        {
+          title: 'Replace each with the uppercased letter',
+          detail: 'The underscore is consumed by the match, so it disappears along with the replacement.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 'user' }, { value: 'F', highlight: 'found' }, { value: 'irst' }, { value: 'N', highlight: 'found' }, { value: 'ame' }] },
+          result: { found: true, value: '"userFirstName"' },
+        },
+        {
+          title: 'The leading-underscore case',
+          detail: '"_private" becomes "Private" — the leading separator is treated like any other. Usually not what you want for a private-field convention.',
+          pseudoLine: 1,
+          note: 'Needs an explicit rule, which is easy to forget in one of six functions.',
+        },
+      ],
+      tradeoffs: 'Shortest per conversion, but the same parsing rules get duplicated and drift apart.',
+    },
+  ],
+};
+
+const sumWithoutLoopsExpl: Explanation = {
+  problem: 'Sum Without Loops',
+  problemStatement: 'Sum 1..n without using any loop construct.',
+  approaches: [
+    {
+      id: 'formula',
+      name: "Gauss's closed form",
+      badge: 'best',
+      intuition:
+        'n(n+1)/2. One multiplication, one addition, one division — O(1), no iteration and no '
+        + 'recursion at all.\n\n'
+        + 'The derivation is worth being able to give, because the question is really asking '
+        + 'whether you reach for a formula or reflexively write a loop. Pair the first term with '
+        + 'the last, the second with the second-last, and so on: 1+n, 2+(n−1), 3+(n−2). Every pair '
+        + 'sums to n+1, and there are n/2 pairs, so the total is n(n+1)/2. It holds for odd n too, '
+        + 'where the middle term is exactly half of n+1.\n\n'
+        + 'Division by 2 is exact here regardless of parity, because n and n+1 are consecutive '
+        + 'integers so one of them is always even.\n\n'
+        + 'The practical limit is Number.MAX_SAFE_INTEGER: around n = 94,906,265 the product '
+        + 'exceeds 2^53 and the result silently loses precision. BigInt fixes it if you need to go '
+        + 'further, and knowing the boundary exists is the senior detail.',
+      complexity: { time: 'O(1)', space: 'O(1)', verdict: 'BEST' },
+      pseudocode: [
+        'return n * (n + 1) / 2',
+        '// pair 1+n, 2+(n-1), ... — each pair sums to n+1, and there are n/2 of them',
+      ],
+      example: { input: 'n = 100', output: '5050' },
+      steps: [
+        {
+          title: 'Pair the ends: 1 + 100 = 101',
+          detail: 'The classic schoolroom trick, and the reason the formula exists.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 1, highlight: 'i' }, { value: 2 }, { value: '...' }, { value: 99 }, { value: 100, highlight: 'j' }] },
+          computation: { label: 'pair', lhs: '1 + 100', op: '=', rhs: '', result: '101' },
+        },
+        {
+          title: 'Every pair gives the same total',
+          detail: '2 + 99 = 101, 3 + 98 = 101. Moving one pointer up and the other down keeps the sum constant.',
+          pseudoLine: 1,
+          array: { cells: [{ value: 1 }, { value: 2, highlight: 'i' }, { value: '...' }, { value: 99, highlight: 'j' }, { value: 100 }] },
+          computation: { label: 'pair', lhs: '2 + 99', op: '=', rhs: '', result: '101' },
+        },
+        {
+          title: '50 pairs × 101 = 5050',
+          detail: 'n/2 pairs, each worth n+1. No iteration needed to evaluate it.',
+          pseudoLine: 0,
+          computation: { label: 'total', lhs: '100 × 101', op: '/ 2', rhs: '', result: '5050' },
+          result: { found: true, value: '5050' },
+        },
+        {
+          title: 'The precision ceiling',
+          detail: 'Past n ≈ 94.9 million, n(n+1) exceeds 2^53 and the answer is quietly wrong. Use BigInt beyond that.',
+          pseudoLine: 0,
+          note: 'Number.MAX_SAFE_INTEGER = 9007199254740991.',
+        },
+      ],
+      tradeoffs: 'Constant time and space. No stack, no precision issues until n is enormous.',
+    },
+    {
+      id: 'recursion',
+      name: 'Recursion — and why V8 blows the stack',
+      badge: 'alternative',
+      intuition:
+        'The obvious no-loop answer: sum(n) = n + sum(n−1), with sum(0) = 0. It works, and then it '
+        + 'stops working at around n = 10,000 with a RangeError.\n\n'
+        + 'The interesting part is what happens if you make it tail-recursive. `return helper(n−1, '
+        + 'acc+n)` puts the recursive call in tail position, meaning nothing remains to do after it '
+        + 'returns — so in principle the engine can reuse the current stack frame and the recursion '
+        + 'becomes a loop.\n\n'
+        + 'ES6 specified exactly that, as proper tail calls. Almost no engine implements it. '
+        + 'JavaScriptCore (Safari) does; V8 does not, and shipped an implementation behind a flag '
+        + 'before removing it, largely because losing stack frames makes debugging much worse. '
+        + 'SpiderMonkey does not either.\n\n'
+        + 'So in Node and Chrome, tail-recursive code overflows exactly like the naive version. '
+        + 'Knowing that the optimisation is specified but absent — rather than assuming it works '
+        + '— is the genuinely valuable piece here.',
+      complexity: { time: 'O(n)', space: 'O(n) stack', verdict: 'Overflows ~10k' },
+      pseudocode: [
+        'sum(n)          = n === 0 ? 0 : n + sum(n - 1)      // O(n) stack',
+        'sumTail(n, acc) = n === 0 ? acc : sumTail(n - 1, acc + n)',
+        '// tail position — specified in ES6, NOT implemented in V8',
+      ],
+      example: { input: 'n = 100000', output: 'RangeError: Maximum call stack size exceeded' },
+      steps: [
+        {
+          title: 'Each call adds a frame before any addition happens',
+          detail: 'sum(100) must wait for sum(99), which waits for sum(98). Nothing can be computed until the base case is reached.',
+          pseudoLine: 0,
+          callStack: { frames: [{ call: 'sum(100)', status: 'pending' }, { call: 'sum(99)', status: 'pending' }, { call: 'sum(98)', status: 'active' }] },
+        },
+        {
+          title: 'The stack unwinds from the base case',
+          detail: 'sum(0) returns 0, then each frame adds its own n on the way back up.',
+          pseudoLine: 0,
+          callStack: { frames: [{ call: 'sum(2)', status: 'returned', returns: '3' }, { call: 'sum(1)', status: 'returned', returns: '1' }, { call: 'sum(0)', status: 'returned', returns: '0' }] },
+        },
+        {
+          title: 'The tail-recursive form has nothing left to do after the call',
+          detail: 'The accumulator carries the running total, so the frame is genuinely redundant — exactly the case proper tail calls were designed for.',
+          pseudoLine: 1,
+          callStack: { frames: [{ call: 'sumTail(98, 201)', status: 'active' }] },
+        },
+        {
+          title: 'V8 keeps the frame anyway → RangeError',
+          detail: 'Proper tail calls are in the ES6 spec and implemented in JavaScriptCore, not in V8 or SpiderMonkey. The rewrite buys nothing in Node.',
+          pseudoLine: 2,
+          result: { found: false, value: 'RangeError at ~10k — use the formula, or an explicit loop' },
+        },
+      ],
+      tradeoffs: 'O(n) time and O(n) stack. The formula makes it unnecessary; know why the tail-call rewrite does not save it.',
+    },
+  ],
+};
+
+export const playgroundExplanations: Record<string, Explanation> = {
+  'Integer to Roman': integerToRomanExpl,
+  'Reverse Integer': reverseIntegerExpl,
+  'Isomorphic Strings': isomorphicExpl,
+  'Longest Repeating Char Replacement': longestRepeatingReplacementExpl,
+  'Minimum Window Substring': minWindowSubstringExpl,
+  'Case Converter (camel/snake/kebab)': caseConverterExpl,
+  'Sum Without Loops': sumWithoutLoopsExpl,
+  'Shuffle Array (Fisher-Yates)': shuffleArrayExpl,
+  'Array Intersection & Union': intersectionUnionExpl,
+  'Chunk Array': chunkArrayExpl,
+  'String Compression (RLE)': stringCompressionExpl,
+  'First Repeating Character': firstRepeatingExpl,
+  'Merge Intervals': mergeIntervalsExpl,
+  'Minimum Size Subarray Sum': minSubarraySumExpl,
+  'Sliding Window Maximum': slidingWindowMaxExpl,
+  'Longest Consecutive Sequence': longestConsecutiveExpl,
+  'Next Permutation': nextPermutationExpl,
+  'Rotate Matrix 90°': rotateMatrixExpl,
+  'Auto-Retry for Promises': autoRetryExpl,
+  'Batch Promises by Concurrency': batchPromisesExpl,
+  'Async Tasks in Series': asyncSeriesExpl,
+  'Implement useState (Basic)': useStateExpl,
+  'JSON Prettifier': jsonPrettifierExpl,
+  'Task Runner with Concurrency Control': taskRunnerExpl,
+  'Two Sum': twoSum,
+  'Reverse String': reverseString,
+  'Valid Palindrome': validPalindrome,
+  'FizzBuzz': fizzBuzz,
+  'Max Profit': maxProfit,
+  'Valid Parentheses': validParentheses,
+  'Merge Sorted Arrays': mergeSortedArrays,
+  'Flatten Array': flattenArray,
+  'Debounce': debounce,
+  'Group Anagrams': groupAnagrams,
+  'Find Duplicates': findDuplicates,
+  'Remove Duplicates': removeDuplicates,
+  'Find Missing Number': findMissingNumber,
+  'Move Zeros': moveZeros,
+  'Rotate Array': rotateArray,
+  'Bubble Sort': bubbleSort,
+  'Quick Sort': quickSort,
+  'Merge Sort': mergeSort,
+  'Anagram Check': anagramCheck,
+  'Longest Substring': longestSubstring,
+  'First Non-Repeating Char': firstNonRepeating,
+  'Sum Curry': sumCurry,
+  'Memoize': memoize,
+  'Deep Clone': deepClone,
+  'Throttle': throttle,
+  'EventEmitter': eventEmitter,
+  'LRU Cache': lruCache,
+  'Compose & Pipe': composePipe,
+  'Binary Search': binarySearch,
+  'Roman to Integer': romanToInteger,
+  'Reverse Linked List': reverseLinkedList,
+  'Container With Most Water': containerWater,
+  'Climbing Stairs': climbingStairs,
+  'Balanced Brackets (Count)': balancedBracketsCount,
+  'Second Largest Number': secondLargest,
+  // Batch: DP / Greedy
+  'Maximum Subarray': maximumSubarray,
+  'Trapping Rain Water': trappingRainWater,
+  '3Sum': threeSum,
+  'Generate Parentheses': generateParentheses,
+  'Subsets': subsets,
+  'Permutations': permutations,
+  'Min Stack': minStack,
+  'Daily Temperatures': dailyTemperatures,
+  'Coin Change': coinChange,
+  'House Robber': houseRobber,
+  'Jump Game': jumpGame,
+  // Batch: Linked List + Sorting
+  'Detect Cycle in Linked List': detectCycle,
+  'Merge Two Sorted Lists': mergeTwoSortedLists,
+  'Sort Colors': sortColors,
+  'Top K Frequent Elements': topKFrequent,
+  // Batch: Hash Map / Math
+  'Subarray Sum Equals K': subarraySumK,
+  'Single Number': singleNumber,
+  'Single Number II': singleNumberII,
+  'Majority Element': majorityElement,
+  'Product of Array Except Self': productExceptSelf,
+  'Plus One': plusOne,
+  // Batch: Strings
+  'Longest Common Prefix': longestCommonPrefix,
+  'Longest Palindromic Substring': longestPalindromicSubstring,
+  'Reverse Vowels of a String': reverseVowels,
+  'String to Integer (atoi)': myAtoi,
+  'Letter Combinations of Phone Number': letterCombinations,
+  'Reverse Words in a String': reverseWordsString,
+  // Batch: Rotate / Spiral / Search
+  'Rotate Array Left': rotateArrayLeft,
+  'Spiral Matrix': spiralMatrix,
+  'Search in Rotated Sorted Array': searchRotated,
+  // Batch: Find Max Family
+  'Find Maximum in Array': findMaximum,
+  'Find Min and Max': findMinMax,
+  'Third Largest Number': thirdLargest,
+  'Kth Largest Element': kthLargest,
+  'Find Peak Element': findPeakElement,
+  // ===== JS Fundamentals templates =====
+  'Hello World': helloWorld,
+  'Array Methods': arrayMethods,
+  'Closures': closures,
+  'Promises & Async': promisesAsync,
+  'Map & Set': mapSet,
+  'Spread & Rest': spreadRest,
+  // ===== JS Interview Topics templates =====
+  'Event Loop & Microtasks': eventLoopMicrotasks,
+  'this Keyword': thisKeyword,
+  'Debounce & Throttle': debounceThrottleTemplate,
+  'Currying': curryingTemplate,
+  'Prototypes & Classes': prototypesClasses,
+  'Destructuring Deep Dive': destructuringDeepDive,
+  'Tricky Interview Q': trickyInterviewQ,
+  // ===== React templates =====
+  'useState Counter': useStateCounter,
+  'useEffect Lifecycle': useEffectLifecycle,
+  'Custom Hook': customHook,
+  'useReducer Todo': useReducerTodo,
+  'Context API': contextAPI,
+  'React Compiler Patterns': reactCompilerPatterns,
+  // ===== JS Polyfill templates =====
+  'Array.map': arrayMap,
+  'Array.filter': arrayFilter,
+  'Array.reduce': arrayReduce,
+  'Array.forEach': arrayForEach,
+  'Array.find & findIndex': arrayFindFindIndex,
+  'Array.some & every': arraySomeEvery,
+  'Array.flat & flatMap': arrayFlatFlatMap,
+  'Function.bind': functionBind,
+  'Function.call & apply': functionCallApply,
+  'Promise.all': promiseAllExpl,
+  'Promise.allSettled': promiseAllSettledExpl,
+  'Promise.race & any': promiseRaceAny,
+  'Array.includes': arrayIncludes,
+  'Object.assign': objectAssign,
+  'Array.from': arrayFrom,
+  'Array.sort': arraySort,
+  'Array.indexOf / lastIndexOf': arrayIndexOf,
+  'Array.reverse': arrayReverse,
+  'Array.slice': arraySlice,
+  'Array.splice': arraySplice,
+  'Array.concat': arrayConcat,
+  'String.padStart / padEnd': stringPadStartEnd,
+  'JSON.stringify': jsonStringifyExpl,
+  'Object.keys / values / entries': objectKeysValuesEntries,
+  'JSON.parse': jsonParseExpl,
+  'Array.isArray': arrayIsArrayExpl,
+  'Object.create': objectCreateExpl,
+  'Object.freeze + deepFreeze': objectFreezeExpl,
+  'Array.prototype.fill': arrayFillExpl,
+  'String.prototype.repeat': stringRepeatExpl,
+  'Array.prototype.join': arrayJoinExpl,
+};
+
+export const playgroundExplanationKeys: string[] = Object.keys(playgroundExplanations);

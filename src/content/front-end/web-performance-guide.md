@@ -344,7 +344,9 @@ The browser is single-threaded for JavaScript, layout, style and paint. A task l
 ```js
 // ✗ One 400ms task. Any interaction during it waits.
 function processAll(items) { for (const item of items) expensiveWork(item); }
+```
 
+```js
 // ✓ Yield to the main thread so pending input can be handled
 async function processAll(items) {
   for (const item of items) {

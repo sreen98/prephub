@@ -529,19 +529,24 @@ Safer patterns: add columns nullable, backfill in batches, add the `NOT NULL` af
 ### 10.4 Why a `UNIQUE` Constraint Beats a Check-Then-Insert
 
 ```js
-// ✗ A race. Two concurrent requests both see "no existing user" and both insert.
-const existing = await db.query('SELECT 1 FROM users WHERE email = $1', [email]);
-if (!existing.rows.length) await db.query('INSERT INTO users (email) VALUES ($1)', [email]);
+async function registerUser(email) {
+  // ✗ A race. Two concurrent requests both see "no existing user" and both insert.
+  const existing = await db.query('SELECT 1 FROM users WHERE email = $1', [email]);
+  if (!existing.rows.length) await db.query('INSERT INTO users (email) VALUES ($1)', [email]);
 
-// ✓ Let the database arbitrate; handle the violation
-try {
-  await db.query('INSERT INTO users (email) VALUES ($1)', [email]);
-} catch (e) {
-  if (e.code === '23505') return { error: 'Email already registered' };   // unique_violation
-  throw e;
+  // ✓ Let the database arbitrate; handle the violation
+  try {
+    await db.query('INSERT INTO users (email) VALUES ($1)', [email]);
+  } catch (e) {
+    if (e.code === '23505') return { error: 'Email already registered' };   // unique_violation
+    throw e;
+  }
 }
+```
 
-// ✓ Or make it declarative
+Or make it declarative, and let the database do the whole job:
+
+```sql
 INSERT INTO users (email) VALUES ($1) ON CONFLICT (email) DO NOTHING;
 ```
 

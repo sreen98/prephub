@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { getJSON, setJSON, safeGet, safeSet, safeRemove } from '../lib/storage';
 
 const STORAGE_KEY = 'playground-progress' as const;
 const LAST_SESSION_KEY = 'playground-last-session' as const;
@@ -28,18 +29,17 @@ export interface UsePlaygroundProgressReturn {
 }
 
 function load(): Progress {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) as string) || {}; }
-  catch { return {}; }
+  return getJSON(STORAGE_KEY, {});
 }
 
 export function usePlaygroundProgress(): UsePlaygroundProgressReturn {
   const [progress, setProgress] = useState<Progress>(load);
   const [lastSessionName, setLastSessionState] = useState<string | null>(
-    () => localStorage.getItem(LAST_SESSION_KEY) || null
+    () => safeGet(LAST_SESSION_KEY)
   );
 
   const save = useCallback((next: Progress): void => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    setJSON(STORAGE_KEY, next);
     setProgress(next);
   }, []);
 
@@ -88,12 +88,12 @@ export function usePlaygroundProgress(): UsePlaygroundProgressReturn {
 
   const setLastSession = useCallback((name: string): void => {
     if (!name) return;
-    localStorage.setItem(LAST_SESSION_KEY, name);
+    safeSet(LAST_SESSION_KEY, name);
     setLastSessionState(name);
   }, []);
 
   const clearLastSession = useCallback((): void => {
-    localStorage.removeItem(LAST_SESSION_KEY);
+    safeRemove(LAST_SESSION_KEY);
     setLastSessionState(null);
   }, []);
 

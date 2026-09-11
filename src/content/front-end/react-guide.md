@@ -65,42 +65,53 @@ Key concepts:
 JSX is a syntax extension that lets you write HTML-like code in JavaScript. It compiles to `React.createElement()` calls.
 
 ```tsx
-// JSX
-const element = <h1 className="title">Hello, {name}!</h1>;
+const name = 'Alice';
 
-// Compiles to
-const element = React.createElement('h1', { className: 'title' }, `Hello, ${name}!`);
+// JSX
+const fromJsx = <h1 className="title">Hello, {name}!</h1>;
+
+// Compiles to exactly this
+const fromCreateElement = React.createElement('h1', { className: 'title' }, `Hello, ${name}!`);
 ```
 
 ### JSX Rules
 
 ```tsx
-// 1. Single root element (use Fragment for no wrapper)
-return (
-  <>
-    <h1>Title</h1>
-    <p>Content</p>
-  </>
-);
+const user = { name: 'Alice' };
+const isActive = true;
+const items = [1, 2, 3];
+const handler = () => {};
+const buttonProps = { type: 'button' as const, disabled: false };
+const Button = (p: { type?: 'button'; disabled?: boolean }) => <button {...p} />;
 
-// 2. Close all tags
-<img src="photo.jpg" />
-<br />
+// 1. Single root element — a Fragment gives you one without a wrapper node
+function Card() {
+  return (
+    <>
+      <h1>Title</h1>
+      <p>Content</p>
+    </>
+  );
+}
+
+// 2. Close every tag, including void elements
+const image = <img src="photo.jpg" alt="" />;
+const brk = <br />;
 
 // 3. camelCase for HTML attributes
-<div className="card" tabIndex={0} onClick={handler} />
-//    ^className (not class)    ^camelCase
+const card = <div className="card" tabIndex={0} onClick={handler} />;
+//                 ^className (not class)  ^camelCase
 
 // 4. JavaScript expressions in curly braces
-<p>{user.name}</p>
-<p>{isActive ? 'Active' : 'Inactive'}</p>
-<p>{items.length > 0 && 'Has items'}</p>
+const name = <p>{user.name}</p>;
+const status = <p>{isActive ? 'Active' : 'Inactive'}</p>;
+const count = <p>{items.length > 0 && 'Has items'}</p>;
 
-// 5. Style as object
-<div style={{ color: 'red', fontSize: '16px' }} />
+// 5. Style is an object, not a string
+const styled = <div style={{ color: 'red', fontSize: '16px' }} />;
 
 // 6. Spread props
-<Button {...buttonProps} />
+const spread = <Button {...buttonProps} />;
 ```
 
 ---
@@ -112,17 +123,19 @@ return (
 Function components are the standard way to write React components. They are plain JavaScript functions that accept props and return JSX.
 
 ```tsx
+// Function declaration
 function Greeting({ name }: { name: string }) {
   return <h1>Hello, {name}!</h1>;
 }
 
-// Arrow function
-const Greeting = ({ name }: { name: string }) => {
+// Arrow function — identical behaviour, different syntax
+const GreetingArrow = ({ name }: { name: string }) => {
   return <h1>Hello, {name}!</h1>;
 };
 
 // Usage
-<Greeting name="Alice" />
+const app = <Greeting name="Alice" />;
+const same = <GreetingArrow name="Alice" />;
 ```
 
 ### 3.2 Class Components
@@ -304,10 +317,18 @@ That is why the render-phase ones are `static` where possible (no `this`, so you
 ##### `constructor(props)`
 
 ```tsx
-constructor(props: Props) {
-  super(props);                       // MUST be first
-  this.state = { data: null };        // the only place to assign this.state directly
-  this.handleClick = this.handleClick.bind(this);
+type Props = { userId: string };
+type State = { data: string | null };
+
+class UserProfile extends React.Component<Props, State> {
+  constructor(props: Props) {
+    super(props);                       // MUST be first
+    this.state = { data: null };        // the only place to assign this.state directly
+    this.handleClick = this.handleClick.bind(this);
+  }
+
+  handleClick() { /* … */ }
+  render() { return null; }
 }
 ```
 
@@ -322,11 +343,20 @@ constructor(props: Props) {
 ##### `static getDerivedStateFromProps(props, state)`
 
 ```tsx
-static getDerivedStateFromProps(props: Props, state: State) {
-  if (props.userId !== state.prevUserId) {
-    return { prevUserId: props.userId, data: null };   // merged into state
+type Props = { userId: string };
+type State = { data: string | null; prevUserId?: string };
+
+class UserProfile extends React.Component<Props, State> {
+  state: State = { data: null };
+
+  static getDerivedStateFromProps(props: Props, state: State) {
+    if (props.userId !== state.prevUserId) {
+      return { prevUserId: props.userId, data: null };   // merged into state
+    }
+    return null;                                          // no change
   }
-  return null;                                          // no change
+
+  render() { return null; }
 }
 ```
 
@@ -343,8 +373,12 @@ static getDerivedStateFromProps(props: Props, state: State) {
 ##### `render()`
 
 ```tsx
-render() {
-  return this.state.data ? <UserCard data={this.state.data} /> : <p>Loading…</p>;
+class UserProfile extends React.Component<{ userId: string }, { data: string | null }> {
+  state = { data: null as string | null };
+
+  render() {
+    return this.state.data ? <p>{this.state.data}</p> : <p>Loading…</p>;
+  }
 }
 ```
 
@@ -359,10 +393,19 @@ render() {
 ##### `componentDidMount()`
 
 ```tsx
-componentDidMount() {
-  this.fetchData(this.props.userId);
-  window.addEventListener('resize', this.handleResize);
-  this.timer = setInterval(this.tick, 1000);
+class UserProfile extends React.Component<{ userId: string }> {
+  timer: number | undefined;
+  handleResize = () => { /* … */ };
+  tick = () => { /* … */ };
+  fetchData(_userId: string) { /* … */ }
+
+  componentDidMount() {
+    this.fetchData(this.props.userId);
+    window.addEventListener('resize', this.handleResize);
+    this.timer = window.setInterval(this.tick, 1000);
+  }
+
+  render() { return null; }
 }
 ```
 
@@ -379,9 +422,18 @@ componentDidMount() {
 ##### `shouldComponentUpdate(nextProps, nextState)`
 
 ```tsx
-shouldComponentUpdate(nextProps: Props, nextState: State) {
-  return nextProps.userId !== this.props.userId
-      || nextState.data   !== this.state.data;
+type Props = { userId: string };
+type State = { data: string | null };
+
+class UserProfile extends React.Component<Props, State> {
+  state: State = { data: null };
+
+  shouldComponentUpdate(nextProps: Props, nextState: State) {
+    return nextProps.userId !== this.props.userId
+        || nextState.data   !== this.state.data;
+  }
+
+  render() { return null; }
 }
 ```
 
@@ -398,17 +450,28 @@ shouldComponentUpdate(nextProps: Props, nextState: State) {
 ##### `getSnapshotBeforeUpdate(prevProps, prevState)`
 
 ```tsx
-getSnapshotBeforeUpdate(prevProps: Props, prevState: State) {
-  // read the DOM before React mutates it
-  const list = this.listRef.current;
-  return { scrollHeight: list.scrollHeight, scrollTop: list.scrollTop };
-}
+type Props = { messages: string[] };
+type Snapshot = { scrollHeight: number; scrollTop: number };
 
-componentDidUpdate(prevProps, prevState, snapshot) {
-  if (snapshot) {
-    // restore the scroll position now the new items are in
-    this.listRef.current.scrollTop += this.listRef.current.scrollHeight - snapshot.scrollHeight;
+class MessageList extends React.Component<Props> {
+  listRef = React.createRef<HTMLDivElement>();
+
+  getSnapshotBeforeUpdate(_prevProps: Props): Snapshot | null {
+    // read the DOM before React mutates it
+    const list = this.listRef.current;
+    if (!list) return null;
+    return { scrollHeight: list.scrollHeight, scrollTop: list.scrollTop };
   }
+
+  componentDidUpdate(_prevProps: Props, _prevState: unknown, snapshot: Snapshot | null) {
+    const list = this.listRef.current;
+    if (snapshot && list) {
+      // restore the scroll position now the new items are in
+      list.scrollTop += list.scrollHeight - snapshot.scrollHeight;
+    }
+  }
+
+  render() { return <div ref={this.listRef} />; }
 }
 ```
 
@@ -425,10 +488,18 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 ##### `componentDidUpdate(prevProps, prevState, snapshot)`
 
 ```tsx
-componentDidUpdate(prevProps: Props) {
-  if (prevProps.userId !== this.props.userId) {   // GUARD — mandatory
-    this.fetchData(this.props.userId);
+type Props = { userId: string };
+
+class UserProfile extends React.Component<Props> {
+  fetchData(_userId: string) { /* … */ }
+
+  componentDidUpdate(prevProps: Props) {
+    if (prevProps.userId !== this.props.userId) {   // GUARD — mandatory
+      this.fetchData(this.props.userId);
+    }
   }
+
+  render() { return null; }
 }
 ```
 
@@ -445,10 +516,18 @@ componentDidUpdate(prevProps: Props) {
 ##### `componentWillUnmount()`
 
 ```tsx
-componentWillUnmount() {
-  window.removeEventListener('resize', this.handleResize);
-  clearInterval(this.timer);
-  this.controller.abort();
+class UserProfile extends React.Component {
+  timer: number | undefined;
+  controller = new AbortController();
+  handleResize = () => { /* … */ };
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.handleResize);
+    clearInterval(this.timer);
+    this.controller.abort();
+  }
+
+  render() { return null; }
 }
 ```
 
@@ -1137,8 +1216,27 @@ See §5.1 for a deeper walkthrough including lazy initialization and update batc
 #### `useReducer` — state with a reducer function
 
 ```tsx
-const [state, dispatch] = useReducer(reducer, initialState);
-const [state, dispatch] = useReducer(reducer, initialArg, init);  // lazy init
+type State = { count: number };
+type Action = { type: 'inc' } | { type: 'reset' };
+
+const reducer = (s: State, a: Action): State =>
+  a.type === 'inc' ? { count: s.count + 1 } : { count: 0 };
+
+const initialState: State = { count: 0 };
+const initialArg = 10;
+const init = (n: number): State => ({ count: n });   // runs once, lazily
+
+function Counter() {
+  // Two forms. The third argument is a lazy initialiser, called with initialArg.
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const [lazyState, lazyDispatch] = useReducer(reducer, initialArg, init);
+
+  return (
+    <button onClick={() => { dispatch({ type: 'inc' }); lazyDispatch({ type: 'inc' }); }}>
+      {state.count} / {lazyState.count}
+    </button>
+  );
+}
 ```
 
 **What it does.** Same job as `useState`, but transitions go through a `(state, action) => newState` function. `dispatch({ type: '...' })` triggers the next state.
@@ -1152,8 +1250,18 @@ See §5.3 for examples including the `init` lazy-initializer.
 #### `useEffect` — synchronize with external systems
 
 ```tsx
-useEffect(setup, dependencies?);
-useEffect(() => { /* setup */; return () => { /* cleanup */ }; }, [deps]);
+// Signature
+declare function useEffect(
+  setup: () => void | (() => void),   // return a cleanup, or nothing
+  deps?: readonly unknown[],          // omitted = run after every render
+): void;
+
+// Shape in practice
+const deps: unknown[] = [];
+useEffect(() => {
+  /* setup */
+  return () => { /* cleanup */ };
+}, [deps]);
 ```
 
 **What it does.** Runs `setup` after the browser paints. Returns an optional cleanup function that runs before the next setup or on unmount.
@@ -1249,7 +1357,12 @@ useImperativeHandle(ref, () => ({
 #### `useLayoutEffect` — synchronous effect before paint
 
 ```tsx
-useLayoutEffect(setup, dependencies?);
+// Same signature as useEffect — it differs only in WHEN it runs:
+// synchronously after DOM mutation, before the browser paints.
+declare function useLayoutEffect(
+  setup: () => void | (() => void),
+  deps?: readonly unknown[],
+): void;
 ```
 
 **What it does.** Same shape as `useEffect`, but runs **synchronously after DOM mutation and before the browser paints**. The user never sees the in-between state.
@@ -1262,7 +1375,19 @@ useLayoutEffect(setup, dependencies?);
 
 ```tsx
 function useOnlineStatus() {
-  const isOnline = ...;
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+
+  useEffect(() => {
+    const update = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+
+  // Shows "Online" / "Offline" beside the hook in React DevTools.
   useDebugValue(isOnline ? 'Online' : 'Offline');
   return isOnline;
 }
@@ -1277,10 +1402,22 @@ function useOnlineStatus() {
 #### `useSyncExternalStore` — subscribe to a non-React store
 
 ```tsx
-const snapshot = useSyncExternalStore(
-  subscribe,         // (callback) => unsubscribe
-  getSnapshot,       // () => current value
-  getServerSnapshot? // SSR-safe initial value
+// The third argument is optional, but required for SSR — without it,
+// hydration throws.
+declare function useSyncExternalStore<T>(
+  subscribe: (onStoreChange: () => void) => () => void,
+  getSnapshot: () => T,
+  getServerSnapshot?: () => T,
+): T;
+
+// A concrete instance
+const width = useSyncExternalStore(
+  (cb) => {
+    window.addEventListener('resize', cb);
+    return () => window.removeEventListener('resize', cb);
+  },
+  () => window.innerWidth,
+  () => 1024,                        // server snapshot
 );
 ```
 
@@ -1303,13 +1440,15 @@ function useWindowWidth() {
 #### `useId` — stable, unique, SSR-safe IDs
 
 ```tsx
-const id = useId();
-return (
-  <>
-    <label htmlFor={id}>Name</label>
-    <input id={id} />
-  </>
-);
+function NameField() {
+  const id = useId();
+  return (
+    <>
+      <label htmlFor={id}>Name</label>
+      <input id={id} />
+    </>
+  );
+}
 ```
 
 **What it does.** Generates a unique ID that's stable across renders and identical between server and client (avoids hydration mismatches).
@@ -1366,94 +1505,310 @@ The action/forms hooks — `useActionState`, `useFormStatus`, `useOptimistic` �
 
 ### 6.3 Custom Hooks
 
-Custom hooks let you extract and reuse stateful logic across components. A custom hook is simply a function that starts with `use` and can call other hooks inside it.
+A custom hook is a function whose name starts with `use` and which calls other hooks. That's the whole mechanism — the naming convention is what lets the linter apply the rules of hooks to it.
+
+**They share stateful logic, not state.** Two components calling `useToggle()` each get their own independent value. If you want shared *state*, you need context or a store; a custom hook shares the *behaviour*.
+
+Each hook below is the version to actually write, followed by how to consume it.
+
+#### `useToggle` — the shape of a custom hook
+
+The simplest useful one. It establishes the pattern: private state, a stable action, a tuple return.
 
 ```tsx
-// Custom hook for fetching data
-function useUser(userId: string) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchUser() {
-      try {
-        setLoading(true);
-        const data = await api.getUser(userId);
-        if (!cancelled) setUser(data);
-      } catch (err) {
-        if (!cancelled) setError(err as Error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    fetchUser();
-    return () => { cancelled = true; };
-  }, [userId]);
-
-  return { user, loading, error };
+function useToggle(initial = false) {
+  const [value, setValue] = useState(initial);
+  // Functional update, so `toggle` never needs `value` as a dependency and
+  // its identity stays stable for the life of the component.
+  const toggle = useCallback(() => setValue(v => !v), []);
+  return [value, toggle, setValue] as const;
 }
+```
 
-// Custom hook for local storage
-function useLocalStorage<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState<T>(() => {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : initialValue;
-  });
+**Why `as const`.** Without it the return type widens to `(boolean | (() => void))[]` and destructuring gives you a union in both positions. `as const` makes it a tuple, so `isOpen` is `boolean` and `toggleOpen` is callable.
 
-  useEffect(() => {
-    localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
+**Using it:**
 
-  return [value, setValue] as const;
+```tsx
+function Panel() {
+  const [isOpen, toggleOpen, setOpen] = useToggle();
+
+  return (
+    <>
+      <button onClick={toggleOpen} aria-expanded={isOpen}>
+        {isOpen ? 'Hide' : 'Show'} details
+      </button>
+      {isOpen && <Details onClose={() => setOpen(false)} />}
+    </>
+  );
 }
+```
 
-// Custom hook for debounce
+#### `useDebounce` — delay a fast-changing value
+
+Returns a copy of `value` that only updates once `delay` has passed with no further changes. The classic use is a search box: react to typing, but not on every keystroke.
+
+```tsx
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(value), delay);
+    // The important line: a new keystroke runs this cleanup, cancelling the
+    // pending timer before scheduling the next one. Without it you get one
+    // update per keystroke, just late.
     return () => clearTimeout(timer);
   }, [value, delay]);
 
   return debounced;
 }
+```
 
-// Custom hook for boolean toggle — simplest possible custom hook
-function useToggle(initial = false) {
-  const [value, setValue] = useState(initial);
-  const toggle = useCallback(() => setValue(v => !v), []);
-  return [value, toggle, setValue] as const;
-}
+**The cleanup *is* the debounce.** Everything else is bookkeeping — worth saying in an interview. Also worth naming: the first value is returned immediately rather than after `delay`, because `useState(value)` seeds it, so the initial render is not delayed.
 
-// Usage: const [isOpen, toggleOpen] = useToggle();
+**Using it:**
 
-// Custom hook for data fetching — the canonical "build one live" interview ask.
-// Note: in production, use TanStack Query / SWR. This is the teaching version.
-function useFetch<T>(url: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [loading, setLoading] = useState(true);
+```tsx
+function SearchBox({ onSearch }: { onSearch: (q: string) => void }) {
+  const [query, setQuery] = useState('');
+  const debounced = useDebounce(query, 500);
 
-  useEffect(() => {
-    const ac = new AbortController();
-    setLoading(true);
-    fetch(url, { signal: ac.signal })
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(setData, e => { if (e.name !== 'AbortError') setError(e); })
-      .finally(() => setLoading(false));
-    return () => ac.abort();    // cancel on unmount or url change
-  }, [url]);
+  // Fires 500 ms after typing stops, not on every keystroke.
+  useEffect(() => { onSearch(debounced); }, [debounced, onSearch]);
 
-  return { data, error, loading };
+  // The input stays bound to `query`, so typing feels instant.
+  return <input value={query} onChange={e => setQuery(e.target.value)} />;
 }
 ```
 
-**The four custom hooks above are the most-asked patterns in interviews** — `useFetch`, `useDebounce`, `useLocalStorage`, `useToggle`. Senior interviewers often follow up with "build one live" — typically `useFetch` with proper cancellation (the `AbortController` cleanup), or `useDebounce` walked through reasoning step by step. Know the cancellation pattern; that's the senior-level signal.
+**Note the split.** The input reads `query` (immediate, so typing is responsive); the effect reads `debounced` (delayed). Binding the input to `debounced` would make the field feel broken.
+
+#### `useFetch` — the canonical "build one live" ask
+
+One state object as a discriminated union, and an `aborted` guard in both handlers:
+
+```tsx
+type FetchState<T> =
+  | { status: 'loading'; data: null; error: null }
+  | { status: 'success'; data: T;    error: null }
+  | { status: 'error';   data: null; error: Error };
+
+function useFetch<T>(url: string | null) {
+  const [state, setState] = useState<FetchState<T>>({
+    status: 'loading', data: null, error: null,
+  });
+
+  useEffect(() => {
+    if (!url) return;
+    const ac = new AbortController();
+    // Reset on every url change, so a stale payload is never shown as fresh.
+    setState({ status: 'loading', data: null, error: null });
+
+    fetch(url, { signal: ac.signal })
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
+        return (await r.json()) as T;
+      })
+      .then(data => {
+        if (ac.signal.aborted) return;
+        setState({ status: 'success', data, error: null });
+      })
+      .catch(e => {
+        if (ac.signal.aborted) return;
+        setState({
+          status: 'error',
+          data: null,
+          error: e instanceof Error ? e : new Error(String(e)),
+        });
+      });
+
+    return () => ac.abort();
+  }, [url]);
+
+  return state;
+}
+```
+
+**The three things that make it correct**, and the three things an interviewer is listening for:
+
+**1. `if (ac.signal.aborted) return` in both handlers — not `.finally`.** This is the detail that matters most. When `url` changes, React runs the old effect's cleanup and the new effect body synchronously in the same commit, and the old promise settles a microtask later:
+
+```
+ac.abort()               old request killed
+setState(loading)        new effect starts
+--- microtasks flush ---
+old chain settles        ← still writes state unless guarded
+```
+
+A `.finally(() => setLoading(false))` runs on **every** settlement, including an abort. So `loading` would go false while the new request is still in flight, and the component would render the previous URL's data as if it were fresh. The `aborted` guard makes it impossible for a cancelled request to touch state at all.
+
+**2. Resetting to `loading` at the top of the effect.** Without it, `data` and `error` from the previous URL survive into the new request — so switching from `/users/1` to `/users/2` shows user 1 throughout, and a 404 on the first can leave `error` set forever while `data` is also populated.
+
+**3. One state object, not three `useState` calls.** Three independent pieces of state can disagree; a union cannot. It also means `data` is `T` rather than `T | null` once you have narrowed on `status`, so consumers need no null checks.
+
+**Using it.** The union narrows for you:
+
+```tsx
+type User = { id: number; name: string; email: string };
+
+function Profile({ id }: { id: number }) {
+  const { status, data, error } = useFetch<User>(`/api/users/${id}`);
+
+  if (status === 'loading') return <Spinner />;
+  if (status === 'error') return <p role="alert">{error.message}</p>;
+
+  return <h1>{data.name}</h1>;   // `data` is User here, not User | null
+}
+```
+
+**Composed with `useDebounce`** — note `null` as the skip signal, and `encodeURIComponent`:
+
+```tsx
+function Search() {
+  const [query, setQuery] = useState('');
+  const debounced = useDebounce(query, 500);
+
+  const { status, data } = useFetch<Result[]>(
+    debounced.trim() ? `/api/search?q=${encodeURIComponent(debounced.trim())}` : null,
+  );
+
+  return (
+    <>
+      <input value={query} onChange={e => setQuery(e.target.value)} />
+      {status === 'loading' && debounced && <Spinner />}
+      {status === 'success' && <ul>{data.map(r => <li key={r.id}>{r.title}</li>)}</ul>}
+    </>
+  );
+}
+```
+
+**One caveat on that composition.** With `url === null` the effect early-returns, so the state keeps whatever it was — clearing the input leaves the last results on screen. If you want an empty query to clear them, add an `idle` status:
+
+```tsx
+type FetchState<T> =
+  | { status: 'idle';    data: null; error: null }
+  | { status: 'loading'; data: null; error: null }
+  | { status: 'success'; data: T;    error: null }
+  | { status: 'error';   data: null; error: Error };
+```
+
+Then inside the effect, replace the bail-out with one that clears state — `if (!url) { setState({ status: 'idle', data: null, error: null }); return; }` — and the consumer gets an `idle` branch to render an empty state instead of stale results.
+
+**Two smaller things worth mentioning if asked.** `r.json()` throws on a `204` or an empty body, so guard with `r.status === 204 ? null : r.json()` when your API does that. And `(await r.json()) as T` is an assertion, not a guarantee — the real answer is to validate at the boundary with Zod or Valibot so `T` is earned rather than claimed.
+
+**And the honest framing to close on:** in production this is TanStack Query or SWR. They give you caching, request de-duplication, background refetch and retry, none of which this hook has. Writing it by hand is a good interview exercise because it forces you to think about cancellation; shipping it by hand is re-implementing a solved problem badly.
+
+#### `useLocalStorage` — persist state, safely
+
+```tsx
+function safeRead<T>(key: string, fallback: T): T {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw === null ? fallback : (JSON.parse(raw) as T);
+  } catch {
+    // Unavailable storage, or a corrupt value. Either way: fall back.
+    return fallback;
+  }
+}
+
+function useLocalStorage<T>(key: string, initialValue: T) {
+  const [value, setValue] = useState<T>(() => safeRead(key, initialValue));
+
+  // Re-read when the key changes, so we never write one key's value to another.
+  const keyRef = useRef(key);
+  if (keyRef.current !== key) {
+    keyRef.current = key;
+    setValue(safeRead(key, initialValue));   // render-phase update: allowed, re-renders immediately
+  }
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // Quota exceeded, or storage disabled. The app keeps working; the
+      // preference just will not survive a reload.
+    }
+  }, [key, value]);
+
+  // Cross-tab sync. The `storage` event fires in OTHER tabs, never the one
+  // that wrote — so there is no feedback loop to guard against.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === key) setValue(safeRead(key, initialValue));
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialValue is
+    // only a fallback; re-subscribing when its identity changes is pointless.
+  }, [key]);
+
+  return [value, setValue] as const;
+}
+```
+
+**Why every access is wrapped in `try`/`catch`.** Web storage does not merely return `null` when unavailable — **accessing it throws**. In a private window, with site data blocked, or in an embedded context, it raises a `SecurityError`. That read sits inside a `useState` initialiser, which runs **during render**, so an unguarded throw propagates out of render, React unmounts the tree, and the user gets a blank page. Not a missing preference: a blank page. `JSON.parse` on stored data is the same hazard — a half-written or hand-edited value is a `SyntaxError` in the same position.
+
+**Why the key is re-read.** Without the `keyRef` check the state does not follow a changed `key`, but the effect still *writes* — so switching from key `a` to key `b` writes `a`'s value into `b`.
+
+**Using it:**
+
+```tsx
+function ThemeToggle() {
+  const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('theme', 'light');
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  // The setter is useState's own, so the functional form works as usual.
+  return (
+    <button onClick={() => setTheme(t => (t === 'light' ? 'dark' : 'light'))}>
+      Switch to {theme === 'light' ? 'dark' : 'light'}
+    </button>
+  );
+}
+```
+
+**The generic is a claim, not a guarantee** — same as in `useFetch`. `JSON.parse(raw) as T` will happily hand you a number where you promised `'light' | 'dark'`. If the value drives anything important, validate it: `raw === 'dark' || raw === 'light' ? raw : fallback`.
+
+#### `useMediaQuery` — subscribe to something outside React
+
+The pattern for any external subscription: subscribe in the effect, unsubscribe in the cleanup, and make the dependency array exactly what the subscription depends on.
+
+```tsx
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(mql.matches);                 // resync in case it changed before we subscribed
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+
+  return matches;
+}
+```
+
+**Using it** — the component says nothing about listeners at all:
+
+```tsx
+function Nav() {
+  const isWide = useMediaQuery('(min-width: 768px)');
+  return isWide ? <DesktopNav /> : <MobileNav />;
+}
+```
+
+Every consumer gets the cleanup for free, and the resync-before-subscribe fix was made once. For a value you read *from* an external store rather than an event stream you accumulate, prefer `useSyncExternalStore` — see §6.2 and Q50.
+
+#### What makes a custom hook worth extracting
+
+- The same `useState` + `useEffect` + cleanup shape appears in more than one component.
+- A single component's logic is obscuring what it renders. After extracting, does the component read more like a description of its UI?
+- **Not** when it is used in exactly one place and does not simplify that place — that is indirection for its own sake. And a hook taking eight parameters and returning twelve values is a component that should have been split.
+
+The senior signal in all of these is the same: reaching for the **cleanup and the failure path** unprompted, rather than only the happy path.
 
 ---
 
@@ -1552,20 +1907,29 @@ Possibly the highest-leverage senior-level signal in React interviews: knowing t
 **1. Don't use `useEffect` to derive state from props or other state.**
 
 ```tsx
+type Item = { id: number; name: string };
+const items: Item[] = [{ id: 1, name: 'apple' }, { id: 2, name: 'banana' }];
+const query = 'an';
+
 // BAD — runs an extra render cycle just to compute something
-const [filtered, setFiltered] = useState<Item[]>([]);
-useEffect(() => {
-  setFiltered(items.filter(i => i.name.includes(query)));
-}, [items, query]);
+function useFilteredBad() {
+  const [filtered, setFiltered] = useState<Item[]>([]);
+  useEffect(() => {
+    setFiltered(items.filter(i => i.name.includes(query)));
+  }, []);
+  return filtered;
+}
 
 // GOOD — derive directly during render. No extra render, no out-of-sync risk.
-const filtered = items.filter(i => i.name.includes(query));
+function useFilteredGood() {
+  return items.filter(i => i.name.includes(query));
+}
 
-// If the computation is expensive, memoize:
-const filtered = useMemo(
-  () => items.filter(i => i.name.includes(query)),
-  [items, query],
-);
+// If the computation is genuinely expensive, memoize it — still derived,
+// just cached.
+function useFilteredMemo() {
+  return useMemo(() => items.filter(i => i.name.includes(query)), []);
+}
 ```
 
 **2. Don't use `useEffect` for data fetching.** Use a real query library — TanStack Query, SWR, RTK Query, or your framework's data layer (Next.js `loader`, Remix loaders, RSC). Effect-based fetching gets caching, deduplication, retries, race conditions, refetching-on-focus, and stale-while-revalidate all wrong by default.
@@ -1673,25 +2037,38 @@ function EventExamples() {
 React doesn't have built-in directives like `v-if` or `ngIf`. Instead, you use standard JavaScript expressions — ternaries, logical operators, and early returns.
 
 ```tsx
-// Ternary
-{isLoggedIn ? <Dashboard /> : <Login />}
+type User = { name: string };
+const isLoggedIn = true;
+const hasError = false;
+const status = 'loading';
+const Dashboard = () => <p>Dashboard</p>;
+const Login = () => <p>Login</p>;
+const ErrorMessage = () => <p role="alert">Something broke</p>;
+const Spinner = () => <p>Loading…</p>;
+const DataView = () => <p>Data</p>;
+const FallBack = () => <p>Unknown state</p>;
 
-// Logical AND (short-circuit)
-{hasError && <ErrorMessage />}
+// Ternary — when there are exactly two outcomes
+const a = <div>{isLoggedIn ? <Dashboard /> : <Login />}</div>;
 
-// Early return
+// Logical AND — render or nothing. Careful: `0 && <X/>` renders "0".
+const b = <div>{hasError && <ErrorMessage />}</div>;
+
+// Early return — the clearest option for guard clauses
 function UserCard({ user }: { user: User | null }) {
   if (!user) return <p>No user found</p>;
   return <div>{user.name}</div>;
 }
 
-// Switch-like with object map
-const statusComponents: Record<string, React.ReactNode> = {
-  loading: <Spinner />,
-  error: <ErrorMessage />,
-  success: <DataView />,
-};
-return statusComponents[status] ?? <FallBack />;
+// Object map — replaces a switch when you have several discrete states
+function StatusView() {
+  const statusComponents: Record<string, React.ReactNode> = {
+    loading: <Spinner />,
+    error: <ErrorMessage />,
+    success: <DataView />,
+  };
+  return statusComponents[status] ?? <FallBack />;
+}
 ```
 
 ### 9.2 Lists
@@ -1977,15 +2354,19 @@ function Parent() {
 `React.memo` is a higher-order component that memoizes the rendered output. It skips re-rendering when props haven't changed (shallow comparison by default).
 
 ```tsx
-// Memoize component — only re-renders when props change
+type Props = { name: string; age: number };
+
+// Memoize a component — it re-renders only when its props change
+// (shallow comparison by default).
 const UserCard = React.memo(function UserCard({ name, age }: Props) {
   return <div>{name}, {age}</div>;
 });
 
-// Custom comparison
-const UserCard = React.memo(
-  function UserCard(props: Props) { return <div>{props.name}</div>; },
-  (prevProps, nextProps) => prevProps.name === nextProps.name
+// Custom comparison — return true to SKIP the re-render. Here the component
+// deliberately ignores `age` changes.
+const UserCardNameOnly = React.memo(
+  function UserCardNameOnly(props: Props) { return <div>{props.name}</div>; },
+  (prev, next) => prev.name === next.name,
 );
 ```
 
@@ -2248,7 +2629,7 @@ Most "React is slow" complaints trace back to a small set of patterns. Profile f
 **The underlying cause is almost always reference equality.** React decides whether a component needs to re-run by comparing the *references* of its props, state, and context value to the previous render's. Two object literals with identical contents are not equal under `Object.is`:
 
 ```js
-{ a: 1 } === { a: 1 }   // false — different references
+console.log({ a: 1 } === { a: 1 });   // false — different references
 ```
 
 So when you write `<Child style={{ color: 'red' }} />`, you create a brand-new object on every parent render, and any `React.memo` on `Child` will think the prop changed even though the value is identical. The same is true of arrays (`[1, 2, 3]`), inline functions (`() => doSomething()`), and the `value={{...}}` object you hand to a Context Provider. The fixes — `useMemo`, `useCallback`, hoisting constants outside the component, splitting context — all exist to give those references stability across renders.
@@ -2272,14 +2653,31 @@ So when you write `<Child style={{ color: 'red' }} />`, you create a brand-new o
 The classic Context fan-out trap — every consumer re-renders when *any* field of `value` changes:
 
 ```tsx
-// BAD — value object is new on every render, even if user/theme didn't change
-<AppContext.Provider value={{ user, theme, setTheme }}>
+const AppContext = React.createContext<unknown>(null);
+const AuthContext = React.createContext<unknown>(null);
+const ThemeContext = React.createContext<unknown>(null);
 
-// GOOD — memoize, and split unrelated state into separate contexts
-const auth = useMemo(() => ({ user }), [user]);
-const themeCtx = useMemo(() => ({ theme, setTheme }), [theme]);
-<AuthContext.Provider value={auth}>
-  <ThemeContext.Provider value={themeCtx}>
+function Bad({ user, theme, setTheme, children }: {
+  user: string; theme: string; setTheme: (t: string) => void; children: React.ReactNode;
+}) {
+  // A new object every render, so EVERY consumer re-renders even when
+  // user and theme are unchanged.
+  return <AppContext.Provider value={{ user, theme, setTheme }}>{children}</AppContext.Provider>;
+}
+
+function Good({ user, theme, setTheme, children }: {
+  user: string; theme: string; setTheme: (t: string) => void; children: React.ReactNode;
+}) {
+  // Memoize, and split unrelated state into separate contexts so a theme
+  // change does not wake up components that only read the user.
+  const auth = useMemo(() => ({ user }), [user]);
+  const themeCtx = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
+  return (
+    <AuthContext.Provider value={auth}>
+      <ThemeContext.Provider value={themeCtx}>{children}</ThemeContext.Provider>
+    </AuthContext.Provider>
+  );
+}
 ```
 
 ### 13.8 Image and Asset Optimization
@@ -2299,25 +2697,31 @@ Images are usually the biggest payload on a React page and the dominant LCP elem
 
 ```tsx
 // Native lazy-loading + explicit dimensions to prevent CLS
-<img
-  src="/hero.webp"
-  width={1200}
-  height={630}
-  loading="lazy"          // defer offscreen images
-  decoding="async"        // don't block the main thread on decode
-  alt="Hero"
-/>
+const hero = (
+  <img
+    src="/hero.webp"
+    width={1200}
+    height={630}
+    loading="lazy"          // defer offscreen images
+    decoding="async"        // don't block the main thread on decode
+    alt="Hero"
+  />
+);
 
-// Responsive images — browser picks the smallest file that fits
-<img
-  srcSet="/hero-480.webp 480w, /hero-960.webp 960w, /hero-1920.webp 1920w"
-  sizes="(max-width: 600px) 480px, 960px"
-  src="/hero-960.webp"
-  alt="Hero"
-/>
+// Responsive images — the browser picks the smallest file that fits
+const responsive = (
+  <img
+    srcSet="/hero-480.webp 480w, /hero-960.webp 960w, /hero-1920.webp 1920w"
+    sizes="(max-width: 600px) 480px, 960px"
+    src="/hero-960.webp"
+    alt="Hero"
+  />
+);
 
-// Preload the LCP image so it starts downloading with the HTML
-<link rel="preload" as="image" href="/hero.webp" fetchpriority="high" />
+// Preload the LCP image so it starts downloading with the HTML.
+// NOTE: never `loading="lazy"` on the LCP image — the two work against
+// each other.
+const preload = <link rel="preload" as="image" href="/hero.webp" fetchPriority="high" />;
 ```
 
 Other low-effort wins: serve WebP/AVIF instead of JPEG, set `fetchpriority="high"` on the LCP image and `low` on offscreen ones, and self-host fonts with `font-display: swap` (or use `next/font` / `@fontsource`).
@@ -2429,14 +2833,14 @@ What to look for in the treemap:
 **Why ES modules are required.** Tree shaking is only possible because ES modules are **statically analyzable**. The shape of your imports and exports must be determinable at build time, without running the code. Compare:
 
 ```js
-// ESM — import binding is fixed at parse time. Bundler knows
+// ESM — the import binding is fixed at parse time, so the bundler knows
 //   exactly which exports of './lib' are reachable.
 import { debounce } from './lib';
 
-// CommonJS — module.exports is a regular object that runtime code
-//   can read, mutate, or destructure dynamically. The bundler cannot
-//   prove that any given export is unused without running the code.
-const { debounce } = require('./lib');
+// CommonJS — module.exports is a regular object that runtime code can read,
+//   mutate or destructure dynamically. The bundler cannot prove any given
+//   export is unused without running the code.
+const { debounce: cjsDebounce } = require('./lib');
 ```
 
 CommonJS is fundamentally a runtime construct (`require` is a function call that returns an object), while ESM is a syntactic construct (`import` is a declaration the parser sees before any code runs). That difference is why `lodash` (CommonJS) doesn't tree-shake but `lodash-es` (ESM) does.
@@ -2580,16 +2984,30 @@ Sending less JS to the browser is the biggest performance lever there is. React 
 On the server, components inside `<Suspense fallback={...}>` boundaries can fall back to their fallback HTML and stream the real markup later as data resolves. On the client, `hydrateRoot` hydrates each Suspense boundary independently — the fast components attach event handlers while the slow ones are still loading. Critically, React **prioritizes hydrating the boundary the user just clicked**: if the user clicks a comment thread before its bundle arrived, React promotes that boundary to the top of the queue, dropping in-flight hydration of less-urgent boundaries. The user sees their click respond as soon as the relevant code arrives, not after every component has hydrated.
 
 ```tsx
-// Server
-<Suspense fallback={<Header />}>          {/* ships immediately */}
-  <Header />
-</Suspense>
-<Suspense fallback={<CommentsSkeleton />}> {/* streams when comments resolve */}
-  <Comments postId={42} />
-</Suspense>
-<Suspense fallback={<RecsSkeleton />}>     {/* streams when recommendations resolve */}
-  <Recommendations userId={user.id} />
-</Suspense>
+const Header = () => <header>Site header</header>;
+const CommentsSkeleton = () => <p>Loading comments…</p>;
+const RecsSkeleton = () => <p>Loading recommendations…</p>;
+const Comments = ({ postId }: { postId: number }) => <p>Comments for {postId}</p>;
+const Recommendations = ({ userId }: { userId: string }) => <p>Recs for {userId}</p>;
+const user = { id: 'u1' };
+
+// Each boundary streams independently — the shell arrives first, and slow
+// sections fill in as their data resolves.
+function Page() {
+  return (
+    <>
+      <Suspense fallback={<Header />}>           {/* ships immediately */}
+        <Header />
+      </Suspense>
+      <Suspense fallback={<CommentsSkeleton />}>  {/* streams when comments resolve */}
+        <Comments postId={42} />
+      </Suspense>
+      <Suspense fallback={<RecsSkeleton />}>      {/* streams when recommendations resolve */}
+        <Recommendations userId={user.id} />
+      </Suspense>
+    </>
+  );
+}
 ```
 
 Each Suspense boundary is also an independent code-split point: React lazy-loads the JS for that boundary on demand. So it's *both* a data-fetch boundary and a hydration boundary. The mental model: design Suspense boundaries around *user goals* — header, content, comments, sidebar — not technical layers.
@@ -2776,17 +3194,20 @@ Pre-React-16, reconciliation was implemented as **recursive synchronous tree tra
 React 16's Fiber rewrote the call stack as a **linked list of plain JS objects**. Each fiber has pointers to its `child`, `sibling`, and `return` (parent), plus state about its work-in-progress. Walking the tree is now an iterative loop — at any iteration, React can save its position and yield to the browser:
 
 ```js
-// Conceptual fiber node
-{
-  type: Profile,                  // function ref or DOM tag
-  stateNode: instance | DOMNode,  // the actual instance/DOM
-  child, sibling, return,         // tree pointers
-  pendingProps, memoizedProps,    // input
-  memoizedState,                  // hooks linked list
-  alternate,                      // counterpart in the other tree (double-buffer)
-  flags,                          // bitmask of work to do (Placement, Update, Deletion...)
-  lanes,                          // priority bitmap
-}
+// Conceptual shape of a fiber node (field names are React's, values elided)
+const fiber = {
+  type: 'Profile',          // function ref or DOM tag
+  stateNode: null,          // the actual instance / DOM node
+  child: null,              // tree pointers
+  sibling: null,
+  return: null,             //   ↑ parent
+  pendingProps: {},         // input for this render
+  memoizedProps: {},        // input from the last committed render
+  memoizedState: null,      // the hooks linked list
+  alternate: null,          // counterpart in the other tree (double-buffering)
+  flags: 0,                 // bitmask of work to do (Placement, Update, Deletion…)
+  lanes: 0,                 // priority bitmap
+};
 ```
 
 **Why every field matters:**
@@ -3372,7 +3793,7 @@ Several 19.2 changes are invisible in application code but are exactly what a se
 
 **Partial Pre-rendering.** A new pair of APIs lets you pre-render the static shell of a page at build time, then *resume* rendering the dynamic parts later — at request time on a server, or during a subsequent build. You `prerender()` with an `AbortController`, which stops rendering at the dynamic boundaries and hands back both the static HTML and a serialisable "postponed" state; later, `resume()` / `resumeToPipeableStream()` (SSR) or `resumeAndPrerender()` (SSG) picks up exactly where it left off.
 
-```js
+```jsx
 // Build time — render the static shell, abort at dynamic boundaries
 const controller = new AbortController();
 const { prelude, postponed } = await prerender(<App />, { signal: controller.signal });
@@ -3558,11 +3979,15 @@ Without keys (or with index as key), React may re-render or reorder elements inc
 - **Uncontrolled**: DOM is the source of truth. Use `ref` to read values when needed.
 
 ```tsx
-// Controlled
-<input value={name} onChange={e => setName(e.target.value)} />
+const name = 'Alice';
+const setName = (v: string) => { void v; };
+const inputRef = React.createRef<HTMLInputElement>();
 
-// Uncontrolled
-<input ref={inputRef} defaultValue="" />
+// Controlled — React owns the value; every keystroke goes through state
+const controlled = <input value={name} onChange={e => setName(e.target.value)} />;
+
+// Uncontrolled — the DOM owns the value; you read it from the ref when needed
+const uncontrolled = <input ref={inputRef} defaultValue="" />;
 ```
 
 Controlled is preferred for most cases (validation, formatting, conditional disabling).
@@ -4017,7 +4442,7 @@ Before it, a page had to be *entirely* static or *entirely* dynamic. If one comp
 
 React 19.2 added the primitives that break that all-or-nothing choice. You `prerender()` with an `AbortController`; rendering stops at the dynamic boundaries and returns both the static HTML **and** a serialisable "postponed" state describing where it stopped:
 
-```js
+```jsx
 // Build time
 const controller = new AbortController();
 const { prelude, postponed } = await prerender(<App />, { signal: controller.signal });
@@ -4075,12 +4500,22 @@ The modern tools: the ES2023 immutable array methods (`toSorted`, `toReversed`, 
 That produces three common problems:
 
 ```tsx
-// 1. A new object every render → every consumer re-renders every time
-<UserContext.Provider value={{ user, setUser }}>     // ✗ new object each render
-<UserContext.Provider value={useMemo(() => ({ user, setUser }), [user])}>  // ✓
+const UserContext = React.createContext<unknown>(null);
 
-// 2. Unrelated state bundled together → a theme change re-renders data consumers
-// 3. High-frequency data in context → every consumer re-renders on every tick
+function Provider({ user, setUser, children }: {
+  user: string; setUser: (u: string) => void; children: React.ReactNode;
+}) {
+  // 1. A new object every render → every consumer re-renders every time.
+  const bad = { user, setUser };                                   // ✗
+  const good = useMemo(() => ({ user, setUser }), [user, setUser]); // ✓
+
+  return <UserContext.Provider value={good}>{children}</UserContext.Provider>;
+}
+
+// 2. Unrelated state bundled together → a theme change re-renders data consumers.
+//    Split into separate contexts instead.
+// 3. High-frequency data in context → every consumer re-renders on every tick.
+//    Context has no partial subscription; use a store with selectors.
 ```
 
 The fixes, in order:
@@ -4196,13 +4631,15 @@ Which is a good argument for the answer: **don't hand-roll it.** That's the mini
 **`ref` is now an ordinary prop** for function components, so `forwardRef` is no longer needed:
 
 ```tsx
-// React 19
-function Input({ ref, ...props }: InputProps & { ref?: Ref<HTMLInputElement> }) {
+type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
+
+// React 19 — `ref` is just a prop
+function Input({ ref, ...props }: InputProps & { ref?: React.Ref<HTMLInputElement> }) {
   return <input ref={ref} {...props} />;
 }
 
-// Before React 19
-const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => (
+// Before React 19 — forwardRef was required to receive one
+const LegacyInput = React.forwardRef<HTMLInputElement, InputProps>((props, ref) => (
   <input ref={ref} {...props} />
 ));
 ```
@@ -4347,6 +4784,299 @@ One detail worth volunteering because it's a real performance bug: when lifting 
 The removals are mostly long-deprecated legacy: **`findDOMNode`** (use a ref), **string refs** (`ref="input"` → a callback ref), **legacy context** (`contextTypes`/`getChildContext` → `createContext` + `static contextType`), **`propTypes`**, **`defaultProps` on function components** (classes keep it), the **`ReactDOM.render`/`hydrate`/`unmountComponentAtNode`** trio in favour of `createRoot`/`hydrateRoot`/`root.unmount()`, and `react-test-utils`. Two are worth calling out because they fail quietly rather than loudly: **`propTypes` is silently ignored** in 19, so runtime prop validation you believed you had just stopped happening with no warning; and `defaultProps` removal applies **only to function components**, so the same change bites differently depending on component kind. Notably **no lifecycle methods were removed** — classes are discouraged, not deprecated, and error boundaries still require one.
 
 For the upgrade I'd go to **18.3 first**, which is 18.2 plus the deprecation warnings, so you can fix everything without a behaviour change and with the ability to ship incrementally. Then run the official codemods (`npx codemod@latest react/19/migration-recipe`), which handle string refs, the `ReactDOM.render` swap and the `propTypes`-to-TypeScript conversion. Then the manual work: replace `propTypes` properly since it now fails silently, hunt `findDOMNode` in older code, and fix **TypeScript ref callbacks with implicit returns** — because a returned value is now treated as a cleanup function, `ref={el => (this.input = el)}` must become a block body. Only after the codebase is green would I adopt the new APIs (Compiler, Actions, `use`, `<Activity>`), since mixing a migration with feature adoption makes a regression impossible to attribute.
+
+---
+
+**Q46: What is the `useRef` hook and when should it be used?**
+
+`useRef` returns a mutable object — `{ current: initialValue }` — whose **identity is stable for the component's whole lifetime**. Two properties follow from that, and they cover every legitimate use:
+
+**Mutating `.current` does not re-render.** That is the point. State is for values the UI derives from; a ref is for values the UI does *not* depend on. Timer IDs, a "has this already run" flag, the previous value of a prop, an AbortController, a scroll position you only read in a handler — none of those should cause a render when they change.
+
+**It persists across renders.** Unlike a plain local variable, which is recreated every render.
+
+The two uses in practice:
+
+```tsx
+// 1. A handle to a DOM node
+function SearchField() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);   // autofocus on mount
+  return <input ref={inputRef} />;
+}
+
+// 2. An instance variable that must not trigger a render
+function Stopwatch({ tick }: { tick: () => void }) {
+  const timerRef = useRef<number | null>(null);
+
+  const start = () => {
+    if (timerRef.current !== null) return;              // already running
+    timerRef.current = window.setInterval(tick, 1000);
+  };
+
+  // Clear on unmount, or the interval outlives the component.
+  useEffect(() => () => {
+    if (timerRef.current !== null) clearInterval(timerRef.current);
+  }, []);
+
+  return <button onClick={start}>Start</button>;
+}
+```
+
+**When NOT to use it.** If the value is displayed, it belongs in state — a ref change will not repaint, so the screen goes stale. The classic bug: `useRef(0)`, increment it in a click handler, render `{ref.current}`, and the number never visibly changes until something *else* triggers a render, at which point it jumps.
+
+**The rule about reading it.** Do not read or write `.current` during render. It makes the render impure, and under concurrent rendering React may discard that work. Read refs in effects and event handlers.
+
+---
+
+**Q47: What are the rules of React hooks, and why do they exist?**
+
+Two rules:
+
+**1. Only call hooks at the top level.** Never inside a condition, a loop, a nested function, or after an early `return`.
+
+**2. Only call hooks from a React function** — a component, or another hook.
+
+**The reason is that hooks are matched by call order, not by name.** React keeps a linked list of hook states per component and walks it in the order the hooks are called. It has no idea that the third `useState` is "the one for the name field"; it only knows it is third. Put a hook behind a condition and the positions shift:
+
+```tsx
+function Profile({ showName }) {
+  const [id, setId] = useState(1);           // slot 1
+  if (showName) {
+    const [name, setName] = useState('');    // slot 2 — only sometimes!
+  }
+  const [age, setAge] = useState(0);         // slot 2 or 3, depending
+}
+```
+
+When `showName` flips, `age` starts reading the slot that belonged to `name`. React detects the count change and throws *"Rendered fewer hooks than expected"* — but in the variants where the count stays the same, it does not throw and you silently get the wrong value.
+
+**How to satisfy the rules when you need conditional behaviour:** call the hook unconditionally and put the condition *inside* it.
+
+```tsx
+// Instead of conditionally calling the hook…
+const { data } = useFetch(shouldFetch ? url : null);   // …pass null and bail inside
+useEffect(() => { if (!enabled) return; /* … */ }, [enabled]);
+```
+
+**Enforce it mechanically.** `eslint-plugin-react-hooks` catches both rules plus missing dependencies. Treat `rules-of-hooks` as an error, never a warning — it is not a style preference, it is a correctness rule.
+
+---
+
+**Q48: What are React Fragments used for?**
+
+A Fragment groups children without adding a DOM node. `<></>` is the shorthand; `<React.Fragment>` is the full form.
+
+Three reasons you need one:
+
+**1. A component must return a single root.** Returning two siblings is a syntax error, and wrapping them in a `<div>` changes the DOM.
+
+**2. That extra `<div>` can break layout.** In a flex or grid container, children are laid out by the *direct* parent. Wrapping two grid items in a `<div>` makes them one grid item, and the layout collapses. Same with `display: contents` workarounds that a Fragment makes unnecessary.
+
+**3. Invalid HTML nesting.** A `<div>` cannot go between `<tr>` and `<td>`, or inside `<ul>` around `<li>`s. A Fragment can:
+
+```tsx
+function Columns() {
+  return (
+    <>
+      <td>Name</td>
+      <td>Email</td>
+    </>
+  );
+}
+// <tr><Columns /></tr> produces valid markup; a wrapper <div> would not.
+```
+
+**The one case that needs the long form: keys.** The shorthand `<>` cannot take props, so a Fragment in a list needs `<React.Fragment key={...}>`:
+
+```tsx
+{rows.map(row => (
+  <React.Fragment key={row.id}>
+    <dt>{row.term}</dt>
+    <dd>{row.definition}</dd>
+  </React.Fragment>
+))}
+```
+
+That is the only situation where you *must* write it out, and it comes up whenever one item renders multiple siblings.
+
+---
+
+**Q49: What are custom hooks? Show an example of when to use one.**
+
+A custom hook is a function whose name starts with `use` and which calls other hooks. There is no special API — the naming convention is what lets the linter apply the rules of hooks to it.
+
+**What they are for: sharing stateful logic, not state.** Two components calling `useCounter()` each get their own independent counter. If you want shared *state*, you need context or a store; a custom hook shares the *behaviour*.
+
+**When to reach for one.** When the same `useState` + `useEffect` + cleanup shape appears in more than one component, or when a single component's logic is obscuring what it renders. The test: after extracting, does the component read more like a description of its UI? If yes, it was worth it.
+
+**A worked example — the reason is the cleanup.** Subscribing to `window` events is three lines of setup and one line of teardown, and the teardown is what people forget:
+
+```tsx
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(mql.matches);                 // resync in case it changed before we subscribed
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+
+  return matches;
+}
+
+// Consuming it — the component says nothing about listeners at all
+function Nav() {
+  const isWide = useMediaQuery('(min-width: 768px)');
+  return isWide ? <DesktopNav /> : <MobileNav />;
+}
+```
+
+Every consumer now gets the cleanup for free, and the resync-before-subscribe fix was made once.
+
+**When NOT to extract one.** If it is used in exactly one place and does not simplify that place, it is indirection for its own sake. And a hook that takes eight parameters and returns twelve values is a component that should have been split.
+
+See §6.3 for `useToggle`, `useDebounce`, `useFetch`, `useLocalStorage` and `useMediaQuery` written out in full, each with a usage example.
+
+---
+
+**Q50: How would you implement a component that subscribes to an external data source and cleans up correctly?**
+
+Two answers, and which one is right depends on whether the source can change *between* React's render and commit.
+
+**The general case — `useEffect`.** Subscribe in the effect, unsubscribe in the cleanup, and make the dependency array exactly what the subscription identity depends on:
+
+```tsx
+function useRoomMessages(roomId: string) {
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    // Reset on roomId change, or you briefly show the old room's messages.
+    setMessages([]);
+    const socket = connect(roomId);
+    socket.on('message', (m: Message) => setMessages(prev => [...prev, m]));
+    return () => socket.close();      // runs on unmount AND before every re-subscribe
+  }, [roomId]);
+
+  return messages;
+}
+```
+
+The three things that get graded: the cleanup exists; the dependency array causes a *re-subscribe* when `roomId` changes rather than leaking the old socket; and stale data is cleared on change.
+
+**The correct case for a store — `useSyncExternalStore`.** If you are reading from something outside React (a Redux-style store, `navigator.onLine`, `window.innerWidth`), `useEffect` has a real flaw: between render and the effect firing, the external value can change, and your UI shows a value that was already wrong. Under concurrent rendering, two components can even read *different* values in the same commit — that is **tearing**.
+
+```tsx
+function useOnlineStatus(): boolean {
+  return useSyncExternalStore(
+    (callback) => {                                   // subscribe
+      window.addEventListener('online', callback);
+      window.addEventListener('offline', callback);
+      return () => {
+        window.removeEventListener('online', callback);
+        window.removeEventListener('offline', callback);
+      };
+    },
+    () => navigator.onLine,                           // client snapshot
+    () => true,                                       // server snapshot (SSR)
+  );
+}
+```
+
+React handles the subscription lifecycle, re-reads the snapshot at the right moments, and guarantees every component in a commit sees the same value. The third argument is required for SSR — without it, hydration throws.
+
+**The rule of thumb:** event streams that you accumulate into state → `useEffect`. A value you read *from* somewhere → `useSyncExternalStore`.
+
+---
+
+**Q51: What is the difference between client-side and server-side routing?**
+
+**Server-side routing** is the browser's default. A link click is a full HTTP request; the server returns a new HTML document; the browser tears down the page and builds a new one.
+
+**Client-side routing** intercepts the click, calls `history.pushState` to change the URL without a request, and swaps components in the existing page. No document reload, so JavaScript state, open WebSockets and scroll position all survive.
+
+| | Client-side | Server-side |
+|---|---|---|
+| Navigation cost | A data fetch at most, often nothing | Full document round-trip |
+| First paint | Slower — must download and boot the JS | Faster — HTML arrives ready |
+| State across navigation | Preserved | Lost |
+| SEO / no-JS | Needs SSR or pre-rendering to work | Works inherently |
+| Failure mode | A JS error can break all navigation | A broken page does not break the next link |
+
+**What a client-side router must reimplement**, and the source of most bugs: scroll restoration, focus management (a screen reader is never told the page changed unless you announce it), the back/forward buttons, and code-splitting per route.
+
+**The modern answer is that the distinction has blurred.** Next.js App Router and React Router's framework mode do server-side rendering for the first paint and client-side transitions afterwards — you get the HTML-arrives-ready first load *and* stateful navigation. RSC pushes this further: a navigation fetches a serialised component payload rather than a full document or a JSON blob.
+
+**The accessibility point worth raising unprompted:** with server routing the browser moves focus and announces the new page for you. With client routing nothing happens by default — you must move focus to the new content and use a live region, or keyboard and screen-reader users are simply lost.
+
+---
+
+**Q52: What is the React event system, and how does it differ from native DOM events?**
+
+React does not attach a listener to each element. It attaches **one listener per event type at the root container** (since React 17 — before that it was `document`), and dispatches to your handlers by walking the fiber tree. What your handler receives is a **`SyntheticEvent`**, React's wrapper over the native event.
+
+**Why do it this way.** One listener for a list of 10,000 rows instead of 10,000. It also lets React control *when* handlers run relative to rendering, which is what makes batching and concurrent features possible.
+
+The practical differences:
+
+**1. Handlers are attached in React's tree, not the DOM tree.** This matters for portals: an event from inside a `createPortal`'d modal bubbles to the modal's React *parent*, even though the DOM node is elsewhere in the document. That is usually what you want, and it surprises people who expect DOM bubbling.
+
+**2. `e.stopPropagation()` only stops React's propagation.** A native listener you added yourself with `addEventListener` on an ancestor still fires, because it is on a different system. To stop the native one, `e.nativeEvent.stopPropagation()`.
+
+**3. Names are camelCase, and the value is a function, not a string.** `onClick={handler}`, not `onclick="handler()"`.
+
+**4. Some events are simulated.** `onChange` on an input fires on every keystroke, which native `change` does not — native `change` fires on blur. React's `onChange` is really the native `input` event.
+
+**5. Event pooling is gone.** In React 16 and earlier the synthetic event was recycled, so reading `e.target` asynchronously gave you `null` and you needed `e.persist()`. **Removed in React 17** — the event is a normal object now, and `e.persist()` is a no-op. This is a common stale-knowledge trap in interviews.
+
+```tsx
+// Reading the event asynchronously — fine in React 17+, broken before it
+<input onChange={(e) => {
+  const value = e.target.value;         // still the safer habit
+  setTimeout(() => console.log(e.target.value), 100);   // works in 17+
+}} />
+```
+
+**6. Not everything is delegated.** Media events (`play`, `ended`), `scroll`, and a few others do not bubble, so React attaches those directly to the node.
+
+**When to use a native listener instead:** anything outside React's tree (`window`, `document`), `{ passive: true }` for scroll performance, and `{ capture: true }` for resource-load errors, which do not bubble. Add those in a `useEffect` with a cleanup.
+
+---
+
+**Q53: How do you localize a React application?**
+
+Localization is more than swapping strings, and interviewers usually probe the parts beyond that.
+
+**1. Do not hand-roll it.** `react-i18next` is the default; `react-intl` (FormatJS) is the other mainstream choice; `next-intl` if you are on Next.js. They handle the pieces you would otherwise get wrong.
+
+**2. Interpolation and pluralisation, not concatenation.** `"You have " + n + " items"` is untranslatable — word order differs by language, and plural rules are not binary. Arabic has six plural forms; Polish has four. Use ICU message format:
+
+```tsx
+const { t } = useTranslation();
+
+// en.json: { "cart": "{count, plural, =0 {Your cart is empty} one {# item} other {# items}}" }
+<p>{t('cart', { count })}</p>
+```
+
+**3. Format dates, numbers and currency with `Intl`, never manually.** The platform already knows every locale's conventions:
+
+```tsx
+new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(1234.5);
+new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(date);
+new Intl.RelativeTimeFormat(locale).format(-3, 'day');   // "3 days ago"
+```
+
+**4. Right-to-left is a layout problem, not a text problem.** Set `dir="rtl"` on `<html>` and use **logical CSS properties** — `margin-inline-start` instead of `margin-left`, `padding-inline`, `inset-inline-start`. Then RTL works without a second stylesheet. Hard-coded `left`/`right` is the thing that breaks.
+
+**5. Load translations per locale, lazily.** Shipping every language to every user is dead weight. Split the bundles and fetch the active locale.
+
+**6. Decide where the locale lives.** A URL segment (`/de/products`) is the SEO-friendly answer and makes pages shareable; a cookie or `localStorage` alone means Google indexes one language. With Next.js, the locale is a route segment and the server renders in the right language on first paint.
+
+**7. Leave room for text expansion.** German runs 30–35% longer than English. Fixed-width buttons and single-line truncation break. Test with a pseudo-locale that pads every string.
+
+**The React-specific pitfall:** do not interpolate translated HTML with `dangerouslySetInnerHTML` to get a link inside a sentence — that is an XSS vector through your translation files. Use `<Trans>` (i18next) or `<FormattedMessage>` with rich-text placeholders, which interpolate *components* safely.
 
 ---
 ---

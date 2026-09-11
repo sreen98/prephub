@@ -236,8 +236,10 @@ await page.context().storageState({ path: 'auth.json' });
 
 ```ts
 // playwright.config.ts
-use: { storageState: 'auth.json' },
-projects: [{ name: 'setup', testMatch: /global-setup/ }, { name: 'chromium', dependencies: ['setup'] }],
+const playwrightConfig = {
+  use: { storageState: 'auth.json' },
+  projects: [{ name: 'setup', testMatch: /global-setup/ }, { name: 'chromium', dependencies: ['setup'] }],
+};
 ```
 
 Better still: seed the session via an API call rather than the UI. It's faster and it doesn't make every test depend on the login page.
@@ -285,8 +287,10 @@ A flaky test is worse than no test, and the reasoning is what matters: it trains
 
 ```ts
 // playwright.config.ts
-retries: process.env.CI ? 2 : 0,      // retry in CI only; 0 locally so you SEE flake
-trace: 'on-first-retry',               // full diagnostics for exactly the flaky runs
+const playwrightConfig = {
+  retries: process.env.CI ? 2 : 0,      // retry in CI only; 0 locally so you SEE flake
+  trace: 'on-first-retry',               // full diagnostics for exactly the flaky runs
+};
 ```
 
 Retries are a **detection** mechanism, not a fix. Playwright reports a test that passed on retry as **flaky**, distinct from passed — and that signal is the point. So:
@@ -736,8 +740,11 @@ The second, larger objection is cultural: **once red is routine, red stops meani
 So retries are legitimate, but only configured as a **signal**:
 
 ```ts
-retries: process.env.CI ? 2 : 0,      // 0 locally — see flake while it's cheap to fix
-trace: 'on-first-retry',               // full diagnostics for exactly the flaky runs
+// playwright.config.ts
+const playwrightConfig = {
+  retries: process.env.CI ? 2 : 0,      // 0 locally — see flake while it's cheap to fix
+  trace: 'on-first-retry',               // full diagnostics for exactly the flaky runs
+};
 ```
 
 Playwright reports a test that passed on retry as **flaky**, distinct from passed. That distinction is the entire point — you get a green build *and* a list of tests to fix.

@@ -42,7 +42,7 @@ const cheatSheets = [
 ].length;
 
 // Playground templates, per category (8-space indent = inside a category)
-const tpl = read('src/components/playgroundTemplates.ts').split('\n');
+const tpl = read('src/data/playground/playgroundTemplates.ts').split('\n');
 const labels = [];
 tpl.forEach((line, i) => {
   const m = line.match(/^ {4}label: '([^']+)',$/);
@@ -59,8 +59,8 @@ for (let k = 0; k < labels.length - 1; k++) {
     .filter((l) => l.startsWith("        name: '")).length;
 }
 
-const solutions = [...read('src/components/playgroundSolutions.ts').matchAll(/^ {2}'/gm)].length;
-const solutionKeys = [...read('src/components/playgroundSolutionKeys.ts').matchAll(/^ {2}'/gm)].length;
+const solutions = [...read('src/data/playground/playgroundSolutions.ts').matchAll(/^ {2}'/gm)].length;
+const solutionKeys = [...read('src/data/playground/playgroundSolutionKeys.ts').matchAll(/^ {2}'/gm)].length;
 
 // Tricky questions across all guides
 const walk = (dir) =>

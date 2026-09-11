@@ -80,7 +80,7 @@ const width = useSyncExternalStore(subscribe, () => window.innerWidth, () => 0);
 
 ## Layout, Refs & Debug
 ```jsx
-useLayoutEffect(() => { ... }, [dep]);   // fires BEFORE paint — measuring only
+useLayoutEffect(() => { /* … */ }, [dep]);   // fires BEFORE paint — measuring only
 useImperativeHandle(ref, () => ({ focus: () => inputRef.current.focus() }), []);
 useDebugValue(value);                    // label for React DevTools
 

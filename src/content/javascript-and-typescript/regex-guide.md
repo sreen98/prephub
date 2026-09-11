@@ -130,7 +130,7 @@ A character class describes "one character that is X".
 
 ### Custom classes
 
-```js
+```json
 [abc]      // a, b, or c
 [^abc]     // NOT a, b, or c (the ^ inside [] means negation)
 [a-z]      // lowercase a through z
@@ -143,12 +143,12 @@ Inside `[]`, most special characters lose their meaning. `.` is just a dot. `*` 
 ### Predefined Unicode categories (with `u` or `v` flag)
 
 ```js
-/\p{Letter}/u             // any letter, any script
-/\p{Lowercase}/u
-/\p{Script=Greek}/u       // Greek letters
-/\p{Number}/u             // any number, including ⅔, ½
-/\p{Emoji}/u              // 😀, 🎉, etc.
-/\P{Letter}/u             // negation: not-a-letter
+/\p{Letter}/u;             // any letter, any script
+/\p{Lowercase}/u;
+/\p{Script=Greek}/u;       // Greek letters
+/\p{Number}/u;             // any number, including ⅔, ½
+/\p{Emoji}/u;              // 😀, 🎉, etc.
+/\P{Letter}/u;             // negation: not-a-letter
 ```
 
 **Without the `u` flag, `\p{}` is silently broken.** It might be parsed as just `p` followed by literal characters. Always pair `\p{}` with `u` (or `v`).
@@ -202,11 +202,11 @@ Quantifiers say "how many of the previous thing".
 | `{n,m}` | Between n and m, inclusive |
 
 ```js
-/a*/      // matches '', 'a', 'aa', 'aaa'...
-/a+/      // matches 'a', 'aa', 'aaa'...   (NOT empty)
-/colou?r/ // matches 'color' or 'colour'
-/\d{4}/   // exactly four digits
-/\d{2,4}/ // two to four digits
+/a*/;      // matches '', 'a', 'aa', 'aaa'...
+/a+/;      // matches 'a', 'aa', 'aaa'...   (NOT empty)
+/colou?r/; // matches 'color' or 'colour'
+/\d{4}/;   // exactly four digits
+/\d{2,4}/; // two to four digits
 ```
 
 ### Greedy vs lazy — the most important regex concept
@@ -361,17 +361,17 @@ These characters have special meaning and need a `\` to match literally:
 ```
 
 ```js
-/\$\d+/        // match a literal $ followed by digits — '$42'
-/\.\d+/        // match a literal dot followed by digits — '.42'
-/\\n/          // match the literal characters '\' and 'n'
-/\//           // match a literal forward slash
+/\$\d+/;       // match a literal $ followed by digits — '$42'
+/\.\d+/;       // match a literal dot followed by digits — '.42'
+/\\n/;         // match the literal characters '\' and 'n'
+/\//;          // match a literal forward slash
 ```
 
 Inside `[]`, fewer escapes are needed (most special chars are literal):
 
 ```js
-/[.+*]/        // matches a literal '.', '+', or '*'
-/[\]]/         // matches a literal ']' (must escape the closer)
+/[.+*]/;        // matches a literal '.', '+', or '*'
+/[\]]/;         // matches a literal ']' (must escape the closer)
 ```
 
 ---
@@ -519,7 +519,7 @@ What's happening: after the first `test('a1')` succeeds, `lastIndex` is 2. The s
 2. **Use a fresh regex if you must use `g`:**
    ```js
    for (const s of strings) {
-     if (/\d/g.test(s)) { ... }   // new regex each iteration — wasteful but safe
+     if (/\d/g.test(s)) { /* … */ }   // new regex each iteration — wasteful but safe
    }
    ```
 3. **Or reset manually:**

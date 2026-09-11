@@ -508,17 +508,19 @@ This is a **time-of-check vs time-of-use (TOCTOU)** race. The validation and the
 Don't reproduce Stripe's `max_redemptions` count in your application. When you actually redeem (i.e., create the PaymentIntent / Subscription with the discount), Stripe will reject the call atomically if the cap was hit. The validation step in your UI is *advisory*; the binding check happens server-side at redemption time. You handle the rejection gracefully:
 
 ```js
-try {
-  const sub = await stripe.subscriptions.create({
-    customer,
-    items: [{ price }],
-    discounts: [{ promotion_code: promoId }],
-  });
-} catch (err) {
-  if (err.code === 'coupon_expired' || err.code === 'promotion_code_limit_reached') {
-    return { error: 'Sorry, this coupon was just claimed. Please try a different code.' };
+async function run() {
+  try {
+    const sub = await stripe.subscriptions.create({
+      customer,
+      items: [{ price }],
+      discounts: [{ promotion_code: promoId }],
+    });
+  } catch (err) {
+    if (err.code === 'coupon_expired' || err.code === 'promotion_code_limit_reached') {
+      return { error: 'Sorry, this coupon was just claimed. Please try a different code.' };
+    }
+    throw err;
   }
-  throw err;
 }
 ```
 
@@ -579,14 +581,18 @@ async function checkout(userId, code) {
 }
 
 // 5. In the webhook handler — this is the binding moment
-case 'payment_intent.succeeded':
-  await db.couponRedemptions.update({
-    stripe_pi_id: event.data.object.id,
-  }, {
-    status: 'committed',
-    committed_at: new Date(),
-  });
-  break;
+async function handleWebhook(event) {
+  switch (event.type) {
+    case 'payment_intent.succeeded':
+      await db.couponRedemptions.update({
+        stripe_pi_id: event.data.object.id,
+      }, {
+        status: 'committed',
+        committed_at: new Date(),
+      });
+      break;
+  }
+}
 ```
 
 The reservation gives you a 15-minute window during which the user "owns" the discount. Concurrent redemption attempts by the same user fail at the unique-constraint level. Stripe still enforces the global cap independently.
@@ -668,16 +674,20 @@ Partial refunds across multiple calls are fine — Stripe tracks how much remain
 A dispute is the customer telling their bank "this charge was fraudulent / not as described." The bank reverses the funds. Stripe fires `charge.dispute.created`, you have ~7 days to submit evidence (receipts, shipping logs, customer-service emails).
 
 ```js
-case 'charge.dispute.created':
-  // Disputed amount is debited from your Stripe balance immediately
-  await db.disputes.insert({
-    charge_id: event.data.object.charge,
-    amount: event.data.object.amount,
-    reason: event.data.object.reason,
-    deadline: event.data.object.evidence_details.due_by,
-  });
-  // Notify ops team to compile evidence
-  break;
+async function handleWebhook(event) {
+  switch (event.type) {
+    case 'charge.dispute.created':
+      // Disputed amount is debited from your Stripe balance immediately
+      await db.disputes.insert({
+        charge_id: event.data.object.charge,
+        amount: event.data.object.amount,
+        reason: event.data.object.reason,
+        deadline: event.data.object.evidence_details.due_by,
+      });
+      // Notify ops team to compile evidence
+      break;
+  }
+}
 ```
 
 **Dispute fees** — Stripe charges $15 per dispute, win or lose. Fraud disputes (`reason: 'fraudulent'`) above 1% of your volume put you on **excessive dispute** programs (Visa's VDMP, Mastercard's MCMP) with extra fees and risk of merchant termination.

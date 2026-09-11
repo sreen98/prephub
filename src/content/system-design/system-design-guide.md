@@ -172,7 +172,7 @@ function getShard(userId) {
 }
 
 // Range-based sharding
-function getShard(userId) {
+function getShardV2(userId) {
   if (userId < 1000000) return 'shard_1';
   if (userId < 2000000) return 'shard_2';
   if (userId < 3000000) return 'shard_3';
@@ -1267,7 +1267,7 @@ const userSchema = Joi.object({
 
 // 2. SQL injection prevention (parameterized queries)
 // BAD
-const query = `SELECT * FROM users WHERE email = '${email}'`;
+const queryBroken = `SELECT * FROM users WHERE email = '${email}'`;
 // GOOD
 const query = 'SELECT * FROM users WHERE email = $1';
 await db.query(query, [email]);

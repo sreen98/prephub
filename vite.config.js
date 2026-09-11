@@ -61,7 +61,7 @@ export default defineConfig({
         // Guide chunks and the heavy lazy libraries are runtime-cached instead
         // (see the rules below), so they're stored the first time they're
         // actually opened and are available offline from then on.
-        globPatterns: ['**/*.{css,html,ico,png,svg,woff2,webmanifest}', 'assets/index-*.js', 'assets/vendor-*.js'],
+        globPatterns: ['**/*.{css,html,ico,png,svg,woff2,webmanifest}', 'assets/app-*.js', 'assets/vendor-*.js'],
         // og-image is a social-preview asset fetched by crawlers, never by the
         // app — 722 KB of precache for nothing. Screenshots are only used by
         // the OS install prompt, which fetches them on demand.
@@ -113,6 +113,14 @@ export default defineConfig({
         // key produced `react-<hash>.js` which a `react-*` glob could not tell
         // apart from `react-guide-<hash>.js` — that mistake precached the
         // 281 KB React guide as if it were a vendor library.
+        // The app entry is named `app-<hash>.js` rather than Vite's default
+        // `index-<hash>.js` for exactly the same reason the vendor chunks are
+        // prefixed: the precache glob has to be able to name it. PGlite's
+        // internal modules are also called `index.js`, so they emitted as
+        // `index-<hash>.js` too and `assets/index-*.js` swept 627 KB of
+        // WASM-loader code into the precache. Same mistake as `react-*`
+        // matching `react-guide-*`, one package later.
+        entryFileNames: 'assets/app-[hash].js',
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-motion': ['framer-motion'],

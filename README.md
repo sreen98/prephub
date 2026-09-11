@@ -61,17 +61,38 @@ prephub/
     data.ts                    # menuStructure, contentFiles, utilities, cheatSheets
     main.tsx                   # Entry point (BrowserRouter)
     index.css                  # Tailwind + custom styles
-    components/
+    pages/                     # One component per route
+      HomePage.tsx
+      ContentPage.tsx          # Guide renderer — lazy, keeps the markdown pipeline out of the entry
+      QueryPlayground.tsx      # Write-and-check SQL / MongoDB interview questions
       QuizMode.tsx             # Flashcard quiz with difficulty/guide filters
       ReviewPage.tsx           # Spaced repetition daily review
       InterviewSimulator.tsx   # Timed mock interview (setup/interview/results)
-      CodePlayground.tsx       # JS/React code editor with template drawer
       BookmarksPage.tsx        # Saved bookmarks listing
       CheckpointsPage.tsx      # Per-guide "where I left off" listing
       CheatSheetsIndex.tsx     # Cheat sheet card grid
+      AdminPage.tsx            # Passcode-gated, dev-only
+    features/
+      content/                 # Guide-reading pieces (TOC, PreBlock, markdown map, checkpoint FAB)
+      playground/              # CodePlayground, output panel, auto-close rules, explanation views
+      queryPlayground/         # SQL/Mongo runners (PGlite + mingo), answer checking, result grid
+      quiz/                    # Quiz toolbar
+    components/                # Genuinely shared UI only
+      Sidebar.tsx              # Navigation rail
+      SearchModal.tsx          # Full-text search over every guide
       MermaidBlock.tsx         # Lazy mermaid diagram renderer
       RouteErrorBoundary.tsx   # Catches route render errors (incl. post-deploy chunk failures)
-      playgroundAutoClose.ts   # Pure auto-close rules for the editor (JSX tags, bracket pairs)
+      StreakCelebration.tsx    # Streak milestone celebration overlay
+      GithubIcon.tsx           # lucide-react has no Github export in this version
+      Toast.tsx                # Reusable toast notification
+    lib/
+      storage.ts               # The ONLY module allowed to touch localStorage/sessionStorage
+      editorHighlight.ts       # Playground syntax highlighting + bracket decoration
+      playgroundRunner.ts      # Worker sandbox, Babel transpile, source sniffing
+      playgroundFormat.ts      # Prettier, lazily loaded
+      cn.ts                    # Conditional class-name join
+    data/
+      playground/              # Playground content data + the lazy-loading template index
       StreakCelebration.tsx    # Streak milestone celebration overlay
       Toast.tsx                # Reusable toast notification
     hooks/
@@ -107,9 +128,13 @@ npm install
 npm run dev        # Start dev server
 npm run build      # Production build
 npm run preview    # Preview production build
+npm run typecheck      # Type-check without emitting
+npm run lint           # Lint (type-aware; covers every file in src/)
+npm run test           # Unit tests (Vitest)
 npm run verify:counts  # Check the counts in the docs still match the content
-npm run typecheck  # Type-check without emitting
-npm run lint       # Lint
+npm run verify:arch    # Check the repo's architecture invariants
+npm run verify:blocks  # Check every runnable code block still parses
+npm run verify         # All six of the above, in order — what CI runs
 ```
 
 ## localStorage Keys

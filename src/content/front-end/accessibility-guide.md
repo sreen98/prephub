@@ -635,7 +635,7 @@ The single most important number: **automated tools catch roughly 30–40% of WC
 | **Zoom / reflow** | browser zoom to 200% and 400% | 1.4.4 and 1.4.10 |
 | **User testing** | people who use AT daily | everything above misses |
 
-```js
+```jsx
 // Component-level, in CI
 import { axe, toHaveNoViolations } from 'jest-axe';
 expect.extend(toHaveNoViolations);
@@ -912,7 +912,8 @@ The fix is to combine the animation technique with real removal:
 ```
 
 ```jsx
-<div id="p1" hidden={!open}>…</div>      {/* React: toggle the attribute */}
+// React: toggle the attribute rather than a class
+const panel = <div id="p1" hidden={!open}>…</div>;
 ```
 
 If you need the height animation *and* correct semantics, the modern options are `interpolate-size: allow-keywords` with `transition-behavior: allow-discrete` so `display` can participate in the transition, or the `grid-template-rows: 0fr → 1fr` technique, or simply conditional rendering (`{open && <Panel/>}`) which removes the content entirely and is what React makes easiest anyway.

@@ -73,7 +73,7 @@ export default class RouteErrorBoundary extends React.Component<Props, State> {
           </a>
         </div>
         {!isChunkError && (
-          <pre className="mt-6 max-w-full overflow-x-auto text-left text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <pre className="mt-6 max-w-full overflow-x-auto text-left text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3">
             {error.message}
           </pre>
         )}

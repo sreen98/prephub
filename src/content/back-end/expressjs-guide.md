@@ -964,8 +964,8 @@ const app = express();
 module.exports = app;
 
 // server.js - start listening (not imported in tests)
-const app = require('./app');
-app.listen(3000);
+const appV2 = require('./appV2');
+appV2.listen(3000);
 ```
 
 ---

@@ -195,7 +195,7 @@ function add(a, b) {
 }
 
 // Expression (not hoisted)
-const add = function(a, b) {
+const addV2 = function(a, b) {
   return a + b;
 };
 
@@ -216,7 +216,7 @@ const add = (a, b) => {
 };
 
 // Concise body (implicit return)
-const add = (a, b) => a + b;
+const addV2 = (a, b) => a + b;
 
 // Single parameter (no parens needed)
 const double = x => x * 2;
@@ -468,7 +468,7 @@ Object.entries(obj);                  // [['a', 1], ['b', 2], ['c', 3]]
 Object.fromEntries([['a', 1]]);       // { a: 1 }
 
 Object.assign({}, obj, { d: 4 });     // { a: 1, b: 2, c: 3, d: 4 }
-{ ...obj, d: 4 };                     // same as above
+({ ...obj, d: 4 });                   // same as above (parens: a bare { starts a block)
 
 Object.freeze(obj);                   // shallow freeze (no add/modify/delete)
 Object.seal(obj);                     // no add/delete, can modify existing
@@ -707,11 +707,11 @@ async function getUser(id) {
 
 // Parallel execution with async/await
 async function loadDashboard() {
-  // DON'T: Sequential (slow)
-  const kpis = await fetchKPIs();
-  const alerts = await fetchAlerts();
+  // DON'T: Sequential (slow) — the second request waits for the first
+  // const kpis = await fetchKPIs();
+  // const alerts = await fetchAlerts();
 
-  // DO: Parallel (fast)
+  // DO: Parallel (fast) — both start immediately
   const [kpis, alerts] = await Promise.all([fetchKPIs(), fetchAlerts()]);
 }
 
@@ -777,11 +777,15 @@ try {
 ```js
 // Sequential — 3 round trips, one after another
 const a = await getA(); const b = await getB(); const c = await getC();
+```
 
+```js
 // Concurrent — start all three, then await. This is the fix for
 // the most common async performance bug in real codebases.
 const [a, b, c] = await Promise.all([getA(), getB(), getC()]);
+```
 
+```js
 // Start early, await late — useful when you need to do other work in between
 const userPromise = getUser();        // no await: the request is already in flight
 renderSkeleton();
@@ -859,17 +863,19 @@ Three details interviewers look for. **Only retry retryable failures** — a `50
 **Cancellation with `AbortController`:**
 
 ```js
-const ctrl = new AbortController();
-const timeout = setTimeout(() => ctrl.abort(), 5000);       // or AbortSignal.timeout(5000)
+async function run() {
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 5000);       // or AbortSignal.timeout(5000)
 
-try {
-  const res = await fetch(url, { signal: ctrl.signal });
-  return await res.json();
-} catch (err) {
-  if (err.name === 'AbortError') return null;               // distinguish this!
-  throw err;
-} finally {
-  clearTimeout(timeout);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    return await res.json();
+  } catch (err) {
+    if (err.name === 'AbortError') return null;               // distinguish this!
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 ```
 
@@ -1259,7 +1265,9 @@ const backToDate = new Date(instant.epochMilliseconds); // Temporal → Date
 // Before — the awkward let-and-assign dance
 let resolve, reject;
 const p = new Promise((res, rej) => { resolve = res; reject = rej; });
+```
 
+```js
 // After
 const { promise, resolve, reject } = Promise.withResolvers();
 ```
@@ -1517,23 +1525,35 @@ ES Modules are the official standard module system for JavaScript, supported in 
 export const PI = 3.14;
 export function add(a, b) { return a + b; }
 export class Calculator { /* ... */ }
+```
 
+```js
 // Default export (one per module)
 export default function main() { /* ... */ }
+```
 
+```js
 // Named imports
 import { PI, add } from './math.js';
+```
 
+```js
 // Default import
 import main from './main.js';
+```
 
+```js
 // Rename on import
 import { add as sum } from './math.js';
+```
 
+```js
 // Import all as namespace
 import * as math from './math.js';
 math.add(1, 2);
+```
 
+```js
 // Dynamic import (code splitting)
 const module = await import('./heavy-module.js');
 ```
@@ -1970,7 +1990,7 @@ for (const val of arr) console.log(val);    // 'a', 'b', 'c'
 const obj = { x: 1, y: 2 };
 for (const key in obj) console.log(key);    // 'x', 'y'
 // for (const val of obj) ...               // TypeError: obj is not iterable
-for (const [k, v] of Object.entries(obj))   // works: 'x' 1, 'y' 2
+for (const [k, v] of Object.entries(obj));   // works: 'x' 1, 'y' 2
 ```
 
 ---

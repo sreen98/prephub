@@ -253,23 +253,25 @@ const data = await res.json();
 The standard cancellation primitive. `fetch`, `addEventListener`, async iterators, and most modern web APIs accept a `signal`. One controller, one or many signals — abort once, all attached operations abort together.
 
 ```js
-const ac = new AbortController();
-const timer = setTimeout(() => ac.abort(), 5000);  // 5s timeout
+async function run() {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 5000);  // 5s timeout
 
-try {
-  const res = await fetch('/slow', { signal: ac.signal });
-  clearTimeout(timer);
-  return res.json();
-} catch (e) {
-  if (e.name === 'AbortError') console.log('cancelled');
-  else throw e;
+  try {
+    const res = await fetch('/slow', { signal: ac.signal });
+    clearTimeout(timer);
+    return res.json();
+  } catch (e) {
+    if (e.name === 'AbortError') console.log('cancelled');
+    else throw e;
+  }
+
+  // Composing: AbortSignal.timeout(ms) is shorthand for the above
+  fetch('/x', { signal: AbortSignal.timeout(5000) });
+
+  // Combine multiple signals (timeout AND user-clicked-cancel)
+  fetch('/x', { signal: AbortSignal.any([userCancel.signal, AbortSignal.timeout(5000)]) });
 }
-
-// Composing: AbortSignal.timeout(ms) is shorthand for the above
-fetch('/x', { signal: AbortSignal.timeout(5000) });
-
-// Combine multiple signals (timeout AND user-clicked-cancel)
-fetch('/x', { signal: AbortSignal.any([userCancel.signal, AbortSignal.timeout(5000)]) });
 ```
 
 The same `signal` works on `addEventListener` — instant teardown of every listener registered with it:
@@ -1235,9 +1237,11 @@ This trips up half the people who learned `fetch` from a tutorial. `fetch` only 
 The consequence is that idiomatic `fetch` always looks like:
 
 ```js
-const res = await fetch(url);
-if (!res.ok) throw new Error(`HTTP ${res.status}`);   // explicit re-throw
-return res.json();
+async function run() {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);   // explicit re-throw
+  return res.json();
+}
 ```
 
 Wrapping `fetch` in a helper that converts non-2xx to thrown errors is so universal that libraries like `ky`, `wretch`, and `axios` all do it by default. Every team eventually writes one or adopts one — usually after a Sentry alert shows that a 500 silently became `{}` because the code did `await res.json()` without checking.

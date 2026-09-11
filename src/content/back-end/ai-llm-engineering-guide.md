@@ -1266,7 +1266,7 @@ Prompt caching works on a **prefix** basis: the provider caches the processed st
 
 ```js
 // ✗ No cache hits — the variable part is first, so the prefix never matches
-const prompt = `User question: ${query}
+const promptBroken = `User question: ${query}
 ${SYSTEM_INSTRUCTIONS}          // 2,000 stable tokens, wasted
 ${TOOL_DEFINITIONS}             // 1,500 stable tokens, wasted
 ${COMPANY_HANDBOOK}`;           // 20,000 stable tokens, wasted
@@ -1367,8 +1367,8 @@ The fix is to push the predicate into the vector store:
 
 ```js
 // ✗ retrieve then filter — both problems
-const hits = await store.query({ vector, topK: 5 });
-const visible = hits.filter(h => canRead(user, h.metadata.acl));
+const hitsBroken = await store.query({ vector, topK: 5 });
+const visible = hitsBroken.filter(h => canRead(user, h.metadata.acl));
 
 // ✓ filter inside the query — the store never returns what it shouldn't
 const hits = await store.query({
@@ -1413,19 +1413,21 @@ It works in development because localhost delivers large, well-aligned chunks wi
 The fix is to buffer and split on your delimiter, keeping the incomplete tail:
 
 ```js
-// ✓ Buffer, split on \n\n, retain the partial tail
-const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-let buffer = '';
-while (true) {
-  const { value, done } = await reader.read();
-  if (done) break;
-  buffer += value;
-  const frames = buffer.split('\n\n');
-  buffer = frames.pop();                 // may be incomplete — keep for next read
-  for (const frame of frames) {
-    const payload = frame.replace(/^data: /, '');
-    if (payload === '[DONE]') return;
-    append(JSON.parse(payload).text);
+async function run() {
+  // ✓ Buffer, split on \n\n, retain the partial tail
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop();                 // may be incomplete — keep for next read
+    for (const frame of frames) {
+      const payload = frame.replace(/^data: /, '');
+      if (payload === '[DONE]') return;
+      append(JSON.parse(payload).text);
+    }
   }
 }
 ```

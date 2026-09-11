@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { safeSet, getEnum } from '../lib/storage';
 
 export type FontSize = 'small' | 'medium' | 'large';
 
@@ -15,14 +16,14 @@ export interface UseReadingPrefsReturn {
 
 export function useReadingPrefs(): UseReadingPrefsReturn {
   const [fontSize, setFontSize] = useState<FontSize>(
-    (localStorage.getItem('readingFontSize') as FontSize | null) || 'medium'
+    () => getEnum<FontSize>('readingFontSize', SIZES, 'medium')
   );
 
   useEffect(() => {
     const root = document.documentElement;
     SIZES.forEach(s => root.classList.remove(`font-size-${s}`));
     root.classList.add(`font-size-${fontSize}`);
-    localStorage.setItem('readingFontSize', fontSize);
+    safeSet('readingFontSize', fontSize);
   }, [fontSize]);
 
   const cycleFontSize = (): void => {

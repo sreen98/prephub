@@ -611,8 +611,10 @@ Above it sit the HTTP and CDN layers (§6) and below it your own in-memory memoi
 **Retries — the details are the answer.** Retry only what's **retryable**: a `5xx`, a timeout, a network error. Never a `400`, `401`, `404` or `422` — a validation error will fail identically forever, and retrying a `401` can lock an account. Then **exponential back-off with jitter**, because without jitter a thousand clients that failed together retry together and you've built a thundering herd that keeps the service down. Honour `Retry-After` when the server sends it — your back-off is a guess, that header is not.
 
 ```js
-retry: (failureCount, error) => error.status >= 500 && failureCount < 3,
-retryDelay: (attempt) => Math.random() * Math.min(30_000, 1000 * 2 ** attempt),
+const queryClientDefaults = {
+  retry: (failureCount, error) => error.status >= 500 && failureCount < 3,
+  retryDelay: (attempt) => Math.random() * Math.min(30_000, 1000 * 2 ** attempt),
+};
 ```
 
 **And mutations are not queries.** A failed `GET` is safe to retry; a failed `POST` may have succeeded server-side before the response was lost. Retrying it double-charges someone. So mutations need an **idempotency key** before they're safe to retry at all — a unique id you generate per attempt and send with the request, so the server can recognise a duplicate and charge the card once rather than twice. Without one, don't retry: surface the failure and let the user decide.
@@ -804,10 +806,12 @@ Why it happens despite `shared: ['react']`:
 Module Federation's sharing is **version-negotiated at runtime**, not enforced. If the ranges don't overlap, it does the safe thing — gives the remote the version it asked for — and you get two Reacts. The other common causes are forgetting `singleton: true` (so even compatible versions can end up with separate instances), and a remote bundling React because it wasn't listed as shared in *its* config, only in the shell's.
 
 ```js
-shared: {
-  react:       { singleton: true, requiredVersion: '^19.0.0', strictVersion: true },
-  'react-dom': { singleton: true, requiredVersion: '^19.0.0', strictVersion: true },
-}
+const moduleFederationConfig = {
+  shared: {
+    react:       { singleton: true, requiredVersion: '^19.0.0', strictVersion: true },
+    'react-dom': { singleton: true, requiredVersion: '^19.0.0', strictVersion: true },
+  }
+};
 ```
 
 `singleton: true` says "there must be exactly one"; `strictVersion: true` turns a mismatch into a **loud error at load time** instead of a silent duplicate — which is what you want, because a build-time failure is infinitely cheaper than debugging an `undefined` context in production.
