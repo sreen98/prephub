@@ -111,4 +111,55 @@ describe('plain-JS challenges actually execute and pass their own tests', () => 
 
     expect(failures).toEqual([]);
   }, 60_000);
+
+  /**
+   * A solution must not depend on an API the user's browser may not have.
+   *
+   * "Array Intersection & Union" called `Set.prototype.intersection` in its own
+   * test, which threw on CI — those methods are Node 22+ and Chrome 122 /
+   * Safari 17 / Firefox 127 (2024), so a slightly older browser gets a
+   * TypeError the moment it presses Run. Nothing upstream catches this: it is
+   * not a parse error, and `tsc` types it happily against modern lib defs.
+   *
+   * That it was caught at all was luck — CI happened to run Node 20. Bump the
+   * CI image and the protection silently disappears, so pin it here instead:
+   * strip the newest Set methods, then re-run every solution.
+   */
+  it('no solution depends on the ES2025 Set methods without a guard', async () => {
+    const solutions = (await import('./playgroundSolutions')).playgroundSolutions;
+    const NEW_SET_METHODS = ['intersection', 'union', 'difference', 'symmetricDifference',
+      'isSubsetOf', 'isSupersetOf', 'isDisjointFrom'] as const;
+
+    const saved = new Map<string, unknown>();
+    for (const m of NEW_SET_METHODS) {
+      const proto = Set.prototype as unknown as Record<string, unknown>;
+      if (m in proto) { saved.set(m, proto[m]); delete proto[m]; }
+    }
+    try {
+      const failures: string[] = [];
+      for (const key of playgroundSolutionKeys) {
+        const tpl = allTemplates.find((t) => t.name === key);
+        if (!tpl || tpl.tag !== 'JS' || detectJSX(solutions[key])) continue;
+        const logs: string[] = [];
+        const { code: stripped } = stripModuleSyntax(solutions[key]);
+        const src = detectTS(stripped)
+          ? babel.transform(stripped, { presets: [['typescript', { allExtensions: true }]], filename: 'x.ts' }).code
+          : stripped;
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-implied-eval
+          const fn = new Function('console', src) as (c: unknown) => void;
+          fn({ log: (...a: unknown[]) => logs.push(a.map(String).join(' ')),
+               warn: () => {}, error: () => {}, info: () => {} });
+        } catch (err) {
+          failures.push(`${key}: threw without the new Set methods — ${err instanceof Error ? err.message : String(err)}`);
+          continue;
+        }
+        if (logs.join('\n').includes('❌')) failures.push(`${key}: failed an assertion without the new Set methods`);
+      }
+      expect(failures).toEqual([]);
+    } finally {
+      const proto = Set.prototype as unknown as Record<string, unknown>;
+      for (const [m, impl] of saved) proto[m] = impl;
+    }
+  }, 60_000);
 });

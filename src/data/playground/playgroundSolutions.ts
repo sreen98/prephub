@@ -6850,8 +6850,15 @@ function difference(a, b) {
 }
 
 // ----- Approach 3: ES2025 native Set methods -----
-// Available in modern runtimes. Non-mutating, and the argument only needs
-// to be "set-like" (size + has + keys), so a Map works too.
+// Non-mutating, and the argument only needs to be "set-like" (size + has +
+// keys), so a Map works too.
+//
+// FEATURE-DETECT BEFORE USING THEM. These shipped in Chrome 122, Safari 17
+// and Firefox 127 (2024), and in Node 22 — so a slightly older browser or an
+// LTS Node throws "intersection is not a function", which is a runtime
+// TypeError rather than anything a type checker or a bundler would flag.
+const hasSetMethods = typeof new Set().intersection === 'function';
+
 function intersectionNative(a, b) {
   return [...new Set(a).intersection(new Set(b))];
 }
@@ -6891,7 +6898,13 @@ test("Union dedupe",        union([1,1,2], [2,3,3]),          [1,2,3]);
 test("Difference",          difference([1,2,3], [2]),         [1,3]);
 test("Difference all",      difference([1,2], [1,2]),         []);
 test("Empty inputs",        union([], []),                    []);
-test("Native intersection", intersectionNative([1,2,3], [2,3,4]).sort(), [2,3]);`,
+if (hasSetMethods) {
+  test("Native intersection", intersectionNative([1,2,3], [2,3,4]).sort(), [2,3]);
+  test("Native union",        unionNative([1,2], [2,3]).sort(),            [1,2,3]);
+  test("Native difference",   differenceNative([1,2,3], [2]).sort(),       [1,3]);
+} else {
+  console.log("⏭️  Native Set methods unavailable here (needs Chrome 122+ / Node 22+) — the hand-rolled versions above still pass.");
+}`,
 
   'Chunk Array': `// ===== SOLUTION: Chunk an Array =====
 //

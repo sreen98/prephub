@@ -90,6 +90,25 @@ The three playground data modules (templates, solutions, explanations — 22,551
 ### 8. `verify:arch` guards the guards
 `scripts/verify-architecture.js` asserts things a linter cannot check about itself, because **this repo shipped for months with an ESLint glob of `**/*.{js,jsx}` while every file in `src/` was `.ts`/`.tsx` — so `npm run lint` passed while linting zero files, and `eslint-plugin-react-hooks` never ran despite being installed.** A rule that can be silently switched off is not a rule. It also pins: type-aware linting stays on, `exhaustive-deps` stays `error`, the pre-push hook keeps all its gates, the content glob never becomes `eager`, vendor chunks keep the `vendor-*` prefix, `injectRegister` stays `null`, and `prepare-content.js` never clobbers the Introduction page.
 
+### 9b. A solution must not use an API the user's browser might not have
+`Array Intersection & Union` called `Set.prototype.intersection` in its own test
+and **failed CI on a release commit**. Those Set methods are Node 22+ and Chrome
+122 / Safari 17 / Firefox 127 (2024), so a slightly older browser throws a
+`TypeError` the instant the user presses Run. Nothing upstream catches it: it is
+not a parse error, so `verify:blocks` passes, and `tsc` types it happily against
+modern lib defs.
+
+**It was caught by luck** — CI happens to run Node 20, where the methods are
+absent. Bump the CI image and that protection silently disappears. So it is
+pinned explicitly instead: `playgroundExecutable.test.ts` deletes the seven new
+`Set` methods, re-runs every solution, and restores them in a `finally`.
+Probe-tested by reintroducing the bug.
+
+The rule for solutions is **feature-detect, don't assume** — the guarded form
+keeps the modern API as a teaching approach while the tested path stays
+portable. Guide prose is different and deliberately exempt: a section *about*
+`Object.groupBy` should show `Object.groupBy`.
+
 ### 9a. An async test that reads its result synchronously passes vacuously
 `playgroundExecutable.test.ts` runs every JS solution and asserts the output holds no `❌`.
 Several solutions are **async** — they end in `run()` where `run` is an async function, or put
