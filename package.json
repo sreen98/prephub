@@ -1,16 +1,17 @@
 {
   "name": "prephub",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.6.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && node scripts/generate-sitemap.js",
+    "dev": "node scripts/generate-content-meta.js && vite",
+    "build": "node scripts/generate-content-meta.js && vite build && node scripts/generate-sitemap.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "verify:counts": "node scripts/verify-counts.js",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "content:meta": "node scripts/generate-content-meta.js"
   },
   "dependencies": {
     "@babel/standalone": "^7.29.2",

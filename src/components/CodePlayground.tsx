@@ -214,6 +214,7 @@ const BRACKET_PAIRS: Record<string, string> = {
   '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`',
 };
 const CLOSERS = new Set([')', ']', '}', '"', "'", '`']);
+import { closingTagFor, shouldClosePair, shouldCloseAngle } from './playgroundAutoClose';
 import {
   Template,
   TemplateCategory,
@@ -574,25 +575,48 @@ export default function CodePlayground() {
       .filter(cat => cat.templates.length > 0);
   }, [drawerSearch, drawerFilter, modalMode, patternFilter, difficultyFilter]);
 
-  // Per-difficulty challenge counts for the filter chips.
+  // The challenge templates currently in scope, i.e. after the tag filter.
+  // Declared before the count memos below, which depend on it.
+  const scopeChallengeTemplates: Template[] = useMemo(() => {
+    return templateCategories
+      .filter(cat => (cat.kind ?? 'template') === 'challenge')
+      .filter(cat => drawerFilter === 'all' || cat.tag.toLowerCase() === drawerFilter)
+      .flatMap(cat => cat.templates);
+  }, [drawerFilter]);
+
+  // Do the pattern and difficulty controls apply to what's in scope? Only JS
+  // coding challenges carry `patterns` and `difficulty`; React machine-coding
+  // templates carry neither. Rendering JS-derived filters while the React tag
+  // is selected showed JS counts and, if clicked, filtered every result away —
+  // which reads as "filtering is broken".
+  const scopeHasPatterns: boolean = useMemo(
+    () => scopeChallengeTemplates.some(t => t.patterns && t.patterns.length > 0),
+    [scopeChallengeTemplates],
+  );
+  const scopeHasDifficulty: boolean = useMemo(
+    () => scopeChallengeTemplates.some(t => Boolean(t.difficulty)),
+    [scopeChallengeTemplates],
+  );
+
+  // Per-difficulty counts for the filter chips — scoped to the selected tag so
+  // the numbers match the list rather than always showing the JS totals.
   const difficultyCounts: Record<Difficulty, number> = useMemo(() => {
     const counts: Record<Difficulty, number> = { Easy: 0, Medium: 0, Hard: 0 };
-    for (const t of allTemplates) {
-      if (t.kind !== 'challenge' || !t.difficulty) continue;
-      counts[t.difficulty]++;
+    for (const t of scopeChallengeTemplates) {
+      if (t.difficulty) counts[t.difficulty]++;
     }
     return counts;
-  }, []);
+  }, [scopeChallengeTemplates]);
 
-  // Per-pattern challenge counts for the filter chips.
+  // Per-pattern counts, likewise scoped.
   const patternCounts: Record<Pattern, number> = useMemo(() => {
     const counts = Object.fromEntries(ALL_PATTERNS.map(p => [p, 0])) as Record<Pattern, number>;
-    for (const t of allTemplates) {
-      if (t.kind !== 'challenge' || !t.patterns) continue;
+    for (const t of scopeChallengeTemplates) {
+      if (!t.patterns) continue;
       for (const p of t.patterns) counts[p] = (counts[p] || 0) + 1;
     }
     return counts;
-  }, []);
+  }, [scopeChallengeTemplates]);
 
   // Clear sessionStorage code after loading. This is the "Try it" handoff
   // bootstrap from study guides — single-shot, then cleared so a refresh
@@ -1079,6 +1103,39 @@ export default function CodePlayground() {
 
     if (!bracketAutoClose) return;
 
+    // ----- `<` pairs with `>` in JSX -----
+    // Only in tag position: see shouldCloseAngle for why `count < max` and
+    // `useState<Props>` must be left alone.
+    if (e.key === '<' && shouldCloseAngle(before, isJSX) && shouldClosePair(code, start, end, '<')) {
+      e.preventDefault();
+      setCode(before + '<' + selected + '>' + after);
+      if (selected) {
+        requestAnimationFrame(() => { ta.selectionStart = start + 1; ta.selectionEnd = end + 1; });
+      } else {
+        requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = start + 1; });
+      }
+      return;
+    }
+
+    // ----- JSX/HTML tag auto-close: typing `>` closes the tag you just opened -----
+    // This is what "Auto-close" implies but previously didn't do — only brackets
+    // and quotes were handled, so `<div>` never produced `</div>`.
+    if (e.key === '>' && start === end) {
+      const closeTag = closingTagFor(before, isJSX);
+      // A `>` already sitting at the caret is the one we inserted when `<` was
+      // typed. Consume it rather than adding a second one, so `<div|>` + `>`
+      // gives `<div></div>` and not `<div>></div>`.
+      const pending = code[start] === '>';
+      if (closeTag || pending) {
+        e.preventDefault();
+        const rest = pending ? after.substring(1) : after;
+        setCode(before + '>' + (closeTag ?? '') + rest);
+        const caret = start + 1;                      // between > and </tag>
+        requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = caret; });
+        return;
+      }
+    }
+
     // ----- Smart skip: typing the same closer that's already there -----
     if (CLOSERS.has(e.key) && code[start] === e.key && start === end) {
       e.preventDefault();
@@ -1089,9 +1146,7 @@ export default function CodePlayground() {
     // ----- Bracket / quote auto-close -----
     if (BRACKET_PAIRS[e.key]) {
       const close = BRACKET_PAIRS[e.key];
-      // For quotes, don't auto-close if the cursor is right next to a word
-      // character — that's almost always a contraction or an apostrophe.
-      if ((e.key === "'" || e.key === '"' || e.key === '`') && /\w/.test(code[start - 1] || '')) return;
+      if (!shouldClosePair(code, start, end, e.key)) return;
 
       e.preventDefault();
       const newCode = before + e.key + selected + close + after;
@@ -1106,7 +1161,7 @@ export default function CodePlayground() {
       }
       return;
     }
-  }, [code, bracketAutoClose, handleFormat]);
+  }, [code, bracketAutoClose, handleFormat, isJSX]);
 
   const handleClear = useCallback((): void => {
     stopFlush();
@@ -1124,6 +1179,10 @@ export default function CodePlayground() {
     setDrawerSearch('');
     setDrawerFilter('all');
     setActiveCategory('all');
+    // Pattern and difficulty are challenge-only concepts. Leaving them set
+    // made the modal open with an invisible filter still applied.
+    setPatternFilter('all');
+    setDifficultyFilter('all');
     setTimeout(() => drawerSearchRef.current?.focus(), 200);
   }, []);
 
@@ -1205,7 +1264,11 @@ export default function CodePlayground() {
                 ]).map(({ id, label, count }) => (
                   <button
                     key={id}
-                    onClick={() => setModalMode(id)}
+                    onClick={() => {
+                      setModalMode(id);
+                      setPatternFilter('all');
+                      setDifficultyFilter('all');
+                    }}
                     className={
                       'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ' +
                       (modalMode === id
@@ -1299,7 +1362,15 @@ export default function CodePlayground() {
                       return (
                         <button
                           key={tag}
-                          onClick={() => setDrawerFilter(tag)}
+                          onClick={() => {
+                            setDrawerFilter(tag);
+                            // React machine-coding templates carry no patterns
+                            // or difficulty, so a filter chosen while viewing
+                            // JS challenges would exclude every one of them
+                            // and show "No templates found".
+                            setPatternFilter('all');
+                            setDifficultyFilter('all');
+                          }}
                           className={[
                             "px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all capitalize flex items-center gap-1",
                             drawerFilter === tag
@@ -1318,7 +1389,7 @@ export default function CodePlayground() {
                     {/* In challenges mode, the sidebar lists PATTERNS grouped
                         by super-category. In templates/blank mode, it lists
                         CATEGORIES (the original behavior). */}
-                    {modalMode === 'challenges' ? (
+                    {modalMode === 'challenges' && scopeHasPatterns ? (
                       <>
                         <button
                           onClick={() => setPatternFilter('all')}
@@ -1439,7 +1510,7 @@ export default function CodePlayground() {
                   </div>
 
                   {/* Difficulty filter chips — only in challenges mode. */}
-                  {modalMode === 'challenges' && (
+                  {modalMode === 'challenges' && scopeHasDifficulty && (
                     <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Difficulty:</span>
                       {(['all', 'Easy', 'Medium', 'Hard'] as const).map(d => {
@@ -1658,20 +1729,29 @@ export default function CodePlayground() {
             </button>
           )}
 
-          {/* Reset Code — visible only when saved progress exists for this template */}
-          {selectedName && currentTemplate && getEntry(selectedName) && (
+          {/* Reset Code — available whenever a template is loaded, not just when a
+              saved draft exists. It used to be gated on getEntry(), so the button
+              was missing exactly when someone had mangled the code but not yet
+              triggered the debounced autosave. */}
+          {currentTemplate && (
             <button
               onClick={() => {
-                if (window.confirm('Reset to the original challenge stub? Your saved code for this challenge will be lost.')) {
-                  setCode(currentTemplate.code);
-                  setNotes('');
-                  clearEntry(selectedName);
-                  setRunSummary(null);
-                  setToastMsg(`Reset "${selectedName}" to the original challenge stub`);
-                }
+                const dirty = code !== currentTemplate.code;
+                if (dirty && !window.confirm(
+                  `Reset "${currentTemplate.name}" to its original code? Your current edits and saved draft for it will be lost.`
+                )) return;
+                setCode(currentTemplate.code);
+                setCurrentLang(currentTemplate.lang ?? (currentTemplate.jsx ? 'jsx' : 'js'));
+                setNotes('');
+                setShowingSolution(false);
+                if (selectedName) clearEntry(selectedName);
+                setRunSummary(null);
+                setOutput([]);
+                setHasPreview(false);
+                setToastMsg(`Reset "${currentTemplate.name}" to its original code`);
               }}
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-[#3d444d] text-slate-400 hover:text-white hover:bg-[#2d333b] transition-colors"
-              title="Reset code to the original challenge stub"
+              title="Discard edits and restore this template's original code"
             >
               <RotateCcw size={14} />
               Reset

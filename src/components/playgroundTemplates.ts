@@ -5596,6 +5596,905 @@ test("nested mixed",     sumNested([1,[2,3],[[4],5]]),15);`,
     kind: 'challenge',
     templates: [
       {
+        name: 'Responsive Images (srcset / AVIF)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Image Optimization =====
+// Images are usually the largest thing on a page and almost always the LCP
+// element. This covers the four levers and the one people get wrong.
+//
+// TASK
+//   1. Serve the right RESOLUTION per device (srcset + sizes)
+//   2. Serve modern FORMATS with fallback (<picture> + AVIF/WebP)
+//   3. Reserve space so the image cannot cause layout shift (CLS)
+//   4. Get loading priority right — lazy below the fold, eager for the LCP
+
+function ResolutionSwitching() {
+  return (
+    <figure style={{ margin: 0 }}>
+      {/* srcset = candidates; sizes = how WIDE the image will DISPLAY.
+          The browser picks using sizes + DPR, and it decides BEFORE CSS is
+          applied — which is why sizes must be given, not inferred. */}
+      <img
+        src="/img/hero-800.jpg"
+        srcSet="/img/hero-400.jpg 400w, /img/hero-800.jpg 800w, /img/hero-1600.jpg 1600w"
+        sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 600px"
+        alt="A team collaborating around a whiteboard"
+        width={800}
+        height={450}
+        style={{ width: '100%', height: 'auto', borderRadius: 8, background: '#222' }}
+      />
+      <figcaption style={{ fontSize: 12, color: '#888' }}>
+        srcset + sizes — resolution switching, same image
+      </figcaption>
+    </figure>
+  );
+}
+
+function FormatNegotiation() {
+  return (
+    <figure style={{ margin: 0 }}>
+      {/* Order matters: the browser takes the FIRST source it supports.
+          AVIF (smallest) → WebP → jpg fallback in the img. */}
+      <picture>
+        <source type="image/avif" srcSet="/img/hero-800.avif 800w, /img/hero-1600.avif 1600w" sizes="600px" />
+        <source type="image/webp" srcSet="/img/hero-800.webp 800w, /img/hero-1600.webp 1600w" sizes="600px" />
+        <img
+          src="/img/hero-800.jpg"
+          alt="A team collaborating around a whiteboard"
+          width={800}
+          height={450}
+          loading="lazy"
+          decoding="async"
+          style={{ width: '100%', height: 'auto', borderRadius: 8, background: '#222' }}
+        />
+      </picture>
+      <figcaption style={{ fontSize: 12, color: '#888' }}>
+        picture + type — format negotiation with fallback
+      </figcaption>
+    </figure>
+  );
+}
+
+function AspectRatioBox() {
+  return (
+    <figure style={{ margin: 0 }}>
+      {/* aspect-ratio reserves the box before the bytes arrive, so nothing
+          below jumps when the image loads. This is the CLS fix. */}
+      <div style={{ aspectRatio: '16 / 9', background: '#222', borderRadius: 8, display: 'grid', placeItems: 'center' }}>
+        <span style={{ color: '#666', fontSize: 12 }}>space reserved via aspect-ratio</span>
+      </div>
+      <figcaption style={{ fontSize: 12, color: '#888' }}>
+        width/height attrs or aspect-ratio — prevents layout shift
+      </figcaption>
+    </figure>
+  );
+}
+
+function App() {
+  // Paths above are illustrative — the playground has no image server, so the
+  // boxes render as placeholders. The MARKUP is the deliverable.
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 520, display: 'grid', gap: 22 }}>
+      <ResolutionSwitching />
+      <FormatNegotiation />
+      <AspectRatioBox />
+      <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>
+        <strong>For the LCP image specifically:</strong> loading="eager",
+        fetchpriority="high", and NO lazy attribute. Lazy-loading your hero
+        delays the very metric you are measured on.
+      </div>
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. srcset vs sizes — the one people get wrong. srcset lists CANDIDATES with
+//    their intrinsic widths (400w); sizes tells the browser how wide the image
+//    will actually DISPLAY. Omit sizes and the browser assumes 100vw and
+//    downloads something far too large. It chooses before CSS applies, so it
+//    cannot infer the layout.
+// 2. srcset+sizes = resolution switching (same image). <picture>+type =
+//    format or art-direction switching. Different jobs; know which you need.
+// 3. width + height attributes (or aspect-ratio) to reserve space. Without
+//    them the image is 0px tall until it loads and everything below jumps —
+//    that is CLS.
+// 4. NEVER lazy-load the LCP image. loading="lazy" on the hero directly
+//    regresses LCP; use loading="eager" + fetchpriority="high", and preload it
+//    if it is discovered late (a CSS background or JS-inserted <img> is
+//    invisible to the preload scanner).
+// 5. decoding="async" keeps decode off the main thread.
+// 6. AVIF ~50% smaller than JPEG, WebP ~30%, both with wide support in 2026 —
+//    but always keep a fallback in the <img>.
+// 7. alt text describes the image's PURPOSE. Decorative images take alt=""
+//    so screen readers skip them — not a missing alt attribute.`,
+      },
+      {
+        name: 'Protected Route (Auth + RBAC)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Protected Route with Roles =====
+// Authentication = WHO you are. Authorization = WHAT you may do. This shows
+// both gates, and the three states people forget.
+//
+// TASK
+//   1. Gate a page behind login (authentication)
+//   2. Gate an admin page behind a role (authorization)
+//   3. Handle the LOADING state — before the session is known you are neither
+//      logged in nor logged out, and getting this wrong bounces real users
+//   4. Remember where the user was going, so login returns them there
+
+const AuthContext = React.createContext(null);
+
+// Fake session restore — in a real app this validates a token with the server.
+function restoreSession() {
+  return new Promise(resolve => setTimeout(() => resolve(null), 700));
+}
+
+function AuthProvider({ children }) {
+  // 'loading' is a THIRD state, distinct from logged-in and logged-out.
+  const [status, setStatus] = React.useState('loading');
+  const [user, setUser] = React.useState(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    restoreSession().then(session => {
+      if (cancelled) return;
+      setUser(session);
+      setStatus(session ? 'authenticated' : 'anonymous');
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const login = (role) => { setUser({ name: 'Ana', role }); setStatus('authenticated'); };
+  const logout = () => { setUser(null); setStatus('anonymous'); };
+
+  const value = React.useMemo(() => ({ status, user, login, logout }), [status, user]);
+  return <AuthContext value={value}>{children}</AuthContext>;
+}
+
+const useAuth = () => React.useContext(AuthContext);
+
+// ---------- the gate ----------
+function Protected({ requireRole, onRedirect, children }) {
+  const { status, user } = useAuth();
+
+  // 1. Session unknown — render nothing decisive. Redirecting here logs out
+  //    every user on every refresh, which is the bug this state prevents.
+  if (status === 'loading') return <p style={{ color: '#888' }}>Checking session…</p>;
+
+  // 2. Not authenticated → send to login, remembering the destination.
+  if (status === 'anonymous') { onRedirect('login'); return null; }
+
+  // 3. Authenticated but not authorized → 403, NOT a redirect to login.
+  //    Bouncing an authorized-but-insufficient user to login is confusing and
+  //    is a common mistake.
+  if (requireRole && user.role !== requireRole) {
+    return (
+      <div style={{ color: '#f87171' }}>
+        <strong>403 — Forbidden.</strong>
+        <p style={{ fontSize: 13, color: '#aaa' }}>
+          Signed in as {user.name} ({user.role}); this page needs "{requireRole}".
+        </p>
+      </div>
+    );
+  }
+  return children;
+}
+
+function App() {
+  const [page, setPage] = React.useState('home');
+  const [intended, setIntended] = React.useState(null);
+  const { status, user, login, logout } = useAuth();
+
+  const go = (p) => setPage(p);
+  const redirectToLogin = (target) => { setIntended(page); setPage(target); };
+
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 480 }}>
+      <nav style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <button onClick={() => go('home')}>Home</button>
+        <button onClick={() => go('dashboard')}>Dashboard (auth)</button>
+        <button onClick={() => go('admin')}>Admin (role)</button>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#888' }}>
+          {status === 'loading' ? '…' : user ? user.name + ' (' + user.role + ')' : 'signed out'}
+        </span>
+        {user && <button onClick={logout}>Sign out</button>}
+      </nav>
+
+      <div style={{ padding: 12, border: '1px solid #333', borderRadius: 8, minHeight: 90 }}>
+        {page === 'home' && <p style={{ margin: 0 }}>Public home page.</p>}
+
+        {page === 'login' && (
+          <div>
+            <p style={{ marginTop: 0 }}>Sign in to continue{intended ? ' to ' + intended : ''}.</p>
+            <button onClick={() => { login('user'); setPage(intended || 'home'); }}>as user</button>{' '}
+            <button onClick={() => { login('admin'); setPage(intended || 'home'); }}>as admin</button>
+          </div>
+        )}
+
+        {page === 'dashboard' && (
+          <Protected onRedirect={redirectToLogin}>
+            <p style={{ margin: 0 }}>Dashboard — any signed-in user.</p>
+          </Protected>
+        )}
+
+        {page === 'admin' && (
+          <Protected requireRole="admin" onRedirect={redirectToLogin}>
+            <p style={{ margin: 0 }}>Admin panel — admins only.</p>
+          </Protected>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Root() { return <AuthProvider><App /></AuthProvider>; }
+render(<Root />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. THE LOADING STATE. Treating "not yet known" as "logged out" redirects
+//    every user to login on refresh. This is the single most common bug here.
+// 2. 401 vs 403: unauthenticated → login; authenticated-but-wrong-role → a
+//    forbidden page. Don't send an authorized user back to login.
+// 3. Remember the intended destination and return there after login.
+// 4. THE SECURITY POINT, and say it unprompted: this is UX only. Anyone can
+//    edit client state, so every protected route must be backed by
+//    server-side authorization on the API. A hidden button is not a
+//    permission — see the Web Security and OAuth guides.
+// 5. Don't put the role check in fifty components; one declarative gate.`,
+      },
+      {
+        name: 'Mini Redux Store',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Build a Redux-like Store =====
+// Implement the store Redux gives you, so you can explain what it actually
+// does — and why useReducer + Context is not the same thing.
+//
+// TASK
+//   1. createStore(reducer): getState, dispatch, subscribe
+//   2. Wire it into React WITHOUT re-rendering every consumer
+//   3. A selector hook, so a component re-renders only when its slice changes
+//   4. Middleware (logging), to show why dispatch is wrapped
+
+// ---------- 1. the store — ~20 lines, no dependencies ----------
+function createStore(reducer, initialState, middleware) {
+  let state = reducer(initialState, { type: '@@INIT' });
+  const listeners = new Set();
+
+  const baseDispatch = (action) => {
+    state = reducer(state, action);          // pure: (state, action) -> newState
+    listeners.forEach(l => l());             // notify, don't pass state
+    return action;
+  };
+
+  const store = {
+    getState: () => state,
+    subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
+    dispatch: baseDispatch,
+  };
+
+  // Middleware wraps dispatch — that is the whole extension mechanism.
+  if (middleware) store.dispatch = middleware(store)(baseDispatch);
+  return store;
+}
+
+const logger = (store) => (next) => (action) => {
+  console.log('dispatch', action.type, '->', JSON.stringify(reducer(store.getState(), action)));
+  return next(action);
+};
+
+// ---------- 2. reducer ----------
+const initial = { count: 0, todos: [], filter: 'all' };
+
+function reducer(state = initial, action) {
+  switch (action.type) {
+    case 'increment': return { ...state, count: state.count + 1 };
+    case 'addTodo':   return { ...state, todos: [...state.todos, action.payload] };
+    case 'setFilter': return { ...state, filter: action.payload };
+    default:          return state;
+  }
+}
+
+const store = createStore(reducer, initial, logger);
+
+// ---------- 3. React binding ----------
+const StoreContext = React.createContext(null);
+
+// useSyncExternalStore is the correct primitive: it subscribes, reads a
+// snapshot, and — crucially — avoids TEARING under concurrent rendering,
+// where two components could otherwise read different versions of the state.
+function useSelector(selector) {
+  const s = React.useContext(StoreContext);
+  return React.useSyncExternalStore(
+    s.subscribe,
+    () => selector(s.getState()),
+    () => selector(s.getState())
+  );
+}
+
+function useDispatch() {
+  return React.useContext(StoreContext).dispatch;
+}
+
+// ---------- 4. components — each re-renders only for its own slice ----------
+let counterRenders = 0, todoRenders = 0;
+
+function Counter() {
+  const count = useSelector(s => s.count);
+  const dispatch = useDispatch();
+  counterRenders++;
+  return (
+    <p style={{ margin: '0 0 8px' }}>
+      count: <strong>{count}</strong>{' '}
+      <button onClick={() => dispatch({ type: 'increment' })}>+1</button>
+      <span style={{ color: '#888', fontSize: 12 }}>  renders: {counterRenders}</span>
+    </p>
+  );
+}
+
+function TodoCount() {
+  const n = useSelector(s => s.todos.length);
+  const dispatch = useDispatch();
+  todoRenders++;
+  return (
+    <p style={{ margin: '0 0 8px' }}>
+      todos: <strong>{n}</strong>{' '}
+      <button onClick={() => dispatch({ type: 'addTodo', payload: 'item ' + (n + 1) })}>add</button>
+      <span style={{ color: '#888', fontSize: 12 }}>  renders: {todoRenders}</span>
+    </p>
+  );
+}
+
+function App() {
+  return (
+    <StoreContext value={store}>
+      <div style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 460 }}>
+        <Counter />
+        <TodoCount />
+        <p style={{ fontSize: 12, color: '#888', marginTop: 10 }}>
+          Click +1 and watch: only Counter's render count moves. That selector
+          isolation is what Context alone does NOT give you.
+        </p>
+      </div>
+    </StoreContext>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. The three-method contract: getState, dispatch, subscribe. The reducer is
+//    PURE — same input, same output, no side effects, no mutation.
+// 2. useSyncExternalStore, not useState + useEffect. It is the purpose-built
+//    primitive and it prevents TEARING under concurrent rendering.
+// 3. SELECTOR ISOLATION is the real answer to "why not just Context?".
+//    A Context value change re-renders EVERY consumer; a selector re-renders
+//    only components whose slice actually changed. That is why Redux/Zustand
+//    exist alongside Context.
+// 4. Middleware is dispatch wrapping: store => next => action. That signature
+//    is how thunk, saga and the devtools all hook in.
+// 5. Selectors returning a NEW object each call (s => ({...})) defeat the
+//    equality check and re-render every time — hence reselect / useShallow.
+// 6. When asked what you would actually use: Redux Toolkit for large shared
+//    client state, Zustand for something lighter, and TanStack Query for
+//    SERVER state — which is most of what people wrongly put in Redux.`,
+      },
+      {
+        name: 'Client Cache (stale-while-revalidate)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Client-Side Caching =====
+// Build the caching behaviour TanStack Query / SWR give you, so you can
+// explain what those libraries actually do.
+//
+// TASK
+//   1. Serve cached data instantly on revisit (no loading flash)
+//   2. Revalidate in the background and update when fresh data lands
+//   3. De-duplicate concurrent requests for the same key
+//   4. Expose isStale so the UI can show "refreshing"
+
+// ---------- a tiny cache with request de-duplication ----------
+const cache = new Map();     // key -> { data, updatedAt }
+const inflight = new Map();  // key -> Promise   (de-dupe)
+
+const STALE_MS = 5000;
+
+function fetchUser(id) {
+  // stand-in for the network
+  return new Promise(resolve =>
+    setTimeout(() => resolve({ id, name: 'User ' + id, fetchedAt: new Date().toLocaleTimeString() }), 800)
+  );
+}
+
+function getOrFetch(key, fetcher) {
+  // Two callers mounting at once must share ONE request, not fire two.
+  if (inflight.has(key)) return inflight.get(key);
+  const p = fetcher()
+    .then(data => { cache.set(key, { data, updatedAt: Date.now() }); return data; })
+    .finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
+function useCachedUser(id) {
+  const key = 'user:' + id;
+  const entry = cache.get(key);
+
+  // Initialise FROM CACHE, so a revisit renders data on the first frame.
+  const [data, setData] = React.useState(entry ? entry.data : null);
+  const [isRevalidating, setRevalidating] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const cached = cache.get(key);
+    setData(cached ? cached.data : null);
+    setError(null);
+
+    const isStale = !cached || Date.now() - cached.updatedAt > STALE_MS;
+    if (!isStale) return;                    // fresh enough — no request at all
+
+    setRevalidating(true);
+    getOrFetch(key, () => fetchUser(id))
+      .then(fresh => { if (!cancelled) setData(fresh); })
+      .catch(err => { if (!cancelled) setError(err.message); })
+      .finally(() => { if (!cancelled) setRevalidating(false); });
+
+    return () => { cancelled = true; };
+  }, [key, id]);
+
+  return { data, isRevalidating, error, isCachedHit: Boolean(entry) };
+}
+
+function UserPanel({ id }) {
+  const { data, isRevalidating, error } = useCachedUser(id);
+  if (error) return <p style={{ color: '#f87171' }}>{error}</p>;
+  if (!data) return <p style={{ color: '#888' }}>Loading user {id}…</p>;
+  return (
+    <p style={{ margin: 0 }}>
+      <strong>{data.name}</strong>
+      <span style={{ color: '#888', fontSize: 12 }}> · fetched {data.fetchedAt}</span>
+      {isRevalidating && <span style={{ color: '#fbbf24', fontSize: 12 }}>  refreshing…</span>}
+    </p>
+  );
+}
+
+function App() {
+  const [id, setId] = React.useState(1);
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 480 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        {[1, 2, 3].map(n => (
+          <button key={n} onClick={() => setId(n)}
+                  style={{ fontWeight: id === n ? 700 : 400 }}>User {n}</button>
+        ))}
+      </div>
+      <UserPanel id={id} />
+      {/* Mounted twice on purpose: proves the two share ONE request */}
+      <div style={{ marginTop: 12, opacity: 0.7 }}><UserPanel id={id} /></div>
+      <p style={{ fontSize: 12, color: '#888', marginTop: 14 }}>
+        Switch users, then switch back within 5s — instant, no request.
+        After 5s the entry is stale: cached data shows immediately and refreshes behind it.
+      </p>
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. STALE-WHILE-REVALIDATE: render the cached value immediately AND refetch.
+//    Showing a spinner over data you already have is the thing to avoid.
+// 2. REQUEST DE-DUPLICATION via the inflight map — two components mounting
+//    with the same key must share one request. Forgetting this is why naive
+//    hooks fire N requests for N consumers.
+// 3. Initialise state FROM the cache, not to null, or you flash a loader on
+//    every revisit even though the data was already there.
+// 4. Cancellation, so a fast second switch cannot be overwritten by a slow
+//    first response landing late (the out-of-order race).
+// 5. Know what you are NOT building: TanStack Query adds retries, window-focus
+//    revalidation, garbage collection, pagination helpers and devtools. Say
+//    that rather than claiming a 40-line hook replaces it.`,
+      },
+      {
+        name: 'WebSocket Live Feed',
+        jsx: true,
+        code: `// ===== MACHINE CODING: WebSocket Live Feed =====
+// Real-time UI with the connection lifecycle handled properly. The playground
+// has no server, so FakeSocket below implements the same API as a real
+// WebSocket — swap in "new WebSocket(url)" and the component is unchanged.
+//
+// TASK
+//   1. Connect on mount, close on unmount
+//   2. Show connection status
+//   3. Reconnect with exponential backoff + jitter after a drop
+//   4. Cap the buffer so memory doesn't grow forever
+
+// ---------- stand-in with the real WebSocket surface ----------
+class FakeSocket {
+  constructor() {
+    this.readyState = 0;                       // CONNECTING
+    this.onopen = this.onmessage = this.onclose = this.onerror = null;
+    this._timer = null;
+    setTimeout(() => {
+      this.readyState = 1;                     // OPEN
+      this.onopen && this.onopen();
+      let n = 0;
+      this._timer = setInterval(() => {
+        if (this.readyState !== 1) return;
+        n++;
+        this.onmessage && this.onmessage({
+          data: JSON.stringify({ id: n, price: (100 + Math.random() * 10).toFixed(2), at: new Date().toLocaleTimeString() }),
+        });
+        if (n === 6) this._drop();             // simulate a drop, to prove reconnect
+      }, 900);
+    }, 600);
+  }
+  _drop() {
+    clearInterval(this._timer);
+    this.readyState = 3;                       // CLOSED
+    this.onclose && this.onclose({ code: 1006, wasClean: false });
+  }
+  close() { clearInterval(this._timer); this.readyState = 3; }
+}
+
+const MAX_MESSAGES = 8;
+
+function useLiveFeed() {
+  const [status, setStatus] = React.useState('connecting');
+  const [messages, setMessages] = React.useState([]);
+  const socketRef = React.useRef(null);
+  const attemptRef = React.useRef(0);
+  const retryRef = React.useRef(null);
+  const closedByUs = React.useRef(false);
+
+  React.useEffect(() => {
+    closedByUs.current = false;
+
+    const connect = () => {
+      setStatus(attemptRef.current === 0 ? 'connecting' : 'reconnecting');
+      // Real code: const socket = new WebSocket('wss://example.com/feed');
+      const socket = new FakeSocket();
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        attemptRef.current = 0;                // reset backoff on success
+        setStatus('open');
+      };
+
+      socket.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        // Bounded buffer — an unbounded array is a slow memory leak.
+        setMessages(prev => [msg, ...prev].slice(0, MAX_MESSAGES));
+      };
+
+      socket.onclose = () => {
+        if (closedByUs.current) return;        // unmount, not a failure
+        setStatus('closed');
+        const attempt = ++attemptRef.current;
+        // Exponential backoff with FULL JITTER, capped — without jitter every
+        // client reconnects in lockstep and stampedes the server.
+        const delay = Math.random() * Math.min(30000, 500 * 2 ** (attempt - 1));
+        retryRef.current = setTimeout(connect, delay);
+      };
+    };
+
+    connect();
+
+    return () => {
+      closedByUs.current = true;               // suppress the reconnect
+      clearTimeout(retryRef.current);
+      socketRef.current && socketRef.current.close();
+    };
+  }, []);
+
+  return { status, messages };
+}
+
+const COLOURS = { open: '#34d399', connecting: '#fbbf24', reconnecting: '#fbbf24', closed: '#f87171' };
+
+function App() {
+  const { status, messages } = useLiveFeed();
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 420 }}>
+      <p style={{ margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: 4, background: COLOURS[status] }} />
+        <span aria-live="polite" style={{ fontSize: 13 }}>{status}</span>
+      </p>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+        {messages.map(m => (
+          <li key={m.id} style={{ padding: '4px 0', borderBottom: '1px solid #333', fontSize: 13 }}>
+            #{m.id} — {m.price} <span style={{ color: '#888' }}>{m.at}</span>
+          </li>
+        ))}
+      </ul>
+      <p style={{ fontSize: 12, color: '#888', marginTop: 12 }}>
+        The feed drops after 6 messages on purpose — watch it reconnect.
+      </p>
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. CLEANUP on unmount, and a flag so your own close() doesn't trigger the
+//    reconnect path. Without it you leak a socket per mount and reconnect
+//    forever after navigating away — the classic version of this bug.
+// 2. RECONNECT with exponential backoff and FULL JITTER, capped. No jitter
+//    means every client retries in lockstep and DDoSes your own server.
+// 3. Reset the attempt counter on a successful open, or backoff grows forever.
+// 4. A BOUNDED buffer. Real feeds run for hours; an unbounded array is a leak.
+// 5. Visible connection status with aria-live, so the state is not colour-only.
+// 6. Beyond this: heartbeats to detect a half-open connection (TCP can stay
+//    "open" with nothing flowing), message sequence numbers to detect gaps and
+//    replay after a reconnect, and batching high-frequency updates into rAF so
+//    1000 messages/sec doesn't cause 1000 renders.`,
+      },
+      {
+        name: 'Optimistic UI Updates',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Optimistic UI Updates =====
+// Show the result of an action IMMEDIATELY, then reconcile with the server.
+// The graded part is the FAILURE path: what happens when the request loses.
+//
+// TASK
+//   1. Add a todo that appears instantly, before the server confirms
+//   2. Mark it visually as pending
+//   3. Roll it back and surface an error if the request fails
+//   4. Keep the input usable throughout
+//
+// Two implementations below: React 19's useOptimistic, and the manual
+// rollback you would write in React 18. Know both — interviewers ask why
+// useOptimistic exists.
+
+// Fake server: rejects anything containing "fail" so you can test the sad path.
+function saveTodo(text) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (text.toLowerCase().includes('fail')) reject(new Error('Server rejected: ' + text));
+      else resolve({ id: Date.now(), text });
+    }, 900);
+  });
+}
+
+// ---------- Approach 1: useOptimistic (React 19) ----------
+function OptimisticTodos() {
+  const [todos, setTodos] = React.useState([{ id: 1, text: 'Real todo from server' }]);
+  const [error, setError] = React.useState(null);
+
+  // optimisticTodos = todos + whatever is in flight. React discards the
+  // optimistic entry automatically when the transition settles, so there is
+  // no rollback code to write — that is the whole point of the hook.
+  const [optimisticTodos, addOptimistic] = React.useOptimistic(
+    todos,
+    (current, pendingText) => [...current, { id: 'pending', text: pendingText, pending: true }]
+  );
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    const text = new FormData(e.target).get('text');
+    if (!text) return;
+    e.target.reset();
+    setError(null);
+
+    // MUST be inside a transition/action, or React warns and discards it.
+    addOptimistic(text);
+    try {
+      const saved = await saveTodo(text);
+      setTodos(prev => [...prev, saved]);
+    } catch (err) {
+      setError(err.message);   // optimistic entry vanishes on its own
+    }
+  }
+
+  return (
+    <section style={{ marginBottom: 28 }}>
+      <h4 style={{ margin: '0 0 8px' }}>useOptimistic (React 19)</h4>
+      <form action={onSubmit} style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <input name="text" placeholder='try "fail" to see rollback'
+               style={{ flex: 1, padding: 6 }} />
+        <button type="submit">Add</button>
+      </form>
+      {error && <p style={{ color: '#f87171', fontSize: 13 }}>{error}</p>}
+      <ul style={{ paddingLeft: 18, margin: 0 }}>
+        {optimisticTodos.map(t => (
+          <li key={t.id} style={{ opacity: t.pending ? 0.45 : 1 }}>
+            {t.text}{t.pending ? '  (saving…)' : ''}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ---------- Approach 2: manual rollback (works on any version) ----------
+function ManualOptimisticTodos() {
+  const [todos, setTodos] = React.useState([{ id: 1, text: 'Real todo from server' }]);
+  const [error, setError] = React.useState(null);
+
+  async function add(text) {
+    const tempId = 'temp-' + Date.now();
+    const snapshot = todos;                                  // keep for rollback
+    setTodos(prev => [...prev, { id: tempId, text, pending: true }]);
+    setError(null);
+    try {
+      const saved = await saveTodo(text);
+      // Replace the temp entry rather than appending, or you get a duplicate.
+      setTodos(prev => prev.map(t => (t.id === tempId ? saved : t)));
+    } catch (err) {
+      setTodos(snapshot);                                    // ROLL BACK
+      setError(err.message);
+    }
+  }
+
+  return (
+    <section>
+      <h4 style={{ margin: '0 0 8px' }}>Manual rollback (React 18 style)</h4>
+      <form
+        onSubmit={e => { e.preventDefault(); const v = e.target.text.value; e.target.reset(); if (v) add(v); }}
+        style={{ display: 'flex', gap: 8, marginBottom: 10 }}
+      >
+        <input name="text" placeholder='try "fail"' style={{ flex: 1, padding: 6 }} />
+        <button type="submit">Add</button>
+      </form>
+      {error && <p style={{ color: '#f87171', fontSize: 13 }}>{error}</p>}
+      <ul style={{ paddingLeft: 18, margin: 0 }}>
+        {todos.map(t => (
+          <li key={t.id} style={{ opacity: t.pending ? 0.45 : 1 }}>
+            {t.text}{t.pending ? '  (saving…)' : ''}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 460 }}>
+      <OptimisticTodos />
+      <ManualOptimisticTodos />
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. THE ROLLBACK. Anyone can render early; the question is what happens on
+//    failure. Snapshot before mutating, restore on catch.
+// 2. Replace the temp item by id — appending the server response leaves a
+//    duplicate, which is the most common bug in the manual version.
+// 3. A visible pending state, so the UI is honest about what isn't saved.
+// 4. useOptimistic must be called inside a transition or form action; outside
+//    one React warns and drops the update.
+// 5. Don't be optimistic about everything. It suits high-success, low-stakes
+//    actions (likes, todos, reordering). For a payment, show real pending
+//    state — a rolled-back charge is far worse than a spinner.`,
+      },
+      {
+        name: 'Suspense + Lazy (Code Splitting)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Suspense + React.lazy =====
+// Code splitting in React is React.lazy + Suspense. This template shows both
+// halves: a lazily-loaded component, and Suspense for data.
+//
+// TASK
+//   1. Load a component only when it is needed, with a fallback
+//   2. Handle the case where loading FAILS (Suspense does not do this)
+//   3. Show a Suspense-for-data resource
+//
+// In a real app the lazy factory is a dynamic import:
+//     const Heavy = React.lazy(() => import('./HeavyChart'));
+// which is what makes the bundler emit a separate chunk. The playground has
+// no module system, so we resolve a component directly — the API and the
+// Suspense behaviour are identical.
+
+// ---------- 1. Lazy component ----------
+function HeavyPanel() {
+  return (
+    <div style={{ padding: 12, border: '1px solid #444', borderRadius: 8 }}>
+      <strong>Heavy panel loaded.</strong>
+      <p style={{ fontSize: 13, color: '#aaa', margin: '6px 0 0' }}>
+        In a real app this component and its dependencies live in their own chunk.
+      </p>
+    </div>
+  );
+}
+
+// Stand-in for () => import('./HeavyPanel') — same shape: a promise of { default }
+const LazyPanel = React.lazy(() =>
+  new Promise(resolve => setTimeout(() => resolve({ default: HeavyPanel }), 1200))
+);
+
+// ---------- 2. Error boundary — Suspense does NOT catch load failures ----------
+class LoadErrorBoundary extends React.Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ color: '#f87171' }}>
+          Failed to load. <button onClick={() => this.setState({ error: null })}>Retry</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ---------- 3. Suspense for DATA (the throw-a-promise pattern) ----------
+function createResource(promise) {
+  let status = 'pending', result;
+  const suspender = promise.then(
+    v => { status = 'success'; result = v; },
+    e => { status = 'error'; result = e; }
+  );
+  return {
+    read() {
+      if (status === 'pending') throw suspender;   // Suspense catches this
+      if (status === 'error') throw result;        // the error boundary catches this
+      return result;
+    },
+  };
+}
+
+const userResource = createResource(
+  new Promise(resolve => setTimeout(() => resolve({ name: 'Ana', role: 'Engineer' }), 1800))
+);
+
+function UserCard() {
+  const user = userResource.read();
+  return <p style={{ margin: 0 }}>{user.name} — {user.role}</p>;
+}
+
+function App() {
+  const [show, setShow] = React.useState(false);
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 460, display: 'grid', gap: 20 }}>
+      <section>
+        <h4 style={{ margin: '0 0 8px' }}>Lazy component</h4>
+        <button onClick={() => setShow(true)} disabled={show}>Load panel</button>
+        <div style={{ marginTop: 10 }}>
+          {show && (
+            <LoadErrorBoundary>
+              <React.Suspense fallback={<p style={{ color: '#888' }}>Loading panel…</p>}>
+                <LazyPanel />
+              </React.Suspense>
+            </LoadErrorBoundary>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h4 style={{ margin: '0 0 8px' }}>Suspense for data</h4>
+        <LoadErrorBoundary>
+          <React.Suspense fallback={<p style={{ color: '#888' }}>Loading user…</p>}>
+            <UserCard />
+          </React.Suspense>
+        </LoadErrorBoundary>
+      </section>
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. Suspense handles the PENDING state only. A failed chunk load throws, so
+//    you need an error boundary — and a retry, because a chunk can fail from
+//    a network blip or a deploy that removed the old file (ChunkLoadError).
+// 2. React.lazy needs a module with a DEFAULT export. A named export means
+//    () => import('./x').then(m => ({ default: m.Named })).
+// 3. Split at ROUTE boundaries first — that is where the payoff is. Splitting
+//    a small component adds a request for almost no saving.
+// 4. Don't put the Suspense boundary so high that the whole page blanks; place
+//    it around the part that is actually loading.
+// 5. useTransition avoids showing the fallback at all when you would rather
+//    keep the old UI visible during an update.`,
+      },
+      {
         name: 'Display Data from a JSON Prop',
         jsx: true,
         code: `// ===== MACHINE CODING: Display Data from a JSON Prop =====

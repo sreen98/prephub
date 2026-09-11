@@ -110,7 +110,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 ## 🛠️ Interactive Tools
 
-- **[Code Playground](/playground)** — **173 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **28 React machine-coding** challenges — **122 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
+- **[Code Playground](/playground)** — **180 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **35 React machine-coding** challenges — **129 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
 - **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.
 - **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.

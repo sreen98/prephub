@@ -20,6 +20,10 @@ export interface ScheduleMap {
   [questionId: string]: ScheduleEntry;
 }
 
+// Minimal structural shape — the hook only needs an id. The consumers below
+// are GENERIC over it so filtering preserves the caller's richer Question type
+// (see data.ts); without that, callers had to cast the result back, and one of
+// those casts hid a real bug when getAllQuestions() became async.
 export interface Question {
   id: string;
   [key: string]: unknown;
@@ -27,8 +31,8 @@ export interface Question {
 
 export interface UseSpacedRepetitionReturn {
   recordReview: (questionId: string, quality: number) => void;
-  getDueQuestions: (allQuestions: Question[]) => Question[];
-  getDueCount: (allQuestions: Question[]) => number;
+  getDueQuestions: <T extends Question>(allQuestions: T[]) => T[];
+  getDueCount: <T extends Question>(allQuestions: T[]) => number;
   getQuestionSchedule: (questionId: string) => ScheduleEntry | null;
   schedule: ScheduleMap;
 }
@@ -91,7 +95,7 @@ export function useSpacedRepetition(): UseSpacedRepetitionReturn {
     save({ ...current, [questionId]: updated });
   }, [save]);
 
-  const getDueQuestions = useCallback((allQuestions: Question[]): Question[] => {
+  const getDueQuestions = useCallback(<T extends Question>(allQuestions: T[]): T[] => {
     const t = today();
     return allQuestions.filter(q => {
       const entry = schedule[q.id];
@@ -100,7 +104,7 @@ export function useSpacedRepetition(): UseSpacedRepetitionReturn {
     });
   }, [schedule]);
 
-  const getDueCount = useCallback((allQuestions: Question[]): number => {
+  const getDueCount = useCallback(<T extends Question>(allQuestions: T[]): number => {
     const t = today();
     let count = 0;
     for (const q of allQuestions) {

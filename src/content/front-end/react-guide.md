@@ -822,7 +822,111 @@ function Counter() {
 
 ### 5.2 State Update Rules
 
-State updates in React have specific rules you must follow to avoid bugs. Understanding batching, immutability, and functional updates is critical.
+State updates have three rules, and all three fall out of a single idea: **the state variable in a render is a snapshot, not a live value.**
+
+When a component renders, React hands it the value state had *at the start of that render*. `count` is a `const` for the whole of that render pass — nothing that happens later can change it. Event handlers defined during that render close over that snapshot. Calling `setCount` does not reach back and edit it; it queues a request for a *new* render with a new value.
+
+Almost every state bug is a consequence of expecting the snapshot to be live. The three rules below are how you work with it instead of against it.
+
+#### Rule 1 — Updates are batched, so a render sees one fixed value
+
+`setState` is asynchronous. It doesn't assign; it schedules. React collects every update triggered by the same piece of work, then performs **one** re-render with the final result. This is called **batching**, and it exists for two reasons: the UI never flickers through half-updated intermediate states, and you pay for one render instead of one per call.
+
+This is why the classic double-increment doesn't work:
+
+```tsx
+// count is 0 in this render
+setCount(count + 1);   // queues "set count to 0 + 1" → 1
+setCount(count + 1);   // queues "set count to 0 + 1" → 1  (count is STILL 0 here)
+// after re-render: count === 1, not 2
+```
+
+Both lines read `count` from the same snapshot, so both compute `1`. The second doesn't overwrite the first so much as duplicate it. The corollary catches people just as often — **you cannot read your own update back**:
+
+```tsx
+setCount(count + 1);
+console.log(count);   // still the old value. The new one exists only in the next render.
+```
+
+If you need the new value in the same function, compute it in a plain variable (`const next = count + 1`) and use that. If you need to *react* to it, that's what `useEffect` on `[count]` is for.
+
+**React 18 changed the scope of this.** Batching used to apply only inside React event handlers; updates in a `setTimeout`, a promise callback or a native event listener each triggered their own render. Since React 18's `createRoot`, batching is **automatic everywhere**. On the rare occasion you need a DOM measurement between two updates, `flushSync` from `react-dom` opts out for that call — it forces a synchronous re-render, and using it routinely defeats the point.
+
+#### Rule 2 — State is read-only, so replace instead of mutating
+
+React decides whether anything changed by comparing the new value to the old with **`Object.is`**. For a number or string that compares the value. For an object or array it compares the **reference** — the identity of the box, not its contents.
+
+So if you mutate and hand back the same object, React sees the same reference, concludes nothing changed, and **skips the re-render entirely**. Your data is genuinely different and the screen is genuinely stale:
+
+```tsx
+user.name = 'Bob';   // the object changed
+setUser(user);       // ...but it's the same reference, so Object.is says "equal"
+                     // → React bails out, no re-render
+```
+
+Referential equality is load-bearing in more places than the re-render check, which is why mutation causes symptoms that look unrelated to state:
+
+| What relies on a new reference | What mutation does to it |
+|---|---|
+| The re-render bail-out | Skips the render — the UI never updates |
+| `React.memo` on a child | Child sees "same props", doesn't re-render |
+| `useEffect` / `useMemo` dependency arrays | Dependency looks unchanged, so the effect never re-runs |
+| React DevTools and Strict Mode | Double-invoked renders expose the mutation as inconsistent output |
+
+The fix is always the same shape: **build a new object or array for the parts you changed**, and reuse the rest by reference.
+
+```tsx
+setUser({ ...user, name: 'Bob' });          // new object, one field replaced
+setUser(prev => ({ ...prev, name: 'Bob' })); // same, using the updater form
+```
+
+Spreading is *shallow*, so nesting needs a new object at every level along the path you're changing:
+
+```tsx
+// Changing user.address.city — address must be recreated too
+setUser(prev => ({ ...prev, address: { ...prev.address, city: 'Paris' } }));
+```
+
+For arrays, the practical rule is to prefer the methods that **return** a new array over the ones that modify in place:
+
+| Operation | Don't (mutates) | Do (returns new) |
+|---|---|---|
+| Add to end | `items.push(x)` | `[...items, x]` |
+| Add to front | `items.unshift(x)` | `[x, ...items]` |
+| Remove | `items.splice(i, 1)` | `items.filter((_, idx) => idx !== i)` |
+| Replace one | `items[i] = x` | `items.map((it, idx) => idx === i ? x : it)` |
+| Insert at `i` | `items.splice(i, 0, x)` | `[...items.slice(0, i), x, ...items.slice(i)]` |
+| Sort / reverse | `items.sort()` | `items.toSorted()` (ES2023) or `[...items].sort()` |
+
+`sort` and `reverse` are the ones that slip through review, because they look like they return a fresh array — they return the *same* array, mutated. ES2023's `toSorted`, `toReversed`, `toSpliced` and `with` exist precisely to remove this trap. If state is deeply nested enough that spreading gets unreadable, that's a signal to either flatten the shape or bring in **Immer** (which `createSlice` in Redux Toolkit uses), where you write mutating-looking code and it produces the new object for you.
+
+#### Rule 3 — Use an updater function when the next value depends on the current one
+
+Passing a **function** to the setter changes where the previous value comes from. Instead of reading the render's snapshot, React calls your function with the **latest value in the queue**, applying each one in order during the next render:
+
+```tsx
+setCount(prev => prev + 1);   // queues a function, not a value
+setCount(prev => prev + 1);
+// React applies them in order: 0 → 1 → 2. count === 2
+```
+
+Tracing both forms side by side is the clearest way to see the difference:
+
+| Queue entry | `setCount(count + 1)` twice | `setCount(prev => prev + 1)` twice |
+|---|---|---|
+| 1st | "replace with 1" (`count` = 0) | `0 => 1` |
+| 2nd | "replace with 1" (`count` = 0) | `1 => 2` |
+| Result | **1** | **2** |
+
+Use the updater form whenever the new state is derived from the old. It is not merely tidier — it is *required* in three situations:
+
+- **Several updates in one event**, as above.
+- **Updates from async code** — a `setTimeout`, `setInterval`, a `fetch` callback or a debounced handler. These run long after the render that created them, so their captured snapshot is stale. `setCount(c => c + 1)` always sees the current value; `setCount(count + 1)` sees whatever `count` was when the timer was set. This is the **stale closure** bug, and it's the usual reason a counter driven by `setInterval` freezes at 1.
+- **When you want to keep a dependency array empty.** Because the updater doesn't read `count`, a `useCallback` or `useEffect` that only ever *increments* needs no `count` dependency — so the callback identity stays stable and memoised children stop re-rendering.
+
+One constraint: **updaters must be pure.** Compute and return the next state, with no side effects, no mutation of `prev`, and no requests. React may call an updater more than once — in development Strict Mode deliberately double-invokes it to surface impurity — so anything with a side effect will happen twice.
+
+Putting all three together:
 
 ```tsx
 // 1. State updates are asynchronous (batched)

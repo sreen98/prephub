@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Timer, Play, SkipForward, ThumbsUp, ThumbsDown, RotateCcw, Trophy } from 'lucide-react';
-import { menuStructure, getAllQuestions, extractQuestions, contentFiles, type Question, type MenuSection } from '../data';
+import { menuStructure, getAllQuestions, type Question, type MenuSection } from '../data';
 import { useStudyStats } from '../hooks/useStudyStats';
 
 interface InterviewConfig {
@@ -72,8 +72,14 @@ export default function InterviewSimulator() {
     return () => clearInterval(timerRef.current as ReturnType<typeof setInterval>);
   }, [phase, config.timeLimit]);
 
-  const startInterview = (): void => {
-    const allQ: Question[] = getAllQuestions().filter((q: Question) => {
+  // async because getAllQuestions() now fetches the lazy content chunks. The
+  // button shows a starting state while it resolves — see isStarting below.
+  const [isStarting, setIsStarting] = useState(false);
+  const startInterview = async (): Promise<void> => {
+    setIsStarting(true);
+    const all = await getAllQuestions();
+    setIsStarting(false);
+    const allQ: Question[] = all.filter((q: Question) => {
       const section = menuStructure.find((s: any) => s.items?.some((i: any) => i.name === q.guide));
       return section && config.categories.includes((section as any).name);
     });
@@ -178,10 +184,17 @@ export default function InterviewSimulator() {
 
           <button
             onClick={startInterview}
-            disabled={config.categories.length === 0}
+            disabled={config.categories.length === 0 || isStarting}
             className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-40 text-white font-medium shadow-lg shadow-indigo-500/20 transition-all"
           >
-            <Play size={18} /> Start Interview
+            {isStarting ? (
+              <>
+                <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                Loading questions…
+              </>
+            ) : (
+              <><Play size={18} /> Start Interview</>
+            )}
           </button>
         </div>
       </div>

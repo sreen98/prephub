@@ -55,8 +55,30 @@ export default defineConfig({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
+        // Precache the SHELL only. Before content was lazy-loaded this glob
+        // swept up all 68 guides and the service worker precached ~14.5 MB on
+        // first visit — every visitor paying for every guide up front.
+        // Guide chunks and the heavy lazy libraries are runtime-cached instead
+        // (see the rules below), so they're stored the first time they're
+        // actually opened and are available offline from then on.
+        globPatterns: ['**/*.{css,html,ico,png,svg,woff2,webmanifest}', 'assets/index-*.js', 'assets/vendor-*.js'],
+        // og-image is a social-preview asset fetched by crawlers, never by the
+        // app — 722 KB of precache for nothing. Screenshots are only used by
+        // the OS install prompt, which fetches them on demand.
+        globIgnores: ['og-image.png', 'screenshots/**'],
         runtimeCaching: [
+          {
+            // Lazily-loaded JS: guide content, the playground, Babel, Mermaid.
+            // CacheFirst because every filename is content-hashed, so a given
+            // URL is immutable — a new build produces a new name.
+            urlPattern: ({ url }) => url.pathname.startsWith('/prephub/assets/') && url.pathname.endsWith('.js'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'app-chunks',
+              expiration: { maxEntries: 250, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -86,11 +108,16 @@ export default defineConfig({
         // Vendor splitting: long-lived dependencies live in their own
         // chunks so they stay cached across deploys (only the app chunk
         // hash changes when you ship feature work).
+        // Prefixed `vendor-` deliberately: the service-worker precache glob
+        // needs to match these and NOT the content chunks, and a bare `react`
+        // key produced `react-<hash>.js` which a `react-*` glob could not tell
+        // apart from `react-guide-<hash>.js` — that mistake precached the
+        // 281 KB React guide as if it were a vendor library.
         manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          motion: ['framer-motion'],
-          icons: ['lucide-react'],
-          markdown: ['react-markdown', 'remark-gfm', 'rehype-highlight'],
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-motion': ['framer-motion'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-markdown': ['react-markdown', 'remark-gfm', 'rehype-highlight'],
         },
       },
     },

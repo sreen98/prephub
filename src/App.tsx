@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useSyncExternalStore, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,7 +18,7 @@ import { useDarkMode } from './hooks/useDarkMode';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import type { MenuSection, MenuItem } from './data';
-import { contentFiles, menuStructure, slugify, getTextContent, extractHeadings, escapeRegex, estimateReadingTime, cheatSheets, getAllQuestions } from './data';
+import { menuStructure, slugify, getTextContent, extractHeadings, escapeRegex, estimateReadingTime, readMinFor, cheatSheets, loadContent, loadAllContent, getAllQuestions, subscribePendingLoads, getPendingLoads, peekContent } from './data';
 import { useReadingPrefs } from './hooks/useReadingPrefs';
 import { useProgress } from './hooks/useProgress';
 import { useBookmarks } from './hooks/useBookmarks';
@@ -31,6 +31,7 @@ import Toast from './components/Toast';
 // Single source of truth for the version, so the sidebar can't drift from
 // package.json. Named import so only the string is bundled, not the whole file.
 import { version as APP_VERSION } from '../package.json';
+import RouteErrorBoundary from './components/RouteErrorBoundary';
 
 // Route-level code splitting. Each gets its own bundle chunk so users on
 // other routes don't pay for code they aren't using.
@@ -53,6 +54,48 @@ const AdminPage = (import.meta.env.DEV
 // Loader shown while a lazy route chunk is being fetched.
 // Pulse-skeleton hints at the upcoming page shape so the transition
 // feels quieter than a spinner pop-in.
+// Thin top-of-page progress bar, driven by ACTUAL in-flight content fetches
+// (subscribePendingLoads in data.ts) rather than a timer. Content is lazy-
+// loaded, so clicking a guide can involve a network round trip; without this
+// the previous page just sits there with no feedback.
+//
+// Renders nothing at zero, and nothing for cached content either — loadContent
+// skips the counter on a cache hit, so revisiting a guide doesn't flash a bar.
+const TopProgressBar = () => {
+  const pending = useSyncExternalStore(subscribePendingLoads, getPendingLoads, getPendingLoads);
+  if (pending === 0) return null;
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 h-0.5 z-[100] overflow-hidden bg-indigo-500/25"
+      role="progressbar"
+      aria-busy="true"
+      aria-label="Loading content"
+    >
+      <div className="h-full w-1/3 bg-indigo-500 progress-slide" />
+    </div>
+  );
+};
+
+// Skeleton for a guide whose markdown is still being fetched. Mirrors the shape
+// of a rendered guide so the layout doesn't jump when the content lands.
+const GuideSkeleton = () => (
+  <div className="animate-pulse" aria-busy="true" aria-label="Loading guide">
+    <div className="h-9 w-3/4 rounded-lg bg-slate-200 dark:bg-slate-800 mb-6" />
+    <div className="space-y-3 mb-8">
+      <div className="h-3.5 w-full rounded bg-slate-200 dark:bg-slate-800" />
+      <div className="h-3.5 w-11/12 rounded bg-slate-200 dark:bg-slate-800" />
+      <div className="h-3.5 w-9/12 rounded bg-slate-200 dark:bg-slate-800" />
+    </div>
+    <div className="h-6 w-1/3 rounded bg-slate-200 dark:bg-slate-800 mb-4" />
+    <div className="h-28 w-full rounded-lg bg-slate-200 dark:bg-slate-800 mb-8" />
+    <div className="space-y-3">
+      <div className="h-3.5 w-full rounded bg-slate-200 dark:bg-slate-800" />
+      <div className="h-3.5 w-10/12 rounded bg-slate-200 dark:bg-slate-800" />
+      <div className="h-3.5 w-11/12 rounded bg-slate-200 dark:bg-slate-800" />
+    </div>
+  </div>
+);
+
 const RouteFallback = () => (
   <div className="px-6 py-12 md:px-12 max-w-5xl mx-auto animate-pulse" aria-busy="true" aria-label="Loading page">
     <div className="h-8 w-2/3 rounded-lg bg-slate-200 dark:bg-slate-800 mb-4" />
@@ -362,6 +405,17 @@ const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
     }
   }, [isOpen]);
 
+  // Search needs full text of every guide, which is exactly what we removed
+  // from the main bundle. Fetch it the first time the modal opens; the promise
+  // is memoised in data.ts so it downloads once per session.
+  const [corpus, setCorpus] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    if (!isOpen || corpus) return;
+    let cancelled = false;
+    loadAllContent().then((all) => { if (!cancelled) setCorpus(all); });
+    return () => { cancelled = true; };
+  }, [isOpen, corpus]);
+
   const results = useMemo(() => {
     if (!query.trim() || query.length < 2) return [];
     const q = query.toLowerCase();
@@ -371,7 +425,7 @@ const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
       if (!section.items) continue;
       for (const item of section.items) {
         const nameMatch = item.name.toLowerCase().includes(q);
-        const content = contentFiles[item.file] || '';
+        const content = corpus?.[item.file] || '';
         const contentMatch = content.toLowerCase().includes(q);
 
         if (nameMatch || contentMatch) {
@@ -387,7 +441,7 @@ const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
       }
     }
     return items.sort((a, b) => (b.nameMatch ? 1 : 0) - (a.nameMatch ? 1 : 0)).slice(0, 10);
-  }, [query]);
+  }, [query, corpus]);
 
   const handleSelect = (path: string) => {
     const url = query.trim().length >= 2 ? `${path}?q=${encodeURIComponent(query.trim())}` : path;
@@ -434,7 +488,16 @@ const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
 
               {query.length >= 2 && (
                 <div className="max-h-[50vh] overflow-y-auto p-2">
-                  {results.length === 0 ? (
+                  {!corpus ? (
+                    /* The search corpus is fetched on first open (content is
+                       lazy-loaded), so distinguish "still loading" from
+                       "genuinely nothing matched" — otherwise every first
+                       search reads as a miss. */
+                    <div className="px-4 py-8 text-center text-slate-500 flex items-center justify-center gap-2">
+                      <span className="h-4 w-4 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-indigo-500 animate-spin" />
+                      Loading search index…
+                    </div>
+                  ) : results.length === 0 ? (
                     <div className="px-4 py-8 text-center text-slate-500">
                       No results found for &ldquo;{query}&rdquo;
                     </div>
@@ -516,8 +579,25 @@ const OfficialDocsBar = ({ filePath }: { filePath: string }) => {
 // ==================== Content Page ====================
 
 const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; guidePath?: string; guideName?: string }) => {
-  const rawContent = contentFiles[filePath] || '# Not Found\n\nThe requested content could not be found.';
-  const content = useMemo(() => stripMarkdownToc(rawContent), [rawContent]);
+  // Content is lazy-loaded per guide (see data.ts) so the main bundle doesn't
+  // carry all 68 of them. loadContent caches, so revisiting is instant and the
+  // loading state only appears on a genuine first fetch.
+  // Initialise from the cache when the guide has already been read, so a
+  // revisit renders immediately rather than flashing the skeleton for a frame.
+  const [rawContent, setRawContent] = useState<string | null>(() => peekContent(filePath) ?? null);
+  useEffect(() => {
+    let cancelled = false;
+    const cached = peekContent(filePath);
+    setRawContent(cached ?? null);
+    if (cached !== undefined) return;
+    loadContent(filePath).then((text) => {
+      if (!cancelled) {
+        setRawContent(text || '# Not Found\n\nThe requested content could not be found.');
+      }
+    });
+    return () => { cancelled = true; };
+  }, [filePath]);
+  const content = useMemo(() => stripMarkdownToc(rawContent ?? ''), [rawContent]);
   const location = useLocation();
   const searchQuery = new URLSearchParams(location.search).get('q');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -542,25 +622,58 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
     return () => { document.title = 'PrepHub — Interview Prep'; };
   }, [guideName]);
 
-  // Hash-based scroll-to-heading on mount. The element may not exist on the
-  // first frame because ReactMarkdown renders the body after this effect
-  // commits — poll with rAF up to ~1s, then give up.
+  // Hash-based scroll-to-heading on mount. The target does not exist when this
+  // effect commits — ReactMarkdown renders the body afterwards, and a large
+  // guide takes a while (the React one is ~280 KB with 149 headings and 199
+  // syntax-highlighted code blocks). This previously polled a fixed 60 rAF
+  // frames and gave up, so deep links from Checkpoints and Bookmarks silently
+  // landed at the top of the page on the biggest guides — exactly the ones
+  // where scrolling to the right place matters most.
+  //
+  // Three changes make it reliable:
+  //   1. A wall-clock deadline instead of a frame count, so a slow render is
+  //      tolerated rather than racing a budget that shrinks as guides grow.
+  //   2. An instant jump rather than a smooth scroll — the page is still
+  //      laying out code blocks, and a smooth scroll gets overtaken by the
+  //      content shifting beneath it.
+  //   3. One re-assert after layout settles, because highlighted code blocks
+  //      change height as they render and push the target off-screen. It is
+  //      abandoned the moment the user scrolls, so it can never yank them.
   useEffect(() => {
     if (!location.hash) return;
     const id = decodeURIComponent(location.hash.slice(1));
     let cancelled = false;
-    let tries = 0;
+    let userScrolled = false;
+    const deadline = performance.now() + 10_000;
+
+    const onUserScroll = () => { userScrolled = true; };
+    window.addEventListener('wheel', onUserScroll, { passive: true, once: true });
+    window.addEventListener('touchstart', onUserScroll, { passive: true, once: true });
+    window.addEventListener('keydown', onUserScroll, { once: true });
+
+    let reassert: ReturnType<typeof setTimeout> | undefined;
+
     const tick = () => {
       if (cancelled) return;
       const el = document.getElementById(id);
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.scrollIntoView({ block: 'start' });
+        reassert = setTimeout(() => {
+          if (!cancelled && !userScrolled) el.scrollIntoView({ block: 'start' });
+        }, 400);
         return;
       }
-      if (tries++ < 60) requestAnimationFrame(tick);
+      if (performance.now() < deadline) requestAnimationFrame(tick);
     };
     tick();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+      if (reassert) clearTimeout(reassert);
+      window.removeEventListener('wheel', onUserScroll);
+      window.removeEventListener('touchstart', onUserScroll);
+      window.removeEventListener('keydown', onUserScroll);
+    };
   }, [location.hash, content]);
 
   // ===== Feature 1: Related Guides Suggestions =====
@@ -736,7 +849,7 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
         <div className="flex items-center gap-3 mb-4 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
           <span className="inline-flex items-center gap-1.5">
             <Clock size={14} />
-            ~{estimateReadingTime(content)} min read
+            ~{readMinFor(filePath)} min read
           </span>
           {guidePath && (
             <button
@@ -784,6 +897,7 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
         <MobileToc content={content} />
 
         <div ref={containerRef} className="prose-container">
+          {rawContent === null ? <GuideSkeleton /> : (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeHighlight]}
@@ -831,7 +945,7 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
             }}
           >
             {content}
-          </ReactMarkdown>
+          </ReactMarkdown>)}
         </div>
 
         {/* Feature 2: Related Guides Suggestions */}
@@ -843,7 +957,7 @@ const ContentPage = ({ filePath, guidePath, guideName }: { filePath: string; gui
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {relatedGuides.map(guide => {
-                const readTime = estimateReadingTime(contentFiles[guide.file] || '');
+                const readTime = readMinFor(guide.file);
                 const category = menuStructure.find(s => s.items?.some(i => i.path === guide.path));
                 return (
                   <Link
@@ -1006,7 +1120,23 @@ export default function App() {
   const isContentPage = location.pathname !== '/' && location.pathname !== '/quiz' && location.pathname !== '/playground' && location.pathname !== '/changelog' && location.pathname !== '/bookmarks' && location.pathname !== '/review' && location.pathname !== '/interview' && !location.pathname.startsWith('/cheatsheets');
   const hasUnreadChangelog = localStorage.getItem('lastSeenChangelog') !== CHANGELOG_VERSION;
   const allGuides = useMemo(() => menuStructure.flatMap(s => s.items || []), []);
-  const dueCount = useMemo(() => srHook.getDueCount(getAllQuestions()), [srHook]);
+  // getDueCount treats an unseen question as due, so it needs the real total —
+  // which means the full corpus. Resolving that during render would pull all
+  // content back into the critical path, so it is deferred to idle time after
+  // first paint and the badge simply appears a moment later.
+  const [dueCount, setDueCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const run = () => {
+      getAllQuestions().then((qs) => { if (!cancelled) setDueCount(srHook.getDueCount(qs)); });
+    };
+    const idle = window.requestIdleCallback?.(run, { timeout: 3000 });
+    if (idle === undefined) setTimeout(run, 1200);   // Safari has no rIC
+    return () => {
+      cancelled = true;
+      if (idle !== undefined) window.cancelIdleCallback?.(idle);
+    };
+  }, [srHook]);
 
   // Record visit + check streak milestone
   useEffect(() => {
@@ -1069,8 +1199,14 @@ export default function App() {
 
   useEffect(() => {
     setIsSidebarOpen(false);
-    window.scrollTo(0, 0);
-  }, [location.pathname]);
+    // Only reset scroll for a plain navigation. With a hash, ContentPage's
+    // hash-scroll effect is targeting a heading — and because React runs child
+    // effects BEFORE parent effects, an unconditional scrollTo(0,0) here fires
+    // immediately after it and undoes it. That is why "Continue" from
+    // Checkpoints and Bookmarks landed at the top of the guide, while the
+    // in-page banner worked (it changes no pathname, so this never ran).
+    if (!location.hash) window.scrollTo(0, 0);
+  }, [location.pathname, location.hash]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1392,8 +1528,11 @@ export default function App() {
         </div>
       </aside>
 
+      <TopProgressBar />
+
       {/* Main Content */}
       <main className={cn("flex-1 w-full min-w-0 pt-14 md:pt-0", !isSidebarCollapsed && "md:ml-72")}>
+        <RouteErrorBoundary resetKey={location.pathname}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -1419,6 +1558,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </RouteErrorBoundary>
       </main>
     </div>
   );

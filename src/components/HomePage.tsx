@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, Zap, Terminal, GraduationCap, Flame, Clock } from 'lucide-react';
 import type { MenuSection, MenuItem } from '../data';
-import { menuStructure, contentFiles, estimateReadingTime } from '../data';
+import { menuStructure, readMinFor } from '../data';
 import { useProgress } from '../hooks/useProgress';
 import { useStudyStats } from '../hooks/useStudyStats';
 
@@ -158,7 +158,7 @@ export default function HomePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
         {categories.map((cat, i) => {
           const Icon = cat.icon;
-          const catReadTime = cat.items.reduce((sum, g) => sum + estimateReadingTime(contentFiles[g.file] || ''), 0);
+          const catReadTime = cat.items.reduce((sum, g) => sum + readMinFor(g.file), 0);
           return (
             <motion.div
               key={cat.name}
@@ -202,7 +202,7 @@ export default function HomePage() {
                         {s === 'in-progress' && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
                         {item.name}
                         <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                          {estimateReadingTime(contentFiles[item.file] || '')}m
+                          {readMinFor(item.file)}m
                         </span>
                       </Link>
                     );

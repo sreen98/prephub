@@ -27,6 +27,11 @@ jobs:
 
       # Type errors and lint errors fail the deploy. These run before the
       # content steps so a code error surfaces as fast as possible.
+      # data.ts imports src/generated/content-meta.json, so it must exist before
+      # the typecheck. Generated rather than committed so it can never go stale.
+      - name: Generate content metadata 🗂️
+        run: npm run content:meta
+
       - name: Typecheck 🔎
         run: npm run typecheck
 

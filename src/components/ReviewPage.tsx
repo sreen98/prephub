@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -13,7 +13,22 @@ export default function ReviewPage() {
   const { getDueQuestions, recordReview } = useSpacedRepetition();
   const { recordQuestionReviewed } = useStudyStats();
 
-  const dueQuestions = useMemo(() => getDueQuestions(getAllQuestions() as any) as unknown as Question[], [getDueQuestions]);
+  // getAllQuestions() is async — content is lazy-loaded, so the question bank
+  // is fetched rather than bundled. This was previously called synchronously
+  // and cast with `as any`, which handed getDueQuestions a Promise; it calls
+  // .filter() on it, threw during render, and blanked the page. The casts are
+  // gone so the compiler catches this class of mistake from now on.
+  const [allQuestions, setAllQuestions] = useState<Question[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getAllQuestions().then((qs) => { if (!cancelled) setAllQuestions(qs); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const dueQuestions = useMemo(
+    () => (allQuestions ? getDueQuestions(allQuestions) : []),
+    [allQuestions, getDueQuestions],
+  );
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
@@ -35,6 +50,16 @@ export default function ReviewPage() {
       setCurrentIndex(total); // triggers completion
     }
   }, [current, currentIndex, total, recordReview, recordQuestionReviewed]);
+
+  // Still fetching the question bank — distinct from "nothing is due".
+  if (allQuestions === null) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+        <div className="h-6 w-6 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-indigo-500 animate-spin mb-4" />
+        <p className="text-slate-500 dark:text-slate-400">Loading your review queue…</p>
+      </div>
+    );
+  }
 
   // All done
   if (total === 0 || currentIndex >= total) {
@@ -61,6 +86,11 @@ export default function ReviewPage() {
       </div>
     );
   }
+
+  // The guards above already imply this, but `noUncheckedIndexedAccess` is off,
+  // so nothing forces the check. Stating it means a bad index renders the
+  // empty state instead of throwing mid-render and blanking the whole page.
+  if (!current) return null;
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 md:py-12">

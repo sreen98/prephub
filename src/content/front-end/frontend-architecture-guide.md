@@ -1,6 +1,6 @@
 # Frontend Architecture at Scale — Complete Guide
 
-The interview round that asks "how would you design a frontend for five products, forty engineers and one login" is a different exam from the one that asks you to reverse a string. This guide covers that round: **Platform UI / Frontend Architect** questions about repository strategy, shared code, micro-frontends, caching layers, real-time load, and debugging problems you cannot reproduce.
+The interview round that asks "how would you design a frontend for five products, forty engineers and one login" is a different exam from the one that asks you to reverse a string. This guide covers that round: **Platform UI** (user-interface platform) **/ Frontend Architect** questions about repository strategy, shared code, micro-frontends, caching layers, real-time load, and debugging problems you cannot reproduce.
 
 The recurring theme is that almost every question here is really an **organisational** question wearing a technical costume. Monorepo versus multi-repo is about how teams coordinate. Micro-frontends are about deployment independence, not about JavaScript. The strongest answers name the organisational force first and then pick the technology that serves it.
 
@@ -26,7 +26,7 @@ The recurring theme is that almost every question here is really an **organisati
 
 ## 1. What "Platform UI" Actually Means
 
-A Platform UI (or Frontend Platform, or Web Foundations) team does not ship product features. It ships **the things product teams build on**: the component library, the build and deploy pipeline, the auth integration, the shared API client, the observability wiring, the lint and type configuration, and the conventions that stop five teams inventing five different ways to do the same thing.
+A Platform UI (or Frontend Platform, or Web Foundations) team does not ship product features. It ships **the things product teams build on**: the component library, the build and deploy pipeline, the auth integration, the shared API (application programming interface) client, the observability wiring, the lint and type configuration, and the conventions that stop five teams inventing five different ways to do the same thing.
 
 That changes what "good" means. A product engineer optimises for shipping a feature. A platform engineer optimises for **the cost of the hundredth feature** built by someone they have never met. Concretely, they are graded on:
 
@@ -35,7 +35,7 @@ That changes what "good" means. A product engineer optimises for shipping a feat
 | **Consistency** | Do all five products look, feel and behave like one company's software? |
 | **Leverage** | Does fixing something once fix it everywhere? |
 | **Autonomy** | Can a product team ship on Friday without asking the platform team for anything? |
-| **Safety** | When something breaks, how small is the blast radius and how fast is the rollback? |
+| **Safety** | When something breaks, how small is the **blast radius** — how much else breaks with it — and how fast is the rollback? |
 | **Migration cost** | When React majors, or the design system v2 lands, how does that roll out? |
 
 The last row is the one candidates underweight, and interviewers care about most. Any architecture can be *built*; the question is whether it can be *changed*. A design that requires a coordinated big-bang upgrade across forty repositories is a design that will never be upgraded.
@@ -63,7 +63,9 @@ Split the problem into four layers, because they have genuinely different versio
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**Rule: dependencies point downward only.** A shared package must never import from a product, and `@acme/ui` must never import from `@acme/feature-invoices`. Enforce it mechanically — ESLint `no-restricted-imports`, Nx module boundary rules, or dependency-cruiser in CI — because it will not hold by convention alone. The first upward import is the moment the architecture starts degrading into a distributed monolith.
+Throughout this guide **`@acme` is a stand-in for your own company's name** — the `@scope/package` form is how npm namespaces a company's internal packages, so read `@acme/ui` as "our shared UI package" and `@acme/i18n` as "our internationalisation package" (i18n = "i" + 18 letters + "n").
+
+**Rule: dependencies point downward only.** A shared package must never import from a product, and `@acme/ui` must never import from `@acme/feature-invoices`. Enforce it mechanically — ESLint `no-restricted-imports`, Nx module boundary rules, or dependency-cruiser in CI (continuous integration) — because it will not hold by convention alone. The first upward import is the moment the architecture starts degrading into a **distributed monolith**: pieces that are deployed separately but so entangled they can only be released together.
 
 ### 2.1 The Three Kinds of Shared Code
 
@@ -77,12 +79,12 @@ These are not interchangeable, and conflating them is the most common design mis
 
 ### 2.2 Centralised Authentication
 
-One identity provider, one session, one library. The details are in the OAuth & SSO guide; the architecture-level decisions are:
+One identity provider, one session, one library. The details are in the OAuth (open authorization) & SSO guide; the architecture-level decisions are:
 
-- **A single `@acme/auth` package** wrapping the IdP SDK, exposing `useSession()`, `useHasPermission(perm)`, a `<RequireAuth>` boundary and a token-attaching fetch wrapper. Product teams never touch the IdP SDK directly, so an IdP migration is one package's problem.
+- **A single `@acme/auth` package** wrapping the IdP (identity provider — Okta, Auth0, Entra ID) SDK (its vendor-supplied client library), exposing `useSession()`, `useHasPermission(perm)`, a `<RequireAuth>` boundary and a token-attaching fetch wrapper. Product teams never touch the IdP SDK directly, so an IdP migration is one package's problem.
 - **Cookie-based sessions on a shared parent domain** (`.acme.com`) so `admin.acme.com` and `billing.acme.com` share a session without a token-passing dance. `HttpOnly`, `Secure`, `SameSite=Lax`.
-- **Silent SSO for cross-product navigation** — the user who lands on billing from admin should not see a login screen. Authorization Code + PKCE with an existing IdP session redirects back without a prompt.
-- **Permissions resolved server-side and shipped as claims**, with the client using them only to *hide* UI. The client is a convenience layer; every API independently authorises. A hidden button is a UX decision, not a security control.
+- **Silent SSO (single sign-on) for cross-product navigation** — the user who lands on billing from admin should not see a login screen. The Authorization Code flow with PKCE (Proof Key for Code Exchange, pronounced "pixy") against an existing IdP session redirects straight back, with no prompt, because the IdP already knows who they are.
+- **Permissions resolved server-side and shipped as claims**, with the client using them only to *hide* UI. The client is a convenience layer; every API independently authorises. A hidden button is a UX (user-experience) decision, not a security control.
 - **One logout that actually logs out** — federated logout across products plus refresh-token revocation. Getting this wrong is a common audit finding.
 
 ---
@@ -97,8 +99,8 @@ The single most common architecture question in platform interviews, and the ans
 
 | | **Monorepo** | **Multi-repo** |
 |---|---|---|
-| Atomic cross-project change | **Yes** — one PR, one CI run, always consistent | No — coordinated PRs, version bumps, a migration window |
-| Discoverability & refactoring | **Excellent** — global search, IDE rename across everything | Poor — you cannot see who consumes your API |
+| Atomic cross-project change | **Yes** — one PR (pull request), one CI run, always consistent | No — coordinated PRs, version bumps, a migration window |
+| Discoverability & refactoring | **Excellent** — global search, IDE (editor) rename across everything | Poor — you cannot see who consumes your API |
 | Dependency versions | Single version policy → one React, no duplicates | Per-repo freedom → drift, duplicate deps in bundles |
 | Team autonomy | Requires tooling to protect it (CODEOWNERS, affected-only CI) | **Native** — separate repo, separate pipeline |
 | CI cost / speed | Needs affected-graph + remote caching or it becomes unusable | Naturally scoped, simple pipelines |
@@ -126,11 +128,16 @@ Then immediately name the thing that makes the monorepo answer credible — **th
 
 ```
 pnpm workspaces        → one node_modules, strict deps, no phantom dependencies
+                         i.e. nothing can import a package it never declared
 Turborepo or Nx        → task graph, affected-only builds, remote caching
+                         i.e. CI runs only what your change can actually affect,
+                         and reuses a build someone else already did
 CODEOWNERS             → ownership without repo boundaries
+                         a file mapping folders → the team that must review them
 Module boundary lint   → enforce the dependency direction from §2
 Changesets             → versioning and changelogs for published packages
 Single version policy  → one React, one TypeScript, resolved centrally
+                         not five copies at four versions inside one bundle
 ```
 
 The nuance worth adding: **"monorepo" and "monolith" are unrelated.** A monorepo can contain twelve independently-deployed applications; what's shared is the repository and the tooling, not the deployment artifact. Candidates who conflate them are the ones who reject monorepos for the wrong reason.
@@ -153,19 +160,19 @@ The honest test: **can your teams already deploy independently?** If your produc
 
 | Approach | How | Trade-off |
 |---|---|---|
-| **Build-time (packages)** | Consume each other as npm packages | Simplest, best DX, **no deployment independence** — shell must rebuild |
-| **Route-level / multi-zone** | Reverse proxy or framework routing maps paths to separate apps | Simple, robust, full independence — but a full page load between zones |
+| **Build-time (packages)** | Consume each other as npm packages | Simplest, best DX (developer experience), **no deployment independence** — shell must rebuild |
+| **Route-level / multi-zone** | A reverse proxy or the framework's own routing (Next.js calls this "multi-zones") maps `/billing/*` to one app and `/admin/*` to another | Simple, robust, full independence — but a full page load between zones |
 | **Runtime — Module Federation** | Host loads remote modules at run time, shares `react` etc. | **True runtime independence**, shared deps — the mainstream choice; version-skew risk |
-| **iframes** | Isolated documents | Bulletproof isolation, painful UX (routing, sizing, focus, a11y, auth) — but right for third-party or legacy embeds |
-| **Web Components** | Custom elements as the boundary | Framework-agnostic; awkward props/events, styling and SSR |
-| **Server-side composition / SSI / ESI** | Edge or server stitches HTML fragments | Great performance, works without JS; needs infrastructure support |
+| **iframes** | Isolated documents | Bulletproof isolation, painful UX (routing, sizing, focus, a11y — accessibility, "a" + 11 letters + "y" — and auth) — but right for third-party or legacy embeds |
+| **Web Components** | Custom elements as the boundary | Framework-agnostic; awkward props/events, styling and SSR (server-side rendering) |
+| **Server-side composition / SSI / ESI** | Server- or edge-side includes: the server or CDN (content delivery network — cache servers near the user) stitches HTML fragments together | Great performance, works without JS; needs infrastructure support |
 
-**Module Federation** is the mainstream runtime answer. Module Federation 2.0 is the pick for greenfield (better DX, type safety); **single-spa** remains better for brownfield integration with legacy code. **Native Federation** is the standards-and-portability variant built on import maps and esbuild, notable in the Angular ecosystem. And the bundler picture moved: **Rspack** (Rust, webpack-drop-in, ~10× faster builds) became production-viable in 2026, and **Vite 8's single Rolldown graph** supports Module Federation — which removed the last strong reason micro-frontend teams stayed on webpack.
+**Module Federation** is the mainstream runtime answer. Module Federation 2.0 is the pick for **greenfield** work (a new project with no legacy constraints); **single-spa** remains better for **brownfield** integration (working inside an existing legacy app). **Native Federation** is the standards-and-portability variant built on **import maps** — a browser standard that maps a bare module name like `"react"` to a URL, so sharing works without a bundler — and esbuild, notable in the Angular ecosystem. And the bundler picture moved: **Rspack** (Rust, webpack-drop-in, ~10× faster builds) became production-viable in 2026, and **Vite 8's single Rolldown graph** supports Module Federation — which removed the last strong reason micro-frontend teams stayed on webpack.
 
 ### 4.3 What Actually Goes Wrong
 
-- **Shared dependency skew.** Two remotes on different React majors either duplicate React (bundle bloat, two reconcilers, broken context across the boundary) or crash. You need a **single version policy for the shared runtime**, enforced in CI, which quietly removes much of the independence you adopted them for.
-- **Design-system version skew.** Remote A on tokens v2 and remote B on v1 means one page with two visual languages. Ship tokens as **CSS custom properties from the shell**, not as a bundled JS dependency, so theming is shared even when component versions differ.
+- **Shared dependency skew.** Two remotes on different React majors either duplicate React (bundle bloat, two reconcilers — two independent copies of React's rendering engine — and broken context across the boundary) or crash. You need a **single version policy for the shared runtime**, enforced in CI, which quietly removes much of the independence you adopted them for.
+- **Design-system version skew** — different parts of one running page built against different versions of a shared dependency. Remote A on tokens v2 and remote B on v1 means one page with two visual languages. Ship tokens as **CSS custom properties from the shell**, not as a bundled JS dependency, so theming is shared even when component versions differ.
 - **Bundle duplication.** Every remote brings its own copy of date libraries, icons, form libraries. Auditing this across independently-deployed remotes is genuinely hard.
 - **Cross-remote state.** Shared state across a federation boundary is the hardest part. The workable pattern is a **thin, versioned event bus or the URL** as the contract — never a shared mutable store, and never React context across remotes.
 - **Error isolation.** One remote failing to load must not white-screen the shell. Every mount point needs an error boundary plus a loading and a failed state. This is the thing most demos skip.
@@ -176,7 +183,7 @@ The honest test: **can your teams already deploy independently?** If your produc
 
 **For 5–15 engineers on one product: don't.** Build a well-modularised app in a monorepo, use CODEOWNERS for ownership, deploy from one pipeline. You get most of the organisational benefit and none of the runtime cost.
 
-**Adopt micro-frontends when** you have many teams (realistically 40+ engineers across 5+ teams) that must compose into one shell, genuinely cannot align release trains, or you're incrementally strangling a legacy app — that last one is the strongest, least-disputed use case, because the boundary is temporary and the payoff is immediate.
+**Adopt micro-frontends when** you have many teams (realistically 40+ engineers across 5+ teams) that must compose into one shell, genuinely cannot align release trains, or you're incrementally **strangling** a legacy app (the *strangler-fig* pattern: new code takes over one route at a time until the old app is unused, instead of a big-bang rewrite) — that last one is the strongest, least-disputed use case, because the boundary is temporary and the payoff is immediate.
 
 The sharpest diagnostic to offer: **if your teams cannot agree on integration contracts — the React major, shared design tokens, who owns error boundaries, rollback procedure — then micro-frontends will not save you.** You are not ready for distributed frontends; you are ready for a monorepo and stricter CI. Coordination problems do not get better when you add a network boundary; they get harder to see.
 
@@ -201,23 +208,23 @@ Tokens      →  Primitives      →  Patterns
 
 ### 5.2 Versioning Strategy
 
-For a monorepo where everything ships together, **the internal package can live at `workspace:*`** — no versions, no publishing, atomic changes. This is a real advantage of monorepos that candidates forget to mention.
+For a monorepo where everything ships together, **the internal package can live at `workspace:*`** — a version specifier meaning "use the copy inside this repository, whatever its version". That means no version numbers to bump, no publish step, and a change to the library plus all its consumers in one commit. This is a real advantage of monorepos that candidates forget to mention.
 
-Once the library has external or independently-deployed consumers, you need real semver, and the rules are:
+Once the library has external or independently-deployed consumers, you need real **semver** (semantic versioning — `MAJOR.MINOR.PATCH`, where only a MAJOR bump is allowed to break consumers), and the rules are:
 
 - **Changesets** for versioning and changelogs — each PR declares its own impact, so releases are derived rather than negotiated.
 - **Deprecate, don't break.** Add the new API, mark the old one deprecated with a console warning in dev and a codemod, remove it a major later. A breaking change with no migration path does not roll out; it forks.
-- **Ship codemods with breaking changes.** A `jscodeshift`/`ts-morph` script that does 90% of the migration is the difference between "adopted in two weeks" and "three products stuck on v1 forever."
+- **Ship codemods with breaking changes.** A **codemod** is a script that rewrites source code automatically — a `jscodeshift`/`ts-morph` script that does 90% of the migration is the difference between "adopted in two weeks" and "three products stuck on v1 forever."
 - **Visual regression testing is the actual safety net.** Unit tests do not catch a 2px padding change across 300 usages. Storybook plus Chromatic (or Playwright screenshots) is what lets you refactor confidently.
 - **One canonical version per page.** Two versions of the design system on one page means two visual languages; enforce a single version in the resolution config.
 
 ### 5.3 The API-Design Rules That Prevent Rewrites
 
-- **Composition over configuration.** A `<Modal>` with `title`, `subtitle`, `icon`, `showClose`, `footerAlign`, `size`, `variant` props will grow forever. Compound components (`<Modal.Header>`, `<Modal.Body>`, `<Modal.Footer>`) let consumers compose what you didn't anticipate.
-- **Support controlled *and* uncontrolled.** Accept `value`/`onChange` and fall back to internal state. Consumers need both.
+- **Composition over configuration.** A `<Modal>` with `title`, `subtitle`, `icon`, `showClose`, `footerAlign`, `size`, `variant` props will grow forever. **Compound components** — an API of cooperating parts rather than one component with many options (`<Modal.Header>`, `<Modal.Body>`, `<Modal.Footer>`) — let consumers compose what you didn't anticipate.
+- **Support controlled *and* uncontrolled.** *Controlled* means the parent owns the value and passes `value` + `onChange`; *uncontrolled* means the component keeps its own state and the parent only supplies an initial value. Accept `value`/`onChange` and fall back to internal state when they're absent. Consumers need both — a form library needs control, a one-off usage does not.
 - **Forward refs and spread the rest.** A component that swallows `aria-*`, `data-*` and `ref` cannot be used in the situations you didn't plan for, and forces a fork.
-- **Accessible by default, not by option.** Keyboard navigation, focus management and ARIA belong inside the component. If a11y is a prop, it will be forgotten — and a design system is the single best place to make accessibility the path of least resistance across every product at once (see the Accessibility guide).
-- **`className`/`style` escape hatch on the root.** Purity loses to reality; without an escape hatch consumers copy-paste the component.
+- **Accessible by default, not by option.** Keyboard navigation, focus management and ARIA (Accessible Rich Internet Applications — the attributes that describe a widget to screen readers) belong inside the component. If a11y is a prop, it will be forgotten — and a design system is the single best place to make accessibility the path of least resistance across every product at once (see the Accessibility guide).
+- **`className`/`style` escape hatch on the root.** An **escape hatch** is a deliberate way to bypass your abstraction. Purity loses to reality; without one, consumers copy-paste the component instead.
 
 ---
 
@@ -246,17 +253,17 @@ The framing that scores: these are **five** layers with different lifetimes, dif
 
 **API responses — `ETag` plus conditional requests.** Return an `ETag`; the browser sends `If-None-Match`; you answer `304` with no body. Cheap, correct, and it works for personalised data where a shared cache cannot.
 
-**CDN — `s-maxage` and `stale-while-revalidate`.** `Cache-Control: public, s-maxage=60, stale-while-revalidate=600` lets the edge serve slightly-stale content instantly while it refreshes behind the scenes. This is the highest-leverage single header for perceived performance on read-heavy pages. Prefer **tag-based purging** (surrogate keys) over path purging, so "invalidate everything touching product 42" is one call.
+**CDN — `s-maxage` and `stale-while-revalidate`.** `Cache-Control: public, s-maxage=60, stale-while-revalidate=600` lets the edge serve slightly-stale content instantly while it refreshes behind the scenes. Two things to know: **`s-maxage` is `max-age` for *shared* caches only** — the CDN obeys it and the browser ignores it, which is how you cache at the edge without freezing a copy in every user's browser; and `stale-while-revalidate=600` means "for up to 10 minutes past expiry, serve the old copy immediately and fetch a fresh one in the background", so nobody waits for the refresh. This is the highest-leverage single header for perceived performance on read-heavy pages. Prefer **tag-based purging** over path purging: you attach labels (**surrogate keys**) like `product-42` to each cached response, so "invalidate everything touching product 42" is one call instead of a list of every URL that might mention it.
 
-**Service Worker — precache the shell, runtime-cache the rest.** Cache-first for hashed static assets, network-first (or stale-while-revalidate) for API data, and an offline fallback document. Two hard rules: **never cache-first an unhashed URL**, and **clean up old caches in `activate`** or you leak storage until the origin is evicted.
+**Service Worker (SW) — precache the shell, runtime-cache the rest.** Cache-first for hashed static assets, network-first (or stale-while-revalidate) for API data, and an offline fallback document. Two hard rules: **never cache-first an unhashed URL**, and **clean up old caches in `activate`** or you leak storage until the origin is evicted.
 
-**Data layer — this is where most "caching" actually happens in a modern SPA.** TanStack Query or RTK Query with sensible `staleTime`, plus explicit invalidation on mutation. The mental model that keeps this sane is the server-state/client-state split: server state belongs to a query cache with a TTL, client state belongs in component state or a store, and conflating them is the root of most stale-UI bugs.
+**Data layer — this is where most "caching" actually happens in a modern SPA (single-page application).** TanStack Query or RTK (Redux Toolkit) Query with sensible `staleTime`, plus explicit invalidation on mutation. The mental model that keeps this sane is the server-state/client-state split: server state belongs to a query cache with a TTL (time-to-live — how long before the entry counts as expired), client state belongs in component state or a store, and conflating them is the root of most stale-UI bugs.
 
 ### 6.2 The Two Questions That Separate Answers
 
 **"What breaks first?"** Almost always **a cached `index.html`**, or a service worker serving an old shell that references purged chunks. Practical mitigations: `no-cache` on the document, a `vite-plugin-pwa`-style `autoUpdate` registration with a "new version available" prompt, and — importantly — **retain old hashed chunks for a deploy or two** so a client mid-session doesn't 404 on a lazy chunk it only now needs. That last one causes real, hard-to-reproduce "ChunkLoadError" reports.
 
-**"How do you invalidate personalised data at the edge?"** You mostly don't. Personalised responses need `Cache-Control: private`, and the edge caches only the shared shell. This is exactly what Partial Pre-rendering exists for: static shell at the edge, personalised holes streamed per request (see the Next.js & RSC guide). Candidates who propose caching a per-user response at the CDN are describing a data leak.
+**"How do you invalidate personalised data at the edge?"** You mostly don't. Personalised responses need `Cache-Control: private`, and the edge caches only the shared shell. This is exactly what Partial Pre-rendering (PPR) exists for: a static shell cached at the edge, with the personalised "holes" streamed in per request (see the Next.js & RSC — React Server Components — guide). Candidates who propose caching a per-user response at the CDN are describing a data leak.
 
 ---
 
@@ -270,6 +277,9 @@ So the architecture is a **decoupling of ingest rate from render rate.**
 
 ```
 socket → normalise → buffer (ref, not state) → flush on rAF/interval → render windowed slice
+
+   rAF = requestAnimationFrame — "run this just before the next repaint", so at
+   most ~60 times a second no matter how fast events arrive.
 ```
 
 ### 7.1 The Techniques, In Order Of Impact
@@ -291,23 +301,23 @@ useEffect(() => {
 }, []);
 ```
 
-**2. Cap what you retain.** An append-only list is an unbounded memory leak with a nice UI. Keep the last N (a ring buffer), and page or archive the rest.
+**2. Cap what you retain.** An append-only list is an unbounded memory leak with a nice UI. Keep the last N in a **ring buffer** — a fixed-size list that overwrites its oldest entry once full — and page or archive the rest.
 
-**3. Virtualise the list.** Render only what's on screen — `@tanstack/react-virtual` or `react-window`. 10,000 rows of DOM is slow regardless of how you got there.
+**3. Virtualise the list.** Render only what's on screen — `@tanstack/react-virtual` or `react-window`. 10,000 rows of DOM (Document Object Model — the browser's live tree of elements) is slow regardless of how you got there.
 
 **4. Coalesce by key.** For a price ticker or presence list, event 400 for symbol X supersedes event 399. Reduce the buffer into a `Map` keyed by entity and render the map — this turns thousands of events into dozens of actual changes.
 
-**5. Move work off the main thread.** Parsing, filtering, aggregating and sorting thousands of messages belongs in a **Web Worker**; post only the render-ready slice back. If the payload is large, a `SharedArrayBuffer` or a binary format avoids the structured-clone cost.
+**5. Move work off the main thread.** Parsing, filtering, aggregating and sorting thousands of messages belongs in a **Web Worker**; post only the render-ready slice back. If the payload is large, a `SharedArrayBuffer` or a binary format avoids the **structured-clone cost** — the deep copy the browser makes of everything you post to a Worker, which is cheap for small messages and expensive for big ones.
 
 **6. Server-side aggregation is the real answer at extreme rates.** If the UI only displays a chart at one-second granularity, the server should not send 5,000 events/sec — it should send one aggregate per second. **Push the aggregation to where the data is**, and name this in the interview, because it is the answer that scales and most candidates skip it in favour of client-side heroics.
 
 **7. Subscribe narrowly.** Server-side filtering and topic-based subscriptions so a client receives only what it renders. Fan-out is cheaper to reduce than to absorb.
 
-**8. Backpressure and reconnection.** Watch `bufferedAmount` before sending; on reconnect use exponential back-off with jitter and a sequence number so you can request a replay rather than a full refetch. Also handle the tab going background — throttle or unsubscribe on `visibilitychange`, because a hidden tab rendering a ticker is pure battery cost. (Transport details are in the Real-Time Web guide.)
+**8. Backpressure and reconnection.** **Backpressure** means noticing the receiver can't keep up and slowing down instead of queueing without limit — watch `bufferedAmount` (the bytes the socket has queued but not yet sent) before sending. On reconnect use exponential back-off with **jitter** (a randomised delay, so a thousand clients that dropped together don't all retry on the same tick and knock the server over again) plus a sequence number, so you can request a replay of what you missed rather than a full refetch. Also handle the tab going background — throttle or unsubscribe on `visibilitychange`, because a hidden tab rendering a ticker is pure battery cost. (Transport details are in the Real-Time Web guide.)
 
 ### 7.2 The State-Management Consequence
 
-High-frequency data does **not** belong in a global store that many components subscribe to — every update notifies every subscriber. Use a store with **selector-level subscriptions** (Zustand, Jotai, or `useSyncExternalStore` over your own store) so a row re-renders only when *its* datum changes, and keep the hot path out of React context entirely, since context has no partial-subscription mechanism.
+High-frequency data does **not** belong in a global store that many components subscribe to — every update notifies every subscriber. Use a store with **selector-level subscriptions** — each component subscribes to just the slice of state it actually reads, so an unrelated change doesn't re-render it (Zustand, Jotai, or `useSyncExternalStore` over your own store) — so a row re-renders only when *its* datum changes, and keep the hot path out of React context entirely, since context has no partial-subscription mechanism.
 
 ---
 
@@ -317,17 +327,17 @@ High-frequency data does **not** belong in a global store that many components s
 
 The trap is jumping to a fix. A 1% issue you cannot reproduce is an **observability problem before it is a debugging problem**, and the answer should be a funnel from "I have nothing" to "I have a reproduction."
 
-**1. Segment before you theorise.** 1% is a *population*, and populations have shared properties. Slice your error and RUM data by browser and version, OS, device class, locale, timezone, network type, screen size, feature-flag cohort, app version, account type, and — often the winner — data shape. Genuinely random 1% is rare; "1% of users" is usually "100% of Safari 16 on iOS with an RTL locale" or "every account with more than 500 line items."
+**1. Segment before you theorise.** 1% is a *population*, and populations have shared properties. Slice your error and RUM (real-user monitoring — performance data from actual visitors, not a lab test) data by browser and version, OS, device class, locale, timezone, network type, screen size, feature-flag cohort, app version, account type, and — often the winner — data shape. Genuinely random 1% is rare; "1% of users" is usually "100% of Safari 16 on iOS with an RTL (right-to-left) locale" or "every account with more than 500 line items."
 
-**2. Get real errors with real stack traces.** Sentry or equivalent, with **source maps uploaded on every deploy** and served as `hidden-source-map` so traces are readable to you and not to the public. Wrap the tree in error boundaries that report component stacks — a React rendering bug without a component stack is a guess. Add `onRecoverableError` to catch hydration mismatches, which are a classic low-percentage, environment-dependent rendering failure.
+**2. Get real errors with real stack traces.** Sentry or equivalent, with **source maps uploaded on every deploy** and built as `hidden-source-map` — the map is sent to your error tracker but the shipped file contains no link to it, so your stack traces are readable to you and your source stays unreadable to the public. Wrap the tree in error boundaries that report component stacks — a React rendering bug without a component stack is a guess. Add `onRecoverableError` to catch hydration mismatches, which are a classic low-percentage, environment-dependent rendering failure.
 
 **3. Capture the sequence, not just the crash.** Breadcrumbs (route changes, clicks, network calls, console) and **session replay** for the affected cohort. For a rendering bug, replay is often decisive because it shows the interaction order you'd never have guessed.
 
 **4. Correlate frontend to backend.** Propagate a trace ID from the browser through your API calls so a frontend error links to the exact server responses that produced it. Frequently the "rendering bug" is a malformed or unexpectedly-null API response, and this correlation is what proves it.
 
-**5. Measure, don't intuit.** Real-user monitoring on INP, LCP and CLS **segmented by cohort**. A p50 that looks fine hides a p99 that is broken; 1% issues live in the tail by definition.
+**5. Measure, don't intuit.** Real-user monitoring on the three Core Web Vitals — **INP** (Interaction to Next Paint: how long after a click the screen updates), **LCP** (Largest Contentful Paint: when the biggest element finishes rendering) and **CLS** (Cumulative Layout Shift: how much content jumps while loading) — **segmented by cohort**. A healthy **p50** (the median user) hides a broken **p99** (the worst 1%); 1% issues live in that tail by definition, which is why an average tells you nothing here.
 
-**6. Form a hypothesis and test it cheaply.** Once you have a suspected cohort, reproduce deliberately: that browser version via BrowserStack, that locale, that account's data shape in a seeded environment. React-specific suspects worth checking early — StrictMode double-invoke surfacing an impure render, a race between two effects, `key` collisions producing wrong state reuse, hydration mismatch from `Date`/`Math.random`/`localStorage` read during render, and a stale closure in an effect.
+**6. Form a hypothesis and test it cheaply.** Once you have a suspected cohort, reproduce deliberately: that browser version via BrowserStack, that locale, that account's data shape in a seeded environment. React-specific suspects worth checking early — StrictMode double-invoke surfacing an impure render, a race between two effects, `key` collisions producing wrong state reuse, hydration mismatch from `Date`/`Math.random`/`localStorage` read during render, and a **stale closure** in an effect (a function still reading a value it captured on an earlier render).
 
 **7. Ship the fix behind a flag** and watch the cohort's error rate. A feature flag turns a risky fix into a measured experiment, and gives you instant rollback without a deploy.
 
@@ -340,9 +350,9 @@ The trap is jumping to a fix. A 1% issue you cannot reproduce is an **observabil
 - **Independent deploys per product**, with the shared packages versioned (or `workspace:*` in a monorepo, shipped atomically).
 - **Affected-only CI.** Nx/Turborepo compute the dependency graph so a change to `@acme/ui` tests and builds only its consumers. Remote caching makes a repeat build near-instant. Without these, monorepo CI collapses under its own weight.
 - **Immutable, atomic deploys.** Upload hashed assets first, flip the document last — never the other way round, or a user gets HTML referencing assets that do not exist yet. **Keep the previous deploy's chunks alive** for a release or two so mid-session clients can still lazy-load.
-- **Feature flags decouple deploy from release**, which is what makes trunk-based development safe: merge continuously, ship dark, enable per cohort. They are also your rollback mechanism for behaviour, where a redeploy is your rollback for code.
-- **Canary by cohort**, watching error rate and INP for the canary group specifically, not the aggregate.
-- **Version reporting from the client.** Every error and metric carries the build SHA, so "is this fixed?" is answerable. In a federated setup, report the version of every loaded remote.
+- **Feature flags decouple deploy from release** — a runtime switch turns behaviour on without shipping code — which is what makes **trunk-based development** (everyone merging small changes straight into the main branch, rather than long-lived feature branches) safe: merge continuously, ship dark, enable per cohort. They are also your rollback mechanism for behaviour, where a redeploy is your rollback for code.
+- **Canary by cohort** — release to a small slice of users first and watch *their* error rate and INP specifically, not the aggregate, which is large enough to hide them.
+- **Version reporting from the client.** Every error and metric carries the build SHA (the Git commit hash identifying that exact build), so "is this fixed?" is answerable. In a federated setup, report the version of every loaded remote.
 
 ---
 
@@ -412,15 +422,15 @@ Then the two follow-ups I'd pre-empt:
 
 **One IdP, one session, one client library.** Products integrate with `@acme/auth`, never the IdP SDK.
 
-**Flow:** Authorization Code + **PKCE** for every browser and mobile client. Never the implicit flow (deprecated — tokens in the URL fragment end up in history and logs), never ROPC.
+**Flow:** Authorization Code + **PKCE** for every browser and mobile client. Never the implicit flow (deprecated — tokens in the URL fragment end up in browser history and server logs), and never ROPC (Resource Owner Password Credentials, the legacy flow where your app handles the user's raw password).
 
-**Token storage** is where most designs fail. `localStorage` is XSS-readable, so a single injected script exfiltrates every session. The pattern I'd default to is the **BFF**: the browser holds an `HttpOnly; Secure; SameSite=Lax` session cookie, and the backend-for-frontend holds the actual OAuth tokens and attaches them server-side. The browser never sees an access token. If a BFF isn't possible, access token in memory only and refresh token in an `HttpOnly` cookie scoped to the refresh endpoint.
+**Token storage** is where most designs fail. `localStorage` is XSS-readable, so a single injected script exfiltrates every session. The pattern I'd default to is the **BFF (backend-for-frontend)** — a small server owned by the frontend team: the browser holds an `HttpOnly; Secure; SameSite=Lax` session cookie, and the BFF holds the actual OAuth tokens (typically JWTs — JSON Web Tokens, signed and readable by anyone holding them) and attaches them server-side. The browser never sees an access token. If a BFF isn't possible, access token in memory only and refresh token in an `HttpOnly` cookie scoped to the refresh endpoint.
 
 **Rotation:** short-lived access tokens (5–15 min), **refresh token rotation** — each refresh issues a new refresh token and invalidates the old one. Then the part that makes it a real answer: **reuse detection.** If an already-used refresh token is presented, that means theft, so revoke the entire token family and force re-authentication. Also handle the **concurrent-refresh race** — two tabs refreshing simultaneously must not each rotate and invalidate the other; use a single-flight lock (a shared promise, or a `BroadcastChannel`/`navigator.locks` coordination across tabs).
 
 **SSO across products:** shared parent-domain cookie plus silent authorization so cross-product navigation never shows a login prompt. **Logout must be federated** — end the IdP session, revoke refresh tokens, and clear per-product sessions; a "logout" that only clears local state is a common audit finding.
 
-**RBAC/permissions:** resolve server-side, ship as claims in the session, and use them on the client **only to hide UI**. Every API independently authorises on every request. A hidden button is a UX decision; the server is the security boundary. For fine-grained needs, prefer permission strings (`invoice:write`) over role names, so adding a role doesn't require a frontend deploy.
+**RBAC (role-based access control) / permissions:** resolve server-side, ship as claims in the session, and use them on the client **only to hide UI**. Every API independently authorises on every request. A hidden button is a UX decision; the server is the security boundary. For fine-grained needs, prefer permission strings (`invoice:write`) over role names, so adding a role doesn't require a frontend deploy.
 
 Details in the OAuth & SSO guide; the token-theft and XSS side is in the Web Security guide.
 
@@ -450,9 +460,9 @@ The framing that matters: all of this has to exist *before* the incident. "I wou
 
 Four different threats needing four different controls — the mistake is treating them as one "security" bucket.
 
-**XSS** — the root fix is never injecting unsanitised HTML: no `dangerouslySetInnerHTML` with untrusted input, DOMPurify when you genuinely must render user HTML, and treat markdown and LLM output as untrusted. Then **defence in depth with a strict CSP**: `script-src 'self' 'nonce-<random>'; object-src 'none'; base-uri 'self'`, ideally strict-dynamic rather than a host allowlist. Add **Trusted Types** to make DOM-sink injection a runtime error rather than a code-review hope.
+**XSS (cross-site scripting)** — the root fix is never injecting unsanitised HTML: no `dangerouslySetInnerHTML` with untrusted input, DOMPurify when you genuinely must render user HTML, and treat markdown and LLM (large language model) output as untrusted. Then **defence in depth with a strict CSP (Content Security Policy — a header restricting what the page may load or execute)**: `script-src 'self' 'nonce-<random>'; object-src 'none'; base-uri 'self'`, ideally strict-dynamic rather than a host allowlist. Add **Trusted Types** to make DOM-sink injection a runtime error rather than a code-review hope.
 
-**CSRF** — `SameSite=Lax` (or `Strict`) cookies removes most of it, but not all: it doesn't protect same-site subdomains, and `Lax` still allows top-level `GET` navigation. So also require an anti-CSRF token (double-submit or synchroniser) on state-changing requests, validate `Origin`, and never make a `GET` mutate state.
+**CSRF (cross-site request forgery)** — `SameSite=Lax` (or `Strict`) cookies removes most of it, but not all: it doesn't protect same-site subdomains, and `Lax` still allows top-level `GET` navigation. So also require an anti-CSRF token on state-changing requests — either **double-submit** (the same random value in both a cookie and a header, which an attacker can't read to copy) or the **synchroniser pattern** (a per-session token the server stores and checks) — validate the `Origin` header, and never let a `GET` mutate state.
 
 **Token theft** — the honest statement is that *any* token JavaScript can read is XSS-exfiltratable, so the fix is architectural rather than obfuscatory: **BFF pattern**, `HttpOnly` cookies, tokens never in `localStorage`. Plus short-lived access tokens, refresh rotation with **reuse detection**, and a strict CSP restricting `connect-src`/`img-src` so exfiltration is blocked even if injection succeeds.
 
@@ -464,7 +474,7 @@ Cross-cutting: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `
 
 **Q7: How would you handle authentication in Next.js App Router with Server Components?**
 
-**Defence in depth, and never trust Proxy/middleware alone** — this is the whole answer, and it's grounded in real CVEs.
+**Defence in depth, and never trust Proxy/middleware alone** — this is the whole answer, and it's grounded in real CVEs (Common Vulnerabilities and Exposures — public IDs for specific known security holes).
 
 In Next.js 16 `middleware.ts` became **`proxy.ts`**. It runs before route processing and is the right place to cheaply redirect unauthenticated requests at the edge. It is explicitly **not** an authorization solution, and the CVE history proves why: **CVE-2025-29927** let a crafted `x-middleware-subrequest` header skip middleware entirely — taking every middleware-based authorization check with it. **CVE-2026-45109** followed an incomplete fix for a segment-prefetch bypass (patched in 15.5.18 / 16.2.6), and the July 2026 release patched **CVE-2026-64642**, a bypass affecting App Router builds on Turbopack.
 
@@ -527,7 +537,7 @@ I'd answer with the **API** first, because that's what "scalable" means for a co
 - **`collapsible`** — in single mode, may the open item be closed, or must exactly one always be open?
 - **Accessibility is built in, not a prop.** Trigger is a real `<button>` with `aria-expanded` and `aria-controls`; content has `role="region"` and `aria-labelledby`; `useId` for the ID pairing; Home/End and arrow-key navigation between triggers. If a11y is optional it will be forgotten, and a design system is the best place in the whole codebase to make it the default.
 - **Animation without breaking a11y.** Height animation needs a measured height (`ResizeObserver` or the `grid-template-rows: 0fr → 1fr` technique); content must be genuinely removed or `hidden` when closed so it's out of the tab order and the accessibility tree — `height: 0` alone leaves focusable content reachable, which is a real bug.
-- **Escape hatches** — forward refs, spread `...rest`, accept `className` on every part, and support `asChild`-style polymorphism so a `Trigger` can render as an `<h3><button>`. Heading level is the consumer's decision, not the library's.
+- **Escape hatches** — forward refs, spread `...rest`, accept `className` on every part, and support `asChild`-style polymorphism — the component lends its behaviour to whatever element you pass in rather than rendering its own wrapper — so a `Trigger` can render as an `<h3><button>`. Heading level is the consumer's decision, not the library's.
 - **Lazy content** via a `forceMount` opt-out, so heavy panels don't render until opened.
 
 **Scale considerations:** for hundreds of items, keep state as a `Set` of open values rather than a per-item boolean, memoize the context value so opening one item doesn't re-render all triggers, and virtualise if the list is genuinely long. A working implementation with single and multi-open modes is in the Code Playground under React Machine Coding.
@@ -554,7 +564,7 @@ In a **monorepo** steps 1–7 compress dramatically: you can do the atomic codem
 
 Two problems stacked, and they fight each other: a table is a lot of DOM, and real-time means it keeps changing. Solve them separately.
 
-**The rendering side — the DOM is the cost.** 10,000 rows × 12 columns is 120,000 cells, and no amount of memoization makes that cheap because style recalculation and layout scale with node count. So **virtualize**: render only the ~30 visible rows plus a small overscan buffer, with `@tanstack/react-virtual`. For a wide table, virtualize **both axes**. Fixed row heights are dramatically simpler than measured ones — if rows must vary, use `estimateSize` plus a `ResizeObserver` and accept the scrollbar jitter.
+**The rendering side — the DOM is the cost.** 10,000 rows × 12 columns is 120,000 cells, and no amount of memoization makes that cheap because style recalculation and layout scale with node count. So **virtualize**: render only the ~30 visible rows plus a small **overscan** buffer (a few extra rows rendered just off-screen, so fast scrolling never shows a blank), with `@tanstack/react-virtual`. For a wide table, virtualize **both axes**. Fixed row heights are dramatically simpler than measured ones — if rows must vary, use `estimateSize` plus a `ResizeObserver` and accept the scrollbar jitter.
 
 Then the things that undo virtualization if you get them wrong: **stable keys from the row's ID**, never the index, or scrolling reuses the wrong row's state. `React.memo` on the row with **primitive props** — pass `row.name` and `row.status`, not a freshly-created object each render. And `content-visibility: auto` on rows if you're not virtualizing, as the cheap 80% version.
 
@@ -568,14 +578,14 @@ socket → normalise → buffer in a ref → flush on rAF/100ms → render the v
 
 **Then the part specific to tables**, which is where candidates stop short:
 
-- **Sorting and filtering must not happen on the client for large sets.** Server-side sort, filter and pagination with a cursor; the client sends intent and renders what comes back. Client-side sorting 100,000 rows blocks the main thread for hundreds of milliseconds every time a header is clicked.
+- **Sorting and filtering must not happen on the client for large sets.** Server-side sort, filter and pagination with a **cursor** ("give me the 50 rows after this one", rather than "page 7", so the results stay correct while rows are being inserted underneath); the client sends intent and renders what comes back. Client-side sorting 100,000 rows blocks the main thread for hundreds of milliseconds every time a header is clicked.
 - **A row updating while the user is scrolled or has a cell in edit mode.** If a live update reorders rows under the cursor, the user loses their place. The usual answer is to **buffer updates for rows currently in view** and show a "3 rows updated — refresh" affordance, rather than reordering underneath them. This is a product decision you should raise, not a technical one you can decide alone.
 - **Cell-level updates, not row-level.** If one field changes, only that cell should re-render. Selector-level subscriptions (Zustand/Jotai/`useSyncExternalStore`) let a cell subscribe to its own datum — Context can't, because it has no partial subscription.
 - **Aggregate on the server.** If the header shows a total across 100,000 rows, computing it client-side on every tick is the actual bottleneck.
 
 **Accessibility, which almost nobody mentions:** a virtualized table must use `aria-rowcount` and `aria-rowindex` so a screen-reader user is told the real total rather than "row 3 of 30". Sortable headers need `aria-sort`, and announcing "table updated" needs a throttled live region — announcing every tick makes the page unusable.
 
-**And the honest framing to close on:** for anything beyond a moderate grid I'd evaluate **TanStack Table** (headless — you keep control of rendering, it handles sorting/filtering/grouping state) or AG Grid for the enterprise feature set. Writing a performant, accessible, virtualized, sortable, editable data grid from scratch is a genuine multi-month project, and choosing to buy that is the senior call.
+**And the honest framing to close on:** for anything beyond a moderate grid I'd evaluate **TanStack Table** (headless — you keep control of rendering, it handles sorting/filtering/grouping state) or **AG Grid** (a commercial data-grid product) for the enterprise feature set. Writing a performant, accessible, virtualized, sortable, editable data grid from scratch is a genuine multi-month project, and choosing to buy that is the senior call.
 
 ---
 
@@ -605,7 +615,7 @@ retry: (failureCount, error) => error.status >= 500 && failureCount < 3,
 retryDelay: (attempt) => Math.random() * Math.min(30_000, 1000 * 2 ** attempt),
 ```
 
-**And mutations are not queries.** A failed `GET` is safe to retry; a failed `POST` may have succeeded server-side before the response was lost. Retrying it double-charges someone. So mutations need an **idempotency key** before they're safe to retry at all — otherwise don't retry them, surface the failure and let the user decide.
+**And mutations are not queries.** A failed `GET` is safe to retry; a failed `POST` may have succeeded server-side before the response was lost. Retrying it double-charges someone. So mutations need an **idempotency key** before they're safe to retry at all — a unique id you generate per attempt and send with the request, so the server can recognise a duplicate and charge the card once rather than twice. Without one, don't retry: surface the failure and let the user decide.
 
 **Error boundaries — and their limits.** A boundary catches errors thrown during **render, in lifecycle methods and in constructors** of the tree below it. It does **not** catch errors in event handlers, in `setTimeout`, in async code, or during SSR. So boundaries are one layer, and the global `error` / `unhandledrejection` handlers are the other; you need both.
 
@@ -705,7 +715,55 @@ console.log(a.getValue(), b.getValue());   // 2 0
 
 This is the closure-as-privacy pattern (the module pattern): `obj` is unreachable from outside — `counter.obj` is `undefined` — so the only way to change the value is through the methods. That encapsulation is the actual reason to write it this way.
 
-**The `let obj` versus `let value` distinction is a red herring here, but not always.** Because the state lives in an object property rather than in the variable itself, the methods mutate through the reference. Had it been `let value = 0` with `value++`, the behaviour would be **identical** — closures capture bindings, so reassignment is visible too. Where it *would* differ is if `increment` reassigned `obj = { value: obj.value + 1 }`; that still works here, but it would break if you had destructured or exported `obj` elsewhere, because the outside reference would still point at the old object.
+**Storing the state in an object rather than in a plain variable makes no difference here.** This is worth separating out, because it is where the explanation usually gets muddled. There are three variants, and the first two behave identically:
+
+```js
+// 1. Mutate a property of the captured object  →  works
+function mutateProp() {
+  let obj = { value: 0 };
+  return { inc: () => { obj.value++; }, get: () => obj.value };
+}
+
+// 2. Reassign a captured primitive  →  works, for the same reason
+function reassignPrimitive() {
+  let value = 0;
+  return { inc: () => { value++; }, get: () => value };
+}
+
+// 3. Reassign the captured object   →  also works for the closure
+function reassignObject() {
+  let obj = { value: 0 };
+  return { inc: () => { obj = { value: obj.value + 1 }; }, get: () => obj.value };
+}
+
+for (const make of [mutateProp, reassignPrimitive, reassignObject]) {
+  const c = make();
+  c.inc(); c.inc();
+  console.log(make.name, c.get());   // mutateProp 2 · reassignPrimitive 2 · reassignObject 2
+}
+```
+
+Variants 1 and 2 both work because **a closure captures the binding, not a snapshot of its value.** `getValue` re-reads whatever `obj` (or `value`) refers to *at call time*, so it sees mutations and reassignments alike. People expect variant 2 to fail — "the number was copied when the function was created" — and it doesn't.
+
+Variant 3 is the one with a catch, and the catch is not about closures. `getValue` still returns the right answer, because it re-reads the `obj` binding and the binding now points at the new object. But **anything outside that captured the *old* object keeps pointing at the old object** and will read a stale `0` forever:
+
+```js
+function leaky() {
+  let obj = { value: 0 };
+  return {
+    inc: () => { obj = { value: obj.value + 1 }; },   // reassigns the binding
+    get: () => obj.value,
+    obj,                                             // leaks the ORIGINAL object
+  };
+}
+
+const c = leaky();
+c.inc();
+console.log(c.get());       // 1  — the closure re-read the binding, so it's correct
+console.log(c.obj.value);   // 0  — this reference still points at the first object
+```
+
+So: mutate-versus-reassign is invisible from inside the closure and only matters once a reference escapes — which is exactly what the follow-up below does.
 
 The variant interviewers use as a follow-up is the one that breaks:
 
@@ -731,7 +789,7 @@ console.log(c.getValue());   // 101
 
 **Explanation:**
 
-React context is not a global lookup by name. `createContext()` returns an object, and a `Provider`/`useContext` pair only connect if they are working with **the same context object inside the same React instance** — because the current value is stored on React's internal fiber tree, and each React copy has its own tree and its own dispatcher.
+React context is not a global lookup by name. `createContext()` returns an object, and a `Provider`/`useContext` pair only connect if they are working with **the same context object inside the same React instance** — because the current value is stored on React's internal **fiber tree** (its own representation of your component tree, where state, effects and context values live), and each copy of React has its own tree and its own hook **dispatcher**.
 
 So when the shell renders `<ThemeContext.Provider>` using React instance A, and a remote calls `useContext(ThemeContext)` under React instance B, instance B walks *its* tree, finds no matching provider, and returns the context's **default value** — which is usually `undefined`. There's no error, because from React's point of view nothing is wrong: you asked for a context that was never provided in this tree.
 
@@ -856,7 +914,7 @@ Buffering fixes the *render count*. It does nothing about three other costs, and
 
 **2. The whole list re-renders even though it's virtualised.** Virtualisation limits how many rows are *mounted*, but if every flush produces a brand-new array of brand-new objects, every visible row gets new props and re-renders — 30 rows × 10 flushes/sec, each doing real work. **Fix: coalesce by key into a stable `Map`** so unchanged entities keep referential identity, memoize rows with `React.memo`, and pass primitives rather than freshly-created objects. Then only the rows whose datum actually changed re-render.
 
-**3. Layout thrash and unbounded growth.** If rows have variable height, each flush triggers measurement, which forces synchronous layout — the classic read-write-read pattern that serialises on the main thread. And if you're appending rather than capping, the array and the DOM both grow until GC pauses become visible. **Fix:** fixed or estimated row heights where possible, `content-visibility: auto`, and a ring buffer capping retention.
+**3. Layout thrash and unbounded growth.** If rows have variable height, each flush triggers measurement, which forces synchronous layout — the classic read-write-read pattern that serialises on the main thread. And if you're appending rather than capping, the array and the DOM both grow until GC (garbage-collection) pauses become visible. **Fix:** fixed or estimated row heights where possible, `content-visibility: auto`, and a ring buffer capping retention.
 
 The order to attack it in, since this is really a diagnosis question:
 
@@ -898,7 +956,7 @@ MONOREPO vs MULTI-REPO
  7. Decide with: cross-project change frequency → shared code? → release cadence
     → compliance boundary? → can you afford the tooling?
  8. Default: monorepo for one org's related frontend products. Split for a
-    concrete reason (release train, compliance, OSS, hostile toolchain).
+    concrete reason (release train, compliance, open-source pkg, hostile toolchain).
  9. "Monorepo" ≠ "monolith". A monorepo holds N independently-deployed apps.
 10. Mandatory tooling: pnpm workspaces + Turborepo/Nx + remote cache + CODEOWNERS
     + boundary lint + Changesets + single version policy.

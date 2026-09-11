@@ -68,7 +68,34 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <title>PrepHub — Interview Prep</title>
-  </head>
+      <!--
+      Theme must be resolved BEFORE first paint. `body` is styled
+      `bg-slate-50 dark:bg-[#0a0a0f]`, and the `dark` class was only added by
+      useDarkMode's effect — which runs after the main bundle downloads, parses
+      and mounts React. On a slow connection that left a white page for several
+      seconds before flipping to dark. This is the same blocking-script fix the
+      Theme Switcher playground template documents.
+
+      Keep it inline, synchronous and in <head>: a deferred or external script
+      would paint first and defeat the point. Wrapped in try/catch because
+      localStorage throws in some privacy modes.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var dark = stored
+            ? stored === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) {
+            document.documentElement.classList.add('dark');
+            // Paint the right colour even before the CSS bundle arrives.
+            document.documentElement.style.backgroundColor = '#0a0a0f';
+          }
+        } catch (e) { /* localStorage unavailable — fall through to light */ }
+      })();
+    </script>
+</head>
   <body>
     <!-- GitHub Pages SPA redirect handler (works with 404.html) -->
     <script>

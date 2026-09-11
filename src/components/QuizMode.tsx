@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, RotateCcw, Shuffle,
   ThumbsUp, ThumbsDown, ArrowLeft, BookOpen, Bookmark, BookmarkCheck
 } from 'lucide-react';
-import { menuStructure, getAllQuestions, extractQuestions, contentFiles, type Question } from '../data';
+import { menuStructure, extractQuestions, loadAllContent, type Question } from '../data';
 import { useSpacedRepetition } from '../hooks/useSpacedRepetition';
 import { useStudyStats } from '../hooks/useStudyStats';
 import { useBookmarks } from '../hooks/useBookmarks';
@@ -44,13 +44,24 @@ export default function QuizMode() {
   const { recordQuestionReviewed } = useStudyStats();
   const { isBookmarked, toggleBookmark } = useBookmarks();
 
+  // Guide content is lazy-loaded (see data.ts) so it isn't in the main bundle.
+  // Quiz needs the whole corpus to count and extract questions, so fetch it on
+  // mount — loadAllContent memoises, so arriving here from the Interview
+  // Simulator reuses the same download.
+  const [corpus, setCorpus] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadAllContent().then((all) => { if (!cancelled) setCorpus(all); });
+    return () => { cancelled = true; };
+  }, []);
+
   // Build guide options
   const guideOptions: GuideOption[] = useMemo(() => {
     const options: GuideOption[] = [{ value: 'all', label: 'All Guides' }];
     for (const section of menuStructure) {
       if (!(section as any).items) continue;
       for (const item of (section as any).items) {
-        const content: string = (contentFiles as Record<string, string>)[item.file] || '';
+        const content: string = corpus?.[item.file] || '';
         const qs: Question[] = extractQuestions(content, item.name);
         if (qs.length > 0) {
           options.push({ value: item.name, label: `${item.name} (${qs.length})` });
@@ -58,26 +69,29 @@ export default function QuizMode() {
       }
     }
     return options;
-  }, []);
+  }, [corpus]);
 
   // Get filtered questions
   const questions: Question[] = useMemo(() => {
-    let qs: Question[];
+    if (!corpus) return [];
+    let qs: Question[] = [];
     if (selectedGuide === 'all') {
-      qs = getAllQuestions();
+      for (const section of menuStructure) {
+        for (const item of section.items || []) {
+          qs.push(...extractQuestions(corpus[item.file] || '', item.name));
+        }
+      }
     } else {
       const item = menuStructure.flatMap((s: any) => s.items || []).find((i: any) => i.name === selectedGuide);
       if (item) {
-        qs = extractQuestions((contentFiles as Record<string, string>)[(item as any).file] || '', (item as any).name);
-      } else {
-        qs = [];
+        qs = extractQuestions(corpus[(item as any).file] || '', (item as any).name);
       }
     }
     if (difficulty !== 'all') {
       qs = qs.filter((q: Question) => q.difficulty === difficulty);
     }
     return isShuffled ? shuffleArray(qs) : qs;
-  }, [selectedGuide, isShuffled, difficulty]);
+  }, [selectedGuide, isShuffled, difficulty, corpus]);
 
   const currentQuestion: Question | undefined = questions[currentIndex];
   const total: number = questions.length;
@@ -125,6 +139,17 @@ export default function QuizMode() {
     setScore({ knew: 0, learning: 0 });
     setReviewed(new Set());
   };
+
+  // Distinguish "still fetching the corpus" from "genuinely no questions",
+  // otherwise the empty state flashes on every visit while content loads.
+  if (!corpus) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+        <div className="h-6 w-6 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-indigo-500 animate-spin mb-4" />
+        <p className="text-slate-500 dark:text-slate-400">Loading questions…</p>
+      </div>
+    );
+  }
 
   if (total === 0) {
     return (

@@ -436,3 +436,26 @@ mark.search-hl {
 kbd {
   font-family: 'SF Mono', 'Fira Code', monospace;
 }
+
+/* ==================== Loading progress bar ==================== */
+/* Indeterminate bar for the top-of-page loading indicator. An indeterminate
+   sweep is honest here: content chunk size is known but download time isn't,
+   so a percentage would be invented. */
+@keyframes progress-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.progress-slide {
+  animation: progress-slide 1.1s ease-in-out infinite;
+}
+
+/* Respect the OS setting — a looping sweep is exactly the kind of motion
+   Reduce Motion exists for. Fall back to a static pulsing bar. */
+@media (prefers-reduced-motion: reduce) {
+  .progress-slide {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
+}
