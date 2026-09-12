@@ -260,7 +260,7 @@ check('a test suite exists and npm test runs it', () => {
 // ---------------------------------------------------------------------------
 // 11. Light-mode text must actually be readable
 // ---------------------------------------------------------------------------
-check('no sub-AA text colours in the light theme', () => {
+check('no sub-AA text colours in either theme', () => {
   // On white, slate-400 is 2.56:1 and slate-300 is 1.48:1 — both far below the
   // 4.5:1 WCAG AA floor for body text. A class with no `dark:` prefix applies in
   // BOTH themes, so `text-slate-400` on its own is a light-mode bug; 400 belongs
@@ -274,7 +274,16 @@ check('no sub-AA text colours in the light theme', () => {
   const ALWAYS_DARK = [
     'src/features/playground/', 'src/features/queryPlayground/', 'src/pages/QueryPlayground.tsx',
   ];
+  //
+  // THE RULE IS SYMMETRIC, and the first version of it was not. It only banned
+  // 200/300/400 — the shades that fail on white — and so explicitly permitted a
+  // bare `text-slate-500`, which is 4.76:1 on white but only 3.07–4.15:1 on the
+  // dark grounds. Lighthouse found 30 of those still failing in dark mode after
+  // the light-mode sweep had "fixed" the theme. An unprefixed utility applies in
+  // BOTH themes, so it must clear AA in both — which no single slate shade does.
+  // Hence: any bare text-slate-* on a light-themed surface needs a `dark:` pair.
   const offenders = [];
+  const darkOnly = [];
   for (const f of srcFiles) {
     if (extname(f) !== '.tsx' || f.includes('.test.')) continue;
     if (ALWAYS_DARK.some((p) => f.startsWith(p))) continue;
@@ -284,6 +293,10 @@ check('no sub-AA text colours in the light theme', () => {
       if (/(?<![\w:-])text-slate-(200|300|400)\b/.test(line)) {
         offenders.push(`${f}:${i + 1}`);
       }
+      // Passes on white, fails on the dark ground — needs a dark: counterpart.
+      if (/(?<![\w:-])text-slate-(500|600)\b(?! dark:text-slate-)/.test(line)) {
+        darkOnly.push(`${f}:${i + 1}`);
+      }
     });
   }
   assert(
@@ -292,7 +305,108 @@ check('no sub-AA text colours in the light theme', () => {
       + `4.5:1). Use \`text-slate-500 dark:text-slate-400\` — or 600/400 for small `
       + `uppercase labels: ${offenders.slice(0, 8).join(', ')}`,
   );
-  return 'light theme meets AA';
+  assert(
+    darkOnly.length === 0,
+    'a bare text-slate-500/600 applies in DARK mode too, where it is 3.07-4.15:1 '
+      + `(AA needs 4.5:1). Pair it: \`text-slate-500 dark:text-slate-400\`: `
+      + `${darkOnly.slice(0, 8).join(', ')}`,
+  );
+  return 'both themes meet AA';
+});
+
+// ---------------------------------------------------------------------------
+// 12. Nothing on the first-paint path may load the whole corpus
+// ---------------------------------------------------------------------------
+check('no always-mounted module pulls the full content corpus', () => {
+  // `loadAllContent()` downloads every guide. That is correct for Search, Quiz,
+  // Review and the Interview Simulator — all lazy routes or gated on the user
+  // opening them. It is NOT correct for anything that mounts on first paint.
+  //
+  // The sidebar's Daily Review badge did exactly that via `getAllQuestions()`,
+  // and it was invisible locally: `requestIdleCallback` delays when the fetch
+  // starts, not what it costs. Lighthouse caught the HOME PAGE pulling 64 guide
+  // chunks — 1.6 MB at High priority — to size one number, which on a throttled
+  // connection saturated the network and pushed simulated LCP to 12.8 s.
+  // `getDueCount` only ever read `q.id`, so `totalQuestionCount` (computed at
+  // build time) replaced it.
+  const ALWAYS_MOUNTED = ['src/App.tsx', 'src/main.tsx', 'src/components/Sidebar.tsx'];
+  const offenders = [];
+  for (const f of ALWAYS_MOUNTED) {
+    const body = read(f)
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))   // ignore the explanatory comments
+      .join('\n');
+    if (/\b(loadAllContent|getAllQuestions)\s*\(/.test(body)) offenders.push(f);
+  }
+  assert(
+    offenders.length === 0,
+    `${offenders.join(', ')} calls loadAllContent/getAllQuestions, which downloads every `
+      + 'guide on first paint. Use the build-time totalQuestionCount, or move the work behind '
+      + 'a lazy route or an explicit user action.',
+  );
+  return 'first paint stays off the corpus';
+});
+
+// ---------------------------------------------------------------------------
+// 13. A button whose children are only icons needs an accessible name
+// ---------------------------------------------------------------------------
+check('icon-only buttons carry an aria-label', () => {
+  // Lighthouse found 6 buttons announcing as just "button": both theme toggles,
+  // search, font size, the mobile hamburger and the sidebar close.
+  //
+  // NOTE ON PRECISION. A first attempt asked the looser question "does this
+  // button have any text?" and got 3 false positives out of 6 — `{isRunning ?
+  // 'Running…' : 'Run'}` reads as textless once tags are stripped — while also
+  // MISSING the hamburger. So this asks a narrower question with an exact
+  // answer: after removing JSX comments, self-closing elements and whitespace,
+  // is there nothing left at all? Such a button cannot have a name.
+  //
+  // Known blind spot, accepted deliberately: `{cond ? <A /> : <B />}` leaves
+  // `{cond?:}` behind and is not flagged, because separating a string used as a
+  // CONDITION from one used as CONTENT is not something a regex can do. The
+  // rule catches the common shape with zero noise; axe via Lighthouse remains
+  // the backstop.
+  const offenders = [];
+  for (const f of srcFiles) {
+    if (extname(f) !== '.tsx' || f.includes('.test.')) continue;
+    const src = read(f);
+    let i = 0;
+    while ((i = src.indexOf('<button', i)) !== -1) {
+      const close = src.indexOf('</button>', i);
+      if (close === -1) break;
+      const el = src.slice(i, close);
+      // The opening tag does NOT end at the first `>`: an arrow function in a
+      // handler (`onClick={() => …}`) contains one. A probe caught this — the
+      // naive version silently passed with the label removed. Track brace depth
+      // and quotes, and take the first `>` outside both.
+      let gt = -1, depth = 0, quote = '';
+      for (let k = 0; k < el.length; k++) {
+        const ch = el[k];
+        if (quote) { if (ch === quote) quote = ''; continue; }
+        if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+        if (ch === '{') depth++;
+        else if (ch === '}') depth--;
+        else if (ch === '>' && depth === 0) { gt = k; break; }
+      }
+      if (gt === -1) { i = close + 9; continue; }
+      const openTag = el.slice(0, gt + 1);
+      const inner = el
+        .slice(gt + 1)
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')     // JSX comments
+        .replace(/<[A-Za-z][^>]*\/>/g, '')        // <Icon />
+        .replace(/\s+/g, '');
+      i = close + 9;
+      if (/aria-label|aria-labelledby|title=/.test(openTag)) continue;
+      if (inner === '') offenders.push(`${f}:${src.slice(0, i).split('\n').length}`);
+    }
+  }
+  assert(
+    offenders.length === 0,
+    'a button containing only icons announces as "button" to a screen reader. Add an '
+      + 'aria-label, and make it track state where the meaning flips (a theme toggle '
+      + `should say "Switch to dark theme", not "Dark mode"): ${offenders.slice(0, 8).join(', ')}`,
+  );
+  return 'all icon-only buttons are named';
 });
 
 // ---------------------------------------------------------------------------

@@ -49,7 +49,7 @@ const ACCENTS: Record<string, string> = {
 
 interface ToolCounts { dueCount: number; bookmarksCount: number; checkpointsCount: number; hasUnreadChangelog: boolean }
 
-const countBadge = (n: number, tone = 'bg-slate-100 dark:bg-slate-800 text-slate-500') =>
+const countBadge = (n: number, tone = 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400') =>
   n > 0 ? <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full ${tone}`}>{n}</span> : null;
 
 /**
@@ -111,13 +111,13 @@ export default function Sidebar({
                   <Type size={16} />
                   <span className="absolute -bottom-0.5 -right-0.5 text-[7px] font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded px-0.5">{sizeLabel}</span>
                 </button>
-                <button onClick={toggleTheme} className="hidden md:flex p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <button onClick={toggleTheme} aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'} className="hidden md:flex p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
                 </button>
                 <button onClick={() => setIsSidebarCollapsed(true)} className="hidden md:flex p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Collapse sidebar">
                   <PanelLeftClose size={16} />
                 </button>
-                <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <button onClick={() => setIsSidebarOpen(false)} aria-label="Close navigation" className="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <X size={18} />
                 </button>
               </div>
@@ -125,7 +125,7 @@ export default function Sidebar({
 
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="mt-4 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 transition-all"
+              className="mt-4 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 transition-all"
             >
               <Search size={14} />
               <span className="flex-1 text-left">Search...</span>
@@ -266,7 +266,7 @@ export default function Sidebar({
               href="https://github.com/sreen98/prephub"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900 transition-all"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900 transition-all"
             >
               <GithubIcon size={16} />
               <span>View on GitHub</span>

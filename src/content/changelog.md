@@ -1,5 +1,17 @@
 # What's New
 
+## v1.6.1 (September 2026)
+
+**Frontend Tooling — webpack vs Vite now answers the question interviewers actually ask.** The guide compared the two thoroughly but recommended Vite flatly, which is only the answer for a *new* project. The harder version — "would you migrate an existing webpack app?" — now has its own section and its own interview question, and the answer starts with *no, by default*: a working build config is years of accumulated decisions, and "the dev server starts faster" rarely pays for replacing it. It names the three things that would change that, and adds the option most people miss — **Rspack**, a Rust rewrite of webpack that runs your existing config, so you get most of the speed without rewriting your loaders. Vite is the better destination; Rspack is the cheaper move. Rspack also gets a full entry alongside the other bundlers.
+
+Also new: the gotcha that `vite build` happily succeeds on code with type errors, because it strips TypeScript without checking it — you need a separate type-check step, and plenty of teams find that out the hard way.
+
+**Every page used to quietly download all 68 guides. Now none do.** The "Daily Review" badge in the sidebar needed to know how many questions exist, and the only way it had to find out was to fetch the entire library — 64 files, 1.6 MB — on every single page you opened, including the home page, where none of that text is ever shown. On a slow phone connection that was the difference between the page being usable in about a second and taking twelve. The count is now worked out when the site is built, so the badge costs nothing at all.
+
+**Fixed: unreadable greys in dark mode.** The light-mode contrast pass shipped earlier fixed one half of the problem and left the mirror image: a colour written without a dark-mode counterpart applies to *both* themes, so thirty places that now read clearly on white were too faint on black — the sidebar search box, its ⌘K hint, "View on GitHub", and captions throughout. Code blocks had it worse: the language label, the Copy button, and **comments inside every code sample** were all below the readable threshold.
+
+**Buttons that were invisible to screen readers now announce themselves.** The theme toggle, search, text-size, sidebar close, copy-code and bookmark buttons are icons with no words, and a screen reader had nothing to read out but "button". Each now describes what it does, and the ones that change meaning say the right thing for the current state — the theme toggle reads "Switch to dark theme" or "Switch to light theme" rather than always the same label.
+
 ## v1.6.0 (September 2026)
 
 **SOLID principles added to the Design Patterns guide.** The guide walked through all 23 Gang-of-Four patterns without ever explaining the principles those patterns exist to serve — so the catalogue read as twenty-three unrelated recipes. The new section opens with a table mapping each principle to the tension it names and the patterns it leads you to, then takes each one in turn: the misreading to avoid, the smell that identifies a real violation, a runnable before-and-after, and which patterns resolve it. It closes with when SOLID becomes the problem — over-applied, it buys indirection you never use — and why a module of pure functions already satisfies most of it in JavaScript. Two new interview questions cover how SOLID and the patterns relate, and what applying them badly looks like.

@@ -853,6 +853,41 @@ interface ImportMeta {
 - **Migrating from CRA** — Vite is the natural successor
 - **Library development** — Vite's library mode uses Rollup, which produces clean output
 
+### Choosing Between Them — The Decision, Not the Feature List
+
+The lists above are the inputs. The question interviewers actually ask is *"which would you pick?"*, and answering it with a feature comparison is the weak answer — it shows you have read a table, not that you have made a call.
+
+**There are two different questions hiding in one, so say which you are answering.**
+
+**Greenfield: Vite, and the reason is not speed.** It is that the ecosystem defaults there now — React's own docs stopped recommending Create React App, and Vue, Svelte, Solid, Astro and Nuxt all ship on it. In 2026, picking webpack for a *new* project needs a positive justification; picking Vite does not.
+
+**An existing webpack app: default to NOT migrating.** This is the answer that separates people who have maintained a build from people who have read about one. A working webpack config is years of accumulated decisions — loaders for odd asset types, `resolve.alias` entries, `DefinePlugin` values, a Jest transform that mirrors it. Replacing it is a rewrite with a long tail of small breakages, and "our dev server starts faster" is rarely worth it on its own.
+
+Three things would change that default:
+
+1. **Dev startup or HMR is slow enough to cost measurable developer time.** Not "it feels slow" — a 60-second cold start paid twenty times a day by ten engineers is three hours a day.
+2. **The config has drifted into something nobody understands.** When changing the build is a risk in itself, a rewrite buys comprehension as well as speed.
+3. **A major framework upgrade is already underway** and can absorb the churn — migrating the build alongside React 18 → 19 costs far less than a standalone project.
+
+**If the trigger is purely speed, look at Rspack before Vite.** Rspack is a Rust rewrite of webpack that is deliberately **config-compatible** — most `webpack.config.js` files run with minimal edits, and the loader and plugin APIs are the same, so `babel-loader` and friends keep working. You get most of the speed without rewriting the build. Vite is the better *destination*; Rspack is the cheaper *move*. Knowing the difference between an upgrade and a rewrite is the point. (See §5.6.)
+
+**What still legitimately keeps a project on webpack:**
+
+- **A heavy CommonJS or non-standard-module codebase.** Vite assumes ESM. Dynamic `require()`, conditional requires, and `require.context` all fight it.
+- **Custom loaders with no Vite equivalent** — fifteen years of loaders for every obscure asset type.
+- **Fine-grained chunking control**, though Rolldown's `advancedChunks` narrows this.
+- **Module Federation** used to head this list. Vite 8's single Rolldown graph supports it, so it mostly does not any more (§9.1).
+
+**Two honesty notes worth carrying into an interview.**
+
+First, **know which version you actually shipped.** "Vite uses esbuild in dev and Rollup in prod" is correct for Vite 7 and earlier; Vite 8 uses Rolldown for both, and `build.rollupOptions` becomes `build.rolldownOptions`. Check `package.json` before you claim either — being precise about the boundary between what you have read and what you have run is itself a signal.
+
+Second, **do not imply you led a migration you did not lead.** "Webpack on one project, Vite on another, different eras" is a complete and respectable answer. Claiming a migration invites specifics — CommonJS interop, `process.env` vs `import.meta.env`, path aliases, the Jest config that has to move too — and not having hit them shows immediately.
+
+**The strongest material is not this list at all.** It is a bundling decision you made and can defend: a chunk you split and why, a glob you made lazy, an output filename you changed because it collided with something. Those demonstrate that you understand what the bundler does to your module graph, which is the competency underneath the whole comparison.
+
+---
+
 ### Migration from CRA to Vite
 
 ```bash
@@ -1037,7 +1072,34 @@ npx next dev --turbo
 
 **When to use:** Anywhere you currently use Babel. SWC is faster and produces equivalent output. Adopted by Next.js, Parcel, and available as a Vite plugin.
 
-### 5.6 Bundler Comparison Summary
+### 5.6 Rspack
+
+**What:** A Rust rewrite of webpack from ByteDance, first released 2023 and production-viable from 2026. Its defining choice is **config compatibility** — it aims to run your existing `webpack.config.js`.
+
+**Key characteristics:**
+- **Webpack-compatible config, loaders and plugin API** — `babel-loader`, `css-loader`, `MiniCssExtractPlugin` and most of the ecosystem work unchanged
+- ~10× faster builds than webpack on comparable projects
+- Supports **Module Federation**, which matters for micro-frontends
+- Backs Rsbuild (a batteries-included wrapper) and Rspress/Rslib
+
+```js
+// rspack.config.js — deliberately familiar
+module.exports = {
+  entry: './src/index.js',
+  module: {
+    rules: [
+      { test: /\.tsx?$/, use: 'builtin:swc-loader' },   // built-in, replaces babel-loader
+      { test: /\.css$/, use: ['style-loader', 'css-loader'] },
+    ],
+  },
+};
+```
+
+**Why it matters for the webpack-vs-Vite decision:** it reframes the question. The usual choice is presented as "stay slow or rewrite", and Rspack is the third door — most of the speed for a fraction of the migration cost, because you are keeping the loader and plugin layer rather than replacing it. For an existing webpack codebase where the *only* complaint is build time, it is usually the right first move, with Vite as the longer-term destination if the config is also a liability.
+
+**When not to:** greenfield work (just use Vite), or a config so small that migrating it properly was never expensive.
+
+### 5.7 Bundler Comparison Summary
 
 | Feature | Webpack | Vite | Rollup | esbuild | Parcel | Turbopack |
 |---|---|---|---|---|---|---|
@@ -1873,15 +1935,39 @@ For webpack: use `webpack-bundle-analyzer` (generates an interactive treemap of 
 
 **Q20: A junior developer asks whether to use webpack or Vite for a new React project. What do you recommend and why?**
 
-Vite, without hesitation. Here is the reasoning: (1) **Official recommendation** — the React docs (react.dev) no longer recommend Create React App and list Vite-based setups as the default, (2) **Developer experience** — Vite's dev server starts in under a second regardless of project size, HMR is near-instant, and the config file is 10-20 lines instead of 100+, (3) **Build quality** — Vite uses Rollup for production, which produces excellent tree-shaking and code splitting output, (4) **Ecosystem** — Vite is used by Vue, Svelte, Solid, Astro, and increasingly React projects. Plugin availability is excellent, (5) **TypeScript** — built-in with zero config, (6) **Migration path** — if you later need something Vite can't do, you can always eject to custom Rollup config or add webpack for specific needs. The only exceptions: if you're joining a team with an existing webpack setup, or if you need very specific webpack loaders with no Vite equivalent. Note that Module Federation used to be on that list — it was the last real reason micro-frontend teams stayed on webpack — but Vite 8's single Rolldown graph supports it, so that exception has largely closed (see §9.1).
+Vite, and the reason to lead with is not speed. It is that the ecosystem defaults there now: the React docs (react.dev) no longer recommend Create React App and list Vite-based setups as the default, and Vue, Svelte, Solid, Astro and Nuxt all ship on it. Picking webpack for a **new** project in 2026 needs a positive justification; picking Vite does not.
 
-**Q21: How can you see the original React source code in browser DevTools even though webpack bundles everything into a single (or few) output file(s)?**
+The supporting reasons, in the order they actually matter: the dev server starts in under a second regardless of project size and HMR is near-instant; the config is 20–50 lines rather than 100–500; TypeScript, CSS Modules, PostCSS and static assets work with no loader configuration; and production output goes through Rollup (Rolldown from Vite 8), which tree-shakes well.
+
+**The gotcha to volunteer, because it catches teams out:** Vite transpiles TypeScript without type-checking it. esbuild — and now Rolldown — strip the types and move on, so `vite build` succeeds on code with type errors. You need `tsc --noEmit` in CI or `vite-plugin-checker` in dev. Webpack's `ts-loader` type-checks by default, so this is a real behavioural difference, not a footnote.
+
+---
+
+**Q21: And for an existing webpack application — would you migrate it to Vite?**
+
+This is the more interesting version of the question, and the strong answer starts with **no, by default.**
+
+A working webpack config is years of accumulated decisions: loaders for odd asset types, `resolve.alias` entries, `DefinePlugin` values, a Jest transform that mirrors it. Replacing it is a rewrite with a long tail of small breakages, and "the dev server starts faster" rarely justifies that on its own.
+
+Three things would change the default: dev startup or HMR slow enough to cost **measurable** developer time (a 60-second cold start, paid twenty times a day across ten engineers, is three hours a day — not "it feels slow"); a config that nobody understands any more, where a rewrite buys comprehension as well as speed; or a major framework upgrade already underway that can absorb the churn.
+
+**And if the trigger is purely speed, look at Rspack before Vite.** It is a Rust rewrite of webpack that is deliberately config-compatible — most `webpack.config.js` files run with minimal edits, and the loader and plugin APIs are unchanged, so `babel-loader` and the rest keep working. You get most of the speed without rewriting the build. Vite is the better *destination*; Rspack is the cheaper *move*, and distinguishing an upgrade from a rewrite is the judgement being tested.
+
+What still legitimately keeps a project on webpack: a heavy CommonJS or non-standard-module codebase (Vite assumes ESM, and `require.context` or conditional `require()` will fight it), custom loaders with no Vite equivalent, and fine-grained chunking control — though Rolldown's `advancedChunks` narrows that last one. Module Federation used to head this list; Vite 8's single Rolldown graph supports it, so it mostly does not any more (§9.1).
+
+**Two honesty notes.** Know which version you actually shipped — "esbuild in dev, Rollup in prod" is correct for Vite 7 and earlier, while Vite 8 uses Rolldown for both and `build.rollupOptions` becomes `build.rolldownOptions`. And do not imply you led a migration you did not lead: "webpack on one project, Vite on another, different eras" is a complete answer, whereas claiming a migration invites specifics about CommonJS interop, `process.env` vs `import.meta.env`, path aliases and the Jest config that has to move too.
+
+**The strongest material is none of the above.** It is a bundling decision you made and can defend — a vendor chunk you split so dependency hashes survive a deploy, a glob you made lazy because it was inlining megabytes into the entry chunk, an output filename you changed because it collided with a library's own `index.js` and poisoned a service-worker precache glob. Those show you understand what the bundler does to your module graph, which is the competency the whole comparison is a proxy for.
+
+---
+
+**Q22: How can you see the original React source code in browser DevTools even though webpack bundles everything into a single (or few) output file(s)?**
 
 This is possible because of **source maps**. When webpack builds your code, it can generate a `.map` file alongside each bundle (e.g., `main.js.map`). A source map is a JSON file that contains a mapping between every position in the bundled output and the corresponding position in the original source files. The browser DevTools detect the `//# sourceMappingURL=main.js.map` comment at the end of the bundle, fetch the map file, and use it to reconstruct the original file tree under the **Sources** tab — so you see your React components exactly as you wrote them, not the transpiled/minified bundle. In webpack, this is controlled by the `devtool` option. Common values include: (1) `source-map` — generates a full, separate `.map` file with accurate line/column mappings; best for production debugging but increases build time, (2) `eval-source-map` — embeds source maps inside `eval()` calls per module; fast rebuilds, great for development, (3) `cheap-module-source-map` — maps to original lines (not columns) after loader transforms; good balance of speed and accuracy, (4) `hidden-source-map` — generates the `.map` file but does not add the `sourceMappingURL` comment, so the map is not automatically loaded by browsers; useful in production when you want to upload maps to an error tracking service (like Sentry) without exposing them publicly, (5) `false` / `none` — no source maps at all. **In production**, many teams either disable source maps or use `hidden-source-map` to avoid exposing original source code to end users, while still uploading maps to error monitoring tools for readable stack traces. Vite similarly generates source maps via the `build.sourcemap` option in `vite.config.js`.
 
 ---
 
-**Q22: Vite used two different bundlers. What were they, why, and what changed in Vite 8?**
+**Q23: Vite used two different bundlers. What were they, why, and what changed in Vite 8?**
 
 Vite's original architecture split the job: **esbuild** for dev (dependency pre-bundling and per-file transform, chosen for raw speed) and **Rollup** for production (chosen for the best tree-shaking and code-splitting output in the ecosystem). That was a pragmatic best-of-both, but it meant **two module graphs and two plugin pipelines**, which produced the "works in dev, breaks in build" bug class — a plugin or a subtle import-resolution difference behaving one way under esbuild and another under Rollup.
 
@@ -1898,7 +1984,7 @@ Migration caveats worth naming: `@vitejs/plugin-react` v6 dropped Babel, so Reac
 
 ---
 
-**Q23: `eslintrc` no longer works after an upgrade. What happened, and what does flat config change conceptually?**
+**Q24: `eslintrc` no longer works after an upgrade. What happened, and what does flat config change conceptually?**
 
 **ESLint v10 (February 2026) removed the `eslintrc` config system entirely.** Flat config (`eslint.config.js` / `.mjs`) became the default in v9 and is now the only option. The CLI also dropped every eslintrc-specific flag — `--no-eslintrc`, `--env`, `--rulesdir`, `--ignore-path`, `--resolve-plugins-relative-to` — and the `ESLINT_USE_FLAT_CONFIG` escape hatch is gone. Migration is mechanical:
 
@@ -1925,7 +2011,7 @@ One behavioural change that catches monorepos: v10 resolves config starting from
 
 ---
 
-**Q24: Would you replace ESLint with Biome or oxlint? How do you decide?**
+**Q25: Would you replace ESLint with Biome or oxlint? How do you decide?**
 
 Rarely a straight replacement, and the reasoning matters more than the pick. The three tools are optimising for different things:
 

@@ -226,6 +226,7 @@ export default function QuizMode() {
                   <div className="min-h-[280px] p-8 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm flex flex-col relative">
                     {/* Bookmark button */}
                     <button
+                      aria-label={isBookmarked(`quiz__${currentQuestion.id}`) ? 'Remove bookmark' : 'Bookmark this question'}
                       onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                         e.stopPropagation();
                         toggleBookmark({ id: `quiz__${currentQuestion.id}`, questionId: currentQuestion.id, questionText: currentQuestion.question.slice(0, 100), guideName: currentQuestion.guide, type: 'quiz' });
@@ -239,7 +240,7 @@ export default function QuizMode() {
                         Question
                       </span>
                       {currentQuestion.guide && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                           {currentQuestion.guide}
                         </span>
                       )}

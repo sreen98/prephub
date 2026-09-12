@@ -13,7 +13,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDarkMode } from './hooks/useDarkMode';
 import type { MenuSection, MenuItem } from './data';
-import { menuStructure, cheatSheets, getAllQuestions, subscribePendingLoads, getPendingLoads } from './data';
+import { menuStructure, cheatSheets, totalQuestionCount, subscribePendingLoads, getPendingLoads } from './data';
 import { useReadingPrefs } from './hooks/useReadingPrefs';
 import { useBookmarks } from './hooks/useBookmarks';
 import { useCheckpoints } from './hooks/useCheckpoints';
@@ -175,7 +175,7 @@ const BackToTop = () => {
 
 // ==================== Main App ====================
 
-const CHANGELOG_VERSION = '2026-04-tricky-rewrite';
+const CHANGELOG_VERSION = '2026-09-perf-a11y';
 
 export default function App() {
   const { theme, toggleTheme } = useDarkMode();
@@ -192,25 +192,17 @@ export default function App() {
   const [milestone, setMilestone] = useState<number | null>(null);
   const location = useLocation();
   const hasUnreadChangelog = safeGet('lastSeenChangelog') !== CHANGELOG_VERSION;
-  // getDueCount treats an unseen question as due, so it needs the real total —
-  // which means the full corpus. Resolving that during render would pull all
-  // content back into the critical path, so it is deferred to idle time after
-  // first paint and the badge simply appears a moment later.
-  const [dueCount, setDueCount] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    const run = () => {
-      getAllQuestions()
-        .then((qs) => { if (!cancelled) setDueCount(srHook.getDueCount(qs)); })
-        .catch((err: unknown) => console.error('[prephub] due-count failed', err));
-    };
-    const idle = window.requestIdleCallback?.(run, { timeout: 3000 });
-    if (idle === undefined) setTimeout(run, 1200);   // Safari has no rIC
-    return () => {
-      cancelled = true;
-      if (idle !== undefined) window.cancelIdleCallback?.(idle);
-    };
-  }, [srHook]);
+  // getDueCount treats an unseen question as due, so it needs the real TOTAL —
+  // but only the total, never the text. This used to call getAllQuestions(),
+  // which loads every guide: Lighthouse caught the home page fetching 64 guide
+  // chunks (1.6 MB, High priority) purely to size this badge, which on a
+  // throttled connection saturated the network and pushed simulated LCP to
+  // 12.8 s. Deferring to requestIdleCallback had hidden it locally — idle time
+  // delays when the download starts, not how much it costs.
+  //
+  // `totalQuestionCount` is computed at build time, so the badge is now a
+  // synchronous read of localStorage with no network at all, and no effect.
+  const dueCount = srHook.getDueCountFromTotal(totalQuestionCount);
 
   // Record visit + check streak milestone. Runs once per mount; `statsHook`
   // is listed so the dep array is honest, and the guard keeps it once-only
@@ -355,7 +347,7 @@ export default function App() {
 
       {/* Mobile Header */}
       <header className="fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between px-4 z-50 md:hidden">
-        <button onClick={() => setIsSidebarOpen(true)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+        <button onClick={() => setIsSidebarOpen(true)} aria-label="Open navigation" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
           <Menu size={20} />
         </button>
         <Link to="/" className="flex items-center gap-2 font-bold">
@@ -365,14 +357,14 @@ export default function App() {
           <span className="text-base">PrepHub</span>
         </Link>
         <div className="flex items-center gap-1">
-          <button onClick={() => setIsSearchOpen(true)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={() => setIsSearchOpen(true)} aria-label="Search guides" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <Search size={18} />
           </button>
-          <button onClick={cycleFontSize} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative" title={`Font size: ${fontSize}`}>
+          <button onClick={cycleFontSize} aria-label={`Text size: ${fontSize}. Tap to change.`} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative" title={`Font size: ${fontSize}`}>
             <Type size={18} />
             <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded px-0.5">{sizeLabel}</span>
           </button>
-          <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={toggleTheme} aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </div>

@@ -34,6 +34,7 @@ export interface UseSpacedRepetitionReturn {
   recordReview: (questionId: string, quality: number) => void;
   getDueQuestions: <T extends Question>(allQuestions: T[]) => T[];
   getDueCount: <T extends Question>(allQuestions: T[]) => number;
+  getDueCountFromTotal: (total: number) => number;
   getQuestionSchedule: (questionId: string) => ScheduleEntry | null;
   schedule: ScheduleMap;
 }
@@ -114,9 +115,34 @@ export function useSpacedRepetition(): UseSpacedRepetitionReturn {
     return count;
   }, [schedule]);
 
+  /**
+   * The same count, from a total instead of the questions themselves.
+   *
+   * `getDueCount` only reads `q.id`, so the ONLY reason it takes the corpus is
+   * to know how many there are. The sidebar badge used that, and pulled every
+   * guide — 64 chunks, 1.6 MB — on every route to size one number.
+   *
+   * "Due" is "never reviewed, or scheduled for today or earlier", so it is
+   * simply the total minus the entries scheduled for later.
+   *
+   * The one inexactness: a schedule entry for a question that no longer exists
+   * still counts as not-due, so the badge can under-report after questions are
+   * removed. It is bounded by how much content changed, self-corrects as those
+   * entries come due, and the Review page itself still computes the exact set
+   * from the real corpus it loads anyway.
+   */
+  const getDueCountFromTotal = useCallback((total: number): number => {
+    const t = today();
+    let notDue = 0;
+    for (const entry of Object.values(schedule)) {
+      if (entry.nextReview > t) notDue++;
+    }
+    return Math.max(0, total - notDue);
+  }, [schedule]);
+
   const getQuestionSchedule = useCallback((questionId: string): ScheduleEntry | null => {
     return schedule[questionId] || null;
   }, [schedule]);
 
-  return { recordReview, getDueQuestions, getDueCount, getQuestionSchedule, schedule };
+  return { recordReview, getDueQuestions, getDueCount, getDueCountFromTotal, getQuestionSchedule, schedule };
 }

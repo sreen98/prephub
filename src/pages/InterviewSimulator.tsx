@@ -127,7 +127,7 @@ export default function InterviewSimulator() {
   if (phase === 'setup') {
     return (
       <div className="max-w-2xl mx-auto px-6 py-8 md:py-12">
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors mb-4">
+        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-4">
           <ArrowLeft size={14} /> Back
         </Link>
         <h1 className="text-2xl font-extrabold mb-2">Interview Simulator</h1>
@@ -210,7 +210,7 @@ export default function InterviewSimulator() {
       <div className="max-w-3xl mx-auto px-6 py-8">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-6">
-          <span className="text-sm text-slate-500">Question {currentIndex + 1} of {questions.length}</span>
+          <span className="text-sm text-slate-500 dark:text-slate-400">Question {currentIndex + 1} of {questions.length}</span>
           <span className={`text-lg font-bold font-mono ${isLowTime ? 'text-red-500 animate-pulse' : 'text-slate-700 dark:text-slate-300'}`}>
             <Timer size={16} className="inline mr-1" />
             {formatTime(timeLeft)}
@@ -225,7 +225,7 @@ export default function InterviewSimulator() {
         {/* Question */}
         <div className="min-h-[200px] p-8 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">{current.guide}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{current.guide}</span>
             {current.difficulty && (
               <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${current.difficulty === 'beginner' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600' : current.difficulty === 'intermediate' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600' : 'bg-red-50 dark:bg-red-950/30 text-red-600'}`}>
                 {current.difficulty}
@@ -300,7 +300,7 @@ export default function InterviewSimulator() {
         <div className="text-center mb-8">
           <Trophy size={48} className={`mx-auto mb-4 ${score >= 70 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'}`} />
           <h1 className="text-3xl font-extrabold mb-2">Interview Complete!</h1>
-          <p className="text-slate-500">You scored <strong className={score >= 70 ? 'text-emerald-600' : 'text-amber-600'}>{score}%</strong> in {formatTime(timeTaken)}</p>
+          <p className="text-slate-500 dark:text-slate-400">You scored <strong className={score >= 70 ? 'text-emerald-600' : 'text-amber-600'}>{score}%</strong> in {formatTime(timeTaken)}</p>
         </div>
 
         {/* Score cards */}
@@ -314,7 +314,7 @@ export default function InterviewSimulator() {
             <div className="text-xs text-amber-600/70">Incorrect</div>
           </div>
           <div className="text-center p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <div className="text-2xl font-extrabold text-slate-500">{skipped}</div>
+            <div className="text-2xl font-extrabold text-slate-500 dark:text-slate-400">{skipped}</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">Skipped</div>
           </div>
         </div>

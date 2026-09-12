@@ -31,7 +31,7 @@ const colors: Record<string, ColorScheme> = {
 export default function CheatSheetsIndex() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-8 md:py-12">
-      <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors mb-4">
+      <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-4">
         <ArrowLeft size={14} /> Back
       </Link>
       <h1 className="text-2xl font-extrabold mb-2">Cheat Sheets</h1>

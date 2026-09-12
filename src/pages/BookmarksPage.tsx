@@ -28,11 +28,11 @@ export default function BookmarksPage() {
     <div className="max-w-3xl mx-auto px-6 py-8 md:py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors mb-2">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-2">
             <ArrowLeft size={14} /> Back
           </Link>
           <h1 className="text-2xl font-extrabold">Bookmarks</h1>
-          <p className="text-sm text-slate-500 mt-1">{bookmarks.length} saved item{bookmarks.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{bookmarks.length} saved item{bookmarks.length !== 1 ? 's' : ''}</p>
         </div>
         <button
           onClick={clearAll}
@@ -73,6 +73,7 @@ export default function BookmarksPage() {
                 </div>
                 <button
                   onClick={() => removeBookmark(bookmark.id)}
+                  aria-label={`Remove bookmark: ${bookmark.type === 'quiz' ? bookmark.questionText : bookmark.headingText}`}
                   className="p-1 rounded-lg text-slate-500 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 opacity-0 group-hover:opacity-100 transition-all"
                 >
                   <Trash2 size={14} />

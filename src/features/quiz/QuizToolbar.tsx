@@ -37,7 +37,7 @@ export default function QuizToolbar({
     <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors mb-2">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-2">
             <ArrowLeft size={14} /> Back
           </Link>
           <h1 className="text-2xl font-extrabold">Quiz Mode</h1>
@@ -54,14 +54,14 @@ export default function QuizToolbar({
           </select>
           <button
             onClick={onToggleShuffle}
-            className={`p-2 rounded-xl border transition-colors ${isShuffled ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400' : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+            className={`p-2 rounded-xl border transition-colors ${isShuffled ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400' : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
             title="Shuffle questions"
           >
             <Shuffle size={16} />
           </button>
           <button
             onClick={onReset}
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
             title="Reset progress"
           >
             <RotateCcw size={16} />
@@ -70,7 +70,7 @@ export default function QuizToolbar({
       </div>
 
       <div className="flex items-center gap-2 mb-6">
-        <span className="text-xs text-slate-500 mr-1">Difficulty:</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 mr-1">Difficulty:</span>
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5">
           {DIFFICULTIES.map((level) => (
             <button
@@ -80,7 +80,7 @@ export default function QuizToolbar({
                 'px-2.5 py-1 rounded-lg text-xs font-medium transition-colors capitalize',
                 difficulty === level
                   ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300',
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300',
               ].join(' ')}
             >
               {level === 'all' ? 'All' : level}
@@ -90,7 +90,7 @@ export default function QuizToolbar({
       </div>
 
       <div className="mb-8">
-        <div className="flex justify-between text-sm text-slate-500 mb-2">
+        <div className="flex justify-between text-sm text-slate-500 dark:text-slate-400 mb-2">
           <span>{currentIndex + 1} of {total}</span>
           <span className="flex items-center gap-3">
             <span className="flex items-center gap-1 text-emerald-600"><ThumbsUp size={12} /> {score.knew}</span>

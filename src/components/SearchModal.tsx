@@ -119,12 +119,12 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                        lazy-loaded), so distinguish "still loading" from
                        "genuinely nothing matched" — otherwise every first
                        search reads as a miss. */
-                    <div className="px-4 py-8 text-center text-slate-500 flex items-center justify-center gap-2">
+                    <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
                       <span className="h-4 w-4 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-indigo-500 animate-spin" />
                       Loading search index…
                     </div>
                   ) : results.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-slate-500">
+                    <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                       No results found for &ldquo;{query}&rdquo;
                     </div>
                   ) : (
@@ -145,7 +145,7 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                           </span>
                         </div>
                         {item.snippet && (
-                          <p className="text-xs text-slate-500 mt-1 line-clamp-2">{item.snippet}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{item.snippet}</p>
                         )}
                       </button>
                     ))
@@ -154,7 +154,7 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
               )}
 
               {query.length < 2 && (
-                <div className="px-5 py-6 text-sm text-slate-500 text-center">
+                <div className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">
                   Type to search across all {menuStructure.flatMap(s => s.items || []).length} guides...
                 </div>
               )}

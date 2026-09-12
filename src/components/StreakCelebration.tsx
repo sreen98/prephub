@@ -79,7 +79,7 @@ export default function StreakCelebration({ milestone, onClose }: StreakCelebrat
                 ))}
               </div>
 
-              <button onClick={onClose} className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <button onClick={onClose} aria-label="Dismiss" className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <X size={16} />
               </button>
 

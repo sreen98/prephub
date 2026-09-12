@@ -101,17 +101,17 @@ export default function ReviewPage() {
     <div className="max-w-3xl mx-auto px-6 py-8 md:py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors mb-2">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-2">
             <ArrowLeft size={14} /> Back
           </Link>
           <h1 className="text-2xl font-extrabold">Daily Review</h1>
-          <p className="text-sm text-slate-500 mt-1">{total} question{total !== 1 ? 's' : ''} due today</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{total} question{total !== 1 ? 's' : ''} due today</p>
         </div>
       </div>
 
       {/* Progress */}
       <div className="mb-8">
-        <div className="flex justify-between text-sm text-slate-500 mb-2">
+        <div className="flex justify-between text-sm text-slate-500 dark:text-slate-400 mb-2">
           <span>{currentIndex + 1} of {total}</span>
           <span>{reviewed} reviewed</span>
         </div>
@@ -142,7 +142,7 @@ export default function ReviewPage() {
                 <div className="min-h-[250px] p-8 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm flex flex-col">
                   <div className="flex items-center gap-2 mb-4">
                     <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-lg">Question</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">{current.guide}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{current.guide}</span>
                   </div>
                   <div className="flex-1 quiz-markdown">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{current.question}</ReactMarkdown>

@@ -308,7 +308,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
           {guidePath && (
             <button
               onClick={handleToggleComplete}
-              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors", guideStatus === 'completed' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300")}
+              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors", guideStatus === 'completed' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300")}
             >
               {guideStatus === 'completed' ? <CheckCircle size={13} /> : <Circle size={13} />}
               {guideStatus === 'completed' ? 'Completed' : 'Mark Complete'}

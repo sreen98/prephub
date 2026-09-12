@@ -41,6 +41,28 @@ function readingTime(markdown) {
   return Math.max(1, Math.ceil(proseWords / 200 + codeWords / 60));
 }
 
+/**
+ * Mirrors the two patterns in src/data/extractQuestions.ts — keep the three in
+ * step. `questionCountParity` in src/data.test.ts fails if they drift, which is
+ * the only thing stopping this copy from quietly going stale.
+ *
+ * WHY A BUILD-TIME COUNT: the sidebar's Daily Review badge used to call
+ * getAllQuestions(), which loads EVERY guide — 64 chunks, 1.6 MB — on every
+ * route, just to size a number. `getDueCount` only ever reads `q.id`, so the
+ * badge needs a total, not a corpus.
+ */
+function countQuestions(content) {
+  // Pattern 1: JS-output style — `## QN` + a fenced block.
+  const jsMatches = [...content.matchAll(/^## Q(\d+)\s*\n([\s\S]*?)(?=^## Q\d+\s*$|$)/gm)];
+  if (jsMatches.length > 3) {
+    return jsMatches.filter((m) => /```[\w]*\n([\s\S]*?)```/.test(m[2])).length;
+  }
+  // Pattern 2: standard style — `**QN: text**` with a non-trivial answer.
+  const stdMatches = [...content.matchAll(
+    /\*\*Q(\d+):\s*(.+?)\*\*\s*\n([\s\S]*?)(?=\*\*Q\d+:|---(?:\s*\n)|$)/g)];
+  return stdMatches.filter((m) => m[3].trim().length > 10).length;
+}
+
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => {
     const full = join(dir, name);
@@ -60,6 +82,7 @@ for (const file of walk(contentDir)) {
   meta[key] = {
     readMin: readingTime(markdown),
     bytes: Buffer.byteLength(markdown),
+    questions: countQuestions(markdown),
   };
 }
 
@@ -67,4 +90,5 @@ mkdirSync(dirname(outFile), { recursive: true });
 writeFileSync(outFile, JSON.stringify(meta, null, 0) + '\n');
 
 const kb = (Buffer.byteLength(JSON.stringify(meta)) / 1024).toFixed(1);
-console.log(`content-meta.json: ${Object.keys(meta).length} files, ${kb} KB`);
+const totalQs = Object.values(meta).reduce((n, m) => n + m.questions, 0);
+console.log(`content-meta.json: ${Object.keys(meta).length} files, ${kb} KB, ${totalQs} questions`);

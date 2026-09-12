@@ -62,7 +62,7 @@ export const PreBlock = ({ children }: { children: React.ReactNode }) => {
               <Play size={12} /><span>Try it</span>
             </button>
           )}
-          <button onClick={handleCopy} className="copy-btn">
+          <button onClick={handleCopy} aria-label={copied ? 'Code copied' : 'Copy code'} className="copy-btn">
             {copied
               ? <><Check size={12} /><span>Copied!</span></>
               : <><Copy size={12} /><span>Copy</span></>

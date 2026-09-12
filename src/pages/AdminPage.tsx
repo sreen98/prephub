@@ -125,7 +125,7 @@ export default function AdminPage() {
         </div>
         <button
           onClick={lock}
-          className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
           title="Lock and clear session"
         >
           <LogOut size={13} />

@@ -84,14 +84,15 @@ const contentLoaders = import.meta.glob<string>(
   { query: '?raw', import: 'default' },
 );
 
-/** Build-time metadata (reading time, size) keyed by the same './content/…' paths. */
-export const contentMeta: Record<string, { readMin: number; bytes: number }> = contentMetaJson;
+/** Build-time metadata (reading time, size, question count) keyed by the same './content/…' paths. */
+export const contentMeta: Record<string, { readMin: number; bytes: number; questions: number }> = contentMetaJson;
 
 /** Precomputed reading time. Use this instead of estimateReadingTime() when you
  *  only have a file path and don't want to pull the markdown into the bundle. */
 export function readMinFor(file: string): number {
   return contentMeta[file]?.readMin ?? 1;
 }
+
 
 const contentCache = new Map<string, string>();
 
@@ -319,6 +320,25 @@ export const menuStructure: MenuSection[] = [
 ];
 
 // ==================== Utilities ====================
+
+
+/**
+ * How many questions the corpus holds — WITHOUT downloading it.
+ *
+ * Summed over `menuStructure` exactly as `getAllQuestions()` iterates, so the
+ * two agree by construction; `src/data.test.ts` pins that they do.
+ *
+ * This exists because the sidebar's Daily Review badge used to call
+ * `getAllQuestions()`, which loads every guide — Lighthouse caught it pulling
+ * **64 chunks, 1.6 MB, at High priority** on the *home page*, where none of
+ * that text is ever shown. `requestIdleCallback` deferred when it started but
+ * not how much it fetched, so on a throttled connection it saturated the
+ * network and pushed simulated LCP to 12.8 s. `getDueCount` only ever reads
+ * `q.id`, so a total is all the badge needed.
+ */
+export const totalQuestionCount: number = menuStructure
+  .flatMap((section) => section.items ?? [])
+  .reduce((n, item) => n + (contentMeta[item.file]?.questions ?? 0), 0);
 
 export function slugify(text: string): string {
   return text

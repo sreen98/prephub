@@ -124,6 +124,86 @@ minimum-tick floor is load-bearing — Throttle's only assertion fires 200 ms ou
 ### 9. Tests are the gate for anything `tsc` cannot see
 Three defects reached production through a clean typecheck: the Promise-to-`.filter()` blank screen, 344 colliding question ids, and 180 broken in-page anchors. **`import.meta.glob` only resolves under Vite, so the data layer cannot be imported into plain Node** — Vitest runs through Vite, which is why `src/data.test.ts` can execute it. Write a test for: anything in `src/lib/`, anything pure in `src/data.ts`, and any editor/text-manipulation rule (see `playgroundAutoClose.test.ts`, which replays real keystrokes rather than testing helpers in isolation). The old ritual of hand-building a throwaway SSR probe is replaced by `npm test`.
 
+### 9c. Nothing on the first-paint path may load the whole corpus
+The sidebar's Daily Review badge called `getAllQuestions()` → `loadAllContent()`,
+which downloads **every guide**. Lighthouse caught the **home page** pulling
+**64 guide chunks, 1.6 MB, all at High priority**, to size one number — text
+that page never renders. On the simulated 1.5 Mbps mobile link that saturated
+the connection and pushed LCP to **12.8 s** against a 685 ms observed value.
+
+**It was invisible locally, and the mitigation was the reason.** The call was
+already deferred to `requestIdleCallback` — which delays *when the fetch
+starts*, not *what it costs*. On a fast connection it finishes in 200 ms and
+nothing looks wrong.
+
+`getDueCount` only ever reads `q.id`, so the badge needed a **total, not a
+corpus**. `generate-content-meta.js` now emits a per-file `questions` count and
+`data.ts` exposes `totalQuestionCount`, summed over `menuStructure` exactly as
+`getAllQuestions()` iterates. The badge is now a synchronous localStorage read
+with no network and no effect at all.
+
+- **The generator re-implements the two regexes from `extractQuestions`**, which
+  is the usual drift hazard — pinned by the `totalQuestionCount` parity block in
+  `src/data.test.ts`, which compares both the total and the per-guide counts
+  against the real extractor so a mismatch names the file that caused it.
+- `getDueCountFromTotal` is inexact in one direction: a schedule entry for a
+  question that no longer exists still counts as not-due, so the badge can
+  under-report after content is removed. Bounded, self-correcting, and the
+  Review page still computes the exact set from the corpus it loads anyway.
+- Enforced by **check #12 in `verify-architecture.js`**: `App.tsx`, `main.tsx`
+  and `Sidebar.tsx` may not call `loadAllContent`/`getAllQuestions`. Legitimate
+  callers (Search, Quiz, Review, Interview Simulator) are all lazy routes or
+  gated on the user opening them — `SearchModal` fetches only when `isOpen`.
+  Probe-tested.
+
+### 9d. The contrast rule is SYMMETRIC — an unprefixed utility applies in both themes
+The first version of check #11 banned only `text-slate-200/300/400`, the shades
+that fail on white, and therefore **explicitly permitted a bare
+`text-slate-500`** — which is 4.76:1 on white but only **3.07–4.15:1 on the dark
+grounds**. Lighthouse found 30 of those still failing in dark mode *after* the
+light-mode sweep had "fixed" the theme. No single slate shade clears AA on both
+grounds, so any bare `text-slate-*` on a light-themed surface needs a `dark:`
+counterpart. The check now asserts both directions.
+
+Code chrome had the same problem, from the vendored `github-dark-dimmed` theme:
+`.code-lang`/`.copy-btn` at `#768390` were 3.29:1 on `#2d333b`, `.hljs-comment`
+3.88:1 on `#22272e`, and `.try-btn` green 4.48:1 — all just under the floor.
+Now `#adbac7` (6.45:1), an override for `.hljs-comment` at `#a0a8b0` (6.24:1),
+and `#6bc46d` (5.91:1). **When raising a base colour, check its `:hover` still
+differs** — the copy button's hover was already `#adbac7`, so lifting the base
+to match silently removed the hover affordance; it moved to `#cdd9e5`.
+
+### 9e. Icon-only buttons need an `aria-label` — enforced, after two failed attempts
+Lighthouse found 6 buttons announcing as just "button": both theme toggles,
+search, font size, the mobile hamburger, the sidebar close — plus the streak
+dismiss, copy-code, template-picker close/clear, quiz bookmark and
+remove-bookmark. **Labels that depend on state must flip with it**
+(`theme === 'light' ? 'Switch to dark theme' : …`); announcing "Dark mode" while
+already dark is worse than silence.
+
+Check #13 in `verify-architecture.js` enforces it, and **the two wrong turns on
+the way are the useful part**:
+
+1. **Too loose.** Asking "does this button have any text?" gave 3 false
+   positives out of 6 — `{isRunning ? 'Running…' : 'Run'}` reads as textless
+   once tags are stripped — *and* missed the hamburger. Abandoned; a rule that
+   cries wolf is worse than none.
+2. **Right question, broken parser.** The narrow form — "after removing JSX
+   comments, self-closing elements and whitespace, is there nothing left?" — is
+   exact. But finding the end of the opening tag with `indexOf('>')` **stops at
+   the `>` inside `onClick={() => …}`**, so `openTag` was truncated and the
+   `aria-label` test read the wrong slice. **The probe caught it: removing a
+   label left the check passing.** It now walks the tag tracking brace depth and
+   quote state. Fixing that immediately surfaced a genuine miss in
+   `BookmarksPage`.
+
+Known blind spot, accepted: `{cond ? <A /> : <B />}` leaves `{cond?:}` behind and
+is not flagged, because a regex cannot tell a string used as a CONDITION from one
+used as CONTENT. Zero noise, some misses; axe via Lighthouse is the backstop.
+
+**Always probe a new guard by breaking the thing it guards.** This one passed
+its own green run while being structurally unable to fail.
+
 ### 10. Playground data: metadata eager, code bodies lazy
 `src/generated/playground-index.json` (13 KB, **generated + gitignored**, rebuilt by `npm run dev` / `npm run build` / `npm run playground:index`) holds every template's name, tag, kind, category, patterns and difficulty — everything the modal lists and filters on. The 360 KB of `code` bodies load on demand via `src/data/playground/templateIndex.ts` (`getTemplateCode` / `peekTemplateCode` / `prefetchTemplateCode`). **`CodePlayground` must import values from `templateIndex`, never from `playgroundTemplates`** — a value import drags all 360 KB back into the route chunk, and `verify:arch` fails if it does.
 - The generator works by esbuild-transpiling `playgroundTemplates.ts` and **executing** it, which is safe only because that module has **zero imports**. Keep it that way. The crucial consequence: the generator never parses or rewrites the 180 template literals, whose backtick escaping has silently broken before in a way `tsc` does not catch.
@@ -305,6 +385,34 @@ Original findings, for context:
   - **The React guide is fully clean: 191/191.** The 26 that were broken fell into five classes, and the fixes are worth copying: bare class-method bodies → wrapped in a minimal self-contained `class` (clearer *and* runnable); BAD-vs-GOOD pairs redeclaring one identifier → rename the second; `dependencies?` / `getServerSnapshot?` optional-arg notation → a real `declare function` signature; `const x = ...;` elision → complete the code; adjacent JSX roots or a top-level `return` → wrap in a component or assign to named consts.
   - **Prefer a runnable stub over `declare`.** `declare const Foo: React.FC` is erased by the TS preset, so Try-it fails with a `ReferenceError` naming it. `const Foo = () => <p>Foo</p>;` is barely longer and actually runs. Only the three `declare function` blocks remain, where the signature *is* the content.
   - Verified by diffing prose against the pre-edit file: **0 prose lines changed, question count unchanged at 79** — the sweep touched only code blocks.
+
+## Frontend Tooling — the webpack-vs-Vite answer is a DECISION, not a feature table
+The guide's §4 comparison table and §10 Q&A used to answer "which would you pick?"
+with "Vite, without hesitation" — which is the **greenfield** answer, and only
+half the question. The interesting case is an existing webpack app, and the
+strong answer there is *don't migrate by default*.
+
+- **§4 "Choosing Between Them"** now splits the two cases, names the three
+  triggers that justify migrating (measurable lost developer time, a config
+  nobody understands, an upgrade already absorbing churn), and offers **Rspack**
+  as the cheaper middle path — config-compatible, so loaders and plugins survive.
+  The framing to keep: **Vite is the better destination; Rspack is the cheaper
+  move.** An upgrade is not a rewrite.
+- **§5.6 Rspack** added (comparison summary renumbered 5.6 → 5.7; the TOC lists
+  only top-level sections here, and nothing links to §5.x anchors, so the
+  renumber was free). Rspack had existed only in `frontend-architecture-guide.md`
+  as a Module Federation aside.
+- **§10 Q20 split into Q20 (greenfield) + Q21 (existing codebase)**, and old
+  Q21–Q24 shifted to Q22–Q25. Safe here because this guide has a **single** Q
+  sequence and no Tricky section — check that before renumbering any other guide.
+  Q20 also now volunteers the gotcha that **`vite build` succeeds on code with
+  type errors**, since esbuild/Rolldown strip types without checking them.
+- `**Q20b:`** was the first attempt and is **wrong** — `extractQuestions` matches
+  `\*\*Q(\d+):`, so a letter suffix never becomes a question and would silently
+  vanish from Quiz mode. Numbered questions must be plain integers.
+- **The `totalQuestionCount` parity test earned its keep immediately**: adding
+  the question failed it with `Frontend Tooling: generator 24 vs extractor 25`
+  until `npm run content:meta` was re-run. It names the guide and the delta.
 
 ## SOLID lives in TWO guides, deliberately — do not merge or duplicate them
 - **`low-level-design-guide.md` §3 "SOLID, Usefully"** is the *design-interview* framing: each principle plus **the smell that identifies the violation**, then worked through four full designs (parking lot, rate limiter, elevator, vending machine).

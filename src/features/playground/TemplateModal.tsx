@@ -105,13 +105,14 @@ export default function TemplateModal({
                         className="flex-1 bg-transparent outline-none text-sm placeholder:text-slate-400"
                       />
                       {drawerSearch && (
-                        <button onClick={() => { setDrawerSearch(''); drawerSearchRef.current?.focus(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                        <button onClick={() => { setDrawerSearch(''); drawerSearchRef.current?.focus(); }} aria-label="Clear search" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                           <X size={13} />
                         </button>
                       )}
                     </div>
                     <button
                       onClick={closeDrawer}
+                      aria-label="Close template picker"
                       className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                     >
                       <X size={16} />

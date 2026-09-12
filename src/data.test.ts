@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractQuestions, slugify, getAllQuestions, menuStructure, cheatSheets, readMinFor } from './data';
+import { extractQuestions, slugify, getAllQuestions, menuStructure, cheatSheets, readMinFor, totalQuestionCount, contentMeta } from './data';
 
 // These tests exist because `tsc` cannot see any of this. Three defects shipped
 // through a clean typecheck: a Promise reaching `.filter()`, 344 colliding
@@ -158,5 +158,43 @@ describe('content registry integrity', () => {
   it('guide routes are unique', () => {
     const paths = [...menuStructure.flatMap(s => s.items ?? []).map(i => i.path), ...cheatSheets.map(c => c.path)];
     expect(new Set(paths).size).toBe(paths.length);
+  });
+});
+
+/**
+ * The build-time question count must equal what the real extractor produces.
+ *
+ * `scripts/generate-content-meta.js` re-implements the two patterns from
+ * `extractQuestions` so the sidebar badge can be sized without downloading the
+ * corpus. Two copies of one regex pair is exactly the kind of thing that goes
+ * quietly stale — a pattern tweak in the extractor would leave the generator
+ * counting the old shape and nothing would fail. This is the pin.
+ */
+describe('totalQuestionCount — parity with the real extractor', () => {
+  it('matches getAllQuestions() exactly', async () => {
+    const actual = await getAllQuestions();
+    expect(totalQuestionCount).toBe(actual.length);
+  });
+
+  it('agrees per guide, so a drift points at the file that caused it', async () => {
+    const all = await getAllQuestions();
+    const actualByGuide = new Map<string, number>();
+    for (const q of all) actualByGuide.set(q.guide, (actualByGuide.get(q.guide) ?? 0) + 1);
+
+    const mismatches: string[] = [];
+    for (const section of menuStructure) {
+      for (const item of section.items ?? []) {
+        const generated = contentMeta[item.file]?.questions ?? 0;
+        const actual = actualByGuide.get(item.name) ?? 0;
+        if (generated !== actual) {
+          mismatches.push(`${item.name}: generator ${generated} vs extractor ${actual}`);
+        }
+      }
+    }
+    expect(mismatches).toEqual([]);
+  });
+
+  it('is a real number, not an accidental zero', () => {
+    expect(totalQuestionCount).toBeGreaterThan(1000);
   });
 });
