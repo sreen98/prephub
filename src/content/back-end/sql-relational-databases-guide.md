@@ -48,7 +48,7 @@ CREATE TABLE users (
 
 **Sequential vs UUID primary keys** is the question behind that:
 
-| | Sequential (`BIGSERIAL`/`AUTO_INCREMENT`) | UUIDv4 | UUIDv7 |
+| Aspect | Sequential (`BIGSERIAL`/`AUTO_INCREMENT`) | UUIDv4 | UUIDv7 |
 |---|---|---|---|
 | Index locality | **excellent** — appends to the right edge | **poor** — random inserts fragment the B-tree | good — time-ordered |
 | Enumerable by an attacker | **yes** | no | partially (timestamp) |
@@ -648,7 +648,7 @@ A useful framing: **vertical scaling is underrated.** Modern hardware runs a ver
 
 ## 14. Postgres vs MySQL
 
-| | **PostgreSQL** | **MySQL (InnoDB)** |
+| Aspect | **PostgreSQL** | **MySQL (InnoDB)** |
 |---|---|---|
 | Default isolation | Read Committed | **Repeatable Read** |
 | MVCC | row versions in the heap; needs `VACUUM` | undo log; no vacuum problem |

@@ -633,7 +633,7 @@ Books worth reading on this: Michael Feathers, *Working Effectively with Legacy 
 
 **Q11: What are the trade-offs between async / pair / synchronous code review?**
 
-| | Async (PR comments) | Pair / mob | Synchronous review |
+| Aspect | Async (PR comments) | Pair / mob | Synchronous review |
 |---|---|---|---|
 | Speed of feedback | Hours-to-days | Real-time | Real-time |
 | Calendar cost | None — reviewer fits it in | High — both engineers | High — meeting |

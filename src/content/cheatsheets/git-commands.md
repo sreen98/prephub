@@ -147,7 +147,7 @@ git clone --recurse-submodules <url>
 ```
 
 ## Merge vs Rebase
-| | Merge | Rebase |
+| Aspect | Merge | Rebase |
 |---|---|---|
 | History | preserves the true graph | linear, rewritten |
 | Commit hashes | unchanged | **all rewritten** |

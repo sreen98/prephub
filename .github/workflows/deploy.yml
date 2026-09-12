@@ -19,7 +19,16 @@ jobs:
       - name: Set up Node.js ⚙️
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Node 20 reached end of life in April 2026 — no more security
+          # patches. 22 has been in maintenance since October 2025; 24 is the
+          # current Active LTS and has the longest runway, so that is the pin.
+          #
+          # One thing this bump gives up, deliberately: CI on Node 20 had
+          # ACCIDENTALLY been catching solutions that used ES2025 Set methods,
+          # because those landed in Node 22. That protection is no longer
+          # incidental — `playgroundExecutable.test.ts` strips the seven new
+          # Set methods and re-runs every solution, so it holds on any Node.
+          node-version: 24
           cache: 'npm'
 
       - name: Install dependencies 🔧

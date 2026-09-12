@@ -271,7 +271,7 @@ helm test app        # runs templates/tests/* as Jobs, asserting the release wor
 
 ## 9. Helm vs Kustomize
 
-| | Helm | Kustomize |
+| Aspect | Helm | Kustomize |
 |---|---|---|
 | Mechanism | **templating** (Go templates) | **overlays** (strategic merge patches) |
 | Distribution | packaged, versioned charts, repositories | plain directories |
@@ -357,7 +357,7 @@ Concepts:
 
 Flux v2 is the other CNCF-graduated option, built as a set of composable controllers (source, kustomize, helm, notification, image automation) rather than one application with a UI.
 
-| | Argo CD | Flux |
+| Aspect | Argo CD | Flux |
 |---|---|---|
 | Interface | **rich web UI**, strong visualisation | CLI + CRDs (UI via Weave GitOps) |
 | Model | `Application` CRD | composable controllers |

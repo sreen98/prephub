@@ -1574,7 +1574,7 @@ const { add } = require('./math');
 
 ### 12.3 Key Differences
 
-| | ESM | CJS |
+| Aspect | ESM | CJS |
 |---|---|---|
 | Syntax | `import/export` | `require/module.exports` |
 | Loading | Static (analyzed at parse time) | Dynamic (evaluated at runtime) |

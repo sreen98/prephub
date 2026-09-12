@@ -175,7 +175,7 @@ const BackToTop = () => {
 
 // ==================== Main App ====================
 
-const CHANGELOG_VERSION = '2026-09-perf-a11y';
+const CHANGELOG_VERSION = '2026-09-deeplinks-cls';
 
 export default function App() {
   const { theme, toggleTheme } = useDarkMode();

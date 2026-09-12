@@ -36,7 +36,7 @@ The practical test: when a customer reports that checkout is slow **only for use
 
 The **three pillars** framing — metrics, logs, traces — is the standard answer, and worth also knowing its limitation: they're three storage shapes, not three purposes, and treating them as separate silos is why teams end up pivoting between four tools during an incident. What matters is being able to move from *a metric showing a spike* to *the traces in that window* to *the logs for those requests*, which is why **correlation IDs and exemplars** matter more than any individual pillar.
 
-| | Metrics | Logs | Traces |
+| Aspect | Metrics | Logs | Traces |
 |---|---|---|---|
 | Shape | numeric time series | discrete events | causal request trees |
 | Cost | cheap, bounded by cardinality | expensive at volume | expensive, usually sampled |

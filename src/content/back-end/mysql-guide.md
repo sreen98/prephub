@@ -278,7 +278,7 @@ CTEs, window functions and `SKIP LOCKED` are the ones most likely to change how 
 
 ## 13. MySQL vs PostgreSQL
 
-| | MySQL (InnoDB) | PostgreSQL |
+| Aspect | MySQL (InnoDB) | PostgreSQL |
 |---|---|---|
 | Connections | thread per connection — cheap | process per connection — pooler required |
 | Row storage | **clustered by primary key** | heap |

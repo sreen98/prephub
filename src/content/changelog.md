@@ -1,5 +1,19 @@
 # What's New
 
+## v1.6.2 (September 2026)
+
+**React guide — three sections that were code with no explanation now have one.** `use()`, `useOptimistic` and Creating and Using Context each opened with a code block and said nothing about what the API is for or what goes wrong with it. `use()` now explains why it is the one hook you *can* call inside an `if`, and the mistake that costs an afternoon — creating the promise during render, which loops forever. `useOptimistic` explains that the automatic revert is the entire point, and why the optimistic row vanishing a moment after it appears usually means the real data was never refreshed. The Context section explains why the type is `T | null` and why you export the hook rather than the context.
+
+One of those examples also had a genuine bug: the optimistic to-do was rendered with a key taken from an id the server had not assigned yet, so React saw no key at all. Fixed, and explained, since it is the classic mistake with optimistic lists.
+
+**Opening a guide from a search result or a bookmark is about a second faster on mobile.** Every link straight into a guide — rather than to the home page — used to hit a dead end first: the server had no file at that address, so it bounced the browser to a different URL that the app could understand, and only then started loading. That detour cost roughly a second on a phone. There is now a real page at every address, so links open directly.
+
+**Fixed: the page no longer jumps as a guide finishes loading.** The placeholder shown while a guide downloads was a few hundred pixels tall while the guide itself can be hundreds of thousands, so everything lurched the moment the text arrived. The space is now reserved up front.
+
+**Tables are readable by screen readers again.** Forty-three comparison tables had a blank corner cell, which left an entire column of figures with nothing naming it — a screen reader would read the values with no idea what they described. Every column is now labelled.
+
+**Guide pages animate more cheaply.** The fade-in when a guide opens now runs as a plain CSS animation instead of going through the animation library, so it no longer competes with the work of rendering the guide itself — and it correctly stays still if you have reduced motion turned on in your system settings.
+
 ## v1.6.1 (September 2026)
 
 **Frontend Tooling — webpack vs Vite now answers the question interviewers actually ask.** The guide compared the two thoroughly but recommended Vite flatly, which is only the answer for a *new* project. The harder version — "would you migrate an existing webpack app?" — now has its own section and its own interview question, and the answer starts with *no, by default*: a working build config is years of accumulated decisions, and "the dev server starts faster" rarely pays for replacing it. It names the three things that would change that, and adds the option most people miss — **Rspack**, a Rust rewrite of webpack that runs your existing config, so you get most of the speed without rewriting your loaders. Vite is the better destination; Rspack is the cheaper move. Rspack also gets a full entry alongside the other bundlers.

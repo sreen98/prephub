@@ -188,7 +188,7 @@ Pinning is bypassable on a rooted device with Frida in minutes, so it is **anti-
 
 Three mechanisms with very different security properties:
 
-| | Claimable by other apps | Verified |
+| Mechanism | Claimable by other apps | Verified |
 |---|---|---|
 | **Custom scheme** (`myapp://`) | **yes — any app** | no |
 | **Universal Links** (iOS) | no | via `apple-app-site-association` |
@@ -350,7 +350,7 @@ An SDK runs with your app's full privileges and your app's identity. Its behavio
 
 The reference list (2024 revision), with the mobile-specific reading:
 
-| | Risk | Core defence |
+| OWASP ID | Risk | Core defence |
 |---|---|---|
 | M1 | Improper Credential Usage | no hardcoded secrets (§9) |
 | M2 | Inadequate Supply Chain Security | SDK auditing, pinned versions (§14) |

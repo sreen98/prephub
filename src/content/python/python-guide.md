@@ -394,7 +394,7 @@ class Child(Base):
 
 ### 4.3 `@staticmethod` vs `@classmethod` vs instance methods
 
-| | Receives | Use for |
+| Method type | Receives | Use for |
 |---|---|---|
 | instance method | `self` | behaviour needing instance state |
 | `@classmethod` | `cls` | **alternative constructors**; behaviour needing the class |
@@ -592,7 +592,7 @@ Always invoke as `python -m pip` rather than `pip`: it guarantees you are instal
 
 ### 6.2 `requirements.txt` vs `pyproject.toml`
 
-| | `requirements.txt` | `pyproject.toml` |
+| Aspect | `requirements.txt` | `pyproject.toml` |
 |---|---|---|
 | Standardised | no (a pip convention) | **yes** (PEP 518/621) |
 | Describes | an install list | project metadata **+** dependencies |
@@ -710,7 +710,7 @@ def read_lines_list(path):                 # O(file size) memory
         return [line.rstrip('\n') for line in f]
 ```
 
-| | Generator | List |
+| Aspect | Generator | List |
 |---|---|---|
 | Memory | O(1) | O(n) |
 | First result | immediate | after the whole file |
@@ -1095,7 +1095,7 @@ So the GIL penalises **CPU-bound Python bytecode** specifically. It does not mak
 
 ### 13.2 Threading vs multiprocessing vs asyncio
 
-| | Parallelism | Best for | Cost |
+| Module | Parallelism | Best for | Cost |
 |---|---|---|---|
 | `threading` | I/O only (GIL) | blocking I/O with libraries that aren't async | shared memory → locks, races |
 | `multiprocessing` | **real CPU parallelism** | CPU-bound work | process startup; data must be pickled |
@@ -1906,7 +1906,7 @@ class CandidateScore(BaseModel):
 
 **The comparison, which is the actual question:**
 
-| | `@dataclass` | Pydantic |
+| Aspect | `@dataclass` | Pydantic |
 |---|---|---|
 | Validation | whatever you write in `__post_init__` | declarative, from the types |
 | Coercion | none — `"85"` stays a string | `"85"` → `85.0` |

@@ -464,7 +464,7 @@ An "agent" is the tool-calling loop above, plus autonomy over *how many* turns t
 
 The most valuable thing to say in an interview about agents is when to avoid one. If the steps are known in advance, **write the steps** — a deterministic pipeline with an LLM call at each stage is cheaper, faster, debuggable, and testable. Agents are for genuinely open-ended tasks where the required steps depend on what earlier steps find.
 
-| | Pipeline (workflow) | Agent |
+| Aspect | Pipeline (workflow) | Agent |
 |---|---|---|
 | Control flow | you write it | the model decides |
 | Cost | predictable | unbounded without caps |
@@ -528,7 +528,7 @@ Interviewers ask about frameworks to find out whether you can justify a dependen
 
 #### The landscape
 
-| | What it is | Reach for it when |
+| Tool | What it is | Reach for it when |
 |---|---|---|
 | **Provider SDK** (`@anthropic-ai/sdk`, `openai`) | Thin HTTP client | Most production features. Fewer abstractions between you and the behaviour you're debugging |
 | **LangChain** | Integrations + a high-level agent API (`create_agent`), middleware-driven | You want breadth of integrations (model wrappers, vector stores, loaders) and a fast path to a working agent |
@@ -633,7 +633,7 @@ The diagnostic value is in the combination. Faithful but irrelevant means you re
 
 ### 9.6 RAG vs Fine-Tuning vs Long Context
 
-| | Best for | Weak at |
+| Approach | Best for | Weak at |
 |---|---|---|
 | **RAG** | Facts that change, large corpora, per-user permissions, citations | Teaching *style* or a new task format |
 | **Fine-tuning** | Output format, tone, a narrow specialised task, shrinking prompts | Facts — they go stale and cannot be cited or permissioned |
@@ -994,7 +994,7 @@ An agent is the tool-calling loop plus autonomy over how many turns to take and 
 
 **Refuse when the steps are known in advance.** If you can write the pipeline, write it — a fixed sequence of stages with an LLM call in each is cheaper, faster, debuggable, testable, and has predictable failure modes. Most "agents" in production would be better as workflows, and saying so is the strongest answer available here.
 
-| | Pipeline | Agent |
+| Aspect | Pipeline | Agent |
 |---|---|---|
 | Control flow | you write it | the model decides |
 | Cost | predictable | unbounded without caps |

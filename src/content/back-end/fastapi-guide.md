@@ -431,7 +431,7 @@ Deployment: run behind a reverse proxy for TLS and buffering control, set `--pro
 
 ## 15. FastAPI vs Django vs Flask
 
-| | FastAPI | Django | Flask |
+| Aspect | FastAPI | Django | Flask |
 |---|---|---|---|
 | Protocol | ASGI (async-first) | ASGI-capable, sync-rooted | WSGI (ASGI via extensions) |
 | Validation | **built in** (Pydantic) | forms / DRF serializers | manual or extensions |

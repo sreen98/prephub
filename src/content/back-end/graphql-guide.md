@@ -62,7 +62,7 @@ What GraphQL is **not**: a database (it has no storage), a replacement for HTTP 
 
 ## 2. GraphQL vs REST
 
-| | REST | GraphQL |
+| Aspect | REST | GraphQL |
 |---|---|---|
 | Shape of response | fixed per endpoint | chosen by the client |
 | Round trips for a nested view | often several | one |

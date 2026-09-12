@@ -2201,6 +2201,10 @@ function UserForm() {
 
 ### 11.1 Creating and Using Context
 
+Context solves exactly one problem: passing a value to a deeply nested component **without threading it through every component in between**. That is prop drilling, and it is tedious rather than fatal — which is worth saying plainly, because Context is routinely reached for as a state manager and it is not one. It is a transport mechanism. The state still lives in a `useState` or a `useReducer` somewhere; Context only decides who can see it.
+
+The shape below is four parts, and two of them are conventions rather than API requirements:
+
 ```tsx
 // 1. Create context
 interface ThemeContextType {
@@ -2247,6 +2251,14 @@ function Header() {
   <App />
 </ThemeProvider>
 ```
+
+**Why the context type is `T | null` and the hook throws.** `createContext` needs a default value, and there is rarely an honest one — a theme provider has no sensible "no provider" theme. Passing `null` and typing the context as `ThemeContextType | null` makes that explicit, and then the `useTheme` hook does two jobs: it converts "you forgot the Provider" from a `Cannot read properties of null` several frames away into a named error at the point of use, and it narrows the type so **no consumer has to handle `null`**. Without the hook, every component reading the context carries a null check that can never fire in practice.
+
+**Always export the hook, never the context.** If `ThemeContext` itself is exported, a consumer can call `useContext(ThemeContext)` directly and skip the guard — so the one place you centralised the error handling gets bypassed. Exporting only `ThemeProvider` and `useTheme` makes the safe path the only path.
+
+**The performance pitfall is the object literal**, `value={{ theme, toggleTheme }}`. It is a brand-new object on every provider render, so every consumer re-renders whether or not anything they use actually changed. It is the single most common Context bug — see §6.2's `useContext` entry for the fix (memoise the value, or split state and setters into separate contexts), and §13.7 for the worked example.
+
+---
 
 ### 11.2 When to Use Context vs State Management
 
@@ -3646,10 +3658,14 @@ The triad to remember as one concept: **`useActionState`** (form-level state mac
 
 ### 16.4 use() Hook
 
+`use` reads a resource — a promise or a context — during render. It is the one API in React that is **not bound by the rules of hooks**: it can be called inside an `if`, inside a loop, or after an early return.
+
+That exemption is not an inconsistency. The rules exist because `useState` and friends are matched to their stored state **by call order** (§15.9), so a conditional hook shifts every slot after it. `use` reserves no slot — a promise identifies itself, and a context is looked up on the fiber — so there is no ordering to corrupt.
+
 ```tsx
 // Read a promise during render (with Suspense)
 function Comments({ commentsPromise }: { commentsPromise: Promise<Comment[]> }) {
-  const comments = use(commentsPromise);
+  const comments = use(commentsPromise);   // suspends until it resolves
   return comments.map(c => <p key={c.id}>{c.text}</p>);
 }
 
@@ -3663,7 +3679,35 @@ function Theme({ isEnabled }: { isEnabled: boolean }) {
 }
 ```
 
+**With a promise, `use` suspends.** The component stops rendering, the nearest `<Suspense>` shows its fallback, and React retries when the promise resolves. A rejection propagates to the nearest error boundary. So the loading and error states are the boundaries you already have, not two more pieces of component state.
+
+**The pitfall that costs people an afternoon: never create the promise during render.**
+
+```tsx
+// ✗ Infinite loop. A new promise every render, so `use` suspends every render.
+function Comments() {
+  const comments = use(fetch('/api/comments').then(r => r.json()));
+  return comments.map(/* … */);
+}
+
+// ✓ The promise is created outside the render — passed in as a prop…
+<Comments commentsPromise={commentsPromise} />
+
+// …or returned from a cache that gives back the SAME promise for the same key
+const commentsPromise = getCachedComments(postId);
+```
+
+React has to be able to recognise the promise it suspended on. A fresh one each render is a different identity every time, so it suspends, re-renders, creates another, and never settles. In practice the promise comes from a Server Component, a framework loader, or a cache — which is why `use` feels natural in Next.js and awkward in a bare client component.
+
+**Two more limits worth knowing.** `use` cannot be called inside `try`/`catch` — use an error boundary instead. And `use(Context)` is otherwise identical to `useContext(Context)`; reach for it only when you actually need the conditional call, because `useContext` is the more familiar signal to a reader.
+
+---
+
 ### 16.5 useOptimistic
+
+`useOptimistic` shows a provisional result **immediately**, while the real request is still in flight, and throws that provisional state away automatically once the truth arrives.
+
+The automatic part is the whole value. Hand-rolled optimistic UI means holding a second copy of the list, merging it with the real one, and — the part that always rots — unwinding it correctly when the request fails. `useOptimistic` reverts on its own, on success *and* on error, because the optimistic value only exists for the lifetime of the action.
 
 ```tsx
 function TodoList({ todos }: { todos: Todo[] }) {
@@ -3673,9 +3717,11 @@ function TodoList({ todos }: { todos: Todo[] }) {
   );
 
   async function addTodo(formData: FormData) {
-    const newTodo = { title: formData.get('title') as string };
-    addOptimisticTodo(newTodo);              // immediately show
-    await api.createTodo(newTodo);           // send to server
+    const title = formData.get('title') as string;
+    // A temporary id so the optimistic row has a stable key of its own.
+    // Without one, key={todo.id} is undefined and React warns on every render.
+    addOptimisticTodo({ id: `temp-${crypto.randomUUID()}`, title });
+    await api.createTodo({ title });         // the server assigns the real id
   }
 
   return (
@@ -3692,6 +3738,12 @@ function TodoList({ todos }: { todos: Todo[] }) {
   );
 }
 ```
+
+**How the two arguments work.** The first is the real state — whatever you would render if nothing were pending. The second is a reducer, `(currentState, optimisticValue) => nextState`, and it must be pure: return a new array, never push into `state`. While no action is running, `optimisticTodos` **is** `todos`; the reducer is not involved at all.
+
+**`addOptimisticTodo` only works inside an Action or a transition.** Called outside one — a bare click handler that is not a `startTransition`, for instance — the optimistic value is applied and then discarded on the very next render, so the UI flickers and snaps back. Here the `<form action={addTodo}>` makes `addTodo` an Action, which is what scopes the optimistic state to it.
+
+**The failure mode to watch for: the real state never catches up.** The optimistic entry disappears when the action ends, whichever way it ended. If the server succeeded but your `todos` prop was not refreshed — no revalidation, no refetch — the row vanishes a moment after it appeared, and it looks exactly like a failed write. The optimistic update is a *bridge* to the real state arriving; if nothing is coming, there is nothing to bridge to.
 
 ---
 
@@ -3910,7 +3962,7 @@ This deprecates the old pattern of React calling your ref with `null` on unmount
 
 Interviewers ask this to check whether you track the ecosystem or just repeat blog posts.
 
-| | Status |
+| Feature | Status |
 |---|---|
 | **Latest stable** | React **19.2.x** (19.2 shipped Oct 2025; patch releases through 2026). There is no 19.3 or 20 |
 | **React Compiler** | **1.0, stable** (Oct 2025). Production-ready, opt-in |
@@ -4296,7 +4348,7 @@ Things to chase down on every release:
 
 **Q22: Webpack vs Vite — when do you pick which?**
 
-| | Webpack | Vite |
+| Aspect | Webpack | Vite |
 |---|---|---|
 | Dev server | Bundles before serving | Native ESM, no bundling |
 | Cold start | Slow on big apps (seconds-to-minutes) | Sub-second |
@@ -4997,7 +5049,7 @@ React handles the subscription lifecycle, re-reads the snapshot at the right mom
 
 **Client-side routing** intercepts the click, calls `history.pushState` to change the URL without a request, and swaps components in the existing page. No document reload, so JavaScript state, open WebSockets and scroll position all survive.
 
-| | Client-side | Server-side |
+| Aspect | Client-side | Server-side |
 |---|---|---|
 | Navigation cost | A data fetch at most, often nothing | Full document round-trip |
 | First paint | Slower — must download and boot the JS | Faster — HTML arrives ready |
@@ -5905,7 +5957,7 @@ This is the staleness-versus-stability trade-off that `useEffectEvent` was built
 
 The two properties are what no previous hook could combine:
 
-| | Stable identity | Sees latest values |
+| Callback form | Stable identity | Sees latest values |
 |---|---|---|
 | inline `() => …` | ✗ | ✓ |
 | `useCallback(fn, [])` | ✓ | ✗ |

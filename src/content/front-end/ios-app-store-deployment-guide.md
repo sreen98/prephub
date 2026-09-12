@@ -250,7 +250,7 @@ The **App Store Connect API** automates all of this — essential once releases 
 
 ## 10. TestFlight
 
-| | Internal | External |
+| Aspect | Internal | External |
 |---|---|---|
 | Testers | up to **100**, must be team members | up to **10,000** |
 | Review | **none** — available in minutes | **Beta App Review** (~1 day) |

@@ -11,6 +11,7 @@
  * Run: npm run verify:arch
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join, extname } from 'node:path';
 
 const failures = [];
@@ -297,6 +298,22 @@ check('no sub-AA text colours in either theme', () => {
       if (/(?<![\w:-])text-slate-(500|600)\b(?! dark:text-slate-)/.test(line)) {
         darkOnly.push(`${f}:${i + 1}`);
       }
+      // ...and having a dark: counterpart is not enough if the counterpart is
+      // ALSO too dark. `dark:text-slate-500` is 4.15:1 on #0a0a0f, and the
+      // table-of-contents shipped 26 nodes of exactly that — the third gap in
+      // this one rule, after "light only" and "no dark pair at all". Anything
+      // 500 or darker fails on the dark ground; 400 is 7.70:1.
+      //
+      // Exception: an element that INVERTS in dark mode (the toast is
+      // `bg-slate-900 dark:bg-white`) correctly wants dark text on its dark-mode
+      // background. Detect that from the element's own dark background rather
+      // than guessing — a false positive here would teach people to ignore the
+      // rule.
+      const invertsInDark = /dark:bg-(white|slate-(50|100|200|300))\b/.test(line);
+      if (!invertsInDark
+          && /(?<!hover:)(?<![\w-])dark:text-slate-(500|600|700|800|900)\b/.test(line)) {
+        darkOnly.push(`${f}:${i + 1}`);
+      }
     });
   }
   assert(
@@ -407,6 +424,102 @@ check('icon-only buttons carry an aria-label', () => {
       + `should say "Switch to dark theme", not "Dark mode"): ${offenders.slice(0, 8).join(', ')}`,
   );
   return 'all icon-only buttons are named';
+});
+
+// ---------------------------------------------------------------------------
+// 14. Markdown tables must label their first column
+// ---------------------------------------------------------------------------
+check('no table ships an empty header cell', () => {
+  // `| | Webpack | Vite |` renders a <th> with no text, so every cell in that
+  // column has no header — which is what axe's td-has-header flags on tables
+  // larger than 3x3, and it cost 3 failures on the deployed React guide. 43 of
+  // these had accumulated. It is also just worse writing: the first column
+  // always means something ("Aspect", "Approach", "Method type").
+  const offenders = [];
+  const walkMd = (dir, out = []) => {
+    for (const e of readdirSync(dir)) {
+      const full = join(dir, e);
+      if (statSync(full).isDirectory()) walkMd(full, out);
+      else if (full.endsWith('.md')) out.push(full);
+    }
+    return out;
+  };
+  for (const file of walkMd('src/content')) {
+    const lines = read(file).split('\n');
+    let inFence = false;
+    lines.forEach((line, i) => {
+      if (line.trimStart().startsWith('```')) { inFence = !inFence; return; }
+      if (inFence || i === 0) return;
+      // A separator row (|---|---|) means the line above it is the header row.
+      if (!/^\s*\|[\s:|-]+\|\s*$/.test(line) || !line.includes('-')) return;
+      const cells = lines[i - 1].trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      if (cells.some((c) => c === '')) offenders.push(`${file}:${i}`);
+    });
+  }
+  assert(
+    offenders.length === 0,
+    'an empty header cell leaves that column\'s data cells with no header (axe: '
+      + `td-has-header). Name the column — "Aspect" for a comparison, or what the `
+      + `rows actually are: ${offenders.slice(0, 6).join(', ')}`,
+  );
+  return 'every table column is labelled';
+});
+
+// ---------------------------------------------------------------------------
+// 15. Never write changelog notes into an already-released section
+// ---------------------------------------------------------------------------
+check('no released changelog section has been edited', () => {
+  // This has happened FIVE times: work done after a release gets appended under
+  // the heading of the version that already shipped, so the notes claim to be
+  // part of a build that never contained them. It is invisible in review — the
+  // diff looks like ordinary changelog additions.
+  //
+  // The invariant: a section whose version is tagged must be byte-identical to
+  // the tagged copy. New notes belong under a new heading, which means bumping
+  // package.json first.
+  //
+  // RATCHET. These four diverged before the check existed — they are the
+  // historical mis-attributions that were repaired after the fact (see the
+  // v1.5.0 note in CLAUDE.md). The list may shrink, never grow.
+  const ALREADY_DIVERGED = new Set(['1.5.0', '1.2.0', '1.0.9', '1.0.7']);
+
+  const changelog = read('src/content/changelog.md');
+  const sectionFor = (text, v) => {
+    const lines = text.split('\n');
+    const start = lines.findIndex((l) => l.startsWith(`## v${v}`));
+    if (start === -1) return null;
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i++) {
+      if (/^## v\d+\.\d+\.\d+/.test(lines[i])) { end = i; break; }
+    }
+    return lines.slice(start, end).join('\n').trim();
+  };
+
+  const versions = [...changelog.matchAll(/^## v(\d+\.\d+\.\d+)/gm)].map((m) => m[1]);
+  assert(versions.length > 0, 'changelog has no `## vX.Y.Z` heading');
+
+  const edited = [];
+  let checked = 0;
+  for (const v of versions) {
+    if (ALREADY_DIVERGED.has(v)) continue;
+    let tagged;
+    try {
+      tagged = execSync(`git show v${v}:src/content/changelog.md`,
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {
+      continue;                       // untagged: the version being worked on
+    }
+    checked++;
+    if (sectionFor(changelog, v) !== sectionFor(tagged, v)) edited.push(`v${v}`);
+  }
+
+  assert(
+    edited.length === 0,
+    `${edited.join(', ')} is already tagged, but its changelog section differs from `
+      + 'the tagged copy. Notes for work done after a release belong under a NEW '
+      + 'heading: bump package.json, add `## vX.Y.Z` above, and move the entries there.',
+  );
+  return `${checked} released section(s) match their tags`;
 });
 
 // ---------------------------------------------------------------------------

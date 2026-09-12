@@ -313,7 +313,7 @@ Column removal follows expand/contract: stop writing it, deploy, stop reading it
 
 ## 13. Postgres vs MySQL
 
-| | PostgreSQL | MySQL (InnoDB) |
+| Aspect | PostgreSQL | MySQL (InnoDB) |
 |---|---|---|
 | Connections | process per connection; pooler required | thread per connection; cheaper |
 | Row storage | heap; indexes point at tuples | **clustered by primary key** |

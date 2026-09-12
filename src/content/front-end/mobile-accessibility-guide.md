@@ -42,7 +42,7 @@ The practical argument that lands in interviews: mobile accessibility APIs are *
 
 ## 2. Screen Readers — VoiceOver and TalkBack
 
-| | VoiceOver (iOS) | TalkBack (Android) |
+| Action | VoiceOver (iOS) | TalkBack (Android) |
 |---|---|---|
 | Enable | Settings → Accessibility, or triple-click side button | Settings → Accessibility, or volume-key shortcut |
 | Next / previous element | swipe right / left | swipe right / left |

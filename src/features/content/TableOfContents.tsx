@@ -78,7 +78,7 @@ export const TableOfContents = ({ content, isCollapsed, onToggle }: { content: s
                 heading.level === 3 && "pl-3",
                 activeId === heading.id
                   ? "text-indigo-600 dark:text-indigo-400 font-semibold"
-                  : "text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300"
               )}
               title={heading.text}
             >

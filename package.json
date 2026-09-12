@@ -1,11 +1,14 @@
 {
   "name": "prephub",
   "private": true,
-  "version": "1.6.1",
+  "version": "1.6.2",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "node scripts/generate-content-meta.js && node scripts/generate-playground-index.js && vite",
-    "build": "node scripts/generate-content-meta.js && node scripts/generate-playground-index.js && vite build && node scripts/generate-sitemap.js",
+    "build": "node scripts/generate-content-meta.js && node scripts/generate-playground-index.js && vite build && node scripts/generate-route-shells.js && node scripts/generate-sitemap.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",

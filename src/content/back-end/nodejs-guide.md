@@ -615,7 +615,7 @@ if (isMainThread) {
 
 ### 10.3 When to Use What
 
-| | Child Process | Worker Thread |
+| Aspect | Child Process | Worker Thread |
 |---|---|---|
 | Separate memory | Yes | Shared (SharedArrayBuffer) |
 | Startup cost | Higher (new process) | Lower (new thread) |

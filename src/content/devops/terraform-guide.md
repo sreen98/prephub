@@ -379,7 +379,7 @@ Practices that separate a working pipeline from a dangerous one:
 
 ## 14. Terraform vs the Alternatives
 
-| | Terraform | CloudFormation | Pulumi / CDK | Ansible |
+| Aspect | Terraform | CloudFormation | Pulumi / CDK | Ansible |
 |---|---|---|---|---|
 | Language | HCL (declarative) | YAML/JSON | real languages (TS/Python/Go) | YAML |
 | Scope | **multi-cloud** + SaaS providers | AWS only | multi-cloud | config mgmt, some provisioning |

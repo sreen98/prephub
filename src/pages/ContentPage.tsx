@@ -3,12 +3,11 @@ import { Link, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   BookOpen, Bookmark, BookmarkCheck, Check, CheckCircle, ChevronDown, Circle, Clock,
   Copy, ExternalLink, Flag, Link2, List, PanelLeftClose, PanelLeftOpen, Play, Tag, Timer, X,
 } from 'lucide-react';
-import { escapeRegex, readMinFor,
+import { escapeRegex, readMinFor, estimatedHeightFor,
   loadContent, peekContent, menuStructure,
   type MenuItem, type MenuSection,
 } from '../data';
@@ -278,12 +277,9 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
 
   return (
     <>
-      <motion.div
+      <div
         key={filePath}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className={cn("px-6 py-8 md:px-12 md:py-12", !isTocCollapsed && "xl:mr-64")}
+        className={cn("animate-rise-in px-6 py-8 md:px-12 md:py-12", !isTocCollapsed && "xl:mr-64")}
       >
         {/* Search highlight banner */}
         {searchQuery && highlightCount > 0 && (
@@ -319,10 +315,8 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
         <OfficialDocsBar filePath={filePath} />
 
         {checkpoint && guidePath && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 px-4 py-3 mb-6 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50"
+          <div
+            className="animate-drop-in flex items-center gap-3 px-4 py-3 mb-6 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50"
           >
             <Flag size={16} className="text-indigo-500 fill-indigo-500/30 shrink-0" />
             <button
@@ -345,12 +339,21 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
             >
               <X size={14} />
             </button>
-          </motion.div>
+          </div>
         )}
 
         <MobileToc content={content} />
 
-        <div ref={containerRef} className="prose-container">
+        {/* Reserve the guide's approximate height while it loads. Without this
+            the container is skeleton-sized and then jumps to the real height,
+            which Lighthouse measured as a single 0.72 layout shift on the React
+            guide. The reservation is dropped the moment content arrives so it
+            can never constrain the real layout. */}
+        <div
+          ref={containerRef}
+          className="prose-container"
+          style={rawContent === null ? { minHeight: estimatedHeightFor(filePath) } : undefined}
+        >
           {rawContent === null ? <GuideSkeleton /> : (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -362,7 +365,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
         </div>
 
         <RelatedGuides guides={relatedGuides} />
-      </motion.div>
+      </div>
 
       <TableOfContents content={content} isCollapsed={isTocCollapsed} onToggle={() => setIsTocCollapsed(c => !c)} />
       {guidePath && guideName && (

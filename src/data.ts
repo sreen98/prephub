@@ -93,6 +93,30 @@ export function readMinFor(file: string): number {
   return contentMeta[file]?.readMin ?? 1;
 }
 
+/**
+ * Roughly how tall a guide will render, in px, from its byte count alone.
+ *
+ * Used to reserve space on `.prose-container` while the markdown is still
+ * loading. Without it the container is skeleton-sized (~600 px), then jumps to
+ * the real height the moment content arrives — Lighthouse measured a single
+ * layout shift of **0.72** on the React guide, against a 0.1 "good" threshold.
+ *
+ * The ratio comes from a measured data point: react-guide.md is 326,532 bytes
+ * and rendered 259,253 px tall at a 364 px viewport, i.e. ~0.8 px per byte. It
+ * is deliberately a rough estimate — CLS only counts movement of elements
+ * **inside the viewport**, so the reservation only has to be right for the first
+ * screen or two, not for the whole document. Hence the clamp: past a few
+ * viewport heights, extra precision buys nothing and an over-long scrollbar
+ * looks broken.
+ */
+export function estimatedHeightFor(file: string): number {
+  const bytes = contentMeta[file]?.bytes ?? 0;
+  const PX_PER_BYTE = 0.8;
+  const MIN = 600;      // a short cheat sheet still needs more than the skeleton
+  const MAX = 8000;     // ~5 screens; beyond this nothing visible can shift
+  return Math.min(MAX, Math.max(MIN, Math.round(bytes * PX_PER_BYTE)));
+}
+
 
 const contentCache = new Map<string, string>();
 

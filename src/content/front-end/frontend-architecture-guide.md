@@ -97,7 +97,7 @@ The single most common architecture question in platform interviews, and the ans
 
 ### 3.1 What Each One Actually Optimises
 
-| | **Monorepo** | **Multi-repo** |
+| Aspect | **Monorepo** | **Multi-repo** |
 |---|---|---|
 | Atomic cross-project change | **Yes** — one PR (pull request), one CI run, always consistent | No — coordinated PRs, version bumps, a migration window |
 | Discoverability & refactoring | **Excellent** — global search, IDE (editor) rename across everything | Poor — you cannot see who consumes your API |

@@ -969,7 +969,7 @@ list.addEventListener('click', e => {
 
 **Q6: What's the difference between WebSockets and Server-Sent Events?**
 
-| | WebSocket | SSE |
+| Aspect | WebSocket | SSE |
 |---|---|---|
 | Direction | Bidirectional | Server → client only |
 | Protocol | TCP after HTTP upgrade | Plain HTTP, long-lived response |
@@ -1071,7 +1071,7 @@ For idle work (analytics flush, prefetching), use `requestIdleCallback`.
 
 Both run JS off the main thread with no DOM access, communicating via `postMessage`. The differences are about **lifetime** and **purpose**:
 
-| | Web Worker | Service Worker |
+| Aspect | Web Worker | Service Worker |
 |---|---|---|
 | Lifetime | Tied to the page | Independent of any page |
 | Scope | One page | All pages under a URL scope |

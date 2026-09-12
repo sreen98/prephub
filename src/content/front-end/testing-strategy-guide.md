@@ -121,7 +121,7 @@ The allocation heuristic I'd defend: **test at the lowest level that can actuall
 
 ## 4. Vitest vs Jest
 
-| | **Vitest** | **Jest** |
+| Aspect | **Vitest** | **Jest** |
 |---|---|---|
 | Config | reuses your `vite.config` | its own, plus a transform pipeline |
 | Speed | **much faster** (esbuild transform, native ESM) | slower; Babel/ts-jest transform |

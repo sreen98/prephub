@@ -1222,7 +1222,7 @@ React Query has built-in network-aware behavior:
 
 **Q20: What is the difference between `queryClient.fetchQuery` and `queryClient.prefetchQuery`?**
 
-| | `fetchQuery` | `prefetchQuery` |
+| Aspect | `fetchQuery` | `prefetchQuery` |
 |---|---|---|
 | Returns | `Promise<TData>` — resolves with data | `Promise<void>` — never throws |
 | On error | Throws the error | Silently catches (logs to console) |

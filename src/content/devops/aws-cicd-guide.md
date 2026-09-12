@@ -328,7 +328,7 @@ Options ranked by how much they hide: **CDK Pipelines** (self-mutating — the p
 
 ## 12. AWS CI/CD vs GitHub Actions vs Jenkins
 
-| | AWS (CodePipeline/Build) | GitHub Actions | Jenkins |
+| Aspect | AWS (CodePipeline/Build) | GitHub Actions | Jenkins |
 |---|---|---|---|
 | Setup | several services + IAM | one YAML file | install and operate a server |
 | Auth to AWS | **native service roles** | OIDC federation | stored credentials or OIDC |

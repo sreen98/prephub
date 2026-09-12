@@ -337,7 +337,7 @@ Wrap `input` in a `timeout` and put it in a stage with `agent none`, or an aband
 
 ## 13. Jenkins vs GitHub Actions vs GitLab CI
 
-| | Jenkins | GitHub Actions | GitLab CI |
+| Aspect | Jenkins | GitHub Actions | GitLab CI |
 |---|---|---|---|
 | Hosting | **self-hosted** | hosted (self-hosted runners optional) | hosted or self-managed |
 | Config | `Jenkinsfile` (Groovy) | YAML workflows | `.gitlab-ci.yml` |

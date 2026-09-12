@@ -1729,7 +1729,7 @@ Vite's original design had a structural oddity: **dev used esbuild, production u
 
 **Rolldown** was built to end that: a Rust implementation of Rollup's API, from the Oxc project. It hit **1.0 on 7 May 2026** with a locked API, and **Vite 8 (12 March 2026) ships it as the single default bundler for both dev and production**, no opt-in.
 
-| | Vite ≤7 | Vite 8 |
+| Aspect | Vite ≤7 | Vite 8 |
 |---|---|---|
 | Dev transform | esbuild | Rolldown |
 | Production bundle | Rollup | Rolldown |
@@ -1776,7 +1776,7 @@ Flat config's real advantage is conceptual: it's an **array of objects evaluated
 
 **The native linters.** Two Rust contenders, and they are aiming at different jobs:
 
-| | **ESLint + typescript-eslint** | **oxlint** (Oxc) | **Biome** |
+| Aspect | **ESLint + typescript-eslint** | **oxlint** (Oxc) | **Biome** |
 |---|---|---|---|
 | Speed | baseline | **~30× faster** on syntax rules | very fast |
 | Custom rules / plugins | **mature, huge ecosystem** | growing | limited |
@@ -2015,7 +2015,7 @@ One behavioural change that catches monorepos: v10 resolves config starting from
 
 Rarely a straight replacement, and the reasoning matters more than the pick. The three tools are optimising for different things:
 
-| | **ESLint + typescript-eslint** | **oxlint** | **Biome** |
+| Aspect | **ESLint + typescript-eslint** | **oxlint** | **Biome** |
 |---|---|---|---|
 | Speed | baseline | ~30× faster (syntax rules) | very fast |
 | Rule/plugin ecosystem | **mature, huge** | growing | limited |

@@ -364,6 +364,39 @@ Original findings, for context:
 
 **Deliberately NOT problems** — don't "fix" these: the 18 `key={index}` uses are all positional visualisation cells or append-only log rows where the index *is* the identity; the 6 remaining casts only narrow the `menuStructure` union; code splitting, the hooks convention, `RouteErrorBoundary` and the SW registration are sound and intentional.
 
+## Sections that are pure code with no explanation — a measured backlog
+A user reading §16.4 `use()` and §16.5 `useOptimistic` found both were a heading
+followed straight by a code block, with nothing saying what the API is for. Both
+now open with prose and close with the pitfall, matching §16.6's shape
+(what it does → code → why it is not the obvious alternative → what bites).
+`### 11.1 Creating and Using Context` had the same defect and was fixed too.
+**The React guide now has zero numbered subsections that are pure code.**
+
+Two things worth writing down from the rewrite:
+
+- **`use()`'s exemption from the rules of hooks is explainable, not arbitrary.**
+  The rules exist because `useState` is matched to its stored state *by call
+  order*, so a conditional hook shifts every later slot (§15.9). `use` reserves
+  no slot — a promise identifies itself, a context is read off the fiber — so
+  there is no ordering to corrupt. Explaining that is far more useful than
+  saying "it can be called conditionally".
+- **The `useOptimistic` example had a real bug.** It rendered `key={todo.id}`
+  while the optimistic item was built from form data with no `id`, so the new
+  row had `key={undefined}`. Fixed with a temporary id, and the reason is now
+  in the prose, because it is the mistake everyone makes with optimistic lists.
+
+**Corpus-wide there are ~302 numbered subsections that open with code and carry
+no prose** — measured, not estimated. **Do not bulk-fix these.** Many are
+legitimately code-first reference (`### 3.1 call — Call a Function`,
+`### 13.1 On-Demand`, the Jest matcher lists), where prose would be padding and
+padding is worse than nothing. The worst offenders by count are
+`jest-react-testing-library` (37), `redux-saga` (30), `aws-lambda` (28),
+`storybook` (23), `mongodb` (22) and `nodejs` (22). Fix them per guide, on
+demand, judging each section on whether the code alone actually answers *why*.
+
+**No guard for this.** "Every section must have prose" is the wrong rule — it
+would be wrong for the reference sections and would reward padding.
+
 ## React guide — custom hooks (§6.3) and the interview-question map
 - **§6.3 is one-hook-per-subsection: the CORRECT version only, then how to consume it.** The user explicitly asked for the naive/bad versions to be removed — **do not reintroduce a "here is the wrong way first" structure.** The reasoning behind each correct line stays as short notes (why the cleanup *is* the debounce, why `useFetch` guards on `aborted` instead of using `.finally`, why every storage access is wrapped). Hooks covered: `useToggle`, `useDebounce`, `useFetch`, `useLocalStorage`, `useMediaQuery`.
 - **These constraints are load-bearing — do not "simplify" them away:** `useFetch` must not use `.finally` (it runs on abort, so `loading` lies and stale `data` renders as fresh); it must reset `data`/`error` on url change; and `useLocalStorage` must wrap every storage access in `try`/`catch` because **the accessor throws in private mode and the read is in a `useState` initialiser, i.e. during render** — the same bug class that was fixed in this app's own `src/lib/storage.ts`.
@@ -437,6 +470,135 @@ Write-and-check SQL / MongoDB interview questions. `src/pages/QueryPlayground.ts
 
 ## Playground transpilation — TypeScript is ALWAYS on
 `transpileSource` applies the TypeScript Babel preset **unconditionally**; `isTSX` tracks `detectJSX` only because `<div>x</div>` parses as a type assertion in a non-TSX TS file. **Do not reintroduce TS detection for the transpile path.** The old `detectTS` matched a fixed list of builtin type names after a colon, so `(e: React.FormEvent)` — a pattern in nearly every real React component — was not recognised, compiled as plain JSX, and failed with `Unexpected token, expected ","`. TypeScript is a superset of JavaScript, so there is nothing to detect and nothing to lose; verified that all 180 templates and every plain-JS construct compile identically with it always on. `detectTS` still exists and was broadened, but only to pick Prettier's parser in `playgroundFormat.ts`.
+
+## The changelog mis-attribution is now mechanically prevented
+Notes for work done after a release kept getting appended under the heading of
+the version that **already shipped** — so the notes claim to be part of a build
+that never contained them. It has happened **five times**, and it is invisible in
+review because the diff looks like ordinary changelog additions.
+
+**Check #15 in `verify-architecture.js`**: any changelog section whose version
+has a git tag must be byte-identical to `git show v<version>:src/content/changelog.md`.
+New notes therefore require a new heading, which requires bumping
+`package.json` — the two can no longer drift apart.
+
+- **It is a ratchet.** `ALREADY_DIVERGED` holds `1.5.0`, `1.2.0`, `1.0.9`,
+  `1.0.7` — sections that were repaired after the fact, before the check
+  existed. The list may shrink, never grow.
+- **My first version of this check was broken and the probe proved it.** It only
+  compared the *newest* section, so an edit to any older released section passed
+  silently — and the first probe run exited 0 with the bug present. A second
+  probe mistake is worth recording too: removing the new heading orphaned the
+  entries *above* the old one rather than inside it, which is not the bug being
+  tested. **Probe by reproducing the exact mistake, not an approximation of it.**
+
+**Release ordering that avoids all of this:** bump `package.json` and add the new
+`## vX.Y.Z` heading *first*, before writing any notes. Then there is no released
+section to write into.
+
+## Deep links must not 404 — `dist/` carries a shell at every route
+GitHub Pages has no server-side rewrite, so `/prephub/frontend/react` hit a real
+404 and `public/404.html` bounced it to `/prephub/?/frontend/react`. Lighthouse
+measured that at **978 ms on mobile / 224 ms on desktop**, and the 404 also
+logged the console error that was the *only* Best-Practices failure. Every link
+from search, a bookmark or a share paid it; the home page never did, which is
+why it stayed invisible for so long.
+
+`scripts/generate-route-shells.js` writes `dist/<route>/index.html` for all 92
+routes after `vite build`. The server now finds a file, and the router takes
+over client-side exactly as before. Verified: every route returns **200 with 0
+redirects**.
+
+- **This is NOT pre-rendering.** The HTML is the same empty shell, so it removes
+  the redirect and nothing else — no FCP or SEO-content win. Real pre-rendering
+  needs an SSR build plus hydration, which is a much larger change.
+- **`public/404.html` stays**, and is still correct for paths that genuinely do
+  not exist.
+- **`scripts/lib/routes.js` is the single route list**, read by both the shell
+  generator and the sitemap. Content routes come from `src/data.ts`, tool routes
+  from the JSX in `App.tsx` — reading both is deliberate. Hard-coding one list is
+  how `/query-playground` and `/checkpoints` came to be missing from the sitemap.
+  **`/admin` is excluded**: giving it a file on disk would advertise it.
+
+## CLS: reserve the guide's height while it loads
+`.prose-container` went from skeleton-sized (~600 px) to the real height the
+instant markdown arrived — **259,253 px on the React guide** — which Lighthouse
+scored as a single **0.72** layout shift against a 0.1 "good" threshold.
+`estimatedHeightFor(file)` in `data.ts` reserves the space from the build-time
+byte count (~0.8 px per byte, measured), clamped to 8,000 px because **CLS only
+counts movement inside the viewport** — past a few screens more precision buys
+nothing and an over-long scrollbar looks broken. The reservation is dropped the
+moment content arrives so it can never constrain the real layout.
+
+## TBT on a large guide is the markdown parse, and it is only PARTLY fixed
+Mobile TBT was **1,360 ms, of which 1,089 ms was a single task**. Measured the
+pipeline directly rather than guessing (render react-guide.md, 325 K chars):
+
+| | cost |
+|---|---|
+| markdown parse alone | 188 ms |
+| + `remarkGfm` | 260 ms |
+| + `rehypeHighlight` | 370 ms |
+
+At Lighthouse's 4× CPU slowdown that is ~1,480 ms — it *is* the task. The lesson
+is what the numbers rule out: **syntax highlighting is only 30% of it**, so
+deferring it would not fix this. The floor is parsing and mounting a 6,000-line
+document as one synchronous React tree, and that needs progressive rendering —
+an architectural change, scoped separately.
+
+What WAS done: `ContentPage` no longer uses framer-motion. Two `motion.div`
+mount animations became CSS keyframes, which run on the compositor and cost the
+main thread nothing — and unlike the framer-motion version they honour
+`prefers-reduced-motion`. Note the `vendor-motion` chunk still loads, because
+the app shell (`Sidebar`, `SearchModal`, `StreakCelebration`) uses it on every
+route; the win is the animation work removed from the heaviest render, not the
+download.
+
+**`content-visibility: auto` is the obvious tool here and was deliberately NOT
+used.** It would cut the 659 ms of Style & Layout, but off-screen blocks take
+their `contain-intrinsic-size` estimate instead of a real height — so a first
+load with a hash (`#props-vs-state`, the common path from search) scrolls to a
+position computed from estimates and lands wrong. This app has **1,254 in-page
+anchors**, plus checkpoints and bookmarks that deep-link into guides; trading
+that for a layout win is the wrong trade. Revisit only with a way to keep anchor
+targets exact.
+
+## Markdown tables must label their first column
+`| | Webpack | Vite |` renders an empty `<th>`, so every cell in that column has
+no header — axe's `td-has-header` on tables over 3×3, and 3 failures on the
+deployed React guide. **43 across the corpus**, all comparison tables. Labelled
+"Aspect" where the rows are criteria, and named specifically where the rows are
+the options themselves ("Approach", "Method type", "Callback form", "OWASP ID").
+Enforced by check #14 in `verify-architecture.js`, probe-tested.
+
+## Known lint gap: `varsIgnorePattern: '^[A-Z_]'` hides unused component imports
+The rule was presumably meant to exempt SCREAMING_CASE constants, but `^[A-Z_]`
+matches **every PascalCase identifier** — so an unused React component or icon
+import is never reported. `AnimatePresence` sat unused in `ContentPage` behind
+exactly this. Removing the pattern surfaces **97 unused identifiers across 65
+names**, nearly all dead `lucide-react` icon imports left behind when components
+were extracted from `App.tsx`. Tree-shaking means the bundle cost is ~nil, so
+this is hygiene rather than performance — but the rule gap is real, and fixing
+it means cleaning all 97 in one sweep to keep the gate green.
+
+## Node version — CI pins 24, and the floor is declared
+- **CI runs Node 24** (`.github/workflows/deploy.yml`). Node 20 reached end of
+  life in **April 2026**, so it was taking no further security patches; 22 has
+  been in maintenance since October 2025. 24 is the current Active LTS and has
+  the longest runway.
+- `package.json` declares `engines.node: ">=22"` — the real floor Vite 6 allows
+  (`^18 || ^20 || >=22`), minus the EOL branches. `.nvmrc` pins 24 so a local
+  checkout matches CI.
+- **What the bump gave up, and why that is now safe.** CI on Node 20 had been
+  *accidentally* protecting against solutions that use ES2025 `Set` methods,
+  because those landed in Node 22 — that is how the `Array Intersection & Union`
+  failure was caught on a release commit. Bumping the image would have silently
+  removed that. It does not, because the protection was made explicit first:
+  `playgroundExecutable.test.ts` deletes the seven new `Set` methods, re-runs
+  every solution and restores them in a `finally`, so it holds on **any** Node.
+  Re-probed on Node 24 after the bump — reintroducing the bug still fails.
+- **The general lesson:** when a version pin is doing safety work by accident,
+  make the safety explicit *before* changing the pin, not after.
 
 ## Versioning
 - Uses semantic versioning. Current version is in `package.json`.

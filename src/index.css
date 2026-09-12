@@ -473,3 +473,25 @@ kbd {
     opacity: 0.6;
   }
 }
+
+/* Mount animations for the guide page. These were framer-motion `motion.div`s
+   with initial/animate props, which means framer-motion does animation work
+   during the single most expensive render in the app — the one that parses and
+   mounts a 325 KB markdown document. CSS runs on the compositor and costs the
+   main thread nothing.
+   Unlike the framer-motion version, this also honours prefers-reduced-motion. */
+@keyframes prephub-rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes prephub-drop-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-rise-in { animation: prephub-rise-in 300ms ease-out both; }
+.animate-drop-in { animation: prephub-drop-in 300ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise-in,
+  .animate-drop-in { animation: none; }
+}

@@ -103,7 +103,7 @@ Measure the split before optimising. Teams routinely compress an image when thei
 
 The distinction interviewers probe, because acting on the wrong one wastes weeks.
 
-| | **Lab (synthetic)** | **Field (RUM)** |
+| Aspect | **Lab (synthetic)** | **Field (RUM)** |
 |---|---|---|
 | Source | Lighthouse, WebPageTest, CI | real users; CrUX, your own RUM |
 | Conditions | one simulated device and network | every device, network and locale you serve |

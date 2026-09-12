@@ -507,7 +507,7 @@ At a few thousand hosts, one control node fanning out over SSH becomes the limit
 
 ## 15. Ansible vs the Alternatives
 
-| | Ansible | Terraform | Puppet / Chef |
+| Aspect | Ansible | Terraform | Puppet / Chef |
 |---|---|---|---|
 | Purpose | **configuration management** | **provisioning** | configuration management |
 | Model | procedural tasks, converging | declarative + state | declarative |
