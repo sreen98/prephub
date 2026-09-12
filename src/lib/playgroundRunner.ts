@@ -7,6 +7,38 @@
 
 // ==================== Helpers ====================
 
+/**
+ * Join console arguments the way a real console does, applying printf-style
+ * format specifiers when the first argument carries them.
+ *
+ * WHY: React logs warnings and component stacks with format strings — e.g.
+ * `console.error('The above error occurred in the %s component:', name)`.
+ * Naively mapping every argument through `formatValue` and joining leaves the
+ * specifiers in place, so the panel showed bare `%o` and `%s` lines next to a
+ * real error, which reads like the playground itself is broken.
+ *
+ * Handles %s %d %i %f %o %O %c and %%. `%c` (CSS styling) consumes its argument
+ * and renders nothing, which is what a console does in a plain-text context.
+ */
+export function formatConsoleArgs(args: unknown[]): string {
+  const first = args[0];
+  if (typeof first !== 'string' || !/%[sdifoOc%]/.test(first)) {
+    return args.map(formatValue).join(' ');
+  }
+  let next = 1;
+  const head = first.replace(/%([sdifoOc%])/g, (match, spec: string) => {
+    if (spec === '%') return '%';
+    if (spec === 'c') { next++; return ''; }          // style arg, no output
+    if (next >= args.length) return match;            // no argument left: leave as-is
+    const value = args[next++];
+    if (spec === 'd' || spec === 'i') return String(Math.trunc(Number(value)));
+    if (spec === 'f') return String(Number(value));
+    if (spec === 's') return typeof value === 'string' ? value : formatValue(value);
+    return formatValue(value);                        // o, O
+  });
+  return [head, ...args.slice(next).map(formatValue)].join(' ');
+}
+
 export function formatValue(val: unknown): string {
   if (val === null) return 'null';
   if (val === undefined) return 'undefined';

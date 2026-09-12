@@ -523,6 +523,55 @@ check('no released changelog section has been edited', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 16. Answer content must sit BEFORE the `---` that ends the question
+// ---------------------------------------------------------------------------
+check('no answer content is orphaned after a `---`', () => {
+  // `extractQuestions` terminates a standard `**Qn:**` answer at the next
+  // question marker OR a standalone `---`. Anything after that separator is in
+  // no answer at all: invisible in Quiz mode, and visually detached from the
+  // question it belongs to.
+  //
+  // This is documented, and it still happened: a "The fix — …" block with a
+  // worked example was appended just before the NEXT question's heading, which
+  // put it past the separator. A reader scrolled to the Takeaway, saw no fix,
+  // and asked for one that was already written.
+  const offenders = [];
+  const walkMd = (dir, out = []) => {
+    for (const e of readdirSync(dir)) {
+      const full = join(dir, e);
+      if (statSync(full).isDirectory()) walkMd(full, out);
+      else if (full.endsWith('.md')) out.push(full);
+    }
+    return out;
+  };
+  for (const file of walkMd('src/content')) {
+    const lines = read(file).split('\n');
+    lines.forEach((line, i) => {
+      if (line.trim() !== '---') return;
+      let j = i + 1;
+      let fence = false;
+      while (j < lines.length) {
+        const t = lines[j];
+        if (/^\*\*Q\d+/.test(t)) break;
+        if (/^#{2,4} /.test(t)) return;            // a new section: normal prose
+        if (t.trimStart().startsWith('```')) fence = true;
+        j++;
+      }
+      // A code block sitting between the separator and the next question
+      // belongs to neither.
+      if (fence && j < lines.length) offenders.push(`${file}:${i + 1}`);
+    });
+  }
+  assert(
+    offenders.length === 0,
+    'a fenced example sits between a `---` and the next `**Qn:**`, so it is part of '
+      + 'no answer. Move it above the separator — answer order is Output, '
+      + `Explanation, the fix, Takeaway, then \`---\`: ${offenders.slice(0, 6).join(', ')}`,
+  );
+  return 'answers are self-contained';
+});
+
+// ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 const pad = Math.max(...checks.map((c) => c.name.length));

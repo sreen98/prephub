@@ -5532,29 +5532,46 @@ The fix is to stabilize the reference. You can lift the object outside the compo
 
 ---
 
-**Q12: A button's click handler calls `setCount(0)` while the state is already `0`. Does the component re-render, and does it behave differently on the first click vs subsequent clicks?**
+**Q12: A button's click handler calls `setCount(0)` while the state is already `0`. Does the component re-render?**
 
 ```jsx
-function App() {
-  const [count, setCount] = useState(0);
-  console.log("rendered");
+let renders = 0;
 
-  return <button onClick={() => setCount(0)}>Click</button>;
+function App() {
+  const [, setCount] = useState(0);
+  renders++;
+  console.log("rendered", renders);
+
+  return <button onClick={() => setCount(0)}>Click (renders: {renders})</button>;
 }
+
+render(<App />);
 ```
 
-**Output on first click:** `rendered`
-**Output on second click:** (nothing)
+**Output:** `rendered 1` on mount, and **nothing at all** on any click. Press **Try it** and click as many times as you like — the counter never moves.
 
 **Explanation:**
 
-This question exposes React's "bail-out" optimization. When you call a state setter, React compares the new value to the current value using `Object.is`. If they match, React may skip re-rendering — but only if it can confirm that nothing else would change. The subtlety is that this bail-out check itself sometimes requires a partial render to verify, especially for the first update after a mount.
+React bails out when the new state is `Object.is`-equal to the current state, and the interesting part is *where* it bails out, because there are two different paths.
 
-On the first click, React enqueues the update, begins reconciliation, confirms via `Object.is(0, 0)` that the value is unchanged, and may still call the component function once to verify nothing else needs updating. After that verification render, React discards the result if it matches the previous output. The `console.log("rendered")` fires because the component body executed. From this point on React has cached the no-op result, so subsequent `setCount(0)` calls are skipped entirely — no re-render, no log.
+**The eager path, which is what runs here.** `setCount` does not blindly schedule a render. If the fiber has **no pending work** — true for an idle component sitting after a completed mount — React computes the next state immediately, inside the dispatch, and compares it to the current one. `Object.is(0, 0)` is `true`, so it returns then and there. No update is enqueued, no render is scheduled, the component function is never called. That is why the click logs nothing, including the *first* click.
 
-The same bail-out applies when you update state to a value that is `Object.is`-equal to the existing one: setting an object state to a referentially identical object, setting a string to the same string, etc. This is why you must always create new objects/arrays when updating object state — mutating in place and calling the setter with the same reference would silently do nothing. In Strict Mode, React double-invokes render functions during development, which can make this first-render behavior appear twice but does not affect production output.
+**The lazy path, which is where the famous caveat comes from.** React's own documentation warns that it "may still need to render that specific component before bailing out." That happens when the eager comparison is not available — most commonly because there is **already pending work on the fiber**, so React cannot know what the state will be by the time this update is processed. Then it schedules the render, runs your component, discovers the state is unchanged, and bails out of re-rendering the *children*. The component body has already executed, so a `console.log` in it fires.
 
-**Takeaway:** Setting state to the same value bails out of re-rendering — but React may still run one verification render the first time, and you must pass a new reference to update object state.
+So the precise answer is: **usually zero renders, but you cannot depend on zero.** In a quiet component you get the eager bail-out; in a component that is already updating, you get one render and then a bail-out.
+
+**Where this actually bites:** the same `Object.is` comparison is why mutating an object and calling the setter with the *same reference* does nothing at all.
+
+```jsx
+// ✗ Silently does nothing — same reference, so Object.is says "unchanged"
+user.name = 'Ada';
+setUser(user);
+
+// ✓ New reference, so React sees a change
+setUser({ ...user, name: 'Ada' });
+```
+
+**Takeaway:** setting state to an `Object.is`-equal value usually costs nothing — React discards it at dispatch time. Do not write code that *relies* on either a render or no render happening; rely only on the fact that the state will not change.
 
 ---
 
@@ -5603,16 +5620,32 @@ function App({ showName }) {
   const [count, setCount] = useState(0);
 
   if (showName) {
-    const [name, setName] = useState("React");
+    const [name, setName] = useState("React");   // ← the conditional hook
   }
 
   const [age, setAge] = useState(25);
 
   return <p>{count} {age}</p>;
 }
+
+// The bug only fires when showName CHANGES, so this harness toggles it.
+// First render runs 3 hooks; after the click, 2. React throws on that render.
+function Demo() {
+  const [showName, setShowName] = useState(true);
+  return (
+    <>
+      <button onClick={() => setShowName(s => !s)}>
+        showName is {String(showName)} — click to break it
+      </button>
+      <App showName={showName} />
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
-**Output:** Runtime error when `showName` toggles.
+**Output:** renders `0 25`, then throws **"Rendered fewer hooks than expected"** the moment you toggle. Press **Try it** and click the button — the error is the point, and it only appears on the *second* render.
 
 **Explanation:**
 
@@ -5731,9 +5764,11 @@ function Parent() {
     </>
   );
 }
+
+render(<Parent />);
 ```
 
-**Output:** `Child render` logs on every parent render, even though `users` and the user-visible output of `handleSelect` are unchanged.
+**Output:** `Child render` logs on mount and then **again on every click**, even though `users` and the user-visible behaviour of `handleSelect` never change. Press **Try it**, click the button, and watch the log repeat — that repetition is the bug `React.memo` was supposed to prevent.
 
 **Explanation:**
 
@@ -5742,6 +5777,39 @@ function Parent() {
 `users` survives because `useState` stores the value across renders and only changes the reference if you call its setter. Inline objects/arrays defined directly in the JSX (`data={[...]}`) would have the same problem as `handleSelect`.
 
 The minimum fix is `useCallback`: `const handleSelect = useCallback((u) => console.log(u), [])`. This stores a single function reference across renders (until the dependency list changes), so `onSelect` stays referentially equal and the memo holds.
+
+**The fix — give the callback a stable identity:**
+
+```jsx
+const Child = React.memo(function Child({ data, onSelect }) {
+  console.log("Child render");
+  return <ul>{data.map(u => <li key={u.id} onClick={() => onSelect(u)}>{u.name}</li>)}</ul>;
+});
+
+function Parent() {
+  const [count, setCount] = useState(0);
+  const [users] = useState([{ id: 1, name: "Ana" }]);
+
+  // ✓ The same function object across renders, so memo's shallow compare passes.
+  const handleSelect = useCallback((u) => { console.log(u); }, []);
+
+  return (
+    <>
+      <button onClick={() => setCount(c => c + 1)}>{count}</button>
+      <Child data={users} onSelect={handleSelect} />
+    </>
+  );
+}
+
+render(<Parent />);
+```
+
+`Child render` now logs **once**, on mount, however many times you click.
+
+Two things decide whether this actually works:
+
+- **`users` is already stable**, because `useState` hands back the same array every render. Written inline as `<Child data={[{ id: 1, name: "Ana" }]} />` it would be a new array each time and `useCallback` would fix nothing — `memo` compares **every** prop, so one unstable prop defeats it entirely.
+- **The dependency array has to be honest.** `[]` is right here only because `handleSelect` closes over nothing. The moment it reads `count`, `count` belongs in the deps — and the identity then changes whenever `count` does, which is exactly when the child needs the new value anyway. A dishonest `[]` does not buy performance; it buys a stale closure.
 
 **Takeaway:** `React.memo` is necessary but not sufficient — every function/object/array prop you pass must be referentially stable too, or the memo is wasted work plus an extra equality check.
 
@@ -5777,10 +5845,55 @@ Context propagation in React is keyed off the `value` **reference**, not the ind
 
 Two compounding problems: (1) the provider's value is a brand-new object on every render, so re-renders fire even when nothing actually changed; (2) when something *does* change (e.g. `user`), every consumer re-renders, including ones that only read `theme`.
 
-Fixes, in order of escalation:
-1. **`useMemo` the value** so the reference is stable when its dependencies haven't changed: `const value = useMemo(() => ({ theme, user, setTheme, setUser }), [theme, user])`. Cheap; fixes problem (1).
-2. **Split the context** into independent providers (`<ThemeProvider>` and `<UserProvider>`) so unrelated state lives in unrelated subscriptions. Fixes problem (2).
-3. **Use a state library** (Zustand, Jotai) or `useSyncExternalStore` if you need field-level subscription with one logical store.
+**The fix — and the obvious one does not work.**
+
+```jsx
+// ✗ useMemo alone does NOT fix the symptom in this question.
+function AppProvider({ children }) {
+  const [theme, setTheme] = useState("dark");
+  const [user, setUser] = useState(null);
+
+  const value = useMemo(() => ({ theme, user, setTheme, setUser }), [theme, user]);
+  //                                                                        ^^^^
+  // `user` is a dependency, so a navigation still produces a NEW value object,
+  // and every consumer re-renders — including ThemedButton, which reads theme only.
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+```
+
+Measured on React 19: the theme-only consumer re-renders on a `user` change **with or without** that `useMemo`. What `useMemo` does fix is a *different* problem — re-renders caused by the provider's **parent** re-rendering when nothing in the value actually changed. Worth doing, but it is not the answer to this question.
+
+```jsx
+// ✓ Split by how often each piece changes. This is what actually fixes it.
+const ThemeCtx = createContext(null);
+const UserCtx  = createContext(null);
+
+function AppProvider({ children }) {
+  const [theme, setTheme] = useState("dark");
+  const [user, setUser] = useState(null);
+
+  const themeValue = useMemo(() => ({ theme, setTheme }), [theme]);
+  const userValue  = useMemo(() => ({ user, setUser }),  [user]);
+
+  return (
+    <ThemeCtx.Provider value={themeValue}>
+      <UserCtx.Provider value={userValue}>{children}</UserCtx.Provider>
+    </ThemeCtx.Provider>
+  );
+}
+
+// Subscribes to ThemeCtx only, so a user change cannot reach it.
+const ThemedButton = React.memo(function ThemedButton() {
+  const { theme } = useContext(ThemeCtx);
+  return <button className={theme}>Go</button>;
+});
+```
+
+**`React.memo` on the consumer is part of the fix, not an extra.** Splitting stops the *context* notifying it, but `AppProvider` still re-renders when `user` changes, and re-rendering a parent re-renders its children by default. Only with both does the count reach zero — measured: 1 re-render with the split alone, 0 with the split plus `memo`.
+
+If you need one logical store with genuine field-level subscription, that is what **Zustand, Jotai or `useSyncExternalStore`** are for — a component subscribes to a slice, which Context fundamentally cannot do.
+
 
 **Takeaway:** Context is a *broadcast* mechanism — it's coarse by design. Memoize the value, split unrelated state, and reach for a store library when consumers need field-level subscriptions.
 
@@ -5889,11 +6002,27 @@ function Timer() {
     const id = setInterval(() => setN(x => x + 1), 1000);
     return () => { console.log('effect cleanup'); clearInterval(id); };
   }, []);
-  return <p>{n}</p>;
+  return <p>Ticks: {n}</p>;
 }
 
-// Timer is rendered inside <Activity mode={show ? 'visible' : 'hidden'}>
-// Timeline: show=true for 3s → show=false for 5s → show=true again
+function Panel() {
+  const [show, setShow] = useState(true);
+
+  // The timeline: visible for 3s → hidden for 5s → visible again.
+  useEffect(() => {
+    const hide = setTimeout(() => setShow(false), 3000);
+    const back = setTimeout(() => setShow(true), 8000);
+    return () => { clearTimeout(hide); clearTimeout(back); };
+  }, []);
+
+  return (
+    <Activity mode={show ? 'visible' : 'hidden'}>   {/* <- the boundary under test */}
+      <Timer />
+    </Activity>
+  );
+}
+
+render(<Panel />);
 ```
 
 **Output:**
@@ -5937,7 +6066,19 @@ function Ticker({ value }) {
   return null;
 }
 
-// The parent re-renders Ticker with value = 0, then 1, then 2 (once per second)
+function Demo() {
+  const [value, setValue] = useState(0);
+
+  // The parent re-renders Ticker with value = 0, then 1, then 2 — once a second.
+  useEffect(() => {
+    const id = setInterval(() => setValue(v => v + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return <Ticker value={value} />;
+}
+
+render(<Demo />);
 ```
 
 **Output:**
@@ -5974,11 +6115,23 @@ The restriction that pays for this: effect events may only be **called from insi
 
 ```jsx
 function TagList({ tags }) {
-  tags.push('featured');          // mutating a prop during render
-  return <ul>{tags.map(t => <li key={t}>{t}</li>)}</ul>;
+  tags.push('featured');                 // mutating a prop during render
+  return <ul>{tags.map((t, i) => <li key={i}>{t}</li>)}</ul>;
 }
 
-// <TagList tags={['new', 'sale']} />
+function Demo() {
+  const [n, setN] = useState(0);
+  const tags = useMemo(() => ['new', 'sale'], []);   // the parent owns this array
+
+  return (
+    <StrictMode>
+      <button onClick={() => setN(n + 1)}>Re-render ({n})</button>
+      <TagList tags={tags} />
+    </StrictMode>
+  );
+}
+
+render(<Demo />);
 ```
 
 **Output (development, StrictMode):**
@@ -5989,6 +6142,8 @@ featured
 featured
 ```
 and the component is **silently skipped** by the compiler — no memoization is applied to it.
+
+Press **Try it** and click *Re-render*: the list grows by two every click — `featured` accumulates without bound, because the array is never recreated. (Running this against a *production* build you would see one `featured` per render instead of two, since StrictMode's double-invoke is development-only — the bug is the same, just half as loud.)
 
 **Explanation:**
 

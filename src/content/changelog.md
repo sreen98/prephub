@@ -1,5 +1,21 @@
 # What's New
 
+## v1.6.3 (September 2026)
+
+**React guide — the `<Activity>` question now shows the `<Activity>`.** The question asked what happens when you toggle an activity from visible to hidden and back, but the code showed only the timer inside it; the boundary the whole question is about was a comment. It is now real code, with the visible-hidden-visible timeline running on its own, so you can press **Try it** and watch the console print exactly what the answer says it will.
+
+**Fixed: "Try it" could not run the newer React examples.** The playground made only eleven React names available to a snippet, so anything using `<Activity>`, `useEffectEvent`, `use`, `useOptimistic` or `useActionState` failed the instant you pressed Run — including the examples in the guide's own React 19.2 section. The list is now taken from React itself, so every hook and component it ships is available, and future ones will be too.
+
+**Two more React 19.2 questions now actually run.** The `useEffectEvent` question and the React Compiler question both described the setup in a comment — the parent that feeds the prop, and the line that uses the component — so pressing **Try it** ran something that could not demonstrate the answer. Both now include the surrounding component and run on their own. The Compiler one is worth clicking: each press of *Re-render* adds two more tags, because the component mutates an array it does not own.
+
+**Fixed: "Try it" opened the wrong component.** When an example defined more than one component, the playground sometimes picked an inner one and ran it without the props it needs — so a perfectly good example greeted you with a crash. It now picks the component that composes the others, which is the one you meant to see.
+
+**Fixed: the console showed stray `%o` and `%s` markers.** React writes some of its warnings using placeholders that get filled in with real values. The playground was printing the placeholders instead of filling them, so a genuine error arrived surrounded by noise that looked like the playground itself was broken.
+
+**React guide — the performance questions now show the fixed code, not just a description of it.** Two of them, on `React.memo` and on Context, previously explained the fix in prose. They now show the working version, and in the Context case that exposed something worth correcting: the fix everyone reaches for first — wrapping the provider value in `useMemo` — **does not solve the problem that question asks about**. Only splitting the context does. The answer now measures all three approaches so you can see which actually stops the re-render.
+
+**Fixed: two React "Guess the Output" answers were wrong.** Both were caught by pressing **Try it** and seeing the playground disagree with the stated answer. The conditional-hooks question claimed a runtime error, but the example never actually toggled anything, so it just printed `0 25` — it now includes a button that triggers the error, so you can watch it happen. And the question about setting state to the value it already has claimed the first click causes a render; it does not, on any click. That answer has been rewritten to explain where React really discards the update, and why the caveat everyone quotes applies to a different situation.
+
 ## v1.6.2 (September 2026)
 
 **React guide — three sections that were code with no explanation now have one.** `use()`, `useOptimistic` and Creating and Using Context each opened with a code block and said nothing about what the API is for or what goes wrong with it. `use()` now explains why it is the one hook you *can* call inside an `if`, and the mistake that costs an afternoon — creating the promise during render, which loops forever. `useOptimistic` explains that the automatic revert is the entire point, and why the optimistic row vanishing a moment after it appears usually means the real data was never refreshed. The Context section explains why the type is `T | null` and why you export the hook rather than the context.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripModuleSyntax, detectJSX, detectTS, formatValue, transpileSource } from './playgroundRunner';
+import { stripModuleSyntax, detectJSX, detectTS, formatValue, transpileSource, formatConsoleArgs } from './playgroundRunner';
 
 /**
  * `stripModuleSyntax` exists because the playground executes code with
@@ -186,5 +186,46 @@ render(<LoginForm />);`;
   it('still compiles JSX without any TypeScript in it', async () => {
     const out = await transpileSource('const a = <p>hi</p>;', { jsx: true });
     expect(out).toContain('createElement');
+  });
+});
+
+describe('formatConsoleArgs — console format specifiers', () => {
+  it('substitutes %s, which is how React logs component stacks', () => {
+    // The exact shape that produced a bare "%s" line in the panel.
+    expect(formatConsoleArgs(['The above error occurred in the %s component:', 'Child']))
+      .toBe('The above error occurred in the Child component:');
+  });
+
+  it('substitutes %o / %O with the formatted value', () => {
+    expect(formatConsoleArgs(['got %o', { a: 1 }])).toContain('a');
+    expect(formatConsoleArgs(['got %o', { a: 1 }])).not.toContain('%o');
+  });
+
+  it('%d and %i truncate, %f does not', () => {
+    expect(formatConsoleArgs(['%d %i %f', 3.7, 3.7, 3.7])).toBe('3 3 3.7');
+  });
+
+  it('%c consumes its style argument and prints nothing for it', () => {
+    expect(formatConsoleArgs(['%cstyled', 'color: red'])).toBe('styled');
+  });
+
+  it('%% is a literal percent', () => {
+    expect(formatConsoleArgs(['100%% done'])).toBe('100% done');
+  });
+
+  it('extra arguments are appended, as a real console does', () => {
+    expect(formatConsoleArgs(['%s and', 'a', 'b'])).toBe('a and b');
+  });
+
+  it('a specifier with no argument left is preserved verbatim', () => {
+    expect(formatConsoleArgs(['%s %s', 'only-one'])).toBe('only-one %s');
+  });
+
+  it('leaves ordinary multi-argument logs alone', () => {
+    expect(formatConsoleArgs(['count', 1, true])).toBe('count 1 true');
+  });
+
+  it('a bare percent that is not a specifier is untouched', () => {
+    expect(formatConsoleArgs(['50% of 3 items'])).toBe('50% of 3 items');
   });
 });

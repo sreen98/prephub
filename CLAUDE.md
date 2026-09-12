@@ -26,7 +26,7 @@ deploy workflow run the same six:
 |---|---|
 | `npm run typecheck` | `tsc --noEmit`, every file in `src/` |
 | `npm run lint` | ESLint, **type-aware, all 100 `src/**/*.{ts,tsx}` files** |
-| `npm run test` | Vitest — 505 tests in 19 files |
+| `npm run test` | Vitest — 535 tests in 22 files |
 | `npm run verify:counts` | every figure stated in prose matches the code, and in-page anchors resolve |
 | `npm run verify:arch` | repo invariants ESLint cannot express (see rule 8) |
 | `npm run verify:blocks` | no new runnable code block that fails to parse |
@@ -52,7 +52,7 @@ authoritative gate.
 ```bash
 npm run typecheck     # tsc --noEmit
 npm run lint          # eslint — TYPE-AWARE, covers every src/**/*.{ts,tsx}
-npm run test          # vitest run — 93 tests
+npm run test          # vitest run — 535 tests
 npm run verify:counts # prose figures + in-page anchors
 npm run verify:arch   # repo invariants ESLint cannot express
 npm run verify        # all five, in that order
@@ -215,6 +215,10 @@ its own green run while being structurally unable to fail.
 `PreviewErrorBoundary` wraps whatever the user's `render()` mounts, and `createRoot` is given `onUncaughtError`; both report into the console panel. Without them a throw after mount unmounted the preview and left a white pane with **nothing** in the console — the error never passes through `console.error`, so the patched console never sees it. The most common trigger is a snippet pasted from a guide that calls a helper it does not define (`fetchResults`, `api.get`). Separately, a throw inside `setTimeout`/`setInterval` or an unhandled rejection escapes boundaries entirely, so `CodePlayground` also installs `window` `error`/`unhandledrejection` listeners while a preview is live. **If you touch the preview mount path, keep all three.**
 
 ### 12. Editor internals live in `src/lib/`
+`playgroundScope.ts` holds **the names a snippet may use without importing anything**. The playground runs user code through `new Function(...names, src)`, so a name missing from that map is a `ReferenceError` behind a **"Try it"** button on a guide block that looks perfectly correct.
+
+**It is DERIVED from `Object.entries(React)`, not hand-listed, and that is the whole point.** The hand-written version held eleven names and shipped for months while the guide taught `<Activity>`, `useEffectEvent`, `use`, `useOptimistic` and `useActionState` — every one of those examples was unrunnable, and they surfaced one reader report at a time. Patching `Activity` alone would have left `useEffectEvent` broken for the next reader; deriving closes the class and means a React upgrade adds new APIs automatically. `__`-prefixed internals and `version` are excluded (`version` would shadow a plausible user variable); `createPortal` and `flushSync` are added from `react-dom`. **The warning shown when `import` statements are stripped is derived from the same map** (`scopeNames()`) rather than being a second hand-written list — the two had already drifted. `playgroundScope.test.ts` pins it, including that **every public React export is present**, so the derivation cannot quietly become a list again.
+
 `editorHighlight.ts` (highlighting + rainbow/match bracket decoration), `playgroundRunner.ts` (Worker sandbox, Babel transpile, `stripModuleSyntax`, `detectJSX`/`detectTS`), `playgroundFormat.ts` (lazy Prettier). All pure or near-pure, all tested — they were previously buried in a 1,988-line component where none of it could be exercised. Filter state is `useTemplateFilters` (a reducer: tag/mode changes clear pattern+difficulty *as part of the transition*, so the "No templates found" bug is inexpressible) and persisted prefs are `useEditorPrefs`. **Everything the picker *displays* is derived by `src/hooks/useTemplateCatalog.ts`** — the filtered categories, tag options, and the scoped pattern/difficulty counts. It is split into a pure `buildTemplateCatalog(filters)` plus a thin `useMemo` wrapper, the same shape as `templateFilterReducer`, so the derivation is testable in plain Node **without adding a DOM testing library** (the repo has no `@testing-library/react`; component tests use `renderToStaticMarkup`). The scope-awareness it encodes — `patterns`/`difficulty` exist only on JS challenges, so counts and controls are scoped to the active tag — is what stopped React-tag users seeing JS counts that matched nothing on screen.
 
 ### Known exceptions, all deliberate
@@ -313,7 +317,7 @@ All persistence is in localStorage. Key schemas are documented in README.md. Imp
 - Icons in `public/` (pwa-192x192.png, pwa-512x512.png).
 
 ### Testing
-**`npm test` (Vitest) is the gate — 505 tests across 19 files.** Vitest runs through Vite, which
+**`npm test` (Vitest) is the gate — 535 tests across 22 files.** Vitest runs through Vite, which
 is why it can import the data layer at all: `import.meta.glob` only resolves under Vite, so
 `data.ts` cannot be imported into plain Node. That limitation is what let the Promise-to-
 `.filter()` blank screen and the 344 colliding question ids survive a clean typecheck.
@@ -346,7 +350,7 @@ Then still check by hand what a test cannot see:
 (The original audit write-up lived in a Claude artifact that no longer exists — don't go looking for it. The findings and their outcomes are recorded in full below, and the enforcement lives in `eslint.config.js` + `scripts/verify-architecture.js`.)
 **All seven findings are fixed.** "Enforced code rules" above is now the operative document — it describes the state of the repo, not a plan. Outcomes at the time of the audit: ESLint covers every `src` file type-aware (121 violations found and fixed on the first real run); a real test suite where there had been none; eager payload 898 → 525 KB; playground chunk 428 → 95 KB; `App.tsx` 1,608 → 833 lines; `ContentPage` extracted, split and now **under the standard 400-line limit with no ratchet exemption**; `CodePlayground` 1,988 → 1,253 with its internals in tested `lib/` modules; feature folders in place with every layering edge probe-tested.
 
-**`LEGACY_LARGE_FILES` in `eslint.config.js` is down to a single entry** — `CodePlayground.tsx` (932, lowered from 1,010 when the template-catalog derivation moved into `useTemplateCatalog`). Everything else now passes the standard 400-line / 300-function / complexity-20 limits with no exemption: `App.tsx` (456 lines, after `Sidebar` and `SearchModal` came out), `ContentPage`, `ExplanationModal`, `QuizMode` and `data.ts`. **The ceiling may shrink, never grow.** The remaining job is `CodePlayground`'s 1,300-line render — the template modal is the obvious next extraction.
+**`LEGACY_LARGE_FILES` in `eslint.config.js` is down to a single entry** — `CodePlayground.tsx` (920, lowered from 1,010 as `useTemplateCatalog` and then `playgroundScope` came out). Everything else now passes the standard 400-line / 300-function / complexity-20 limits with no exemption: `App.tsx` (456 lines, after `Sidebar` and `SearchModal` came out), `ContentPage`, `ExplanationModal`, `QuizMode` and `data.ts`. **The ceiling may shrink, never grow.** The remaining job is `CodePlayground`'s 1,300-line render — the template modal is the obvious next extraction.
 
 **Three refactors produced real fixes rather than just smaller files**, which is the pattern to repeat:
 - `useTemplateFilters` — a reducer where changing tag or mode clears `pattern`/`difficulty` **as part of the transition**, so the "No templates found" bug is no longer expressible.
@@ -363,6 +367,102 @@ Original findings, for context:
 7. **Flat `components/` mixes routes, shared UI, pure logic and data.** Do this last or files move twice.
 
 **Deliberately NOT problems** — don't "fix" these: the 18 `key={index}` uses are all positional visualisation cells or append-only log rows where the index *is* the identity; the 6 remaining casts only narrow the `menuStructure` union; code splitting, the hooks convention, `RouteErrorBoundary` and the SW registration are sound and intentional.
+
+## Two Try-it bugs were in the APP, not the guides — and one explains three sightings
+A reader pressing **Try it** on React Q17 got `TypeError: Cannot read properties of undefined (reading 'map')` plus bare `%o` / `%s` lines in the console. Both were app defects.
+
+- **`PreBlock` auto-rendered the wrong component.** It concatenated three
+  `matchAll` results — `function X(`, `const X =`, `class X extends` — and took
+  the **last element of the concatenated array**, which is the last *const*
+  match, not the last component **in source order**. For
+  `const Child = React.memo(function Child(…))` above `function Parent()`, the
+  matches are `[Child(fn), Parent(fn), Child(const)]`, so it rendered
+  `<Child />` with no props and crashed on `data.map`. Fixed by sorting on
+  `m.index`. **This is the root cause of the whole "no props" class** — the 9
+  flagged blocks were a symptom of picking the inner component.
+- **The console panel did not apply format specifiers.** `args.map(formatValue).join(' ')`
+  leaves `%s`/`%o` literal, and React logs component stacks with format strings
+  — so a real error arrived flanked by meaningless `%o` and `%s` lines that read
+  as though the playground were broken. `formatConsoleArgs` in
+  `playgroundRunner.ts` now handles `%s %d %i %f %o %O %c %%`, with 9 tests.
+
+**The lesson worth keeping:** when a guide example misbehaves, check the harness
+before rewriting the example. Two of the three "bad block" reports were the
+player, not the content.
+
+## Show the FIXED code, not just prose describing the fix
+A reader asked for this directly, and Q18 shows why it is not cosmetic: the
+guide listed "fixes in order of escalation" starting with `useMemo`, which reads
+as though it addresses the symptom. **Measured on React 19, it does not.**
+
+| | theme-only consumer re-renders when `user` changes |
+|---|---|
+| inline object (buggy) | 1 |
+| `useMemo` on the combined value | **1 — no improvement** |
+| split contexts + `memo` on the consumer | **0** |
+
+`useMemo` fixes a *different* problem — re-renders caused by the provider's
+**parent** re-rendering when the value's contents are unchanged. Only splitting
+by change-frequency fixes "everything re-renders when one field changes", and
+**`React.memo` on the consumer is part of that fix, not an extra**: splitting
+stops the context notifying it, but the provider still re-renders its children.
+Split alone measured 1; split plus `memo` measured 0.
+
+Q17 got the same treatment — the `useCallback` fix, plus the two conditions that
+decide whether it works at all (`memo` compares *every* prop, so one unstable
+prop defeats it; and a dishonest `[]` dep array buys a stale closure, not speed).
+
+## A "Tricky Output" answer is a CLAIM, and the Try-it button now checks it in public
+Two were found wrong by a reader simply pressing **Try it** and comparing the
+console with the stated answer. This is a defect class the code-block gate cannot
+see: the block parses, runs, and prints something that **contradicts the guide**.
+
+- **React Q14 (conditional hook).** The answer said "runtime error when
+  `showName` toggles". The block only *defined* `App`, so the Try-it handler
+  auto-appended `render(<App />)` — with **no props**. `showName` was
+  `undefined`, the conditional hook never ran, and it printed `0 25` with no
+  error, forever. Fixed by adding a `Demo` harness that actually toggles, plus
+  an explicit `render()`. Verified for real: React throws
+  `Rendered fewer hooks than expected`.
+- **React Q12 (`setCount(0)` on state `0`).** The answer claimed the **first
+  click** logs `rendered` and later clicks do not, with a long explanation about
+  a "verification render". **That does not happen.** Measured on React 19.2.4:
+  `plain mount=1, 1st click adds 0, next 2 add 0` — clicking never re-renders.
+  The `rendered` in the console is the *mount*. React's **eager** bail-out in
+  `dispatchSetState` computes the next state at dispatch time when the fiber has
+  no pending work and returns without scheduling anything. The documented "React
+  may still render before bailing out" caveat belongs to the *lazy* path, which
+  needs pending work on the fiber. Rewritten to distinguish the two.
+
+**The rules that follow:**
+1. **Never state an output you have not executed.** These are the guide's most
+   confidently-worded sections and they are read as fact.
+2. **Check what the Try-it button will actually run.** `PreBlock` auto-appends
+   `render(<Component />)` when it finds JSX with no render call — **with no
+   props**. A component whose behaviour depends on a prop therefore demonstrates
+   the wrong thing. 9 blocks match that shape; Q14 was one.
+3. **The playground preview does NOT use StrictMode** (`createRoot` in
+   `CodePlayground.tsx`, no wrapper), so mount renders once. An output claim that
+   assumes double-invocation will be wrong on screen.
+4. Prefer a block that is **self-demonstrating** — a harness plus an explicit
+   `render()` — over one that needs the reader to imagine the trigger.
+
+**The props-less auto-render is a MEASURED backlog, not a hunch.** Sweeping
+every `tsx`/`jsx` block with no `render()` call and resolving the component
+`PreBlock` would pick: **38 blocks auto-render a component that takes props**,
+and in **12** of those the prop is dereferenced (`.map`, `.length`, a call), so
+Try-it throws rather than rendering something odd. The 12:
+`design-patterns:931`, `nextjs-rsc:376`, `react-guide:805 / 1097 / 2473 / 2548 /
+3325 / 3396 / 5920`, `react-native:506 / 560 / 591`. The other 26 render with
+`undefined` and are cosmetic. **Fix one by adding a `Demo` harness plus an
+explicit `render()`**, the way Q14, Q24 and Q25 now do — not by deleting the
+button. React Native blocks cannot run here at all and need a different answer.
+
+**Unverified scope, measured:** there are **132 `**Output:**` claims** in tricky
+sections across the corpus — React 20, JavaScript 16, React Native 15, Express
+14, Node 14. Two have now been checked. The rest are unverified, and React
+Native blocks cannot run in this playground at all, so their Try-it buttons are
+misleading by construction.
 
 ## Sections that are pure code with no explanation — a measured backlog
 A user reading §16.4 `use()` and §16.5 `useOptimistic` found both were a heading

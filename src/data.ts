@@ -120,6 +120,20 @@ export function estimatedHeightFor(file: string): number {
 
 const contentCache = new Map<string, string>();
 
+// Editing a guide in dev would otherwise show no change until a hard reload:
+// Vite invalidates the `?raw` module, but this cache still holds the old string
+// for the session, and ContentPage has already copied it into state. Clearing
+// the cache on hot update makes a markdown edit behave like every other edit.
+// Stripped from production builds — `import.meta.hot` is undefined there.
+if (import.meta.hot) {
+  import.meta.hot.on('vite:afterUpdate', (payload: { updates?: { path?: string }[] }) => {
+    if (payload.updates?.some((u) => u.path?.endsWith('.md'))) {
+      contentCache.clear();
+      allContentPromise = null;
+    }
+  });
+}
+
 // ---- in-flight tracking, so the UI can show real progress ----------------
 // Content is fetched lazily, so a navigation can involve a network round trip
 // with nothing on screen to explain the pause. These let a top-level progress

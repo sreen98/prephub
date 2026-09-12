@@ -6,8 +6,9 @@ import { AnimatePresence } from 'framer-motion';
 import Editor from 'react-simple-code-editor';
 import { highlightCode, decorateBrackets } from '../../lib/editorHighlight';
 import { formatCode } from '../../lib/playgroundFormat';
+import { buildReactScope, scopeNames } from '../../lib/playgroundScope';
 import {
-  formatValue, detectJSX, stripModuleSyntax, transpileSource, runInWorker,
+  formatConsoleArgs, detectJSX, stripModuleSyntax, transpileSource, runInWorker,
 } from '../../lib/playgroundRunner';
 import {
   closingTagFor, shouldClosePair, shouldCloseAngle, BRACKET_PAIRS, CLOSERS,
@@ -292,9 +293,9 @@ export default function CodePlayground() {
     const push = (entry: OutputEntry) => {
       logsRef.current = [...logsRef.current, entry];
     };
-    console.log = (...args: unknown[]) => { push({ type: 'log', text: args.map(formatValue).join(' ') }); };
-    console.warn = (...args: unknown[]) => { push({ type: 'warn', text: args.map(formatValue).join(' ') }); };
-    console.error = (...args: unknown[]) => { push({ type: 'error', text: args.map(formatValue).join(' ') }); };
+    console.log = (...args: unknown[]) => { push({ type: 'log', text: formatConsoleArgs(args) }); };
+    console.warn = (...args: unknown[]) => { push({ type: 'warn', text: formatConsoleArgs(args) }); };
+    console.error = (...args: unknown[]) => { push({ type: 'error', text: formatConsoleArgs(args) }); };
 
     return () => {
       console.log = origLog;
@@ -357,7 +358,7 @@ export default function CodePlayground() {
       if (hadModuleSyntax) {
         logsRef.current = [...logsRef.current, {
           type: 'warn',
-          text: 'import/export statements were ignored — the playground runs a script, not a module. React, useState, useEffect, useRef, useMemo, useCallback, useReducer, useContext, createContext, memo, Fragment and render are already in scope.',
+          text: `import/export statements were ignored — the playground runs a script, not a module. ${scopeNames()} are already in scope.`,
         }];
       }
       let sourceToTranspile = moduleFree;
@@ -416,20 +417,7 @@ export default function CodePlayground() {
           }
         };
 
-        const scope: Record<string, unknown> = {
-          React,
-          useState: React.useState,
-          useEffect: React.useEffect,
-          useRef: React.useRef,
-          useMemo: React.useMemo,
-          useCallback: React.useCallback,
-          useReducer: React.useReducer,
-          useContext: React.useContext,
-          createContext: React.createContext,
-          memo: React.memo,
-          Fragment: React.Fragment,
-          render: renderFn,
-        };
+        const scope = buildReactScope(renderFn);
 
         const scopeKeys: string[] = Object.keys(scope);
         const scopeValues: unknown[] = Object.values(scope);

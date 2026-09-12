@@ -38,12 +38,19 @@ export const PreBlock = ({ children }: { children: React.ReactNode }) => {
     // Require a JSX argument: `render(<` so we only count actual top-level calls.
     const hasRender = /(?:^|\n|;)\s*render\s*\(\s*</.test(text) || /ReactDOM\.(render|createRoot)/.test(text);
     if (hasJSX && !hasRender) {
+      // Sort by POSITION IN SOURCE, not by which pattern matched. These three
+      // matchAll results were previously concatenated and the last element
+      // taken, which is the last `const X =` match rather than the last
+      // component declared — so `const Child = React.memo(…)` above a
+      // `function Parent()` rendered <Child /> with no props and crashed on
+      // `data.map`. A reader hit exactly that on the React guide's Q17.
       const matches = [
         ...text.matchAll(/function\s+([A-Z][A-Za-z0-9]*)\s*\(/g),
         ...text.matchAll(/(?:const|let|var)\s+([A-Z][A-Za-z0-9]*)\s*=/g),
         ...text.matchAll(/class\s+([A-Z][A-Za-z0-9]*)\s+extends/g),
-      ];
+      ].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
       if (matches.length > 0) {
+        // The last component declared is the one that composes the others.
         const componentName = matches[matches.length - 1][1];
         text = `${text.replace(/\s+$/, '')}\n\nrender(<${componentName} />);`;
       }
