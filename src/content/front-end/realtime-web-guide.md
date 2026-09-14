@@ -342,12 +342,20 @@ ws.addEventListener('error', (err) => {
   console.warn('ws error', err);
 });
 
-// Send:
-ws.send('hello');
-ws.send(new Uint8Array([1, 2, 3]).buffer);
+// Send — only legal while readyState is OPEN. Calling send() during
+// CONNECTING throws InvalidStateError, and after a drop it throws too, so a
+// long-lived app sends through a guard rather than calling ws.send directly.
+function send(data) {
+  if (ws.readyState !== WebSocket.OPEN) return false;   // queue it, or drop it
+  ws.send(data);
+  return true;
+}
+
+send('hello');
+send(new Uint8Array([1, 2, 3]).buffer);
 
 // Close:
-ws.close(1000, 'bye');  // 1000 = normal closure
+// ws.close(1000, 'bye');  // 1000 = normal closure
 ```
 
 ### Server (Node.js with `ws`)

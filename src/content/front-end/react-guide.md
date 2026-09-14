@@ -2411,7 +2411,7 @@ useCallback(fn, deps)  ===  useMemo(() => fn, deps)
 - **The component renders are already cheap.** Memoization has its own cost (storing the previous value, running the dep comparison, allocating the closure). For a leaf component that renders in <1ms, the memo is a wash or net-negative.
 - **The dependencies are unstable.** If `useMemo(() => x, [items])` is called with a new `items` array reference every render, the memo never hits its cache and you've added overhead for nothing.
 - **No memoized child consumes the result.** `useCallback(handler, [])` is wasted unless `handler` is passed to a `React.memo`-wrapped child or a hook with stable-reference requirements (`useEffect` deps).
-- **The React Compiler (React 19) is enabled.** It memoizes everything automatically; manual `useMemo` / `useCallback` becomes redundant. Don't strip them out preemptively — but don't add new ones either.
+- **The React Compiler is enabled *and the component actually compiles*.** Where it applies, manual `useMemo` / `useCallback` becomes redundant — but it only compiles a component when it can prove purity and immutability, and when it cannot it **bails out and silently leaves that component unoptimised** (§16.1). So "the compiler handles it" is true per-component, not globally: check the `eslint-plugin-react-hooks` v6 output for bail-outs before assuming it. Don't strip existing memoization out preemptively, and don't add new ones without profiling.
 
 **Rule of thumb:** profile first. If the DevTools Profiler shows a child component re-rendering with referentially-equal props, then memoization helps. If not, the memo is dead weight that costs more than it saves.
 
@@ -5129,6 +5129,143 @@ new Intl.RelativeTimeFormat(locale).format(-3, 'day');   // "3 days ago"
 **7. Leave room for text expansion.** German runs 30–35% longer than English. Fixed-width buttons and single-line truncation break. Test with a pseudo-locale that pads every string.
 
 **The React-specific pitfall:** do not interpolate translated HTML with `dangerouslySetInnerHTML` to get a link inside a sentence — that is an XSS vector through your translation files. Use `<Trans>` (i18next) or `<FormattedMessage>` with rich-text placeholders, which interpolate *components* safely.
+
+---
+
+**Q54: Implement a custom hook that debounces an input value.**
+
+The wording matters: the *value* is debounced, not the input. The field stays controlled by immediate state so typing is never laggy — only the value that triggers expensive work lags behind.
+
+```tsx
+function useDebouncedValue(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    // THIS is the debounce: every new value cancels the pending timer, so the
+    // state only ever settles after `delay` of quiet.
+    return () => clearTimeout(id);
+  }, [value, delay]);
+
+  return debounced;
+}
+
+function Search() {
+  const [query, setQuery] = useState('');
+  const debounced = useDebouncedValue(query, 300);
+  const [searches, setSearches] = useState(0);
+
+  useEffect(() => {
+    if (debounced) setSearches(n => n + 1);   // stands in for the request
+  }, [debounced]);
+
+  return (
+    <div style={{ fontFamily: 'system-ui' }}>
+      <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Type fast…" />
+      <p>typed: <b>{query}</b> — searched for: <b>{debounced}</b></p>
+      <p>searches fired: <b>{searches}</b></p>
+    </div>
+  );
+}
+
+render(<Search />);
+```
+
+Type quickly and the two lines diverge; stop and they converge one tick later. The search counter rises per *pause*, not per keystroke.
+
+**The cleanup is the entire mechanism.** It is not tidy-up — it is the algorithm. Each render with a new `value` tears down the previous timer before setting a new one, so only the final keystroke of a burst survives to fire.
+
+**What follow-ups usually probe:**
+
+- **Why not debounce the input itself?** Because the field would lag behind the keyboard, which users read as the page being broken. Debounce the *derived* value.
+- **Why `[value, delay]` rather than `[]`?** With an empty array the effect captures the first value forever and the debounced state never updates — the stale-closure bug.
+- **Debouncing vs throttling.** Debounce waits for quiet and fires once at the end; throttle fires at a fixed maximum rate throughout. Search suggestions want debounce; a scroll or resize handler wants throttle.
+- **What debouncing does *not* solve.** It reduces how many requests you send, not the order they return in. Two requests still in flight can resolve out of order, so a slow response for `"re"` can overwrite a fast one for `"react"`. That needs an `AbortController` in the fetching effect — see §7.4 and the *Search with Debounce + Cancel* playground template.
+- **Debouncing a callback instead.** `useDebouncedCallback` needs the function in a ref, because a new function identity on every render would otherwise reset the timer continuously. Debouncing a *value* sidesteps that entirely, which is why it is the version to reach for first.
+
+---
+
+**Q55: Explain CSR, SSR and SSG — when would you use each?**
+
+They differ on one axis: **when the HTML is generated.** Everything else follows from that.
+
+| Strategy | HTML built | Cost per request | First paint | Data freshness |
+|---|---|---|---|---|
+| **CSR** | in the browser, after JS loads | none — static file | slowest; blank until JS runs | always live |
+| **SSR** | on the server, per request | highest | fast, personalised | live |
+| **SSG** | at build time | none — served from a CDN | fastest | as old as the last build |
+| **ISR** | at build, then regenerated in the background | amortised | fastest | stale up to the revalidate window |
+
+**Client-side rendering** ships an empty `<div id="root">` and builds everything in the browser. It is right for screens behind a login — an internal dashboard, an editor, a tool — where SEO is irrelevant, the content is per-user anyway, and the app is used for long sessions so a slower first load is amortised across the visit.
+
+**Server-side rendering** builds the HTML per request. Choose it when the page is both *public* and *personalised or fast-changing*: a product page with live stock, a feed, search results. You pay for it — server cost per request, and TTFB now includes your data fetching, so a slow API becomes a slow first byte.
+
+**Static site generation** builds at deploy time and serves from a CDN. This is the default worth defending for marketing pages, documentation and blogs. It is the fastest and cheapest option by a wide margin; the constraint is that content is only as fresh as your last build.
+
+**The follow-up is usually "what if the content changes hourly?"** — and the answer is that the three-way choice is a false one. **ISR** regenerates a static page in the background on a revalidate interval, so you get CDN speed with bounded staleness. And modern frameworks let you mix strategies *per route*: static marketing pages, ISR for the catalogue, SSR for the account area, CSR for the admin tool — in one application.
+
+**Two things worth volunteering:**
+
+- **SSR does not make your app fast on its own.** It improves FCP and LCP because pixels arrive sooner, but the JavaScript still ships and still hydrates; TTI can be *worse* than CSR if you send a large bundle, because the page looks ready while it is not yet interactive.
+- **React Server Components are a different axis.** RSC is about *where components execute and whether their code ships at all* — it is not "SSR but newer". See §16.8 and the Next.js & RSC guide.
+
+---
+
+**Q56: Why doesn't an error boundary catch an async failure?**
+
+Because an error boundary catches errors thrown **during React's own work** — rendering a component, running a lifecycle method, or running a constructor — and an async failure does not happen there. By the time your `fetch` rejects, the render that started it has long since committed and React is no longer on the stack.
+
+The mechanism is ordinary JavaScript, not a React limitation. `componentDidCatch` is built on a `try`/`catch` around the render phase, and a `try`/`catch` only catches what is thrown **synchronously inside it**:
+
+```jsx
+function Broken() {
+  useEffect(() => {
+    // Rejects LATER. Nothing is on the stack to catch it — not React's
+    // try/catch, and not one you write around this call either.
+    fetch('/api/thing').then(r => r.json()).then(data => data.missing.field);
+  }, []);
+  return <p>hello</p>;
+}
+```
+
+**Four things boundaries do not catch, and all for the same reason** — the error is thrown when React is not running:
+
+| Not caught | Why |
+|---|---|
+| Async callbacks (`fetch`, `setTimeout`, promises) | thrown after the render has committed |
+| Event handlers | run in response to the browser, outside the render phase |
+| Server-side rendering | `componentDidCatch` is a commit-phase hook; there is no commit on the server |
+| Errors thrown in the boundary itself | it cannot catch its own failure — it propagates to the boundary above |
+
+**So what do you do instead?** Put the failure into state, and let the *render* throw it — which is back inside React's reach:
+
+```jsx
+function Safe() {
+  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/thing')
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(d => { if (!cancelled) setData(d); })
+      .catch(e => { if (!cancelled) setError(e); });      // capture it
+    return () => { cancelled = true; };
+  }, []);
+
+  if (error) throw error;        // ✓ thrown during render — the boundary sees it
+  if (!data) return <Spinner />;
+  return <Result data={data} />;
+}
+```
+
+That `if (error) throw error` line is the whole trick, and it is what data libraries do for you: TanStack Query's `throwOnError` and React Router's `errorElement` both take a rejected promise and re-throw it during render so a boundary can handle it.
+
+**The one that bites in production** is neither of those: an unhandled rejection or a `setTimeout` throw escapes the React tree entirely and reaches the window. Boundaries will never see it, so a real app also installs `window.addEventListener('error', …)` and `'unhandledrejection'` — which is exactly what this playground does, because a throw inside a `setInterval` otherwise left the preview blank with nothing in the console.
+
+**Takeaway:** boundaries catch what React throws while React is running. Anything asynchronous has to be caught by you and re-thrown during render — or handled at the window.
+
+---
 
 ---
 ---

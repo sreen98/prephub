@@ -41,6 +41,8 @@ export interface TemplateCatalog {
   tagOptions: string[];
   /** Drives the "X / Y solved" header chip. */
   totalJsChallenges: number;
+  /** Every challenge name, JS and React — the denominator for completion. */
+  challengeNames: string[];
   difficultyCounts: Record<Difficulty, number>;
   patternCounts: Record<Pattern, number>;
   scopeHasPatterns: boolean;
@@ -97,6 +99,7 @@ export function buildTemplateCatalog(filters: TemplateCatalogFilters): TemplateC
     categories,
     tagOptions: ['all', ...new Set(templateCategories.map(c => c.tag.toLowerCase()))],
     totalJsChallenges: allTemplates.filter(t => t.kind === 'challenge' && t.tag === 'JS').length,
+    challengeNames: allTemplates.filter(t => t.kind === 'challenge').map(t => t.name),
     difficultyCounts,
     patternCounts,
     scopeHasPatterns: inScope.some(t => t.patterns !== undefined && t.patterns.length > 0),

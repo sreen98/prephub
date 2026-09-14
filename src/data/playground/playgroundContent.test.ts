@@ -3,6 +3,7 @@ import { allTemplates as fullTemplates, templateCategories, blankStarters } from
 import { allTemplates as indexTemplates, getTemplateCode, loadTemplateCode } from './templateIndex';
 import { playgroundSolutionKeys } from './playgroundSolutionKeys';
 import { playgroundExplanationKeys } from './playgroundExplanationKeys';
+import { isBuildExplanation } from './explanationKind';
 
 /**
  * Census of the playground's content.
@@ -18,14 +19,14 @@ import { playgroundExplanationKeys } from './playgroundExplanationKeys';
  * number. If it fails after a refactor, something was lost.
  */
 const EXPECTED = {
-  templates: 180,
+  templates: 181,
   categories: 7,
   blankStarters: 3,
   jsChallenges: 94,
-  reactChallenges: 35,
+  reactChallenges: 36,
   referenceTemplates: 51,
   solutions: 94,
-  explanations: 144,
+  explanations: 180,   // 144 algorithm steppers + 36 React build-order walkthroughs
 };
 
 const jsChallenges = fullTemplates.filter((t) => t.kind === 'challenge' && t.tag === 'JS');
@@ -160,6 +161,9 @@ describe('solutions and explanations still line up with the challenges', () => {
     let singleApproach = 0;
     let stepsWithoutVisual = 0;
     for (const ex of Object.values(explanations)) {
+      // Machine-coding walkthroughs have no approaches or visual frames by
+      // design — they are graded by the build-order assertions below instead.
+      if (isBuildExplanation(ex)) continue;
       if (ex.approaches.length < 2) singleApproach++;
       for (const a of ex.approaches) {
         for (const step of a.steps) {
@@ -176,6 +180,7 @@ describe('solutions and explanations still line up with the challenges', () => {
     const explanations = (await import('./playgroundExplanations')).playgroundExplanations;
     const thin: string[] = [];
     for (const [name, ex] of Object.entries(explanations)) {
+      if (isBuildExplanation(ex)) continue;
       for (const a of ex.approaches) {
         // An approach missing any of these renders an empty panel in the modal.
         if (!a.intuition || !a.complexity?.time || a.pseudocode.length === 0 || a.steps.length === 0) {
@@ -186,11 +191,49 @@ describe('solutions and explanations still line up with the challenges', () => {
     expect(thin).toEqual([]);
   });
 
+  /**
+   * A build walkthrough replaces a wall of comments, so a thin one is worse
+   * than none — the reader opened a modal to be told less than the editor
+   * already showed them. These are the fields the modal actually renders.
+   */
+  it('every build walkthrough is substantive', async () => {
+    const explanations = (await import('./playgroundExplanations')).playgroundExplanations;
+    const problems: string[] = [];
+    for (const [name, ex] of Object.entries(explanations)) {
+      if (!isBuildExplanation(ex)) continue;
+      if (ex.problemStatement.length < 80) problems.push(`${name}: brief too thin`);
+      if (ex.buildOrder.length < 3) problems.push(`${name}: fewer than 3 build steps`);
+      if (ex.graded.length < 3) problems.push(`${name}: fewer than 3 graded points`);
+      for (const s of ex.buildOrder) {
+        if (s.detail.length < 60) problems.push(`${name}/"${s.title}": detail too thin`);
+      }
+      for (const g of ex.graded) {
+        if (g.why.length < 60) problems.push(`${name}/"${g.point}": why too thin`);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('every React machine-coding template has a build walkthrough', async () => {
+    // The gap this closed: all 36 shipped with no Explain button at all.
+    const explanations = (await import('./playgroundExplanations')).playgroundExplanations;
+    const cat = templateCategories.find((c) => c.label === 'React Machine Coding');
+    expect(cat, 'React Machine Coding category').toBeTruthy();
+    const missing = (cat?.templates ?? [])
+      .map((t) => t.name)
+      .filter((n) => !playgroundExplanationKeys.has(n) || !explanations[n]);
+    expect(missing).toEqual([]);
+  });
+
   it('every explanation is loadable with at least one approach and step', async () => {
     const explanations = (await import('./playgroundExplanations')).playgroundExplanations;
     for (const key of playgroundExplanationKeys) {
       const ex = explanations[key];
       expect(ex, key).toBeTruthy();
+      if (isBuildExplanation(ex)) {
+        expect(ex.buildOrder.length, key).toBeGreaterThan(0);
+        continue;
+      }
       expect(ex.approaches.length, key).toBeGreaterThan(0);
       for (const a of ex.approaches) {
         expect(a.steps.length, `${key} / ${a.name}`).toBeGreaterThan(0);

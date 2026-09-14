@@ -2,7 +2,7 @@
 
 A comprehensive collection of guides covering everything a full-stack developer gets asked in interviews — from JavaScript fundamentals to frontend architecture, accessibility, security and AI engineering.
 
-**68 guides across 8 categories, plus 14 cheat sheets and an interactive Code Playground.**
+**70 guides across 8 categories, plus 14 cheat sheets and an interactive Code Playground.**
 
 ---
 
@@ -56,9 +56,11 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 ## 🗂️ What's In Here
 
-### 🎨 Front End (23 guides)
+### 🎨 Front End (25 guides)
 
-**Core React** — [React Guide](/frontend/react) (hooks, reconciliation and Fiber, performance, React 19/19.2), [Redux Toolkit](/frontend/redux-toolkit), [Redux Saga](/frontend/redux-saga), [TanStack Query](/frontend/tanstack-query)
+**Core React** — [React Guide](/frontend/react) (hooks, reconciliation and Fiber, performance, React 19/19.2), [React Router](/frontend/react-router) (nested layouts, loaders, the URL as state), [Next.js & RSC](/frontend/nextjs-rsc)
+
+**Global state management** — [TanStack Query](/frontend/tanstack-query), [Redux Toolkit](/frontend/redux-toolkit), [Redux Saga](/frontend/redux-saga), [Zustand](/frontend/zustand) — start with the split the guides all teach: **server state** belongs in TanStack Query, rarely-changing config in Context, and only genuinely shared client state in a store
 
 **Architecture & Platform** — [Frontend Architecture at Scale](/frontend/architecture) (monorepo vs multi-repo, micro-frontends, design systems, caching layers, real-time at scale, debugging the 1%), [Next.js & React Server Components](/frontend/nextjs-rsc) (the RSC model, App Router, the Next 16 caching model, auth defence-in-depth), [Design Patterns](/frontend/design-patterns), [Refactoring & Code Review](/frontend/refactoring-code-review)
 
@@ -111,7 +113,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 ## 🛠️ Interactive Tools
 
 - **[Query Playground](/query-playground)** — **34 write-and-check questions**, 20 PostgreSQL and 14 MongoDB. You write the query, run it against real seeded data and your answer is checked automatically. It runs an actual PostgreSQL build in the browser, so window functions, `DISTINCT ON`, `FILTER` and recursive CTEs all behave exactly as they would on a server; MongoDB questions run real aggregation pipelines.
-- **[Code Playground](/playground)** — **180 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **35 React machine-coding** challenges — **129 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
+- **[Code Playground](/playground)** — **181 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **36 React machine-coding** challenges — **130 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
 - **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.
 - **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.

@@ -1266,6 +1266,44 @@ These questions are about the behavioral interview process itself — understand
 
 ---
 
+**Q19: How do you prioritise technical debt against new features?**
+
+> The answer that fails is "we allocate 20% of every sprint to tech debt," because it is a policy, not a judgement, and the first hard deadline deletes it. What works is refusing to treat debt as one category. **Debt that is currently costing you is not the same as debt that is merely ugly**, and only the first competes with features.
+>
+> I make the cost visible in the same units as the feature: this module is touched in 40% of our PRs and every change there takes two days instead of half a day; this flaky suite costs the team an hour a week and, worse, has trained everyone to re-run CI instead of reading failures. Now it is not "engineering wants to refactor" — it is a throughput number a product manager can weigh against a roadmap item. Debt that *nobody touches* stays on the list and is a fine thing to never fix.
+>
+> Then I pay it down where the work already is. A rewrite sprint is the hardest thing to get approved and the easiest to cancel halfway, leaving two architectures instead of one. Refactoring the module you are already changing for a feature is nearly invisible in planning and compounds. For the genuinely large items I use a **ratchet**: the current state is recorded as a number that may only go down, so new code cannot add to it while existing debt is retired opportunistically. That converts a project into a direction.
+>
+> The part worth saying out loud: I would rather ship the feature and log the debt honestly than quietly do neither well. The failure mode I have actually seen is not too little refactoring — it is a team that refactors continuously, ships slowly, and loses the argument permanently the next time budget is reviewed.
+
+---
+
+**Q20: Describe how you handle conflicts with designers or backend teams.**
+
+> Most of these are not conflicts about taste — they are two people optimising for different things without having said so. So my first move is to surface the constraint rather than defend a position.
+>
+> **With design**, the disagreements that recur are feasibility and cost. A designer asks for something that is genuinely expensive — an animation that will jank on mid-range Android, or a custom select that breaks keyboard access. I do not say "we can't." I say what it costs and offer the nearest thing that is cheap: here is the interaction at 60fps with a CSS transform instead of an animated height; here is the native control styled to match, which keeps the keyboard behaviour we would otherwise have to rebuild. I have also learnt to bring the constraint *early* — reviewing designs at the wireframe stage rather than at handoff, because at handoff the conversation is about rework and everyone is defensive. Where I have been wrong is assuming a request was decoration when it was a deliberate accessibility or brand decision, which is why I ask what problem the design is solving before proposing an alternative.
+>
+> **With backend**, it is usually API shape. The frontend wants one call that returns what a screen needs; the backend wants clean, resource-shaped endpoints. Both are right within their own scope, and arguing that in the abstract goes nowhere. What resolves it is showing the concrete cost — "this screen makes six round trips on a 4G connection, here is the waterfall" — and then proposing a place for the mismatch to live, usually a BFF, so neither side has to compromise its own layer. When we cannot agree in time, I integrate against an agreed contract and mock it, so the disagreement stops blocking both teams while it is settled.
+>
+> The general rule: **disagree on the artefact, not with the person, and write the decision down.** The same argument recurring every quarter is a documentation failure, not a personality one. And I escalate early rather than late — a week of silent disagreement is far more expensive than a fifteen-minute conversation with both leads in the room.
+
+---
+
+**Q21: How do you communicate complex technical decisions to non-technical stakeholders?**
+
+> I lead with the decision and its consequence, not the reasoning. Engineers are trained to build the argument first and conclude at the end; an executive audience hears three minutes of context and no answer. So: "We're moving the checkout to server rendering. It should cut the time to first screen roughly in half on mobile, which is where most of our drop-off is. It costs about three weeks and adds a server we have to run."
+>
+> Then I translate every term into a consequence they can weigh. Not "we'll reduce the bundle size by 300 kilobytes" but "the page becomes usable about a second sooner on a phone, and that second is where we lose customers." Not "we have flaky tests" but "we can't tell a real failure from noise, so we ship more slowly and more nervously." The rule I use is that if a sentence cannot end in *revenue, risk, speed or cost*, it probably belongs in the appendix.
+>
+> **I present options with trade-offs rather than one recommendation dressed as a fact.** Two or three paths, what each buys, what each costs, which one I would pick and why. Stakeholders are good at judging trade-offs and bad at judging technical claims they cannot verify — and giving them a real choice is what makes the decision theirs to own when it is questioned later.
+>
+> Two things I have learnt the hard way. **Be honest about uncertainty in their language**: "I'm confident about the performance win, less confident about the three weeks — here's what would make it five." Hedging in engineering terms reads as evasion. And **anchor on something they already feel**: the support tickets they have seen, the demo that was slow last week, the competitor page that loads instantly. A metric nobody has experienced is an abstraction; a metric attached to something they remember is an argument.
+>
+> Where I have failed at this: bringing a problem without a proposal. "Our architecture doesn't scale" invites panic and a decision made without me. "Here's the limit we'll hit in about six months, here are two ways through it, here's what I'd do" invites a decision.
+
+---
+
 ## 16. References
 
 ### Books

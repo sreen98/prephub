@@ -289,7 +289,16 @@ Full-duplex, persistent TCP connection over a single HTTP-upgraded handshake. Bo
 ```js
 const ws = new WebSocket('wss://example.com/socket');
 
-ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'hello' })));
+ws.addEventListener('open', () => {
+  // send() is ONLY legal once the handshake has completed. Calling it while
+  // readyState is still CONNECTING throws:
+  //   InvalidStateError: Failed to execute 'send' on 'WebSocket'
+  // …which is why every send lives in here rather than after the constructor.
+  ws.send('text');
+  ws.send(JSON.stringify({ x: 1 }));
+  ws.send(new Blob([new Uint8Array([1, 2, 3])]));   // binary frame
+});
+
 ws.addEventListener('message', e => {
   // e.data is string OR Blob OR ArrayBuffer (set ws.binaryType to choose)
   console.log(JSON.parse(e.data));
@@ -297,11 +306,84 @@ ws.addEventListener('message', e => {
 ws.addEventListener('close', e => console.log(e.code, e.reason));
 ws.addEventListener('error', () => console.log('connection error'));
 
-ws.send('text');
-ws.send(JSON.stringify({ x: 1 }));
-ws.send(new Blob([buf]));
-ws.close(1000, 'normal');
+// From anywhere else in the app, check first — the socket may have dropped
+// since you last looked, and OPEN is the only state that accepts a send.
+if (ws.readyState === WebSocket.OPEN) ws.send('ping');
+
+// ws.close(1000, 'normal');   // 1000 = normal closure; closing mid-handshake aborts it
 ```
+
+**Run that against a host with no WebSocket server** — as `example.com` is — and you get exactly two lines:
+
+```
+connection error
+1006
+```
+
+That is the whole failure story in miniature. The `error` event carries **no useful detail** by design (exposing why a cross-origin handshake failed would leak information), so it is only ever a signal that something went wrong. The detail is in the `close` event that follows it, and **`1006` means "abnormal closure — no close frame was received"**: the connection dropped at the TCP or TLS level rather than either side shutting down politely.
+
+The diagnostic worth remembering: **`error` then `close` with `1006`, and `open` never fired, means the handshake never completed at all** — a wrong URL, a server that is down, or a corporate proxy that swallowed the `Upgrade` header. If `open` *did* fire first, the same pair means an established connection dropped, which is the case you reconnect from. See the Real-Time Web guide for the full close-code table and a reconnection strategy.
+
+#### A real socket you can actually run
+
+`example.com` has no WebSocket server, which is why the snippet above only ever shows you the failure path. Postman runs a public echo service that sends back whatever you send it — press **Try it** on this one and you get the whole lifecycle for real:
+
+```jsx
+const ECHO = 'wss://ws.postman-echo.com/raw';
+
+function EchoDemo() {
+  const [status, setStatus] = useState('connecting');
+  const [log, setLog] = useState([]);
+  const [draft, setDraft] = useState('hello');
+  const wsRef = useRef(null);
+
+  useEffect(() => {
+    const ws = new WebSocket(ECHO);
+    wsRef.current = ws;
+    const add = (line) => setLog(prev => [...prev, line]);
+
+    ws.addEventListener('open', () => {
+      setStatus('open');
+      add('open — readyState ' + ws.readyState);   // 1 = OPEN
+      ws.send('first message, sent from the open handler');
+    });
+    ws.addEventListener('message', e => add('echo: ' + e.data));
+    ws.addEventListener('error', () => add('connection error'));
+    ws.addEventListener('close', e => {
+      setStatus('closed');
+      add('close ' + e.code + ' wasClean=' + e.wasClean);
+    });
+
+    // Closing on unmount is the part people forget — without it the socket
+    // outlives the component and keeps firing handlers into nothing.
+    return () => ws.close(1000, 'unmounted');
+  }, []);
+
+  const send = () => {
+    const ws = wsRef.current;
+    // Guard: the socket may have dropped since the last render.
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(draft);
+  };
+
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 12 }}>
+      <p>status: <b>{status}</b></p>
+      <input value={draft} onChange={e => setDraft(e.target.value)} />
+      <button onClick={send} disabled={status !== 'open'}>Send</button>
+      <button onClick={() => wsRef.current?.close(1000, 'bye')}>Close</button>
+      <pre style={{ background: '#f4f4f4', padding: 8, marginTop: 10, fontSize: 12 }}>
+        {log.join('\n')}
+      </pre>
+    </div>
+  );
+}
+
+render(<EchoDemo />);
+```
+
+Type something, press **Send**, and it comes straight back. Press **Close** and watch the code arrive as `1000 wasClean=true` — the graceful shutdown that `1006` is the absence of.
+
+**Two practical notes.** It is a React component rather than a plain script for a mechanical reason: the playground runs plain JavaScript in a Web Worker that stops about 400 ms after your synchronous code finishes, and a real handshake takes longer than that — so a `js` version would print nothing at all. And `wss://echo.websocket.org` works the same way if Postman's is ever down, except that it greets you with a `Request served by …` line before it starts echoing.
 
 **Things you'll learn the hard way:**
 
@@ -1148,6 +1230,50 @@ Three pieces:
 3. **Virtualization above some threshold.** Even with appending, the DOM grows unboundedly. After N items (~1000), drop offscreen items from the DOM (`react-virtual`, `react-window`) so the browser only renders what's visible.
 
 Plus the small-but-important details: keep a stable `key` per item (so React reconciliation doesn't shuffle state), track the last fetched cursor (not the page number — page numbers break when items shift), and ignore the IO callback while a fetch is in flight to avoid double-loads.
+
+---
+
+**Q17: Several tabs of your app are open and the user logs out in one. How do the others find out?**
+
+They do not, unless you tell them — each tab is its own JavaScript context with its own memory. The auth state in tab B's React tree knows nothing about tab A, so without a broadcast the user "logs out" and then keeps working in three other tabs, which is a genuine security problem rather than a cosmetic one.
+
+There are three mechanisms, and the difference between them matters:
+
+```js
+// 1. BroadcastChannel — purpose-built, same-origin, does NOT touch storage.
+const channel = new BroadcastChannel('auth');
+channel.postMessage({ type: 'logout' });           // in the tab that logged out
+
+channel.addEventListener('message', (e) => {        // in every OTHER tab
+  if (e.data.type === 'logout') store.clearSession();
+});
+```
+
+```js
+// 2. The `storage` event — fires ONLY in other tabs, never in the one that
+//    wrote. That asymmetry is the whole reason it works as a signal.
+localStorage.setItem('logout-at', String(Date.now()));
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'logout-at') store.clearSession();
+});
+```
+
+```js
+// 3. A shared Service Worker can push to every client it controls.
+const clients = await self.clients.matchAll({ type: 'window' });
+clients.forEach(c => c.postMessage({ type: 'logout' }));
+```
+
+**Which to reach for.** `BroadcastChannel` is the right default — it is designed for exactly this, carries structured data, and does not abuse storage as a message bus. The `storage` event is the compatibility fallback and has one useful property the others lack: it works even if the other tab's JavaScript is idle, because the browser dispatches it. A Service Worker is the answer when the message must also reach tabs you did not open from this one.
+
+**Three details that separate a working answer from a complete one:**
+
+- **`BroadcastChannel` messages do not persist.** A tab opened *after* the logout hears nothing, so it must still validate its session on load. The broadcast is an optimisation, not the source of truth.
+- **The `storage` event does not fire in the originating tab.** Handle the local logout directly; do not expect your own listener to run.
+- **If the token lives in an `HttpOnly` cookie, the other tabs are already logged out** as far as the server is concerned — their next request fails with a 401. The broadcast is then about updating the *UI* promptly rather than about revoking access, and a 401 interceptor that redirects is the real backstop.
+
+**Takeaway:** tabs share an origin, not a JavaScript context. `BroadcastChannel` to tell them, a `storage` event as the fallback, and a 401 handler as the guarantee — because a message can always be missed.
 
 ---
 

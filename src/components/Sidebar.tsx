@@ -177,10 +177,17 @@ export default function Sidebar({
                         className="overflow-hidden"
                       >
                         <div className="ml-4 pl-3 border-l-2 border-slate-100 dark:border-slate-800 space-y-0.5 py-1">
-                          {groupSidebarItems(section.items).map(bucket => (
-                            <div key={bucket.label ?? '_ungrouped'}>
+                          {/* A group heading previously sat at the same left edge, size and
+                              weight as the links under it, so it read as another item. It now
+                              gets a rule above, wider tracking, and the links are indented
+                              beneath it — three cues rather than one. */}
+                          {groupSidebarItems(section.items).map((bucket, bucketIndex) => (
+                            <div
+                              key={bucket.label ?? '_ungrouped'}
+                              className={cn(bucket.label && bucketIndex > 0 && "mt-2 pt-2 border-t border-slate-200 dark:border-slate-800")}
+                            >
                               {bucket.label && (
-                                <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                <p className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 dark:text-slate-400">
                                   {bucket.label}
                                 </p>
                               )}
@@ -189,7 +196,8 @@ export default function Sidebar({
                                   key={item.path}
                                   to={item.path}
                                   className={cn(
-                                    "flex items-center px-3 py-2 rounded-lg text-[13px] font-medium transition-all",
+                                    "flex items-center py-2 rounded-lg text-[13px] font-medium transition-all",
+                                    bucket.label ? "pl-5 pr-3" : "px-3",
                                     location.pathname === item.path
                                       ? cn(section.lightBg, section.darkBg, section.accent, "shadow-sm")
                                       : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900"

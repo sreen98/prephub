@@ -676,6 +676,27 @@ The framing that lands: **"there are three separate promises a page makes — I 
 ---
 ---
 
+**Q10: Your app is fast on your laptop and slow on a real Android device. What do you measure first?**
+
+Before measuring anything, name why the gap exists, because it decides what you look at. Your laptop has a fast multi-core CPU, a warm cache, a wired connection and no thermal limit. A mid-range Android phone has roughly **a quarter of the single-core performance**, a smaller cache, a variable radio, and it throttles when warm. The work that is invisible on a desktop is the work that dominates there — so the first question is not "which metric is bad" but **"is this CPU, or network?"**
+
+**Measure on the device, not a simulation of one.** Remote debugging over USB with Chrome DevTools gives you a real profile from the real hardware; Lighthouse's 4× CPU slowdown is a useful proxy and it is still a proxy. A `navigator.hardwareConcurrency` of 8 on your desk and 4 on the phone is not the difference — the per-core speed is.
+
+**The order I would work in:**
+
+1. **Field data first, segmented by device class.** A p75 aggregate hides this entirely — desktop users drag the average down while phone users suffer. If your RUM cannot split by device, that is the first thing to fix, because you cannot confirm you improved anything otherwise.
+2. **INP and Total Blocking Time before LCP.** A slow device's defining symptom is that *interactions* lag: taps take hundreds of milliseconds because the main thread is busy parsing, hydrating or re-rendering. Network-bound problems look the same on both machines, just slower; CPU-bound ones only appear here.
+3. **The performance trace, looking at Scripting vs Rendering.** Large Scripting means too much JavaScript — parse, compile, hydrate. Large Rendering and Painting means layout and style, often a long list or an expensive CSS selector. They have completely different fixes and you cannot tell them apart without the trace.
+4. **Then the usual suspects, in device-relevant order:** JavaScript payload and hydration cost, long tasks that need breaking up (`scheduler.yield`), list virtualisation, and images sized for the actual viewport rather than the desktop one.
+
+**The trap worth naming:** your laptop's cache makes the second load fast, so you test the wrong thing. Test cold, with the network throttled *and* the CPU throttled, and on the real device where possible.
+
+**And the fix that is usually right** is not micro-optimisation — it is sending less JavaScript. Hydration cost scales with how much of the page is interactive, which is why route-level splitting and moving work to the server pay far more on a phone than any amount of memoisation.
+
+**Takeaway:** segment the field data by device before anything else, then decide CPU versus network from a trace on real hardware. A desktop profile cannot tell you which of the two you have.
+
+---
+
 ## 15. Tricky Questions
 
 ---

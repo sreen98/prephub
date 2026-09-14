@@ -668,6 +668,134 @@ That last row is short, and that's the point. **The biggest efficiency win isn't
 
 ---
 
+**Q14: How would you design a scalable React application for a dashboard with 100+ pages?**
+
+At that count the problem stops being React and becomes **organisation**: a hundred pages means a hundred chances for two teams to solve the same thing differently, and a build that gets slower every sprint.
+
+**Structure by feature, not by file type.** A `components/` folder holding four hundred components, and a `pages/` folder holding a hundred, tells you nothing about what belongs to what. A feature folder — its routes, components, hooks, API calls and tests together — means a page is deletable, ownable and reviewable as a unit. Layering runs product → feature → shared → foundation, and **imports only point downward**, enforced by ESLint `no-restricted-imports` or Nx module boundaries rather than by convention (§2).
+
+**Route-level code splitting is mandatory, not an optimisation.** One page must never ship the other ninety-nine. `React.lazy` per route, with an error boundary above each `Suspense` for the post-deploy `ChunkLoadError` (see Q3). Shared vendor chunks stay separate so a change in one feature does not invalidate everyone's cache.
+
+**Generate the routes from a manifest** rather than hand-writing a hundred `<Route>` elements. Each feature exports its route descriptors — path, lazy component, required permission, breadcrumb — and the router composes them. That gives you one place to apply auth gating and analytics, and one place to check that no two teams claimed the same path.
+
+**Server state is not app state.** Most of a dashboard's data is server state: fetched, cached, invalidated, refetched. TanStack Query owns that, and it removes the majority of what people put in Redux. What remains genuinely global — the user, permissions, theme, feature flags — goes in a store with **selector-level subscriptions**, because a Context value change re-renders every consumer (see Q13).
+
+**Make the shell fast and the pages lazy.** The persistent shell — navigation, breadcrumbs, the permission-aware menu — loads once. Pages mount into it. Prefetch the likely next route on link hover; it is a few lines and removes most of the perceived cost of splitting.
+
+**Build time is a first-class concern at this size.** A monorepo with an affected-graph (Nx, Turborepo) so a one-line change does not rebuild everything, remote caching in CI, and a per-route bundle budget that fails the build — otherwise size regressions arrive one page at a time and nobody is responsible for any of them.
+
+**What I would *not* do:** micro-frontends, unless the pages are owned by teams that genuinely need independent deploys. A hundred pages in one well-layered app is normal; a hundred pages split across eight runtimes with duplicated React is a much harder problem (§4).
+
+---
+
+**Q15: How do you handle API rate limits gracefully on the frontend?**
+
+Start by naming the two cases, because they need different responses. **429 with a `Retry-After` header** is the server telling you exactly when to come back — honour it literally. **429 without one**, or a 503, means you have to back off yourself.
+
+**Retry with exponential backoff and full jitter, capped, and only for the right verbs.**
+
+```js
+async function withRetry(request, { tries = 4, cap = 30000 } = {}) {
+  for (let attempt = 0; attempt < tries; attempt++) {
+    const res = await request();
+    if (res.status !== 429 && res.status < 500) return res;   // success or a real error
+
+    const header = res.headers.get('Retry-After');
+    // Retry-After is seconds OR an HTTP date; both appear in the wild.
+    const advised = header && (Number(header) * 1000 || Date.parse(header) - Date.now());
+    const backoff = Math.min(cap, 1000 * 2 ** attempt);
+    const wait = advised && advised > 0 ? advised : Math.random() * backoff;
+
+    if (attempt === tries - 1) return res;                    // out of attempts
+    await new Promise(r => setTimeout(r, wait));
+  }
+}
+```
+
+**Jitter is the part people omit.** Without it, every client that hit the limit at the same moment retries at the same moment, and the first request back through the door knocks the service over again. Full jitter — a random point in the window rather than the window itself — spreads them out.
+
+**Only retry idempotent requests automatically.** A GET is safe. A POST that creates an order is not, unless the server accepts an idempotency key; otherwise a retry after a response that was actually delivered creates a duplicate. For non-idempotent calls, surface the failure and let the user decide.
+
+**Then reduce the requests you make at all**, which is the real fix:
+
+- **De-duplicate in flight.** Two components mounting with the same key must share one request, not fire two (see Q12).
+- **Cache and revalidate.** Serving a cached value while refreshing in the background removes most repeat traffic.
+- **Debounce and cancel** anything driven by typing, and abort the superseded request.
+- **Batch.** Ten calls for ten ids should be one call for ten ids, if the API allows it.
+- **Back off polling when the tab is hidden**, and stop entirely when the user is idle. A dashboard left open overnight is a surprising share of a rate-limit budget.
+
+**Make the state visible rather than silent.** A request queue that retries invisibly for thirty seconds looks like a broken app. Show that data is stale and refreshing; if the limit is sustained, say so plainly — "we're being rate limited, retrying in 12s" — with a manual retry. And make sure a spike degrades one widget rather than blanking the dashboard: per-section error boundaries with the last known value still on screen.
+
+**The honest framing:** the frontend cannot fix a rate limit, only survive it well. If you are hitting it routinely, the fix is a BFF that aggregates the calls your UI needs into one round trip, or a server-side cache — not more retry logic in the browser.
+
+---
+
+**Q16: How would you design a frontend architecture that can handle 1M+ users daily?**
+
+The first move is to reject the premise gently: a million *users* a day is not a frontend load problem the way a million *requests per second* is a backend one. The browser only ever renders for one person. What a million users actually stresses is **delivery, cache strategy, resilience and your ability to change things safely** — so that is what I would design for.
+
+**1. Delivery is a CDN problem.** Static assets are content-hashed and served from an edge CDN with immutable, year-long caching; `index.html` is the only short-cached file. At that traffic, origin bandwidth is a cost line — a 200 KB regression is real money as well as real latency.
+
+**2. Cache in layers, and have an invalidation story for each** (§6): browser cache via hashed filenames, CDN with explicit purge on deploy, a service worker precaching only the shell, and HTTP caching plus client-side caching for API data. A layer with no invalidation story becomes the thing you cannot ship a fix through.
+
+**3. Budget the critical path.** At this scale the tail is a real population: p95 on a mid-range Android over 4G is the number that matters, not your laptop. Route-level splitting, a per-route size budget enforced in CI, fonts and the LCP image preloaded, and no third-party script on the critical path without an owner and a measured cost.
+
+**4. Measure in the field, not the lab.** Lighthouse cannot tell you what a million people experience, and it structurally cannot measure INP. Real-user monitoring on Core Web Vitals, **segmented** — by country, device class, connection, app version — because an aggregate hides the 1% that is actually broken (Q5).
+
+**5. Make releases survivable.** Progressive rollout behind feature flags, an automated rollback on an error-rate or CWV regression, and a kill switch for anything risky. At a million users a day, a bad deploy reaches tens of thousands of people in the time it takes to notice — so the graded quality is not avoiding bad deploys, it is bounding their blast radius.
+
+**6. Degrade rather than fail.** Error boundaries per region so one failing widget does not blank the page, skeletons and cached values rather than spinners, and an offline-tolerant shell. The recommendations panel being down should cost you the recommendations panel.
+
+**7. Push work off the critical path.** Aggregate on the server or in a BFF so the client makes one request instead of eight; stream what you can; move expensive client work into a Worker. The cheapest frontend work is the work the server already did.
+
+**The scale-specific traps worth naming:** a thundering herd when caches expire together (stagger TTLs and jitter revalidation); a websocket fan-out that assumes every client can hold a connection; and analytics or logging that was fine at 1,000 users and becomes its own outage at a million.
+
+---
+
+**Q17: Design a reusable dropdown component that supports search and multi-select.**
+
+This is a component-API question wearing a UI costume. The graded parts are the interface you expose, and whether you know what the ARIA combobox pattern requires.
+
+**Start with the API, because that is what "reusable" means.**
+
+```jsx
+<Select
+  options={options}              // [{ value, label, disabled?, group? }]
+  value={selected}               // controlled: string[] when multiple
+  onChange={setSelected}
+  multiple
+  searchable
+  getOptionLabel={o => o.label}  // so it works with any shape
+  onSearch={handleRemoteSearch}  // omit ⇒ filter locally
+  renderOption={o => <Row {...o} />}
+  loading={isLoading}
+  emptyMessage="No matches"
+/>
+```
+
+Four decisions are doing the work there. It is **controlled** (`value`/`onChange`), so the parent owns selection and it composes with a form library. It is **data-shape agnostic** via `getOptionLabel`, so it is not tied to one backend's field names. `renderOption` is an escape hatch, so the next team does not fork the component to add an avatar. And `onSearch` being optional is what lets the same component do local filtering and remote search.
+
+**Selection state is a Set, not an array.** Membership checks and toggling are O(1), and it makes "is this option selected?" trivial during render. Convert to an array at the `onChange` boundary so consumers get something ordinary.
+
+**Filtering is derived, never stored.** `useMemo` over options and the query. Storing a filtered list in state means an effect to resync it, and a render where the list and the query disagree.
+
+**The accessibility contract is the part interviewers actually check:**
+
+- `role="combobox"` on the input with `aria-expanded`, `aria-controls` and `aria-haspopup="listbox"`.
+- The popup is `role="listbox"`; options are `role="option"` with `aria-selected` — and for multi-select, `aria-multiselectable="true"` on the listbox.
+- **`aria-activedescendant` keeps DOM focus in the input** while a virtual focus moves through the options. Calling `.focus()` on the `<li>` is the single most common way this is built wrong: typing stops working the moment the user presses Down.
+- Keyboard: Down/Up to move (Down reopens a closed list), Enter to toggle, Home/End, Escape to close and a second Escape to clear, Backspace on an empty input to remove the last chip.
+- Generate ids with `useId` so two dropdowns on one page do not collide.
+- Select with `onMouseDown`, not `onClick` — a click fires after blur, by which time the list may have closed.
+
+**Multi-select adds three problems single-select does not have.** The trigger has to show N selections without growing unboundedly — chips with a "+3 more" overflow. Removing a chip must not open the popup. And the list should not close on each selection, which is the opposite of single-select behaviour.
+
+**Scale, if asked:** virtualise the option list past a few hundred (a select over 10,000 rows is the same windowing problem as any long list), debounce and cancel remote searches, and keep selected options resolvable even when they are not in the current filtered page — otherwise selections appear to vanish when the user types.
+
+**What I would say at the end:** for production I would build this on a headless library — Radix, React Aria, Downshift — because the ARIA and focus behaviour is where the bugs live and it is solved work. Building it by hand is the right exercise; shipping it by hand usually is not.
+
+---
+
 ## 11. Tricky Questions
 
 ---

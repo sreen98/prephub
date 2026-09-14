@@ -248,6 +248,137 @@ check('playground index carries no template code bodies', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 17. A nested code fence must be indented to match its list item
+// ---------------------------------------------------------------------------
+// Inside a list item, a fence indented two spaces whose BODY sits at column 0
+// terminates the item: the reader gets an EMPTY code block, the code leaks out
+// as a paragraph, and every remaining bullet is swallowed into a second block.
+// It looked like this on TanStack Query Q13, and no existing gate could see it —
+// `verify:blocks` extracts fenced blocks and an empty one parses perfectly.
+check('nested code fences are indented to match their list item', () => {
+  const offenders = [];
+  const walkMd = (dir, out = []) => {
+    for (const e of readdirSync(dir)) {
+      const full = join(dir, e);
+      if (statSync(full).isDirectory()) walkMd(full, out);
+      else if (full.endsWith('.md')) out.push(full);
+    }
+    return out;
+  };
+  for (const f of walkMd('src/content')) {
+    const lines = read(f).split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const open = /^(\s+)```(\w*)\s*$/.exec(lines[i]);
+      if (!open) continue;
+      const indent = open[1].length;
+      let j = i + 1;
+      for (; j < lines.length && !/^\s*```\s*$/.test(lines[j]); j++) {
+        const line = lines[j];
+        if (line.trim() && line.length - line.trimStart().length < indent) {
+          offenders.push(`${f}:${i + 1} — body is less indented than its fence`);
+          break;
+        }
+      }
+      i = j;
+    }
+  }
+  assert(
+    offenders.length === 0,
+    'a fence inside a list item needs its body indented at least as far as the fence, '
+      + 'or the block renders empty and the list breaks apart:\n  ' + offenders.join('\n  '),
+  );
+  return 'nested fences line up';
+});
+
+// ---------------------------------------------------------------------------
+// 9f. The explanation bodies stay out of the playground chunk
+// ---------------------------------------------------------------------------
+// playgroundExplanations.ts is ~10,600 lines and is dynamically imported so it
+// arrives only when someone opens the modal. A single VALUE import from it in
+// the eager graph defeats that — putting the `isBuildExplanation` guard there
+// measured at CodePlayground 100 KB -> 635 KB, and the only signal was a Rollup
+// warning buried in the build log. Type imports are fine: they erase. Same bug
+// shape as the templateIndex rule above, and the fourth instance in this repo
+// of a heavy module leaking into a chunk meant to stay small.
+check('explanation bodies are not statically imported by the playground UI', () => {
+  const files = [
+    'src/features/playground/CodePlayground.tsx',
+    'src/features/playground/ExplanationModal.tsx',
+    'src/features/playground/BuildExplanationModal.tsx',
+    'src/features/playground/AlgorithmExplanationModal.tsx',
+  ];
+  const offenders = [];
+  for (const f of files) {
+    const src = read(f);
+    // Walk back from each reference to the `import` that owns it. The clause is
+    // routinely wrapped across lines, so a line-by-line test would report the
+    // closing brace of a perfectly good `import type { … }`.
+    const re = /from '[^']*playgroundExplanations'/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const start = src.lastIndexOf('import', m.index);
+      if (start === -1) continue;
+      const clause = src.slice(start, m.index);
+      if (!/^import\s+type\b/.test(clause)) {
+        offenders.push(`${f}: ${clause.replace(/\s+/g, ' ').trim()} …`);
+      }
+    }
+  }
+  assert(
+    offenders.length === 0,
+    'value import of playgroundExplanations pulls ~535 KB into the playground chunk — '
+      + 'use `import type`, or the guard in data/playground/explanationKind.ts:\n  '
+      + offenders.join('\n  '),
+  );
+  return 'lazy chunk stays lazy';
+});
+
+// ---------------------------------------------------------------------------
+// 18. A WebSocket send must not sit at the top level of its own block
+// ---------------------------------------------------------------------------
+// `ws.send(...)` immediately after `new WebSocket(...)` throws
+// "InvalidStateError: Still in CONNECTING state" the instant a reader presses
+// Try it — the handshake has not finished. Both guides that showed a send did
+// it this way, as a list of the overloads, and both shipped a button that could
+// only fail. It parses perfectly, so `verify:blocks` cannot see it.
+//
+// A send belongs inside the `open` handler, or behind a
+// `readyState === WebSocket.OPEN` guard.
+check('no WebSocket send at the top level of a code block', () => {
+  const offenders = [];
+  const walkMd = (dir, out = []) => {
+    for (const e of readdirSync(dir)) {
+      const full = join(dir, e);
+      if (statSync(full).isDirectory()) walkMd(full, out);
+      else if (full.endsWith('.md')) out.push(full);
+    }
+    return out;
+  };
+  for (const f of walkMd('src/content')) {
+    const text = read(f);
+    const blocks = text.matchAll(/```(?:js|jsx|ts|tsx)\n([\s\S]*?)```/g);
+    for (const m of blocks) {
+      const body = m.group ? m.group(1) : m[1];
+      if (!/new WebSocket\(/.test(body)) continue;
+      const line = text.slice(0, m.index).split('\n').length;
+      for (const raw of body.split('\n')) {
+        // Top level = no indentation. Inside a handler or a function it is fine.
+        if (/^\w+\.send\(/.test(raw)) {
+          offenders.push(`${f}:${line} — ${raw.trim().slice(0, 52)}`);
+        }
+      }
+    }
+  }
+  assert(
+    offenders.length === 0,
+    'a send at the top level runs while the socket is still CONNECTING and throws '
+      + 'InvalidStateError. Put it in the `open` handler, or guard on readyState:\n  '
+      + offenders.join('\n  '),
+  );
+  return 'sends wait for the handshake';
+});
+
+// ---------------------------------------------------------------------------
 // 10. Tests must exist and be wired up
 // ---------------------------------------------------------------------------
 check('a test suite exists and npm test runs it', () => {

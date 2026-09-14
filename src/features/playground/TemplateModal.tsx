@@ -20,6 +20,9 @@ import type { TemplateLang } from '../../data/playground/playgroundTemplates';
 // separate props — that object is the useTemplateFilters reducer, and keeping
 // it whole is what guarantees a tag or mode change clears pattern/difficulty
 // as a single transition (the "No templates found" bug).
+//
+// Completion counts are derived here from `getEntry` rather than passed in, so
+// there is one definition of "solved" for the header, the sidebar and the dots.
 
 export interface TemplateModalProps {
   open: boolean;
@@ -48,6 +51,10 @@ export default function TemplateModal({
   // the two panes take the whole `filters` object and destructure what they
   // need themselves.
   const { search: drawerSearch, mode: modalMode, setSearch: setDrawerSearch, setMode: setModalMode } = filters;
+
+  const allChallenges = allTemplates.filter(t => t.kind === 'challenge');
+  const isSolved = (name: string): boolean => getEntry(name)?.status === 'solved';
+  const solvedTotal = allChallenges.filter(t => isSolved(t.name)).length;
 
   const isDrawerOpen = open;
   const closeDrawer = onClose;
@@ -88,7 +95,7 @@ export default function TemplateModal({
                         {modalMode === 'blank'
                           ? 'Start fresh in JS, TS, or React'
                           : modalMode === 'challenges'
-                            ? `${allTemplates.filter(t => t.kind === 'challenge').length} challenges to solve`
+                            ? `${solvedTotal} of ${allChallenges.length} challenges solved`
                             : `${allTemplates.filter(t => t.kind === 'template').length} reference snippets`}
                       </span>
                     </div>
@@ -184,7 +191,8 @@ export default function TemplateModal({
                     categories={categories}
                     tagOptions={tagOptions}
                     patternCounts={patternCounts}
-                    scopeHasPatterns={scopeHasPatterns}
+                    isSolved={isSolved}
+              scopeHasPatterns={scopeHasPatterns}
                   />
                   <TemplateGrid
                     filters={filters}

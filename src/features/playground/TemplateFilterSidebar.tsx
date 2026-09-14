@@ -11,13 +11,29 @@ import type { UseTemplateFiltersReturn } from '../../hooks/useTemplateFilters';
 // categories. Counts are scoped to the active tag so the numbers match the
 // list on the right rather than always showing the JavaScript totals.
 
+/**
+ * "4/36" rather than "36": the plain total told you how much there was and
+ * nothing about how far you had got. Done is coloured only once it is non-zero,
+ * so an untouched category stays quiet.
+ */
+function CountPill({ done, total }: { done: number; total: number }) {
+  return (
+    <span className="text-[10px] shrink-0 tabular-nums">
+      <span className={done > 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400'}>{done}</span>
+      <span className="text-slate-400">/{total}</span>
+    </span>
+  );
+}
+
 export default function TemplateFilterSidebar({
-  filters, categories, tagOptions, patternCounts, scopeHasPatterns,
+  filters, categories, tagOptions, patternCounts, isSolved, scopeHasPatterns,
 }: {
   filters: UseTemplateFiltersReturn;
   categories: CategoryMeta[];
   tagOptions: string[];
   patternCounts: Record<Pattern, number>;
+  /** Completion, so each row can read "done / total" at a glance. */
+  isSolved: (name: string) => boolean;
   difficultyCounts?: Record<Difficulty, number>;
   scopeHasPatterns: boolean;
 }) {
@@ -133,7 +149,10 @@ export default function TemplateFilterSidebar({
               ].join(' ')}
             >
               <span>All categories</span>
-              <span className="text-[10px] text-slate-400">{filteredCategories.reduce((n, c) => n + c.templates.length, 0)}</span>
+              <CountPill
+                done={filteredCategories.reduce((n, c) => n + c.templates.filter(t => isSolved(t.name)).length, 0)}
+                total={filteredCategories.reduce((n, c) => n + c.templates.length, 0)}
+              />
             </button>
             {filteredCategories.map((cat: CategoryMeta) => {
               const isActive = activeCategory === cat.label;
@@ -159,7 +178,7 @@ export default function TemplateFilterSidebar({
                     </span>
                     <span className="truncate">{cat.label}</span>
                   </span>
-                  <span className="text-[10px] text-slate-400 shrink-0">{cat.templates.length}</span>
+                  <CountPill done={cat.templates.filter(t => isSolved(t.name)).length} total={cat.templates.length} />
                 </button>
               );
             })}

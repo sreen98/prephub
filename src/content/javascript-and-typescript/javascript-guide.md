@@ -249,7 +249,7 @@ const obj = {
 obj.greet();                      // 'Alice'
 
 const fn = obj.greet;
-fn();                             // undefined (called as plain function)
+fn();                             // '' in a browser, undefined in Node — see below
 
 // Arrow function - `this` is lexically bound (where it was DEFINED)
 const obj2 = {
@@ -271,6 +271,45 @@ greet.apply({ name: 'Bob' });      // 'Bob'
 const bound = greet.bind({ name: 'Charlie' });
 bound();                            // 'Charlie'
 ```
+
+**Why detaching a method loses `this`.** `obj.greet` is just a function; the binding is not stored on it. `this` is decided by the **call site**, and `obj.greet()` supplies a receiver while `fn()` supplies none. In a plain (non-strict) call the receiver falls back to the global object — so `this.name` reads `window.name`, which **exists and is an empty string**, printing a blank line rather than `undefined`. In a Node module there is no such global, so the same code prints `undefined`. Under `'use strict'` (and inside an ES module, which is always strict) `this` is `undefined` and the line throws instead. Three different results for one snippet, which is why "it depends how it is called" is the whole answer.
+
+#### Explicit binding: `call`, `apply` and `bind`
+
+All three set `this` explicitly. They differ on **how arguments arrive** and **when the function runs**.
+
+| Method | Arguments | Calls immediately? | Returns |
+|---|---|---|---|
+| `call` | listed individually | yes | the function's result |
+| `apply` | one array | yes | the function's result |
+| `bind` | listed individually (partial) | **no** | a new, permanently bound function |
+
+```js
+function introduce(greeting, punctuation) {
+  return `${greeting}, I am ${this.name}${punctuation}`;
+}
+const user = { name: 'Ada' };
+
+introduce.call(user, 'Hello', '!');        // 'Hello, I am Ada!'   — args listed
+introduce.apply(user, ['Hello', '!']);     // 'Hello, I am Ada!'   — args in an array
+
+const sayHi = introduce.bind(user, 'Hi');  // nothing runs yet; 'Hi' is pre-filled
+sayHi('?');                                 // 'Hi, I am Ada?'     — later, and bound
+```
+
+**`call` vs `apply` is only the argument shape.** The mnemonic that sticks: **a**pply takes an **a**rray. Spread syntax has made `apply` largely redundant — `fn(...args)` does the same job more clearly — so its remaining use is forwarding an unknown argument list inside a wrapper, which is exactly what a polyfill or decorator does: `fn.apply(this, args)`.
+
+**`bind` is the one that behaves differently**, and it is what interviews probe:
+
+- **It returns a new function** rather than calling anything. Forgetting the extra `()` is the classic bug: `el.addEventListener('click', this.handle.bind(this))` is right; `…this.handle.bind(this)()` registers the *result* of calling it.
+- **The binding is permanent.** A bound function cannot be re-bound — `bound.call(other)` ignores `other` — because `bind` returns an exotic function whose receiver is fixed.
+- **It supports partial application.** Arguments passed to `bind` are prepended to whatever the caller passes later, which is the basis of currying.
+- **`new` beats it.** Calling a bound function with `new` ignores the bound `this` and uses the fresh instance, though pre-filled arguments still apply. That asymmetry is the detail a `bind` polyfill has to reproduce.
+- **Each call creates a new function.** `this.handle.bind(this)` in a React render produces a different reference every time, which defeats `React.memo` and makes `removeEventListener` fail silently — the reason class components bound in the constructor, and the reason arrow-function class fields replaced that.
+
+**When the arrow function is the better answer.** An arrow has no `this` of its own, so it inherits from the enclosing scope permanently — `setTimeout(() => this.tick(), 100)` needs no binding at all. `bind` earns its place when you need a *reusable* bound reference (adding and later removing the same listener) or partial application; otherwise reach for the arrow.
+
+See **Q8** in the interview section for the compressed version, and the **Function.bind** and **Function.call & apply** polyfill templates in the playground to implement all three from scratch.
 
 ### 4.4 Default Parameters, Rest, Spread
 
@@ -341,8 +380,10 @@ function outer() {
   }
 
   inner();
-  // console.log(innerVar);          // ReferenceError
+  // console.log(innerVar);          // ReferenceError — inner's scope is not visible here
 }
+
+outer();                             // ← without this call, nothing runs at all
 ```
 
 ### 5.2 Closures
@@ -360,15 +401,46 @@ function createCounter() {
 }
 
 const counter = createCounter();
-counter.increment();                  // 1
-counter.increment();                  // 2
-counter.getCount();                   // 2
-// `count` is private - no direct access from outside
+console.log(counter.increment());     // 1
+console.log(counter.increment());     // 2
+console.log(counter.getCount());      // 2
+console.log(counter.count);           // undefined — `count` is private
 ```
+
+**Reading that example precisely**, because "a function that remembers its outer scope" is the definition and not the mechanism:
+
+**Which functions are the closures?** All three of them — `increment`, `decrement` and `getCount`. Each is defined *inside* `createCounter`, so each carries a reference to the scope it was born in. `createCounter` itself is not a closure here; it is the factory that creates them.
+
+**Which variable are they accessing?** `count`, declared with `let` in `createCounter`'s scope. Not a copy of it — **the binding itself**. That is why `increment` and `getCount` agree: there is exactly one `count`, and all three functions reach the same one.
+
+**When did the outer function return?** Immediately, on the very first line of use:
+
+```js
+const counter = createCounter();   // createCounter RUNS and RETURNS here
+```
+
+By the time you call `counter.increment()`, `createCounter` has already finished. Its call frame is gone from the stack. Under the rules you would expect from most languages, `count` was a local variable of a function that has returned, so it should be gone too.
+
+**It is not gone, and the reason is reachability.** `count` lives in a variable environment on the heap, not on the stack. The returned object holds three functions; each function holds a reference to that environment; so as long as `counter` is reachable, the environment is reachable, and `count` with it. Garbage collection frees what cannot be reached — and this can be reached.
+
+```
+counter ──▶ { increment, decrement, getCount }
+                 │          │          │
+                 └──────────┴──────────┴──▶ [ scope of createCounter: count = 2 ]
+```
+
+**The consequences, which are what interviews actually probe:**
+
+- **`count` is genuinely private.** There is no reference to it from outside — `counter.count` is `undefined`, and no amount of poking at the object reaches it. This is the module pattern, and it was how JavaScript did private state for twenty years before `#private` fields.
+- **Each call to `createCounter()` makes a new environment.** Two counters do not share a `count`; they are independent. That is the difference between a closure and a global.
+- **State survives without an object holding it.** The value lives in a scope, not a property — which is why `let count` and not `this.count`.
+- **And this is also the leak.** The same reachability that keeps `count` alive keeps alive *everything else* in that scope. Hold one of these functions on a global listener and the whole environment is pinned — see **Q25** in the interview section.
+
+Set against `5.1`: there, the scope chain let `inner` *read outward* while `outer` was still running. Here the inner functions outlive their creator and the chain still holds — which is the part that makes it a closure rather than merely nested scope.
 
 ### 5.3 Classic Closure Gotcha
 
-This is one of the most common interview questions about closures. Because `var` is function-scoped, all iterations of a loop share the same variable, so callbacks created inside the loop all see the final value. Using `let` (block-scoped) or an IIFE fixes this by giving each iteration its own copy.
+This is one of the most common interview questions about closures, and it is really a question about **how many bindings exist**, not about timing.
 
 ```js
 // Problem: var is function-scoped, shared by all iterations
@@ -392,7 +464,198 @@ for (var i = 0; i < 3; i++) {
 // Output: 0, 1, 2
 ```
 
+#### Why the first one prints 3, 3, 3
+
+Two separate facts combine, and it is worth separating them because most answers only give the first.
+
+**One binding, not three.** `var` is scoped to the enclosing *function*, not to the loop body. So the whole loop — all three iterations — shares a single `i`. The three arrow functions do not capture three different values; they capture **the same binding**, exactly as in §5.2 where `increment` and `getCount` shared one `count`.
+
+**The callbacks run after the loop has finished.** `setTimeout` schedules a macrotask; nothing in it can run until the synchronous call stack is empty, and the loop is part of that synchronous work. By the time the first callback executes, the loop has already run to completion and left `i` at `3` — the value that failed `i < 3`.
+
+**The delay is a red herring.** Change `100` to `0` and it still prints `3, 3, 3`, because 0 ms does not mean "now", it means "after the current synchronous work". Nothing about waiting longer is the cause, which is why "the timeout is too fast" is the wrong diagnosis.
+
+#### How `let` fixes it
+
+`let` in a `for` header gets a rule of its own, and it is genuinely unusual: the spec creates a **fresh binding for every iteration**, and copies the previous iteration's value into it before the update expression runs. Three iterations means three distinct `i` variables that happen to be named the same.
+
+So each arrow captures a *different* binding, each frozen at that iteration's value. Nothing else changed — the callbacks still run later, still capture a binding rather than a value; there are simply three bindings now instead of one.
+
+Two consequences worth knowing:
+
+- **`let` does not leak out of the loop.** After the `var` loop, `i` is `3` and still in scope; after the `let` loop, the variable does not exist at all.
+- **`const` works in `for...of` and `for...in`, but not in a classic `for` header** — the update expression `i++` would be assigning to a constant.
+
+#### How the IIFE fixes it
+
+Before `let` existed, this was the only fix. The immediately-invoked function creates a **new function scope on every iteration**, and `i` is passed *as an argument* — which copies the value at that moment into a new parameter binding `j`. The timeout then closes over `j`, which nothing ever mutates.
+
+The key word is **argument**: passing `i` in is what snapshots the value. An IIFE that closed over `i` without taking it as a parameter would fix nothing.
+
+```js
+// A third fix worth knowing — setTimeout forwards extra arguments to the callback,
+// which snapshots the value the same way the IIFE's parameter does.
+for (var k = 0; k < 3; k++) {
+  setTimeout(console.log, 0, k);      // 0, 1, 2
+}
+```
+
+**The unifying idea:** a closure captures a *binding*, never a value. So the fix is never "capture harder" — it is to arrange for there to be a separate binding per iteration, whether by `let`'s per-iteration environment, a function parameter, or an argument passed through an API.
+
 ---
+
+### 5.4 Closures in the Wild
+
+Closures are not a trick question — you use them every day, usually without naming them. Each example below notes **what was captured** and **when the outer call returned**, because that is the part that makes it a closure rather than an ordinary function.
+
+#### 1. Function factories — capture configuration once
+
+```js
+function createLogger(prefix, minLevel = 0) {
+  const levels = { debug: 0, info: 1, error: 2 };
+  // `prefix` and `minLevel` are captured. createLogger returns immediately;
+  // every later call reads them from the environment it left behind.
+  return function log(level, message) {
+    if (levels[level] < minLevel) return;
+    console.log(`[${prefix}] ${level.toUpperCase()}: ${message}`);
+  };
+}
+
+const apiLog = createLogger('api', 1);
+const dbLog = createLogger('db');
+
+apiLog('debug', 'ignored — below minLevel');   // (nothing)
+apiLog('error', 'timeout after 3s');           // [api] ERROR: timeout after 3s
+dbLog('debug', 'connection opened');           // [db] DEBUG: connection opened
+```
+
+Two loggers, two independent environments. This is the same shape as `bind`'s partial application, and the reason libraries hand you `createClient(config)` rather than making you pass the config to every call.
+
+#### 2. Memoization — the cache lives in the closure
+
+```js
+function memoize(fn) {
+  const cache = new Map();          // captured: one cache per memoized function
+
+  return function (...args) {
+    const key = JSON.stringify(args);
+    if (cache.has(key)) {
+      console.log('cache hit', key);
+      return cache.get(key);
+    }
+    const result = fn.apply(this, args);
+    cache.set(key, result);
+    return result;
+  };
+}
+
+let calls = 0;
+const slowSquare = (n) => { calls++; return n * n; };
+const fastSquare = memoize(slowSquare);
+
+console.log(fastSquare(4));    // 16
+console.log(fastSquare(4));    // cache hit [4] → 16
+console.log('underlying calls:', calls);   // 1
+```
+
+The cache cannot be a local variable of the returned function — it would be recreated on every call — and putting it in module scope would share one cache across every memoized function. The closure is exactly the right lifetime: created once per `memoize()` call, alive as long as the returned function is.
+
+#### 3. Debounce and throttle — the timer handle has to survive between calls
+
+```js
+function debounce(fn, delay) {
+  let timerId;                       // captured: the ONE handle shared by all calls
+
+  return function (...args) {
+    clearTimeout(timerId);           // each call cancels the pending one
+    timerId = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+const search = debounce((q) => console.log('searching for', q), 300);
+search('r');
+search('re');
+search('rea');
+search('react');                     // only this one fires, 300ms later
+```
+
+This is the clearest case for "why not a local variable": `timerId` must persist *between* invocations of the returned function, and it must be private to this debounced function. A module-level variable would make two debounced functions cancel each other.
+
+#### 4. Private state — the module pattern
+
+```js
+function createApiClient(baseUrl) {
+  let token = null;                  // captured, and genuinely unreachable outside
+  let requestCount = 0;
+
+  return {
+    setToken(value) { token = value; },
+    request(path) {
+      requestCount++;
+      const auth = token ? 'Bearer ' + token.slice(0, 4) + '…' : 'none';
+      return `GET ${baseUrl}${path} (auth: ${auth})`;
+    },
+    stats() { return { requestCount }; },
+  };
+}
+
+const client = createApiClient('https://api.example.com');
+client.setToken('secret-abc123');
+console.log(client.request('/users'));   // GET …/users (auth: Bearer secr…)
+console.log(client.stats());             // { requestCount: 1 }
+console.log(client.token);               // undefined — not a property, not reachable
+```
+
+`token` is not "private by convention" like a `_token` property — it is private by **reachability**. Nothing outside holds a reference to it, so nothing outside can read or write it, including a debugger inspecting the object.
+
+#### 5. Per-item handlers — a fresh capture for each element
+
+```js
+function attachHandlers(items) {
+  return items.map((item, index) => {
+    // Each callback captures its OWN `item` and `index` — one environment per
+    // iteration, which is what `let`/`const` in a loop gives you too (§5.3).
+    return function onClick() {
+      console.log(`clicked ${item} at position ${index}`);
+    };
+  });
+}
+
+const handlers = attachHandlers(['alpha', 'beta', 'gamma']);
+handlers[0]();      // clicked alpha at position 0
+handlers[2]();      // clicked gamma at position 2
+```
+
+This is §5.3's gotcha in its fixed form. Every real event-handler-per-row, per-tab or per-menu-item works this way: the handler carries the row it belongs to without you threading an id through a data attribute.
+
+#### 6. Where it bites — React's stale closure
+
+```js
+function makeRenderCycle() {
+  // A crude stand-in for React: each "render" creates fresh bindings, and a
+  // callback registered during a render captures THAT render's values.
+  let registered = null;
+  let count = 0;
+
+  return {
+    render() {
+      const snapshot = count;                 // this render's value
+      registered ??= () => console.log('callback sees count =', snapshot);
+      count++;
+    },
+    fire() { registered(); },
+  };
+}
+
+const cycle = makeRenderCycle();
+cycle.render();     // count is 0 here — callback captures 0
+cycle.render();     // count is now 1
+cycle.render();     // count is now 2
+cycle.fire();       // callback sees count = 0   ← stale
+```
+
+The callback is not wrong; it is faithfully reporting the value from the render that created it. That is precisely the React bug: an effect with `[]` deps registers a callback once, and it keeps reading the first render's props forever. The fixes follow from the mechanism — re-register when the value changes (add it to the deps), read through a ref so the capture is a *box* rather than a value, or use the functional `setState` form so you never need the captured value at all.
+
+**The through-line in all six:** a closure is the right tool whenever state must outlive a call but stay private to one instance. Longer than a local variable, narrower than a module global.
 
 ## 6. Objects and Prototypes
 
@@ -1744,8 +2007,8 @@ function outer() {
   };
 }
 const inc = outer();
-inc(); // 1
-inc(); // 2 (count persists because of closure)
+console.log(inc()); // 1
+console.log(inc()); // 2 (count persists because of closure)
 ```
 
 ---
@@ -1938,10 +2201,10 @@ function* fibonacci() {
 }
 
 const fib = fibonacci();
-fib.next(); // { value: 0, done: false }
-fib.next(); // { value: 1, done: false }
-fib.next(); // { value: 1, done: false }
-fib.next(); // { value: 2, done: false }
+console.log(fib.next()); // { value: 0, done: false }
+console.log(fib.next()); // { value: 1, done: false }
+console.log(fib.next()); // { value: 1, done: false }
+console.log(fib.next()); // { value: 2, done: false }
 ```
 
 Use cases:
@@ -2217,6 +2480,79 @@ The choice encodes a business decision, which is exactly why interviewers ask it
 The classic bug this prevents: storing a recurring daily 9 a.m. standup as a fixed UTC instant. It is correct until the daylight-saving switch, then it silently becomes 8 a.m. or 10 a.m. for everyone. Modelled correctly it is a `PlainTime` plus a time zone, resolved to an instant per occurrence.
 
 Beyond type safety, `Temporal` objects are **immutable** — every arithmetic method returns a new object, so `date.add({ months: 1 })` has no effect unless you use the return value. Months are 1-based. Parsing is strict ISO 8601 rather than `Date`'s implementation-defined guessing. And month-end arithmetic **clamps** rather than overflowing: `2026-01-31` plus one month is `2026-02-28`, where `Date`'s `setMonth` would have rolled over to March 3.
+
+---
+
+**Q25: What does a closure actually hold a reference to, and how does that cause a memory leak?**
+
+A closure keeps the **variable environment** of the scope it was created in — not a copy of the values, and not only the variables it uses. Most engines optimise away bindings the function provably never reads, but you cannot rely on that, and the practical model is: as long as the function is reachable, everything its scope captured is reachable too.
+
+That is the leak. The closure is small; what it pins can be enormous.
+
+```js
+function attachHandler() {
+  const rows = new Array(100000).fill(0).map((_, i) => ({ id: i }));  // ~MBs
+  const summary = rows.length;
+
+  // This closure only reads `summary` — but it was created in a scope that
+  // also holds `rows`, and the handler is registered globally.
+  document.addEventListener('click', () => console.log(summary));
+}
+attachHandler();
+// `rows` can never be collected: listener → closure → scope → rows.
+```
+
+**The chain is what to describe in an interview:** a live reference (the listener registry) holds the closure, the closure holds its scope, and the scope holds every object created in it. Garbage collection is reachability, so one live handler pins the whole graph.
+
+**The four shapes this takes in a single-page app**, all the same bug:
+
+| Shape | What stays reachable |
+|---|---|
+| A listener added on mount and never removed | the component's props, state and DOM nodes |
+| `setInterval` that is never cleared | everything its callback closed over, forever |
+| A subscription to a store or socket with no unsubscribe | the whole subscriber closure per mount |
+| A detached DOM node held by a closure in an array or map | the node **and its entire subtree** |
+
+The React version is the one interviewers want: an effect that subscribes without returning a cleanup leaks **once per mount**, so navigating back and forth ten times leaves ten live closures each pinning a render's worth of objects.
+
+```js
+// The fix is the cleanup, and it is the whole fix.
+useEffect(() => {
+  const onResize = () => setWidth(window.innerWidth);
+  window.addEventListener('resize', onResize);
+  return () => window.removeEventListener('resize', onResize);   // ← same reference
+}, []);
+```
+
+**Two details that make the answer senior.** Remove the *same function reference* you added — an inline arrow in both calls removes nothing. And confirm it rather than asserting it: take a heap snapshot, exercise the flow, force GC, snapshot again, and look for **Detached HTMLElement** entries and a growing retained size, using the Retainers panel to find what is holding them.
+
+---
+
+**Q26: Implement `once(fn)` — and say why it is asked.**
+
+```js
+function once(fn) {
+  let called = false;
+  let result;
+
+  return function (...args) {
+    if (called) return result;      // subsequent calls return the FIRST result
+    called = true;
+    result = fn.apply(this, args);  // `this` forwarded, so it works as a method
+    fn = null;                      // release the closure's hold on fn
+    return result;
+  };
+}
+```
+
+It is asked because it is four lines that expose four separate things:
+
+- **Closures as private state.** `called` and `result` live in the closure, invisible and untamperable from outside — the same mechanism as a module private.
+- **`this` forwarding.** `fn.apply(this, args)` rather than `fn(...args)`, or `obj.method = once(obj.method)` silently loses its receiver. A candidate who writes an arrow function here has introduced that bug.
+- **Caching the result, not just the call.** The common wrong answer guards the call but returns `undefined` afterwards. Real `once` returns the first result every time — that is what makes it usable for lazy initialisation.
+- **Releasing the reference.** Setting `fn = null` lets the original function and everything it closed over be collected. It is the same reasoning as Q25, applied deliberately.
+
+**The follow-ups to expect:** make it work with promises so concurrent callers share one in-flight result (the memoised-singleton pattern), and add a `reset()` — at which point you are explaining why the state has to live in the closure rather than on the returned function, where a caller could overwrite it.
 
 ---
 

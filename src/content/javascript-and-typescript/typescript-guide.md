@@ -2219,6 +2219,128 @@ This is one of the higher-signal flags to bring up unprompted, because it demons
 
 ---
 
+**Q25: A dashboard uses `isLoading`, `error` and `data`, and invalid states keep slipping through. Refactor the type.**
+
+The problem is that three independent fields describe **eight** combinations when the domain has four. Nothing stops `isLoading: true` arriving with an `error`, or both being absent with no `data` — and every consumer has to defend against states that should not exist.
+
+```ts
+// ✗ Eight combinations, four of them meaningless.
+interface State {
+  isLoading: boolean;
+  error: Error | null;
+  data: User | null;
+}
+```
+
+Model the states themselves, as a discriminated union:
+
+```ts
+type State =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error'; error: Error }
+  | { status: 'success'; data: User };
+```
+
+Now the illegal states are **unrepresentable** — not guarded against, but impossible to construct. And the payoff is at the use site, where narrowing on the discriminant makes the data available without a null check:
+
+```ts
+function render(state: State) {
+  switch (state.status) {
+    case 'idle':    return 'Nothing yet';
+    case 'loading': return 'Loading…';
+    case 'error':   return state.error.message;   // `error` exists here
+    case 'success': return state.data.name;       // `data` exists here, no `?.`
+  }
+}
+```
+
+**Three things to add that turn a correct answer into a senior one:**
+
+- **Exhaustiveness.** Add a `default: const _never: never = state;` — then adding a `'refreshing'` case makes every unhandled `switch` a compile error rather than a silent fall-through.
+- **The discriminant must be a literal type.** `status: string` narrows nothing; it needs to be a union of literals, which is what `as const` or the union declaration gives you.
+- **Name the trade-off.** This is more verbose than three booleans, and it is worth it exactly when invalid combinations are causing bugs. For a genuinely independent pair of flags, a union is ceremony.
+
+---
+
+**Q26: Type a button that can behave like a link or a real button, but never both.**
+
+The naive version makes both optional, which permits the thing you are trying to forbid:
+
+```ts
+// ✗ Allows { href, onClick } together, and allows neither.
+interface ButtonProps {
+  href?: string;
+  onClick?: () => void;
+}
+```
+
+A union of the two shapes is closer, but on its own TypeScript still allows the other key through, because object types are not exact. The fix is to declare the *absent* key as `never` (or optional-never) in each arm:
+
+```tsx
+type ButtonProps =
+  | { href: string; onClick?: never; children: React.ReactNode }
+  | { href?: never; onClick: () => void; children: React.ReactNode };
+
+function Button(props: ButtonProps) {
+  // Narrowing on presence, which is what the union encodes.
+  return 'href' in props
+    ? <a href={props.href}>{props.children}</a>
+    : <button onClick={props.onClick}>{props.children}</button>;
+}
+```
+
+`<Button href="/x" onClick={fn} />` is now an error, and so is `<Button />`.
+
+**Why `never` rather than omitting the key:** with excess-property checking, a *literal* passed inline would be caught anyway — but a variable of a wider type assigned to the prop would not, because assignability is structural. Declaring `onClick?: never` makes the constraint part of the type rather than a side effect of literal checking.
+
+**The generalised form** is an `XOR` helper, and it is worth knowing but not worth reaching for first:
+
+```ts
+type Without<T, U> = { [K in Exclude<keyof T, keyof U>]?: never };
+type XOR<T, U> = (Without<T, U> & U) | (Without<U, T> & T);
+```
+
+**Say the caveat.** Two hand-written arms read better than a conditional-type helper the next engineer has to decode; reach for `XOR` when there are several mutually exclusive groups, not for one. And the resulting error messages from deep generic helpers are famously bad, which is a real maintenance cost.
+
+---
+
+**Q27: You read JSON out of `localStorage`. How do you type it?**
+
+`JSON.parse` returns `any`, and `any` is the one type that silently switches off checking for everything downstream. So the first move is to stop it spreading:
+
+```ts
+const raw: unknown = JSON.parse(stored);   // NOT any
+```
+
+`unknown` is assignable from everything and assignable *to* nothing, so the compiler forces a check before use. Then narrow with a real predicate:
+
+```ts
+interface Settings { theme: 'light' | 'dark'; fontSize: number }
+
+function isSettings(v: unknown): v is Settings {
+  return (
+    typeof v === 'object' && v !== null &&
+    'theme' in v && (v.theme === 'light' || v.theme === 'dark') &&
+    'fontSize' in v && typeof v.fontSize === 'number'
+  );
+}
+
+const settings = isSettings(raw) ? raw : DEFAULTS;
+```
+
+**The point worth making out loud:** `as Settings` would also compile, and it is a lie. Persisted JSON is **untrusted input** — it was written by an older version of your app, or edited by the user, or corrupted. A cast asserts a shape you have not checked, and the failure surfaces later as `undefined is not a function` somewhere unrelated.
+
+**Three details that matter in practice:**
+
+- **`JSON.parse` throws** on malformed input, so it needs its own `try`/`catch` — separate from the shape check.
+- **The accessor throws too.** `localStorage.getItem` raises in a private window or with site data blocked, which is a crash during render if you read it in a `useState` initialiser.
+- **At any real size, use a schema library.** Zod or Valibot give you the predicate and the TypeScript type from one declaration, so they cannot drift — a hand-written guard that forgets a new field compiles perfectly and lies.
+
+**The senior framing:** this is a **boundary**. Parsing, validation and defaulting belong at the edge of the system — storage, network, URL params — so that everything inside can trust its types. `unknown` at the boundary is what makes "the types are true" an invariant rather than a hope.
+
+---
+
 ## 16. Tricky Output Questions
 
 Practice questions testing your understanding of TypeScript's type inference, narrowing, generics, and compile-time behavior.

@@ -86,6 +86,27 @@ describe('Sidebar', () => {
     expect(at('/', { hasUnreadChangelog: true })).toMatch(/animate-pulse/);
   });
 
+  /**
+   * A group heading used to share the left edge, size and weight of the links
+   * under it, so "GLOBAL STATE MANAGEMENT" read as a sibling of "Redux Toolkit"
+   * rather than a heading over it. These three cues are what separate them; a
+   * refactor that drops the indent or the rule brings the confusion back.
+   */
+  it('renders group headings as headings, not as items', () => {
+    const html = at('/frontend/redux-toolkit', { expandedSections: { 'Front End': true } });
+
+    // The heading exists, and is a <p>, not a link.
+    expect(html).toContain('Global State Management');
+    expect(html).not.toContain('<a href="/frontend/global-state-management"');
+
+    // Grouped links are indented past the heading's left edge.
+    const reduxLink = html.slice(html.indexOf('/frontend/redux-toolkit'));
+    expect(reduxLink.slice(0, 400)).toMatch(/pl-5/);
+
+    // And the heading carries its own typographic treatment.
+    expect(html).toMatch(/uppercase tracking-\[0\.14em\]/);
+  });
+
   it('translates off-canvas when closed', () => {
     expect(at('/', { isSidebarOpen: false })).toContain('-translate-x-full');
   });

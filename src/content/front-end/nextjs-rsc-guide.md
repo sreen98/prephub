@@ -574,7 +574,7 @@ Released **21 October 2025**. The headline items:
 - **Turbopack is stable and the default bundler** for all apps: 2–5× faster production builds, up to 10× faster Fast Refresh. Opt out with `next dev --webpack` / `next build --webpack`. Filesystem caching is available in beta behind `experimental.turbopackFileSystemCacheForDev`.
 - **`proxy.ts`** replaces `middleware.ts` (§10).
 - **React Compiler support is stable** via `reactCompiler: true` — promoted out of `experimental`, though **not on by default**, and it increases build time because it runs through Babel.
-- **React 19.2** features available in the App Router: `useEffectEvent`, `<Activity />`, View Transitions.
+- **React 19.2** features available in the App Router: `useEffectEvent` and `<Activity />`. **View Transitions are not in that list** — React's own `<ViewTransition>` is still Canary-only, so animating a route change here means the browser's `document.startViewTransition`, not the React component (see the React guide, §16.9).
 - **New caching APIs**: `updateTag()`, `refresh()`, and `revalidateTag(tag, profile)` — the single-argument form is deprecated.
 - **Routing overhaul**: layout deduplication when prefetching (a page with 50 links downloads the shared layout once, not 50 times) and incremental prefetching that cancels requests when a link leaves the viewport.
 - **Next.js DevTools MCP** — a Model Context Protocol integration giving AI agents access to your app's routing, caching and rendering behaviour, unified browser and server logs, and error stack traces.
@@ -815,6 +815,50 @@ Fix in two stages. `Promise.all` makes the total the *max* rather than the sum. 
 **6. Check the runtime and placement.** A cold serverless start on a heavy bundle, or a function in a region far from the database. Co-locating compute with data often halves TTFB on its own, and that's frequently the real answer for a self-hosted or multi-region setup.
 
 The framing I'd end on: **streaming changes the goal.** With `Suspense`, you don't need the whole page fast — you need the *shell* fast. Often the correct fix isn't making the 4-second query faster, it's making sure the user sees a complete, useful page in 200 ms with one section still loading.
+
+---
+
+**Q9: When should a mutation use a Server Action instead of an API route?**
+
+Default to a **Server Action** when the mutation is for your own UI, and reach for a **Route Handler** when the endpoint is a genuine public interface.
+
+| Aspect | Server Action | Route Handler (`route.ts`) |
+|---|---|---|
+| Called from | your own components, `<form action>`, `useActionState` | anything that can speak HTTP |
+| Shape | a function you import and call | a URL, method, status codes, headers |
+| Types | end-to-end, no client fetch code | you write and maintain both sides |
+| After it runs | revalidates and re-renders in the same round trip | you refetch or invalidate yourself |
+| Caching / CDN | not cacheable | full HTTP semantics |
+
+**Server Actions win on the boring case, which is most cases.** A form submits, the server mutates, `revalidatePath` marks the data stale, and the updated UI comes back in the same round trip — no endpoint invented, no fetch written, no response type duplicated. Progressive enhancement comes free: a `<form action={createTodo}>` works before hydration, because it is a real form post.
+
+**Route Handlers win when the consumer is not your UI:**
+
+- a **webhook** — Stripe needs a URL, a method and a 200
+- a **public or mobile API** — versioning, auth headers, status codes
+- **streaming or file responses** — you need the `Response` object
+- anything that must be **cacheable at the CDN** or hit by a `GET`
+
+**The point interviewers are actually probing** is whether you know a Server Action is **a public HTTP endpoint wearing a function's clothes**. Next generates an ID for it and exposes it; anyone can call it with a crafted request. So the fact that it is only imported by an admin component authorises nothing:
+
+```ts
+'use server';
+
+export async function deleteProject(id: string) {
+  // Both checks are mandatory — being "only called from the admin page" is
+  // not a permission. This is an endpoint.
+  const session = await auth();
+  if (!session) throw new Error('Unauthorized');
+  if (!session.user.canDelete(id)) throw new Error('Forbidden');
+
+  await db.project.delete({ where: { id } });
+  revalidatePath('/projects');
+}
+```
+
+Also worth saying: Server Actions are **POST-only and serialised one at a time** per navigation, so they are a poor fit for high-frequency or parallel mutations, and their arguments must be serialisable.
+
+**Takeaway:** Server Action for your own UI's mutations; Route Handler when something other than your UI needs to call it — and authorise inside the action either way, because it is an endpoint.
 
 ---
 

@@ -1,3 +1,5 @@
+import { playgroundBuildExplanations } from './playgroundBuildExplanations';
+
 // Step-by-step explanations for Coding Challenge templates.
 // Loaded lazily from CodePlayground only when the user opens the explanation
 // modal — keeps this off the initial route chunk.
@@ -132,6 +134,64 @@ export interface Explanation {
   problemStatement: string;
   approaches: Approach[];
 }
+
+// ===================================================================
+// Build-order explanations — for React machine-coding templates.
+//
+// The `Approach`/`steps` model above is algorithm-shaped: it wants a Big-O row,
+// pseudocode, and a data structure to walk frame by frame. A machine-coding
+// template has none of those — no array to step through, no complexity to
+// compare — which is why all 36 React templates shipped with no Explain button
+// at all, and their teaching content stayed as a wall of comments in the editor.
+//
+// What a reader needs there is the order you would build it in, the one
+// decision each stage encodes, and the trap that stage hides.
+// ===================================================================
+
+export interface BuildStep {
+  /** Imperative, e.g. "Tell the browser how wide it will display". */
+  title: string;
+  /** Why this step exists and what decision it encodes. */
+  detail: string;
+  /**
+   * Locates the excerpt IN THE TEMPLATE, rather than restating it.
+   *
+   * The first version of these walkthroughs carried hand-written `code`
+   * strings, and 360 of 454 lines turned out not to exist in the template the
+   * reader had open — they described an idealised implementation instead of the
+   * one on screen, which is worse than no snippet at all. An anchor cannot
+   * drift: the modal slices the real lines out of the real template, and
+   * `buildExplanationAnchors.test.ts` fails the build if `from` stops matching.
+   */
+  excerpt?: {
+    /** A distinctive substring of the first line to show. Must be unique-ish. */
+    from: string;
+    /** How many lines to show from there. Default 6. */
+    lines?: number;
+  };
+  /** The mistake this step prevents. Rendered as a warning callout. */
+  pitfall?: string;
+}
+
+export interface GradedPoint {
+  point: string;
+  why: string;
+}
+
+export interface BuildExplanation {
+  kind: 'build';
+  problem: string;
+  /** THE BRIEF — what you are asked to produce, in 1-3 sentences. */
+  problemStatement: string;
+  buildOrder: BuildStep[];
+  graded: GradedPoint[];
+}
+
+export type AnyExplanation = Explanation | BuildExplanation;
+
+// The `isBuildExplanation` guard deliberately lives in ./explanationKind.ts —
+// importing it from here would make every caller a static consumer of this
+// 10,600-line module, which is the whole thing the lazy import avoids.
 
 // ====================================================================
 
@@ -8557,7 +8617,8 @@ const sumWithoutLoopsExpl: Explanation = {
   ],
 };
 
-export const playgroundExplanations: Record<string, Explanation> = {
+export const playgroundExplanations: Record<string, AnyExplanation> = {
+  ...playgroundBuildExplanations,
   'Integer to Roman': integerToRomanExpl,
   'Reverse Integer': reverseIntegerExpl,
   'Isomorphic Strings': isomorphicExpl,

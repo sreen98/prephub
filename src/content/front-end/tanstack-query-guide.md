@@ -1089,9 +1089,16 @@ The `enabled` option controls whether the query automatically fires. When `enabl
 
 Common use cases:
 - **Dependent queries**: Wait for a previous query to finish before fetching
+
   ```ts
-useQuery({ queryKey: ['projects', userId], queryFn: fetchProjects, enabled: !!userId });
+  // `userId` comes from an earlier query — don't fire until it exists.
+  useQuery({
+    queryKey: ['projects', userId],
+    queryFn: fetchProjects,
+    enabled: !!userId,
+  });
   ```
+
 - **User-triggered queries**: Only fetch when the user clicks a button (combine with `refetch()`)
 - **Conditional data**: Don't fetch if a feature flag is off or a permission is missing
 - **Form completion**: Only validate/search after the user has typed enough characters

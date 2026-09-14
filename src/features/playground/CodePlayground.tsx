@@ -27,8 +27,9 @@ import {
   type CategoryMeta,
 } from '../../data/playground/templateIndex';
 import { OutputPanel, type OutputEntry } from './OutputPanel';
+import { SolvedChip, CompleteToggle } from './ChallengeProgress';
 import { playgroundSolutionKeys } from '../../data/playground/playgroundSolutionKeys';
-import { usePlaygroundProgress } from '../../hooks/usePlaygroundProgress';
+import { usePlaygroundProgress, resolveOpenCode, hashCode } from '../../hooks/usePlaygroundProgress';
 import { useTemplateFilters } from '../../hooks/useTemplateFilters';
 import { useTemplateCatalog } from '../../hooks/useTemplateCatalog';
 import { useEditorPrefs } from '../../hooks/useEditorPrefs';
@@ -36,15 +37,15 @@ import ExplanationModal from './ExplanationModal';
 import TemplateModal from './TemplateModal';
 import PreviewErrorBoundary from './PreviewErrorBoundary';
 import Toast from '../../components/Toast';
-import type { Explanation } from '../../data/playground/playgroundExplanations';
+import type { AnyExplanation } from '../../data/playground/playgroundExplanations';
 import { playgroundExplanationKeys } from '../../data/playground/playgroundExplanationKeys';
 import { getJSON, safeGet, safeRemove } from '../../lib/storage';
 
 // Explanation module shares the same lazy-cache pattern as solutions —
 // the data itself is small now but will grow as more challenges get
 // step-by-step explanations.
-let explanationsCache: Record<string, Explanation> | null = null;
-async function loadExplanations(): Promise<Record<string, Explanation>> {
+let explanationsCache: Record<string, AnyExplanation> | null = null;
+async function loadExplanations(): Promise<Record<string, AnyExplanation>> {
   if (explanationsCache) return explanationsCache;
   const mod = await import('../../data/playground/playgroundExplanations');
   explanationsCache = mod.playgroundExplanations;
@@ -140,8 +141,8 @@ export default function CodePlayground() {
   const [caretPos, setCaretPos] = useState<number>(-1);
   // ===== Save-progress state =====
   const progressHook = usePlaygroundProgress();
-  const { getEntry, saveEntry, markSolved, clearEntry, setLastSession,
-          solvedCount, lastSessionName } = progressHook;
+  const { getEntry, saveEntry, markSolved, setSolved, clearEntry, setLastSession,
+          progress, lastSessionName } = progressHook;
   const [notes, setNotes] = useState<string>('');
   const [notesOpen, setNotesOpen] = useState<boolean>(false);
   // Run-result summary pill: counts of ✅/❌ from last execution.
@@ -162,7 +163,7 @@ export default function CodePlayground() {
   // Everything the picker displays — see hooks/useTemplateCatalog for why the
   // counts are scoped to the active tag rather than the whole catalogue.
   const {
-    categories: filteredCategories, tagOptions, totalJsChallenges,
+    categories: filteredCategories, tagOptions, challengeNames,
     difficultyCounts, patternCounts, scopeHasPatterns, scopeHasDifficulty,
   } = useTemplateCatalog({
     search: drawerSearch, tag: drawerFilter, mode: modalMode,
@@ -202,9 +203,11 @@ export default function CodePlayground() {
   useEffect(() => {
     if (!selectedName) return;
     const saved = getEntry(selectedName);
-    if (saved && saved.code && saved.code !== code) {
-      setCode(saved.code);
-      setNotes(saved.notes ?? '');
+    const stub = peekTemplateCode(selectedName) ?? '';
+    const { code: opened, restored } = resolveOpenCode(saved, stub);
+    if (restored && opened !== code) {
+      setCode(opened);
+      setNotes(saved?.notes ?? '');
       // Don't toast on first mount — too startling. The badge in the
       // templates modal is the visual cue.
     } else if (saved?.notes) {
@@ -221,7 +224,8 @@ export default function CodePlayground() {
     if (!selectedName) return;
     if (showingSolution) return;
     const handle = window.setTimeout(() => {
-      saveEntry(selectedName, { code, notes });
+      const base = peekTemplateCode(selectedName);
+      saveEntry(selectedName, { code, notes, baseHash: base === undefined ? undefined : hashCode(base) });
     }, 800);
     return () => window.clearTimeout(handle);
   }, [code, notes, selectedName, showingSolution, saveEntry]);
@@ -545,10 +549,10 @@ export default function CodePlayground() {
     // with no fetch at all. Only the pristine stub needs the download.
     const saved = getEntry(template.name);
     const stub = peekTemplateCode(template.name);
-    const restored = Boolean(saved?.code) && saved?.code !== stub;
-    if (restored && saved?.code) {
-      setCode(saved.code);
-      setToastMsg(`Resumed your saved work in "${template.name}"`);
+    const opened = stub === undefined ? null : resolveOpenCode(saved, stub);
+    if (opened?.restored) {
+      setCode(opened.code);
+      setToastMsg(opened.templateUpdated ? 'Resumed your saved work — this challenge has been updated since; Reset loads the new version.' : `Resumed your saved work in "${template.name}"`);
     } else if (stub !== undefined) {
       setCode(stub);
     } else {
@@ -599,7 +603,7 @@ export default function CodePlayground() {
   const [isLoadingSolution, setIsLoadingSolution] = useState<boolean>(false);
   const [isLoadingExplain, setIsLoadingExplain] = useState<boolean>(false);
   const [explainOpen, setExplainOpen] = useState<boolean>(false);
-  const [explanationData, setExplanationData] = useState<Explanation | null>(null);
+  const [explanationData, setExplanationData] = useState<AnyExplanation | null>(null);
   const [isFormatting, setIsFormatting] = useState<boolean>(false);
   const toggleSolution = useCallback(async (): Promise<void> => {
     if (!currentTemplate || !hasSolution) return;
@@ -876,12 +880,7 @@ export default function CodePlayground() {
               React
             </span>
           )}
-          <span
-            className="ml-auto md:ml-3 text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/30 text-emerald-400 font-medium shrink-0 hidden sm:inline"
-            title="JS coding challenges where every test (✅) passed. React Machine Coding has no test runner, so it's not counted here."
-          >
-            {solvedCount} / {totalJsChallenges} JS solved
-          </span>
+          <SolvedChip challengeNames={challengeNames} progress={progress} />
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -890,6 +889,7 @@ export default function CodePlayground() {
           >
             <BookOpen size={14} /> Templates
           </button>
+          <CompleteToggle name={selectedName} template={currentTemplate} progress={progress} onChange={setSolved} />
 
           {hasExplanation && (
             <button
@@ -1152,7 +1152,7 @@ export default function CodePlayground() {
       {/* Step-by-step explanation modal — opens on Explain button click */}
       <ExplanationModal
         open={explainOpen}
-        explanation={explanationData}
+        explanation={explanationData} templateCode={selectedName ? peekTemplateCode(selectedName) : undefined}
         onClose={() => setExplainOpen(false)}
         onLoadTemplate={(name) => {
           const t = allTemplates.find(t => t.name === name);

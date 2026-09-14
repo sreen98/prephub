@@ -5755,6 +5755,30 @@ function AuthProvider({ children }) {
 
 const useAuth = () => React.useContext(AuthContext);
 
+// ---------- redirecting is a SIDE EFFECT ----------
+// Calling the parent's setState from inside Protected's render is what produces
+// "Cannot update a component (App) while rendering a different component
+// (Protected)". React is part-way through rendering one component; scheduling
+// an update to another one is not something it can honour there.
+//
+// The fix is to RENDER the redirect rather than perform it. This is exactly why
+// react-router gives you <Navigate to="/login" replace /> as a COMPONENT
+// instead of a navigate() you call inline — it runs in an effect, after commit.
+function Redirect({ to, onRedirect }) {
+  const fired = React.useRef(false);
+  React.useEffect(() => {
+    // Fire once. onRedirect is re-created on every parent render, so without
+    // the guard a redirect that does not unmount this component immediately
+    // would re-fire on every render — an infinite loop. It also makes the
+    // effect idempotent under StrictMode's double-invoke in development.
+    if (fired.current) return;
+    fired.current = true;
+    onRedirect(to);
+  }, [to, onRedirect]);
+
+  return <p style={{ color: '#888' }}>Redirecting…</p>;
+}
+
 // ---------- the gate ----------
 function Protected({ requireRole, onRedirect, children }) {
   const { status, user } = useAuth();
@@ -5764,7 +5788,8 @@ function Protected({ requireRole, onRedirect, children }) {
   if (status === 'loading') return <p style={{ color: '#888' }}>Checking session…</p>;
 
   // 2. Not authenticated → send to login, remembering the destination.
-  if (status === 'anonymous') { onRedirect('login'); return null; }
+  //    Rendered, not called: see the note on Redirect above.
+  if (status === 'anonymous') return <Redirect to="login" onRedirect={onRedirect} />;
 
   // 3. Authenticated but not authorized → 403, NOT a redirect to login.
   //    Bouncing an authorized-but-insufficient user to login is confusing and
@@ -5842,7 +5867,11 @@ render(<Root />);
 //    edit client state, so every protected route must be backed by
 //    server-side authorization on the API. A hidden button is not a
 //    permission — see the Web Security and OAuth guides.
-// 5. Don't put the role check in fifty components; one declarative gate.`,
+// 5. Don't put the role check in fifty components; one declarative gate.
+// 6. A redirect is a side effect. Calling the parent's setState during render
+//    warns "Cannot update a component while rendering a different component",
+//    and it is why react-router's answer is <Navigate /> — a component that
+//    navigates in an effect — rather than a function you call inline.`,
       },
       {
         name: 'Mini Redux Store',
@@ -6697,6 +6726,138 @@ render(<App />);
 //    retries, dedup and stale-while-revalidate for free — say so.`,
       },
       {
+        name: 'Fetch Users from an API',
+        jsx: true,
+        code: `// ===== MACHINE CODING: List users from a real API =====
+// This one genuinely hits the network:
+//   https://jsonplaceholder.typicode.com/users
+// Press Run and watch every state happen for real.
+//
+// TASK
+//   1. Fetch the users on mount and render name / email / company
+//   2. Handle all four states — loading, error, empty, success
+//   3. Cancel the request if the component unmounts before it lands
+//   4. Let the user retry after a failure
+
+const API = 'https://jsonplaceholder.typicode.com/users';
+
+function Users() {
+  // ONE status field, not three booleans. isLoading + isError can represent
+  // combinations that cannot happen; this cannot.
+  const [status, setStatus] = useState('loading');   // loading | error | done
+  const [users, setUsers] = useState([]);
+  const [error, setError] = useState(null);
+  const [attempt, setAttempt] = useState(0);         // bump to refetch
+
+  useEffect(() => {
+    const ac = new AbortController();
+    setStatus('loading');
+    setError(null);
+
+    fetch(API, { signal: ac.signal })
+      .then(res => {
+        // fetch does NOT reject on 404 or 500 — only a network failure rejects.
+        // Without this check a 500 resolves happily and you parse an error page.
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();          // parsing is a SECOND async step
+      })
+      .then(data => {
+        setUsers(data);
+        setStatus('done');
+      })
+      .catch(err => {
+        // Our own cleanup aborting the request is not a failure. Without this
+        // guard, navigating away mid-request flashes an error message.
+        if (err.name === 'AbortError') return;
+        setError(err.message);
+        setStatus('error');
+      });
+
+    // Cancels an in-flight request on unmount or before a retry. This removes
+    // the state-update-after-unmount warning AND the race where a slow first
+    // response lands after a fast second one and overwrites it.
+    return () => ac.abort();
+  }, [attempt]);
+
+  const box = { border: '1px solid #333', borderRadius: 8, padding: 14, maxWidth: 460 };
+
+  if (status === 'loading') {
+    return <div style={box}><p>Loading users…</p></div>;
+  }
+
+  if (status === 'error') {
+    return (
+      <div style={box}>
+        <p style={{ color: '#f87171', margin: 0 }}>Could not load users — {error}</p>
+        <button onClick={() => setAttempt(n => n + 1)} style={{ marginTop: 10 }}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  // Empty is a THIRD outcome, distinct from loading and from failure.
+  // An empty list with no message looks identical to a broken component.
+  if (users.length === 0) {
+    return <div style={box}><p>No users found.</p></div>;
+  }
+
+  return (
+    <div style={box}>
+      <p style={{ marginTop: 0 }}>
+        <strong>{users.length}</strong> users
+      </p>
+      <ul style={{ paddingLeft: 18, margin: 0 }}>
+        {/* key comes from the DATA (u.id), never the array index */}
+        {users.map(u => (
+          <li key={u.id} style={{ marginBottom: 10 }}>
+            <strong>{u.name}</strong>{' '}
+            <span style={{ color: '#888', fontSize: 12 }}>@{u.username}</span>
+            <div style={{ color: '#9aa4b2', fontSize: 12 }}>{u.email}</div>
+            <div style={{ color: '#6b7280', fontSize: 12 }}>{u.company.name}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ fontFamily: 'system-ui', padding: 16 }}>
+      <Users />
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. FOUR states, not one: loading / error / empty / success. Rendering only
+//    the success path is the most common omission in this exercise, and it is
+//    what an interviewer checks by throttling the network in devtools.
+// 2. \`if (!res.ok) throw\`. fetch rejects only on a network failure, so a 404
+//    or a 500 resolves with ok === false. Not knowing this is the single most
+//    common misconception about the API, and the symptom is a confusing error
+//    about an unexpected token "<" when you try to parse the error page.
+// 3. ONE status field rather than isLoading + isError. Separate booleans can
+//    be true at the same time, which is how a spinner and an error message end
+//    up on screen together.
+// 4. AbortController in the effect cleanup, with AbortError excluded from the
+//    error path. It fixes the update-after-unmount warning and the out-of-order
+//    race at once — and aborting without the guard is worse than neither,
+//    because every navigation then flashes a failure.
+// 5. A stable key from the data. \`u.id\` is right there in the response;
+//    falling back to the index breaks as soon as the list is sorted or
+//    filtered.
+// 6. A retry path. A failed request the user cannot retry means a reload is
+//    the only way out.
+// 7. What you would do in production: this belongs behind TanStack Query,
+//    which adds caching, de-duplication, retries with backoff and
+//    stale-while-revalidate — the things a hand-rolled hook gets wrong as it
+//    accumulates requirements.`,
+      },
+      {
         name: 'Pagination',
         jsx: true,
         code: `// ===== MACHINE CODING: Pagination Component =====
@@ -6792,11 +6953,16 @@ render(<Pagination />);`,
         name: 'Search Filter',
         jsx: true,
         code: `// ===== MACHINE CODING: Real-time Search Filter =====
-// Build a search filter for a product list.
-// - Filter items as the user types (real-time)
-// - Case-insensitive matching on name and category
-// - Show match count
-// - Highlight "no results" state
+// Filter a product list as the user types.
+//
+// TASK
+//   1. Filter as the user types — case-insensitive, across name AND category
+//   2. Show a match count and a real empty state
+//   3. Then the follow-up you will actually be asked: "now add debouncing"
+//
+// BOTH versions are below, side by side, with counters. Type in each and watch
+// the numbers — then read WHAT'S BEING GRADED, because for a local array the
+// debounced one is measurably WORSE, and saying so is the stronger answer.
 
 const PRODUCTS = [
   { id: 1, name: "MacBook Pro", category: "Laptops", price: 1999 },
@@ -6813,44 +6979,124 @@ const PRODUCTS = [
   { id: 12, name: "Kindle Paperwhite", category: "Tablets", price: 139 },
 ];
 
-function SearchFilter() {
-  const [query, setQuery] = React.useState("");
+// Shared predicate, so the two versions differ only in WHEN they run it.
+function filterProducts(query) {
+  const q = query.toLowerCase().trim();
+  if (!q) return PRODUCTS;
+  return PRODUCTS.filter(p =>
+    p.name.toLowerCase().includes(q) ||
+    p.category.toLowerCase().includes(q)
+  );
+}
 
-  const filtered = React.useMemo(() => {
-    const q = query.toLowerCase().trim();
-    if (!q) return PRODUCTS;
-    return PRODUCTS.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q)
-    );
+// ---------------------------------------------------------------------------
+// OPTION 1 — instant. Derive during render. No timer, no extra state.
+// ---------------------------------------------------------------------------
+function SearchFilter() {
+  const [query, setQuery] = useState("");
+  const [keystrokes, setKeystrokes] = useState(0);
+  const runs = useRef(0);                    // instrumentation only
+
+  const filtered = useMemo(() => {
+    runs.current += 1;
+    return filterProducts(query);
   }, [query]);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 460 }}>
-      <h3 style={{ marginTop: 0 }}>Product Search</h3>
+    <Panel
+      title="1 · Instant"
+      subtitle="filters on every keystroke"
+      query={query}
+      onChange={(v) => { setQuery(v); setKeystrokes(n => n + 1); }}
+      keystrokes={keystrokes}
+      runs={runs.current}
+      filtered={filtered}
+      stale={false}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// OPTION 2 — debounced. The VALUE lags; the input never does.
+// ---------------------------------------------------------------------------
+function useDebouncedValue(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    // THIS cleanup is the debounce: each new keystroke cancels the pending
+    // timer, so the value only settles after \`delay\` of quiet.
+    return () => clearTimeout(id);
+  }, [value, delay]);
+
+  return debounced;
+}
+
+function SearchFilterDebounced({ delay = 400 }) {
+  const [query, setQuery] = useState("");           // drives the INPUT — instant
+  const [keystrokes, setKeystrokes] = useState(0);
+  const debounced = useDebouncedValue(query, delay); // drives the WORK — lagged
+  const runs = useRef(0);
+
+  const filtered = useMemo(() => {
+    runs.current += 1;
+    return filterProducts(debounced);
+  }, [debounced]);
+
+  return (
+    <Panel
+      title={"2 · Debounced (" + delay + "ms)"}
+      subtitle="filters only after you pause"
+      query={query}
+      onChange={(v) => { setQuery(v); setKeystrokes(n => n + 1); }}
+      keystrokes={keystrokes}
+      runs={runs.current}
+      filtered={filtered}
+      // The list on screen belongs to an OLDER query. Saying so is part of the
+      // feature — a stale list presented as current is a small lie.
+      stale={query !== debounced}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// One presentation component, so the comparison is honest
+// ---------------------------------------------------------------------------
+function Panel({ title, subtitle, query, onChange, keystrokes, runs, filtered, stale }) {
+  return (
+    <div style={{ flex: 1, minWidth: 300, fontFamily: "system-ui" }}>
+      <h3 style={{ margin: "0 0 2px" }}>{title}</h3>
+      <p style={{ margin: "0 0 10px", fontSize: 12, color: "#888" }}>{subtitle}</p>
+
       <input
         value={query}
-        onChange={e => setQuery(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         placeholder="Search by name or category..."
         style={{
           width: "100%", padding: "10px 14px", borderRadius: 8,
           border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box",
         }}
       />
+
+      <p style={{ fontSize: 12, color: "#888", margin: "8px 0" }}>
+        keystrokes <b>{keystrokes}</b> · filters run <b>{runs}</b>
+        {stale && <span style={{ color: "#d97706" }}> · waiting…</span>}
+      </p>
+
       <p style={{ fontSize: 13, color: "#888", margin: "8px 0" }}>
         Showing {filtered.length} of {PRODUCTS.length} products
       </p>
+
       {filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 32, color: "#999" }}>
+        <div style={{ textAlign: "center", padding: 24, color: "#999" }}>
           No products match "{query}"
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {filtered.map(p => (
             <div key={p.id} style={{
-              padding: "10px 14px", background: "#f8f8f8", borderRadius: 8,
+              padding: "8px 12px", background: "#f8f8f8", borderRadius: 8,
               border: "1px solid #eee", display: "flex", justifyContent: "space-between",
-              alignItems: "center",
             }}>
               <div>
                 <strong>{p.name}</strong>
@@ -6865,7 +7111,50 @@ function SearchFilter() {
   );
 }
 
-render(<SearchFilter />);`,
+function App() {
+  return (
+    <div style={{ display: "flex", gap: 24, padding: 20, flexWrap: "wrap" }}>
+      <SearchFilter />
+      <SearchFilterDebounced delay={400} />
+    </div>
+  );
+}
+
+render(<App />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. THE FILTERED LIST IS DERIVED, NEVER STORED. Both versions compute during
+//    render. Keeping a \`filtered\` array in state needs an effect to resync it,
+//    gives you one render where the list and the query disagree, and goes stale
+//    when the source data changes without the query changing.
+//
+// 2. WHEN ASKED TO DEBOUNCE, DEBOUNCE THE VALUE — NOT THE INPUT. The field stays
+//    controlled by \`query\` so typing is never laggy; only \`debounced\`, which
+//    drives the work, trails behind. Debouncing the input itself is the version
+//    that makes a search box feel broken.
+//
+// 3. THE CLEANUP IS THE ALGORITHM. \`return () => clearTimeout(id)\` is not
+//    tidy-up — it is what cancels the pending timer on each keystroke so only
+//    the last one survives. Without it every keystroke fires after \`delay\`.
+//
+// 4. SAY THAT THIS LIST DOES NOT NEED IT, AND WHY. Filtering 12 local objects
+//    costs ~0.0025 ms; a frame is 16.67 ms. A 400 ms debounce adds 400 ms of
+//    lag to save a fraction of a microsecond. Watch the counters: the debounced
+//    panel runs the filter fewer times and feels slower, because the work it
+//    skipped was free. Debouncing belongs where a keystroke costs something you
+//    do not control — a network request, most often.
+//
+// 5. FOR EXPENSIVE LOCAL WORK, THE ANSWER IS useDeferredValue, NOT DEBOUNCE.
+//    It keeps the input responsive while the list catches up, and it yields
+//    based on actual work rather than a timer you guessed. Reach for it when
+//    rendering the results is the cost (tens of thousands of rows), not when
+//    computing them is.
+//
+// 6. DEBOUNCING DOES NOT FIX OUT-OF-ORDER RESPONSES. It reduces how many
+//    requests you send; it says nothing about the order they return in. A slow
+//    response for "re" can still land after a fast one for "react" and
+//    overwrite it. That needs an AbortController — see the
+//    "Search with Debounce + Cancel" template.`,
       },
       {
         name: 'Chat App',

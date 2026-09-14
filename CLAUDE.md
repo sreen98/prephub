@@ -121,6 +121,33 @@ silently checking nothing for months, and a genuine ordering bug in a new soluti
 minimum-tick floor is load-bearing — Throttle's only assertion fires 200 ms out, so a pure
 "stop once quiet" rule gave up at 150 ms having seen nothing and called that a pass.
 
+### 9g. A React template that parses can still be broken — mount it
+`verify:blocks` proves a block PARSES. It says nothing about what happens when
+it runs. The `Protected Route (Auth + RBAC)` template called the parent's
+setState from inside the gate's render, so React logged **"Cannot update a
+component (`App`) while rendering a different component (`Protected`)"** the
+moment a reader clicked through to the admin page — reported by a user, invisible
+to every gate.
+
+`reactTemplates.test.tsx` now mounts **every** React Machine Coding template in
+jsdom and fails on any `console.error`. It is the React counterpart of
+`playgroundExecutable.test.ts`, which does the same for JS solutions.
+
+- **jsdom gaps are stubbed, not tolerated.** `scrollIntoView` and
+  `IntersectionObserver` do not exist there, and three templates throw for
+  reasons that say nothing about the template. `fetch` is stubbed too, so the
+  suite never touches the network.
+- **The fix is worth copying:** a redirect is a side effect, so it must be
+  *rendered*, not performed during render — which is precisely why react-router
+  ships `<Navigate />` as a component instead of a `navigate()` you call inline.
+  The template now includes a `Redirect` component with a fire-once ref, and the
+  ref matters: `onRedirect` is a new function on every parent render, so without
+  it a redirect that does not immediately unmount loops forever.
+- **Probe-tested by reversing the fix in memory** (never on disk), driving the
+  click that reaches the gate, and asserting the warning comes back. The first
+  attempt asserted on mount alone and passed vacuously — the gate is only
+  reached after the fake session resolves and the user navigates.
+
 ### 9. Tests are the gate for anything `tsc` cannot see
 Three defects reached production through a clean typecheck: the Promise-to-`.filter()` blank screen, 344 colliding question ids, and 180 broken in-page anchors. **`import.meta.glob` only resolves under Vite, so the data layer cannot be imported into plain Node** — Vitest runs through Vite, which is why `src/data.test.ts` can execute it. Write a test for: anything in `src/lib/`, anything pure in `src/data.ts`, and any editor/text-manipulation rule (see `playgroundAutoClose.test.ts`, which replays real keystrokes rather than testing helpers in isolation). The old ritual of hand-building a throwaway SSR probe is replaced by `npm test`.
 
@@ -208,6 +235,19 @@ its own green run while being structurally unable to fail.
 `src/generated/playground-index.json` (13 KB, **generated + gitignored**, rebuilt by `npm run dev` / `npm run build` / `npm run playground:index`) holds every template's name, tag, kind, category, patterns and difficulty — everything the modal lists and filters on. The 360 KB of `code` bodies load on demand via `src/data/playground/templateIndex.ts` (`getTemplateCode` / `peekTemplateCode` / `prefetchTemplateCode`). **`CodePlayground` must import values from `templateIndex`, never from `playgroundTemplates`** — a value import drags all 360 KB back into the route chunk, and `verify:arch` fails if it does.
 - The generator works by esbuild-transpiling `playgroundTemplates.ts` and **executing** it, which is safe only because that module has **zero imports**. Keep it that way. The crucial consequence: the generator never parses or rewrites the 180 template literals, whose backtick escaping has silently broken before in a way `tsc` does not catch.
 - A saved draft resolves synchronously from localStorage, so a returning user sees their own work with no fetch. Only a pristine stub needs the download.
+- **A saved draft must not outrank a CORRECTED template.** The autosave fires
+  800 ms after a template loads, so merely opening a challenge stores a copy —
+  and that copy then won forever. When `Protected Route` was fixed, the reader
+  who had opened it before the fix kept seeing the bug, with no signal at all;
+  the editor said 130 lines while the file on disk said 159. `ProgressEntry`
+  now carries **`baseHash`**, an FNV-1a fingerprint of the template the draft
+  started from, pinned on first save and never moved. `resolveOpenCode()`
+  decides: draft unmodified (`hash(code) === baseHash`) *and* the template has
+  since changed → take the new template, because there is nothing to lose;
+  modified → keep their work and say the challenge has been updated. Entries
+  written before `baseHash` existed cannot be told apart from edited ones, so
+  they keep priority and Reset remains the way out. Pure and tested in
+  `usePlaygroundProgress.test.ts`.
 - `blankStarters` (3 tiny snippets) stay eager so the editor always has something runnable on first paint.
 - `templateIndex.test.ts` is the parity check: same count, same names, same order, same patterns/difficulty, and every name resolves to a body.
 
@@ -220,6 +260,51 @@ its own green run while being structurally unable to fail.
 **It is DERIVED from `Object.entries(React)`, not hand-listed, and that is the whole point.** The hand-written version held eleven names and shipped for months while the guide taught `<Activity>`, `useEffectEvent`, `use`, `useOptimistic` and `useActionState` — every one of those examples was unrunnable, and they surfaced one reader report at a time. Patching `Activity` alone would have left `useEffectEvent` broken for the next reader; deriving closes the class and means a React upgrade adds new APIs automatically. `__`-prefixed internals and `version` are excluded (`version` would shadow a plausible user variable); `createPortal` and `flushSync` are added from `react-dom`. **The warning shown when `import` statements are stripped is derived from the same map** (`scopeNames()`) rather than being a second hand-written list — the two had already drifted. `playgroundScope.test.ts` pins it, including that **every public React export is present**, so the derivation cannot quietly become a list again.
 
 `editorHighlight.ts` (highlighting + rainbow/match bracket decoration), `playgroundRunner.ts` (Worker sandbox, Babel transpile, `stripModuleSyntax`, `detectJSX`/`detectTS`), `playgroundFormat.ts` (lazy Prettier). All pure or near-pure, all tested — they were previously buried in a 1,988-line component where none of it could be exercised. Filter state is `useTemplateFilters` (a reducer: tag/mode changes clear pattern+difficulty *as part of the transition*, so the "No templates found" bug is inexpressible) and persisted prefs are `useEditorPrefs`. **Everything the picker *displays* is derived by `src/hooks/useTemplateCatalog.ts`** — the filtered categories, tag options, and the scoped pattern/difficulty counts. It is split into a pure `buildTemplateCatalog(filters)` plus a thin `useMemo` wrapper, the same shape as `templateFilterReducer`, so the derivation is testable in plain Node **without adding a DOM testing library** (the repo has no `@testing-library/react`; component tests use `renderToStaticMarkup`). The scope-awareness it encodes — `patterns`/`difficulty` exist only on JS challenges, so counts and controls are scoped to the active tag — is what stopped React-tag users seeing JS counts that matched nothing on screen.
+
+### 13. Explain has TWO shapes, and the split is the point
+The modal's data model was algorithm-shaped — `complexity {time, space}`,
+`pseudocode[]`, and `steps[]` carrying array/map/stack/callStack snapshots. A
+React machine-coding template has none of those: no Big-O to compare, no data
+structure to animate. So **all 36 React Machine Coding templates shipped with no
+Explain button at all**, and their teaching content stayed as a wall of comments
+inside a 100–250 line editor.
+
+`BuildExplanation` (in `playgroundExplanations.ts`) is the second shape:
+**brief → ordered build steps, each with only ITS snippet plus the trap it
+avoids → what an interviewer grades.** `playgroundBuildExplanations.ts` holds all
+36. `ExplanationModal` is a thin dispatcher over `AlgorithmExplanationModal` and
+`BuildExplanationModal` — splitting it was forced by the complexity limit and is
+the right shape anyway, since neither body carries the other's branches.
+
+- **A step QUOTES its template by anchor — it never restates the code.** The
+  first version carried hand-written `code` strings and an audit found **360 of
+  454 lines did not exist in the template the reader had open**: they described
+  an idealised implementation instead of the one on screen, which is worse than
+  no snippet, because the reader cannot map what they are told onto what they
+  can see. `BuildStep.excerpt = { from, lines }` now points into the template and
+  `sliceExcerpt()` slices the real lines at render time, so the two cannot drift.
+  `buildExplanationAnchors.test.ts` fails the build if an anchor stops matching,
+  or starts matching more than two lines (a vague anchor silently quotes the
+  wrong region after the next edit). Probe-tested.
+- **24 steps are deliberately prose-only.** They describe an alternative or a gap
+  — `<details>` instead of a custom accordion, `useId` the template does not
+  have — and inventing an excerpt for those would be the original bug again. The
+  test requires their `detail` to carry the whole point (≥ 120 chars), and their
+  prose says plainly that the template does *not* do this.
+- `playgroundContent.test.ts` pins that every React Machine Coding template has
+  a walkthrough, and that each is substantive (brief ≥ 80 chars, ≥ 3 build
+  steps, ≥ 3 graded points, each detail/why ≥ 60 chars). **A thin walkthrough is
+  worse than none** — the reader opened a modal to be told less than the editor
+  already showed them. Probe-tested by deleting one entry.
+- **The guard `isBuildExplanation` lives in `explanationKind.ts`, NOT in
+  `playgroundExplanations.ts`.** Importing it from the latter makes
+  `ExplanationModal` a static consumer of the 10,600-line module and took the
+  playground chunk **100 KB → 635 KB**; the only signal was a Rollup warning in
+  the middle of the build log. Check **#9f** in `verify-architecture.js` pins it
+  and is probe-tested. This is the **fourth** instance of a heavy module leaking
+  into a chunk meant to stay small (`react-*`/`react-guide-*`,
+  `assets/index-*`/PGlite, the `playgroundTemplates` value import). Type imports
+  are safe — they erase.
 
 ### Known exceptions, all deliberate
 - `src/data/**` is exempt from `max-lines` and `no-console` — the playground templates are giant literals that contain `console.log` inside teaching code strings.
@@ -243,21 +328,21 @@ its own green run while being structurally unable to fail.
 
 ### Data flow
 - `data.ts` exports `menuStructure` (defines all guide categories/items), `contentFiles` (eager glob of all markdown), and utility functions. This is the single source of truth for content structure.
-- Current counts: 8 categories (Front End 23, JS & TS 4, Back End 18, DevOps 15, Git 2, DSA 1, Behavioral 1, System Design 4) = 68 guides, plus an Introduction entry. 14 cheat sheets, each ~120–210 lines in a code-first house style (`## Section` + dense fenced blocks, no prose paragraphs) and closing with a **Gotchas** section; `git-workflows.md` and `comparison-tables.md` are deliberately longer reference docs. The `colors` map in `CheatSheetsIndex.tsx` must contain an entry for every `color` used in the `cheatSheets` array — unknown values silently fall back to blue, which is how `teal` and `indigo` went unstyled.
+- Current counts: 8 categories (Front End 25, JS & TS 4, Back End 18, DevOps 15, Git 2, DSA 1, Behavioral 1, System Design 4) = 70 guides, plus an Introduction entry. 14 cheat sheets, each ~120–210 lines in a code-first house style (`## Section` + dense fenced blocks, no prose paragraphs) and closing with a **Gotchas** section; `git-workflows.md` and `comparison-tables.md` are deliberately longer reference docs. The `colors` map in `CheatSheetsIndex.tsx` must contain an entry for every `color` used in the `cheatSheets` array — unknown values silently fall back to blue, which is how `teal` and `indigo` went unstyled.
 - `cheatSheets` array in `data.ts` defines cheat sheet routes separately from guide categories.
 - **The Mobile group** in Front End holds 5 guides: React Native, Play Store Deployment, iOS & App Store Deployment, Mobile Accessibility, Mobile App Security. `play-store-launch` was renamed to **`play-store-deployment`** in the path *and* the filename (the user approved the URL change), so any external link to the old path is dead — this is the one place a route was deliberately changed rather than preserved.
-- **Sidebar sub-headings**: `MenuItem.group?: string` renders an uppercase label above the items sharing it, grouped by first appearance (`groupSidebarItems()` in `App.tsx`). **Every category with 4+ items is grouped**: Front End (React & State / Styling & Accessibility / Browser, Real-Time & Performance / Architecture & Code Quality / Testing & Tooling / Mobile), Back End (Runtimes & Frameworks / APIs & Integrations / Databases / Security & Auth / Architecture & AI), DevOps (Linux & Networking / AWS / Containers & Orchestration / Infrastructure as Code / CI/CD / Observability & SRE), JS & TS (Languages / Reference), System Design (Design / Reference). Git, DSA and Behavioral have 1–2 items and are deliberately left ungrouped — a heading per single item is worse than none, and they render exactly as before. **Heading order follows first appearance of each label**, so the item order inside `items: [...]` also fixes the heading order; items of one group need not be contiguous (the helper buckets them), but keeping them together makes the file readable.
+- **Sidebar sub-headings**: `MenuItem.group?: string` renders an uppercase label above the items sharing it, grouped by first appearance (`groupSidebarItems()` in `App.tsx`). **Every category with 4+ items is grouped**: Front End (React & State / **Global State Management** / Styling & Accessibility / Browser, Real-Time & Performance / Architecture & Code Quality / Testing & Tooling / Mobile), Back End (Runtimes & Frameworks / APIs & Integrations / Databases / Security & Auth / Architecture & AI), DevOps (Linux & Networking / AWS / Containers & Orchestration / Infrastructure as Code / CI/CD / Observability & SRE), JS & TS (Languages / Reference), System Design (Design / Reference). Git, DSA and Behavioral have 1–2 items and are deliberately left ungrouped — a heading per single item is worse than none, and they render exactly as before. **Heading order follows first appearance of each label**, so the item order inside `items: [...]` also fixes the heading order; items of one group need not be contiguous (the helper buckets them), but keeping them together makes the file readable.
 - **The AWS category was renamed to DevOps** (icon `Infinity as InfinityIcon`). The AWS guides deliberately **kept their `/aws/*` paths**, and Docker/K8s kept `/backend/docker-kubernetes`, because changing routes would break the Introduction's deep links, saved bookmarks and checkpoints, and SEO. Category membership and URL are independent here.
 - All question extraction happens via `extractQuestions()` which parses two markdown patterns:
   1. **JS output-style** (`## QN` + ` ```…``` ` + `### ✅ Output` + `### 💡 Explanation`) — used only by the JavaScript guide.
   2. **Standard** (`**QN: text**` followed by an answer block, terminated by the next `**Q{N+1}:` marker **or a standalone `---` line**). Everything between the marker and that terminator becomes the Quiz-mode answer — so the explanation for a question must live BEFORE the `---` separator, not after it.
-- "Tricky Output Questions" sections live in **45 guides — 344 questions total**: React 26, TypeScript 19, JavaScript 16, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
+- "Tricky Output Questions" sections live in **45 guides — 356 questions total**: React 26, TypeScript 19, JavaScript 16, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
 - **Question ids must be unique — `dedupeIds()` in `data.ts` enforces it.** Ids are `` `${guideName}-q${N}` `` taken from the `**QN:**` marker, but most guides hold **two independent Q sequences** (the interview section and "Tricky Output Questions", each restarting at Q1), so that number is not unique within a file. **344 of 1,298 questions collided.** Ids are the localStorage keys for spaced-repetition state, so a collision made two different questions share one SM-2 record — reviewing one rescheduled the other, and both appeared in the same review queue. `dedupeIds()` runs at both `extractQuestions` return points and suffixes only the **second and later** occurrences (`-2`, `-3`), so first occurrences keep their original id and existing review history stays attached. Don't "simplify" this by renumbering all of them; that would silently reset every user's progress.
 - **`npm run verify:counts` guards every number stated in prose.** `scripts/verify-counts.js` derives the ground truth from `data.ts`, `playgroundTemplates.ts` and `playgroundSolutions.ts`, then asserts that README.md, CLAUDE.md and `src/content/README.md` (the app's Introduction page) literally contain the right figures — and checks that `playgroundSolutionKeys.ts` is in sync with `playgroundSolutions.ts`. **Run it after any content change**; it exits non-zero on drift, and the deploy workflow runs it before the build, so drift blocks the deploy rather than shipping a wrong number. Note the UI itself is safe — every on-screen count is derived (`allGuides.length`, `cat.templates.length`, `solvedCount / totalJsChallenges`), so only the prose can go stale. To register a new claim, add a line to the `claims` array in that script.
 - **Re-count rather than trust these numbers when editing.** The README/CLAUDE counts drifted before (they said "143 across 12 guides" while 8 more guides already had tricky sections). To recount guide items, count `{ name: '` occurrences inside each category's `items: [ … ]` array in `data.ts` — `grep -c "file: './content/" src/data.ts` over-counts because it includes cheat sheets and the Introduction entry.
 
 ### Content
-- **Markdown is lazy-loaded, one chunk per guide.** `contentLoaders` in `data.ts` is a **non-eager** `import.meta.glob<string>`, so each guide becomes its own chunk fetched when opened. It used to be `eager: true`, which inlined 4.6 MB of markdown into the main chunk — ~90% of a 4.9 MB bundle, so every visitor downloaded all 68 guides to read one. **Never reintroduce `eager: true` here.**
+- **Markdown is lazy-loaded, one chunk per guide.** `contentLoaders` in `data.ts` is a **non-eager** `import.meta.glob<string>`, so each guide becomes its own chunk fetched when opened. It used to be `eager: true`, which inlined 4.6 MB of markdown into the main chunk — ~90% of a 4.9 MB bundle, so every visitor downloaded all 70 guides to read one. **Never reintroduce `eager: true` here.**
   - Use **`readMinFor(file)`** (from `src/generated/content-meta.json`) wherever you only have a path — HomePage cards, category totals, the related-guides strip. Never `estimateReadingTime(content)` for a guide you haven't loaded, or you pull it into the bundle.
   - **Loading UI is driven by a real signal, not a timer.** `loadContent` increments a counter exposed via
     `subscribePendingLoads`/`getPendingLoads`, and `TopProgressBar` reads it with `useSyncExternalStore`. It skips the
@@ -500,7 +585,7 @@ would be wrong for the reference sections and would reward padding.
 ## React guide — custom hooks (§6.3) and the interview-question map
 - **§6.3 is one-hook-per-subsection: the CORRECT version only, then how to consume it.** The user explicitly asked for the naive/bad versions to be removed — **do not reintroduce a "here is the wrong way first" structure.** The reasoning behind each correct line stays as short notes (why the cleanup *is* the debounce, why `useFetch` guards on `aborted` instead of using `.finally`, why every storage access is wrapped). Hooks covered: `useToggle`, `useDebounce`, `useFetch`, `useLocalStorage`, `useMediaQuery`.
 - **These constraints are load-bearing — do not "simplify" them away:** `useFetch` must not use `.finally` (it runs on abort, so `loading` lies and stale `data` renders as fresh); it must reset `data`/`error` on url change; and `useLocalStorage` must wrap every storage access in `try`/`catch` because **the accessor throws in private mode and the read is in a `useState` initialiser, i.e. during render** — the same bug class that was fixed in this app's own `src/lib/storage.ts`.
-- **Interview Q total: 53** (Q46–Q53 added for useRef, rules of hooks, Fragments, custom hooks, external-store subscription, client vs server routing, the event system, and localization). A user-supplied 16-question checklist is fully covered; verify with a regex map over `^\*\*Q(\d+):` rather than by eye.
+- **Interview Q total: 55** (Q46–Q53 added for useRef, rules of hooks, Fragments, custom hooks, external-store subscription, client vs server routing, the event system, and localization; **Q54–Q55** for the debounced-value custom hook and CSR/SSR/SSG/ISR). A user-supplied 16-question checklist is fully covered; verify with a regex map over `^\*\*Q(\d+):` rather than by eye.
 - **Every runnable code block must parse — enforced by `npm run verify:blocks`.** Each block tagged `tsx/jsx/ts/js` gets a **"Try it"** button (`isRunnable` in `src/features/content/PreBlock.tsx`) that loads it into the playground, so a block that cannot parse ships a button guaranteed to fail.
   - **`scripts/verify-code-blocks.js` is now a CLEAN GATE — `code-block-baseline.json` is `{}` and all 1,670 runnable blocks parse** (it started at 188 broken across 41 guides). The ratchet machinery is kept as the escape valve for a future bulk import; because a file absent from the baseline must be at zero, an empty baseline means any newly-broken block fails the build. Probe-tested in both directions. **A file's count may fall, never rise, and a file absent from the baseline must be at zero** — so new content cannot add broken blocks. Lower a number (or delete the entry) when you fix some; `--update-baseline` rewrites it after a deliberate sweep. Probe-tested in both directions.
   - **The 188 → 0 sweep: eleven fix classes, 1 prose line changed** (a sentence deliberately added when moving a SQL statement out of a JS block). Worth copying, because each class is a real content defect rather than a formatting nit. Verified with a prose-multiset diff (strip every fenced block, compare the remaining lines as a multiset against `git show HEAD:`) — the index-by-index version reports false drift as soon as a block is split, because every later line shifts.
@@ -546,6 +631,188 @@ strong answer there is *don't migrate by default*.
 - **The `totalQuestionCount` parity test earned its keep immediately**: adding
   the question failed it with `Frontend Tooling: generator 24 vs extractor 25`
   until `npm run content:meta` was re-run. It names the guide and the delta.
+
+## Interview-round audits: check coverage BEFORE writing, and record what was skipped
+A user-supplied list of round-by-round questions is the recurring request. The
+method that has worked twice now: extract every `**Qn:**` in the corpus, regex
+each candidate against the question TEXT (not the prose — topic mentions are
+everywhere and prove nothing), and split the list into covered / gap before
+writing a word.
+
+**Second audit — 16 questions over 3 rounds, 9 gaps closed, 7 already covered.**
+- **Added:** React **Q54** (custom hook that debounces a VALUE — the cleanup *is*
+  the debounce; why not to debounce the input itself; why it does not fix
+  out-of-order responses), React **Q55** (CSR/SSR/SSG/ISR as one axis — when the
+  HTML is built — plus "SSR does not make your app fast" and RSC being a
+  different axis entirely); Frontend Architecture **Q14** (100+ page dashboard —
+  feature layering, route manifest, server-state-is-not-app-state, build-time as
+  a first-class concern, and why NOT micro-frontends), **Q15** (frontend rate
+  limits — `Retry-After` vs self-imposed backoff, full jitter, retry only
+  idempotent verbs, and the honest "the frontend can only survive a rate limit"
+  framing), **Q16** (1M+ users/day — reframed as delivery, cache invalidation,
+  field measurement and blast radius rather than throughput), **Q17** (dropdown
+  with search + multi-select — an API-design question, with `aria-activedescendant`
+  as the graded detail); Behavioral **Q19** (tech debt as a throughput number,
+  the ratchet, why a rewrite sprint loses), **Q20** (cross-functional conflict —
+  design and backend have different shapes), **Q21** (non-technical stakeholders
+  — lead with the decision, end sentences in revenue/risk/speed/cost).
+- **Already covered, deliberately NOT duplicated:** event loop (JavaScript Q6,
+  Node Q2), controlled vs uncontrolled (React Q5), hydration mismatch (React
+  Q35), code splitting (React Q25 + Tooling Q11 + Web Perf Q4), component
+  library across teams (FE-Arch Q10 + Testing Q7 + Modern CSS Q8), large lists
+  at 10k+ rows (FE-Arch Q11 + React §13.4), production bug broke the UI
+  (Behavioral §9.9).
+- Totals after: React **55**, Frontend Architecture **17**, Behavioral **21**.
+
+## A block can parse perfectly and still throw the moment it runs
+Browser APIs §3.3 listed the WebSocket send overloads as top-level statements
+after the constructor:
+
+```
+const ws = new WebSocket(url);
+ws.addEventListener('open', …);
+ws.send('text');        // ← InvalidStateError: still in CONNECTING state
+```
+
+Pressing **Try it** produced `InvalidStateError` immediately, because the
+handshake has not finished when those lines run. `new Blob([buf])` in the same
+block referenced an undefined `buf`. Real-Time Web §5 had the same shape under a
+`// Send:` comment.
+
+**No gate could see it**: it is valid JavaScript, so `verify:blocks` passes, and
+it is guide prose rather than a playground template, so the executable suites do
+not touch it. This is the same blind spot as the misindented fence (#17) —
+parsing is not running.
+
+Both now put every send inside the `open` handler or behind a
+`readyState === WebSocket.OPEN` guard, which is also the correct production
+pattern: after a drop, `send` throws again. **Check #18** in
+`verify-architecture.js` fails any `ws.send(...)` at the top level of a block
+that constructs a WebSocket, and is probe-tested.
+
+## A nested code fence must be indented to match its list item
+TanStack Query **Q13** rendered as an *empty* `ts` block, followed by the code as
+a bare paragraph, followed by the remaining three bullets swallowed into a second
+block. The cause: the fence was indented two spaces inside a list item while its
+body sat at column 0, so the un-indented line terminated the item.
+
+**No existing gate could see it.** `verify:blocks` extracts fenced blocks and
+tries to parse them — an empty block parses perfectly, and the leaked code was no
+longer inside a fence at all, so there was nothing to check. `verify:counts`
+looks at figures and anchors. It was only visible by reading the rendered page.
+
+Check **#17** in `verify-architecture.js` now fails any fence whose body is less
+indented than the fence itself, and is probe-tested by reintroducing the bug.
+Verified the fix through the real pipeline (react-markdown + remarkGfm): four
+`<li>`s, the `useQuery` example inside a code block, no empty `<code>`.
+
+## React Router guide — the app pins v6, the world is on v7
+`src/content/front-end/react-router-guide.md` at `/frontend/react-router`
+(20 sections, **12 interview Qs + 6 tricky Qs**), in the `React & State` group
+beside the React guide. It was a real gap: routing appeared only as React
+**Q51** (client vs server routing, the concept) and scattered mentions — nothing
+on nesting, loaders, or why deep links 404 on static hosting.
+
+- **This repo runs `react-router-dom` 6.30.3**, so the guide is written on the
+  v6/v7 shared surface with §14 covering the migration. The honest framing for
+  v7 is that it is undramatic: the package became `react-router`, and the late-v6
+  `future` flags became defaults — so the migration advice is to enable
+  `v7_startTransition`, `v7_relativeSplatPath`, `v7_fetcherPersist`,
+  `v7_normalizeFormMethod` and `v7_partialHydration` one at a time *before*
+  bumping the major.
+- **§2 leads with the three modes** — declarative / data / framework — because
+  "how do you fetch data with React Router?" is really asking which one you have
+  used, and the answer differs completely between them.
+- **Two tricky questions come from this codebase's own bugs**: reading
+  `window.location` instead of `useLocation()` under the `/prephub/` basename
+  (the Sidebar extraction bug), and the GitHub Pages deep-link redirect that
+  route shells fixed. §13 documents the hosting problem with the same numbers.
+- Four blocks failed `verify:blocks` on the first write, all standard classes
+  from the sweep: a bare object literal at statement position, a lone opening
+  tag, a top-level `return`, and adjacent JSX roots in the reference card.
+
+## Global State Management is its own sidebar group
+Redux Toolkit and Redux Saga moved out of `React & State` into a **Global State
+Management** group, joined by a new **Zustand** guide
+(`src/content/front-end/zustand-guide.md`, `/frontend/zustand`, 12 interview Qs
++ 6 tricky Qs). **Routes were NOT changed** — `/frontend/redux-toolkit` and
+`/frontend/redux-saga` are unchanged, so bookmarks, checkpoints and SEO survive;
+only the heading above them moved. Group order follows first appearance, so the
+new heading sits where the Redux entries now sit in `items: [...]`.
+
+**TanStack Query lives here too, by the user's explicit call.** The first pass
+kept it under `React & State`, reasoning that several guides teach server state
+is not app state. The user overruled that: readers looking for "how do I manage
+state" expect to find all four options in one place, and the server-vs-client
+distinction is taught *inside* the guides — which is where it belongs, rather
+than being encoded in a sidebar heading nobody reads as an argument.
+
+**Sidebar group headings need more than one cue.** `GLOBAL STATE MANAGEMENT`
+originally sat at the same left edge, size and weight as `Redux Toolkit` beneath
+it, so it read as a sibling rather than a heading. It now has a rule above the
+group, wider letter-spacing and bolder weight, and the links under a labelled
+group are indented (`pl-5` vs the heading's `px-3`). `Sidebar.test.tsx` pins all
+three and is probe-tested by removing the indent.
+
+The Zustand guide's thesis is the one interviewers probe: **Context has no
+partial subscription**, so every consumer re-renders on any change — Zustand
+makes the selector the unit of subscription via `useSyncExternalStore`. The
+tricky section is built from the failure modes that follow: `useStore()` with no
+selector, an object-literal selector defeating `Object.is`, `set` merging only
+one level deep, `get()` inside an async action, the module singleton leaking
+across tests and SSR requests, and a `persist` shape change breaking returning
+users.
+
+**Third audit — 10 production-flavoured questions, 4 gaps closed, 6 already covered.**
+- **Added:** React **Q56** (why an error boundary does not catch an async failure —
+  the mechanism is an ordinary `try`/`catch` around the render phase, so the fix is
+  to capture the rejection in state and `throw` it during render; plus the window
+  listeners for what escapes React entirely); Next.js & RSC **Q9** (Server Action
+  vs Route Handler, and that a Server Action **is a public HTTP endpoint**, so
+  "only the admin page imports it" authorises nothing); Browser APIs **Q17**
+  (multi-tab logout — `BroadcastChannel` vs the `storage` event's
+  fires-only-in-other-tabs asymmetry, and why a 401 handler is the real
+  guarantee); Web Performance **Q10** (fast on a laptop, slow on a real Android —
+  segment the field data by device class first, then decide CPU vs network from a
+  trace on real hardware).
+- **Already covered:** bundle growth (React Q25 + Tooling Q18), the 1%-of-users
+  rendering bug (FE-Arch Q5), thousands of events/sec (FE-Arch Q8), the four
+  caching layers (FE-Arch Q3), the RSC client boundary (Next.js Q2), WebSocket
+  message ordering (Real-Time Web Q16).
+- Totals after: React **56**, Next.js & RSC **9**, Browser APIs **17**,
+  Web Performance **10**.
+
+**Fourth audit — JS/TS guides against 2026 interview-question sources (web-checked Sept 2026).**
+LinkedIn posts themselves are login-walled and not fetchable; the sources used were
+GreatFrontend's senior/tech-lead TypeScript lists, frontendinterviews.dev's JS
+problem index, Scrimba's 2026 prep guide and the frontend interview handbook.
+**5 gaps closed, and the recurring theme in all of them is that 2026 lists push
+past the definition into application** — because the definition is now something a
+model answers instantly.
+- **JavaScript Q25** — what a closure actually *retains* (the variable environment,
+  not the values it reads) and the four SPA shapes that leak: listener, interval,
+  subscription, detached node. The named follow-up in the sources is exactly this:
+  "show me a case where a closure causes a memory leak".
+- **JavaScript Q26** — `once(fn)`, and why it is asked: closure privacy, `this`
+  forwarding via `apply` (an arrow here is a bug), caching the *result* not just the
+  call, and nulling `fn` to release what it held.
+- **TypeScript Q25** — three booleans describe eight states where the domain has
+  four; refactor to a discriminated union so illegal states are unrepresentable,
+  with a `never` exhaustiveness check. This is the single most-cited senior TS
+  scenario across the sources.
+- **TypeScript Q26** — mutually exclusive props (`href` XOR `onClick`) via
+  optional-`never` arms, plus why `never` beats omitting the key, and the caveat
+  that a hand-written pair beats an `XOR` helper for one case.
+- **TypeScript Q27** — `JSON.parse` returns `any`; annotate `unknown`, narrow with a
+  predicate, and treat storage as a **boundary**. `as Settings` compiles and lies.
+- **Already covered, not duplicated:** generic `pick` (Q4 + Q9), `Omit` patch
+  payloads (Q7), `infer`/`Awaited` (Q11), template-literal event maps (Q16, Q17),
+  `satisfies` for variants (Q20), enum vs union (§13.3), promise timeout via
+  `Promise.race` (§8.7), retry/backoff and bounded concurrency (playground).
+- **Noted, not built:** the DOM-traversal family from frontendinterviews.dev — tree
+  height, level-order traversal, virtualising a DOM tree — has no equivalent
+  anywhere here. It is playground-challenge material rather than guide questions.
+- Totals after: JavaScript **26**, TypeScript **27**.
 
 ## SOLID lives in TWO guides, deliberately — do not merge or duplicate them
 - **`low-level-design-guide.md` §3 "SOLID, Usefully"** is the *design-interview* framing: each principle plus **the smell that identifies the violation**, then worked through four full designs (parking lot, rate limiter, elevator, vending machine).
