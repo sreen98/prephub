@@ -752,7 +752,7 @@ This is a CAP theorem question at heart. Interviewers want to see that you can r
 
 - [MDN Web Docs — JavaScript Reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference)
 - [React Documentation — Hooks API Reference](https://react.dev/reference/react)
-- [Node.js Frameworks Benchmark](https://github.com/nicholasgasior/gofr-benchmark)
+- [Node.js Frameworks Benchmark](https://github.com/fastify/benchmarks)
 - [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/)
 - [AWS Documentation — Service Comparisons](https://docs.aws.amazon.com/)
 - [Martin Kleppmann — Designing Data-Intensive Applications](https://dataintensive.net/)

@@ -4013,15 +4013,32 @@ React.createElement('h1', { className: 'title' }, 'Hello')
 
 ---
 
-**Q4: What are keys in React and why are they important?**
+**Q4: What are keys in React, and why are array indices bad keys?**
 
-Keys are unique identifiers for elements in a list. They help React identify which items have changed, been added, or removed during reconciliation.
+A key tells React **which item a rendered element corresponds to**, so that when the list changes it can match old elements to new ones instead of guessing. Reconciliation compares children position by position by default; keys replace "same position" with "same identity".
 
 ```tsx
 {items.map(item => <li key={item.id}>{item.name}</li>)}
 ```
 
-Without keys (or with index as key), React may re-render or reorder elements incorrectly, causing bugs with state and performance issues.
+**Why an index is the wrong key** is the part worth being able to explain, because `key={index}` silences the warning without doing the job. The index is not a property of the item — it is a property of *where the item currently sits*. Delete the first row of three and the item that was at index 1 is now at index 0, so React concludes that item 0 simply *changed its text*, rather than that an item was removed.
+
+For plain text that renders correctly by accident. It breaks the moment an element holds state that React tracks by position:
+
+```tsx
+// Three rows, each with an uncontrolled input. Type "hello" in the second one,
+// then delete the FIRST row.
+{rows.map((row, i) => <input key={i} defaultValue={row.label} />)}
+// → "hello" is still on screen, now attached to what used to be the third row.
+{rows.map(row => <input key={row.id} defaultValue={row.label} />)}
+// → the right row disappears and the text goes with it.
+```
+
+The same applies to focus, scroll position, CSS transitions, `React.memo` bailouts and anything held in a child's `useState` — all of it follows the key, so a positional key hands it to the wrong item.
+
+**When an index is genuinely fine:** the list is never reordered, filtered, or added to except at the end, *and* the items hold no state. A static footer-link list qualifies. If any of those change, it does not.
+
+**Two related traps.** `key={Math.random()}` is worse than an index — it is different on every render, so React unmounts and remounts every row every time, destroying state and DOM nodes for nothing. And keys only need to be unique **among siblings**, not globally, which is why `key={item.id}` is fine even when two different lists on the page share an id.
 
 ---
 
@@ -5264,6 +5281,145 @@ That `if (error) throw error` line is the whole trick, and it is what data libra
 **The one that bites in production** is neither of those: an unhandled rejection or a `setTimeout` throw escapes the React tree entirely and reaches the window. Boundaries will never see it, so a real app also installs `window.addEventListener('error', …)` and `'unhandledrejection'` — which is exactly what this playground does, because a throw inside a `setInterval` otherwise left the preview blank with nothing in the console.
 
 **Takeaway:** boundaries catch what React throws while React is running. Anything asynchronous has to be caught by you and re-thrown during render — or handled at the window.
+
+---
+
+**Q57: How would you implement a reorderable drag-and-drop list?**
+
+The state is smaller than people expect: **the list itself, plus the id of the item currently being dragged, plus the id it is hovering over.** Two ids, not coordinates — the moment you start tracking pixel positions you are reimplementing the browser.
+
+```jsx
+function ReorderableList() {
+  const [items, setItems] = useState([
+    { id: 'a', label: 'Design' },
+    { id: 'b', label: 'Build' },
+    { id: 'c', label: 'Ship' },
+  ]);
+  const [dragId, setDragId] = useState(null);
+
+  const move = (fromId, toId) => {
+    if (fromId === toId) return;
+    setItems(prev => {
+      const next = [...prev];
+      const from = next.findIndex(i => i.id === fromId);
+      const to = next.findIndex(i => i.id === toId);
+      next.splice(to, 0, next.splice(from, 1)[0]);   // remove, then re-insert
+      return next;
+    });
+  };
+
+  return (
+    <ul>
+      {items.map(item => (
+        <li
+          key={item.id}
+          draggable
+          onDragStart={() => setDragId(item.id)}
+          onDragOver={e => e.preventDefault()}
+          onDrop={() => { move(dragId, item.id); setDragId(null); }}
+          style={{ opacity: dragId === item.id ? 0.4 : 1 }}
+        >
+          {item.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+render(<ReorderableList />);
+```
+
+**Three things decide whether this answer lands:**
+
+- **`e.preventDefault()` in `onDragOver` is mandatory.** The HTML drag-and-drop default is *reject the drop*, so without cancelling it `onDrop` never fires at all. This is the single most common reason a hand-rolled implementation "does nothing", and it is worth volunteering before you are asked.
+- **Key by id, and reorder immutably.** The list is being reordered, which is precisely the case where an index key makes React reuse the wrong DOM node — you get the right data with the wrong input values, focus or animation attached to it.
+- **Drag state belongs in a ref if you are tracking movement.** `dragId` changes twice per drag so state is fine, but anything that fires on every `dragover` or `pointermove` must not call `setState` — that is a re-render per mouse move. Write to a ref and commit to state on drop.
+
+**Accessibility is the part most candidates miss**, and in an interview it is a differentiator rather than a nice-to-have: native HTML drag-and-drop is **mouse-only**, so a keyboard or screen-reader user cannot reorder anything. The accepted pattern is a parallel keyboard affordance — focusable items where <kbd>Space</kbd> picks up, arrows move, <kbd>Space</kbd> drops and <kbd>Esc</kbd> cancels — with an `aria-live` region announcing "Build, moved to position 1 of 3". That is also the main argument for reaching for **dnd-kit** in production, which ships the keyboard sensor and the live-region announcements; `react-beautiful-dnd` is no longer maintained.
+
+**What else changes at scale:** HTML5 drag-and-drop cannot produce a custom drag preview reliably across browsers and does not work on touch, so cross-platform implementations use pointer events instead. And with a virtualised list, the drop target may not be mounted — the library needs to scroll and measure rather than rely on `onDragOver` firing.
+
+**Takeaway:** track ids rather than positions, cancel `dragover` or nothing drops, key by id because you are reordering, keep per-move updates out of state, and treat keyboard support as part of the feature rather than an extra.
+
+---
+
+**Q58: What is the difference between `createElement` and `cloneElement`?**
+
+`React.createElement(type, props, ...children)` **makes** an element — it is what JSX compiles to, so `<Button size="lg">Save</Button>` is literally `createElement(Button, { size: 'lg' }, 'Save')`. `React.cloneElement(element, props, ...children)` takes an element that **already exists** and returns a copy with its props shallow-merged.
+
+```jsx
+const original = <button className="btn" onClick={handleA}>Save</button>;
+
+const copy = React.cloneElement(original, { onClick: handleB, disabled: true });
+// same type and children, className kept, onClick REPLACED, disabled added
+```
+
+**Three details that get probed:**
+
+- **Props are shallow-merged and later wins**, so passing `onClick` replaces the original handler rather than running both. If you want both, compose them yourself: `onClick: (e) => { original.props.onClick?.(e); mine(e); }`.
+- **Children are replaced, not merged.** Omit the children argument and the original's children survive; pass any and they take over entirely.
+- **`key` and `ref` are taken from the new props** if you supply them, which is how a parent can key children it did not create.
+
+**Where it is actually used** is the compound-component pattern — a `<Tabs>` that needs to hand each `<Tab>` an `isActive` and an `onSelect` it could not know about at authoring time. That is why you see it inside libraries far more often than in application code.
+
+**Why it is discouraged in application code:** it silently couples the parent to the child's prop names, and there is no type safety — clone in a prop the child does not accept and nothing complains until runtime. The modern alternatives are better on both counts: **context** (the `<Tabs>` provider sets `activeId`, each `<Tab>` reads it), or a **render prop / function child**, both of which make the contract explicit. Reach for `cloneElement` when you must augment children you were handed and cannot change their API.
+
+---
+
+**Q59: What are higher-order components, and would you still write one?**
+
+A higher-order component is **a function that takes a component and returns a new component** — the component-level equivalent of a higher-order function. It was React's answer to sharing non-visual logic before hooks existed.
+
+```jsx
+function withLogging(Wrapped) {
+  return function WithLogging(props) {
+    useEffect(() => { console.log('mounted', Wrapped.name); }, []);
+    return <Wrapped {...props} />;
+  };
+}
+```
+
+**For most of what HOCs were used for — sharing stateful logic — a custom hook is strictly better**, and that is the answer an interviewer is listening for. Hooks avoid the three real problems HOCs have:
+
+- **Wrapper hell.** Compose five HOCs and the React DevTools tree is five anonymous wrappers deep before you reach anything you wrote.
+- **Prop collisions, invisibly.** Two HOCs that both inject `data` and one silently wins. Nothing warns you, and with TypeScript the types are awkward to express.
+- **The indirection is unexplicit.** Where did `this.props.user` come from? You have to read the export line to find out. `const user = useUser()` says it in place.
+
+**What HOCs still do that hooks cannot:** hooks can only add *behaviour* to a component, not change what it **renders** or whether it renders at all. So an HOC remains the right tool when you are wrapping the element tree — an error boundary wrapper, `React.memo` and `forwardRef` themselves (both are HOCs), a route guard that renders a redirect instead of the page, or an analytics wrapper applied uniformly across an existing codebase you cannot rewrite.
+
+**If you do write one**, the conventions exist for real reasons: forward every prop with `{...props}`, hoist static properties, set a `displayName` like `withLogging(Profile)` so DevTools is readable, forward refs, and **define the HOC outside render** — creating it during render produces a new component type each time, which unmounts and remounts the whole subtree.
+
+---
+
+**Q60: How does `useImperativeHandle` work, and when is it the right call?**
+
+It customises **what a parent receives when it reads a ref to your component**. By default a `ref` on a DOM element gives the parent the element itself; on a custom component you decide, and `useImperativeHandle` is how:
+
+```jsx
+function TextField({ ref }) {              // React 19: ref is a normal prop
+  const inputRef = useRef(null);
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current.focus(),
+    clear: () => { inputRef.current.value = ''; },
+  }), []);
+  return <input ref={inputRef} />;
+}
+
+// Parent
+const field = useRef(null);
+<TextField ref={field} />;
+field.current.focus();      // only focus and clear exist — not the raw node
+```
+
+**The point is narrowing, not access.** Handing back the raw DOM node makes every internal detail part of your public API: a consumer can restyle it, read its children, or attach listeners, and you can never change the markup again. Exposing `{ focus, clear }` is a contract you can keep.
+
+**The dependency array is the part people miss** — it works like `useMemo`'s. Omit it and the handle object is recreated on every render, which matters if the parent stores it or compares it. Include stale values and the parent holds methods closing over old state.
+
+**When it is right:** genuinely imperative actions that have no declarative expression — focusing an input, selecting text, playing or seeking media, scrolling an element into view, triggering an animation, opening a `<dialog>`. Notice they are all *verbs*.
+
+**When it is wrong** — and this is what the question is really testing: if you are using it to push *data* into a child, or to make a child re-render, you are working against React's data flow and the answer is props or lifted state. A ref that exposes `setValue` is a controlled component wearing a disguise.
+
+Two notes on the modern API: in **React 19 `ref` is an ordinary prop**, so `forwardRef` is no longer needed for this — though it still works. And a ref callback may now return a **cleanup function**, which replaces the old "called with `null` on unmount" convention.
 
 ---
 

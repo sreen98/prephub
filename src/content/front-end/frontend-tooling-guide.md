@@ -153,7 +153,7 @@ Import maps solve the bare-specifier problem, but you still lose JSX transpilati
 
 Webpack (first released 2012, v5 since October 2020) is a **static module bundler** for JavaScript applications. It builds a **dependency graph** of every module your project needs and bundles them into one or more output files.
 
-As of 2024, webpack still powers a massive share of production React apps, though Vite is rapidly gaining adoption for new projects.
+Webpack still powers a large share of production React apps — it is the incumbent, not the default for new work. Vite is what most new projects start on, and since Vite 8 the performance argument for staying is weaker still (§9.1).
 
 ### 2.2 Core Concepts
 
@@ -537,7 +537,7 @@ What CRA's webpack config included:
 - Slow startup — webpack-based dev server rebundles everything on start
 - No easy config override — had to `eject` (irreversible) or use `craco`/`react-app-rewired`
 - Outdated dependencies — maintenance stalled in 2022
-- React team now recommends frameworks (Next.js, Remix) or Vite in the official docs (as of 2024)
+- The React team recommends a framework (Next.js, React Router) or Vite in the official docs; `create-react-app` was formally deprecated in February 2025
 
 ---
 
@@ -547,7 +547,7 @@ What CRA's webpack config included:
 
 Vite (French for "fast", pronounced /vit/) was created by Evan You (creator of Vue.js) and released in 2020. It is a **next-generation frontend build tool** that provides a fundamentally different dev experience from webpack.
 
-Current stable version: **Vite 6** (as of late 2024). Used by Vue, React, Svelte, Solid, Astro, and many other frameworks.
+Current major version: **Vite 8** (released 12 March 2026), which replaced the old esbuild-in-dev / Rollup-in-production split with **Rolldown** for both — see §9.1. Used by Vue, React, Svelte, Solid, Astro, and many other frameworks.
 
 ### 3.2 How Vite Works — The Key Insight
 
@@ -819,19 +819,19 @@ interface ImportMeta {
 
 ## 4. Webpack vs Vite Comparison
 
-| Feature | Webpack 5 | Vite 6 |
+| Feature | Webpack 5 | Vite (7 and 8) |
 |---|---|---|
 | **Dev server architecture** | Bundles everything, serves from memory | Native ES modules, transforms on demand |
 | **Dev startup time** | Slow (10-60s for large apps) | Near-instant (<1s) |
 | **HMR speed** | Degrades with project size | Constant-time (~50ms) |
-| **Production bundler** | Webpack (custom) | Rollup (battle-tested) |
-| **Transpiler** | Babel (via babel-loader) | esbuild (dev) + Babel/SWC (via plugin) |
+| **Production bundler** | Webpack (custom) | Rollup up to Vite 7; **Rolldown** from Vite 8 |
+| **Transpiler** | Babel (via babel-loader) | esbuild in dev up to Vite 7; **Rolldown** for both from Vite 8 |
 | **Config complexity** | Complex (100-500 line configs typical) | Minimal (20-50 lines typical) |
 | **CSS handling** | Requires loaders (css-loader, style-loader, etc.) | Built-in (CSS Modules, PostCSS, Sass with one install) |
 | **TypeScript** | Requires ts-loader or babel-loader + @babel/preset-typescript | Built-in (esbuild strips types, no type checking) |
 | **Static assets** | Asset modules (type: 'asset') | Built-in, URL imports work out of the box |
 | **Environment variables** | `DefinePlugin` with `process.env.*` | `import.meta.env.VITE_*` (no plugin needed) |
-| **Code splitting** | Dynamic imports + splitChunks config | Dynamic imports + `build.rollupOptions.output.manualChunks` |
+| **Code splitting** | Dynamic imports + splitChunks config | Dynamic imports + `build.rollupOptions.output.manualChunks` (`rolldownOptions` from Vite 8) |
 | **Tree shaking** | Yes (requires `sideEffects` config) | Yes (Rollup's tree shaking is considered superior) |
 | **SSR** | Requires additional setup | Built-in SSR support |
 | **Plugin ecosystem** | Massive (10,000+ npm packages) | Growing (Rollup-compatible + Vite-specific) |
@@ -1028,10 +1028,10 @@ npx parcel build src/index.html
 - Written in Rust for maximum performance
 - Incremental computation engine — only recomputes what changed
 - Function-level caching (more granular than file-level)
-- Used as the dev server in **Next.js 13+** (`next dev --turbo`)
+- Introduced as the dev server in **Next.js 13** behind `next dev --turbo`
 - Claims up to **700x faster** than webpack for large apps (hot updates)
-- As of 2024, **dev mode only** — production builds still use webpack in Next.js
-- Not yet available as a standalone bundler
+- **Default for both dev and production builds in Next.js 16** — the dev-only limitation is historical (§9.2)
+- Still not available as a standalone bundler outside Next.js
 
 ```bash
 # Use Turbopack in Next.js
@@ -1130,7 +1130,7 @@ A package manager handles:
 
 ### 6.2 npm (Node Package Manager)
 
-**npm** ships with Node.js and is the default package manager. Current version: npm 10 (ships with Node.js 20+).
+**npm** ships with Node.js and is the default package manager. Node.js 24 ships **npm 11**; npm's own latest line is **12.x**. The version that matters is whichever your Node installs — check with `npm -v` rather than assuming.
 
 #### How npm Resolution Works
 
@@ -1300,7 +1300,7 @@ yarn workspace web add react-router-dom
 
 ### 6.4 pnpm
 
-**pnpm** (performant npm) was created by Zoltan Kochan in 2017. It takes a radically different approach to package storage. Current version: pnpm 9 (2024).
+**pnpm** (performant npm) was created by Zoltan Kochan in 2017. It takes a radically different approach to package storage. **pnpm 11** (April 2026) tightened the supply-chain defaults introduced through v10 and replaced the JSON-per-package store index with a single SQLite database; the current line is **12.x**.
 
 #### Content-Addressable Store
 
@@ -1390,7 +1390,7 @@ pnpm -r --filter '...[origin/main]' run build
 
 ### 6.5 Comparison Table
 
-| Feature | npm 10 | Yarn Classic 1.x | Yarn Berry 4.x | pnpm 9 |
+| Feature | npm 11+ | Yarn Classic 1.x | Yarn Berry 4.x | pnpm 11+ |
 |---|---|---|---|---|
 | **Ships with Node.js** | Yes | No | No | No |
 | **Lock file** | `package-lock.json` | `yarn.lock` | `yarn.lock` | `pnpm-lock.yaml` |
@@ -1443,11 +1443,11 @@ These vary by project size, network speed, and hardware. The key takeaways:
 ### 7.2 How npx Works
 
 ```bash
-npx create-react-app my-app
+npx create-vite@latest my-app
 ```
 
 What happens:
-1. Check if `create-react-app` exists in local `node_modules/.bin/`
+1. Check if `create-vite` exists in local `node_modules/.bin/`
 2. If not, check if it exists globally
 3. If not, **download it temporarily**, execute it, then delete it
 

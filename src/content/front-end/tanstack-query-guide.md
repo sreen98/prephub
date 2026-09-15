@@ -1388,5 +1388,5 @@ This is cleaner than adding `onError` to every individual query/mutation — han
 ## References
 
 - [TanStack Query Documentation](https://tanstack.com/query/latest) — Official docs and guides
-- [TanStack Query API Reference](https://tanstack.com/query/latest/docs/reference/useQuery) — Complete API reference
+- [TanStack Query API Reference](https://tanstack.com/query/latest/docs/framework/react/reference/functions/useQuery) — Complete API reference
 - [TanStack Query GitHub](https://github.com/TanStack/query) — Source code and examples

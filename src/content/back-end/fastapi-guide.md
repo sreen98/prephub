@@ -595,6 +595,6 @@ In order of how often they actually bite: **blocking calls inside `async def`**,
 - [Bigger Applications](https://fastapi.tiangolo.com/tutorial/bigger-applications/) — routers and project layout.
 - [Security](https://fastapi.tiangolo.com/tutorial/security/) — OAuth2 password flow with JWT.
 - [Lifespan Events](https://fastapi.tiangolo.com/advanced/events/) and [Testing](https://fastapi.tiangolo.com/advanced/async-tests/)
-- [Starlette](https://www.starlette.io/) for middleware, WebSockets and responses.
+- [Starlette](https://www.starlette.dev/) for middleware, WebSockets and responses.
 - [Pydantic v2](https://docs.pydantic.dev/latest/) — validation and the performance notes.
 - [ASGI specification](https://asgi.readthedocs.io/en/latest/)

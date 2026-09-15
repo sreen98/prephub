@@ -46,6 +46,64 @@ describe('every solution compiles', () => {
   });
 });
 
+describe('plain-JS REFERENCE templates actually run, not just parse', () => {
+  /**
+   * "Every template compiles" above is a PARSE check, and a parse check cannot
+   * see a reference to something that does not exist. Two polyfill templates
+   * shipped calling `myMap` — which is defined in a *different* template — so
+   * `Array.filter` threw `users.myFilter(...).myMap is not a function` the
+   * moment a reader pressed Run, and `Array.flat & flatMap`'s own
+   * implementation threw for the same reason.
+   *
+   * Reference templates had no execution gate at all: the suite above covers
+   * challenges that have a registered solution, and `reactTemplates.test.tsx`
+   * mounts the JSX ones. The 45 plain-JS reference snippets — including all 32
+   * polyfills — fell between the two.
+   */
+  it('every plain-JS reference template runs and prints something', async () => {
+    const failures: string[] = [];
+    const refs = allTemplates.filter(
+      (t) => t.kind !== 'challenge' && t.tag === 'JS' && !detectJSX(t.code),
+    );
+    expect(refs.length).toBeGreaterThan(40);   // guard against the filter silently matching nothing
+
+    for (const tpl of refs) {
+      const logs: string[] = [];
+      const { code: stripped } = stripModuleSyntax(tpl.code);
+      const src = detectTS(stripped)
+        ? babel.transform(stripped, { presets: [['typescript', { allExtensions: true }]], filename: 'x.ts' }).code
+        : stripped;
+      try {
+        // Same `new Function` the playground uses, so a template that throws
+        // here throws behind the Run button too.
+        // eslint-disable-next-line @typescript-eslint/no-implied-eval
+        const fn = new Function('console', src ?? '') as (c: unknown) => void;
+        fn({
+          log: (...a: unknown[]) => logs.push(a.map(String).join(' ')),
+          warn: () => {}, error: () => {}, info: () => {},
+        });
+      } catch (err) {
+        failures.push(`${tpl.name}: threw — ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
+      // The Promise polyfills only log from inside .then(), so a synchronous
+      // read would see nothing and report a false failure. Only templates that
+      // printed NOTHING synchronously pay the wait — draining all 45 on the
+      // mere presence of the word "Promise" in a comment took the suite past a
+      // minute, which is too slow for something the pre-commit hook runs.
+      if (logs.length === 0) {
+        for (let tick = 0; tick < 20 && logs.length === 0; tick++) {
+          await new Promise((r) => setTimeout(r, 25));
+        }
+      }
+      if (logs.join('').trim() === '') {
+        failures.push(`${tpl.name}: produced no output — a reference snippet should demonstrate something`);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+});
+
 describe('plain-JS challenges actually execute and pass their own tests', () => {
   // JS coding challenges print ✅ / ❌ markers. A solution that compiles but
   // fails its own assertions is worse than one that does not compile, because

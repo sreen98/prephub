@@ -738,6 +738,50 @@ Object.seal(obj);                     // no add/delete, can modify existing
 Object.isFrozen(obj);                 // true
 ```
 
+#### Signatures and parameters
+
+| Method | Signature | Returns | Notes on the parameters |
+|---|---|---|---|
+| `Object.keys` | `keys(obj)` | `string[]` | own, enumerable, string keys only — no symbols, no inherited |
+| `Object.values` | `values(obj)` | `any[]` | same key set as `keys`, in the same order |
+| `Object.entries` | `entries(obj)` | `[key, value][]` | the shape `Object.fromEntries` and `new Map()` both accept |
+| `Object.fromEntries` | `fromEntries(iterable)` | a new object | takes any iterable of pairs, so a `Map` works directly |
+| `Object.assign` | `assign(target, ...sources)` | the **mutated `target`** | later sources win; pass `{}` as target to avoid mutating |
+| `Object.freeze` | `freeze(obj)` | the same object | **shallow** — nested objects stay mutable |
+| `Object.seal` | `seal(obj)` | the same object | existing properties stay writable; none can be added or deleted |
+| `Object.isFrozen` / `isSealed` | `isFrozen(obj)` | boolean | an empty non-extensible object is both |
+| `Object.create` | `create(proto, descriptors?)` | a new object | `create(null)` makes a prototype-less "bare" map |
+| `Object.getOwnPropertyNames` | `getOwnPropertyNames(obj)` | `string[]` | like `keys`, but **includes non-enumerable** |
+| `Object.defineProperty` | `defineProperty(obj, key, descriptor)` | the object | descriptor defaults are all `false` — see below |
+| `Object.groupBy` | `groupBy(items, cb(el, i))` | a `null`-prototype object | ES2024; keys are coerced to strings |
+
+**The three qualifiers on `keys`/`values`/`entries` are the exam question:** *own*, *enumerable*, *string-keyed*. Each excludes something real:
+
+```js
+const parent = { inherited: 1 };
+const obj = Object.create(parent, {
+  visible: { value: 2, enumerable: true },
+  hidden:  { value: 3, enumerable: false },
+});
+obj[Symbol('sym')] = 4;
+
+console.log(Object.keys(obj));                   // ['visible']
+console.log(Object.getOwnPropertyNames(obj));    // ['visible', 'hidden']
+console.log('inherited' in obj);                 // true — but not in keys()
+```
+
+**`Object.assign` mutates its first argument and returns it.** `Object.assign(target, src)` changes `target`; `Object.assign({}, a, b)` is the non-mutating merge. It is also a **shallow** copy and it *triggers setters* on the target — which is where it differs from spread, and why cloning a class instance with it can behave unexpectedly.
+
+**`Object.freeze` is shallow, and silent by default.** Assigning to a frozen property fails quietly in sloppy mode and throws only under `'use strict'` (so always throws inside modules and class bodies). For deep immutability you recurse yourself:
+
+```js
+const config = Object.freeze({ api: { url: 'https://a.example' } });
+config.api.url = 'https://b.example';       // allowed — `api` was never frozen
+console.log(config.api.url);                 // 'https://b.example'
+```
+
+**`defineProperty`'s descriptor defaults trip people up:** `writable`, `enumerable` and `configurable` all default to **`false`** when you define a property this way, unlike a normal assignment where all three are `true`.
+
 ### 6.4 Destructuring
 
 Destructuring lets you extract values from objects and arrays into distinct variables using a concise syntax. It supports defaults, renaming, nesting, and rest patterns, and is widely used in function parameters, imports, and everyday assignments.
@@ -836,6 +880,43 @@ nums;                                 // [3, 1, 2]  — original untouched
 [1, 2, 3].toSpliced(1, 1, 'x', 'y');  // [1, 'x', 'y', 3]
 ```
 
+#### Signatures and parameters
+
+**Every callback-taking method shares one callback shape**, which is worth memorising once instead of per method:
+
+```text
+arr.method(callbackFn, thisArg?)
+     callbackFn(element, index, array)   ← index and array are optional to accept
+```
+
+That third `array` parameter is why `['1','7','11'].map(parseInt)` famously returns `[1, NaN, 3]`: `parseInt(string, radix)` receives the index as its radix.
+
+| Method | Signature | Returns | Notes on the parameters |
+|---|---|---|---|
+| `map` | `map(cb(el, i, arr), thisArg?)` | a new array, same length | returning nothing gives `undefined` entries |
+| `filter` | `filter(cb(el, i, arr), thisArg?)` | a new array, ≤ length | keeps elements where the callback is **truthy**, not strictly `true` |
+| `reduce` | `reduce(cb(acc, el, i, arr), initialValue?)` | the accumulated value | see the `initialValue` note below |
+| `reduceRight` | same, right-to-left | the accumulated value | useful for right-associative composition |
+| `find` / `findLast` | `find(cb(el, i, arr))` | the **element**, or `undefined` | ES2023 for `findLast` |
+| `findIndex` / `findLastIndex` | `findIndex(cb(el, i, arr))` | the **index**, or `-1` | the `-1` is why `if (idx)` is a bug — use `!== -1` |
+| `some` / `every` | `some(cb(el, i, arr))` | boolean | short-circuit; `every` on an empty array is `true` |
+| `includes` | `includes(searchEl, fromIndex = 0)` | boolean | uses SameValueZero, so it **finds `NaN`** where `indexOf` cannot |
+| `indexOf` | `indexOf(searchEl, fromIndex = 0)` | index or `-1` | strict equality, so `NaN` is never found |
+| `slice` | `slice(start = 0, end = length)` | a new array | `end` is **exclusive**; negatives count from the end |
+| `concat` | `concat(...values)` | a new array | flattens array arguments **one level** only |
+| `flat` | `flat(depth = 1)` | a new array | `Infinity` for fully flat; also drops empty slots |
+| `flatMap` | `flatMap(cb(el, i, arr))` | a new array | exactly `map()` then `flat(1)` — return `[]` to drop an element |
+| `at` | `at(index)` | element or `undefined` | negatives count from the end: `at(-1)` is the last |
+| `join` | `join(separator = ',')` | a string | `null` and `undefined` become empty strings |
+
+**`reduce`'s `initialValue` is the parameter that matters.** Omit it and the first element becomes the accumulator, the callback starts at index 1, and **an empty array throws `TypeError`**. Pass it and the callback runs for every element, starting at index 0 — which is why `[].reduce((a, b) => a + b, 0)` is `0` while `[].reduce((a, b) => a + b)` throws.
+
+```js
+console.log([1, 2, 3].reduce((a, b) => a + b));      // 6  — starts at index 1
+console.log([].reduce((a, b) => a + b, 0));          // 0  — safe
+// [].reduce((a, b) => a + b);                        // TypeError: Reduce of empty array
+```
+
 ### 7.2 Array Methods (Mutating)
 
 Mutating methods modify the array in place rather than returning a new one. Be cautious with these in functional or React code, where immutability is expected. Always know which methods mutate -- this is a common interview question.
@@ -852,6 +933,40 @@ arr.sort((a, b) => a - b);  // sorts in place
 arr.reverse();               // reverses in place
 arr.fill(0);                 // [0, 0, 0]
 ```
+
+#### Signatures and parameters
+
+| Method | Signature | Returns | Watch out for |
+|---|---|---|---|
+| `push` | `push(...items)` | the **new length** | not the array — so it does not chain |
+| `pop` | `pop()` | the removed element | `undefined` on an empty array |
+| `unshift` | `unshift(...items)` | the new length | O(n): every element is reindexed |
+| `shift` | `shift()` | the removed element | also O(n) |
+| `splice` | `splice(start, deleteCount?, ...items)` | an array of the **removed** elements | omit `deleteCount` and it removes everything from `start` |
+| `sort` | `sort(compareFn?)` | the **same array**, sorted | default compares as **strings** |
+| `reverse` | `reverse()` | the same array | |
+| `fill` | `fill(value, start = 0, end = length)` | the same array | one shared reference if `value` is an object |
+| `copyWithin` | `copyWithin(target, start, end?)` | the same array | rarely used outside typed arrays |
+
+**`sort` without a comparator is the classic trap.** Elements are converted to strings and compared by UTF-16 code unit, so numbers sort lexicographically:
+
+```js
+console.log([10, 9, 100].sort());                 // [10, 100, 9]   ← string order
+console.log([10, 9, 100].sort((a, b) => a - b));  // [9, 10, 100]   ← numeric
+```
+
+The comparator returns a **number**, not a boolean: negative keeps `a` first, positive puts `b` first, `0` treats them as equal. Returning `true`/`false` coerces to `1`/`0` and produces a subtly wrong order.
+
+**`fill` with an object shares one reference**, which is the array equivalent of the shallow-copy trap:
+
+```js
+const grid = new Array(3).fill([]);   // all three slots are the SAME array
+grid[0].push('x');
+console.log(grid);                     // [['x'], ['x'], ['x']]
+// Use Array.from({ length: 3 }, () => []) for three distinct arrays.
+```
+
+**The immutable counterparts** (ES2023) exist for all of these except `push`/`pop`: `toSorted`, `toReversed`, `toSpliced` and `with` return a new array and leave the original alone — see §7.1.
 
 ### 7.3 Iteration
 
@@ -875,6 +990,77 @@ for (const key in { a: 1, b: 2 }) {
 ```
 
 ---
+
+#### Signatures and parameters
+
+| Construct | Signature | Iterates over | `break` / `continue` | `await` inside |
+|---|---|---|---|---|
+| `for...of` | `for (const el of iterable)` | **values** of any iterable | yes | yes |
+| `for...in` | `for (const key in obj)` | **enumerable string keys**, including inherited | yes | yes |
+| `forEach` | `arr.forEach(cb(el, i, arr), thisArg?)` | array elements | **no** | **no** (see below) |
+| `for` | `for (init; condition; update)` | whatever you index | yes | yes |
+| `while` / `do…while` | `while (condition)` | whatever you advance | yes | yes |
+| `for await...of` | `for await (const el of asyncIterable)` | values of an async iterable | yes | it *is* awaiting |
+| `arr.entries()` | `entries()` | `[index, value]` pairs | yes (with `for...of`) | yes |
+| `Object.entries()` | `entries(obj)` | `[key, value]` pairs | yes (with `for...of`) | yes |
+
+**`forEach` returns `undefined`** — it exists for side effects only. That is also why it cannot be chained, and why reaching for it when you want a result is the tell that `map`/`filter`/`reduce` was the right call.
+
+**The two things `forEach` cannot do**, and both are the usual reason to prefer `for...of`:
+
+```js
+// 1. You cannot break out. `return` exits the CALLBACK, not the loop.
+[1, 2, 3, 4].forEach(n => {
+  if (n === 3) return;      // acts like `continue`, never like `break`
+  console.log(n);            // 1, 2, 4
+});
+```
+
+```js
+// 2. It does not await. The callback is async, so forEach fires all three and
+//    moves on — "done" prints FIRST.
+async function run() {
+  [1, 2, 3].forEach(async (n) => {
+    await new Promise(r => setTimeout(r, 10));
+    console.log('item', n);
+  });
+  console.log('done');       // prints before any item
+}
+run();
+```
+
+Sequential async work wants `for...of` with `await` inside; parallel work wants `await Promise.all(arr.map(fn))`. `forEach` gives you neither.
+
+**`for...in` is for objects, and even then it needs care.** It walks the prototype chain and yields **string** keys — so on an array you get `'0'`, `'1'`, `'2'`, not numbers:
+
+```js
+const arr = ['a', 'b'];
+for (const i in arr) console.log(typeof i, i);   // string 0, string 1
+
+Array.prototype.custom = 'oops';                  // anything on the prototype
+for (const i in arr) console.log(i);              // 0, 1, custom  ← inherited
+delete Array.prototype.custom;
+```
+
+Guard with `Object.hasOwn(obj, key)` when you must use it, or prefer `Object.keys(obj)` / `Object.entries(obj)`, which are own-and-enumerable by definition.
+
+**When you need the index with `for...of`**, use `entries()` rather than a manual counter:
+
+```js
+for (const [index, value] of ['a', 'b'].entries()) {
+  console.log(index, value);        // 0 'a' … 1 'b'
+}
+```
+
+**One more difference worth knowing: sparse arrays.** `forEach`, `map` and `filter` **skip holes**; `for...of` visits them as `undefined`.
+
+```js
+const sparse = [1, , 3];                      // a hole at index 1
+const seen = [];
+sparse.forEach(v => seen.push(v));
+console.log(seen);                             // [1, 3]      — hole skipped
+console.log([...sparse]);                      // [1, undefined, 3]  — hole visited
+```
 
 ## 8. Asynchronous JavaScript
 
@@ -1106,14 +1292,28 @@ Three production patterns that come up as "implement this" questions.
 
 **Retry with exponential back-off and jitter:**
 
+**The problem.** A network call fails. Some failures are **permanent** — a 404, a 401, a malformed body — and the identical request will fail identically forever, so retrying only wastes time. Others are **transient**: a server restarting, a rate limit, a dropped connection. The same call would succeed a second later. Retry exists for the second kind, and the first job of the code is to tell them apart.
+
+**But naive retrying makes things worse.** If a service is overloaded and every client retries immediately, you have doubled the load on something already struggling. So each wait gets longer — that is the "back-off" — and each client waits a *different* amount — that is the "jitter".
+
 ```js
-async function retry(fn, { retries = 3, base = 300, factor = 2 } = {}) {
+// The helper the retry loop depends on. Without it, the snippet throws
+// ReferenceError on the first failure — it is the most important function here.
+function isRetryable(err) {
+  if (err.name === 'AbortError') return false;          // the caller cancelled
+  if (err.name === 'TypeError') return true;            // fetch's network failure
+  const status = err.status ?? err.response?.status;
+  if (status === undefined) return true;                // no response = transient
+  return status === 408 || status === 429 || status >= 500;
+}
+
+async function retry(fn, { retries = 3, base = 300, factor = 2, maxDelay = 10000 } = {}) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
     } catch (err) {
       if (attempt >= retries || !isRetryable(err)) throw err;
-      const delay = base * factor ** attempt;
+      const delay = Math.min(base * factor ** attempt, maxDelay);
       const jittered = Math.random() * delay;          // full jitter
       await new Promise(r => setTimeout(r, jittered));
     }
@@ -1121,9 +1321,185 @@ async function retry(fn, { retries = 3, base = 300, factor = 2 } = {}) {
 }
 ```
 
-Three details interviewers look for. **Only retry retryable failures** — a `500`, a timeout or a network error, never a `400` or `422`, because a validation error will fail identically forever. **Jitter is not optional**: without it, a thousand clients that failed together retry together, and you've built a self-inflicted thundering herd that keeps the service down. And **respect `Retry-After`** when the server sends it — your back-off calculation is a guess, that header is not.
+**What the delays look like** with the defaults:
+
+| Attempt | Call | Back-off ceiling | Actual wait (full jitter) |
+|---|---|---|---|
+| 0 | 1st | `300 × 2⁰` = 300 ms | anywhere in 0–300 ms |
+| 1 | 2nd | `300 × 2¹` = 600 ms | anywhere in 0–600 ms |
+| 2 | 3rd | `300 × 2²` = 1200 ms | anywhere in 0–1200 ms |
+| 3 | 4th | — | throws if this fails |
+
+So `retries = 3` means **three retries and four total calls**. `factor ** attempt` is `Math.pow`, and `**` binds tighter than `*`, so no parentheses are needed.
+
+**Three lines that are not obvious:**
+
+- **`for (let attempt = 0; ; attempt++)`** — the empty middle condition makes this an intentional infinite loop. It exits only by returning a success or throwing. Write `attempt < retries` in the header instead and the loop falls out the bottom after the last failure and returns `undefined` — the final error vanishes silently.
+- **`return await fn()`** — normally `return await` is redundant. Not here. Without the `await` you return the promise immediately, the `try` block ends, and a later rejection has no `catch` wrapping it, so the retry never fires. This is the one place it is load-bearing.
+- **`if (attempt >= retries || !isRetryable(err)) throw err`** — order matters: decide whether to give up *before* sleeping, or you wait 1.2 seconds and throw anyway. And it rethrows the **original** error, so the caller sees the real failure rather than a generic "retries exhausted".
+
+**Now jitter, which is the part people skip.** Back-off alone has its own failure mode. If a service goes down and a thousand clients fail at the same instant, they all wait exactly 300 ms and all retry at the same instant. The server is hit by a synchronised wave, falls over again, and the wave repeats — bigger each time, because the clients stay in lockstep.
+
+```text
+No jitter        │█████████│          │█████████│          │█████████│
+                 0ms      300ms                900ms               2100ms
+                 all 1000 arrive together, every time
+
+Full jitter      │ ▁▃▂▁▃▂▁▂▃ │  ▁▂▁▃▁▂▃▁▂▃▁▂  │ ▁▂▃▁▂▁▃▂▁▃▂▁▃▂▁ │
+                 0–300ms        0–600ms            0–1200ms
+                 the same retries, spread across a widening window
+```
+
+`Math.random() * delay` is what breaks the lockstep: each client picks a random point in `[0, delay)`, so the same number of retries arrives spread out instead of all at once. The window widens each attempt because `delay` is growing.
+
+**Full vs equal jitter** is the follow-up. Equal jitter — `delay/2 + Math.random() * delay/2` — keeps a floor under the wait, so you never retry after 3 ms, but it spreads clients across only half the window. AWS's architecture blog recommends **full jitter** as the default. The trade-off is what you would say if asked: full jitter spreads clients widest but can retry almost immediately; equal jitter guarantees the server some breathing room.
+
+**What is still missing, which is where an interviewer will dig:**
+
+- **No idempotency safeguard — this is the serious one.** Retrying a `GET` is free. Retrying a `POST` that charges a card can charge twice, especially in the case where the request *succeeded* but the response was lost. The server cannot tell it is a retry unless you send an **idempotency key** — see the Stripe guide, which is built around exactly this.
+- **No cancellation.** Mid-sleep there is no way to abort: the component unmounts and the retry still fires 1.2 seconds later. Thread an `AbortSignal` through both `fn()` and the `setTimeout` — the same `AbortController` as the next pattern.
+- **It ignores `Retry-After`.** A 429 or 503 often tells you exactly how long to wait. Your back-off is a guess; that header is not, so prefer it when present.
+- **A cap is necessary, not optional.** `maxDelay` is in the code above for a reason: without it, `retries = 10` reaches `300 × 2⁹` ≈ **154 seconds** for a single wait.
+- **No jitter on the first attempt.** The initial call is unjittered by design — you want the happy path to be fast — but if a thousand clients start a poll on the same cron tick, the *first* request is the synchronised one.
 
 **Cancellation with `AbortController`:**
+
+**The problem.** You started work that is no longer wanted. The user navigated away, typed another character in the search box, or the request is simply taking too long. Nothing about a promise lets you stop it — a promise is a *notification* that something finished, not a handle on the work itself. `.then()` cannot be un-called, and `Promise.race` only lets you stop *waiting*; the losing request keeps running.
+
+**Why ignoring the result is not enough.** If you fire a request and discard its answer, three things still go wrong:
+
+| What keeps happening | Consequence |
+|---|---|
+| The connection stays open | HTTP/1.1 allows ~6 per origin; abandoned requests occupy those slots |
+| Bytes keep arriving | real data and battery cost on mobile, for a response nobody reads |
+| The response still resolves | a slow *earlier* request can land after a fast later one and overwrite it |
+
+That third one is the out-of-order bug that makes a search box show results for a query the user has already replaced. Cancelling is what removes it at the source, rather than papering over it with a "is this still the current query?" check.
+
+**So what is `AbortController`?** It is the platform's general-purpose **cancellation primitive** — not a `fetch` feature, though that is where most people meet it. It is deliberately two objects:
+
+| Half | Who holds it | What it can do |
+|---|---|---|
+| `controller` | the code that *starts* the work | `controller.abort(reason?)` — the only way to cancel |
+| `controller.signal` | handed to whoever *does* the work | observe only: `aborted`, `reason`, an `abort` event |
+
+That split is the entire design. You can pass the signal to a library, a component, or untrusted code and it can react to cancellation without being able to *cause* it. One controller can feed many operations, so a single `abort()` cancels a whole tree of work.
+
+An `AbortSignal` is an `EventTarget`, which gives it a small but complete surface:
+
+```js
+const controller = new AbortController();
+const { signal } = controller;
+
+console.log(signal.aborted);                  // false
+
+signal.addEventListener('abort', () => {
+  console.log('aborted because:', signal.reason.message);
+});
+
+controller.abort(new Error('user navigated away'));
+console.log(signal.aborted);                  // true
+controller.abort();                           // idempotent — no second event
+```
+
+| Member | What it is for |
+|---|---|
+| `signal.aborted` | a boolean you can check before starting work |
+| `signal.reason` | whatever you passed to `abort()`; defaults to an `AbortError` `DOMException` |
+| `signal.throwIfAborted()` | the one-liner for "bail out now if we were cancelled" |
+| `signal.addEventListener('abort', fn)` | react to cancellation — close a socket, reject a pending promise |
+| `AbortSignal.timeout(ms)` | a signal that aborts itself; its reason is a `TimeoutError` |
+| `AbortSignal.any([a, b])` | one signal that aborts when **any** of its inputs does |
+
+**With `fetch`, which is where you will actually use it.** This one hits a real endpoint, so pressing **Try it** runs all three cases for real:
+
+```js
+const ENDPOINT = 'https://jsonplaceholder.typicode.com/users/1';
+
+async function load(signal) {
+  const res = await fetch(ENDPOINT, { signal });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+(async () => {
+  // 1. A timeout. 50ms is shorter than the round trip, so this always fires.
+  try {
+    await load(AbortSignal.timeout(50));
+  } catch (err) {
+    console.log('1. timeout   →', err.name);        // TimeoutError
+  }
+
+  // 2. A user-initiated cancel — the component unmounted, the query changed.
+  const controller = new AbortController();
+  const pending = load(controller.signal).catch(err => {
+    console.log('2. cancelled →', err.name);        // AbortError
+  });
+  controller.abort();
+  await pending;
+
+  // 3. Both at once — whichever aborts first wins. Note this one may SUCCEED:
+  //    the connection is warm after the calls above, so 50ms is sometimes enough.
+  const user = new AbortController();
+  const either = AbortSignal.any([user.signal, AbortSignal.timeout(50)]);
+  try {
+    await load(either);
+    console.log('3. combined  → finished before either signal fired');
+  } catch (err) {
+    console.log('3. combined  →', err.name);        // whichever aborted first
+  }
+
+  // 4. The happy path, for contrast — no signal, so it runs to completion.
+  const user1 = await load();
+  console.log('4. succeeded →', user1.name);
+})();
+```
+
+**The detail in that output is the one to take away: a timeout is a `TimeoutError`, not an `AbortError`.** `controller.abort()` rejects with an `AbortError`; `AbortSignal.timeout(ms)` rejects with a `TimeoutError`. Both are `DOMException`s, and code that checks only `err.name === 'AbortError'` will therefore treat a timeout as a genuine failure and log it to your error tracker:
+
+```js
+function handleBroken(err) {
+  if (err.name === 'AbortError') return null;   // ✗ a timeout falls through
+  throw err;                                     //   and lands in your error tracker
+}
+
+function handleFixed(err) {
+  if (err.name === 'AbortError') return null;                 // user cancelled — silent
+  if (err.name === 'TimeoutError') return { error: 'slow' };  // worth surfacing
+  throw err;                                                   // a real failure
+}
+
+console.log(handleFixed({ name: 'TimeoutError' }));   // { error: 'slow' }
+console.log(handleFixed({ name: 'AbortError' }));     // null
+```
+
+**Anything can honour a signal — including your own functions.** There is nothing magic about `fetch`; it simply accepts a signal and reacts to it. Yours can too, and this is what interviewers mean by "make it cancellable":
+
+```js
+function sleep(ms, { signal } = {}) {
+  return new Promise((resolve, reject) => {
+    signal?.throwIfAborted();                          // already cancelled? stop now
+    const id = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(id);                                // release the resource
+      reject(signal.reason);                           // and reject the promise
+    }, { once: true });
+  });
+}
+```
+
+That is the missing piece in the retry pattern above: give `sleep` a signal and a long back-off becomes interruptible.
+
+**The trick worth stealing:** `addEventListener` itself takes a signal, so one `abort()` removes any number of listeners — no `removeEventListener`, and no keeping the original function reference around.
+
+```js
+const ac = new AbortController();
+window.addEventListener('resize', onResize, { signal: ac.signal });
+window.addEventListener('scroll', onScroll, { signal: ac.signal });
+ac.abort();     // both listeners removed at once
+```
+
+In React that makes effect cleanup a single line regardless of how many listeners the effect added.
 
 ```js
 async function run() {
@@ -1142,9 +1518,51 @@ async function run() {
 }
 ```
 
+**Reading it line by line:**
+
+- **`new AbortController()`** gives you two halves of one object: the **controller**, which you keep, and `controller.signal`, which you hand out. Only the holder of the controller can cancel; everyone else merely observes. That split is the whole design — it is why you can pass the signal to untrusted code without giving it the power to abort.
+- **`setTimeout(() => ctrl.abort(), 5000)`** is the timeout. `fetch` has no timeout option of its own, which surprises people — this is how you add one.
+- **`fetch(url, { signal })`** — passing the signal is what makes the request cancellable. Abort after this point rejects the fetch promise **and** tells the browser to tear down the connection, which is the part `Promise.race` cannot do.
+- **`err.name === 'AbortError'`** — an abort surfaces as a rejection, so it lands in the same `catch` as a genuine network failure. The name is the only thing distinguishing them. (The thrown value is a `DOMException`, so `instanceof Error` is true but the class is not `Error`.)
+- **`finally { clearTimeout(timeout) }`** — without this, a request that finishes in 50ms leaves a timer armed for another 4.95 seconds, and in Node that keeps the process alive. `finally` runs on success, failure and abort alike, which is exactly the guarantee you want for cleanup.
+
+**`AbortController` vs `Promise.race` for a timeout** — the distinction interviewers probe:
+
+| Aspect | `Promise.race([fetch, timer])` | `AbortController` |
+|---|---|---|
+| You stop waiting | yes | yes |
+| The request stops | **no — it runs to completion** | yes, the connection is torn down |
+| Bandwidth after the timeout | still spent | freed |
+| The server's work | continues | may still complete, but you stop receiving |
+| Composability | one race per call site | one signal, passed to many calls |
+
+`race` is the version people write first because it needs no new API. It solves the symptom — your code moves on — while leaving the cause running, which is why `AbortSignal.timeout(ms)` is the better answer to "add a timeout to this fetch".
+
+**What is still missing here:**
+
+- **The signal is not threaded down.** Anything `run()` calls — a nested fetch, a retry loop, a worker — needs the same signal passed to it, or cancelling the outer call leaves the inner work running. A signal only cancels what was given it.
+- **Nothing tells the user.** Returning `null` on abort is fine for a timeout you expect; for a user-initiated cancel you usually want a distinct outcome so the UI can say "cancelled" rather than silently rendering nothing.
+- **An aborted request may still have reached the server.** Abort stops *you* listening; it does not undo a mutation the server already committed. That is the same idempotency point as the retry above.
+
 `AbortSignal.timeout(ms)` is the modern shorthand, and `AbortSignal.any([a, b])` combines signals — a user-initiated cancel *and* a timeout. The rule: **always distinguish an abort from a real error**, or a user navigating away logs as a failure and pollutes your error rate.
 
-**Bounded concurrency** — the "throttle promises" pattern. `Promise.all` over 1,000 URLs opens 1,000 connections; a pool keeps exactly N in flight:
+**Bounded concurrency** — the "throttle promises" pattern.
+
+**The problem.** `Promise.all(urls.map(fetch))` looks like the parallel answer, and for ten URLs it is. For a thousand it is a denial-of-service attack on your own infrastructure: you construct a thousand promises at once, the browser queues most of them anyway (six per origin on HTTP/1.1), the server sees a spike it did not need to, and any rate limit trips immediately. You also hold every pending result in memory at the same time.
+
+What you actually want is **N in flight at all times** — start N, and each time one finishes, start the next:
+
+```text
+Promise.all (1000 items)   ████████████████████████  all 1000 launched at t=0
+                           ↑ browser queues them, server spikes, limits trip
+
+pool(items, 3, worker)     ▓▓▓───▓▓▓───▓▓▓───▓▓▓───   never more than 3 at once
+                           worker A ██──██──███──
+                           worker B █████──██──██
+                           worker C ██──████──█──     ← a free worker takes the next item
+```
+
+A pool keeps exactly N in flight:
 
 ```js
 async function pool(items, limit, worker) {
@@ -1160,6 +1578,25 @@ async function pool(items, limit, worker) {
   return results;                             // order preserved
 }
 ```
+
+**Reading it line by line** — this one is short but the trick is easy to miss:
+
+- **`let i = 0`** is a shared cursor, not a loop counter. Every runner reads and advances the same `i`, which is what makes them cooperate rather than each processing the whole list.
+- **`Array.from({ length: limit }, async () => …)`** creates exactly `limit` runners and **starts them immediately** — an `async` function begins executing synchronously up to its first `await`. So you get N workers in flight from the first tick, not N sequential passes.
+- **`const idx = i++`** is the claim. Post-increment reads the current value *then* advances, so each runner takes a distinct index. It is safe without a lock because JavaScript is single-threaded and there is no `await` between the read and the write — the two statements cannot interleave. Splitting it into `const idx = i; await …; i++;` would break exactly that property and hand two runners the same item.
+- **`while (i < items.length)`** — a runner keeps taking the next unclaimed item until none are left, so a fast item does not leave that worker idle. That is what makes this a *pool* rather than a fixed partition: 100 items and 5 runners does not mean 20 each, it means whoever is free takes the next one.
+- **`results[idx] = await worker(...)`** — writing by index is what preserves input order in the output, even though completion order is arbitrary. Pushing to an array instead would return results in the order they *finished*.
+- **`await Promise.all(runners)`** waits for all N runner promises. Note the failure mode this inherits: one rejection rejects the whole thing while the other runners keep going. For batch work you want `worker` to catch internally, or `Promise.allSettled` here.
+
+**What it gives you, concretely.** With 8 items, a limit of 3 and workers that finish out of order, the peak number in flight is exactly 3 and the output is still in **input** order — `[10, 20, 30, 40, 50, 60, 70, 80]`, not completion order. Those two properties are the whole point: bounded load, unsurprising results.
+
+**Why not just chunk the array?** Splitting 1,000 items into 200 batches of 5 and awaiting each batch is simpler to write and measurably worse: every batch runs at the speed of its **slowest** member, and the other four workers sit idle waiting for it. A pool has no such barrier — a worker that finishes early immediately takes the next item. On uneven workloads that is often a large difference — nine items where every third one is slow takes **76 ms** through a pool of 3 and **182 ms** in fixed batches of 3, because each batch waits for its own straggler.
+
+**What is still missing here:**
+
+- **One rejection sinks the batch.** `Promise.all(runners)` rejects on the first failed worker while the rest keep running — so you get neither the results nor a clean stop. Catch inside `worker`, or collect `{ status, value }` per item.
+- **No cancellation, again.** There is no way to stop the pool half-way; a signal checked at the top of the `while` would let it drain early.
+- **`limit` is a guess.** The right number depends on what you are bounding — browser connections per origin (6 over HTTP/1.1), an API's rate limit, or database connections. "Why 5?" is a fair question and "it felt right" is a poor answer.
 
 Also worth naming: `Promise.allSettled` when you want every result regardless of failures (batch jobs, dashboards), `Promise.any` for a first-success race across mirrors, and `Promise.race` for a timeout — though `AbortSignal.timeout` is better, because `race` leaves the losing request running and still paying for bandwidth.
 
@@ -1872,25 +2309,307 @@ el.classList.remove('hidden');
 el.classList.toggle('open');
 el.style.color = 'red';
 
-// Event listeners
+// Event listeners — see 13.1-13.3 for the propagation model
 el.addEventListener('click', (event) => {
-  event.preventDefault();
-  event.stopPropagation();
   console.log(event.target);                       // element that was clicked
   console.log(event.currentTarget);                // element handler is attached to
-});
-
-// Event delegation (attach to parent, handle children)
-document.querySelector('ul').addEventListener('click', (e) => {
-  if (e.target.tagName === 'LI') {
-    console.log('Clicked:', e.target.textContent);
-  }
 });
 
 // Removing elements
 el.remove();
 parent.removeChild(child);
 ```
+
+### 13.1 The Event Path — Capturing, Target, Bubbling
+
+Every event travels the same route: the browser computes the **propagation path** — the ancestor chain from `window` to the target — and walks it down, then back up.
+
+```text
+      CAPTURING  ↓                                  ↑  BUBBLING
+      window                                           window
+        document                                     document
+          <body>                                     <body>
+            <div id="outer">                   <div id="outer">
+              <div id="inner">               <div id="inner">
+                        <button>  ← TARGET →
+```
+
+```jsx
+function PhaseDemo() {
+  const log = (msg) => console.log(msg);
+
+  useEffect(() => {
+    const outer = document.getElementById('outer');
+    const inner = document.getElementById('inner');
+    const btn = document.getElementById('btn');
+    const phase = ['', 'CAPTURE', 'TARGET', 'BUBBLE'];
+
+    // `true` (or { capture: true }) registers for the DOWNWARD trip.
+    outer.addEventListener('click', (e) => log('outer ' + phase[e.eventPhase]), true);
+    inner.addEventListener('click', (e) => log('inner ' + phase[e.eventPhase]), true);
+    btn.addEventListener('click', (e) => log('button ' + phase[e.eventPhase]));
+    // No third argument = the UPWARD trip.
+    inner.addEventListener('click', (e) => log('inner ' + phase[e.eventPhase]));
+    outer.addEventListener('click', (e) => log('outer ' + phase[e.eventPhase]));
+
+    document.getElementById('btn').click();     // fire it once on mount
+  }, []);
+
+  return (
+    <div id="outer" style={{ padding: 16, border: '1px solid #888' }}>
+      outer
+      <div id="inner" style={{ padding: 16, border: '1px solid #888' }}>
+        inner
+        <button id="btn">click me</button>
+      </div>
+    </div>
+  );
+}
+
+render(<PhaseDemo />);
+```
+
+```text
+outer CAPTURE     ← down
+inner CAPTURE
+button TARGET     ← arrived
+inner BUBBLE      ← back up
+outer BUBBLE
+```
+
+**Registering for capture:** `addEventListener(type, fn, true)` is the old positional form; `{ capture: true }` is the modern one and is preferable because that options object also carries `once`, `passive` and `signal`. The capture flag is **part of the listener's identity** — `removeEventListener` must be given the same flag or it removes nothing.
+
+**At the target, both kinds fire.** A capture listener on the target itself is not skipped; the phase is simply reported as `AT_TARGET`. Do not depend on the relative order of capture- and bubble-registered listeners on the target.
+
+**The path is fixed before dispatch begins.** Remove the target from the document inside its own handler and the event still travels through its former ancestors:
+
+```jsx
+function PathIsFixed() {
+  useEffect(() => {
+    const parent = document.getElementById('p');
+    const child = document.getElementById('c');
+
+    child.addEventListener('click', () => {
+      console.log('target fired');
+      parent.remove();                       // detach the whole subtree, mid-dispatch
+      console.log('parent removed from the document');
+    });
+    parent.addEventListener('click', () => console.log('parent STILL fires'));
+    document.addEventListener('click', () => console.log('document STILL fires'), { once: true });
+
+    child.click();
+  }, []);
+
+  return <div id="p"><button id="c">click</button></div>;
+}
+
+render(<PathIsFixed />);
+```
+
+`event.composedPath()` returns that list — for a button in a div, `button → div → body → html → #document → Window`.
+
+#### `target` vs `currentTarget`
+
+```jsx
+function TargetVsCurrentTarget() {
+  const onClick = (e) => {
+    console.log('target       =', e.target.tagName);        // the deepest element clicked
+    console.log('currentTarget=', e.currentTarget.tagName); // where the listener lives
+  };
+
+  useEffect(() => { document.getElementById('word').click(); }, []);
+
+  return (
+    <ul onClick={onClick}>
+      <li><span id="word">click the span</span></li>
+    </ul>
+  );
+}
+
+render(<TargetVsCurrentTarget />);
+```
+
+```text
+target       = SPAN
+currentTarget= UL
+```
+
+`currentTarget` is only valid **during** dispatch; read it in an async callback and it is `null`. `e.target.closest('li')` is the reliable way to find the row that was clicked, because the user may have hit a nested icon.
+
+---
+
+### 13.2 Stopping Things — Three Different Verbs
+
+| Method | What it stops | What it does not stop |
+|---|---|---|
+| `stopPropagation()` | the journey to **other elements** | other listeners on the *same* element |
+| `stopImmediatePropagation()` | the journey **and** remaining listeners on this element | the default action |
+| `preventDefault()` | the **browser's default action** (navigation, submit, scroll) | propagation — the event keeps travelling |
+
+They are orthogonal, which is the exam question. `preventDefault()` on a link stops navigation but the click still bubbles to `document`; `stopPropagation()` stops the bubbling but the browser still navigates.
+
+#### Where `preventDefault()` is used
+
+Every use is "the browser has a built-in behaviour here and I want my own instead":
+
+| Scenario | The default being cancelled |
+|---|---|
+| Submitting a form with `fetch` instead of a page post | full page navigation and reload |
+| A client-side router intercepting `<a>` clicks | navigating away and destroying your app's state |
+| `dragover` on a drop zone | rejecting the drop — **without this, `drop` never fires at all** |
+| ⌘K opening your search palette | the browser's own find/bookmark shortcut |
+| Space or arrows in a custom listbox or menu | scrolling the page |
+| A custom right-click menu | the browser's context menu |
+| Sanitising pasted content | inserting the raw HTML from the clipboard |
+| Blocking invalid characters in a number field | typing the character |
+
+```jsx
+function SearchForm() {
+  const [q, setQ] = useState('');
+
+  const onSubmit = (e) => {
+    e.preventDefault();          // ← without this the page reloads and the SPA dies
+    console.log('searching for', q);
+  };
+
+  return (
+    <form onSubmit={onSubmit}>
+      <input value={q} onChange={(e) => setQ(e.target.value)} />
+      <button>Search</button>
+    </form>
+  );
+}
+
+render(<SearchForm />);
+```
+
+That form is the example to have ready: a `<form>` posts and reloads by default, which in a single-page app throws away every piece of state you hold. It is also why a drop zone calls `preventDefault` on `dragover` — the *default* there is "reject this drop", so cancelling it is what makes dropping possible at all.
+
+#### Where `stopPropagation()` is used
+
+Every use is "this element sits inside something else that is also clickable":
+
+| Scenario | The ancestor you are stopping |
+|---|---|
+| Clicking inside a modal panel | the backdrop's "click anywhere to close" |
+| Clicking inside an open dropdown | the `document` listener that closes it on outside clicks |
+| A Delete button inside a clickable card or table row | the row's "open this item" handler |
+| A checkbox or toggle inside an accordion header | the header's expand/collapse |
+| A nested menu item inside a parent menu item | the parent's select handler |
+
+```jsx
+function Modal({ onClose }) {
+  return (
+    <div
+      onClick={onClose}                       // backdrop: any click closes
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)' }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}  // ← the panel must NOT close it
+        style={{ background: '#fff', margin: '10vh auto', padding: 24, maxWidth: 360 }}
+      >
+        <h3>Confirm</h3>
+        <p>Clicking this text does not close the dialog. Clicking outside does.</p>
+        <button onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [open, setOpen] = useState(true);
+  return open ? <Modal onClose={() => setOpen(false)} /> : <button onClick={() => setOpen(true)}>Open</button>;
+}
+
+render(<App />);
+```
+
+**Both at once** is common enough to recognise — a link inside a clickable card, where `preventDefault` alone still opens the card and `stopPropagation` alone still navigates away:
+
+```jsx
+function Card({ onOpen }) {
+  const onShare = (e) => {
+    e.preventDefault();      // do not follow the href
+    e.stopPropagation();     // and do not open the card either
+    console.log('sharing instead');
+  };
+
+  return (
+    <div onClick={onOpen} style={{ border: '1px solid #888', padding: 16, cursor: 'pointer' }}>
+      <h4>A clickable card</h4>
+      <a href="/share" onClick={onShare}>Share</a>
+    </div>
+  );
+}
+
+render(<Card onOpen={() => console.log('card opened')} />);
+```
+
+#### Prefer letting the ancestor decide
+
+`stopPropagation` fixes your problem by breaking everyone else's: the `document` listener it silences might be analytics, a focus manager, or a click-outside handler you did not write, and nothing points at your code. Where you can, decide in the ancestor instead:
+
+```jsx
+function Row({ onOpen, onDelete }) {
+  const onClick = (e) => {
+    // The parent asks "was this the delete button?" rather than the button
+    // shouting "nobody else may hear this".
+    if (e.target.closest('[data-action="delete"]')) return onDelete();
+    onOpen();
+  };
+
+  return (
+    <div onClick={onClick} style={{ border: '1px solid #888', padding: 12 }}>
+      <span>Invoice #1041</span>
+      <button data-action="delete">Delete</button>
+    </div>
+  );
+}
+
+render(<Row onOpen={() => console.log('open row')} onDelete={() => console.log('delete row')} />);
+```
+
+For "click outside to close", the robust version is the same idea — check `!panelRef.current.contains(e.target)` in the `document` handler rather than calling `stopPropagation` inside the panel. That keeps working when a third component starts listening too.
+
+**One React-specific trap.** React attaches its listeners at the root container, so `e.stopPropagation()` on a React `onClick` stops *React's* synthetic propagation — it does not stop a native listener you added with `addEventListener` on `document`. Mixing the two and expecting one to stop the other is a reliable source of "the dropdown closes immediately after opening".
+
+---
+
+### 13.3 Delegation, and What Does Not Bubble
+
+Bubbling is what makes delegation possible: one listener on a parent handles any number of children, including ones that do not exist yet.
+
+```jsx
+function Delegated() {
+  const onClick = (e) => {
+    const row = e.target.closest('[data-id]');     // works for nested spans too
+    if (row) console.log('clicked row', row.dataset.id);
+  };
+  return (
+    <ul onClick={onClick}>
+      <li data-id="1"><span>first</span></li>
+      <li data-id="2"><span>second</span></li>
+    </ul>
+  );
+}
+
+render(<Delegated />);
+```
+
+One listener instead of N means less memory, no rebinding when the list changes, and it survives rows added later.
+
+**But not everything bubbles:**
+
+| Event | Bubbles | Use instead |
+|---|---|---|
+| `focus` / `blur` | **no** | `focusin` / `focusout`, which do |
+| `mouseenter` / `mouseleave` | **no** | `mouseover` / `mouseout`, which do |
+| `scroll` on an element | **no** | listen on the element itself (`scroll` on `document` does fire) |
+| `load`, `error` on `<img>` | **no** | attach directly, or use capture |
+
+Those are not arbitrary. `mouseenter` means "entered this element", whereas `mouseover` fires again every time the pointer crosses into a child — so delegation works with `mouseover` and not with `mouseenter`, which is the usual reason someone's hover delegation misbehaves.
+
+**One last option worth knowing:** `{ passive: true }` promises you will not call `preventDefault()`, which lets the browser scroll without waiting for your handler. It is already the default for `touchstart` and `wheel` on the document in modern browsers, and it is the fix when a scroll listener makes scrolling feel sticky.
 
 ---
 
@@ -2031,16 +2750,19 @@ null === undefined  // false (strict equality)
 
 **Q4: Explain event bubbling and capturing.**
 
-When an event occurs on a DOM element:
-1. **Capturing phase**: Event travels DOWN from `window` -> `document` -> ... -> target's parent
-2. **Target phase**: Event reaches the target element
-3. **Bubbling phase**: Event travels UP from target -> parent -> ... -> `document` -> `window`
+An event fires on the element you interacted with **and on every one of its ancestors**. Clicking a `<button>` inside a `<div>` is physically a click on both, and the DOM reflects that: at dispatch the browser builds the chain of ancestors from `window` down to the target, then walks that chain **twice**.
 
-By default, handlers listen during the **bubbling** phase. Use `addEventListener(event, fn, true)` for capturing.
+1. **Capturing** — down from `window` to the target's parent, invoking only listeners registered with `{ capture: true }`.
+2. **Target** — the element itself.
+3. **Bubbling** — back up to `window`, invoking normally-registered listeners. Named for the way a bubble rises.
 
-`event.stopPropagation()` stops the event from propagating further. `event.preventDefault()` prevents the default browser action (e.g., form submission, link navigation).
+**Bubbling is the default**, so `addEventListener(type, fn)` listens on the way up; pass `{ capture: true }` to listen on the way down. Both directions exist for a historical reason worth knowing: **Netscape implemented capturing, Internet Explorer implemented bubbling**, and the W3C standardised both rather than pick a winner.
 
----
+**Why it matters in practice** is event delegation: because clicks bubble, one listener on a `<ul>` can handle every `<li>`, including rows added later. React's own event system works exactly this way — a single listener at the root container.
+
+**Reach for capturing** when an ancestor must see the event *before* the target can stop it — an overlay, an analytics layer, a focus manager. Register on the way up and a child calling `stopPropagation()` means you never hear about it.
+
+See **§13.1–13.3** for the phase-by-phase walkthrough, the three stopping methods and where each is actually used, and the events that do not bubble.
 
 **Q5: What is the difference between `var`, `let`, and `const`?**
 
@@ -2061,17 +2783,95 @@ Use `const` by default, `let` when reassignment is needed, avoid `var`.
 
 **Q6: What is the event loop? How does JavaScript handle async operations?**
 
-JavaScript is single-threaded with a non-blocking event loop:
+**Start with what "single-threaded" actually means**, because the phrase causes the confusion. JavaScript has **one call stack**, so exactly one line of *your* code runs at a time. It does **not** mean one thing happens at a time: a `fetch` is performed by the browser's networking code, a timer by the platform's timer, a file read by Node's thread pool. Those run elsewhere, genuinely in parallel. What is single-threaded is the part that runs your callbacks.
 
-1. Synchronous code executes on the **call stack**
-2. Async operations (setTimeout, fetch, etc.) are delegated to browser/Node APIs
-3. When async operations complete, their callbacks are queued
-4. The event loop checks: if the call stack is empty, it dequeues from the **microtask queue** first (promises), then the **macrotask queue** (setTimeout, I/O)
-5. This cycle repeats continuously
+The event loop is the piece that decides **which callback runs next, and when**.
 
-This allows JavaScript to handle concurrent operations without threads.
+```text
+   ┌─────────────────────────────┐
+   │        CALL STACK           │  ← your code; only ever one frame deep at the top
+   └──────────────┬──────────────┘
+                  │ when it is EMPTY:
+                  ▼
+   ┌─────────────────────────────┐
+   │   MICROTASK QUEUE           │  promises, await, queueMicrotask, MutationObserver
+   │   drained COMPLETELY        │  ← including any added while draining
+   └──────────────┬──────────────┘
+                  ▼
+   ┌─────────────────────────────┐
+   │   render (browser only)     │  style, layout, paint — roughly once per frame
+   └──────────────┬──────────────┘
+                  ▼
+   ┌─────────────────────────────┐
+   │   MACROTASK QUEUE           │  setTimeout, setInterval, I/O, UI events
+   │   exactly ONE per turn      │
+   └─────────────────────────────┘
+```
 
----
+**The rule that answers most interview questions:** after each macrotask, the engine drains the **entire** microtask queue before taking the next one — including microtasks queued *by* those microtasks. Macrotasks get one per turn; microtasks get all of them.
+
+```js
+console.log('1 sync start');
+
+setTimeout(() => console.log('6 timeout 0'), 0);
+
+Promise.resolve().then(() => {
+  console.log('4 microtask A');
+  Promise.resolve().then(() => console.log('5 microtask queued BY a microtask'));
+});
+
+queueMicrotask(() => console.log('4.5 queueMicrotask'));
+
+(async () => {
+  console.log('2 async body is SYNC up to the first await');
+  await null;
+  console.log('4.7 after await = a microtask');
+})();
+
+console.log('3 sync end');
+```
+
+```text
+1 sync start
+2 async body is SYNC up to the first await
+3 sync end
+4 microtask A
+4.5 queueMicrotask
+4.7 after await = a microtask
+5 microtask queued BY a microtask     ← added mid-drain, still runs before the timer
+6 timeout 0
+```
+
+**Three things that output proves:**
+
+- **An `async` function body runs synchronously** until its first `await`. Calling one does not defer anything; only the code *after* an `await` becomes a microtask. This is why line 2 prints before line 3.
+- **`await x` is `Promise.resolve(x).then(...)` in disguise**, so everything after it is a microtask — which is why `4.7` lands with the promise callbacks and not with the timer.
+- **A microtask queued during the drain still runs before the macrotask.** Line 5 was created while line 4 was executing, and it still beats `setTimeout(…, 0)`.
+
+**Which queue is which:**
+
+| Microtasks (all drained each turn) | Macrotasks (one per turn) |
+|---|---|
+| `.then` / `.catch` / `.finally` | `setTimeout`, `setInterval` |
+| code after `await` | `setImmediate` (Node) |
+| `queueMicrotask` | I/O callbacks, UI events |
+| `MutationObserver` | `requestAnimationFrame`* |
+
+\* `requestAnimationFrame` is not strictly a macrotask — it runs in the render step, *before* the next task, which is why it is the right place for visual updates and `setTimeout` is not.
+
+**`setTimeout(fn, 0)` does not mean "now".** It means "queue this as a macrotask", so it waits for the stack to empty *and* the whole microtask queue to drain. Browsers also clamp nested timers to ~4 ms after five levels of nesting, and a background tab clamps to ~1 s or stops entirely.
+
+**Microtask starvation is the failure mode worth naming.** Because microtasks are drained *completely*, a microtask that queues another microtask forever blocks rendering and every timer — the page freezes with no long function to blame:
+
+```js
+function starve() { Promise.resolve().then(starve); }   // never yields. Do not run this.
+```
+
+An infinite loop of macrotasks does not do this: the browser gets its render step between each one.
+
+**Node differs in two ways worth knowing.** `process.nextTick` has its own queue that drains *before* promise microtasks, and Node's loop has ordered phases (timers, pending, poll, check, close), which is why `setTimeout(…, 0)` and `setImmediate` have no guaranteed order at the top level but a fixed one inside an I/O callback — see the Node.js guide.
+
+**Why any of this matters in practice:** the loop can only take the next task when the stack is empty, so one long synchronous function blocks input, animation and rendering alike. That is what Total Blocking Time measures, and why the fix is to break work up — `scheduler.yield()`, chunking, or moving it to a Worker, which is the only way to get a second thread.
 
 **Q7: Explain prototypal inheritance.**
 
@@ -2098,22 +2898,61 @@ ES6 classes are syntactic sugar over this prototypal system.
 
 **Q8: What is the difference between `call`, `apply`, and `bind`?**
 
-All three set the `this` context for a function:
+All three do the same job — **decide `this` explicitly** — because `this` is otherwise chosen by the *call site*, and a detached method (`const fn = obj.greet`) has no call site to take it from. They differ in how arguments arrive and whether the function runs.
 
-- `call(thisArg, arg1, arg2, ...)` — invokes immediately, args passed individually
-- `apply(thisArg, [args])` — invokes immediately, args passed as array
-- `bind(thisArg, arg1, ...)` — returns a NEW function with `this` bound (doesn't invoke)
+| Method | Arguments | Runs now? | Returns |
+|---|---|---|---|
+| `call(thisArg, a, b)` | listed individually | yes | the function's result |
+| `apply(thisArg, [a, b])` | one array | yes | the function's result |
+| `bind(thisArg, a)` | listed individually, **pre-filled** | **no** | a new, permanently bound function |
+
+The mnemonic that sticks: **a**pply takes an **a**rray. That is the *only* difference between `call` and `apply`.
 
 ```js
-function greet(greeting) { return `${greeting}, ${this.name}`; }
+function describe(greeting, punctuation) {
+  return `${greeting}, ${this.name}${punctuation}`;
+}
+const alice = { name: 'Alice' };
 
-greet.call({ name: 'Alice' }, 'Hello');     // 'Hello, Alice'
-greet.apply({ name: 'Bob' }, ['Hi']);        // 'Hi, Bob'
-const fn = greet.bind({ name: 'Charlie' });
-fn('Hey');                                   // 'Hey, Charlie'
+console.log(describe.call(alice, 'Hello', '!'));        // Hello, Alice!
+console.log(describe.apply(alice, ['Hi', '?']));        // Hi, Alice?
+
+// bind runs nothing — it hands back a function, with 'Hey' already supplied
+const greetAlice = describe.bind(alice, 'Hey');
+console.log(typeof greetAlice);                         // function
+console.log(greetAlice('.'));                           // Hey, Alice.
+
+// The binding is PERMANENT — call cannot override it
+console.log(greetAlice.call({ name: 'Bob' }, '!'));     // Hey, Alice!   ← not Bob
+
+// Every bind() returns a NEW function object
+console.log(describe.bind(alice) === describe.bind(alice));   // false
 ```
 
----
+**The three `bind` facts interviews actually probe** are all visible above: it returns a function instead of calling one (forgetting the later `()` is the classic bug), the binding cannot be changed afterwards, and **each call produces a new reference** — which is why `this.handle.bind(this)` inside a React render defeats `React.memo`, and why `removeEventListener` silently fails when you bind again at removal time. Two more: `bind` **pre-fills arguments** (partial application, the basis of currying), and **`new` beats it** — constructing a bound function ignores the bound `this`, though the pre-filled arguments still apply.
+
+**Arrow functions ignore all three.** An arrow has no `this` of its own, so there is nothing to set:
+
+```js
+function outer() {
+  const arrow = () => this.name;
+  return arrow.call({ name: 'Bob' });    // the .call does nothing
+}
+console.log(outer.call({ name: 'Alice' }));   // 'Alice'
+```
+
+**`thisArg` is coerced in sloppy mode.** A primitive gets boxed and `null`/`undefined` is replaced by the global object; under `'use strict'` — and therefore in every ES module — the value is passed through untouched:
+
+```js
+function whoAmI() { return this; }
+console.log(typeof whoAmI.call('text'));         // 'object' — the string was boxed
+console.log(whoAmI.call(null) === globalThis);   // true    — null was replaced
+// Under 'use strict': 'string', and this === null
+```
+
+**Where you actually meet them.** `call` and `apply` mostly survive in *library* code: borrowing a method from another prototype (`Array.prototype.slice.call(arguments)`, from before rest parameters), and forwarding an unknown argument list inside a wrapper — `fn.apply(this, args)` is the line at the heart of every decorator, polyfill and memoiser. In application code, **spread replaced `apply`** (`Math.max(...nums)` instead of `Math.max.apply(null, nums)`) and **arrow functions replaced most of `bind`**. `bind` still earns its place when you need one *stable* reference to add and later remove as a listener, or for partial application. `Reflect.apply(fn, thisArg, args)` is the modern spelling that cannot be fooled by a function that has overwritten its own `apply`.
+
+See **§4.3** for how `this` is resolved in the first place, which is what makes all of this necessary.
 
 **Q9: What is the difference between shallow copy and deep copy?**
 
@@ -2217,46 +3056,128 @@ Use cases:
 
 **Q13: What is `WeakRef` and `FinalizationRegistry`?**
 
-- `WeakRef` holds a weak reference to an object — doesn't prevent garbage collection.
-- `FinalizationRegistry` lets you register a callback when an object is garbage collected.
+Both are escape hatches from JavaScript's normal memory rule. Normally **any reference you hold keeps an object alive** — the garbage collector frees an object only when nothing reachable points at it. These two APIs let you hold a reference that does *not* count (`WeakRef`), and be told after an object has been freed (`FinalizationRegistry`).
+
+| API | What it gives you | What it costs |
+|---|---|---|
+| `new WeakRef(obj)` | `.deref()` → the object, **or `undefined`** once it has been collected | the object can disappear between two reads |
+| `new FinalizationRegistry(cb)` | `cb(heldValue)` **after** a registered object is collected | the callback may never run at all |
 
 ```js
-let obj = { data: 'important' };
-const weakRef = new WeakRef(obj);
+let cacheKey = { id: 42 };
+const ref = new WeakRef(cacheKey);
 
-weakRef.deref();  // { data: 'important' }
-obj = null;       // original reference gone
-// After GC: weakRef.deref() returns undefined
+console.log('deref ->', ref.deref());            // { id: 42 }
 
-const registry = new FinalizationRegistry((heldValue) => {
-  console.log(`${heldValue} was garbage collected`);
-});
-registry.register(someObj, 'my-object');
+// Read it into a LOCAL once, then use the local. Two deref() calls can
+// disagree — the first can return the object and the second undefined.
+const held = ref.deref();
+if (held) console.log('read once into a local:', held.id);   // 42
+
+cacheKey = null;      // the last strong reference is gone
+console.log('after dropping the strong ref ->', ref.deref()); // still { id: 42 }
 ```
 
-Use case: Caches where entries should be automatically cleaned up when memory is needed.
+That last line is the point most answers miss: dropping the strong reference makes the object **eligible** for collection, not collected. Nothing in the language says when — or whether — the collector runs, so `deref()` keeps returning the object until it happens to.
 
----
+```js
+const registry = new FinalizationRegistry((heldValue) => {
+  console.log(heldValue, 'was collected');   // may never print
+});
 
-**Q14: Explain the difference between `for...in` and `for...of`.**
+let user = { name: 'Ada' };
+// (target, heldValue, unregisterToken) — the token is held weakly too
+registry.register(user, 'user-record', user);
+console.log('registered; the callback is not guaranteed to run');
 
-- `for...in` iterates over **enumerable string property keys** (including inherited ones). Best for objects.
-- `for...of` iterates over **values** of iterable objects (arrays, strings, maps, sets, generators). Cannot be used on plain objects.
+registry.unregister(user);                   // cancels it
+console.log('unregistered');
+```
+
+**The trap that makes the whole thing useless:** the `heldValue` must never be the target object itself. The registry holds `heldValue` **strongly**, so `registry.register(user, user)` keeps `user` alive forever and the callback can never fire. Pass an id, a key, or a handle — something small that tells the callback *what* went away.
+
+**Why they are rarely the right answer.** `WeakMap` and `WeakSet` solve the common case — metadata attached to an object, without keeping it alive — with no `deref()` and no non-determinism, so reach for them first. MDN's own guidance is to avoid `WeakRef` and `FinalizationRegistry` where you can: collection timing differs between engines and versions, so code that *depends* on a callback firing is code that works on your laptop and not in production.
+
+**Where they genuinely earn their place:**
+
+- **A cache that must not be the reason an object stays in memory** — an image or parsed-document cache keyed by an object, where a miss simply means recompute.
+- **Releasing a non-JS resource** the collector knows nothing about: a WebAssembly allocation, a file handle, a WebGL texture. The registry is the *backstop*; an explicit `close()`/`dispose()` (or `using` from §9.9) is still the primary path.
+- **Leak detection in development** — register an object and log if the callback never arrives after a component unmounts.
+
+The rule for both: **treat the callback and the `deref()` as best-effort**. Correctness must never depend on either.
+
+**Q14: Explain the difference between `for...in`, `for...of` and `forEach`.**
+
+They differ in **what they hand you**, **what they walk**, and **what you are allowed to do inside**.
+
+| Aspect | `for...in` | `for...of` | `forEach` |
+|---|---|---|---|
+| Gives you | **keys**, always strings | **values** | value, index, whole array |
+| Works on | any object | anything **iterable** (array, string, `Map`, `Set`, generator, `NodeList`) | arrays and array-likes with the method |
+| Walks the prototype chain | **yes** | no | no |
+| Sees non-index properties | **yes** | no | no |
+| `break` / `continue` | yes | yes | **no** |
+| `await` inside pauses the loop | yes | **yes** | **no** |
+| Skips holes in a sparse array | yes | **no** | yes |
+| Returns | — | — | `undefined` |
 
 ```js
 const arr = ['a', 'b', 'c'];
-arr.custom = 'oops';
+arr.custom = 'oops';                 // a property that is not an index
 
-for (const key in arr) console.log(key);    // '0', '1', '2', 'custom'
-for (const val of arr) console.log(val);    // 'a', 'b', 'c'
+for (const key in arr) console.log('for...in', JSON.stringify(key));
+// "0"  "1"  "2"  "custom"   ← strings, and it found the extra property
 
-const obj = { x: 1, y: 2 };
-for (const key in obj) console.log(key);    // 'x', 'y'
-// for (const val of obj) ...               // TypeError: obj is not iterable
-for (const [k, v] of Object.entries(obj));   // works: 'x' 1, 'y' 2
+for (const val of arr) console.log('for...of', val);
+// a  b  c
+
+arr.forEach((val, i) => console.log('forEach ', i, val));
+// 0 a   1 b   2 c           ← index is a real number, 'custom' ignored
 ```
 
----
+**`for...in` is for objects, and the two surprises above are why it is wrong for arrays**: the keys are strings (`'2' + 1` is `'21'`), and it enumerates *every* enumerable property — including anything added to the prototype by an old library. If you must use it, guard with `Object.hasOwn(obj, key)`; in practice `Object.keys` / `Object.entries` are the better answer, and they work with `for...of`:
+
+```js
+const obj = { x: 1, y: 2 };
+for (const key in obj) console.log(key);              // 'x', 'y'
+// for (const val of obj) …                           // TypeError: obj is not iterable
+for (const [k, v] of Object.entries(obj)) console.log(k, v);   // x 1, y 2
+```
+
+A plain object is **not iterable** — that `TypeError` is the single most common surprise here. Arrays, strings, `Map`, `Set`, `arguments` and DOM collections all implement `Symbol.iterator`; `{}` does not.
+
+**`forEach` is the one that gives up control.** It exists for side effects, returns `undefined`, and therefore cannot be chained — reaching for it when you want a result is the tell that `map`/`filter`/`reduce` was the right call. Two things it genuinely cannot do:
+
+- **You cannot stop it.** `return` inside the callback only ends *that* iteration — it behaves like `continue`, never `break`. `some`/`every`/`find` are the short-circuiting versions; otherwise use `for...of`.
+- **It does not await.** The callback is an ordinary function, so `forEach` fires them all and moves on:
+
+```js
+async function run() {
+  const ids = [1, 2];
+
+  ids.forEach(async (id) => { await null; console.log('forEach done', id); });
+  console.log('forEach did NOT wait');
+
+  for (const id of ids) { await null; console.log('for...of done', id); }
+  console.log('for...of waited');
+}
+run();
+```
+
+```text
+forEach did NOT wait
+forEach done 1
+forEach done 2
+for...of done 1
+for...of done 2
+for...of waited
+```
+
+`forEach` returned before a single callback had finished — and because it discards the promises each callback returns, a rejection inside one becomes an **unhandled rejection** nobody catches. When you need sequential awaits use `for...of`; when you want them concurrent use `await Promise.all(ids.map(fn))`, which keeps the promises.
+
+**One last difference: sparse arrays.** `[1, , 3]` has a *hole*, which is not the same as `undefined`. `forEach` (and `map`, `filter`) skip holes; `for...of` visits them as `undefined`; `for...in` omits their keys.
+
+**The rule of thumb:** `for...of` by default — it reads well, breaks, and awaits. `forEach` when the body is a one-line side effect and you know the array is dense. `for...in` only on plain objects, and prefer `Object.entries` even then. See **§7.3** for the full signatures and their parameters.
 
 **Q15: What are memory leaks in JavaScript and how do you prevent them?**
 
@@ -2278,56 +3199,178 @@ Prevention:
 
 **Q16: Implement a debounce function with leading and trailing options.**
 
+**Debouncing means "wait until the noise stops".** Every call restarts a timer, and the wrapped function only runs once `delay` milliseconds have passed with no further calls — so a burst of 20 keystrokes produces one search request instead of 20.
+
+**Leading and trailing name the two edges of that burst:**
+
+| Option | When `fn` runs | Reads as |
+|---|---|---|
+| `trailing: true` (the default) | **after** the burst ends | "tell me once they've stopped typing" |
+| `leading: true` | **immediately** on the first call of a burst | "act now, then ignore the rest" |
+| both | on the first call **and** again at the end (only if more calls arrived) | responsive *and* final |
+| neither | never — a pointless configuration | — |
+
+```text
+calls:     ▼   ▼ ▼        (a, b, c — 30ms apart)
+           │
+leading    ● a                                  ← fires on the FIRST call
+trailing              ● c                       ← fires 100ms after the LAST call
+both       ● a        ● c
+           └── burst ──┘└─ delay ─┘
+```
+
+The everyday split: a **search box** wants trailing (you only care what they finally typed), a **submit button** wants `leading: true, trailing: false` (act on the first click, swallow the double-click).
+
 ```js
 function debounce(fn, delay, { leading = false, trailing = true } = {}) {
-  let timer;
-  let lastArgs;
+  let timer;                      // the pending timeout, or null/undefined when idle
+  let lastArgs;                   // the most recent arguments, kept for the trailing call
 
-  return function(...args) {
+  return function (...args) {
+    // No timer pending means this call STARTS a burst — the leading edge.
     const callNow = leading && !timer;
-    lastArgs = args;
+    lastArgs = args;              // remember the latest args, overwriting older ones
 
-    clearTimeout(timer);
+    clearTimeout(timer);          // cancel the previous timer: this is the whole debounce
 
     timer = setTimeout(() => {
-      timer = null;
-      if (trailing && lastArgs) {
-        fn.apply(this, lastArgs);
+      timer = null;               // idle again, so the next call counts as leading
+      if (trailing && lastArgs) { // lastArgs is null if the leading call already used them
+        fn.apply(this, lastArgs); // apply forwards `this` and the arg list unchanged
         lastArgs = null;
       }
     }, delay);
 
     if (callNow) {
       fn.apply(this, args);
-      lastArgs = null;
+      lastArgs = null;            // consumed — stops a lone call firing twice
     }
   };
 }
-
-// Usage
-const search = debounce(query => fetchResults(query), 300);
-const onClick = debounce(handler, 1000, { leading: true, trailing: false });
 ```
 
----
+**The three lines that carry the whole thing:**
+
+1. **`clearTimeout(timer)` on every call** is the debounce. Without it you have a plain delay, not a debounce, and every keystroke would eventually fire.
+2. **`!timer` identifies the leading edge.** A pending timer means a burst is already running; no timer means this call begins one. Setting `timer = null` *inside* the callback (not just letting it expire) is what makes the next call leading again.
+3. **`lastArgs = null` after firing** is what stops `{ leading: true, trailing: true }` firing twice for a single isolated call: the leading call consumes the arguments, so when the timer expires there is nothing left to send. A trailing call only happens if *more* calls arrived during the wait — which is exactly the behaviour lodash has.
+
+`fn.apply(this, args)` rather than `fn(...args)` is deliberate: it forwards the receiver, so `el.onclick = debounce(obj.method, 200)` still sees the right `this` (see **§4.3**).
+
+```js
+// Same implementation as above, so this block runs on its own.
+function debounce(fn, delay, { leading = false, trailing = true } = {}) {
+  let timer, lastArgs;
+  return function (...args) {
+    const callNow = leading && !timer;
+    lastArgs = args;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      if (trailing && lastArgs) { fn.apply(this, lastArgs); lastArgs = null; }
+    }, delay);
+    if (callNow) { fn.apply(this, args); lastArgs = null; }
+  };
+}
+
+const fire = (mode) => (ch) => console.log(`${mode} fired with '${ch}'`);
+
+const trailingOnly = debounce(fire('trailing-only'), 100);
+const leadingOnly  = debounce(fire('leading-only '), 100, { leading: true, trailing: false });
+const both         = debounce(fire('both         '), 100, { leading: true, trailing: true });
+
+console.log("keystrokes 'a','b','c' 30ms apart, delay = 100ms");
+['a', 'b', 'c'].forEach((ch, i) => setTimeout(() => {
+  trailingOnly(ch);
+  leadingOnly(ch);
+  both(ch);
+}, i * 30));
+```
+
+```text
+keystrokes 'a','b','c' 30ms apart, delay = 100ms
+leading-only  fired with 'a'
+both          fired with 'a'
+trailing-only fired with 'c'
+both          fired with 'c'
+```
+
+The two leading calls fire straight away with the **first** character; the two trailing calls fire ~100 ms after the last keystroke with the **latest** one. `'b'` never reaches `fn` at all — that is the point.
+
+**What this implementation still lacks**, and what a follow-up question usually asks for:
+
+- **`cancel()`** — `clearTimeout(timer); timer = null; lastArgs = null;` exposed on the returned function. Essential in React: call it in the effect cleanup or the trailing call fires after the component has unmounted.
+- **`flush()`** — run the pending trailing call immediately (on form submit, say).
+- **A return value.** The debounced function returns `undefined`, because at call time the real call has not happened. If the caller needs the result, the wrapper has to return a promise resolved by the eventual call.
+
+**Debounce is not throttle.** Debounce waits for silence, so under continuous input it may never fire; throttle guarantees one call every `delay` regardless. Resize and scroll want throttle; search input and autosave want debounce. See **§14.4** for both side by side.
 
 **Q17: Explain `Object.freeze` vs `Object.seal` vs `Object.preventExtensions`.**
 
-| Method | Add props | Delete props | Modify values |
-|--------|-----------|-------------|---------------|
-| `Object.preventExtensions` | No | Yes | Yes |
-| `Object.seal` | No | No | Yes |
-| `Object.freeze` | No | No | No |
+They are three points on one scale, and each is a strict superset of the one above it. Two invisible switches do all the work: the object's own **`[[Extensible]]`** flag (may new properties be added?) and, on every property, the descriptor flags **`configurable`** (may it be deleted or redefined?) and **`writable`** (may its value change?).
 
-All three are **shallow** — nested objects are not affected:
+| Method | Add props | Delete props | Modify values | What it actually does | Check with |
+|---|---|---|---|---|---|
+| `Object.preventExtensions` | **No** | Yes | Yes | `[[Extensible]] = false` | `Object.isExtensible` → `false` |
+| `Object.seal` | **No** | **No** | Yes | the above **+ `configurable: false`** on every own property | `Object.isSealed` |
+| `Object.freeze` | **No** | **No** | **No** | the above **+ `writable: false`** on every own data property | `Object.isFrozen` |
+
+Read down the "What it actually does" column and the whole answer falls out: **seal is preventExtensions plus non-configurable; freeze is seal plus non-writable.** That is why every frozen object is also sealed, and every sealed object is also non-extensible — but not the reverse.
+
 ```js
-const obj = Object.freeze({ nested: { a: 1 } });
-obj.nested.a = 99;  // works! nested object is not frozen
+const p = Object.preventExtensions({ a: 1 });
+p.b = 2;                       // ignored — cannot add
+delete p.a;                    // allowed — deleting is still fine
+
+const s = Object.seal({ a: 1 });
+s.a = 5;                       // allowed — the value is still writable
+delete s.a;                    // ignored — the property is locked in place
+console.log(s.a);              // 5
+
+const f = Object.freeze({ a: 1 });
+f.a = 99;                      // ignored — nothing about it can change
+console.log(f.a);              // 1
 ```
 
-For deep freeze, you need to recursively freeze all nested objects.
+**The dangerous part is that those writes fail *silently*.** In sloppy mode an assignment to a frozen property is simply discarded — no error, no warning, and the bug surfaces later as a value that "didn't update". Under `'use strict'`, and therefore **inside every ES module**, the same line throws:
 
----
+```js
+'use strict';
+const config = Object.freeze({ retries: 3 });
+config.retries = 5;   // TypeError: Cannot assign to read only property 'retries'
+```
+
+**All three are shallow.** They act on the object you pass and on nothing it points at:
+
+```js
+const obj = Object.freeze({ nested: { a: 1 } });
+obj.nested.a = 99;             // works — the INNER object was never frozen
+console.log(obj.nested.a);     // 99
+```
+
+A deep freeze has to walk the graph, and needs a guard against cycles or it recurses forever:
+
+```js
+function deepFreeze(obj, seen = new WeakSet()) {
+  if (obj === null || typeof obj !== 'object' || seen.has(obj)) return obj;
+  seen.add(obj);
+  for (const value of Object.values(obj)) deepFreeze(value, seen);
+  return Object.freeze(obj);
+}
+
+const state = deepFreeze({ user: { name: 'Ada', tags: ['admin'] } });
+state.user.name = 'Bob';       // now genuinely ignored
+```
+
+**Three things freeze does *not* stop**, each a favourite follow-up:
+
+- **A setter still runs.** Freezing makes data properties non-writable, but an accessor has no `writable` flag — assigning to it still invokes the setter, which can happily mutate something else.
+- **`Map`, `Set` and `Date` contents are untouched.** Their data lives in internal slots, not in properties, so `Object.freeze(new Map())` still accepts `.set(...)`. The same is true of a frozen object holding a `Map`.
+- **`const` is a different thing entirely.** `const` freezes the **binding** — you cannot reassign the variable; `Object.freeze` freezes the **value** — you cannot mutate the object. `const o = {}; o.x = 1` is legal precisely because those are separate guarantees.
+
+**On arrays**, freezing is stronger than it looks: `arr.push(...)` throws a `TypeError` **even in sloppy mode**, because `push` defines a new index property rather than assigning to an existing one. A *sealed* array still allows `arr[0] = 9` but not `push`, since its length cannot grow.
+
+**Where to use which.** `Object.freeze` for genuinely constant configuration and lookup tables, and as a development-time guard that catches accidental mutation of state you intend to be immutable (Redux's `redux-immutable-state-invariant` does exactly this, in dev only — deep-freezing a large state tree on every action is real work). `seal` and `preventExtensions` are rare in application code; they mostly appear where an object's *shape* is a contract but its values are meant to change. For everyday immutable updates, the ES2023 copy methods (`toSorted`, `with`, `toSpliced` — see **§7.1**) are the practical tool, because they return a new array rather than forbidding changes to an old one.
 
 **Q18: What is currying and how would you implement it?**
 
@@ -2417,20 +3460,82 @@ const price = new Money(100, 'USD');
 
 **Q21: Why is `Object.groupBy` not a drop-in replacement for Lodash's `groupBy`, and when should you use `Map.groupBy` instead?**
 
-`Object.groupBy` (ES2024) coerces every key returned by the callback to a **string**, and it returns an object with a `null` prototype. Both facts change behaviour in ways that bite.
+**Grouping means "bucket these items by something they have in common"** — orders by status, users by role, log lines by day. For years the only way to do it was Lodash's `_.groupBy`, and ES2024 finally added the language's own version. They look interchangeable and are not.
 
-```js
-Object.groupBy([1, '1'], x => x);   // { '1': [1, '1'] }   — collision
-Map.groupBy([1, '1'], x => x);      // Map { 1 => [1], '1' => ['1'] }
+**What Lodash does**, for reference — this is the call almost everyone has written:
 
-const g = Object.groupBy([{ id: null }], r => r.id);
-Object.keys(g);          // ['null']  — the string 'null', not the value
-g.hasOwnProperty;        // undefined — null prototype, no inherited methods
+```text
+_.groupBy(users, 'role')
+// { admin: [ {name:'a',…}, {name:'c',…} ], user: [ {name:'b',…} ] }
+
+_.groupBy(users, u => u.role)      // the callback form does the same
 ```
 
-Use `Object.groupBy` when the key is already a string and you want a plain serialisable object (JSON responses, template rendering). Use `Map.groupBy` when the key is a number, a boolean, a date, or an object reference — anything where identity matters. The `null` prototype is a security feature, not an oversight: a group named `"__proto__"` or `"constructor"` cannot corrupt the result the way it could with a normal object literal. Just remember to reach for `Object.hasOwn(g, key)` rather than `g.hasOwnProperty(key)`.
+Two things there are doing quiet work: **`'role'` is a string, not a function** (Lodash's "iteratee shorthand"), and the result is an **ordinary object**, so `result.hasOwnProperty('admin')` works like it does anywhere else.
 
----
+| Aspect | Lodash `_.groupBy` | `Object.groupBy` (ES2024) | `Map.groupBy` (ES2024) |
+|---|---|---|---|
+| Naming the key | callback **or** `'prop'` shorthand | callback only | callback only |
+| Callback receives | the value | `(element, index)` | `(element, index)` |
+| Accepts | arrays, objects, strings, `null` | any **iterable** | any **iterable** |
+| Key type | coerced to string | coerced to **string** | **left exactly as returned** |
+| Result | plain object | object with a **`null` prototype** | a `Map` |
+| Given `null` input | returns `{}` | **throws** `TypeError` | **throws** `TypeError` |
+
+**So the four things that break a straight find-and-replace:**
+
+1. **`Object.groupBy(users, 'role')` throws `TypeError: role is not a function`.** Every shorthand has to become `u => u.role`.
+2. **The callback signature differs.** Lodash passes just the value; the native version also passes the index — harmless until your callback is a function like `parseInt` that reads its second argument.
+3. **The result has no prototype**, so `result.hasOwnProperty(k)`, `result.toString()` and anything else inherited from `Object.prototype` is `undefined`. Code that probes the result with those methods breaks.
+4. **Non-arrays are no longer accepted.** Lodash happily groups a plain object or a `null`; `Object.groupBy` needs something iterable, so `Object.groupBy(null, fn)` and `Object.groupBy({a: 1}, fn)` both throw.
+
+**Now the part that decides between the two native ones — `Object.groupBy` stringifies your key.** Object property keys can only ever be strings (or symbols), so whatever the callback returns is converted:
+
+```js
+const values = [1, '1'];
+
+console.log('Object.groupBy ->', JSON.stringify(Object.groupBy(values, x => x)));
+// {"1":[1,"1"]}          ← the number and the string collapsed into ONE group
+
+const m = Map.groupBy(values, x => x);
+console.log('Map.groupBy keys ->', [...m.keys()].map(k => typeof k).join(', '));
+// number, string          ← kept apart, because a Map key can be any value
+console.log('Map.groupBy get(1) ->', JSON.stringify(m.get(1)), "get('1') ->", JSON.stringify(m.get('1')));
+// [1]  ["1"]
+
+const rows = [{ id: null }, { id: undefined }];
+console.log('coerced keys ->', JSON.stringify(Object.keys(Object.groupBy(rows, r => r.id))));
+// ["null","undefined"]    ← the STRINGS 'null' and 'undefined', not the values
+```
+
+That last line is the one that bites in real code: group by a field that is sometimes missing and you get a bucket literally named `"undefined"`. Grouping by an object — a user record, a `Date` — is worse, because every object stringifies to `"[object Object]"` and they all land in the same bucket. **`Map.groupBy` has no such problem**: a `Map` key can be any value, compared by identity.
+
+**And the `null` prototype is a feature, not an oversight.** The obvious hand-rolled grouper has a real vulnerability:
+
+```js
+const rows = [{ k: '__proto__', n: 1 }, { k: 'ok', n: 2 }];
+
+const byHand = {};
+try {
+  for (const r of rows) (byHand[r.k] ||= []).push(r.n);
+} catch (err) {
+  console.log('hand-rolled ->', err.constructor.name);   // TypeError
+}
+
+const safe = Object.groupBy(rows, r => r.k);
+console.log('keys ->', JSON.stringify(Object.keys(safe)));      // ["__proto__","ok"]
+console.log('safe.constructor ->', typeof safe.constructor);    // undefined
+console.log('safe.hasOwnProperty ->', safe.hasOwnProperty);     // undefined
+console.log("Object.hasOwn(safe, 'ok') ->", Object.hasOwn(safe, 'ok'));   // true
+```
+
+The hand-rolled version throws because `byHand['__proto__']` is not missing — it reads `Object.prototype`, which is truthy, so `||=` never assigns the array and `.push` does not exist. Swap the key for `'constructor'` and you get the same class of bug silently. `Object.groupBy` starts from `Object.create(null)`, so **no key can collide with something inherited** — which is exactly why grouping user-supplied values is safe. The cost is that you must use **`Object.hasOwn(result, key)`** instead of `result.hasOwnProperty(key)`.
+
+**Which to reach for:**
+
+- **`Object.groupBy`** when the key is genuinely a string and you want a plain, serialisable object — a JSON response, template rendering, `Object.entries(groups).map(…)`.
+- **`Map.groupBy`** when the key is a number, boolean, `Date`, or an object reference — anything where identity matters — or when you need insertion order and a `.size` without converting.
+- **Lodash** only if you are already depending on it for the shorthand and its forgiving input handling. Both native versions are in Node 21+ and every current browser; neither has a shorthand, and that is the line most migrations trip over.
 
 **Q22: When would you use an iterator helper chain instead of array methods?**
 
@@ -2530,29 +3635,94 @@ useEffect(() => {
 
 **Q26: Implement `once(fn)` — and say why it is asked.**
 
+**`once` wraps a function so it can only ever run once.** The first call runs it and remembers what it returned; every call after that skips the function entirely and hands back that same first result. It is a *higher-order function* — it takes a function and returns a new one with extra behaviour wrapped around it.
+
+You have already used the idea: `el.addEventListener('click', fn, { once: true })` is the browser's built-in version, and Node's `emitter.once(event, fn)` is the same thing for events. You write your own when the thing being guarded is not an event:
+
+- **one-time setup** — connect to a database, read a config file, initialise an SDK; call it from ten places and it still happens once,
+- **a submit handler** that must not fire twice on a double-click,
+- **a warning** you want logged the first time a deprecated function is used and never again,
+- **a singleton** — the returned value *is* the shared instance.
+
 ```js
 function once(fn) {
-  let called = false;
-  let result;
-
+  let called = false, result;
   return function (...args) {
-    if (called) return result;      // subsequent calls return the FIRST result
+    if (called) return result;
     called = true;
-    result = fn.apply(this, args);  // `this` forwarded, so it works as a method
-    fn = null;                      // release the closure's hold on fn
+    result = fn.apply(this, args);
+    fn = null;
     return result;
   };
 }
+
+let ran = 0;
+const init = once(() => {
+  ran++;
+  console.log('  expensive setup running...');
+  return { ready: true };
+});
+
+console.log('1st call ->', JSON.stringify(init()));
+console.log('2nd call ->', JSON.stringify(init()));
+console.log('3rd call ->', JSON.stringify(init()));
+console.log('same object every time ->', init() === init());
+console.log('times the original ran ->', ran);
 ```
 
-It is asked because it is four lines that expose four separate things:
+```text
+  expensive setup running...
+1st call -> {"ready":true}
+2nd call -> {"ready":true}
+3rd call -> {"ready":true}
+same object every time -> true
+times the original ran -> 1
+```
 
-- **Closures as private state.** `called` and `result` live in the closure, invisible and untamperable from outside — the same mechanism as a module private.
-- **`this` forwarding.** `fn.apply(this, args)` rather than `fn(...args)`, or `obj.method = once(obj.method)` silently loses its receiver. A candidate who writes an arrow function here has introduced that bug.
-- **Caching the result, not just the call.** The common wrong answer guards the call but returns `undefined` afterwards. Real `once` returns the first result every time — that is what makes it usable for lazy initialisation.
-- **Releasing the reference.** Setting `fn = null` lets the original function and everything it closed over be collected. It is the same reasoning as Q25, applied deliberately.
+The setup line prints **once** even though `init()` was called five times, and every caller got the identical object back — which is what makes this a singleton rather than just a guard.
 
-**The follow-ups to expect:** make it work with promises so concurrent callers share one in-flight result (the memoised-singleton pattern), and add a `reset()` — at which point you are explaining why the state has to live in the closure rather than on the returned function, where a caller could overwrite it.
+**How the four lines work.** `called` and `result` are created when `once(fn)` runs and then captured by the returned function — so they survive after `once` has returned, and there is exactly one pair of them per wrapper (see **§5.2**). The `if (called) return result` line is the whole gate. `fn.apply(this, args)` forwards both the receiver and the arguments unchanged, and `fn = null` drops the wrapper's last reference to the original function so it can be garbage collected.
+
+It is asked because those four lines expose four separate things:
+
+- **Closures as private state.** `called` and `result` live in the closure, invisible and untamperable from outside — the same mechanism as a module private. Put them on the returned function instead (`wrapper.called = true`) and any caller can reset your guard.
+- **`this` forwarding.** `fn.apply(this, args)` rather than `fn(...args)`, or `obj.method = once(obj.method)` silently loses its receiver. A candidate who writes an **arrow function** as the wrapper has introduced that bug, because an arrow has no `this` of its own to forward (see **§4.3**).
+- **Caching the result, not just the call.** The common wrong answer guards the call but returns `undefined` afterwards. Real `once` returns the first result every time — that is what makes it usable for lazy initialisation, where callers two through ten still need the value.
+- **Releasing the reference.** Setting `fn = null` lets the original function and everything it closed over be collected. It is the same reasoning as **Q25**, applied deliberately: a wrapper that never calls `fn` again has no reason to keep holding it.
+
+**The follow-up to expect is the async one**, because the simple version does not solve it: if `fn` is async, three callers arriving before the first finishes would each start their own request. Cache the **promise**, not the result:
+
+```js
+function onceAsync(fn) {
+  let promise;
+  return function (...args) {
+    promise ??= fn.apply(this, args);   // only the first call ever invokes fn
+    return promise;                     // everyone else awaits the same promise
+  };
+}
+
+let hits = 0;
+const connect = onceAsync(async () => {
+  hits++;
+  await null;
+  return 'connection#' + hits;
+});
+
+Promise.all([connect(), connect(), connect()]).then((results) => {
+  console.log('all three callers got ->', JSON.stringify(results));
+  console.log('underlying calls ->', hits);
+});
+```
+
+```text
+all three callers got -> ["connection#1","connection#1","connection#1"]
+underlying calls -> 1
+```
+
+All three callers share one in-flight request — the memoised-singleton pattern behind most "get the DB connection" helpers. **Its trap is failure:** a rejected promise is cached too, so one transient error means every future caller gets that same rejection forever. Production versions clear `promise` in a `.catch` so the next call retries.
+
+The other follow-up is **`reset()`**, and answering it is what forces you to say why the state lives in the closure: `reset` can be exposed deliberately (`wrapper.reset = () => { called = false; }`) precisely *because* nothing else can reach `called` — you choose what to expose, rather than leaving it writable by anyone who has the function.
+
 
 ---
 
@@ -2668,35 +3838,40 @@ Note that `Object.is(NaN, NaN)` returns `true` because `Object.is` uses the "Sam
 
 ---
 
-**Q5: What does each of `[] + []`, `[] + {}`, `{} + []`, and `true + true` produce, and why do two of them look like they should give the same result but don't?**
+**Q5: What does each of `[] + []`, `[] + {}`, `{} + []`, and `true + true` produce — and why does `{} + []` give a different answer depending on where you write it?**
 
 ```js
-console.log([] + []);
-console.log([] + {});
-console.log({} + []);
+console.log(JSON.stringify([] + []));
+console.log(JSON.stringify([] + {}));
+console.log(JSON.stringify({} + []));
 console.log(true + true);
+
+// The famous `{} + []` → 0 needs `{}` at the START of a statement,
+// which is what happens when you type it straight into a console.
+console.log(eval('{} + []'));
 ```
 
 **Output:**
 ```
 ""
 "[object Object]"
-0
+"[object Object]"
 2
+0
 ```
 
 **Explanation:**
 
-The binary `+` operator in JavaScript has a dual personality: it's both numeric addition and string concatenation. For each operand it calls `ToPrimitive` with a `"default"` hint; if either resulting primitive is a string, it switches to string concatenation, otherwise it does numeric addition. The surprise here is that **parser context** also changes the meaning of `{}`.
+Binary `+` has a dual personality: it is both numeric addition and string concatenation. For each operand it calls `ToPrimitive` with a `"default"` hint; if either result is a string it concatenates, otherwise it adds. On top of that, **parser context** changes what `{}` even means.
 
-1. **`[] + []`**: Both operands are arrays. `ToPrimitive` on an array calls `.toString()`, which joins elements with commas. An empty array joins to `""`. So we get `"" + ""`, and since at least one side is a string, the result is string concatenation: `""`.
-2. **`[] + {}`**: The left side coerces to `""` as above. The right side is an object literal in an **expression** position, so `ToPrimitive` is applied: `({}).toString()` returns `"[object Object]"`. Result: `"" + "[object Object]"` → `"[object Object]"`.
-3. **`{} + []`**: At the **start of a statement**, `{}` is parsed as an empty block statement, not an object literal. The parser sees `{}` (a block that does nothing) followed by `+[]`, where `+` is now the **unary** plus operator. Unary `+` coerces its operand to a number: `+[]` calls `ToNumber([])`, which first converts to `""`, then `Number("")` is `0`. So the whole line logs `0`. (If you wrap it as `({} + [])`, the parens force expression context and you get `"[object Object]"` instead.)
-4. **`true + true`**: Neither operand is an object or string, so `+` does numeric addition. `ToNumber(true)` is `1`, so the result is `1 + 1` = `2`.
+1. **`[] + []` → `""`**. `ToPrimitive` on an array calls `.toString()`, which joins with commas — an empty array joins to `""`. So this is `"" + ""`, and because a string is involved, the result is string concatenation: the empty string.
+2. **`[] + {}` → `"[object Object]"`**. The left side becomes `""` as above; the right side is an object literal, and `({}).toString()` is `"[object Object]"`.
+3. **`{} + []` → `"[object Object]"` *here*, but `0` in the `eval`.** This is the whole point of the question, and it is the one people get wrong. **Inside `console.log(...)` the `{}` sits in an argument position, which is an expression**, so it is an ordinary object literal and you get exactly the same answer as case 2. The famous `0` only appears when `{}` begins a *statement* — typed into a REPL, or `eval`'d as above. There the parser reads `{}` as an empty **block**, and the `+` that follows is **unary**: `+[]` is `ToNumber([])`, which goes via `""` to `0`.
+4. **`true + true` → `2`**. Neither operand is an object or a string, so `+` adds: `ToNumber(true)` is `1`.
 
-The key insight: `{} + []` behaves differently from `[] + {}` not because `+` is non-commutative (it is for strings, but that's not what's happening here), but because the parser decides whether `{}` is a block or an object based on position.
+So `[] + {}` and `{} + []` are not evidence that `+` is order-dependent for objects — written as expressions they give the *same* result. The asymmetry everyone repeats is a **parsing** artefact, not a coercion one, and it disappears the moment you put the expression anywhere a value is expected: an argument, an assignment, or inside parentheses.
 
-**Takeaway:** `+` prefers strings when either operand coerces to one, and a leading `{}` on a line is parsed as a block — wrap expressions in parentheses if you need object-literal semantics.
+**Takeaway:** `+` prefers strings when either operand coerces to one, and a leading `{}` on a line is parsed as a block, not an object — which is why the famous `{} + []` → `0` only reproduces at statement position, and `console.log({} + [])` prints `"[object Object]"`.
 
 ---
 
@@ -2973,13 +4148,25 @@ undefined
 
 **Explanation:**
 
-Three separate design decisions in `Object.groupBy` (ES2024) collide in this one snippet.
+**First, what `Object.groupBy` is.** Added in ES2024, it takes a list and a callback, calls the callback on every item to get a *group name*, and returns an object whose keys are those names and whose values are arrays of the items that produced them. `Object.groupBy(people, p => p.city)` gives you `{ London: [...], Paris: [...] }`. It replaces the `reduce` everyone used to hand-write for this.
+
+**Line by line:**
+
+| Line | Prints | Why |
+|---|---|---|
+| `Object.keys(grouped)` | `[ '1', 'null' ]` | three rows, but only **two** groups — the number `1` and the string `'1'` produced the *same* key |
+| `grouped['1'].length` | `2` | so that one group holds **both** of those rows |
+| `grouped.hasOwnProperty` | `undefined` | the returned object has **no prototype**, so it inherits none of the usual object methods |
+
+Three separate design decisions in `Object.groupBy` collide to produce that.
 
 1. **Keys are coerced to strings.** The callback returns the number `1` for the first row and the string `'1'` for the second. Because the result is a plain object, both keys pass through `ToPropertyKey`, and the number `1` becomes the string `'1'`. The two rows land in the same bucket, which is why `grouped['1'].length` is `2` rather than `1`. This is not special to `groupBy` — it is the ordinary rule that object keys are strings or symbols — but it is easy to forget when the callback looks like it is returning a number.
 
 2. **`null` becomes the string `'null'`.** There is no "no group" behaviour and no skipping. `ToPropertyKey(null)` produces the four-character string `'null'`, so you get a bucket literally named `null` sitting next to your real groups. The same happens for `undefined`, which becomes `'undefined'`. Filter before grouping if you don't want that.
 
-3. **The returned object has a `null` prototype.** `Object.groupBy` deliberately creates its result via `OrdinaryObjectCreate(null)`, so it inherits nothing from `Object.prototype`. That means `grouped.hasOwnProperty` is `undefined`, `grouped.toString` is `undefined`, and `String(grouped)` throws. The reason is safety: if some row's key were `"__proto__"` or `"constructor"`, a normal object literal would have those assignments either silently ignored or actively corrupting the prototype chain. With a `null` prototype every key is just data.
+3. **The returned object has a `null` prototype**, which is what makes `grouped.hasOwnProperty` `undefined`. Normally every object inherits from `Object.prototype`, which is where `hasOwnProperty`, `toString` and `valueOf` come from — you never declare them, they are just there. `Object.groupBy` deliberately creates its result with **no prototype at all** (`Object.create(null)`), so it inherits nothing: `grouped.hasOwnProperty` is `undefined`, `grouped.toString` is `undefined`, and `String(grouped)` throws because there is no `toString` to call.
+
+    The reason is safety. If a row's group name happened to be `"__proto__"` or `"constructor"`, writing it into a normal object would either be silently ignored or corrupt the prototype chain — and the hand-written `reduce` version this API replaces has exactly that bug. With no prototype, **every key is just data** and no key can collide with something inherited. The cost is that you use `Object.hasOwn(grouped, key)` instead of `grouped.hasOwnProperty(key)`.
 
 `Map.groupBy` avoids the first two problems entirely, because `Map` keys are compared with SameValueZero and keep their original type — `Map.groupBy(rows, r => r.id)` gives you three distinct entries keyed by `1`, `'1'` and `null`.
 
@@ -3010,7 +4197,18 @@ filter 4
 
 **Explanation:**
 
-Iterator helpers (ES2025) are **lazy**, which changes both *when* work happens and *in what order*.
+**First, what is being used here.** `[1, 2, 3].values()` returns an **iterator** rather than an array. ES2025 added `map`, `filter`, `take`, `drop`, `flatMap`, `reduce`, `toArray` and friends *to iterators*, so you can chain them the way you chain array methods — except iterators are **lazy**. The array versions do all the work immediately and hand back a finished array; the iterator versions build a pipeline that does nothing until something asks it for a value.
+
+**Line by line:**
+
+| Prints | Why |
+|---|---|
+| `nothing yet` | building the chain ran **no callbacks at all** — `.map()` and `.filter()` just recorded them |
+| `map 1` / `filter 2` | `toArray()` finally asks for a value: `1` goes through `map` → `2`, then `filter` rejects it (`2 > 2` is false) |
+| `map 2` / `filter 4` | so it pulls the next one: `2` → `4`, and `filter` accepts it |
+| `[ 4 ]` | `take(1)` has its single value and stops — **`3` is never touched**, so there is no `map 3` |
+
+An array chain would instead have printed `map 1, map 2, map 3` first, then `filter 2, filter 4, filter 6` — all six callbacks, including work on an element the final answer never needed.
 
 The first thing to notice is that `'nothing yet'` prints before any `map` or `filter` log. Building the chain does no work at all — `.map()` and `.filter()` on an iterator return a new iterator that merely remembers the callback. Nothing is pulled from the source until a terminal operation asks for a value. With arrays this would be impossible: `[1,2,3].map(f)` runs `f` three times immediately and hands back a finished array.
 
@@ -3022,7 +4220,7 @@ The second thing is the interleaving. Because evaluation is pull-based, `toArray
 
 The equivalent array chain would have printed `map 1, map 2, map 3` (all of them, including the wasted third), then `filter 2, filter 4, filter 6`, and allocated two three-element intermediate arrays along the way.
 
-There is a further trap hiding here: `chain` is now **exhausted for anything past the first accepted value**, and iterators are single-use. Calling `chain.toArray()` again returns `[6]` — the remaining elements — and a third call returns `[]`, with no error to tell you the pipeline is drained.
+There is a further trap hiding here: **`chain` is now dead.** Iterators are single-use, and `take(1)` does not merely stop pulling — on reaching its limit it *closes* the iterator underneath it. Calling `chain.toArray()` again returns `[]`, not the remaining `[6]`, and nothing warns you. (Closing propagates because iterator helpers implement a `return()` method; a bare array iterator does not, which is why `[1,2,3].values()` survives the same treatment. Do not rely on either.)
 
 **Takeaway:** iterator helpers build a pull-based pipeline — nothing runs until a terminal operation (`toArray`, `reduce`, `find`, `some`, `forEach`), each element flows through every stage before the next one starts, and elements past what you consumed are never evaluated.
 
@@ -3055,7 +4253,20 @@ caught boom
 
 **Explanation:**
 
-`using` declarations (ES2026 explicit resource management) register their resource on a per-scope disposal stack, and the engine unwinds that stack when the block exits — **however** it exits.
+**First, what `using` is.** ES2026 added *explicit resource management*: declare a variable with `using` instead of `const`, and when the surrounding block ends, JavaScript automatically calls that object's `[Symbol.dispose]()` method. It is the language-level version of Python's `with` or C#'s `using` — a way to guarantee cleanup (close the file, release the lock, roll back the transaction) without writing `try`/`finally` by hand.
+
+So `make('a')` returns an object whose only job is to log when it is disposed, and `using a = make('a')` says "clean this up when `run()` exits".
+
+**Line by line:**
+
+| Prints | Why |
+|---|---|
+| `body` | the ordinary statement runs first |
+| `dispose b` | `throw` starts unwinding the scope — cleanup runs **before** the error leaves the function, and **`b` goes first** because it was declared last |
+| `dispose a` | then the one declared before it |
+| `caught boom` | only now does the error reach the caller's `catch` |
+
+The two surprises are the **order** (last declared, first disposed) and the **timing** (cleanup completes before the exception escapes). Both are deliberate.
 
 Two things determine the output. First, disposal is **LIFO**: `b` was declared last, so it disposes first. This mirrors nested `try`/`finally` blocks, and it is the only order that can be correct in general — if `b` was constructed using `a` (a transaction opened on a connection, a span inside a tracer), then `a` must still be alive while `b` cleans up.
 
@@ -3095,7 +4306,19 @@ console.log(legacy.toISOString().slice(0, 10));
 
 **Explanation:**
 
-This contrasts the two things `Temporal` changed about date arithmetic.
+**First, what `Temporal` is.** It is the ES2026 replacement for the `Date` object, added because `Date` has been the language's worst-designed API for thirty years — it mutates in place, conflates a date with a timestamp, and handles time zones badly. `Temporal.PlainDate` is exactly what the name says: a calendar date with no time and no time zone, which is the right type for a birthday or an invoice date.
+
+This snippet puts the old and new APIs side by side on the same question — *what is one month after January 31?* — and they disagree.
+
+**Line by line:**
+
+| Prints | Why |
+|---|---|
+| `2026-01-31` | `d.add(...)` returned a **new** date and we ignored it — `Temporal` objects can never be modified, so `d` is untouched |
+| `2026-02-28` | using the return value this time: February has no 31st, so `Temporal` **clamps** to the last valid day |
+| `2026-03-03` | legacy `Date` instead **overflows** — it builds "February 31", which rolls forward into March |
+
+So the first line is about *immutability* and the difference between the second and third is about *what a calendar should do with an impossible date*.
 
 **Immutability.** Every `Temporal` type is frozen; `add`, `subtract`, `with`, `round` and friends all return a **new** object and never touch the receiver. So `d.add({ months: 1 })` on line 2 computes a value and throws it away — `d` is still `2026-01-31`. This is the single most common `Temporal` mistake among developers coming from `Date`, where `setMonth` mutates in place and returns a timestamp number. The mutation-based API was the source of countless aliasing bugs (two variables pointing at the same `Date`, one of them "helpfully" advanced); making the types immutable eliminates the class entirely, at the cost of having to remember to use the return value.
 

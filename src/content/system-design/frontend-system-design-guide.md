@@ -19,9 +19,10 @@ This guide walks the framework, then applies it to seven canonical designs and a
 - [11. Design: Zoom / Google Meet — Video Conferencing](#11-design-zoom-google-meet-video-conferencing)
 - [12. Design: Live Chat / Messaging (WhatsApp-style)](#12-design-live-chat-messaging-whatsapp-style)
 - [13. Design: Streaming Under Poor Network](#13-design-streaming-under-poor-network)
-- [14. HLD: A Reusable Tabs Component](#14-hld-a-reusable-tabs-component)
-- [15. Interview Questions & Answers](#15-interview-questions-answers)
-- [16. Tricky Scenarios](#16-tricky-scenarios)
+- [14. Design: Pinterest — A Masonry Image Grid](#14-design-pinterest-a-masonry-image-grid)
+- [15. HLD: A Reusable Tabs Component](#15-hld-a-reusable-tabs-component)
+- [16. Interview Questions & Answers](#16-interview-questions-answers)
+- [17. Tricky Scenarios](#17-tricky-scenarios)
 - [References](#references)
 
 ---
@@ -725,7 +726,78 @@ While the video is buffering, show a low-quality placeholder (poster image, or a
 
 ---
 
-## 14. HLD: A Reusable Tabs Component
+## 14. Design: Pinterest — A Masonry Image Grid
+
+The reason this gets asked instead of "design a feed" is that **every simplifying assumption a feed relies on is false here**. A feed is one column of roughly uniform rows; a masonry grid is N columns of items whose heights you do not know until the image loads. That breaks virtualisation, breaks scroll restoration, and makes layout shift the default rather than a bug.
+
+### Functional requirements
+
+- An infinite grid of image cards in a variable number of columns, responsive to viewport width
+- Cards have **different heights** — the layout packs them to minimise ragged column bottoms
+- Infinite scroll, with the position preserved when you open a card and come back
+- Hover/focus actions on a card (save, share) without reflowing anything
+
+### Non-functional
+
+- Smooth 60fps scroll on a mid-range Android, with thousands of items loaded
+- **CLS ≈ 0** — nothing may jump as images arrive
+- Fast LCP: the first screen of images should not wait on the rest
+- Memory flat as you scroll — not growing with the number of items seen
+
+### Architecture
+
+```text
+  ┌──────────────── Grid container (measures its own width) ──────────────┐
+  │   column count = floor(width / targetColumnWidth)                     │
+  │                                                                       │
+  │   ┌── Layout engine (pure) ──────────────────────────────────────┐    │
+  │   │  for each item, in order:                                    │    │
+  │   │    col = index of SHORTEST column        ← greedy packing     │    │
+  │   │    y   = height of that column                                │    │
+  │   │    h   = width / aspectRatio  (+ caption)  ← NO measuring     │    │
+  │   │    columnHeights[col] += h + gap                              │    │
+  │   │  → positions: Map<itemId, {x, y, w, h}>                       │    │
+  │   └──────────────────────────────────────────────────────────────┘    │
+  │                                                                       │
+  │   render only items whose [y, y+h] intersects                         │
+  │   [scrollTop - overscan, scrollTop + viewportHeight + overscan]        │
+  └───────────────────────────────────────────────────────────────────────┘
+```
+
+### Key design decisions
+
+**1. The server must send the aspect ratio with every item.** This is the decision the whole design rests on, and it is the thing to say first. If the client has to load an image to learn its height, it cannot compute the layout, cannot virtualise, and cannot avoid layout shift. With `{ id, url, width, height }` in the payload the height of every card is known before a single byte of image data arrives.
+
+**2. Greedy shortest-column packing, not CSS columns.** `column-count` in CSS fills top-to-bottom per column, so items read down rather than across and the order is wrong for a feed. CSS grid with `grid-auto-rows: 1px` and a computed `span` works but still needs the height up front. An explicit layout function returning absolute positions is what makes the next decision possible.
+
+**3. Virtualise on the position map, not on the DOM.** Because layout is a pure function of `(items, containerWidth)`, positions exist for items that were never rendered. Rendering is then a filter over that map, and the container gets `height = max(columnHeights)` so the scrollbar is correct from the start. **This is why variable heights are not fatal**: the usual objection to virtualising them — "you cannot know the offset without measuring" — disappears once the server supplies the ratio.
+
+**4. Reserve the space before the image exists.** Every card wraps its image in an `aspect-ratio` box sized from the known ratio, so the box occupies its final height immediately and the picture fades in. That is the CLS fix, and it is also what makes the layout stable while images are still in flight.
+
+**5. Recompute only on width change.** Layout depends on container width and the item list, so it is memoised on both. A resize recomputes; a scroll does not. On a resize, keep the item under the pointer anchored rather than jumping to the same `scrollTop`.
+
+**6. Image delivery is most of the performance.** Responsive `srcset` so a phone never downloads a 1200px asset, modern formats with fallbacks, `loading="lazy"` plus `decoding="async"` on everything below the fold, `fetchpriority="high"` on the first few, and a tiny blurred placeholder (LQIP) inlined in the payload so the card is never empty.
+
+**7. Scroll restoration is a product requirement, not a nicety.** Opening a pin and coming back must return you to the same item. Store the **first visible item id and its offset within the card**, not `scrollTop` — a raw pixel value is wrong as soon as the column count changes or items are prepended.
+
+### What breaks at scale, and the fix
+
+| Problem | Why it happens | Fix |
+|---|---|---|
+| Scroll jank on Android | layout recomputed per scroll event | positions are memoised; scroll only filters |
+| Memory grows forever | every item ever loaded stays mounted | virtualise; cap the retained window |
+| Images pop in and shove content | no space reserved | aspect-ratio box from server-supplied dimensions |
+| Ragged column bottoms | naive round-robin column assignment | greedy shortest-column packing |
+| Duplicate/missing items when new content arrives | offset pagination with a shifting dataset | cursor pagination |
+| Position lost after navigating back | restoring `scrollTop` | restore by item id + intra-item offset |
+
+### What to say about trade-offs
+
+Greedy packing is O(n) and near-optimal for a feed, but it is not the tightest packing — a lookahead algorithm fills the bottom edge better and costs more, and nobody sees the bottom edge of an infinite grid. Virtualisation costs you `Ctrl+F` and naive print/SEO, which is why a server-rendered first page plus client virtualisation afterwards is the common compromise. And if items have *no* reliable aspect ratio — user-generated video, mixed embeds — the honest answer is that you measure the first render and accept one reflow, or you impose a fixed ratio and crop.
+
+---
+
+## 15. HLD: A Reusable Tabs Component
 
 This is the "component design" variant of frontend system design — common in Senior frontend interviews. Build a Tabs component that any team in the company can use.
 
@@ -879,7 +951,7 @@ This question signals whether a candidate can build a real library component vs 
 
 ---
 
-## 15. Interview Questions & Answers
+## 16. Interview Questions & Answers
 
 ### Beginner
 
@@ -1051,7 +1123,34 @@ The senior debugging signal: combining client observability, network introspecti
 
 ---
 
-## 16. Tricky Scenarios
+**Q9: Walk me through the high-level design of a frontend system you have built — modules, component hierarchy, API contracts, caching, performance, and how you handled non-functional requirements.**
+
+This is the most common round-2 question and the one candidates prepare least, because it looks like it needs no preparation. It does: the interviewer is not checking whether you *worked* on something, they are checking whether you can **describe a system at the right altitude, own its trade-offs, and attach numbers to its behaviour.** Rambling chronologically through features is the failure mode.
+
+**Open with one sentence of context, then the shape.** "It is a B2B logistics dashboard — about 40 screens, roughly 300 daily users, the heaviest page streams live vehicle positions." Scale, domain, and the hardest part, before any technology. If you lead with "it's a React app with Redux", you have answered a different question.
+
+**Then follow a fixed order**, because the interviewer is listening for structure:
+
+| Layer | What to actually say |
+|---|---|
+| **Modules** | How the code is split and *why that boundary* — by feature/domain rather than by file type, what is shared, and how you stop shared code becoming a dumping ground |
+| **Component hierarchy** | Where state lives and where it deliberately does not; which components are presentational; the one or two places you used context and why prop drilling was worse |
+| **API contracts** | Shape and ownership — who defines it, REST or GraphQL and why, how you version, what happens to the UI when a field is added or removed |
+| **Caching** | Which of the layers you actually used (see §7) and, for each, **the invalidation story** — a cache without one is the thing you will be asked about |
+| **Performance** | The budget, how it is measured, and one concrete thing you fixed with a before/after number |
+| **NFRs** | Response time, availability, error handling, accessibility, i18n — and what you did when the backend was down, not just when it was up |
+
+**Be specific about non-functional requirements**, since that is the part of the question people skip. Availability on the frontend means: what the user sees when an API times out, whether a stale cached value is better than an error (usually yes for read-heavy screens), whether writes are queued or rejected, and whether one failing widget can take down the page — which is the honest reason to have error boundaries per region rather than one at the root. Response time means a **budget with a number** — "interactions under 200ms at p95, LCP under 2.5s on a mid-range Android" — plus how you knew: real-user monitoring, not a Lighthouse score from your laptop.
+
+**Volunteer one thing you got wrong.** Interviewers grade ownership, and a design with no regrets reads as a design you did not really make. "We put server state in Redux and hand-wrote caching for a year before moving to TanStack Query; I would reach for it on day one now" is worth more than any diagram.
+
+**Have three numbers ready**: scale (users, requests, payload size), a performance figure before and after some change, and a reliability figure (error rate, or how long the last incident took to detect). Numbers are what separate a system you owned from one you were near.
+
+**What not to do:** narrate the folder structure, list every library, describe the backend in detail when the question is about the frontend, or claim a scale you cannot support with a number. If part of it was designed before you joined, say so and describe what you would change — that reads as senior, not as a gap.
+
+---
+
+## 17. Tricky Scenarios
 
 **Q1: You ship a feed app. Users complain that scrolling past 5,000 tweets crashes the tab. What went wrong and how do you fix it?**
 

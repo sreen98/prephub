@@ -1822,7 +1822,7 @@ Three options, in order of safety:
 - [Play Console Help — Closed Testing requirements for new accounts](https://support.google.com/googleplay/android-developer/answer/14151465)
 - [Data Safety form documentation](https://support.google.com/googleplay/android-developer/answer/10787469)
 - [Content Rating (IARC)](https://support.google.com/googleplay/android-developer/answer/188189)
-- [Play Console policy center](https://play.google.com/console/about/policy)
+- [Play Developer Content Policy](https://play.google/developer-content-policy/)
 - [Expo EAS Build documentation](https://docs.expo.dev/build/introduction)
 - [Expo app.json reference](https://docs.expo.dev/versions/latest/config/app)
 - [Sentry React Native setup](https://docs.sentry.io/platforms/react-native/manual-setup/expo)

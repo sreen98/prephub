@@ -80,4 +80,64 @@ describe('repaired JavaScript guide demos actually print', () => {
        (cb: (v: number) => void, _d: number, v: number) => cb(v));
     expect(logs).toEqual(['0', '1', '2']);
   });
+
+  it('§7.1 reduce initialValue behaviour is as claimed', () => {
+    expect(run(block('[1, 2, 3].reduce((a, b) => a + b)'))).toEqual(['6', '0']);
+  });
+
+  it('§7.2 default sort really is lexicographic', () => {
+    expect(run(block('[10, 9, 100].sort()'))).toEqual(['[ 10, 100, 9 ]', '[ 9, 10, 100 ]']);
+  });
+
+  it('§7.2 fill with an object shares one reference', () => {
+    expect(run(block("const grid = new Array(3).fill([])"))).toEqual([
+      "[ [ 'x' ], [ 'x' ], [ 'x' ] ]",
+    ]);
+  });
+
+  it('§6.3 keys() excludes inherited and non-enumerable', () => {
+    expect(run(block('const parent = { inherited: 1 }'))).toEqual([
+      "[ 'visible' ]", "[ 'visible', 'hidden' ]", 'true',
+    ]);
+  });
+
+  it('§6.3 freeze is shallow', () => {
+    expect(run(block("const config = Object.freeze({ api:"))).toEqual(['https://b.example']);
+  });
+
+  it('§7.3 forEach return acts as continue, not break', () => {
+    expect(run(block('[1, 2, 3, 4].forEach(n => {'))).toEqual(['1', '2', '4']);
+  });
+
+  it('§7.3 for...in on an array yields STRING keys', () => {
+    expect(run(block("const arr = ['a', 'b'];"))).toEqual([
+      'string 0', 'string 1', '0', '1', 'custom',
+    ]);
+  });
+
+  it('§7.3 entries() gives index and value', () => {
+    expect(run(block("for (const [index, value] of ['a', 'b'].entries())"))).toEqual(['0 a', '1 b']);
+  });
+
+  it('§7.3 forEach skips holes but spread does not', () => {
+    expect(run(block('const sparse = [1, , 3];'))).toEqual(['[ 1, 3 ]', '[ 1, undefined, 3 ]']);
+  });
+
+  it('Q6 event-loop ordering prints exactly what the guide claims', async () => {
+    const logs: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- executing the guide's own snippet is the point
+    const fn = new Function('console', block("console.log('1 sync start');")) as (c: unknown) => void;
+    fn({ log: (...a: unknown[]) => logs.push(String(a[0])) });
+    await new Promise(r => setTimeout(r, 20));      // let the macrotask land
+    expect(logs).toEqual([
+      '1 sync start',
+      '2 async body is SYNC up to the first await',
+      '3 sync end',
+      '4 microtask A',
+      '4.5 queueMicrotask',
+      '4.7 after await = a microtask',
+      '5 microtask queued BY a microtask',
+      '6 timeout 0',
+    ]);
+  });
 });

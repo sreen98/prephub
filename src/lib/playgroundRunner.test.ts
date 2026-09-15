@@ -61,6 +61,30 @@ describe('detectJSX', () => {
     ['const a = 1 < 2;', false],
     ['const a = "hello";', false],
   ])('%j → %s', (code, want) => expect(detectJSX(code)).toBe(want));
+
+  /**
+   * A misdetected plain-JS snippet runs on the MAIN thread instead of in the
+   * sandboxed Worker, and then reports "No render() call detected" — which is
+   * what a reader saw on the Array.map polyfill, because a teaching comment
+   * mentioned a hole as an HTML-looking tag.
+   */
+  it.each([
+    ['a comment mentioning a lowercase tag', '// [2, <hole>, 6]\nconst a = 1;', false],
+    ['a comment mentioning a component', '// like <App /> in React\nconst a = 1;', false],
+    ['a block comment with markup', '/* <div>x</div> */\nconst a = 1;', false],
+    ['a comment mentioning render()', '// call render() at the end\nconst a = 1;', false],
+    ['real JSX after a comment', '// makes a <div>\nconst a = <div>hi</div>;', true],
+  ])('ignores comments: %s', (_label, code, want) => expect(detectJSX(code)).toBe(want));
+
+  it('does not treat a self-defined hook as React', () => {
+    // "Implement useState (Basic)" builds useState from a closure in plain JS;
+    // calling your own function is not evidence of React.
+    const ownHook = 'function useState(init) { let v = init; return [v, (n) => { v = n; }]; }\n'
+      + 'const [c, setC] = useState(0);\nconsole.log(c);';
+    expect(detectJSX(ownHook)).toBe(false);
+    // ...while calling a hook you did NOT define still implies a component.
+    expect(detectJSX('const [c, setC] = useState(0);')).toBe(true);
+  });
 });
 
 describe('detectTS', () => {

@@ -2468,7 +2468,7 @@ Calling an `async def` function **does not run it** — it constructs and return
 - [PEP 621 — Project metadata in pyproject.toml](https://peps.python.org/pep-0621/)
 - [`asyncio` documentation](https://docs.python.org/3/library/asyncio.html) — especially "Developing with asyncio".
 - [`functools`](https://docs.python.org/3/library/functools.html), [`contextlib`](https://docs.python.org/3/library/contextlib.html), [`itertools`](https://docs.python.org/3/library/itertools.html), [`dataclasses`](https://docs.python.org/3/library/dataclasses.html), [`contextvars`](https://docs.python.org/3/library/contextvars.html)
-- [Python Developer's Guide — Garbage Collector design](https://devguide.python.org/internals/garbage-collector/)
+- [Python docs — `gc` module](https://docs.python.org/3/library/gc.html) · [CPython internals](https://devguide.python.org/internals/)
 - [pytest documentation](https://docs.pytest.org/) and [mypy documentation](https://mypy.readthedocs.io/)
 - [Pydantic v2 documentation](https://docs.pydantic.dev/latest/) — see the performance notes.
 - [Ruff](https://docs.astral.sh/ruff/) and [uv](https://docs.astral.sh/uv/)

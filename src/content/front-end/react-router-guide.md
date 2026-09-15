@@ -776,7 +776,8 @@ const router = createBrowserRouter([
 ## 20. References
 
 - **React Router docs** — [https://reactrouter.com](https://reactrouter.com)
-- **Upgrading from v6 to v7** — [https://reactrouter.com/upgrading/v6](https://reactrouter.com/upgrading/v6)
-- **Upgrading from v5** — [https://reactrouter.com/upgrading/v5](https://reactrouter.com/upgrading/v5)
+- **Enabling the v7 future flags** — [https://reactrouter.com/upgrading/future](https://reactrouter.com/upgrading/future)
+- **Moving component routes to a data router** — [https://reactrouter.com/upgrading/component-routes](https://reactrouter.com/upgrading/component-routes)
+- **Framework mode from `RouterProvider`** — [https://reactrouter.com/upgrading/router-provider](https://reactrouter.com/upgrading/router-provider)
 - **History API (MDN)** — [https://developer.mozilla.org/en-US/docs/Web/API/History_API](https://developer.mozilla.org/en-US/docs/Web/API/History_API)
 - **TanStack Router** — [https://tanstack.com/router/latest](https://tanstack.com/router/latest)

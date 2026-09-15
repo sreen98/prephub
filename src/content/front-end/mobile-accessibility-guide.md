@@ -655,5 +655,5 @@ In layers, being honest that **automated tooling catches only about 30–40%**. 
 - [WCAG 2.2](https://www.w3.org/TR/WCAG22/) and [Mobile Accessibility: How WCAG Applies to Mobile](https://www.w3.org/TR/mobile-accessibility-mapping/)
 - [WCAG 2.2 — Target Size (Minimum) 2.5.8](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) and [Dragging Movements 2.5.7](https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements.html)
 - [Accessibility Scanner](https://support.google.com/accessibility/android/answer/6376570) · [Xcode Accessibility Inspector](https://developer.apple.com/documentation/accessibility/accessibility-inspector)
-- [Supporting Dynamic Type](https://developer.apple.com/documentation/uikit/uifont/scaling-fonts-automatically) · [Reduce Motion](https://developer.apple.com/documentation/uikit/uiaccessibility/1615133-isreducemotionenabled)
+- [Supporting Dynamic Type](https://developer.apple.com/documentation/uikit/scaling-fonts-automatically) · [Reduce Motion](https://developer.apple.com/documentation/uikit/uiaccessibility/1615133-isreducemotionenabled)
 - [European Accessibility Act](https://ec.europa.eu/social/main.jsp?catId=1202) — enforceable from June 2025.

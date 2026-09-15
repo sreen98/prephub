@@ -799,14 +799,19 @@ Object.myExampleStatic = function (target, ...sources) {
 // CONVENTIONS — what interviewers expect
 // ═══════════════════════════════════════════════════════════════
 
-// (a) Don't overwrite the native:
-Array.prototype.map = function () {};   // ❌ breaks every library
-Array.prototype.myMap = function () {}; // ✅ safe, opt-in
+// (a) Don't overwrite the native. These two lines are deliberately INERT —
+//     assigning to Array.prototype.map really would break every library on the
+//     page, including the rest of this very snippet, so they are shown rather
+//     than run. That is the whole lesson: the damage is global and immediate.
+//
+//        Array.prototype.map   = function () {};   ❌ breaks every library
+//        Array.prototype.myMap = function () {};   ✅ safe, opt-in
 
 // (b) Don't use the built-in inside your polyfill — that's cheating:
-Array.prototype.myMap = function (cb) {
-  return this.map(cb);   // ❌ defeats the point
-};
+//
+//        Array.prototype.myMap = function (cb) {
+//          return this.map(cb);   ❌ defeats the point
+//        };
 
 // (c) For Promise-based polyfills, return a thenable:
 function myPromiseAll(promises) {
@@ -851,10 +856,14 @@ console.log(JSON.stringify(native) === JSON.stringify(myImpl));   // true
         name: 'Array.map',
         code: `// Polyfill: Array.prototype.map
 Array.prototype.myMap = function(callback, thisArg) {
-  const result = [];
-  for (let i = 0; i < this.length; i++) {
-    if (i in this) {
-      result.push(callback.call(thisArg, this[i], i, this));
+  // Preallocate: map returns an array of the SAME length, with holes left as
+  // holes. Using result.push() instead would collapse them and shorten the
+  // array — [1, , 3].map(x => x * 2) is [2, hole, 6], not [2, 6].
+  const len = this.length;   // captured ONCE: pushing during iteration must
+  const result = new Array(len);  // not extend the loop, and truncating must
+  for (let i = 0; i < len; i++) { // not shorten it
+    if (i in this) {                       // skip holes: the callback never runs for them
+      result[i] = callback.call(thisArg, this[i], i, this);
     }
   }
   return result;
@@ -899,7 +908,7 @@ const users = [
   { name: "Bob", age: 17 },
   { name: "Charlie", age: 30 },
 ];
-console.log("Adults:", users.myFilter(u => u.age >= 18).myMap(u => u.name));`,
+console.log("Adults:", users.myFilter(u => u.age >= 18).map(u => u.name));`,
       },
       {
         name: 'Array.reduce',
@@ -912,9 +921,17 @@ Array.prototype.myReduce = function(callback, initialValue) {
     accumulator = initialValue;
     startIndex = 0;
   } else {
-    if (this.length === 0) throw new TypeError("Reduce of empty array with no initial value");
-    accumulator = this[0];
-    startIndex = 1;
+    // With no initial value the accumulator is the first PRESENT element, not
+    // this[0] — [ , , 3].reduce(fn) starts at 3. And an array with no present
+    // elements at all throws, which is why the scan is a loop and not a
+    // length check: [ , , ].reduce(fn) is empty as far as reduce is concerned.
+    startIndex = 0;
+    while (startIndex < this.length && !(startIndex in this)) startIndex++;
+    if (startIndex >= this.length) {
+      throw new TypeError("Reduce of empty array with no initial value");
+    }
+    accumulator = this[startIndex];
+    startIndex++;
   }
 
   for (let i = startIndex; i < this.length; i++) {
@@ -973,8 +990,11 @@ console.log("Return value:", result); // undefined`,
         name: 'Array.find & findIndex',
         code: `// Polyfill: Array.prototype.find
 Array.prototype.myFind = function(callback, thisArg) {
+  // NOTE: find and findIndex do NOT skip holes — unlike map/filter/forEach,
+  // they visit every index and pass undefined for a hole. So there is no
+  // "i in this" guard here, and that difference is deliberate.
   for (let i = 0; i < this.length; i++) {
-    if (i in this && callback.call(thisArg, this[i], i, this)) {
+    if (callback.call(thisArg, this[i], i, this)) {
       return this[i];
     }
   }
@@ -983,8 +1003,8 @@ Array.prototype.myFind = function(callback, thisArg) {
 
 // Polyfill: Array.prototype.findIndex
 Array.prototype.myFindIndex = function(callback, thisArg) {
-  for (let i = 0; i < this.length; i++) {
-    if (i in this && callback.call(thisArg, this[i], i, this)) {
+  for (let i = 0; i < this.length; i++) {      // holes visited, same as find
+    if (callback.call(thisArg, this[i], i, this)) {
       return i;
     }
   }
@@ -1064,7 +1084,10 @@ Array.prototype.myFlat = function(depth = 1) {
 
 // Polyfill: Array.prototype.flatMap
 Array.prototype.myFlatMap = function(callback, thisArg) {
-  return this.myMap(callback, thisArg).myFlat(1);
+  // flatMap IS map followed by a single level of flatten — that is the whole
+  // definition. Native map is used here so this template runs on its own;
+  // every snippet in the playground is executed standalone.
+  return this.map(callback, thisArg).myFlat(1);
 };
 
 // Test flat
@@ -1089,9 +1112,16 @@ console.log("All items:", orders.myFlatMap(o => o.items));`,
         code: `// Polyfill: Function.prototype.bind
 Function.prototype.myBind = function(thisArg, ...boundArgs) {
   const fn = this;
-  return function(...callArgs) {
-    return fn.apply(thisArg, [...boundArgs, ...callArgs]);
-  };
+  function bound(...callArgs) {
+    // new bound() must IGNORE the bound thisArg and use the fresh instance,
+    // while still applying the pre-filled arguments. this instanceof bound
+    // is how you detect construction — it is only true under new.
+    const target = this instanceof bound ? this : thisArg;
+    return fn.apply(target, [...boundArgs, ...callArgs]);
+  }
+  // Inherit the target's prototype so new bound() instanceof fn is true.
+  bound.prototype = Object.create(fn.prototype || null);
+  return bound;
 };
 
 // Test: basic binding
@@ -1122,6 +1152,11 @@ console.log("Poly:  ", polyBound("."));`,
       {
         name: 'Function.call & apply',
         code: `// Polyfill: Function.prototype.call
+// CAVEAT: this technique cannot match the native behaviour exactly. Assigning
+// the function as a property requires an object, so Object(thisArg) BOXES a
+// primitive — fn.myCall('s') sees a String object where strict-mode native
+// call would pass the primitive through. Likewise null becomes globalThis,
+// which is sloppy-mode behaviour; under 'use strict' native keeps it as null.
 Function.prototype.myCall = function(thisArg, ...args) {
   thisArg = thisArg ?? globalThis;
   thisArg = Object(thisArg);
@@ -1460,7 +1495,9 @@ Array.prototype.myIndexOf = function (target, fromIndex = 0) {
   const len = this.length;
   let start = fromIndex < 0 ? Math.max(len + fromIndex, 0) : fromIndex;
   for (let i = start; i < len; i++) {
-    if (this[i] === target) return i;
+    // The i-in-this check skips holes: [ , 1].indexOf(undefined) is -1,
+    // because a hole is an ABSENT index rather than one holding undefined.
+    if (i in this && this[i] === target) return i;
   }
   return -1;
 };
@@ -1469,7 +1506,7 @@ Array.prototype.myLastIndexOf = function (target, fromIndex = this.length - 1) {
   const len = this.length;
   let start = fromIndex < 0 ? len + fromIndex : Math.min(fromIndex, len - 1);
   for (let i = start; i >= 0; i--) {
-    if (this[i] === target) return i;
+    if (i in this && this[i] === target) return i;   // holes skipped, as above
   }
   return -1;
 };
@@ -1519,13 +1556,15 @@ console.log(arr);                                  // [3, 2, 1]
 // Returns a SHALLOW copy of a portion. Does NOT mutate the source.
 // Negative indices count from the end.
 
+// Note: holes are preserved. Copying with push() would turn a hole into an
+// explicit undefined, changing the result of a later in-operator check.
 Array.prototype.mySlice = function (start = 0, end = this.length) {
   const len = this.length;
   const from = start < 0 ? Math.max(len + start, 0) : Math.min(start, len);
   const to = end < 0 ? Math.max(len + end, 0) : Math.min(end, len);
-  const result = [];
+  const result = new Array(Math.max(to - from, 0));
   for (let i = from; i < to; i++) {
-    result.push(this[i]);
+    if (i in this) result[i - from] = this[i];   // a hole stays a hole
   }
   return result;
 };
@@ -1557,6 +1596,10 @@ console.log(nested[0].x);              // 999 — same object!`,
 
 Array.prototype.mySplice = function (start, deleteCount, ...items) {
   const len = this.length;
+  // splice() with NO arguments removes nothing and returns []. Without this,
+  // start is undefined, from becomes NaN, and setting length to NaN throws
+  // a RangeError instead of doing nothing.
+  if (arguments.length === 0) return [];
   const from = start < 0 ? Math.max(len + start, 0) : Math.min(start, len);
   const removeCount = deleteCount === undefined
     ? len - from
@@ -1601,6 +1644,9 @@ console.log(arr4);                              // [1, 2]`,
 // Returns a new array combining the receiver with arguments.
 // Each argument: array → spread its elements; non-array → push as-is.
 // Notably does NOT recurse — only one level of array spreading.
+// Two simplifications vs the real thing: for...of reads holes as undefined,
+// where native concat preserves them as holes; and Symbol.isConcatSpreadable
+// (which lets a non-array opt INTO spreading, or an array opt out) is ignored.
 
 Array.prototype.myConcat = function (...args) {
   const result = [];
@@ -1682,7 +1728,20 @@ JSON.myStringify = function (value) {
   const t = typeof value;
   if (t === "number") return Number.isFinite(value) ? String(value) : "null";   // NaN/Inf → null
   if (t === "boolean") return String(value);
-  if (t === "string") return '"' + value.replace(/\\\\/g, "\\\\\\\\").replace(/"/g, '\\\\"') + '"';
+  // Strings need more than backslash and quote escaped: a raw control
+  // character is ILLEGAL inside a JSON string, so an unescaped newline or tab
+  // produced output that JSON.parse would reject.
+  if (t === "string") {
+    const NAMED = {
+      "\\n": "\\\\n", "\\t": "\\\\t", "\\r": "\\\\r", "\\b": "\\\\b", "\\f": "\\\\f",
+    };
+    const escaped = value.replace(/[\\\\"\\u0000-\\u001F]/g, (ch) => {
+      if (ch === "\\\\") return "\\\\\\\\";
+      if (ch === '"') return '\\\\"';
+      return NAMED[ch] || "\\\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0");
+    });
+    return '"' + escaped + '"';
+  }
   if (t === "function" || t === "symbol") return undefined;                     // skipped
 
   if (Array.isArray(value)) {
@@ -1781,9 +1840,15 @@ console.log(Object.myKeys(child));        // ["own"]   — proto skipped`,
 JSON.myParse = function (text) {
   let i = 0;
   const skipWs = () => { while (i < text.length && /\\s/.test(text[i])) i++; };
+  // Every parser needs a way to give up. Without one, malformed input walks off
+  // the end of the string: every character test then compares against
+  // undefined, nothing matches, nothing advances i, and the loops below spin
+  // FOREVER instead of reporting the problem.
+  const fail = (msg) => { throw new SyntaxError(msg + ' at position ' + i); };
 
   function parseValue() {
     skipWs();
+    if (i >= text.length) fail('Unexpected end of JSON input');
     const ch = text[i];
     if (ch === '"') return parseString();
     if (ch === '{') return parseObject();
@@ -1794,15 +1859,23 @@ JSON.myParse = function (text) {
   }
 
   function parseString() {
+    if (text[i] !== '"') fail('Expected a string');
     i++; // opening "
     let out = "";
     while (i < text.length && text[i] !== '"') {
       if (text[i] === '\\\\') {                  // escape
         i++;
         const esc = text[i++];
-        out += esc === 'n' ? '\\n' : esc === 't' ? '\\t' : esc === '"' ? '"' : esc;
+        if (esc === 'u') {                       // \\u0041 is the letter A
+          out += String.fromCharCode(parseInt(text.slice(i, i + 4), 16));
+          i += 4;
+        } else {
+          out += esc === 'n' ? '\\n' : esc === 't' ? '\\t' : esc === 'r' ? '\\r'
+            : esc === 'b' ? '\\b' : esc === 'f' ? '\\f' : esc;   // \\\\ and \\" fall through
+        }
       } else out += text[i++];
     }
+    if (i >= text.length) fail('Unterminated string');
     i++; // closing "
     return out;
   }
@@ -1810,7 +1883,12 @@ JSON.myParse = function (text) {
   function parseNumber() {
     const start = i;
     while (i < text.length && /[0-9eE+\\-.]/.test(text[i])) i++;
-    return Number(text.slice(start, i));
+    // Consuming nothing means this was never a number. Without the guard,
+    // Number('') is 0 and the parser silently invents a value.
+    if (i === start) fail('Unexpected token ' + (text[i] ?? 'end of input'));
+    const n = Number(text.slice(start, i));
+    if (Number.isNaN(n)) fail('Invalid number');
+    return n;
   }
 
   function parseBool() { const t = text.slice(i, i + 4); if (t === 'true')  { i += 4; return true; } i += 5; return false; }
@@ -1824,6 +1902,7 @@ JSON.myParse = function (text) {
       skipWs();
       if (text[i] === ',') { i++; continue; }
       if (text[i] === ']') { i++; return out; }
+      fail("Expected ',' or ']'");            // <- the line that ends the infinite loop
     }
   }
 
@@ -1833,15 +1912,21 @@ JSON.myParse = function (text) {
     while (true) {
       skipWs();
       const key = parseString();
-      skipWs(); i++; // colon
+      skipWs();
+      if (text[i] !== ':') fail("Expected ':'");
+      i++;                                     // colon
       out[key] = parseValue();
       skipWs();
       if (text[i] === ',') { i++; continue; }
       if (text[i] === '}') { i++; return out; }
+      fail("Expected ',' or '}'");
     }
   }
 
-  return parseValue();
+  const value = parseValue();
+  skipWs();
+  if (i < text.length) fail('Unexpected trailing characters');
+  return value;
 };
 
 // Tests
@@ -1895,9 +1980,18 @@ Object.myCreate = function (proto, props) {
   if (proto !== null && typeof proto !== 'object' && typeof proto !== 'function') {
     throw new TypeError("Object prototype may only be an Object or null");
   }
-  function F() {}              // empty constructor
-  F.prototype = proto;          // its prototype is what we want
-  const obj = new F();          // new instance inherits from proto
+  // new F() cannot produce a NULL-prototype object: setting F.prototype to
+  // null makes the instance fall back to Object.prototype, so
+  // Object.create(null) would quietly hand back an ordinary object. The
+  // null case therefore needs the real primitive.
+  let obj;
+  if (proto === null) {
+    obj = { __proto__: null };
+  } else {
+    function F() {}              // empty constructor
+    F.prototype = proto;          // its prototype is what we want
+    obj = new F();                // new instance inherits from proto
+  }
 
   // Optional second argument — property descriptors map.
   if (props) Object.defineProperties(obj, props);
@@ -10048,6 +10142,317 @@ const btn = {
 };
 
 render(<SignupForm />);`,
+      },
+      {
+        name: 'Form with Dynamic Fields',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Form with Dynamic Fields (field array) =====
+// Build a form where the user can ADD and REMOVE rows:
+// - One source of truth: an array of row objects, each with a stable id
+// - Per-row validation, errors derived from state rather than stored
+// - Submit disabled until every row is valid
+// - The graded detail: key by id, NEVER by array index
+
+let nextId = 3;
+
+function DynamicFieldsForm() {
+  // One array IS the form state. Each row carries its own id so React can
+  // track it across inserts and removals.
+  const [rows, setRows] = React.useState([
+    { id: 1, name: "Ada Lovelace", email: "ada@example.com" },
+    { id: 2, name: "", email: "" },
+  ]);
+  const [touched, setTouched] = React.useState({});
+  const [submitted, setSubmitted] = React.useState(null);
+
+  const addRow = () => setRows(prev => [...prev, { id: nextId++, name: "", email: "" }]);
+
+  const removeRow = (id) => setRows(prev => prev.filter(r => r.id !== id));
+
+  // Functional update + map by id: no index arithmetic anywhere.
+  const updateRow = (id, field, value) =>
+    setRows(prev => prev.map(r => (r.id === id ? { ...r, [field]: value } : r)));
+
+  // Errors are DERIVED on every render, never stored. Storing them means
+  // keeping two things in sync, and they will drift.
+  const errorsFor = (row) => {
+    const e = {};
+    if (!row.name.trim()) e.name = "Name is required";
+    if (!row.email.trim()) e.email = "Email is required";
+    else if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(row.email)) e.email = "Enter a valid email";
+    return e;
+  };
+
+  const allErrors = rows.map(errorsFor);
+  const isValid = allErrors.every(e => Object.keys(e).length === 0) && rows.length > 0;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Reveal every error at once when someone submits a pristine form.
+    const all = {};
+    rows.forEach(r => { all[r.id + ":name"] = true; all[r.id + ":email"] = true; });
+    setTouched(all);
+    if (isValid) setSubmitted(rows);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ padding: 20, fontFamily: "system-ui", maxWidth: 560 }}>
+      <h3 style={{ marginTop: 0 }}>Team members</h3>
+
+      {rows.map((row, i) => {
+        const errs = allErrors[i];
+        return (
+          <div key={row.id} style={rowStyle}>
+            <div style={{ flex: 1 }}>
+              <input
+                value={row.name}
+                placeholder="Name"
+                aria-label={"Name for member " + (i + 1)}
+                aria-invalid={touched[row.id + ":name"] && !!errs.name}
+                onChange={e => updateRow(row.id, "name", e.target.value)}
+                onBlur={() => setTouched(t => ({ ...t, [row.id + ":name"]: true }))}
+                style={inputStyle(touched[row.id + ":name"] && errs.name)}
+              />
+              {touched[row.id + ":name"] && errs.name && (
+                <p role="alert" style={errStyle}>{errs.name}</p>
+              )}
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <input
+                value={row.email}
+                placeholder="Email"
+                aria-label={"Email for member " + (i + 1)}
+                aria-invalid={touched[row.id + ":email"] && !!errs.email}
+                onChange={e => updateRow(row.id, "email", e.target.value)}
+                onBlur={() => setTouched(t => ({ ...t, [row.id + ":email"]: true }))}
+                style={inputStyle(touched[row.id + ":email"] && errs.email)}
+              />
+              {touched[row.id + ":email"] && errs.email && (
+                <p role="alert" style={errStyle}>{errs.email}</p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => removeRow(row.id)}
+              disabled={rows.length === 1}
+              aria-label={"Remove member " + (i + 1)}
+              style={removeStyle}
+            >
+              Remove
+            </button>
+          </div>
+        );
+      })}
+
+      <button type="button" onClick={addRow} style={addStyle}>+ Add member</button>
+
+      <div style={{ marginTop: 16 }}>
+        <button type="submit" disabled={!isValid} style={submitStyle(isValid)}>
+          Submit {rows.length} member{rows.length === 1 ? "" : "s"}
+        </button>
+      </div>
+
+      {submitted && (
+        <pre style={outStyle}>{JSON.stringify(submitted, null, 2)}</pre>
+      )}
+
+      <details style={{ marginTop: 20, fontSize: 13, color: "#555" }}>
+        <summary style={{ cursor: "pointer" }}>Why key by id and not by index?</summary>
+        <p>
+          Remove the FIRST row while the second has text in it. With
+          <code> key=&#123;index&#125; </code> React reuses the first row&apos;s DOM node for
+          what is now a different object, so the input keeps the old value and
+          the wrong row appears to have been deleted. Uncontrolled inputs,
+          focus and animation state are all tied to identity, and the index is
+          not an identity — it changes when the list does.
+        </p>
+      </details>
+    </form>
+  );
+}
+
+const rowStyle = {
+  display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10,
+};
+const inputStyle = (bad) => ({
+  width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 14,
+  border: "1px solid " + (bad ? "#ef4444" : "#d4d4d8"), boxSizing: "border-box",
+});
+const errStyle = { color: "#ef4444", fontSize: 12, margin: "4px 0 0" };
+const removeStyle = {
+  padding: "8px 12px", borderRadius: 6, border: "1px solid #d4d4d8",
+  background: "#fff", cursor: "pointer", fontSize: 13,
+};
+const addStyle = {
+  padding: "8px 12px", borderRadius: 6, border: "1px dashed #9ca3af",
+  background: "#fff", cursor: "pointer", fontSize: 14,
+};
+const submitStyle = (ok) => ({
+  padding: "10px 18px", borderRadius: 6, border: "none", fontSize: 15,
+  background: ok ? "#3b82f6" : "#cbd5e1", color: "#fff",
+  cursor: ok ? "pointer" : "not-allowed",
+});
+const outStyle = {
+  marginTop: 16, background: "#f4f4f5", padding: 12, borderRadius: 8,
+  fontSize: 12, overflowX: "auto",
+};
+
+render(<DynamicFieldsForm />);`,
+      },
+      {
+        name: 'Multi-Step Form (Wizard)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Multi-Step Form (Wizard) =====
+// Build a 3-step form where:
+// - ALL steps share one state object owned by the parent
+// - Next is blocked until the current step validates
+// - Going Back preserves everything already typed
+// - A review step shows the whole payload before submit
+
+const STEPS = ["Account", "Profile", "Review"];
+
+// Validation lives per step, so "can I advance?" is one lookup.
+const validators = [
+  (d) => {
+    const e = {};
+    if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(d.email)) e.email = "Enter a valid email";
+    if (d.password.length < 8) e.password = "At least 8 characters";
+    return e;
+  },
+  (d) => {
+    const e = {};
+    if (!d.fullName.trim()) e.fullName = "Name is required";
+    if (d.country === "") e.country = "Pick a country";
+    return e;
+  },
+  () => ({}),
+];
+
+function Wizard() {
+  const [step, setStep] = React.useState(0);
+  // ONE object for every step. The step components are unmounted as you move
+  // on, so state cannot live inside them or it is lost on Back.
+  const [data, setData] = React.useState({
+    email: "", password: "", fullName: "", country: "",
+  });
+  const [showErrors, setShowErrors] = React.useState(false);
+  const [done, setDone] = React.useState(false);
+
+  const set = (field) => (e) => setData(d => ({ ...d, [field]: e.target.value }));
+
+  const errors = validators[step](data);
+  const canAdvance = Object.keys(errors).length === 0;
+
+  const next = () => {
+    if (!canAdvance) { setShowErrors(true); return; }
+    setShowErrors(false);
+    setStep(s => Math.min(s + 1, STEPS.length - 1));
+  };
+  // Back never validates — the user is retreating, not committing.
+  const back = () => { setShowErrors(false); setStep(s => Math.max(s - 1, 0)); };
+
+  const submit = () => setDone(true);
+
+  if (done) {
+    return (
+      <div style={wrap}>
+        <h3 style={{ marginTop: 0 }}>Submitted</h3>
+        <pre style={pre}>{JSON.stringify(data, null, 2)}</pre>
+      </div>
+    );
+  }
+
+  return (
+    <div style={wrap}>
+      <ol style={bar}>
+        {STEPS.map((label, i) => (
+          <li key={label} style={pill(i, step)} aria-current={i === step ? "step" : undefined}>
+            {i + 1}. {label}
+          </li>
+        ))}
+      </ol>
+
+      {step === 0 && (
+        <div>
+          <Field label="Email" value={data.email} onChange={set("email")}
+                 error={showErrors && errors.email} />
+          <Field label="Password" type="password" value={data.password}
+                 onChange={set("password")} error={showErrors && errors.password} />
+        </div>
+      )}
+
+      {step === 1 && (
+        <div>
+          <Field label="Full name" value={data.fullName} onChange={set("fullName")}
+                 error={showErrors && errors.fullName} />
+          <label style={{ display: "block", marginBottom: 12 }}>
+            <span style={lbl}>Country</span>
+            <select value={data.country} onChange={set("country")} style={input(showErrors && errors.country)}>
+              <option value="">Select…</option>
+              <option value="in">India</option>
+              <option value="uk">United Kingdom</option>
+              <option value="us">United States</option>
+            </select>
+            {showErrors && errors.country && <p role="alert" style={err}>{errors.country}</p>}
+          </label>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div>
+          <p style={{ color: "#555", fontSize: 14 }}>Check everything before submitting:</p>
+          <pre style={pre}>{JSON.stringify(data, null, 2)}</pre>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        <button onClick={back} disabled={step === 0} style={btn(step !== 0)}>Back</button>
+        {step < STEPS.length - 1
+          ? <button onClick={next} style={btn(true)}>Next</button>
+          : <button onClick={submit} style={btn(true)}>Submit</button>}
+      </div>
+
+      {showErrors && !canAdvance && (
+        <p role="alert" style={{ ...err, marginTop: 12 }}>Fix the fields above to continue.</p>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, error, type }) {
+  return (
+    <label style={{ display: "block", marginBottom: 12 }}>
+      <span style={lbl}>{label}</span>
+      <input type={type || "text"} value={value} onChange={onChange}
+             aria-invalid={!!error} style={input(error)} />
+      {error && <p role="alert" style={err}>{error}</p>}
+    </label>
+  );
+}
+
+const wrap = { padding: 20, fontFamily: "system-ui", maxWidth: 460 };
+const bar = { display: "flex", gap: 8, listStyle: "none", padding: 0, margin: "0 0 20px" };
+const pill = (i, step) => ({
+  flex: 1, textAlign: "center", fontSize: 13, padding: "6px 4px", borderRadius: 999,
+  background: i === step ? "#3b82f6" : i < step ? "#dbeafe" : "#f4f4f5",
+  color: i === step ? "#fff" : i < step ? "#1d4ed8" : "#9ca3af",
+});
+const lbl = { display: "block", fontSize: 13, marginBottom: 4, color: "#374151" };
+const input = (bad) => ({
+  width: "100%", padding: "8px 10px", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+  border: "1px solid " + (bad ? "#ef4444" : "#d4d4d8"),
+});
+const err = { color: "#ef4444", fontSize: 12, margin: "4px 0 0" };
+const btn = (on) => ({
+  padding: "9px 16px", borderRadius: 6, border: "none", fontSize: 14,
+  background: on ? "#3b82f6" : "#cbd5e1", color: "#fff",
+  cursor: on ? "pointer" : "not-allowed",
+});
+const pre = { background: "#f4f4f5", padding: 12, borderRadius: 8, fontSize: 12, overflowX: "auto" };
+
+render(<Wizard />);`,
       },
       {
         name: 'Theme Switcher (dark/light)',

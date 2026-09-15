@@ -899,7 +899,49 @@ const themeSwitcher: BuildExplanation = {
   ],
 };
 
+const dynamicFields: BuildExplanation = {
+  kind: 'build',
+  problem: 'Form with Dynamic Fields',
+  problemStatement:
+    'Let the user add and remove rows in a form, validate each row independently, and keep the whole thing submittable only when every row is valid. The interesting part is not the UI — it is that the list changes shape while React is trying to track it.',
+  buildOrder: [
+    { title: 'Make the array the form state, with a stable id per row', excerpt: { from: 'const [rows, setRows] = React.useState([', lines: 4 }, detail: 'One array is the single source of truth. Each row owns an id generated when it is created, so identity comes from the data rather than from where the row happens to sit. Everything else — add, remove, update, validate — is an operation on that array.', pitfall: 'Deriving the id from the index recreates the exact problem the id exists to solve, because the index changes the moment a row is removed.' },
+    { title: 'Add and remove by id, never by index', excerpt: { from: 'const removeRow = (id) => setRows(prev => prev.filter(r => r.id !== id));', lines: 1 }, detail: 'Filtering by id is immune to how the array is ordered or how many removals happened first. Index-based splicing works until two removals race in the same tick, or until you sort the list, at which point it deletes the wrong row.', pitfall: 'Mutating the array with splice and setting the same reference back means React sees no change and never re-renders.' },
+    { title: 'Update one field without touching the others', excerpt: { from: 'setRows(prev => prev.map(r => (r.id === id ? { ...r, [field]: value } : r)));', lines: 1 }, detail: 'map returns a new array, and the spread returns a new object only for the row that changed — every other row keeps its reference, so a memoised row component does not re-render. The computed key lets one handler serve every field.', pitfall: 'Editing the row object in place keeps the old reference, so memoised children skip the update and the input appears frozen.' },
+    { title: 'Derive errors per row on every render', excerpt: { from: 'const allErrors = rows.map(errorsFor);', lines: 2 }, detail: 'Validation is a pure function of the row, so errors are computed rather than stored — there is no second copy to resync after an edit or a removal. Validity of the whole form falls out of it as one every() call.', pitfall: 'Storing an errors array alongside the rows means removing a row has to remove its errors too, and the two drift the first time you forget.' },
+    { title: 'Key by id so React tracks the right row', excerpt: { from: '<div key={row.id} style={rowStyle}>', lines: 1 }, detail: 'This is the line the whole design exists to support. React uses the key to decide which DOM node belongs to which item; with an id it moves nodes correctly, and with an index it reuses position 0 for whatever is now first.', pitfall: 'Remove the first row while the second has text in it and an index key leaves the old text in the input — the wrong row appears to have been deleted.' },
+  ],
+  graded: [
+    { point: 'Stable ids rather than array indices as keys', why: 'It is the single most common React list bug, and a dynamic form is where it actually bites rather than staying theoretical, because rows are removed from the middle.' },
+    { point: 'Errors derived, not stored', why: 'Storing them means a second structure that must be kept in step with the rows through every add, remove and edit, and the stale version is visible to the user as a field flagged after being fixed.' },
+    { point: 'Immutable updates with functional setState', why: 'It keeps unchanged rows referentially equal so memoisation works, and it avoids the batching bug where two updates in one tick both read the same stale array.' },
+    { point: 'Accessible per-row errors', why: 'Rows repeat, so a generic label like "Email" is ambiguous with a screen reader — the label has to identify which member it belongs to, and role="alert" is what makes the message announced.' },
+  ],
+};
+
+const multiStepForm: BuildExplanation = {
+  kind: 'build',
+  problem: 'Multi-Step Form (Wizard)',
+  problemStatement:
+    'Split a long form across steps, validate each step before advancing, and make Back preserve everything already typed. The whole design question is where the data lives, because each step unmounts when you move on.',
+  buildOrder: [
+    { title: 'Own all the data in the parent', excerpt: { from: 'const [data, setData] = React.useState({', lines: 3 }, detail: 'One object holds every field from every step. The steps are unmounted as you navigate, so any state kept inside them is destroyed the moment you press Next — which is exactly the bug users report as "it lost my answers when I went back".', pitfall: 'Keeping each step self-contained feels tidier and is the wrong call here; the parent has to own the data because the parent is the thing that survives.' },
+    { title: 'Put validation in a per-step table', excerpt: { from: 'const validators = [', lines: 2 }, detail: 'One validator per step index turns "can I advance?" into a single lookup instead of a switch that grows a branch per step. Adding a step is adding a row, and the rule for a step sits next to the step it belongs to.', pitfall: 'A single validator for the whole form blocks step one on fields the user has not reached yet.' },
+    { title: 'Gate Next on the current step only', excerpt: { from: 'const errors = validators[step](data);', lines: 2 }, detail: 'Errors are recomputed each render from the current step and the shared data, so the Next button reflects the live state with nothing to keep in sync. Validity is derived, never stored.', pitfall: 'Validating every step on every render means the user sees errors for fields they have not seen yet, which reads as the form being broken.' },
+    { title: 'Reveal errors on the attempt, not on arrival', excerpt: { from: 'if (!canAdvance) { setShowErrors(true); return; }', lines: 2 }, detail: 'A step opens clean; pressing Next with something invalid is what turns the messages on. That keeps the first impression calm while still making the blocker obvious the moment the user tries to move past it.', pitfall: 'Showing errors as soon as a step mounts greets the user with red text about fields they have not touched.' },
+    { title: 'Let Back retreat without validating', excerpt: { from: 'const back = () => { setShowErrors(false); setStep(s => Math.max(s - 1, 0)); };', lines: 1 }, detail: 'Going backwards is not a commitment, so it must never be blocked by the current step being incomplete — otherwise a user who mistypes something is trapped and cannot return to fix an earlier answer.', pitfall: 'Applying the same guard to Back as to Next is a genuine trap: the user cannot leave the step in either direction.' },
+  ],
+  graded: [
+    { point: 'State lifted to the parent, not held per step', why: 'It is the question the exercise is really asking. Steps unmount on navigation, so state inside them cannot survive Back, and candidates who miss it produce a wizard that silently loses data.' },
+    { point: 'Per-step validation rather than whole-form', why: 'It is what lets the user progress at all, and it keeps the rule beside the step it governs so adding a step does not mean editing a growing conditional.' },
+    { point: 'Errors shown on the advance attempt', why: 'Timing is the difference between a form that guides and one that nags, and it is the same blur-then-live judgement as a single-page form applied at step granularity.' },
+    { point: 'Back is never blocked', why: 'A wizard that will not let you go back to correct an earlier answer is unusable, and it is an easy bug to ship if the same guard is copied onto both buttons.' },
+  ],
+};
+
 export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
+  'Form with Dynamic Fields': dynamicFields,
+  'Multi-Step Form (Wizard)': multiStepForm,
   'Responsive Images (srcset / AVIF)': responsiveImages,
   'Protected Route (Auth + RBAC)': protectedRoute,
   'Mini Redux Store': miniReduxStore,

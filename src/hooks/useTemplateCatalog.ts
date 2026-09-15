@@ -43,6 +43,8 @@ export interface TemplateCatalog {
   totalJsChallenges: number;
   /** Every challenge name, JS and React — the denominator for completion. */
   challengeNames: string[];
+  /** Every non-challenge reference template — the denominator while one is open. */
+  referenceNames: string[];
   difficultyCounts: Record<Difficulty, number>;
   patternCounts: Record<Pattern, number>;
   scopeHasPatterns: boolean;
@@ -100,6 +102,7 @@ export function buildTemplateCatalog(filters: TemplateCatalogFilters): TemplateC
     tagOptions: ['all', ...new Set(templateCategories.map(c => c.tag.toLowerCase()))],
     totalJsChallenges: allTemplates.filter(t => t.kind === 'challenge' && t.tag === 'JS').length,
     challengeNames: allTemplates.filter(t => t.kind === 'challenge').map(t => t.name),
+    referenceNames: allTemplates.filter(t => t.kind !== 'challenge').map(t => t.name),
     difficultyCounts,
     patternCounts,
     scopeHasPatterns: inScope.some(t => t.patterns !== undefined && t.patterns.length > 0),

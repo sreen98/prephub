@@ -1165,4 +1165,4 @@ KEYS & ENGINES
 - [pgMustard — EXPLAIN glossary](https://www.pgmustard.com/docs/explain) — what every plan node actually means
 - [Postgres Weekly](https://postgresweekly.com) — for keeping current
 - [MySQL Documentation — InnoDB Locking](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html) — next-key locks and the gap-lock model
-- [Strong Random Values / UUID v7](https://uuid7.com) — why time-ordered IDs matter for index locality
+- [RFC 9562 — UUID versions 6, 7 and 8](https://www.rfc-editor.org/rfc/rfc9562.html) — why time-ordered IDs matter for index locality

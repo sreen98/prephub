@@ -9,6 +9,7 @@ import { formatCode } from '../../lib/playgroundFormat';
 import { buildReactScope, scopeNames } from '../../lib/playgroundScope';
 import {
   formatConsoleArgs, detectJSX, stripModuleSyntax, transpileSource, runInWorker,
+  runUserFunction,
 } from '../../lib/playgroundRunner';
 import {
   closingTagFor, shouldClosePair, shouldCloseAngle, BRACKET_PAIRS, CLOSERS,
@@ -163,7 +164,7 @@ export default function CodePlayground() {
   // Everything the picker displays — see hooks/useTemplateCatalog for why the
   // counts are scoped to the active tag rather than the whole catalogue.
   const {
-    categories: filteredCategories, tagOptions, challengeNames,
+    categories: filteredCategories, tagOptions, challengeNames, referenceNames,
     difficultyCounts, patternCounts, scopeHasPatterns, scopeHasDifficulty,
   } = useTemplateCatalog({
     search: drawerSearch, tag: drawerFilter, mode: modalMode,
@@ -425,13 +426,9 @@ export default function CodePlayground() {
 
         const scopeKeys: string[] = Object.keys(scope);
         const scopeValues: unknown[] = Object.values(scope);
-        // Running user-authored code is the entire purpose of this component.
-        // The plain-JS path is sandboxed in a Web Worker with a timeout (see
-        // runInWorker); this main-thread path is the React branch, which needs
-        // DOM access for the live preview.
-        // eslint-disable-next-line @typescript-eslint/no-implied-eval
-        const fn = new Function(...scopeKeys, execCode) as (...args: unknown[]) => void;
-        fn(...scopeValues);
+        // The React branch runs on the main thread because the preview needs the
+        // DOM; the plain-JS branch is sandboxed in a Worker (see runInWorker).
+        runUserFunction(scopeKeys, scopeValues, execCode, reportPreviewError);
 
         if (!previewMounted) {
           logsRef.current = [...logsRef.current, {
@@ -880,7 +877,7 @@ export default function CodePlayground() {
               React
             </span>
           )}
-          <SolvedChip challengeNames={challengeNames} progress={progress} />
+          <SolvedChip challengeNames={challengeNames} referenceNames={referenceNames} progress={progress} current={currentTemplate} />
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button

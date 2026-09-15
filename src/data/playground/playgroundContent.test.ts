@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { detectJSX } from '../../lib/playgroundRunner';
 import { allTemplates as fullTemplates, templateCategories, blankStarters } from './playgroundTemplates';
 import { allTemplates as indexTemplates, getTemplateCode, loadTemplateCode } from './templateIndex';
 import { playgroundSolutionKeys } from './playgroundSolutionKeys';
@@ -19,14 +20,14 @@ import { isBuildExplanation } from './explanationKind';
  * number. If it fails after a refactor, something was lost.
  */
 const EXPECTED = {
-  templates: 181,
+  templates: 183,
   categories: 7,
   blankStarters: 3,
   jsChallenges: 94,
-  reactChallenges: 36,
+  reactChallenges: 38,
   referenceTemplates: 51,
   solutions: 94,
-  explanations: 180,   // 144 algorithm steppers + 36 React build-order walkthroughs
+  explanations: 182,   // 144 algorithm steppers + 38 React build-order walkthroughs
 };
 
 const jsChallenges = fullTemplates.filter((t) => t.kind === 'challenge' && t.tag === 'JS');
@@ -284,5 +285,23 @@ describe('filter dimensions the modal depends on', () => {
     const names = fullTemplates.map((t) => t.name);
     const dupes = names.filter((n, i) => names.indexOf(n) !== i);
     expect([...new Set(dupes)]).toEqual([]);
+  });
+});
+
+/**
+ * A plain-JS template misdetected as JSX runs on the MAIN thread rather than in
+ * the sandboxed Worker, loses the infinite-loop timeout, and then reports "No
+ * render() call detected" — which is what a reader hit on the Array.map
+ * polyfill after a teaching comment mentioned `<hole>`.
+ */
+describe('language detection matches each template tag', () => {
+  it('no plain-JS template is taken for JSX, and no React one is missed', () => {
+    const wrong: string[] = [];
+    for (const t of fullTemplates) {
+      const jsx = detectJSX(t.code);
+      if (t.tag !== 'React' && jsx) wrong.push(`${t.name} (${t.tag}) detected as JSX`);
+      if (t.tag === 'React' && !jsx) wrong.push(`${t.name} (React) NOT detected as JSX`);
+    }
+    expect(wrong).toEqual([]);
   });
 });

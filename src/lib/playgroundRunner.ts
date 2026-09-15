@@ -54,19 +54,46 @@ export function formatValue(val: unknown): string {
   }
 }
 
+const HOOK_NAMES =
+  'useState|useEffect|useRef|useMemo|useCallback|useReducer|useContext|useLayoutEffect';
+
+/**
+ * Remove line and block comments so prose cannot be mistaken for code.
+ *
+ * This corpus is full of teaching comments, and one of them said
+ * `[2, <hole>, 6]` — which matched the lowercase-HTML-tag rule below and sent a
+ * plain-JS polyfill down the React path, where it ran on the main thread and
+ * then reported "No render() call detected". A detector that reads comments is
+ * a detector that reads English.
+ *
+ * Deliberately naive about `//` inside a string or a regex: over-stripping only
+ * risks losing a JSX signal that the surviving rules almost always still catch,
+ * whereas under-stripping is the bug being fixed.
+ */
+function stripComments(code: string): string {
+  return code.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+}
+
 export function detectJSX(code: string): boolean {
+  const src = stripComments(code);
   // Explicit render call or capitalized component tag.
-  if (/render\s*\(/.test(code)) return true;
-  if (/<[A-Z][A-Za-z0-9]*/.test(code)) return true;
+  if (/render\s*\(/.test(src)) return true;
+  if (/<[A-Z][A-Za-z0-9]*/.test(src)) return true;
   // Function returning a JSX tag (lowercase HTML or uppercase component).
-  if (/return\s*\(?\s*<[a-zA-Z]/.test(code)) return true;
+  if (/return\s*\(?\s*<[a-zA-Z]/.test(src)) return true;
   // A complete lowercase HTML tag anywhere — catches an expression like
   // `const a = <div>hi</div>` that is neither returned nor rendered. The tag
   // name must follow `<` immediately and the tag must close, so a comparison
   // (`a < b`, `i<n`) cannot match.
-  if (/<[a-z][a-z0-9]*(?:\s[^<>]*)?\/?>/.test(code)) return true;
-  // React hook usage strongly implies a React component.
-  if (/\b(useState|useEffect|useRef|useMemo|useCallback|useReducer|useContext|useLayoutEffect)\s*\(/.test(code)) return true;
+  if (/<[a-z][a-z0-9]*(?:\s[^<>]*)?\/?>/.test(src)) return true;
+  // React hook usage strongly implies a React component — UNLESS the snippet
+  // defines the hook itself. "Implement useState (Basic)" is a plain-JS
+  // challenge that builds useState from a closure; calling your own function
+  // is not evidence of React.
+  const definesOwnHook = new RegExp(
+    `(?:function\\s+(?:${HOOK_NAMES})\\b|(?:const|let|var)\\s+(?:${HOOK_NAMES})\\s*=)`,
+  ).test(src);
+  if (!definesOwnHook && new RegExp(`\\b(?:${HOOK_NAMES})\\s*\\(`).test(src)) return true;
   return false;
 }
 
@@ -97,16 +124,75 @@ self.console = {
   warn:  (...a) => post('warn',  a.map(formatVal).join(' ')),
   error: (...a) => post('error', a.map(formatVal).join(' ')),
 };
+const reportErr = (err) =>
+  post('error', (err && err.name ? err.name : 'Error') + ': ' + (err && err.message ? err.message : String(err)));
+// A snippet using TOP-LEVEL AWAIT cannot compile as a script — new Function
+// builds a plain function body. Only then do we recompile as an async body,
+// so ordinary snippets keep their exact existing semantics.
+const compile = (src) => {
+  try { return new Function(src); }
+  catch (err) {
+    if (err instanceof SyntaxError && /await is only valid/.test(err.message)) {
+      const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+      return new AsyncFunction(src);
+    }
+    throw err;
+  }
+};
 self.onmessage = (e) => {
   try {
-    const result = new Function(e.data)();
-    if (result !== undefined) post('result', '→ ' + formatVal(result));
+    const result = compile(e.data)();
+    if (result && typeof result.then === 'function') result.catch(reportErr);
+    else if (result !== undefined) post('result', '→ ' + formatVal(result));
   } catch (err) {
-    post('error', (err && err.name ? err.name : 'Error') + ': ' + (err && err.message ? err.message : String(err)));
+    reportErr(err);
   }
   self.postMessage({ kind: 'sync-done' });
 };
 `;
+
+/**
+ * Build a callable from user source, falling back to an async function body
+ * when — and only when — the snippet uses top-level `await`.
+ *
+ * `new Function` produces a *script*, where top-level await is a hard
+ * `SyntaxError`, so **129 runnable guide blocks across 26 guides shipped a
+ * "Try it" button that failed before running a line**. `verify:blocks` cannot
+ * see it: that gate parses with Babel in module mode, where top-level await is
+ * legal. Recompiling only on that specific error keeps every other snippet on
+ * the original path, so nothing else changes semantics.
+ */
+export function compileUserFunction(names: string[], src: string): (...args: unknown[]) => unknown {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- running user code is the point
+    return new Function(...names, src) as (...args: unknown[]) => unknown;
+  } catch (err) {
+    if (err instanceof SyntaxError && /await is only valid/.test(err.message)) {
+      const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as
+        new (...a: string[]) => (...args: unknown[]) => unknown;
+      return new AsyncFunction(...names, src);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Compile and invoke user code, reporting an async rejection through `onError`.
+ * Lives here rather than in the component so the whole execution rule — including
+ * the top-level-await fallback — is testable without a DOM.
+ */
+export function runUserFunction(
+  names: string[],
+  values: unknown[],
+  src: string,
+  onError: (message: string) => void,
+): void {
+  const returned = compileUserFunction(names, src)(...values);
+  if (returned && typeof (returned as Promise<unknown>).then === 'function') {
+    void (returned as Promise<unknown>).catch((err: unknown) =>
+      onError(err instanceof Error ? `${err.name}: ${err.message}` : String(err)));
+  }
+}
 
 export interface WorkerLog { type: 'log' | 'warn' | 'error' | 'result'; text: string; }
 export interface WorkerRunResult { logs: WorkerLog[]; timedOut: boolean; }

@@ -328,7 +328,7 @@ the right shape anyway, since neither body carries the other's branches.
 
 ### Data flow
 - `data.ts` exports `menuStructure` (defines all guide categories/items), `contentFiles` (eager glob of all markdown), and utility functions. This is the single source of truth for content structure.
-- Current counts: 8 categories (Front End 25, JS & TS 4, Back End 18, DevOps 15, Git 2, DSA 1, Behavioral 1, System Design 4) = 70 guides, plus an Introduction entry. 14 cheat sheets, each ~120–210 lines in a code-first house style (`## Section` + dense fenced blocks, no prose paragraphs) and closing with a **Gotchas** section; `git-workflows.md` and `comparison-tables.md` are deliberately longer reference docs. The `colors` map in `CheatSheetsIndex.tsx` must contain an entry for every `color` used in the `cheatSheets` array — unknown values silently fall back to blue, which is how `teal` and `indigo` went unstyled.
+- Current counts: 10 categories (Front End 25, JS & TS 4, Back End 17, AI Engineering 6, AI-Augmented Development 1, DevOps 15, Git 2, DSA 1, Behavioral 1, System Design 4) = 76 guides, plus an Introduction entry. 14 cheat sheets, each ~120–210 lines in a code-first house style (`## Section` + dense fenced blocks, no prose paragraphs) and closing with a **Gotchas** section; `git-workflows.md` and `comparison-tables.md` are deliberately longer reference docs. The `colors` map in `CheatSheetsIndex.tsx` must contain an entry for every `color` used in the `cheatSheets` array — unknown values silently fall back to blue, which is how `teal` and `indigo` went unstyled.
 - `cheatSheets` array in `data.ts` defines cheat sheet routes separately from guide categories.
 - **The Mobile group** in Front End holds 5 guides: React Native, Play Store Deployment, iOS & App Store Deployment, Mobile Accessibility, Mobile App Security. `play-store-launch` was renamed to **`play-store-deployment`** in the path *and* the filename (the user approved the URL change), so any external link to the old path is dead — this is the one place a route was deliberately changed rather than preserved.
 - **Sidebar sub-headings**: `MenuItem.group?: string` renders an uppercase label above the items sharing it, grouped by first appearance (`groupSidebarItems()` in `App.tsx`). **Every category with 4+ items is grouped**: Front End (React & State / **Global State Management** / Styling & Accessibility / Browser, Real-Time & Performance / Architecture & Code Quality / Testing & Tooling / Mobile), Back End (Runtimes & Frameworks / APIs & Integrations / Databases / Security & Auth / Architecture & AI), DevOps (Linux & Networking / AWS / Containers & Orchestration / Infrastructure as Code / CI/CD / Observability & SRE), JS & TS (Languages / Reference), System Design (Design / Reference). Git, DSA and Behavioral have 1–2 items and are deliberately left ungrouped — a heading per single item is worse than none, and they render exactly as before. **Heading order follows first appearance of each label**, so the item order inside `items: [...]` also fixes the heading order; items of one group need not be contiguous (the helper buckets them), but keeping them together makes the file readable.
@@ -336,7 +336,7 @@ the right shape anyway, since neither body carries the other's branches.
 - All question extraction happens via `extractQuestions()` which parses two markdown patterns:
   1. **JS output-style** (`## QN` + ` ```…``` ` + `### ✅ Output` + `### 💡 Explanation`) — used only by the JavaScript guide.
   2. **Standard** (`**QN: text**` followed by an answer block, terminated by the next `**Q{N+1}:` marker **or a standalone `---` line**). Everything between the marker and that terminator becomes the Quiz-mode answer — so the explanation for a question must live BEFORE the `---` separator, not after it.
-- "Tricky Output Questions" sections live in **45 guides — 356 questions total**: React 26, TypeScript 19, JavaScript 16, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
+- "Tricky Output Questions" sections live in **53 guides — 392 questions total**: React 26, TypeScript 19, JavaScript 16, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5, Generative AI 6, RAG 6, Agentic AI 6, MCP 6, LangChain & LangGraph 6, AI-Augmented Development 6. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
 - **Question ids must be unique — `dedupeIds()` in `data.ts` enforces it.** Ids are `` `${guideName}-q${N}` `` taken from the `**QN:**` marker, but most guides hold **two independent Q sequences** (the interview section and "Tricky Output Questions", each restarting at Q1), so that number is not unique within a file. **344 of 1,298 questions collided.** Ids are the localStorage keys for spaced-repetition state, so a collision made two different questions share one SM-2 record — reviewing one rescheduled the other, and both appeared in the same review queue. `dedupeIds()` runs at both `extractQuestions` return points and suffixes only the **second and later** occurrences (`-2`, `-3`), so first occurrences keep their original id and existing review history stays attached. Don't "simplify" this by renumbering all of them; that would silently reset every user's progress.
 - **`npm run verify:counts` guards every number stated in prose.** `scripts/verify-counts.js` derives the ground truth from `data.ts`, `playgroundTemplates.ts` and `playgroundSolutions.ts`, then asserts that README.md, CLAUDE.md and `src/content/README.md` (the app's Introduction page) literally contain the right figures — and checks that `playgroundSolutionKeys.ts` is in sync with `playgroundSolutions.ts`. **Run it after any content change**; it exits non-zero on drift, and the deploy workflow runs it before the build, so drift blocks the deploy rather than shipping a wrong number. Note the UI itself is safe — every on-screen count is derived (`allGuides.length`, `cat.templates.length`, `solvedCount / totalJsChallenges`), so only the prose can go stale. To register a new claim, add a line to the `claims` array in that script.
 - **Re-count rather than trust these numbers when editing.** The README/CLAUDE counts drifted before (they said "143 across 12 guides" while 8 more guides already had tricky sections). To recount guide items, count `{ name: '` occurrences inside each category's `items: [ … ]` array in `data.ts` — `grep -c "file: './content/" src/data.ts` over-counts because it includes cheat sheets and the Introduction entry.
@@ -532,16 +532,23 @@ see: the block parses, runs, and prints something that **contradicts the guide**
 4. Prefer a block that is **self-demonstrating** — a harness plus an explicit
    `render()` — over one that needs the reader to imagine the trigger.
 
-**The props-less auto-render is a MEASURED backlog, not a hunch.** Sweeping
-every `tsx`/`jsx` block with no `render()` call and resolving the component
-`PreBlock` would pick: **38 blocks auto-render a component that takes props**,
-and in **12** of those the prop is dereferenced (`.map`, `.length`, a call), so
-Try-it throws rather than rendering something odd. The 12:
-`design-patterns:931`, `nextjs-rsc:376`, `react-guide:805 / 1097 / 2473 / 2548 /
-3325 / 3396 / 5920`, `react-native:506 / 560 / 591`. The other 26 render with
-`undefined` and are cosmetic. **Fix one by adding a `Demo` harness plus an
-explicit `render()`**, the way Q14, Q24 and Q25 now do — not by deleting the
-button. React Native blocks cannot run here at all and need a different answer.
+**The props-less auto-render is a MEASURED backlog, not a hunch.** Re-measured
+Sept 2026 across the grown corpus: **67 blocks auto-render a component that takes
+props**, and in **21** of those the prop is dereferenced (`.map`, `.length`, a
+call), so Try-it throws rather than rendering something odd. By guide: react 33,
+nextjs-rsc 9, react-native 5, react-router 5, accessibility 4, design-patterns 3,
+tanstack-query 3, frontend-system-design 2, stripe 1, web-security 1. (The older
+figures here were 38/12; the detector was also narrower. Re-measure rather than
+trusting either number.)
+
+**A harness-level fix was evaluated and rejected with data.** "Prefer the last
+component that takes NO props" sounds like it would fix the class, but only
+**8 of 67** blocks even contain a props-less candidate, and the switch is wrong
+in several of those (`<Stopwatch />` → `<SearchField />`). So this stays a
+per-block content fix: **add a `Demo` harness plus an explicit `render()`**, the
+way React Q14, Q24 and Q25 now do — not a `PreBlock` change, and not by deleting
+the button. React Native blocks cannot run here at all and need a different
+answer.
 
 **Unverified scope, measured:** there are **132 `**Output:**` claims** in tricky
 sections across the corpus — React 20, JavaScript 16, React Native 15, Express
@@ -812,7 +819,697 @@ model answers instantly.
 - **Noted, not built:** the DOM-traversal family from frontendinterviews.dev — tree
   height, level-order traversal, virtualising a DOM tree — has no equivalent
   anywhere here. It is playground-challenge material rather than guide questions.
-- Totals after: JavaScript **26**, TypeScript **27**.
+- Totals after: JavaScript **26**, TypeScript **28** (Q28 added later — `Pick`/`Omit` vs `Extract`/`Exclude`).
+
+## AI-Augmented Development is a SEPARATE category from AI Engineering
+Tenth category (icon `Bot`, cyan), one guide: **Using Claude Code Efficiently**
+at `/ai-dev/claude-code`. The split is deliberate and worth keeping: **AI
+Engineering is about building AI features** (RAG, agents, MCP, LLM plumbing);
+**AI-Augmented Development is about using AI tools to build anything**, and
+applies to a team shipping a payments service with no AI in it. Filing the
+second under the first implies you need one to care about the other.
+
+**The route was changed** from `/ai/augmented-development` to `/ai-dev/claude-code`
+— normally forbidden, and allowed here only because the guide was created in the
+same uncommitted session and no link to it had ever existed. The standing rule
+still holds for anything shipped: category membership and URL are independent.
+
+Adding a category means editing the hard-coded category number in **three claim
+templates** in `verify-counts.js` (README, CLAUDE.md, Introduction) plus a new
+per-category claim. `scripts/lib/routes.js` picks the new path up automatically —
+verified that `/ai-dev/claude-code` appears in `getAllRoutes()`, so it gets a
+route shell and a sitemap entry.
+
+## AI-Augmented Development guide — grounded in a real workspace, not a feature tour
+`src/content/ai/ai-augmented-development-guide.md` at `/ai-dev/claude-code`
+(19 sections, **9 interview Qs + 6 tricky Qs**). Written to make a resume line
+defensible — "Claude Code, GitHub Copilot, agentic coding workflows, prompt and
+context scoping, review standards for AI-generated code, team-level workflow
+rollout" — so every section answers "what did you change about how the team
+works", never "what can the tool do".
+
+**The material came from a real multi-repo setup** the user runs (a four-hook
+guard set, three review subagents, per-path rule files, a hashed governance
+manifest verified in CI), supplemented with published 2026 practice. The
+patterns are described generically — no internal ticket prefixes, repo names,
+domains or proprietary code — because the guide is public and the transferable
+part is the design reasoning, not the implementation.
+
+**The spine of the guide, and the thing to preserve if it is ever edited:**
+*instructions versus guarantees*. `CLAUDE.md` and rules are requests; hooks and
+permissions are the only mechanisms that enforce. Every line demoted from prose
+to enforcement makes the prose shorter **and** the guarantee stronger.
+
+**Three claims that make it credible, all worth keeping exact:**
+- The industry numbers: 10,000+ developers / 1,255 teams — **+21% tasks, +98%
+  PRs merged, +91% review time, +154% PR size, +9% bugs**. That asymmetry is the
+  guide's premise, and it is what turns "I use AI" into an engineering problem.
+- **Guards must allow by default** on anything they cannot evaluate, and a
+  turn-end hook must **never run the test suite** (compare mtimes against a
+  green marker). Both exist because a guard that is switched off guards nothing.
+- **Governance CI is detection, not prevention.** A determined author edits that
+  file too; what changes is that disabling a guard becomes a visible line in the
+  diff. Overclaiming this is the seam an interviewer will find, so the guide
+  states the limit explicitly and says it is only load-bearing once it is a
+  required status check.
+
+**§12 covers the tooling ecosystem**, and the reason `caveman` is in there is
+not the tool — it is the arithmetic. Its headline "65–75% fewer output tokens"
+is true of the *discursive prose it acts on*, which is about a quarter of a
+session; over a whole session the saving is **4–10%**. Both numbers are honest
+and have different denominators. That is the transferable lesson and the section
+says so: **a percentage means nothing until you know what it is a percentage
+of.** Also states that a plugin can carry hooks and MCP servers, so installing
+one is a supply-chain decision, not a preference.
+
+Counts: guides 75 → **76**, categories 9 → **10**, tricky 386 → **392** across
+**53** guides.
+
+## Full polyfill correctness audit — 243 scenarios, 10 more defects
+The earlier pass compared polyfills against native on ~110 cases and found four
+bugs. A deliberately exhaustive matrix — every scenario that distinguishes a
+method from a naive reimplementation — found **ten more**, which says the first
+pass was not thorough, not that the polyfills were nearly right.
+
+| Polyfill | Defect |
+|---|---|
+| `reduce` | no-initial-value accumulator was `this[0]`, not the first **present** element; `[ , , 3].reduce(fn)` → `NaN`. All-holes array returned `undefined` instead of throwing |
+| `indexOf` / `lastIndexOf` | matched **holes**: `[ , 1].indexOf(undefined)` → `0`, should be `-1` |
+| `splice()` | no-argument call threw `RangeError` (`this.length = NaN`) instead of returning `[]` |
+| `Object.create(null)` | `new F()` with `F.prototype = null` falls back to `Object.prototype`, so it returned an ordinary object |
+| `JSON.stringify` | escaped only `\` and `"` — a raw newline or tab is **illegal in JSON**, so output failed to re-parse |
+| `JSON.parse` | ignored `\uXXXX`, `\r`, `\b`, `\f` |
+| `map` | re-read `this.length` each iteration, so mutation during iteration changed the walk |
+| `slice` | `push`ed, filling holes instead of preserving them |
+
+**The matrix is the method.** Per polyfill: normal, empty, single, sparse,
+`thisArg`, callback `(value, index, array)` args, negative / out-of-range /
+`NaN` indices, `-0` vs `0`, missing arguments, mutation during iteration,
+short-circuit counts, array-likes via `.call`, and the error type each should
+throw. `audit.mjs` in the scratchpad generates and runs it; the cases now live
+in `polyfillParity.test.ts` so they gate every build. All five structural fixes
+are probe-tested.
+
+**Run each polyfill in its OWN worker.** They patch prototypes, so one
+template's changes leak into the next one's results if they share a realm —
+and a polyfill that clobbers a built-in breaks the harness itself, which is
+what happened the first time.
+
+## A backtick in a template comment is now a mechanical check
+I broke `playgroundTemplates.ts` **four times in one session** by writing
+`` `inline code` `` in a comment inside a `code:` template literal. The literal
+ends at the stray backtick; the remainder reparses as TypeScript, producing an
+error hundreds of lines away — or, when the leftovers happen to parse, a
+silently truncated template with no error at all.
+
+Documenting it was not enough, so `verify-architecture.js` now checks it: inside
+a template body, an unescaped backtick fails the build, and it names the line.
+Probe-tested. **Write template comments with no backticks at all.**
+
+## detectJSX read COMMENTS, so prose could change the execution path
+A reader hit "No render() call detected" on the **Array.map polyfill**. Cause: a
+teaching comment I had just added said `[2, <hole>, 6]`, and
+`/<[a-z][a-z0-9]*...>/` matched it. The snippet was therefore routed to the
+**main-thread React path** instead of the sandboxed Worker — losing the
+infinite-loop timeout — and then reported a missing `render()`.
+
+**`detectJSX` now strips comments first.** That is the real fix: in a corpus
+this full of teaching prose, a detector that reads comments is a detector that
+reads English, and `<div>`, `<App />` or "call render() at the end" appear in
+explanations constantly.
+
+**Second false positive, pre-existing:** `Implement useState (Basic)` is a
+plain-JS challenge that builds `useState` from a closure, and the hook-name
+heuristic fired on its own function. The rule now skips a hook the snippet
+**defines itself** (`function useState` / `const useState =`).
+
+Two guards, both probe-tested: `playgroundRunner.test.ts` covers comments
+containing tags, components and `render()`, plus the self-defined-hook case;
+`playgroundContent.test.ts` asserts **corpus-wide** that no non-React template
+is detected as JSX and no React one is missed — 183 templates, 0 either way.
+
+**Note on probe outcomes:** re-adding `<hole>` to the comment no longer fails
+anything, and that is correct — the root cause is fixed, so the comment is now
+harmless. Fixing the symptom (rewording the comment) would have left the class
+open; the reworded comment is kept only as belt-and-braces.
+
+**Why this matters beyond one template:** misdetection is not cosmetic. A plain-JS
+snippet on the React path runs on the main thread, so `while(true){}` hangs the
+tab instead of being terminated at 3s.
+
+## Parsing is not running — reference templates had NO execution gate
+`playgroundExecutable.test.ts` checked that every template **compiles**, executed
+every **JS solution**, and `reactTemplates.test.tsx` mounts the **JSX** ones. The
+45 plain-JS *reference* templates — including all 32 polyfills — fell between
+those and were only ever parsed. A parse check cannot see a call to something
+that was never defined, so three templates threw the moment a reader pressed Run:
+
+- **`Array.filter`** ended with `users.myFilter(...).myMap(...)`, and `myMap` is
+  defined in the **Array.map** template. Every snippet runs standalone.
+- **`Array.flat & flatMap`** had the same cross-template dependency *inside its
+  own implementation* (`this.myMap(cb).myFlat(1)`).
+- **`How to Write a Polyfill` contained `Array.prototype.map = function () {};`
+  as a live line**, labelled "❌ breaks every library". It did exactly that —
+  destroying native `map` for the rest of the realm and corrupting its own
+  remaining output. The bad examples are now shown rather than executed.
+
+**That third one also broke the test suite itself**, and the debugging is worth
+recording. Adding the new gate made vitest hang indefinitely with no output, and
+none of the obvious suspects held up: the templates all ran clean in a worker
+harness (which called `process.exit`, so it never noticed), no template leaked a
+timer, and vitest was fine on other files. The cause was that executing the
+template **clobbered `Array.prototype.map` inside vitest's own worker**, so
+everything downstream — including the reporter — broke. My first harness had
+died the same way (`a.map(String).join is not a function`) and I had blamed the
+harness. **When a test runner hangs after you add code that runs user code in
+-process, suspect prototype pollution before anything else.**
+
+Also: a stray vitest from an earlier background run sat at **103% CPU** and made
+every subsequent command crawl, which masked the real problem for several
+attempts. Check `ps` for runaway test processes before concluding a suite is slow.
+
+**Drain only what needs draining.** The first version waited up to 1s for any
+template whose source merely *mentioned* `Promise` — which is most polyfills, in
+comments — and took the suite past a minute. It now waits only for templates that
+printed nothing synchronously, which is the three Promise ones, and the whole
+file runs in ~3.5s.
+
+## The picker counted progress the UI could not record
+`TemplateFilterSidebar` renders a `done / total` pill beside **every** category,
+reference categories included, but `CompleteToggle` returned `null` unless
+`kind === 'challenge'`. So JS Polyfills showed **0/32 permanently** — a promise
+of progress with no mechanism behind it, reported by a user as "no mark as
+complete or completion numbers for basic templates".
+
+**The fix is that completion is not a challenge-only idea.** The toggle now
+renders for any open template and says *Mark read* rather than *Mark complete*
+for reference material, because there is nothing to solve. `SolvedChip` gained
+`referenceNames` and the currently-open template so it counts **the set you are
+looking at** — mixing 51 reference templates into the challenge denominator
+would have made both numbers meaningless.
+
+- `usePlaygroundProgress` needed no change; `setSolved` was always name-agnostic.
+  Only the UI was gating.
+- **Count over a NAMED set, never over the progress map.** The autosave writes an
+  entry the moment a template is opened, so counting entries would report
+  anything ever clicked as finished — and a renamed or deleted template would let
+  the chip read higher than its own denominator. `ChallengeProgress.test.tsx`
+  pins that, and both halves of the fix are probe-tested.
+- `CodePlayground.tsx` is on a 920-line ratchet that may shrink and never grow, so
+  the new prop had to go on one line at the call site. Watch for that when adding
+  anything to that file.
+
+## Seventh audit — 2 HLD round-2 questions, both were gaps
+**Pinterest-style masonry grid: zero hits corpus-wide** for masonry/Pinterest/image
+grid outside one CSS cheat-sheet row. The closest existing material — the Twitter
+feed design (§10) and "make a 10,000-item list performant" (Q3) — assumes
+**uniform-height rows in one column**, which is precisely the assumption the
+Pinterest question removes. Added as **§14**, a full worked design in the same
+shape as the other seven, and the sections after it renumbered (Tabs 14 → 15,
+Interview Qs 15 → 16, Tricky 16 → 17) with the TOC updated.
+
+The load-bearing idea, and the thing to keep if this is ever edited: **the server
+must supply each image's dimensions.** Without them the client cannot compute
+layout, cannot virtualise, and cannot reserve space — so the aspect ratio in the
+payload is what makes all three possible at once. Everything else (greedy
+shortest-column packing, restoring scroll by item id rather than `scrollTop`) is
+downstream of it.
+
+**"Walk me through the HLD of a system you have built": also zero hits.** There
+were 17 Frontend Architecture questions about *designing* things and a framework
+for designing a *given* product, but nothing on narrating a system you actually
+built. It is a distinct skill and the most common round-2 opener. Added as
+Frontend System Design **Q9**, structured as a fixed speaking order (modules →
+component hierarchy → API contracts → caching → performance → NFRs) rather than
+as a design to work through, because that is what the question is.
+
+**Method note:** both gaps were invisible to a topic-word search. "Grid",
+"performance" and "architecture" all return hundreds of hits; what settled it was
+searching for the *distinctive mechanism* (masonry, variable-height
+virtualisation) and the *framing* ("your current project", "walk me through
+your"). Search for what makes the question different, not for its subject.
+
+## A polyfill is a CLAIM — run it against the built-in
+All 32 JS Polyfill templates were executed side by side with the native methods
+across ~110 edge cases. **Four were wrong**, and none of them could be caught by
+any existing gate: they are valid JavaScript that parses, runs, and returns the
+wrong answer.
+
+1. **`JSON.parse` looped FOREVER on malformed input.** `parseArray`/`parseObject`
+   were `while (true)` loops that only exited on `,` or the closing bracket, so
+   running off the end of the string meant every test compared against
+   `undefined`, nothing matched, `i` never advanced. `{oops}` and `[1,` hung; `''`
+   returned **0**, because `parseValue` fell through to `parseNumber` and
+   `Number('')` is 0. Now has a `fail()` helper, an end-of-input check, a
+   no-digits-consumed check, loop guards, and a trailing-characters check.
+2. **`Array.map` dropped holes** — it had the `i in this` guard but used
+   `result.push()`, which collapses the output. `[1, , 3].myMap(x => x * 2)`
+   returned **length 2**. Now `new Array(this.length)` + indexed assignment.
+3. **`Array.find`/`findIndex` skipped holes.** Those two are exactly the methods
+   that do **not** skip them — they visit every index and pass `undefined`. The
+   `i in this` guard was copy-pasted from `map` where it belongs.
+4. **`Function.bind` ignored `new`.** JavaScript guide §4.3 states that `new`
+   overriding the bound `this` "is the detail a bind polyfill has to reproduce",
+   and the polyfill did not. Now uses `this instanceof bound` and inherits
+   `fn.prototype` so `instanceof` holds.
+
+**Deliberate simplifications, left alone because the template says so:** sort is
+not stable (native has been since ES2019), `Object.assign` skips symbols. **Two
+that were undocumented are now labelled:** `myCall` boxes a primitive `this`
+(inherent to the assign-a-property technique) and turns `null` into `globalThis`
+(sloppy-mode behaviour), and `myConcat` reads holes as `undefined` and ignores
+`Symbol.isConcatSpreadable`.
+
+`polyfillParity.test.ts` keeps this honest — it loads each template and diffs
+against the built-in. Probe-tested by reintroducing all four bugs.
+
+**Two process lessons.**
+- **A synchronous infinite loop cannot be caught by a test timeout.** Probing the
+  `JSON.parse` fix by restoring the original hung vitest for 180 s despite
+  `--testTimeout=5000`, because the loop blocks the event loop and the runner
+  never gets to fire. That is exactly why the playground runs plain JS in a
+  **Worker it can `terminate()`** rather than trusting a timer. When probing a
+  hang, run it in a worker or with an external kill.
+- **A backtick in a comment silently truncates a `code:` template literal.** Four
+  of my own added comments used backticks for inline code and broke the file;
+  `tsc` caught it here only because the truncation happened to produce invalid
+  syntax downstream. Write template comments with no backticks at all.
+
+## Sixth audit — 16 core React topics, 3 gaps closed
+**Already covered (13):** Node/Element/Component (Q31), keys (Q4), controlled vs
+uncontrolled (Q5), Fragments (Q48 + §15.8), `useLayoutEffect` (Q10),
+reconciliation (Q8, Q12, §14), hydration (Q35), `useMemo`/`useCallback` (Q7,
+Q11, Q27), never mutate state (Q32), code splitting (Q21, Q25, Tooling Q11),
+testing (Q36 + two whole guides), `useReducer` (Q39).
+
+**Gaps closed — React Q58, Q59, Q60:** `createElement` vs `cloneElement` (**zero
+hits corpus-wide**, the only total blank), higher-order components (§15.4
+existed but no question), and `useImperativeHandle` (a §6.2 subsection but no
+question). **Q4 was also rewritten**: "why are array indices bad keys" had one
+sentence, and it is the half of the keys question interviews actually ask.
+
+**Two method notes.** A topic having a *section* is not the same as having a
+*question* — three of these had prose and no Q&A, which is invisible unless you
+check both. And match on question **text**, not prose: greping the corpus for
+"HOC" or "fragment" returns dozens of incidental mentions, while
+`^\*\*Q\d+: .*higher-order` returns the truth. Watch for the inverse too — my
+regex for topic 1 missed Q31 because the question words it as "React Component,
+a React Element, and a React Node" rather than the order in the source list, so
+**confirm a "gap" by reading before writing.**
+
+React interview Q total: **60**.
+
+## Fifth audit — 7 React LLD questions, 3 gaps closed
+Same method as the earlier interview-round audits: match each candidate against
+question TEXT and template names across the corpus *before* writing anything.
+
+**Already covered, deliberately not duplicated:** infinite scrolling (`Infinite
+Scroll` template with IntersectionObserver + error/retry, Browser APIs Q16 and
+Q9, React §13.4 virtualisation); live search filtering (`Search with Debounce +
+Cancel` — debounce *and* AbortController for the out-of-order race — plus
+`Search Filter`, `Auto-Complete (ARIA combobox)`, React Q20 on a 50k-row list
+and Q54 on a debounced-value hook); `useFetch` (React §6.3 is the full
+implementation, with the no-`.finally` and reset-on-url-change constraints);
+auth and protected routes (`Protected Route (Auth + RBAC)` template, Frontend
+Architecture Q4 and Q7, and the whole OAuth & SSO guide).
+
+**Gaps, now closed:** `Form with Dynamic Fields` and `Multi-Step Form (Wizard)`
+templates (React Machine Coding 36 → **38**, templates 181 → **183**,
+challenges 130 → **132**), both with build walkthroughs, and **React Q57** on
+reorderable drag-and-drop — the `Drag and Drop` template existed but **no
+question anywhere in the corpus mentioned dragging**, and the template has no
+keyboard path, which is the part interviews grade.
+
+**Adding a React Machine Coding template is a five-file change**, and the tests
+name each one if you miss it: the template in `playgroundTemplates.ts`, a
+walkthrough in `playgroundBuildExplanations.ts` (every React template must have
+one), the name in `playgroundExplanationKeys.ts`, the `EXPECTED` counts in
+`playgroundContent.test.ts`, and the prose counts in README + Introduction. Then
+`npm run playground:index` and `npm run content:meta`. `reactTemplates.test.tsx`
+mounts the new template in jsdom and fails on any `console.error`, which is the
+gate that matters.
+
+**Write template code without backticks.** The `code:` values are template
+literals, so an unescaped backtick inside silently truncates the template and
+`tsc` does not catch it. Both new templates use string concatenation for
+dynamic styles instead, which sidesteps the hazard entirely.
+
+## An explanation should carry the idea and the clever bit, not every step
+Q16 (the typed event emitter) was a bare code dump. The first rewrite walked
+through each mechanism in turn — the map type, the `keyof` constraint, the
+conditional handler, the conditional rest tuple, the runtime bits, the
+follow-ups. The user's correction: *"the explanation is scattered, dont require
+explanation for each step, only important ones and one paragraph about the
+question answer"*.
+
+**The shape to use: one paragraph naming the idea the design rests on, then the
+single non-obvious mechanism, then what to volunteer.** Q16 went 6,400 → 2,800
+chars and reads better: the paragraph is "it all rests on a map from event name
+to payload type, so every method is a lookup", the mechanism is the
+conditional **tuple** in rest position (arity depending on the event name, and
+why `payload?:` cannot do it), and the volunteer points are the `Set<Function>`
+boundary and `off` needing the same reference. Everything a competent reader
+infers from the code itself was cut.
+
+**Three fragments had to be retagged `text`.** Pulling a lone signature out for
+discussion (`...args: Events[K] extends undefined ? [] : [Events[K]]`) does not
+parse, and `verify:blocks` rightly failed it — an isolated signature is prose,
+not runnable code, and tagging it `ts` ships a Try-it button that cannot work.
+
+**Probe lesson, and it caught me twice.** The first version of the pinning test
+passed while `emit<K extends keyof Events>` was widened to `K extends string`
+*and* while the conditional handler type was deleted — it asserted the wrong
+things. `emit('nope')` fails on **arity** either way, so it discriminates
+nothing; `emit('nope', { x: 1 })` is what exercises the `keyof` constraint. And
+a zero-argument arrow is assignable to `(payload: undefined) => void`, so only
+`on('load', (p: number) => …)` — a handler that *declares* a parameter —
+observes the conditional. All four mechanisms are now probe-tested individually.
+
+## The playground cannot show a TYPE error, and the TS guide has to say so
+A reader pressed **Try it** on the `as const` example, wrote `configV2.port = 4000`,
+and it printed `{ port: 4000, … }` — then asked what `readonly` means. Entirely
+reasonable: the guide said `as const` "makes everything readonly" and the app
+appeared to disprove it.
+
+**Both were right.** `readonly` is a compile-time constraint; `tsc` reports
+**TS2540** on that line, and the emitted JavaScript is
+`const cfg = { port: 3000, host: "localhost" };` — the assertion is gone and no
+runtime guard replaces it. The playground transpiles with Babel and **never type
+checks** (see "Playground transpilation — TypeScript is ALWAYS on"), so *no* type
+error can ever surface there.
+
+**The rule for the TypeScript guide specifically: any block whose teaching point
+is a compile error must say that Try it will not show it.** Everywhere else in
+the corpus a runnable block demonstrates its claim; here the button actively
+demonstrates the opposite. Q10 now states this inline, which turns the confusing
+result into the lesson — types are erased, so `Object.freeze` is the runtime
+equivalent.
+
+Verified and pinned in `typescriptGuideTypes.test.ts`: the TS2540 diagnostic, and
+that `ts.transpileModule` output contains neither `as const` nor a `freeze` call.
+Also pinned, because they are the next two questions a reader asks: **`as const`
+is deep** (nested properties error) while **`Readonly<T>` is shallow** (they do
+not), and readonly does not survive an alias to a mutable type.
+
+## Reference sections stay reference; Q&A goes in the Q&A section
+Asked "can't we use `Pick`/`Omit` instead of `Extract`/`Exclude`?", the first
+answer was written as a `####` subsection inside **§8.2 Union Utility Types**.
+The user's correction: *"Add this as an interview question rather than dirtying
+the guide."*
+
+**The rule that follows:** §1–§14 are **reference** — signature, what it does,
+the pitfall, move on. A "why not X instead of Y", "which would you choose", or
+"walk me through debugging this" answer is **§15 Interview Questions**, however
+good it is. A reference section that grows a 2,300-character comparison stops
+being scannable, which is the one job it has. This is the same principle as the
+JavaScript guide's Q4 restructure, applied in the other direction: there, depth
+moved *out* of an answer into a numbered section because it was reference
+material; here, depth moved *out* of a numbered section into an answer because
+it was an interview question. **Sort by the shape of the content, not by where
+the question was asked.**
+
+Now TypeScript **Q28**. Note the practical consequence of adding a `**QN:**`
+marker: it changes the extractor's count, so `npm run content:meta` must be
+re-run or the `totalQuestionCount` parity test fails naming the guide.
+
+## Fact-check a TypeScript guide WITH the TypeScript compiler
+A claim about what `tsc` does is mechanically checkable, so none of this needed
+review by eye. Method, worth reusing: extract all 122 `ts`/`tsx` blocks, compile
+each in isolation (`tsc --strict --ignoreConfig`), and cross-reference the result
+against the guide's own `// Error:` annotations. Then express every *type* claim
+as a compiler-checked equality:
+
+```ts
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+type _ = Expect<Equal<keyof { [k: string]: number }, string | number>>;
+```
+
+A wrong claim becomes a compile error. All 19 tricky questions, the utility
+types, narrowing, conditional distribution, template-literal expansion,
+`satisfies`, contravariance, `erasableSyntaxOnly` and the enum emit **passed**.
+
+**The one real defect: both `NoInfer` examples (§10.7 and tricky Q18) claimed an
+error that never occurred.** Written as `function f<T>(initial: T, options: NoInfer<T>[])`,
+`T` inferred from `'dark'` **widens to `string`**, so `['light', 'dark']` is an
+ordinary `string[]` and nothing errors — `NoInfer` appears to be a no-op. The
+constraint `T extends string` is what makes TypeScript preserve the literal, and
+only then is there something narrower for `NoInfer` to protect. Both now carry it,
+and both say why, since the omission is the natural way to "disprove" `NoInfer`.
+The same widening also made the guide's stated `T = 'dark' | 'light'` wrong
+(it was `string`); with the constraint it is correct.
+
+**Two detector lessons.** (1) An error annotation on a **commented-out** line is
+intentional — `// value.toFixed(); // Error: …` is the correct way to show a
+failure without breaking the block. Flag only annotations on *active* lines, or
+you get 10 false positives out of 11. (2) Compiling a block in isolation makes it
+a **script**, so blocks that legitimately redefine `Readonly`, `ReturnType`,
+`Required`, `Event`, `Response`, `name` or `origin` collide with lib/DOM globals.
+Those TS2300/TS2451 hits are artifacts of the harness, not guide defects — the
+same global-shadowing trap this file documents for `location` in `Sidebar`.
+
+`src/content/typescriptGuideTypes.test.ts` pins the two corrected examples using
+the **TypeScript compiler API in-process** (no subprocess, ~0.6 s): it extracts
+the blocks from the markdown, type-checks them in memory, and asserts the exact
+diagnostic. It also asserts the *unconstrained* form produces no diagnostic, so
+the test documents the bug it guards. Probe-tested by removing each constraint.
+
+**Version claims re-verified against Microsoft's release notes** (Sept 2026):
+7.0 on 8 Jul 2026, 6.0 on 23 Mar 2026 as the final JavaScript-based release,
+8–12× (7.7–11.9× measured), the VS Code 17.5 s → 1.3 s benchmark, and codename
+*Corsa* all correct. **Sharpened:** 7.0 ships **no** programmatic API at all —
+the release notes say a new and different one is expected in 7.1 — and 6.0 is
+published as `@typescript/typescript6` with a `tsc6` binary so both can be
+installed side by side. The guide previously said only "not stable in 7.0".
+
+## Corpus audit, Sept 2026 — what a full sweep actually found
+90 markdown files, 103,570 lines, 1,650 runnable blocks. Five mechanical sweeps;
+the useful part is which ones paid off.
+
+**1. Executed every `**Output:**` claim.** 67 claims pair with a source block; 53
+are plain JS/TS. Result after fixes: **zero mismatches**. One real error found —
+JavaScript tricky **Q5** showed `console.log({} + [])` and claimed `0`. It prints
+`"[object Object]"`. The `0` is real but only at **statement** position, where
+`{}` parses as a block and `+` is unary; inside `console.log(...)` the `{}` is an
+argument, i.e. an expression. The block now demonstrates both, with `eval('{} + []')`
+for the statement case, and the claimed asymmetry between `[] + {}` and `{} + []`
+is correctly re-framed as a **parsing** artefact rather than a coercion one.
+
+**2. Checked all 551 external links.** 11 were dead (404) and 2 domains had moved.
+Fixed: Cloudflare durable-objects (slug changed), Apple Dynamic Type, Python GC
+(devguide page gone → `docs.python.org/3/library/gc.html`), Play Console policy,
+React Router `/upgrading/v5` and `/upgrading/v6` (now `/upgrading/future`,
+`/component-routes`, `/router-provider` — also fixed in `data.ts` officialDocs),
+Socket.IO `/docs/v4/`, TanStack `useQuery` (moved under
+`framework/react/reference/functions/`), web.dev fetch-streaming (moved to
+developer.chrome.com), Zustand v5 migration page, `uuid7.com` (dead → RFC 9562),
+Partytown (`builder.io` → `qwik.dev`), and **Starlette moved `starlette.io` →
+`starlette.dev`**. One fabricated-looking citation was among them:
+`github.com/nicholasgasior/gofr-benchmark` did not exist → `fastify/benchmarks`.
+**403/418 responses are bot-blocking, not dead links** — MySQL docs, LeetCode,
+Medium, MIT Press, freedesktop all return them and are fine. Re-run the check
+before believing any "dead link" report.
+
+**3. Web-verified the volatile facts.** All confirmed against primary sources:
+CVE-2025-29927, CVE-2026-45109 and CVE-2026-64642 are all real Next.js
+middleware/proxy bypasses; TypeScript 7.0 shipped 8 Jul 2026; ESLint 10 removed
+eslintrc in Feb 2026; React Compiler 1.0 on 7 Oct 2025; Vite 8 on 12 Mar 2026 with
+Rolldown 1.0 on 7 May 2026; Next 16 has Turbopack default for dev **and**
+production; CRA was sunset 14 Feb 2025. **Nothing was hallucinated.**
+
+**4. Found stale point-in-time claims — all in `frontend-tooling-guide.md`.** §3–§7
+still said "Vite 6 (as of late 2024)", "npm 10", "pnpm 9", "Turbopack is dev mode
+only", and used `create-react-app` as the canonical `npx` example, while §9 ("The
+2026 Toolchain") correctly described Vite 8, Rolldown and Turbopack-by-default.
+**The guide contradicted itself** because §9 was added later and the earlier
+sections were never reconciled. All refreshed. **Lesson: when you add a "what's
+new" section, sweep the guide for the claims it supersedes** — a grep for
+`as of 20\d\d|current (stable|version)|latest version` finds them.
+
+**5. Q numbering across all 90 files: zero gaps or duplicates.**
+
+**What the sweep could NOT check**, and is worth stating: `using` and `Temporal`
+examples (not in Node 24), React/JSX output claims (need a DOM), and anything
+requiring a framework at runtime (Express, Mongo shell, Redux Toolkit) — those
+throw for environment reasons, not content reasons, and were classified as such
+rather than counted as defects.
+
+## Top-level await broke 129 Try-it buttons, and no gate could see it
+`new Function` builds a **script**, where top-level `await` is a hard
+`SyntaxError`. Both playground paths used it, so every guide block with top-level
+await failed *before running a line* — **129 blocks across 26 guides** (mongodb 20,
+stripe 16, browser-apis 11, jest-rtl 11, react-native 11, javascript 11, nodejs 8…).
+
+**`verify:blocks` is structurally blind to this**: it parses with Babel in *module*
+mode, where top-level await is legal. The block parses, the button ships, the
+runtime rejects it. Same shape as the `ws.send()` and misindented-fence findings —
+**parsing is not running**.
+
+`compileUserFunction` in `playgroundRunner.ts` now retries as an `AsyncFunction`
+**only** when compilation fails with that specific `await is only valid` error, so
+every other snippet stays on the original path and nothing else changes semantics.
+`runUserFunction` wraps it and reports an async rejection through the existing
+`reportPreviewError`, so a rejected promise surfaces in the console panel instead
+of vanishing. The worker carries the same fallback inline (it is a source string
+and cannot import).
+
+- **The infinite-loop guard is unaffected.** The 3 s timeout is enforced by the
+  main thread calling `terminate()`; a synchronous `while(true){}` never reaches
+  an `await`, so it still never posts `sync-done` and is still killed.
+- `playgroundTopLevelAwait.test.ts` pins it, including that a plain `new Function`
+  still rejects top-level await (so the test cannot pass vacuously), that a
+  synchronous body does **not** become a promise, that a genuine `SyntaxError`
+  still throws, and that the JavaScript guide's Q16 block now produces its claimed
+  output exactly.
+
+## A tricky question about an unfamiliar API needs the API explained first
+A reader reported "I didn't understand the question or the answer" for tricky **Q13, Q14 and
+Q15** and "no explanation of why this is 2" for **Q12**. All four ask something subtle about an
+API the reader may never have used — `Object.groupBy`, iterator helpers, `using`, `Temporal` —
+and each dived straight into the subtlety. The explanations were *long*; they were not
+*legible*.
+
+**The two fixes, both reusable:**
+1. **Open with what the API is**, in two sentences, before the puzzle. Same lesson as the
+   `once(fn)` rewrite.
+2. **A line-by-line table mapping each printed line to its reason**, immediately under the
+   output. The complaint about Q12 was that the answer to "why is this `2`?" was buried in
+   paragraph one and "why is this `undefined`?" in paragraph three — both were present and
+   neither was findable. A table makes each output line answerable at a glance, and the prose
+   below it becomes the *depth*, not the only path to the answer.
+
+**Executing them found a real error.** Q13 claimed a second `chain.toArray()` returns the
+remaining `[6]`. It returns **`[]`**: `take(1)` does not merely stop pulling — on reaching its
+limit it **closes** the upstream iterator. (Closing propagates because iterator helpers
+implement `return()`; a bare array iterator does not, so `[1,2,3].values()` survives the same
+treatment — verified both ways.) Pinned in `interviewAnswerDemos.test.ts` and probe-tested.
+
+`using` and `Temporal` cannot be executed on Node 24, so Q14 and Q15 remain unpinned — they
+are documented behaviour rather than measured, and that is worth knowing when editing them.
+
+## AI Engineering is its own category — and the AI guide kept its old route
+Nine categories now. `AI Engineering` (icon `Sparkles`, fuchsia) holds six guides in three
+groups — Foundations / Retrieval & Context / Agents & Frameworks — under `/ai/*`, **except
+`AI & LLM Engineering`, which stayed at `/backend/ai-llm-engineering`**. Same precedent as the
+AWS → DevOps rename: category membership and URL are independent, and moving the route would
+break the Introduction's deep links, saved bookmarks and checkpoints for no user benefit.
+
+New guides: `generative-ai-guide.md` (the foundations — tokens, transformers, embeddings,
+sampling, context, reasoning models, hallucination, diffusion, the adaptation ladder,
+inference economics), `rag-guide.md`, `agentic-ai-guide.md`, `mcp-guide.md`,
+`langchain-langgraph-guide.md`. All in `src/content/ai/`.
+
+**Deliberate non-duplication with `back-end/ai-llm-engineering-guide.md`.** That guide already
+covers RAG (§9), agents (§8) and MCP (§7.3) at overview depth and **stays as it is** — the new
+guides are the deep versions and each is scoped so the two do not restate each other. Do not
+"consolidate" them; the overview guide is the one-sitting read, the dedicated guides are
+reference depth. The same split as SOLID across two guides.
+
+**Volatile facts were web-verified (Sept 2026) rather than recalled**, because this subject
+ages fastest of anything in the repo:
+- **MCP 2026-07-28** is the current revision and it is a large break: `initialize` handshake
+  and `Mcp-Session-Id` removed, `_meta` carries version and capabilities, `Mcp-Method` /
+  `Mcp-Name` headers for gateway routing, list results cacheable via `ttlMs`/`cacheScope`,
+  Multi Round-Trip Requests replacing server-initiated requests, an extensions framework
+  (Tasks, MCP Apps, EMA), OAuth hardening (RFC 9207, CIMD replacing Dynamic Client
+  Registration), and **Roots, Sampling and Logging deprecated** with a 12-month window.
+  Anything written about MCP before this describes a different protocol.
+- **LangChain/LangGraph 1.0 (Oct 2025)**: `create_agent` replaced `initialize_agent` /
+  `AgentExecutor` / `create_react_agent`; **middleware** replaced callbacks and subclassing;
+  legacy chains moved to **`langchain-classic`**; standard content blocks normalise provider
+  response shapes. Most tutorial content online predates this.
+- The `interrupt()` **replay** behaviour — resuming re-runs the node from the top, so side
+  effects before the interrupt execute twice — is the single most useful gotcha in that guide
+  and is load-bearing in two questions.
+
+**Counts that moved:** Back End 18 → 17, total 70 → **75**, categories 8 → **9**, tricky
+**386 across 52 guides**, anchors 1,289 → 1,381. `verify-counts.js` hard-codes the category
+number in three claim templates (`README.md`, `CLAUDE.md`, `src/content/README.md`) — adding a
+category means editing those strings, and a new `AI Engineering` per-category claim was added
+alongside the Front End / Back End / System Design ones.
+
+**Code blocks are Python**, deliberately: `isRunnable` in `PreBlock.tsx` only tags
+`tsx/jsx/ts/js`, so Python blocks get no "Try it" button and `verify:blocks` does not parse
+them — which is correct, since none of this runs in a browser playground.
+
+## A deep topic lives in its numbered section; the interview answer points at it
+Q4 "Explain event bubbling and capturing" had grown to **15,470 chars / 302 lines / 11 code
+blocks** while its siblings were 400–1,100 — every follow-up request added another passage in
+place, so the three phases were described three times, there were two diagrams, and the
+`stopPropagation` caution appeared twice. One insert had also produced a malformed
+`#### #### Where you actually use them` heading that swallowed the `target` vs `currentTarget`
+one.
+
+The reference material now lives in **§13.1 The Event Path**, **§13.2 Stopping Things — Three
+Different Verbs** and **§13.3 Delegation, and What Does Not Bubble**, deduplicated and in
+order, and **Q4 is a ~1,600-char interview answer that cross-references them**. This mirrors
+how closures are already handled — §5.2–§5.4 deep, tricky Q2 short.
+
+**The rule: when a reader asks for more depth on a question, add it to the numbered section
+and link from the answer.** An interview answer is read in one sitting; a reference section is
+read with a scroll bar. Growing the answer in place is how you get three copies of the same
+paragraph.
+
+- The guide's TOC lists **top-level sections only**, so new `###` subsections here needed no
+  TOC entry — check that per guide before renumbering, since several list every `###`.
+- `src/content/eventPropagation.test.ts` pins the phase demo: it pulls the five
+  `addEventListener` lines **and** the claimed `text` output out of the markdown and checks
+  one against the other in jsdom, so the documented order cannot drift from the code that
+  produces it. Probe-tested in both directions (reorder the claim → fail; delete a listener →
+  fail).
+- jsdom fires capture-registered listeners before bubble-registered ones **at the target**,
+  which the spec leaves as registration order. The demo deliberately has only one listener on
+  the target so nothing depends on that, and the guide says not to rely on it.
+
+## An answer must engage the thing the QUESTION names
+Q21 asks "why is `Object.groupBy` not a drop-in replacement for **Lodash's** `groupBy`" and
+the answer never mentioned Lodash once — it compared `Object.groupBy` with `Map.groupBy`
+instead, which is the second half of the question. The reader's complaint was exactly that.
+
+**Check that every proper noun in a question appears in its answer.** Here the missing
+half was the four real migration breakages, all verified by execution: no iteratee
+shorthand (`Object.groupBy(users, 'role')` → `TypeError: role is not a function`), the
+callback also gets the index, the `null`-prototype result has no `.hasOwnProperty`, and
+Lodash tolerates `null` and plain objects where the native version throws. Lodash is a
+**transitive** dependency here, not a declared one, so the Lodash side is shown in a
+non-runnable `text` block (no Try it button) and the test asserts only the native side —
+depending on an undeclared package in a test would be a silent liability.
+
+The demo worth keeping: the obvious hand-rolled grouper — `(acc[key] ||= []).push(x)` —
+**throws** on a key of `'__proto__'`, because the lookup returns `Object.prototype` rather
+than `undefined`, so `||=` never assigns and `.push` does not exist. That is a concrete
+reason the spec chose `Object.create(null)`, and far better than asserting "it is safer".
+
+## Two of the JS guide's interview answers shipped code that threw on Try it
+Q8, Q13, Q14, Q16 and Q17 were expanded from bullet lists to full answers on user
+request. Two of them were **broken**, and the shape of the breakage is the reusable part:
+
+- **Q13** did `registry.register(someObj, 'my-object')` — `someObj` was never defined
+  anywhere in the block, so Try it threw `ReferenceError` immediately. Q16's usage lines
+  referenced `fetchResults` and `handler`, the same way.
+- Neither is a parse error, so `verify:blocks` passed. This is the failure mode rule 11 in
+  this file predicts ("a snippet pasted from a guide that calls a helper it does not
+  define") — it was in the guide itself.
+
+**A demo block that continues an earlier block is the same defect.** Q16's demo used the
+`debounce` from the implementation block above it, which reads fine on the page and throws
+when Try it opens only that block. Fixed by repeating a comment-free copy of the
+implementation inside the demo block — the annotated version above stays the teaching
+artifact. Prefer that to a continuation whenever the block carries a Try it button.
+
+`src/content/interviewAnswerDemos.test.ts` extracts each of these blocks from the markdown
+and executes it, asserting the exact console output (the debounce one drains timers for
+400 ms). Probe-tested three ways: double-binding in Q8, swapping `forEach` for `for...of`
+in Q14, and downgrading `seal` to `preventExtensions` in Q17 — each fails the suite.
+
+Facts verified by execution rather than asserted, since each is easy to state backwards:
+`bound.call(other)` ignores `other`; `describe.bind(a) !== describe.bind(a)`; a sloppy-mode
+`thisArg` of `'text'` arrives as an **object** and `null` arrives as `globalThis`, while under
+strict mode both pass through untouched; `ref.deref()` still returns the object after the last
+strong reference is dropped; `forEach` returns before any async callback finishes; a frozen
+array's `push` throws a `TypeError` **even in sloppy mode** (it defines a property rather than
+assigning one) while a sealed array still accepts `arr[0] = 9`; and `Object.freeze` does not
+stop a setter running or a `Map`'s contents changing.
 
 ## SOLID lives in TWO guides, deliberately — do not merge or duplicate them
 - **`low-level-design-guide.md` §3 "SOLID, Usefully"** is the *design-interview* framing: each principle plus **the smell that identifies the violation**, then worked through four full designs (parking lot, rate limiter, elevator, vending machine).

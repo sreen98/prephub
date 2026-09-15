@@ -999,7 +999,7 @@ STRATEGY & PROCESS
 - [WebPageTest](https://www.webpagetest.org) — filmstrips, waterfalls and real-device testing; better than Lighthouse for diagnosis
 - [Lighthouse CI](https://github.com/GoogleChrome/lighthouse-ci) — regression gates in your pipeline
 - [web.dev — Resource hints](https://web.dev/learn/performance/resource-hints) — `preconnect`, `preload`, `prefetch` and their failure modes
-- [Partytown](https://partytown.builder.io) — third-party scripts in a Web Worker
+- [Partytown](https://partytown.qwik.dev) — third-party scripts in a Web Worker
 - [Fontaine](https://github.com/unjs/fontaine) — automatic font metric overrides to eliminate swap CLS
 - [Speculation Rules API](https://developer.chrome.com/docs/web-platform/prerender-pages) — prefetch and prerender the next navigation
 - [Addy Osmani — The Cost of JavaScript](https://medium.com/dev-channel/the-cost-of-javascript-in-2018-7d8950fbb5d4) — the parse/compile/execute framing, still the clearest statement of it

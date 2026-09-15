@@ -2,7 +2,7 @@
 
 A comprehensive collection of guides covering everything a full-stack developer gets asked in interviews — from JavaScript fundamentals to frontend architecture, accessibility, security and AI engineering.
 
-**70 guides across 8 categories, plus 14 cheat sheets and an interactive Code Playground.**
+**76 guides across 10 categories, plus 14 cheat sheets and an interactive Code Playground.**
 
 ---
 
@@ -76,7 +76,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 [JavaScript Guide](/javascript/guide) (closures, prototypes, the event loop, ES2026 — Temporal, `using`, iterator helpers), [TypeScript Guide](/javascript/typescript) (generics, conditional and mapped types, the Go-native compiler), [Regex Guide](/javascript/regex), [JS Comparisons](/javascript/comparisons)
 
-### ⚙️ Back End (18 guides)
+### ⚙️ Back End (17 guides)
 
 **Runtime & Frameworks** — [Node.js](/backend/nodejs) (event loop, streams, Node 24/26), [Express.js](/backend/expressjs), [Python](/backend/python) (the GIL, asyncio, decorators, and Python for LLM services), [FastAPI](/backend/fastapi) (`async def` vs `def`, dependency injection, streaming), [MongoDB](/backend/mongodb)
 
@@ -84,7 +84,19 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 **Security & Identity** — [Web Security](/backend/web-security) (XSS, CSP, CSRF, token theft, supply chain, injection), [OAuth & SSO](/backend/oauth-sso)
 
-**Architecture & Delivery** — [Microservices](/backend/microservices), [Docker, K8s & CI/CD](/backend/docker-kubernetes) (images and layers, orchestration, pipelines, deployment strategies), [Stripe Integration](/backend/stripe), [AI & LLM Engineering](/backend/ai-llm-engineering) (tokens, streaming, RAG, tool calling, MCP, agents, evals, prompt-injection security)
+**Architecture & Delivery** — [Microservices](/backend/microservices), [Docker, K8s & CI/CD](/backend/docker-kubernetes) (images and layers, orchestration, pipelines, deployment strategies), [Stripe Integration](/backend/stripe)
+
+### ✨ AI Engineering (6 guides)
+
+**Foundations** — [Generative AI Foundations](/ai/generative-ai) (tokens, transformers, embeddings, sampling, context windows, reasoning models, hallucination, fine-tuning vs RAG), [AI & LLM Engineering](/backend/ai-llm-engineering) (cost and latency budgets, streaming to the UI, structured output, evals, prompt-injection security)
+
+**Retrieval & Context** — [RAG](/ai/rag) (chunking, embeddings, hybrid search, reranking, query transformation, evaluation, failure modes), [Model Context Protocol (MCP)](/ai/mcp) (primitives, the 2026-07-28 stateless core, transports, authorization, tool poisoning)
+
+**Agents & Frameworks** — [Agentic AI & Multi-Agent Systems](/ai/agents) (the agent loop, tool design, budgets, memory, multi-agent topologies, evaluation, the lethal trifecta), [LangChain & LangGraph](/ai/langchain-langgraph) (`create_agent`, middleware, state and reducers, checkpointers, interrupts, streaming)
+
+### 🤖 AI-Augmented Development (1 guide)
+
+[Using Claude Code Efficiently](/ai-dev/claude-code) — the engineering discipline around AI coding tools: instructions versus guarantees, context and prompt scoping, the plan→implement→review pipeline, hooks and permissions, review standards for AI-generated code, the skills and plugin ecosystem, team rollout and what to measure
 
 ### ♾️ DevOps (15 guides)
 
@@ -113,7 +125,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 ## 🛠️ Interactive Tools
 
 - **[Query Playground](/query-playground)** — **34 write-and-check questions**, 20 PostgreSQL and 14 MongoDB. You write the query, run it against real seeded data and your answer is checked automatically. It runs an actual PostgreSQL build in the browser, so window functions, `DISTINCT ON`, `FILTER` and recursive CTEs all behave exactly as they would on a server; MongoDB questions run real aggregation pipelines.
-- **[Code Playground](/playground)** — **181 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **36 React machine-coding** challenges — **130 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
+- **[Code Playground](/playground)** — **183 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **38 React machine-coding** challenges — **132 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
 - **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.
 - **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.

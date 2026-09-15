@@ -656,6 +656,41 @@ check('no released changelog section has been edited', () => {
 // ---------------------------------------------------------------------------
 // 16. Answer content must sit BEFORE the `---` that ends the question
 // ---------------------------------------------------------------------------
+check('no unescaped backtick inside a playground template literal', () => {
+  // Every template body is a `code:` TEMPLATE LITERAL, so a bare backtick ends
+  // it early. The remainder then reparses as TypeScript, and what you get is a
+  // confusing error hundreds of lines away — or, when the leftovers happen to
+  // be valid, a silently TRUNCATED template with no error at all.
+  //
+  // This has bitten four times in one session, every time from a comment
+  // written with `inline code` markers out of habit. tsc is not a reliable
+  // backstop, so the rule is mechanical: inside a template body, a backtick
+  // must be escaped.
+  const src = read('src/data/playground/playgroundTemplates.ts');
+  const lines = src.split('\n');
+  const offenders = [];
+  let inTemplate = false;
+  lines.forEach((line, i) => {
+    if (!inTemplate) {
+      if (/^\s*code: `/.test(line)) inTemplate = true;
+      return;
+    }
+    // Count unescaped backticks on this line.
+    const bare = [...line.matchAll(/(^|[^\\])`/g)].length;
+    if (bare === 0) return;
+    // The closing line of a template body is `\`,` — one unescaped backtick
+    // immediately followed by a comma. Anything else is a stray.
+    if (/`,\s*$/.test(line) && bare === 1) { inTemplate = false; return; }
+    offenders.push(`${i + 1}: ${line.trim().slice(0, 80)}`);
+    inTemplate = false;   // the literal has ended here anyway; resync
+  });
+  assert(
+    offenders.length === 0,
+    `a bare backtick ends the template literal early — escape it, or reword the comment:\n    ${offenders.slice(0, 6).join('\n    ')}`,
+  );
+  return 'every template body keeps its backticks escaped';
+});
+
 check('no answer content is orphaned after a `---`', () => {
   // `extractQuestions` terminates a standard `**Qn:**` answer at the next
   // question marker OR a standalone `---`. Anything after that separator is in

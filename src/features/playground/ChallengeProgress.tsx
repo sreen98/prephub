@@ -10,25 +10,39 @@ import type { Progress } from '../../hooks/usePlaygroundProgress';
  */
 
 interface ChipProps {
-  /** Every challenge name — the denominator. */
+  /** Every challenge name — the denominator while a challenge is open. */
   challengeNames: string[];
+  /** Every reference-template name — the denominator while one of those is open. */
+  referenceNames: string[];
   progress: Progress;
+  /** The template currently open, so the chip counts the set you are looking at. */
+  current: { kind?: string } | null;
 }
 
 /**
- * Counts over CHALLENGES only. The raw solved-entry count would include any
- * template the user merely edited, so the chip could read higher than its own
- * denominator.
+ * Counts over a NAMED set, never over the raw progress map — that map gains an
+ * entry for any template the user merely edited, so counting it would let the
+ * chip read higher than its own denominator.
+ *
+ * Which set depends on what is open. Reference templates used to have no way to
+ * be completed at all, while the picker still displayed "0/51" beside them
+ * forever; they are now marked the same way, so the chip has to be able to
+ * report that progress rather than only the challenge total.
  */
-export function SolvedChip({ challengeNames, progress }: ChipProps) {
-  const solved = challengeNames.filter(n => progress[n]?.status === 'solved').length;
-  const total = challengeNames.length;
+export function SolvedChip({ challengeNames, referenceNames, progress, current }: ChipProps) {
+  const onReference = current != null && current.kind !== 'challenge';
+  const names = onReference ? referenceNames : challengeNames;
+  const done = names.filter(n => progress[n]?.status === 'solved').length;
   return (
     <span
       className="ml-auto md:ml-3 text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/30 text-emerald-400 font-medium shrink-0 hidden sm:inline"
-      title="Challenges you have completed. JS challenges complete themselves when every test passes; the rest you mark yourself."
+      title={
+        onReference
+          ? 'Reference templates you have marked as read. Use "Mark complete" in the toolbar.'
+          : 'Challenges you have completed. JS challenges complete themselves when every test passes; the rest you mark yourself.'
+      }
     >
-      {solved} / {total} solved
+      {done} / {names.length} {onReference ? 'read' : 'solved'}
     </span>
   );
 }
@@ -41,14 +55,18 @@ interface ToggleProps {
 }
 
 /**
- * Renders only for a challenge. JS challenges complete themselves when a run
- * produces all ✅; React machine-coding templates have no test output to read,
- * so before this they could not be completed at all.
+ * Renders for ANY open template. JS challenges also complete themselves when a
+ * run produces all ✅; everything else — React machine-coding, and the 51
+ * reference templates including the polyfills — is marked by hand, because
+ * there is no test output to read. Reference templates were excluded at first,
+ * which left the picker showing "0/32" next to the polyfills with no way to
+ * ever move it.
  */
 export function CompleteToggle({ name, template, progress, onChange }: ToggleProps) {
-  if (!name || template?.kind !== 'challenge') return null;
+  if (!name || !template) return null;
   const solved = progress[name]?.status === 'solved';
-  const autoDetected = template.tag === 'JS';
+  const isChallenge = template.kind === 'challenge';
+  const autoDetected = isChallenge && template.tag === 'JS';
   return (
     <button
       onClick={() => onChange(name, !solved)}
@@ -58,7 +76,9 @@ export function CompleteToggle({ name, template, progress, onChange }: TogglePro
           ? 'Completed — click to un-mark'
           : autoDetected
             ? 'Mark as complete (also happens automatically when every test passes)'
-            : 'Mark as complete'
+            : isChallenge
+              ? 'Mark as complete'
+              : 'Mark as read'
       }
       className={
         'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors '
@@ -68,7 +88,9 @@ export function CompleteToggle({ name, template, progress, onChange }: TogglePro
       }
     >
       {solved ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-      <span className="hidden lg:inline">{solved ? 'Completed' : 'Mark complete'}</span>
+      <span className="hidden lg:inline">
+        {solved ? 'Completed' : isChallenge ? 'Mark complete' : 'Mark read'}
+      </span>
     </button>
   );
 }

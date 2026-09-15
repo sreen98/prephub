@@ -98,12 +98,14 @@ const truth = {
 // ---------------------------------------------------------------- claim checks
 // Each claim: the value it must equal, and where it must literally appear.
 const claims = [
-  ['guides',          'README.md',             (n) => `**${n} guides across 8 categories**`],
+  ['guides',          'README.md',             (n) => `**${n} guides across 10 categories**`],
   ['guides',          'CLAUDE.md',             (n) => `= ${n} guides`],
-  ['guides',          'src/content/README.md', (n) => `**${n} guides across 8 categories`],
+  ['guides',          'src/content/README.md', (n) => `**${n} guides across 10 categories`],
   ['cheatSheets',     'src/content/README.md', (n) => `${n} cheat sheets`],
   ['Front End',       'src/content/README.md', (n) => `Front End (${n} guides)`],
   ['Back End',        'src/content/README.md', (n) => `Back End (${n} guides)`],
+  ['AI Engineering',  'src/content/README.md', (n) => `AI Engineering (${n} guides)`],
+  ['AI-Augmented Development', 'src/content/README.md', (n) => `AI-Augmented Development (${n} guide)`],
   ['System Design',   'src/content/README.md', (n) => `System Design (${n} guides)`],
   ['templates',       'README.md',             (n) => `**${n} built-in templates**`],
   ['templates',       'src/content/README.md', (n) => `**${n} templates**`],

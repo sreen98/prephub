@@ -195,5 +195,7 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'Search with Debounce + Cancel',
   'Modal (Portal + Focus Trap)',
   'Form with Validation',
+  'Form with Dynamic Fields',
+  'Multi-Step Form (Wizard)',
   'Theme Switcher (dark/light)',
 ]);

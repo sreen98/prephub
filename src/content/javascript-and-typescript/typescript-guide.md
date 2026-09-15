@@ -453,6 +453,39 @@ type EventName = `on${Capitalize<string>}`;
 
 **Rule of thumb**: Use `interface` for object shapes (especially public APIs). Use `type` for unions, intersections, mapped types, and primitives.
 
+#### Can a `type` be extended like an `interface`?
+
+**Yes — with `&` instead of `extends`**, and the two mix freely in both directions:
+
+```ts
+type Animal = { name: string };
+interface Pet { owner: string }
+
+interface Dog extends Animal { breed: string }   // interface extending a TYPE alias
+type Cat = Pet & { indoor: boolean };            // type intersecting an INTERFACE
+```
+
+The `extends` **keyword** is interface-only — `type Dog extends Animal = …` is a syntax error — but the *capability* is not.
+
+**Where they genuinely differ is what happens on a conflict**, and this is the part interviews probe:
+
+```ts
+interface IUser { id: number }
+interface IAdmin extends IUser { id: string }
+// ❌ Error TS2430: Interface 'IAdmin' incorrectly extends interface 'IUser'.
+//    Types of property 'id' are incompatible.
+
+type TUser = { id: number };
+type TAdmin = TUser & { id: string };
+// ✅ No error — but TAdmin['id'] is now `never`, because no value is
+//    both a number and a string. The bug surfaces at every USE site
+//    instead of at the declaration.
+```
+
+`extends` **checks compatibility and rejects an incompatible override**; `&` just combines, and silently produces an impossible type. That is the strongest practical argument for `interface` on object shapes you expect other people to extend — you find out at the declaration rather than three files away.
+
+Two more asymmetries follow from the same place: an interface can only extend **an object type or an intersection of object types with statically known members**, so `interface X extends SomeUnion` is an error (TS2312) while `SomeUnion & { … }` is fine; and only interfaces participate in declaration merging, which is why the DOM and Node type definitions are interfaces — you can add to them from your own code, and you cannot do that with a type alias.
+
 ---
 
 ## 4. Functions
@@ -1206,13 +1239,15 @@ The `const` modifier goes on the *type parameter*, meaning the library author pa
 
 ```ts
 // Problem: TS infers T from BOTH parameters, producing a union
-function createState<T>(initial: T, options: T[]) { /* … */ }
+function createState<T extends string>(initial: T, options: T[]) { /* … */ }
 createState('dark', ['light', 'dark']);        // T = 'dark' | 'light' — no error!
 
 // Fix: only the first parameter decides T
-function createState2<T>(initial: T, options: NoInfer<T>[]) { /* … */ }
+function createState2<T extends string>(initial: T, options: NoInfer<T>[]) { /* … */ }
 createState2('dark', ['light', 'dark']);       // Error: 'light' not assignable to 'dark'
 ```
+
+**The `extends string` constraint is load-bearing, and leaving it off is the mistake to avoid.** An *unconstrained* `T` inferred from a string argument widens to `string`, so `T` is `string` in both functions, `['light', 'dark']` is a perfectly good `string[]`, and **neither version errors** — `NoInfer` appears to do nothing. Constraining `T` to a primitive type is what makes TypeScript preserve the literal `'dark'`, and only then is there a narrower type for `NoInfer` to protect. It is the same rule behind the `const` type parameter above.
 
 `NoInfer` doesn't change assignability — it changes *who gets to decide* `T`. Say out loud in an interview that it is an inference-site marker, not a constraint, and you've demonstrated the distinction most candidates miss.
 
@@ -1514,7 +1549,7 @@ TypeScript's biggest change in a decade happened in 2026 and it is not a type-sy
 
 - 7.0 is **behaviourally compatible** with 6.0's type-checking and CLI. Code that compiles cleanly on 6.0 should compile identically on 7.0. The migration is a dependency bump, not a code change.
 - The old `tsgo` name was the 2025 preview binary shipped via `@typescript/native-preview`. From the 7.0 RC onward, the native build **is** `tsc` inside the normal `typescript` package; `tsgo` now refers only to the nightly channel.
-- The **programmatic API is not stable in 7.0**. Anything that drives the compiler as a library — the Vue, Svelte, Astro and MDX language tooling, plus custom AST transforms and some ESLint type-aware setups — has to stay on 6.0 until it catches up. This is the single most important caveat and the thing an interviewer will be probing for: "we upgraded" is the wrong answer if half your toolchain consumes the API.
+- **7.0 ships no programmatic API at all** — not merely an unstable one. The release notes say so plainly, and that a *new and different* API is expected in 7.1. So anything that drives the compiler as a library — the Vue, Svelte, Astro and MDX language tooling, plus custom AST transforms and some type-aware ESLint setups — has to stay on 6.0 until it catches up, and 6.0 is published as **`@typescript/typescript6`** with a `tsc6` binary precisely so the two can be installed side by side. This is the single most important caveat and the thing an interviewer probes for: "we upgraded" is the wrong answer if half your toolchain consumes the API.
 - Nothing about your `tsconfig.json` or your types changes. If you were hoping the rewrite would bring nominal types or a runtime type system, it does not — it is the same type system, checked faster.
 
 **The framing that scores well:** the rewrite is an admission that type-checking had become the slowest step in modern front-end builds. Bundling was already native (esbuild, SWC, Rolldown), so `tsc --noEmit` in CI and the editor language server were the remaining bottlenecks. TypeScript 7 closes that gap, and it is why the "just use `transpileOnly` and check types in a separate CI job" workaround is becoming unnecessary.
@@ -1837,6 +1872,29 @@ const configV2 = { port: 3000, host: 'localhost' } as const;
 // type: { readonly port: 3000; readonly host: 'localhost' }
 ```
 
+**`readonly` here means "the compiler will refuse the assignment" — nothing more.** It is a *type-level* constraint, checked while you write code and then erased. Nothing is frozen at runtime:
+
+```ts
+const cfg = { port: 3000, host: 'localhost' } as const;
+cfg.port = 4000;
+// Error TS2540: Cannot assign to 'port' because it is a read-only property.
+```
+
+Compile that and the emitted JavaScript is:
+
+```js
+const cfg = { port: 3000, host: "localhost" };   // `as const` is gone
+cfg.port = 4000;                                 // and this just works
+```
+
+So if you run the transpiled output — or paste the snippet into a playground that strips types instead of type-checking them, **including the "Try it" button on this page** — the mutation succeeds and logs `{ port: 4000, … }`. That is not a broken example; it is what `readonly` is. **TypeScript protects you while you are writing the code, not while it is running.** For a runtime guarantee you need `Object.freeze`, which is a real JavaScript operation — and note that it is shallow, and fails silently outside strict mode.
+
+Three more properties worth knowing:
+
+- **`as const` is deep.** Nested objects and arrays become readonly all the way down.
+- **`Readonly<T>` is shallow.** `Readonly<{ db: { port: number } }>` still permits `x.db.port = 1`. The two are not interchangeable.
+- **`readonly` does not survive an alias.** Assign the value to a mutable type and the protection is gone — it guards against accident, not against a determined caller.
+
 Use cases:
 - Configuration objects with literal values
 - Defining route maps or action types
@@ -1981,6 +2039,8 @@ This is different from nominal typing (Java, C#) where `Point` and `Coordinate` 
 
 **Q16: How would you implement a type-safe event emitter?**
 
+The whole design rests on **one map type from event name to payload type**. Once `EventMap` exists, `keyof EventMap` is the set of legal event names and `EventMap['click']` is that event's payload, so every method just becomes a lookup: make it generic over a *single* key (`K extends keyof Events`), infer `K` from the `event` argument, and the payload type follows automatically. That is what a `string`-based emitter can never do — it has no way to relate the name to the thing it carries.
+
 ```ts
 type EventMap = {
   click: { x: number; y: number };
@@ -2019,7 +2079,24 @@ emitter.emit('load');
 // emitter.emit('click');                   // Error: missing payload
 ```
 
----
+**The clever part is `emit`'s rest parameter, and it is what an interviewer is actually grading:**
+
+```text
+...args: Events[K] extends undefined ? [] : [Events[K]]
+```
+
+A rest parameter can be typed as a **tuple**, and a conditional type can pick which one — an empty tuple means "no further arguments", a one-element tuple means "exactly one, of this type". So the **arity itself** depends on the event name. `payload?: Events[K]` would not work: it makes the argument optional for *every* event, including the ones that require it.
+
+That single line is what produces all of this:
+
+```ts
+emitter.emit('click', { x: 1, y: 2 });   // ok
+emitter.emit('click');                   // Error: Expected 2 arguments, but got 1
+emitter.emit('load');                    // ok
+emitter.emit('load', { x: 1 });          // Error: Expected 1 arguments, but got 2
+```
+
+**Two things worth volunteering.** The typing lives entirely at the `on`/`emit` boundary — internally the handlers are stored as `Set<Function>`, so `fn(...args)` is unchecked, which is an acceptable trade but not a secret. And the obvious follow-up is `off`: removing a listener needs the *same function reference*, so an inline arrow can never be removed — the usual fix is to have `on` return an unsubscribe closure.
 
 **Q17: What are template literal types and how are they useful?**
 
@@ -2338,6 +2415,63 @@ const settings = isSettings(raw) ? raw : DEFAULTS;
 - **At any real size, use a schema library.** Zod or Valibot give you the predicate and the TypeScript type from one declaration, so they cannot drift — a hand-written guard that forgets a new field compiles perfectly and lies.
 
 **The senior framing:** this is a **boundary**. Parsing, validation and defaulting belong at the edge of the system — storage, network, URL params — so that everything inside can trust its types. `unknown` at the boundary is what makes "the types are true" an invariant rather than a hope.
+
+---
+
+**Q28: Why can't you use `Pick` and `Omit` instead of `Extract` and `Exclude`?**
+
+Because they filter on different axes. **`Pick` and `Omit` select properties by key from an object type; `Extract` and `Exclude` filter members of a union by assignability.** The four are not alternatives to each other — they operate on different kinds of type.
+
+| Aspect | `Pick` / `Omit` | `Extract` / `Exclude` |
+|---|---|---|
+| Operate on | an **object type** | a **union of any types** |
+| Select by | **property key** | **assignability** |
+| Constraint | `Pick<T, K>` requires `K extends keyof T` | none — any union, any filter |
+
+Trying to swap them fails immediately, and the error message is the whole explanation:
+
+```ts
+type Letters = 'a' | 'b' | 'c';
+
+type Kept = Extract<Letters, 'a' | 'c'>;   // 'a' | 'c'
+type Gone = Exclude<Letters, 'a'>;         // 'b' | 'c'
+
+// type Nope = Pick<Letters, 'a'>;
+// Error TS2344: Type '"a"' does not satisfy the constraint
+//   'number | "toString" | "charAt" | …'
+```
+
+`keyof ('a' | 'b' | 'c')` is **not** `'a' | 'b' | 'c'`. A union of string literals has no properties of its own, so `keyof` gives you the `string` *methods* they all share — there is nothing for `Pick` to select, because union members are not keys.
+
+The reverse fails for the mirror reason. `Exclude` tests whole types for assignability, so pointing it at an object does not remove a property:
+
+```ts
+type User = { id: number; name: string; email: string };
+type Oops = Exclude<User, { id: number }>;   // never — User IS assignable to { id: number }
+```
+
+**They are related, though, and this is the part worth saying out loud:** `Omit` is *built from* `Exclude`. The standard-library definition is
+
+```ts
+type Omit<T, K extends keyof any> = Pick<T, Exclude<keyof T, K>>;
+```
+
+`keyof T` produces a union of keys, `Exclude` does the union filtering on it, and `Pick` turns the surviving keys back into an object type. So `Exclude` is not something `Omit` could replace — `Omit` depends on it. The same shape appears throughout the standard library: the object helpers are built on the union helpers.
+
+**One gotcha falls straight out of that definition.** `Pick` constrains `K` to `keyof T`, but `Omit` constrains it only to `keyof any`, so a typo is caught in one and silently ignored in the other:
+
+```ts
+type A = Pick<User, 'nope'>;   // Error: '"nope"' does not satisfy 'keyof User'
+type B = Omit<User, 'nope'>;   // No error — B is just User, unchanged
+```
+
+Rename a field and forget to update an `Omit`, and nothing tells you. Some codebases define a constrained wrapper for exactly this reason:
+
+```ts
+type StrictOmit<T, K extends keyof T> = Omit<T, K>;
+```
+
+**Takeaway:** `Pick`/`Omit` work on keys of an object; `Extract`/`Exclude` work on members of a union. `Omit` is `Pick` + `Exclude`, which is why one cannot stand in for the other — and unlike `Pick`, `Omit` does not validate its keys.
 
 ---
 
@@ -2832,7 +2966,7 @@ console.log(Direction["Up"]);
 **Output:**
 ```
 0
-"Up"
+Up
 0
 ```
 
@@ -2977,8 +3111,8 @@ Note that an **inline** arrow works fine — `values.filter(v => v !== null)` gi
 **Q18: Why does the first call type-check when it clearly shouldn't, and what does `NoInfer` change?**
 
 ```ts
-function createState<T>(initial: T, allowed: T[]) {}
-function createState2<T>(initial: T, allowed: NoInfer<T>[]) {}
+function createState<T extends string>(initial: T, allowed: T[]) {}
+function createState2<T extends string>(initial: T, allowed: NoInfer<T>[]) {}
 
 createState('dark', ['light', 'dark']);     // ?
 createState2('dark', ['light', 'dark']);    // ?
@@ -3000,6 +3134,8 @@ In the first signature, `T` appears in **two inference positions**, and TypeScri
 The crucial distinction to state out loud: `NoInfer` is an **inference-site marker, not a constraint**. It does not narrow, validate or transform anything; it only removes a position from the candidate-collection phase. This is why it is a utility type rather than a keyword, and why it has no runtime or assignability meaning of its own.
 
 Before 5.4 the workarounds were all awkward: a second type parameter with a mutual constraint (`<T, U extends T>`), or the intersection trick `T & {}`, or an explicit type argument at every call site. `NoInfer` says the thing directly.
+
+**Why `extends string` is in both signatures, and what happens without it.** Drop the constraint and there is no puzzle left to demonstrate: an unconstrained `T` inferred from a string argument **widens to `string`**, so `T` is `string` in both functions, `['light', 'dark']` is an unremarkable `string[]`, and **neither call errors** — `NoInfer` looks like it does nothing. Constraining `T` to a primitive is what makes TypeScript keep the literal types, and literals are the only thing `NoInfer` has to protect here. Getting this wrong is an easy way to "disprove" `NoInfer` to yourself.
 
 The generalisable rule: **any type parameter that appears in more than one parameter position will widen to a union of candidates.** If one of those positions is meant to be *validated against* the other rather than to help decide the type, wrap it in `NoInfer`.
 

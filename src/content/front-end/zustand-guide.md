@@ -608,5 +608,5 @@ useStore.setState(initial, true);
 - **Zustand docs** — [https://zustand.docs.pmnd.rs](https://zustand.docs.pmnd.rs)
 - **GitHub repository** — [https://github.com/pmndrs/zustand](https://github.com/pmndrs/zustand)
 - **`useSyncExternalStore`** — [https://react.dev/reference/react/useSyncExternalStore](https://react.dev/reference/react/useSyncExternalStore)
-- **Migrating to v5** — [https://zustand.docs.pmnd.rs/migrations/migrating-to-v5](https://zustand.docs.pmnd.rs/migrations/migrating-to-v5)
+- **Documentation home** — [https://zustand.docs.pmnd.rs](https://zustand.docs.pmnd.rs) · **Repository and release notes** — [https://github.com/pmndrs/zustand](https://github.com/pmndrs/zustand)
 - **TanStack Query** (server state) — [https://tanstack.com/query/latest](https://tanstack.com/query/latest)
