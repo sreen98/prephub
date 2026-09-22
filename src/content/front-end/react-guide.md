@@ -5420,10 +5420,138 @@ field.current.focus();      // only focus and clear exist — not the raw node
 **When it is wrong** — and this is what the question is really testing: if you are using it to push *data* into a child, or to make a child re-render, you are working against React's data flow and the answer is props or lifted state. A ref that exposes `setValue` is a controlled component wearing a disguise.
 
 Two notes on the modern API: in **React 19 `ref` is an ordinary prop**, so `forwardRef` is no longer needed for this — though it still works. And a ref callback may now return a **cleanup function**, which replaces the old "called with `null` on unmount" convention.
+**Q61: A `useEffect` is causing an infinite re-render loop. How do you diagnose and fix it?**
+
+The mechanism is always the same sentence: **the effect sets state, the state change re-renders, the re-render produces a dependency React considers different, so the effect runs again.** React compares deps with `Object.is`, and a freshly created object, array or function is never `Object.is`-equal to the one from the previous render — so a literal in the dependency array guarantees the loop.
+
+> The examples below are deliberately tagged as text rather than as runnable code. Pressing **Try it** on a genuine infinite render would lock up the tab: the React preview runs on the main thread, so the playground's worker timeout cannot rescue it.
+
+**Shape 1 — a literal in the deps.** The most common by a wide margin.
+
+```text
+// Loops forever: { id } is a new object every render.
+useEffect(() => {
+  fetchUser({ id }).then(setUser);
+}, [{ id }]);
+```
+
+**Shape 2 — setting state the effect also depends on.**
+
+```text
+useEffect(() => {
+  setCount(count + 1);       // writes the value it watches
+}, [count]);
+```
+
+**Shape 3 — an unstable prop from the parent.** The child looks innocent; the parent re-creates the value each render.
+
+```text
+// Parent
+<Child options={{ sort: 'asc' }} onDone={() => refresh()} />
+
+// Child — deps change on every parent render
+useEffect(() => { load(options); }, [options, onDone]);
+```
+
+**Shape 4 — not an effect at all.** `setState` called during render throws `Too many re-renders` immediately rather than looping quietly. Worth naming, because the error text sends people hunting through their effects when the call is in the component body.
+
+#### Fixing it, in the order you should try
+
+**1. Ask whether the effect should exist.** Most of these are derived state wearing an effect's clothes. If the value can be computed during render, compute it — no effect, no deps, no loop. This is the senior signal, and §7.4 covers the full case.
+
+```tsx
+function Cart({ items }: { items: { price: number }[] }) {
+  const total = items.reduce((sum, i) => sum + i.price, 0);  // not useEffect + useState
+  return <p>Total: {total}</p>;
+}
+```
+
+**2. Depend on primitives, not on the object.** `[user.id]` is stable across renders in a way `[user]` is not.
+
+**3. Stabilise the producer, not the consumer.** Wrap the value where it is created — `useMemo` for objects, `useCallback` for functions — so the child receives the same reference. Memoising inside the child cannot help; the new reference has already arrived.
+
+**4. Drop the dependency with a functional update.** `setCount(c => c + 1)` does not read `count`, so `count` leaves the array and Shape 2 disappears.
+
+**5. Use a ref for values you need but do not render on.** A ref changes without re-rendering, so it never re-triggers an effect.
+
+#### The fix that is not a fix
+
+Emptying the dependency array stops the loop, and the linter will tell you so. It also freezes every value the effect closed over at first render, so the effect keeps calling a stale function with stale props — a loud bug traded for a silent one. `useEffectEvent` (§16.7) exists precisely for the legitimate version of this want: read the latest value without subscribing to it.
 
 ---
 
----
+**Q62: Map the class lifecycle methods to their hook equivalents. Where does the mapping break down?**
+
+The table is the easy half, and the interesting answer is the part underneath it: **lifecycle methods think in *moments*, effects think in *synchronisation*.** A class asks "what happens when I mount, update, unmount?" An effect asks "what external thing must match this state, and what has to be undone when it stops matching?" That is why the mapping is not one-to-one in either direction — one lifecycle method usually becomes several effects split by concern, and one effect usually replaces three lifecycle methods at once.
+
+| Class | Hook equivalent | Note |
+|---|---|---|
+| `constructor` (state init) | `useState(initial)`, or `useState(() => expensive())` | the lazy form runs the work once, not per render |
+| `componentDidMount` | `useEffect(fn, [])` | runs **after paint**, not before — see below |
+| `componentDidUpdate` | `useEffect(fn, [deps])` | no `prevProps` argument |
+| `componentWillUnmount` | the function **returned** from `useEffect` | one cleanup covers unmount *and* every re-run |
+| `getDerivedStateFromProps` | derive during render, or reset with `key` | almost never needs a hook |
+| `shouldComponentUpdate` | `React.memo` (+ a comparator) | a wrapper, not a hook |
+| `getSnapshotBeforeUpdate` | `useLayoutEffect` reading the DOM before the browser repaints | blocks paint, so use it only to measure |
+| `render` | the function body | no lifecycle involved at all |
+| `getDerivedStateFromError` / `componentDidCatch` | **no hook exists** | |
+
+#### The four places it breaks down
+
+**1. `componentDidMount` runs before paint; `useEffect` runs after it.** If the effect measures the DOM and then writes a style based on that measurement, the user sees one frame of the wrong layout — a visible flicker. `useLayoutEffect` is the true equivalent, and it is the right tool for exactly that case: measuring, scroll restoration, positioning a tooltip against its trigger. It also blocks paint, so everything else belongs in `useEffect`.
+
+**2. There is no `prevProps`.** `componentDidUpdate(prevProps)` lets you compare old and new; an effect only knows that a dependency changed. Usually that is enough, because the dependency array *is* the comparison. When you genuinely need the previous value, you keep it yourself in a ref — and needing it is often a sign the logic should be derived during render instead.
+
+**3. Error boundaries are still class-only.** `getDerivedStateFromError` and `componentDidCatch` have no hook, in React 19 or otherwise. Every codebase that looks hook-only has one class left, or imports `react-error-boundary`. Say this plainly; interviewers ask it precisely because it is the exception people forget.
+
+**4. One class method splits into several effects.** A class puts a subscription, an analytics ping and a document-title update in one `componentDidMount` because there is only one method to put them in. As hooks they are three effects with three different dependency arrays and three different cleanups — and that separation is the upgrade, not an inconvenience. The reverse is also true: `componentDidMount` + `componentDidUpdate` + `componentWillUnmount` for a single subscription collapse into **one** effect, which is why the class version so often forgot to resubscribe on prop change.
+
+```jsx
+class RoomClass extends React.Component {
+  componentDidMount() { this.conn = connect(this.props.roomId); }
+  componentDidUpdate(prevProps) {
+    // The bug this shape invites: forget these five lines and the room never changes.
+    if (prevProps.roomId !== this.props.roomId) {
+      this.conn.close();
+      this.conn = connect(this.props.roomId);
+    }
+  }
+  componentWillUnmount() { this.conn.close(); }
+  render() { return <p>Room {this.props.roomId}</p>; }
+}
+
+function RoomHook({ roomId }) {
+  React.useEffect(() => {
+    const conn = connect(roomId);
+    return () => conn.close();   // cleanup runs before every re-run AND on unmount
+  }, [roomId]);
+  return <p>Room {roomId}</p>;
+}
+
+function connect(id) {
+  console.log('connect', id);
+  return { close: () => console.log('close', id) };
+}
+
+function Demo() {
+  const [room, setRoom] = React.useState('general');
+  return (
+    <div>
+      <RoomHook roomId={room} />
+      <button onClick={() => setRoom(r => (r === 'general' ? 'random' : 'general'))}>
+        Switch room
+      </button>
+    </div>
+  );
+}
+
+render(<Demo />);
+```
+
+Press **Switch room** and the console reads `close general` then `connect random` — the cleanup is the `componentWillUnmount` *and* the first half of `componentDidUpdate`, which is the whole reason the hook version cannot forget to resubscribe.
+
+**What to volunteer:** the three `UNSAFE_*` methods (`componentWillMount`, `componentWillReceiveProps`, `componentWillUpdate`) have no equivalent because they were removed for being unsafe under concurrent rendering — they could run more than once per commit. And `useEffect` runs **twice on mount in development StrictMode**, deliberately, to surface a missing cleanup; a class's `componentDidMount` did not, which is why migrating sometimes appears to introduce a bug it is actually revealing.
+
 ---
 
 ## 18. Tricky Output Questions

@@ -994,6 +994,48 @@ That ordering is **progressive enhancement**: write the version that works, then
 **6. Verify it, don't hope.** Real devices where it matters, **BrowserStack/Sauce** or Playwright's Chromium/Firefox/**WebKit** engines in CI for the rest — Playwright bundling a real WebKit is the cheapest Safari coverage available. **Visual regression testing** (Chromium + WebKit screenshots per PR) is what actually catches drift, and it must run in a container with pinned fonts or you'll get diffs that aren't bugs. Plus zoom to 200% and 400%, and check `prefers-reduced-motion` and `prefers-color-scheme`.
 
 **7. Where inconsistency is legitimate.** Native form controls, scrollbars, date pickers, focus rings and font rendering *should* look like the platform. Overriding all of them to match a design is a large maintenance cost, usually degrades accessibility, and users generally prefer the platform behaviour. Knowing which battles not to fight is part of the answer.
+**Q11: Explain `position: sticky`. How does it differ from the other positioning schemes, and why does it so often fail to stick?**
+
+Sticky is a hybrid, and that is the whole definition: an element is **`relative` until its nearest scrolling ancestor scrolls it past a threshold you set, then `fixed` within that ancestor** — and it never escapes its parent's box. Every one of its failure modes falls out of one of those three clauses.
+
+| Scheme | In normal flow? | Positioned against | Scrolls with the page? | Always a stacking context? |
+|---|---|---|---|---|
+| `static` | Yes | nothing (offsets ignored) | Yes | No |
+| `relative` | Yes — original space is kept | its own normal position | Yes | Only with a `z-index` |
+| `absolute` | **No** — removed from flow | nearest positioned ancestor | Yes (with that ancestor) | Only with a `z-index` |
+| `fixed` | **No** | the viewport | **No** | **Yes** |
+| `sticky` | **Yes** — space is kept | nearest **scrolling** ancestor | Until the threshold, then pins | **Yes** |
+
+The two rows worth saying out loud are the last two columns. `sticky` keeps its space in the flow — nothing below it jumps when it pins, which is exactly why it is used for headers where `fixed` would need a compensating margin. And it **always creates a stacking context**, which `relative` only does once you give it a `z-index`.
+
+#### The three reasons it silently does nothing
+
+**1. No threshold.** `position: sticky` with no `top`, `bottom`, `left` or `right` is a no-op. There is no error and no warning; it simply behaves as `relative` forever.
+
+```css
+.header { position: sticky; }           /* never sticks */
+.header { position: sticky; top: 0; }   /* sticks */
+```
+
+**2. An ancestor became the scroll container.** Sticky pins inside its *nearest scrolling ancestor*, not the viewport. Any ancestor with `overflow: hidden | auto | scroll` on the relevant axis silently becomes that container — and if that container does not itself scroll, there is nothing to stick to.
+
+```css
+/* A wrapper added months ago for a completely unrelated reason */
+.layout { overflow-x: hidden; }   /* also sets overflow-y to auto — sticky is now scoped here */
+```
+
+This is the single most common cause, and `overflow-x: hidden` is the usual culprit because setting one axis to a non-`visible` value forces the other axis to compute as `auto`.
+
+**3. The parent is too short.** Sticky is bounded by its parent's padding box. A sticky element in a parent only slightly taller than itself pins for a few pixels and then leaves with the parent. A sticky table-of-contents that "stops working halfway down" is almost always this — the sidebar's parent ended.
+
+#### What to volunteer
+
+The diagnostic, which is the same one that solves `fixed` and `z-index` bugs (see §12): **when sticky misbehaves, walk up the ancestor chain in DevTools looking for `overflow`, `transform`, `filter`, `contain` and `container-type`.** The bug is nearly always in an ancestor, not in the element you are staring at.
+
+Two more that come up as follow-ups: for a sticky table header, the property goes on `th`, not `thead`, in older engines; and a sticky element still participates in flex and grid layout, so `align-items: stretch` on the parent can leave it full-height with nothing to pin.
+
+---
+
 
 ---
 ---

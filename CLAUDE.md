@@ -1019,6 +1019,220 @@ would have made both numbers meaningless.
   the new prop had to go on one line at the call site. Watch for that when adding
   anything to that file.
 
+## The polyfill section is TWO families, and the split is the point
+`JS Polyfills` held 32 entries and every one was a **spec method** — a
+re-implementation of something the language already ships. The second family,
+**utilities that are not in the standard library**, is where most interview
+questions actually live, and it had no home here. The category is now split:
+
+- **`Spec Polyfills`** (32) — `Array.map`, `Function.bind`, `Promise.all`, …
+- **`Utility Implementations`** (9, new) — `once`, `curry`, `deepEqual`,
+  `promisify`, `Promise.prototype.finally`, `myInstanceof (prototype chain)`,
+  `myNew (the new operator)`, `retry with exponential backoff`,
+  `Promise from scratch`
+
+**Before adding to the utility family, check Coding Challenges first.** The
+obvious candidates are already there as challenges with stubs, tests,
+multi-approach solutions and Explain walkthroughs — `Debounce`, `Throttle`,
+`Memoize`, `EventEmitter`, `Deep Clone`, `Compose & Pipe`, `Sum Curry`,
+`Auto-Retry for Promises`, `Batch Promises by Concurrency`, `Task Runner with
+Concurrency Control`, `Async Tasks in Series`. The app splits content by
+**interaction mode** (solve-it vs read-it), not by family, so "it is not in the
+polyfill list" does not mean "it is missing". A list-by-name over every
+category settles it in one command; guessing produces duplicates.
+
+`retry with exponential backoff` is the one deliberate overlap: the challenge
+version is the stub you solve, this is the reference implementation carrying
+the production notes (full jitter, why a fixed delay rebuilds the spike you
+backed off from, retry only idempotent verbs). The template says so in a
+comment so the duplication reads as intentional.
+
+**Difficulty is now on reference templates too, and that changed two things.**
+A section of 32 untagged entries gave no signal about what to attempt next, so
+every template in `Spec Polyfills`, `Utility Implementations` and `Coding
+Challenges` now carries Easy/Medium/Hard. Consequences:
+- `buildTemplateCatalog`'s `inScope` follows **`wantedKind`** rather than always
+  meaning "challenges", so the difficulty counts describe the set actually on
+  screen. The old hard-coded `'challenge'` would have shown challenge counts
+  above a list of polyfills.
+- The chips in `TemplateGrid` are no longer gated on `modalMode === 'challenges'`
+  — `scopeHasDifficulty` already answers that question, and correctly, now that
+  it is mode-scoped.
+- `patterns` stay **JS-challenge-only**: they describe an algorithmic shape and
+  mean nothing on a reference template. The old single invariant "pattern and
+  difficulty appear only on JS challenges" is now two tests, because the two
+  fields no longer have the same scope.
+- The tutorial categories (`JS Fundamentals`, `JS Interview Topics`, React
+  Basics/Advanced) stay untagged on purpose — they are reading material with no
+  interview scale. The test allowlists the three graded categories rather than
+  asserting over every JS template.
+
+Counts: templates 186 → **195**, categories 7 → **8**, reference templates
+51 → **60**.
+
+**All nine utility implementations were executed before being written in**,
+including the `Promise from scratch` state machine (chaining, thenable
+adoption, microtask ordering, pass-through `then`) and the `deepEqual` cycle,
+`NaN`, `+0`/`-0` and prototype cases.
+
+## The missing-number family — three variants, and why each is a different question
+`Find Missing Number` (one value absent from [0, n]) had been the only member.
+A reader asked whether the other variants existed; none did. All three are now
+JS Coding Challenges, which took templates 183 → **186**, JS challenges 94 →
+**97**, challenges 132 → **135**, solutions and explanations likewise.
+
+They are not restatements of each other — each removes a different guarantee,
+and that is the reason to carry all three:
+
+| Challenge | What it removes | The idea being graded |
+|---|---|---|
+| `Find All Missing Numbers` (Medium) | one missing → many | sign marking: a value in [1, n] has a home at index v - 1, and every slot has a spare bit — its sign |
+| `First Missing Positive` (Hard) | the range guarantee entirely | the answer is bounded by n + 1, which is what makes O(1) space possible at all |
+| `Missing Term in Arithmetic Sequence` (Medium) | consecutive integers → any constant step | the intactness test is monotonic, so binary search applies |
+
+**The load-bearing detail in each, worth keeping if these are edited:**
+- **All Missing Numbers** — `Math.abs` is not decoration: by the time you read
+  `nums[i]` an earlier mark may already have flipped it. And the solution
+  **mutates the caller's array**; the note saying so is the honest half of the
+  O(1)-space claim.
+- **First Missing Positive** — the loop guard `nums[nums[i]-1] !== nums[i]` is
+  what stops `[1, 1]` hanging forever, and dropping it is the single most common
+  way to fail this question. The nested `while` is not quadratic: each swap puts
+  one value in its final home permanently, so there are at most n swaps.
+- **Arithmetic Sequence** — the first and last terms **must** be present or the
+  step is unrecoverable, because `[2, 5, 8]` is simultaneously a complete
+  sequence and a broken one. That clarifying question is most of the answer.
+  The binary-search approach also compares two computed floats, so a fractional
+  step makes it lie; the sum approach has no such comparison and is the safer
+  default off the integers.
+
+**All nine implementations (three per challenge) were executed against their
+test cases before being written into the file**, per the standing rule that a
+typecheck is not sufficient for `playgroundTemplates.ts` / `playgroundSolutions.ts`.
+
+**Adding a JS Coding Challenge is a NINE-file change** — one more than the
+React list above records, and the extra one is easy to miss because no other
+gate names it:
+1. `playgroundTemplates.ts` (template, with `patterns` + `difficulty`)
+2. `playgroundSolutions.ts` (multi-approach solution)
+3. `playgroundSolutionKeys.ts`
+4. `playgroundExplanations.ts` (the `Explanation` **and** its registry entry)
+5. `playgroundExplanationKeys.ts`
+6. `playgroundContent.test.ts` — `EXPECTED.templates` / `jsChallenges` /
+   `solutions` / `explanations`
+7. **`useTemplateCatalog.test.ts`** — a second hard-coded `totalJsChallenges`
+   that `EXPECTED` does not cover. This is the one that bites.
+8. `README.md` and `src/content/README.md` (`verify:counts` names the exact
+   strings, so run it rather than hunting)
+9. `src/content/changelog.md`
+
+Then `npm run playground:index` and `npm run content:meta`.
+
+**Every step of an `Explanation` must carry at least one visual key**
+(`array`, `map`, `set`, `computation`, `result`, `note`, …) or
+`DEPTH_DEBT.stepsWithoutVisual` rises and the ratchet fails — it is a
+`toBeLessThanOrEqual`, so new content cannot add to it. Two approaches minimum,
+for the same reason.
+
+## Ninth audit — a second real debrief, 23 topics over two rounds, 5 gaps closed
+Round 1 fundamentals plus a round-2 HLD list, run through the standing method:
+match each candidate against question **TEXT** and template **names** before
+writing a word. 18 of 23 were already covered — the five that were not are now:
+
+- **`Button (variants + sizes)`** — React Machine Coding template. It reads as a
+  CSS question and is not one: what is graded is the **prop API**. Closed
+  `VARIANTS`/`SIZES` lookups rather than an if-chain, `...rest` + `ref` so it
+  substitutes for a native `<button>`, `loading` kept distinct from `disabled`
+  (`aria-busy`, and both blocked), `type="button"` as the default, and an `as`
+  escape hatch so navigation stays a real link.
+- **`React from Scratch (createElement + useState)`** — Utility Implementations
+  reference template. `createElement` → a vnode, a recursive walk that calls
+  function components, and a hook **slot array with a cursor**. The payoff is
+  that the rules of hooks stop being a lint rule and become data: the template
+  ends by taking a hook behind an `if`, and slot 0 silently hands one
+  variable's state to another (`name is: a title`).
+- **JavaScript Q27** — arrow vs normal functions. Five differences, but only
+  one is real: an arrow has no `this` of its own, and the other four follow.
+- **React Q62** — the class lifecycle → hooks map, and the four places it
+  breaks (paint timing, no `prevProps`, error boundaries are still class-only,
+  one method splitting into several effects).
+- **Web Performance Q12** — reflow vs repaint vs composite, and why
+  `transform`/`opacity` are the only two that skip to the last stage: not
+  because they are cheap, but because **they cannot affect anything else**.
+
+**Two traps specific to writing a plain-JS reference template**, both of which
+would have shipped a broken Try-it button and neither of which any gate catches:
+
+1. **`detectJSX` matches the substring `render(`, with no word boundary.** A
+   mini-React that defines its own `render()` — or even a `rerender()` helper —
+   is therefore routed to the **main-thread React path**, losing the Worker's
+   3 s infinite-loop timeout, and then reports "No render() call detected". The
+   template uses `toHTML`/`mount`/`redraw` and renders to a **string**; a
+   plain-JS template must avoid `render(`, `<[A-Z]`, and the word `rerender`.
+2. **A demo verified in Node as a module can disagree with what the playground
+   runs as a script.** The first arrow-function demo asserted
+   `typeof this === "undefined"` at top level, which is true in an ES module and
+   **false** under `new Function` (sloppy-mode script → `this` is `globalThis`),
+   so the guide would have claimed an output the Try-it button contradicts. The
+   demo was rewritten to compare against the object instead, and **verified both
+   ways** — `node file.mjs` and `new Function(src)()` — before being written in.
+   Do both whenever a claim touches `this`, `arguments` or strictness.
+
+The React Q62 demo was mount-verified in jsdom rather than asserted: switching
+rooms logs `close general` then `connect random`, which is the point of the
+question. The Button template was mount-verified the same way, driving real
+clicks to confirm `disabled` blocks the handler, `ref` focuses, `loading` sets
+`aria-busy`, and `as="a"` emits an anchor with no `type` attribute.
+
+Counts: templates 195 → **197**, React Machine Coding 38 → **39**, reference
+templates 60 → **61**, challenges 135 → **136**, explanations 185 → **186**.
+Totals after: JavaScript **27**, React **62**, Web Performance **12**.
+
+## Eighth audit — a real interview debrief, 18 topics, 4 gaps closed
+A user-supplied list of what an interviewer actually asked, run through the
+standing method: extract every question TEXT in the corpus (1,464 across 70
+guides), regex each candidate against it, and split covered/gap before writing.
+
+**Two of the first-pass "gaps" were false**, and both are the failure the method
+exists to prevent — a loose regex reported zero because it was looking for the
+wrong phrasing:
+- **Stale closure with `setTimeout`** is covered: React tricky has
+  "`setCount(5)` and then schedules a `setTimeout` that logs `count`".
+- **`setCount(count+1)` three times** is covered *three ways* — the direct form,
+  the functional form, and an interleaved variant — plus Redux Toolkit's
+  dispatch-batching sibling.
+
+The inverse noise is just as bad: a bare `batch` matched an **aws-ec2 Spot
+Fleet** question and a bare `keys` matched TypeScript `keyof`. Tighten the
+pattern and read the hit before believing either direction.
+
+**Four genuine gaps, now closed:**
+
+| Added | Guide | Why it was invisible |
+|---|---|---|
+| **Q11** `position: sticky` | Modern CSS | Seven prose mentions, a whole stacking-context section, and **zero questions** — the canonical section-without-a-question case |
+| **Q13** 404 / Page Not Found | React Router | The guide covers the *hosting* 404 (GitHub Pages deep links, §13) at length and shows `path="*"` in one code block, but never asks about the catch-all route |
+| **Q61** infinite re-render | React | Prose in three guides, no Q&A anywhere, on one of the most-asked React questions there is |
+| **Q11** many API calls | Web Performance | "Request waterfall" appeared only in prose; FE-Arch has caching questions but nothing framed as "this page fires eight requests, fix it" |
+
+**The React Q61 hazard is the reusable lesson: an infinite-render example must
+NOT be tagged `tsx`.** `isRunnable` gives every `tsx/jsx/ts/js` block a Try-it
+button, and `PreBlock` auto-appends `render(<Component />)` when it finds JSX
+with no render call — so a buggy component would mount and genuinely lock the
+reader's tab. The React preview runs on the **main thread**, so the playground's
+3 s Worker timeout cannot rescue it. All three broken shapes are tagged `text`;
+only the derive-instead-of-effect fix is runnable `tsx`, and the guide says why
+inline so nobody "helpfully" retags them.
+
+**The Web Performance answer's output claim was executed before it was written**
+— serial 800 ms vs parallel 200 ms over four 200 ms tasks, a 4× difference — per
+the standing rule that an `**Output:**` block is a claim, not a description. It
+uses timer-backed fake requests rather than `fetch`, which keeps it runnable with
+no network and no undefined helper.
+
+Totals after: Modern CSS **11**, React Router **13**, React **61**,
+Web Performance **11**.
+
 ## Seventh audit — 2 HLD round-2 questions, both were gaps
 **Pinterest-style masonry grid: zero hits corpus-wide** for masonry/Pinterest/image
 grid outside one CSS cheat-sheet row. The closest existing material — the Twitter
@@ -1117,7 +1331,7 @@ regex for topic 1 missed Q31 because the question words it as "React Component,
 a React Element, and a React Node" rather than the order in the source list, so
 **confirm a "gap" by reading before writing.**
 
-React interview Q total: **60**.
+React interview Q total: **62**.
 
 ## Fifth audit — 7 React LLD questions, 3 gaps closed
 Same method as the earlier interview-round audits: match each candidate against

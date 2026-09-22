@@ -15,6 +15,8 @@ A quick-reference guide organized as comparison tables covering the "X vs Y" que
    - 1.6 [for...in vs for...of](#16-forin-vs-forof)
    - 1.7 [Arrow Functions vs Regular Functions](#17-arrow-functions-vs-regular-functions)
    - 1.8 [call vs apply vs bind](#18-call-vs-apply-vs-bind)
+   - 1.9 [Map vs Object](#19-map-vs-object)
+   - 1.10 [Array vs Set](#110-array-vs-set)
 2. [React Comparisons](#2-react-comparisons)
    - 2.1 [Class vs Function Components](#21-class-vs-function-components)
    - 2.2 [useState vs useReducer](#22-usestate-vs-usereducer)
@@ -201,6 +203,51 @@ This tests your understanding of explicit `this` binding, which is essential for
 | **Common use case** | Borrowing methods: `Array.prototype.slice.call(args)` | Spreading array as arguments (pre-ES6) | Event handlers, React class methods, partial application |
 
 **When to use which:** Use `call` when you know the arguments upfront; `apply` when arguments are in an array (less common since spread syntax); `bind` when you need a reusable function with a fixed `this` (e.g., event handlers).
+
+---
+
+### 1.9 Map vs Object
+
+Both store key-value pairs, and the interview question is never "which is faster" — it is whether you know that `Object` keys are *strings*, which is where every real bug in this comparison comes from.
+
+| Aspect | `Object` | `Map` |
+|---|---|---|
+| **Allowed key types** | Strings and symbols only — everything else is coerced to a string | **Any value**: objects, functions, `NaN`, `undefined` |
+| **`1` vs `"1"`** | The same key — `obj[1] = 'a'` then `obj['1'] = 'b'` leaves one entry | **Different keys** — the Map holds both |
+| **Objects as keys** | Every object stringifies to `"[object Object]"`, so all of them collide into one entry | Kept distinct, compared by reference |
+| **Inherited keys** | `'toString' in {}` is `true` — you inherit the whole prototype, so a key named `toString` or `constructor` is already "present" | **No default keys.** `new Map().has('toString')` is `false` |
+| **Size** | `Object.keys(obj).length` — builds an array, O(n) | `map.size` — O(1) |
+| **Iteration order** | Integer-like keys first in **ascending numeric order**, then string keys in insertion order. `{ b:1, 2:1, a:1, 1:1 }` iterates `1, 2, b, a` | **Pure insertion order, always** |
+| **Directly iterable** | No — needs `Object.keys` / `values` / `entries` | Yes — `for...of` yields `[key, value]` |
+| **Deleting** | `delete obj[k]`, historically a deoptimisation in hot paths | `map.delete(k)` — the structure is built for it |
+| **JSON** | Serialises normally | `JSON.stringify(map)` is **`{}`** — convert with `Object.fromEntries(map)` first |
+| **Best at** | Fixed, known-at-write-time shapes | Frequent adds and deletes with dynamic keys |
+
+**When to use which:** `Object` when the thing is a **record** — config, a parsed API payload, component props — where keys are known strings you type by hand. `Map` when keys are dynamic, non-string, or the collection churns. The two that actually bite in production are the `"[object Object]"` collision and inheriting `toString`; `Object.create(null)` fixes the second but not the first.
+
+---
+
+### 1.10 Array vs Set
+
+The real question is membership. Everything else follows from `includes` being a scan and `has` being a hash lookup.
+
+| Aspect | `Array` | `Set` |
+|---|---|---|
+| **Duplicates** | Kept | **Dropped** on insert, by SameValueZero |
+| **Membership test** | `arr.includes(x)` — **O(n)**, scans | `set.has(x)` — **O(1)** average |
+| **Index access** | `arr[i]`, `at(-1)`, slicing | **None** — no index, no random access |
+| **Order** | Insertion | Insertion (same guarantee) |
+| **Size** | `.length` — writable, and assigning truncates | `.size` — read-only |
+| **Removing one item** | `splice` — O(n), shifts everything after it | `delete` — O(1) |
+| **`NaN`** | `includes(NaN)` is `true`, but `indexOf(NaN)` is `-1` | `has(NaN)` is `true` |
+| **`-0`** | Stored exactly as given | **Normalised to `+0`** on insert |
+| **Objects** | Stored as-is | Deduped **by reference only** — two identical-looking objects both survive |
+| **`map` / `filter` / `reduce`** | Yes | **No.** Spread to an array first. ES2025 adds `union` / `intersection` / `difference`, not the transforms |
+| **JSON** | Serialises normally | `JSON.stringify(set)` is **`{}`** — use `[...set]` |
+
+**When to use which:** `Array` when order, indexing, or the transform methods matter — which is most of the time. `Set` when the question is *"have I seen this before"*, because that is the one place the O(n) → O(1) change is worth giving up indexing for. `new Set(arr).size !== arr.length` is the shortest duplicate check in the language. Convert back with `[...set]` the moment you need to sort or map.
+
+**The gotcha to volunteer:** `new Set([{id: 1}, {id: 1}])` has size **2**. Set dedupes by reference, not by value, so it does nothing for objects parsed out of JSON. Dedupe those by a key instead — `new Map(items.map(i => [i.id, i])).values()`.
 
 ---
 

@@ -23,7 +23,7 @@ export default function TemplateGrid({
 }) {
   const {
     search: drawerSearch, category: activeCategory,
-    mode: modalMode, difficulty: difficultyFilter,
+    difficulty: difficultyFilter,
     setSearch: setDrawerSearch, setDifficulty: setDifficultyFilter,
   } = filters;
   const filteredCategories = categories;
@@ -41,8 +41,10 @@ export default function TemplateGrid({
         />
       </div>
 
-      {/* Difficulty filter chips — only in challenges mode. */}
-      {modalMode === 'challenges' && scopeHasDifficulty && (
+      {/* Difficulty filter chips — shown whenever the visible set is tagged.
+          Reference templates carry a difficulty too, so this is no longer
+          challenges-only; `scopeHasDifficulty` is scoped to the active mode. */}
+      {scopeHasDifficulty && (
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Difficulty:</span>
           {(['all', 'Easy', 'Medium', 'Hard'] as const).map(d => {

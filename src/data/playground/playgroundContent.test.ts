@@ -20,14 +20,14 @@ import { isBuildExplanation } from './explanationKind';
  * number. If it fails after a refactor, something was lost.
  */
 const EXPECTED = {
-  templates: 183,
-  categories: 7,
+  templates: 197,
+  categories: 8,
   blankStarters: 3,
-  jsChallenges: 94,
-  reactChallenges: 38,
-  referenceTemplates: 51,
-  solutions: 94,
-  explanations: 182,   // 144 algorithm steppers + 38 React build-order walkthroughs
+  jsChallenges: 97,
+  reactChallenges: 39,
+  referenceTemplates: 61,
+  solutions: 97,
+  explanations: 186,   // 147 algorithm steppers + 39 React build-order walkthroughs
 };
 
 const jsChallenges = fullTemplates.filter((t) => t.kind === 'challenge' && t.tag === 'JS');
@@ -244,11 +244,37 @@ describe('solutions and explanations still line up with the challenges', () => {
 });
 
 describe('filter dimensions the modal depends on', () => {
-  it('pattern and difficulty appear only on JS challenges', () => {
+  /**
+   * `patterns` stay JS-challenge-only — they describe an ALGORITHMIC shape and
+   * mean nothing on a reference template or a React build.
+   *
+   * `difficulty` is deliberately wider: every JS reference template (Spec
+   * Polyfills and Utility Implementations) carries one, because the picker
+   * sorts and filters on it and a section with 32 untagged entries gave no
+   * signal about what to attempt next. It stays OFF React templates, which
+   * are machine-coding builds with no comparable scale.
+   */
+  it('patterns appear only on JS challenges', () => {
     for (const t of fullTemplates) {
       if (t.kind === 'challenge' && t.tag === 'JS') continue;
       expect(t.patterns, t.name).toBeUndefined();
-      expect(t.difficulty, t.name).toBeUndefined();
+    }
+  });
+
+  it('every template in an interview-facing JS category carries a difficulty', () => {
+    // The tutorial categories (JS Fundamentals, JS Interview Topics, React
+    // Basics/Advanced) are reading material with no interview scale, so they
+    // stay untagged on purpose.
+    const GRADED = ['Spec Polyfills', 'Utility Implementations', 'Coding Challenges'];
+    for (const cat of templateCategories) {
+      if (!GRADED.includes(cat.label)) continue;
+      for (const t of cat.templates) expect(t.difficulty, `${cat.label} / ${t.name}`).toBeDefined();
+    }
+  });
+
+  it('no React template carries a difficulty', () => {
+    for (const t of fullTemplates) {
+      if (t.tag === 'React') expect(t.difficulty, t.name).toBeUndefined();
     }
   });
 

@@ -3723,6 +3723,74 @@ All three callers share one in-flight request — the memoised-singleton pattern
 
 The other follow-up is **`reset()`**, and answering it is what forces you to say why the state lives in the closure: `reset` can be exposed deliberately (`wrapper.reset = () => { called = false; }`) precisely *because* nothing else can reach `called` — you choose what to expose, rather than leaving it writable by anyone who has the function.
 
+---
+
+**Q27: What is the difference between an arrow function and a normal function?**
+
+They differ in five ways, but only the first is a real difference — **an arrow function has no `this` of its own.** The other four fall out of the same design decision: arrows were specified as lightweight function *expressions*, so they were given none of the machinery a callable object carries. A normal function receives `this`, `arguments`, `new.target` and a `prototype` at call time; an arrow receives none of them and closes over the enclosing scope for all of them, the same way it closes over any other variable.
+
+| Aspect | Normal function | Arrow function |
+|---|---|---|
+| `this` | Set by the **call site** (method call, `call`/`apply`/`bind`, or default) | Inherited from the **enclosing scope**, fixed at definition |
+| `arguments` | Its own object | The enclosing function's, or a `ReferenceError` at top level |
+| `new` | Constructible | `TypeError: X is not a constructor` |
+| `prototype` | Has one | Does not have one |
+| Hoisting | Declarations hoist and are callable early | Assigned to a variable, so subject to the temporal dead zone |
+
+```js
+const counter = {
+  count: 41,
+  normal() { return this === counter ? this.count + 1 : "lost this"; },
+  arrow: () => (this === counter ? "found it" : "this is NOT the object"),
+};
+console.log("method :", counter.normal());
+console.log("arrow  :", counter.arrow());
+
+function Legacy() {}
+const Arrow = () => {};
+console.log("normal .prototype :", typeof Legacy.prototype);
+console.log("arrow  .prototype :", typeof Arrow.prototype);
+try { new Arrow(); } catch (e) { console.log("new Arrow() ->", e.constructor.name); }
+
+function counted() { return arguments.length; }
+console.log("normal arguments  :", counted(1, 2, 3));
+```
+
+```text
+method : 42
+arrow  : this is NOT the object
+normal .prototype : object
+arrow  .prototype : undefined
+new Arrow() -> TypeError
+normal arguments  : 3
+```
+
+**`this is NOT the object` is the whole lesson.** Writing `arrow` as a property of `counter` looks like it defines a method on it, and it does not — the arrow closed over whatever `this` was where the object literal was *written*, and an object literal creates no scope. So a method written as an arrow can never see its own object, no matter how it is called.
+
+#### Where each one is the right answer
+
+**Use a normal function** whenever the caller is supposed to supply `this`: object methods, class methods, prototype methods, and anything a library invokes with a bound receiver — jQuery-style callbacks, Mocha's `this.timeout()`, a Vue `methods` entry.
+
+**Use an arrow** whenever you want to *keep* the `this` you already have. That is the bug arrows were introduced to remove: a callback inside a method used to lose `this`, which is why pre-ES6 code is full of `const self = this` and `.bind(this)`.
+
+```js
+class Poller {
+  constructor() { this.hits = 0; }
+  start() {
+    // Arrow: `this` is still the Poller. A normal function here would get
+    // `undefined` (strict) or the global object (sloppy), and `this.hits` would throw.
+    setTimeout(() => { this.hits++; console.log('hits ->', this.hits); }, 0);
+  }
+}
+new Poller().start();
+```
+
+```text
+hits -> 1
+```
+
+**What to volunteer.** A **class field** (`handleClick = () => {}`) is the standard way to get a permanently bound handler, and the cost is that it is a per-instance property rather than a shared prototype method. Arrows also cannot be **generators**, and they have no `super` or `new.target` of their own — they inherit those too. And the one that is a genuine trap rather than trivia: an arrow's concise body **returns an object literal only if you parenthesise it** — `() => ({ ok: true })`, because `() => { ok: true }` is a block with a label in it and returns `undefined`.
+
 
 ---
 

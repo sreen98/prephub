@@ -1263,6 +1263,232 @@ const findMissingNumber: Explanation = {
   }],
 };
 
+
+// ====================================================================
+
+const findAllMissingNumbers: Explanation = {
+  problem: 'Find All Missing Numbers',
+  problemStatement: 'Given an array of n values each in [1, n], with duplicates allowed, return every value in [1, n] that never appears.',
+  approaches: [{
+    id: 'sign-marking',
+    name: 'Sign Marking (In Place)',
+    badge: 'best',
+    intuition:
+      "**The given that unlocks everything:** every value sits in [1, n], so value v has a natural home at index v - 1. The array is therefore already the right size to be its own lookup table — you do not need a second one.\n\n" +
+      "**The trick:** you need one bit per slot to record \"I saw this value\", and every slot already has a spare bit — its sign. Pass one flips the sign at the home index of each value seen. Pass two reports every index still positive, because nothing ever marked it.\n\n" +
+      "**Why Math.abs is not optional:** by the time you read nums[i], an earlier value may already have flipped it negative. You want the original magnitude, not the marker.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'The graded answer' },
+    pseudocode: [
+      'for each value v in nums:',
+      '  home = abs(v) - 1',
+      '  if nums[home] > 0: nums[home] = -nums[home]',
+      'for i from 0 to n-1:',
+      '  if nums[i] > 0: add i + 1 to missing',
+      'return missing',
+    ],
+    example: { input: '[2, 2, 3, 3]', output: '[1, 4]' },
+    steps: [
+      { title: 'v = 2 → home index 1. nums[1] is 2, still positive, so flip it.', pseudoLine: 2,
+        array: { cells: [{ value: 2, highlight: 'i' }, { value: -2, highlight: 'new' }, { value: 3 }, { value: 3 }],
+          pointers: [{ index: 0, label: 'reading', color: 'indigo' }, { index: 1, label: 'home of 2', color: 'emerald' }] } },
+      { title: 'v = 2 again. Its home is already negative, so leave it — the mark is idempotent.', pseudoLine: 2,
+        array: { cells: [{ value: 2 }, { value: -2, highlight: 'hit' }, { value: 3 }, { value: 3 }],
+          pointers: [{ index: 1, label: 'reading', color: 'indigo' }] },
+        note: 'This is why duplicates are harmless: marking twice is the same as marking once.' },
+      { title: 'v = 3 → home index 2. Still positive, so flip it.', pseudoLine: 2,
+        array: { cells: [{ value: 2 }, { value: -2 }, { value: -3, highlight: 'new' }, { value: 3 }],
+          pointers: [{ index: 2, label: 'reading', color: 'indigo' }] } },
+      { title: 'v = 3 again → home index 2 already marked. Pass one is done.', pseudoLine: 2,
+        array: { cells: [{ value: 2 }, { value: -2 }, { value: -3, highlight: 'hit' }, { value: 3 }],
+          pointers: [{ index: 3, label: 'reading', color: 'indigo' }] } },
+      { title: 'Pass two: index 0 and index 3 are still positive, so 1 and 4 were never seen.', pseudoLine: 4,
+        array: { cells: [{ value: 2, highlight: 'found' }, { value: -2 }, { value: -3 }, { value: 3, highlight: 'found' }] },
+        result: { found: true, value: '[1, 4]' } },
+    ],
+    tradeoffs:
+      "It MUTATES the caller's array — every present value comes back negative. Volunteer that; it is the price of O(1) space and an interviewer will ask. Restoring the signs in a third pass is easy if the caller needs the data intact. The sibling problem \"find all duplicates\" is the identical trick with the test inverted: report v at the moment you find its home already marked.",
+  },
+  {
+    id: 'set',
+    name: 'Set of Present Values',
+    badge: 'alternative',
+    intuition:
+      'Build a Set of everything present, then walk 1..n and collect whatever the Set does not contain. It answers the question directly rather than cleverly, and it leaves the input untouched.\n\n' +
+      'This is the version to write in real application code. Destroying the caller’s array to avoid allocating one array nobody was short of is a bad trade outside an interview.',
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'What you would actually ship' },
+    pseudocode: [
+      'present = new Set(nums)',
+      'for v from 1 to n:',
+      '  if not present.has(v): add v to missing',
+      'return missing',
+    ],
+    example: { input: '[2, 2, 3, 3]', output: '[1, 4]' },
+    steps: [
+      { title: 'Build the Set. Duplicates collapse, so it holds just 2 and 3.', pseudoLine: 0,
+        set: { items: [{ value: 2, highlight: 'new' }, { value: 3, highlight: 'new' }] } },
+      { title: 'v = 1 → not present. Record it.', pseudoLine: 2,
+        set: { items: [{ value: 2 }, { value: 3 }] },
+        lookupOutcome: { kind: 'miss', key: 1 } },
+      { title: 'v = 2 and v = 3 are both present. Skip.', pseudoLine: 2,
+        set: { items: [{ value: 2, highlight: 'hit' }, { value: 3, highlight: 'hit' }] },
+        lookupOutcome: { kind: 'hit', key: '2, 3' } },
+      { title: 'v = 4 → not present. Record it and return.', pseudoLine: 3,
+        set: { items: [{ value: 2 }, { value: 3 }] },
+        lookupOutcome: { kind: 'miss', key: 4 },
+        result: { found: true, value: '[1, 4]' } },
+    ],
+    tradeoffs: 'O(n) space is the whole objection, and only when the question forbids it. A boolean seen[] array of length n + 1 costs the same asymptotically but indexes instead of hashing, which is measurably faster on tight loops and reads more plainly.',
+  }],
+};
+
+// ====================================================================
+
+const firstMissingPositive: Explanation = {
+  problem: 'First Missing Positive',
+  problemStatement: 'Given an unsorted array of arbitrary integers, find the smallest positive integer that does not appear, in O(n) time and O(1) space.',
+  approaches: [{
+    id: 'index-cycling',
+    name: 'Index Cycling (Swap Into Home)',
+    badge: 'best',
+    intuition:
+      '**Say this first, before any code:** with only n slots, the answer can never be larger than n + 1. The worst case is that the array holds exactly 1..n, and then the answer is n + 1. So you are not searching the integers — you are searching n + 1 candidates, and you already own n slots to record them in. That bound is the entire reason O(1) space is possible.\n\n' +
+      '**The method:** send every in-range value v to index v - 1 by swapping. Anything negative, zero, or larger than n is noise and stays wherever it lands. When the array is arranged, the first index i that does not hold i + 1 names the answer.',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'The graded answer' },
+    pseudocode: [
+      'for i from 0 to n-1:',
+      '  while 1 <= nums[i] <= n and nums[nums[i]-1] != nums[i]:',
+      '    swap nums[i] with nums[nums[i]-1]',
+      'for i from 0 to n-1:',
+      '  if nums[i] != i + 1: return i + 1',
+      'return n + 1',
+    ],
+    example: { input: '[3, 4, -1, 1]', output: '2' },
+    steps: [
+      { title: 'i=0 holds 3, which belongs at index 2. Swap them.', pseudoLine: 2,
+        array: { cells: [{ value: 3, highlight: 'i' }, { value: 4 }, { value: -1, highlight: 'compare' }, { value: 1 }],
+          pointers: [{ index: 0, label: 'i', color: 'indigo' }, { index: 2, label: 'home of 3', color: 'emerald' }] } },
+      { title: 'Now i=0 holds -1 — out of range, so it is noise. Stop and move on.', pseudoLine: 1,
+        array: { cells: [{ value: -1, highlight: 'i' }, { value: 4 }, { value: 3, highlight: 'found' }, { value: 1 }],
+          pointers: [{ index: 0, label: 'i', color: 'indigo' }] },
+        note: '3 has reached its final home and will never move again. That is why the nested while does not make this quadratic.' },
+      { title: 'i=1 holds 4, which belongs at index 3. Swap.', pseudoLine: 2,
+        array: { cells: [{ value: -1 }, { value: 4, highlight: 'i' }, { value: 3 }, { value: 1, highlight: 'compare' }],
+          pointers: [{ index: 1, label: 'i', color: 'indigo' }, { index: 3, label: 'home of 4', color: 'emerald' }] } },
+      { title: 'The 1 that just arrived at i=1 belongs at index 0. Swap again — this is why it is a while, not an if.', pseudoLine: 2,
+        array: { cells: [{ value: -1, highlight: 'compare' }, { value: 1, highlight: 'i' }, { value: 3 }, { value: 4, highlight: 'found' }],
+          pointers: [{ index: 1, label: 'i', color: 'indigo' }, { index: 0, label: 'home of 1', color: 'emerald' }] } },
+      { title: 'Arranged. i=2 and i=3 already hold 3 and 4, so nothing left to move.', pseudoLine: 0,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: -1 }, { value: 3, highlight: 'found' }, { value: 4, highlight: 'found' }] } },
+      { title: 'Scan: index 0 holds 1 as it should. Index 1 holds -1, not 2 — so 2 is the answer.', pseudoLine: 4,
+        array: { cells: [{ value: 1 }, { value: -1, highlight: 'j' }, { value: 3 }, { value: 4 }],
+          pointers: [{ index: 1, label: 'expected 2', color: 'red' }] },
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs:
+      'The clause that stops an infinite loop is nums[nums[i]-1] !== nums[i]. With a duplicate, the home slot already holds that value, so swapping would exchange two equal numbers forever — drop it and [1, 1] hangs. That is the single most common way to fail this question. The nested while also looks quadratic and is not: each swap places one value in its final home permanently, so there are at most n swaps in the whole run.',
+  },
+  {
+    id: 'set',
+    name: 'Set Lookup (Baseline)',
+    badge: 'baseline',
+    intuition:
+      'Put everything in a Set, then count upward from 1 until something is missing. It is correct, it is three lines, and it is the right thing to say out loud first.\n\n' +
+      'It is rejected for one reason only: the O(n) Set violates the constant-space requirement. State it, name why it fails, then build up to the in-place version — jumping straight to swaps reads as memorised rather than reasoned.',
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Correct, fails the space bound' },
+    pseudocode: [
+      'present = new Set(nums)',
+      'for v from 1 to n+1:',
+      '  if not present.has(v): return v',
+    ],
+    example: { input: '[3, 4, -1, 1]', output: '2' },
+    steps: [
+      { title: 'Set holds {3, 4, -1, 1}. Negatives go in too; they simply never get asked about.', pseudoLine: 0,
+        set: { items: [{ value: 3, highlight: 'new' }, { value: 4, highlight: 'new' }, { value: -1, highlight: 'new' }, { value: 1, highlight: 'new' }] } },
+      { title: 'v = 1 → present. Keep counting.', pseudoLine: 2,
+        set: { items: [{ value: 3 }, { value: 4 }, { value: -1 }, { value: 1, highlight: 'hit' }] },
+        lookupOutcome: { kind: 'hit', key: 1 } },
+      { title: 'v = 2 → absent. That is the answer.', pseudoLine: 2,
+        set: { items: [{ value: 3 }, { value: 4 }, { value: -1 }, { value: 1 }] },
+        lookupOutcome: { kind: 'miss', key: 2 },
+        result: { found: true, value: '2' } },
+    ],
+    tradeoffs: 'The loop bound must be n + 1, not n. If the array holds exactly 1..n then every v up to n is present and the answer is n + 1 — stop at n and you fall out of the loop with nothing to return.',
+  }],
+};
+
+// ====================================================================
+
+const missingTermInArithmeticSequence: Explanation = {
+  problem: 'Missing Term in Arithmetic Sequence',
+  problemStatement: 'An arithmetic sequence has had one middle term removed. Given the remaining terms in order, find the missing one.',
+  approaches: [{
+    id: 'binary-search',
+    name: 'Binary Search for the Break',
+    badge: 'best',
+    intuition:
+      '**First recover the step.** The array holds n terms and the complete sequence held n + 1, so the span from first to last is cut into n equal gaps: step = (last - first) / n.\n\n' +
+      '**Then notice the predicate is monotonic.** Before the gap, every term sits exactly where it should: seq[i] === first + i * step. After the gap, every term is shifted along by one step, so the test fails and keeps failing. A condition that flips once and never flips back is precisely what binary search needs — so you can find the break without reading the whole array.\n\n' +
+      '**The clarifying question to ask out loud:** are the first and last terms guaranteed present? They must be, or the span is wrong and the step is unrecoverable. [2, 5, 8] is a complete sequence and a broken one at the same time, and nothing in the data separates them.',
+    complexity: { time: 'O(log n)', space: 'O(1)', verdict: 'Best' },
+    pseudocode: [
+      'step = (seq[n-1] - seq[0]) / n',
+      'lo = 0, hi = n - 1',
+      'while lo < hi:',
+      '  mid = (lo + hi) / 2',
+      '  if seq[mid] == seq[0] + mid * step: lo = mid + 1',
+      '  else: hi = mid',
+      'return seq[0] + lo * step',
+    ],
+    example: { input: '[2, 5, 8, 14]', output: '11' },
+    steps: [
+      { title: '4 terms remain, so the full sequence had 5 and the span is cut into 4 gaps: step = (14 - 2) / 4 = 3.', pseudoLine: 0,
+        array: { cells: [{ value: 2, highlight: 'found' }, { value: 5 }, { value: 8 }, { value: 14, highlight: 'found' }] },
+        computation: { label: 'step', lhs: '14 - 2', op: '/', rhs: '4', result: '3' } },
+      { title: 'mid = 1. Expected 2 + 1·3 = 5, and seq[1] is 5 — intact, so the gap is to the right.', pseudoLine: 4,
+        array: { cells: [{ value: 2 }, { value: 5, highlight: 'compare' }, { value: 8 }, { value: 14 }],
+          pointers: [{ index: 1, label: 'mid', color: 'amber' }] },
+        computation: { label: 'expected', lhs: '2 + 1·3', result: '5 ✓' } },
+      { title: 'lo = 2. mid = 2. Expected 2 + 2·3 = 8, and seq[2] is 8 — still intact, so move right again.', pseudoLine: 4,
+        array: { cells: [{ value: 2 }, { value: 5 }, { value: 8, highlight: 'compare' }, { value: 14 }],
+          pointers: [{ index: 2, label: 'mid', color: 'amber' }] },
+        computation: { label: 'expected', lhs: '2 + 2·3', result: '8 ✓' } },
+      { title: 'lo = hi = 3, so index 3 is the first shifted slot. The missing term is what should have been there: 2 + 3·3 = 11.', pseudoLine: 6,
+        array: { cells: [{ value: 2 }, { value: 5 }, { value: 8 }, { value: 14, highlight: 'j' }],
+          pointers: [{ index: 3, label: 'shifted', color: 'red' }] },
+        computation: { label: 'missing', lhs: '2 + 3·3', result: '11' },
+        result: { found: true, value: '11' } },
+    ],
+    tradeoffs:
+      'Careful with a fractional step: seq[0] + i * step can miss its target by a floating-point rounding error, and the equality test then lies about where the break is. For non-integer terms prefer the sum approach, which never compares two computed floats.',
+  },
+  {
+    id: 'sum',
+    name: 'Sum of the Complete Sequence',
+    badge: 'alternative',
+    intuition:
+      'An arithmetic sequence of m terms sums to m · (first + last) / 2 — the average term times the count. The complete sequence had n + 1 terms running between the same two endpoints you were handed, so you can compute what the total should have been and subtract what is actually there. The difference is the missing term.\n\n' +
+      'It never divides by the step and never compares two computed values, which makes it the robust choice when the terms are not integers.',
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Shortest and safest' },
+    pseudocode: [
+      'complete = (n + 1) * (seq[0] + seq[n-1]) / 2',
+      'actual = sum(seq)',
+      'return complete - actual',
+    ],
+    example: { input: '[2, 5, 8, 14]', output: '11' },
+    steps: [
+      { title: 'The complete sequence had 5 terms from 2 to 14, so it summed to 5 · 16 / 2 = 40.', pseudoLine: 0,
+        array: { cells: [{ value: 2, highlight: 'found' }, { value: 5 }, { value: 8 }, { value: 14, highlight: 'found' }] },
+        computation: { label: 'complete', lhs: '5 · (2 + 14)', op: '/', rhs: '2', result: '40' } },
+      { title: 'What is actually there sums to 29.', pseudoLine: 1,
+        array: { cells: [{ value: 2, highlight: 'i' }, { value: 5, highlight: 'i' }, { value: 8, highlight: 'i' }, { value: 14, highlight: 'i' }] },
+        computation: { label: 'actual', lhs: '2 + 5 + 8 + 14', result: '29' } },
+      { title: 'The gap between them is the term that was removed: 40 − 29 = 11.', pseudoLine: 2,
+        computation: { label: 'complete − actual', lhs: '40', op: '−', rhs: '29', result: '11' },
+        result: { found: true, value: '11' } },
+    ],
+    tradeoffs: 'Reads the whole array, so O(n) rather than O(log n). That only matters if the array is huge and you were handed it lazily; if it is already in memory the difference is academic and this version is far harder to get wrong.',
+  }],
+};
 // ====================================================================
 
 const moveZeros: Explanation = {
@@ -8656,6 +8882,9 @@ export const playgroundExplanations: Record<string, AnyExplanation> = {
   'Find Duplicates': findDuplicates,
   'Remove Duplicates': removeDuplicates,
   'Find Missing Number': findMissingNumber,
+  'Find All Missing Numbers': findAllMissingNumbers,
+  'First Missing Positive': firstMissingPositive,
+  'Missing Term in Arithmetic Sequence': missingTermInArithmeticSequence,
   'Move Zeros': moveZeros,
   'Rotate Array': rotateArray,
   'Bubble Sort': bubbleSort,

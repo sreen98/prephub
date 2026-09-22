@@ -694,6 +694,99 @@ Before measuring anything, name why the gap exists, because it decides what you 
 **And the fix that is usually right** is not micro-optimisation — it is sending less JavaScript. Hydration cost scales with how much of the page is interactive, which is why route-level splitting and moving work to the server pay far more on a phone than any amount of memoisation.
 
 **Takeaway:** segment the field data by device before anything else, then decide CPU versus network from a trace on real hardware. A desktop profile cannot tell you which of the two you have.
+**Q11: A page makes a dozen API calls on load and feels slow. How do you optimise it?**
+
+Resist the urge to start cutting requests. **The count is rarely the problem; the shape is.** Twelve parallel requests on HTTP/2 share one connection and cost roughly one round trip. Four *sequential* ones cost four. Open the Network panel, sort by start time, and look at the staircase: anything that begins only after something else finished is the actual bug.
+
+```js
+// Each "request" takes 200ms. Four of them.
+const req = (name, ms = 200) =>
+  new Promise((r) => setTimeout(() => r(name), ms));
+
+async function serial() {
+  const t = Date.now();
+  await req("user"); await req("orders"); await req("prefs"); await req("feed");
+  return Date.now() - t;
+}
+
+async function parallel() {
+  const t = Date.now();
+  await Promise.all([req("user"), req("orders"), req("prefs"), req("feed")]);
+  return Date.now() - t;
+}
+
+(async () => {
+  const s = await serial();
+  const p = await parallel();
+  console.log("serial:  ", Math.round(s / 100) * 100, "ms");
+  console.log("parallel:", Math.round(p / 100) * 100, "ms");
+  console.log("same four requests, " + Math.round(s / p) + "x difference");
+})();
+```
+
+**Output:**
+
+```text
+serial:   800 ms
+parallel: 200 ms
+same four requests, 4x difference
+```
+
+Same work, same payload, four times the wait — and no amount of shrinking responses recovers it.
+
+#### The order to work in
+
+**1. Unstack the waterfall.** Requests that do not feed each other run together. The usual cause is `await` in sequence out of habit; the subtler one is a request that cannot start until a component mounts, so it waits on bundle download, parse and hydration before it even begins.
+
+**2. Move the start line earlier.** The fastest request is one already in flight. Fetch in a route loader rather than in a leaf `useEffect`; `<link rel="preload">` the resource the LCP element needs; prefetch the next route on intent. In a client-rendered SPA the first request typically starts **after** JS has executed, which is why a fetch-on-mount page is slow even when the API is fast.
+
+**3. Deduplicate before you optimise.** Three components asking for the same user should be one request. A query cache (TanStack Query, SWR) collapses them and serves the rest from cache with stale-while-revalidate, which often removes half the calls without touching a single endpoint.
+
+**4. Stop blocking paint on all of it.** Split the page by what the user sees first. Render the shell and above-the-fold content on the one or two requests that matter, and suspend or stream the rest — a slow recommendations widget should never hold the header hostage.
+
+**5. Only now, collapse the calls.** When one screen genuinely needs eight resources, the honest fix is server-side: a BFF endpoint or a single GraphQL query that returns the screen's data in one round trip. Say this plainly in an interview — **the frontend can hide latency but it cannot remove a round trip**, and pretending otherwise is where these answers usually go wrong.
+
+#### What to measure, and the trap
+
+Judge the change against **LCP and INP in the field**, not against the request count. Two failure modes are worth naming: firing everything in parallel on a slow connection can *worsen* LCP by competing for bandwidth with the image or font the LCP element needs — parallelism is a scheduling tool, not a free win. And on HTTP/1.1 the browser caps connections per host at six, so the seventh request queues; if any real traffic is still on 1.1, request count does matter again.
+
+---
+
+**Q12: What is the difference between reflow, repaint and compositing — and why are `transform` and `opacity` the only two properties people say are "free"?**
+
+Every visual change the browser makes runs through the same pipeline, and the property you animate decides **where in that pipeline the work starts**. Everything from that point onward has to be redone.
+
+```text
+JavaScript  →  Style  →  Layout  →  Paint  →  Composite
+                         (reflow)   (repaint)
+```
+
+- **Layout (reflow)** — recompute geometry: where every box is and how big. Triggered by anything that can move or resize something: `width`, `height`, `top`, `margin`, `padding`, `font-size`, adding or removing a node, and reading a geometry property mid-frame.
+- **Paint (repaint)** — fill in the pixels for each layer: colours, shadows, borders, text. Triggered by `background-color`, `box-shadow`, `color`, `visibility`, `border-radius`. No geometry changed, so layout is skipped.
+- **Composite** — hand the already-painted layers to the GPU, which positions and blends them. This is the only step a `transform` or an `opacity` change needs.
+
+**The reason those two are special is not that they are cheap — it is that they cannot affect anything else.** Moving an element with `transform: translateX(200px)` does not change where any *other* element sits, because transforms are applied after layout and take no space. `opacity` likewise only changes how a finished layer is blended. So the browser can skip straight to the last step and hand a matrix and an alpha value to the compositor, off the main thread. Animate `left` instead and you have changed a number that the position of every following element depends on — so the browser must reflow, repaint and re-composite, on the main thread, every frame.
+
+That is also why `left` and `transform` produce visually identical motion at wildly different frame costs, and why the standard advice is to animate `transform`/`opacity` and nothing else.
+
+#### Layout thrashing — the expensive mistake this enables
+
+The browser batches style and layout work: writes queue up and flush once per frame. **Reading a geometry property forces that flush early**, because the answer has to be correct right now. Interleave reads and writes and you force one synchronous layout per iteration:
+
+```text
+// Bad — forced synchronous layout on every iteration
+for (const el of items) {
+  el.style.height = el.offsetHeight * 2 + 'px';   // read, then write, then read again…
+}
+
+// Good — batch all reads, then all writes
+const heights = items.map(el => el.offsetHeight);   // one layout
+items.forEach((el, i) => { el.style.height = heights[i] * 2 + 'px'; });  // one layout
+```
+
+The read-triggering properties are worth knowing by name: `offsetTop`/`offsetHeight`, `clientWidth`, `scrollTop`, `getBoundingClientRect()`, and `getComputedStyle()`. In the DevTools Performance panel this shows up as a **"Forced reflow"** warning with a long purple block; purple is Layout and Style, green is Paint.
+
+**What to volunteer.** `will-change: transform` promotes an element to its own compositor layer ahead of time, which removes a one-frame hitch at the start of an animation — but each layer costs GPU memory, so applying it to a long list makes things worse, and it should be added before the animation and removed after, not left on permanently. `content-visibility: auto` skips layout and paint for off-screen subtrees entirely, at the cost of a scroll-position estimate for content that has not been laid out. And `position: fixed`/`absolute` narrows what a reflow touches, because an out-of-flow element cannot shift its siblings — smaller blast radius, not free.
 
 ---
 

@@ -1976,6 +1976,292 @@ test("XOR: larger",     findMissingXOR([9, 6, 4, 2, 3, 5, 7, 0, 1]), 8);
 // - Code-review readability matters more than constant-factor → Approach 3.
 // - Approach 4 is a baseline; the sort dominates the cost.`,
 
+  'Find All Missing Numbers': `// ===== SOLUTION: Find All Missing Numbers =====
+//
+// ┌──────────────────────────────────┬───────┬───────┬─────────────┐
+// │ Approach                         │ Time  │ Space │ Verdict     │
+// ├──────────────────────────────────┼───────┼───────┼─────────────┤
+// │ 1. Sign marking, in place        │ O(n)  │ O(1)  │ BEST        │
+// │ 2. Set of present values         │ O(n)  │ O(n)  │ Readable    │
+// │ 3. Boolean seen[] array          │ O(n)  │ O(n)  │ Clearest    │
+// └──────────────────────────────────┴───────┴───────┴─────────────┘
+//
+// The whole problem rests on one given: every value is in [1, n], so
+// value v has a natural home at index v - 1. That is what lets the
+// array double as its own lookup table.
+
+// ----- Approach 1: Sign marking in place (BEST) -----
+// Pass 1 records "v is present" by flipping the sign at index v - 1.
+// Pass 2 reports every index still positive — nothing ever marked it.
+// Math.abs is needed because an earlier mark may already have flipped
+// the value we are now reading.
+function findAllMissing(nums) {
+  const n = nums.length;
+  for (let i = 0; i < n; i++) {
+    const home = Math.abs(nums[i]) - 1;
+    if (nums[home] > 0) nums[home] = -nums[home];   // mark once, idempotent
+  }
+  const missing = [];
+  for (let i = 0; i < n; i++) {
+    if (nums[i] > 0) missing.push(i + 1);
+  }
+  return missing;
+}
+// NOTE: this MUTATES the caller's array — every present value ends up
+// negative. Say so in an interview; it is the trade you made for O(1)
+// space. If the caller needs the array intact, either copy it first
+// (which costs the O(n) space back) or restore the signs in a third pass.
+
+// ----- Approach 2: Set of present values -----
+function findAllMissingSet(nums) {
+  const present = new Set(nums);
+  const missing = [];
+  for (let v = 1; v <= nums.length; v++) {
+    if (!present.has(v)) missing.push(v);
+  }
+  return missing;
+}
+
+// ----- Approach 3: Boolean seen[] array -----
+// Same cost as the Set but reads more plainly, and indexing beats
+// hashing on tight loops.
+function findAllMissingFlags(nums) {
+  const seen = new Array(nums.length + 1).fill(false);
+  for (const v of nums) seen[v] = true;
+  const missing = [];
+  for (let v = 1; v <= nums.length; v++) {
+    if (!seen[v]) missing.push(v);
+  }
+  return missing;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+console.log("--- Approach 1 (sign marking) — BEST ---");
+test("Two missing", findAllMissing([4, 3, 2, 7, 8, 2, 3, 1]), [5, 6]);
+test("One missing", findAllMissing([1, 1]), [2]);
+test("Nothing missing", findAllMissing([1, 2, 3, 4]), []);
+test("Only one value present", findAllMissing([2, 2, 2, 2]), [1, 3, 4]);
+test("Single element", findAllMissing([1]), []);
+
+console.log("\\n--- Approach 2 (Set) — same answers, array untouched ---");
+test("Set: two missing", findAllMissingSet([4, 3, 2, 7, 8, 2, 3, 1]), [5, 6]);
+test("Set: only one present", findAllMissingSet([2, 2, 2, 2]), [1, 3, 4]);
+
+console.log("\\n--- Approach 3 (seen flags) ---");
+test("Flags: two missing", findAllMissingFlags([4, 3, 2, 7, 8, 2, 3, 1]), [5, 6]);
+
+// ===== When to pick which =====
+// - Asked for O(1) extra space → Approach 1, and volunteer the mutation.
+// - Ordinary application code → Approach 2 or 3. Destroying the caller's
+//   input to save an array nobody was short of is a bad trade in real code.
+// - The sibling problem "find all DUPLICATES" is the same sign trick with
+//   the test inverted: report v when the mark was already there.`,
+
+  'First Missing Positive': `// ===== SOLUTION: First Missing Positive =====
+//
+// ┌──────────────────────────────────┬────────────┬───────┬────────────┐
+// │ Approach                         │ Time       │ Space │ Verdict    │
+// ├──────────────────────────────────┼────────────┼───────┼────────────┤
+// │ 1. Index cycling (swap home)     │ O(n)       │ O(1)  │ BEST       │
+// │ 2. Sanitise + sign marking       │ O(n)       │ O(1)* │ Easier     │
+// │ 3. Set lookup                    │ O(n)       │ O(n)  │ Baseline   │
+// │ 4. Sort + scan                   │ O(n log n) │ O(1)  │ Don't ship │
+// └──────────────────────────────────┴────────────┴───────┴────────────┘
+// * O(1) if you are allowed to mutate; the copy below costs O(n).
+//
+// THE INSIGHT, and the only thing you must say out loud: with n slots
+// the answer is always in [1, n + 1]. Every value outside that range is
+// noise. That bound is what makes O(1) space possible — you are not
+// searching the integers, you are searching n + 1 candidates, and you
+// already own n slots to record them in.
+
+// ----- Approach 1: Index cycling (BEST) -----
+// Send each in-range value v to its home index v - 1 by swapping.
+// Then the first index that does not hold i + 1 names the answer.
+function firstMissingPositive(nums) {
+  const n = nums.length;
+  for (let i = 0; i < n; i++) {
+    // while, not if: the value swapped IN also needs a home.
+    while (nums[i] >= 1 && nums[i] <= n && nums[nums[i] - 1] !== nums[i]) {
+      const home = nums[i] - 1;
+      const tmp = nums[home];
+      nums[home] = nums[i];
+      nums[i] = tmp;
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    if (nums[i] !== i + 1) return i + 1;
+  }
+  return n + 1;                      // 1..n all present
+}
+// The guard that stops an infinite loop is nums[nums[i] - 1] !== nums[i].
+// With a duplicate, the home slot already holds that value, so swapping
+// would exchange two equal numbers forever. Drop that clause and
+// [1, 1] hangs. This is the single most common way to fail this question.
+//
+// It looks like O(n squared) because of the nested while, but it is not:
+// every swap puts one value in its final home permanently, so across the
+// whole run there are at most n swaps.
+
+// ----- Approach 2: Sanitise, then sign marking -----
+// Replace every out-of-range value with n + 1 so the array holds only
+// positives, then mark presence by flipping signs as usual.
+function firstMissingPositiveSigns(nums) {
+  const n = nums.length;
+  const arr = [...nums];                  // copy so the caller keeps their data
+  for (let i = 0; i < n; i++) {
+    if (arr[i] <= 0 || arr[i] > n) arr[i] = n + 1;   // park the noise
+  }
+  for (let i = 0; i < n; i++) {
+    const v = Math.abs(arr[i]);
+    if (v <= n && arr[v - 1] > 0) arr[v - 1] = -arr[v - 1];
+  }
+  for (let i = 0; i < n; i++) {
+    if (arr[i] > 0) return i + 1;
+  }
+  return n + 1;
+}
+
+// ----- Approach 3: Set lookup (baseline) -----
+// Perfectly correct, easy to write under pressure, and rejected only
+// because the question explicitly asks for constant space.
+function firstMissingPositiveSet(nums) {
+  const present = new Set(nums);
+  for (let v = 1; v <= nums.length + 1; v++) {
+    if (!present.has(v)) return v;
+  }
+  return nums.length + 1;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+console.log("--- Approach 1 (index cycling) — BEST ---");
+test("Missing 3", firstMissingPositive([1, 2, 0]), 3);
+test("Negatives ignored", firstMissingPositive([3, 4, -1, 1]), 2);
+test("All values too large", firstMissingPositive([7, 8, 9, 11]), 1);
+test("Empty array", firstMissingPositive([]), 1);
+test("Duplicates", firstMissingPositive([1, 1, 2, 2]), 3);
+test("Perfect run", firstMissingPositive([1, 2, 3, 4]), 5);
+
+console.log("\\n--- Approach 2 (sanitise + signs) ---");
+test("Signs: negatives", firstMissingPositiveSigns([3, 4, -1, 1]), 2);
+test("Signs: duplicates", firstMissingPositiveSigns([1, 1, 2, 2]), 3);
+test("Signs: perfect run", firstMissingPositiveSigns([1, 2, 3, 4]), 5);
+
+console.log("\\n--- Approach 3 (Set baseline) ---");
+test("Set: negatives", firstMissingPositiveSet([3, 4, -1, 1]), 2);
+test("Set: empty", firstMissingPositiveSet([]), 1);
+
+// ===== When to pick which =====
+// - The question as asked (O(n) time, O(1) space) → Approach 1.
+// - If cycling swaps are tying you in knots under pressure, Approach 2
+//   reaches the same complexity with far less index gymnastics.
+// - Always state Approach 3 first as the obvious answer, then say why it
+//   fails the space bound, then build up. Jumping straight to swaps reads
+//   as memorised rather than reasoned.`,
+
+  'Missing Term in Arithmetic Sequence': `// ===== SOLUTION: Missing Term in Arithmetic Sequence =====
+//
+// ┌──────────────────────────────────┬──────────┬───────┬─────────────┐
+// │ Approach                         │ Time     │ Space │ Verdict     │
+// ├──────────────────────────────────┼──────────┼───────┼─────────────┤
+// │ 1. Binary search for the break   │ O(log n) │ O(1)  │ BEST        │
+// │ 2. Sum of the complete sequence  │ O(n)     │ O(1)  │ Shortest    │
+// │ 3. Linear scan for the wide gap  │ O(n)     │ O(1)  │ Most obvious│
+// └──────────────────────────────────┴──────────┴───────┴─────────────┘
+//
+// Everything starts from recovering the step. The array holds n terms
+// and the complete sequence held n + 1, so the total span is divided
+// into n equal gaps:  step = (last - first) / n.
+//
+// This is why the problem must promise that the FIRST and LAST terms are
+// present. If an endpoint could be the missing one, the span would be
+// wrong and the step unrecoverable — [2, 5, 8] is a complete sequence
+// and a broken one at the same time, and nothing in the data tells you
+// which. Say this before you write code; it is the clarifying question
+// the problem is really testing.
+
+// ----- Approach 1: Binary search (BEST) -----
+// In the intact prefix, seq[i] === first + i * step. Past the gap every
+// term is shifted by exactly one step, so the predicate flips once and
+// stays flipped — which is all binary search needs.
+function findMissingTerm(seq) {
+  const n = seq.length;
+  const step = (seq[n - 1] - seq[0]) / n;
+  let lo = 0, hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (seq[mid] === seq[0] + mid * step) lo = mid + 1;   // gap is to the right
+    else hi = mid;                                        // gap is here or left
+  }
+  return seq[0] + lo * step;
+}
+
+// ----- Approach 2: Sum of the complete sequence -----
+// The complete sequence had n + 1 terms running from first to last, so
+// its sum is (n + 1) * (first + last) / 2. Subtract what is actually
+// there. No division by step, so it survives a non-integer step.
+function findMissingTermSum(seq) {
+  const n = seq.length;
+  const complete = ((n + 1) * (seq[0] + seq[n - 1])) / 2;
+  const actual = seq.reduce((sum, x) => sum + x, 0);
+  return complete - actual;
+}
+
+// ----- Approach 3: Linear scan for the wide gap -----
+// Walk consecutive differences; the one that is not step is the gap,
+// and it is exactly twice step.
+function findMissingTermScan(seq) {
+  const step = (seq[seq.length - 1] - seq[0]) / seq.length;
+  for (let i = 1; i < seq.length; i++) {
+    if (seq[i] - seq[i - 1] !== step) return seq[i - 1] + step;
+  }
+  return seq[0];                    // unreachable given the guarantees
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+console.log("--- Approach 1 (binary search) — BEST ---");
+test("Missing near the end", findMissingTerm([2, 5, 8, 14]), 11);
+test("Missing in the middle", findMissingTerm([5, 7, 11, 13]), 9);
+test("Descending sequence", findMissingTerm([15, 12, 6, 3]), 9);
+test("Crosses zero", findMissingTerm([-4, -2, 2, 4]), 0);
+test("Missing right after first", findMissingTerm([1, 5, 7, 9]), 3);
+test("Missing just before last", findMissingTerm([1, 3, 5, 9]), 7);
+
+console.log("\\n--- Approach 2 (sum) ---");
+test("Sum: near the end", findMissingTermSum([2, 5, 8, 14]), 11);
+test("Sum: descending", findMissingTermSum([15, 12, 6, 3]), 9);
+test("Sum: crosses zero", findMissingTermSum([-4, -2, 2, 4]), 0);
+
+console.log("\\n--- Approach 3 (linear scan) ---");
+test("Scan: near the end", findMissingTermScan([2, 5, 8, 14]), 11);
+test("Scan: right after first", findMissingTermScan([1, 5, 7, 9]), 3);
+
+// ===== When to pick which =====
+// - Asked for better than linear → Approach 1. It is the only one that
+//   does not read the whole array, and the reason a sorted-ish input
+//   invites binary search at all.
+// - Reading the array is free anyway (you were handed it) → Approach 2
+//   is three lines and hard to get wrong.
+// - Careful with floats: if the step is fractional, seq[0] + i * step can
+//   miss by a rounding error and the equality test in Approach 1 lies.
+//   Approach 2 has no such comparison, which makes it the safer default
+//   when the terms are not integers.`,
+
   'Move Zeros': `// ===== SOLUTION: Move Zeros to End =====
 //
 // ┌────────────────────────────────────┬───────┬───────┬────────────┐

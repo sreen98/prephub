@@ -566,6 +566,57 @@ Two things the browser stops doing for you. **Scroll** is not restored on a `pus
 **Q12: How would you test routing?**
 
 `MemoryRouter` with `initialEntries` so the starting URL is explicit and no real history is involved; `createMemoryRouter` plus `RouterProvider` when I need loaders to run. The specific bug worth testing for is a component reading the global `window.location` instead of `useLocation()` — it typechecks, works in development, and silently breaks under a basename, because `window.location.pathname` includes the basename and the route path does not.
+**Q13: How do you handle a 404 / Page Not Found in React Router?**
+
+Start by separating the two 404s, because the interviewer usually means one and the deployment bug is the other.
+
+**The client 404** is a route that matches when nothing else does. A splat as a sibling of your real routes:
+
+```tsx
+function NotFound() {
+  return <h1>Page not found</h1>;
+}
+function Home() { return <h1>Home</h1>; }
+function Product() { return <h1>Product</h1>; }
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/products/:id" element={<Product />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+```
+
+**The detail that matters in v6 is that order does not.** v5 matched the first route that matched, so a catch-all placed too early swallowed everything below it and people wrote `<Switch>` with the splat last out of necessity. v6 **ranks** every route by specificity and picks the best match, so `*` — the least specific pattern there is — only wins when nothing else does. You can put it anywhere in the list.
+
+For a 404 that keeps your chrome, nest it inside the layout route rather than beside it:
+
+```tsx
+function Layout() { return <div><nav>nav</nav><Outlet /></div>; }
+function Dashboard() { return <h1>Dashboard</h1>; }
+function SectionNotFound() { return <p>No such page in this section.</p>; }
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/app" element={<Layout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="*" element={<SectionNotFound />} />
+      </Route>
+    </Routes>
+  );
+}
+```
+
+**A missing route and a missing resource are different things.** The splat handles a URL that matches no route. A URL that matches a route perfectly but whose *data* does not exist — `/products/99999` — is not a routing miss, and in data mode it belongs to the loader: throw a `Response` with status 404 and let `errorElement` render it, which `useRouteError` plus `isRouteErrorResponse` can then distinguish from a genuine crash. Two mechanisms, two causes; conflating them is the common wrong answer.
+
+**Then the part people forget.** Your catch-all runs only if the browser got your app at all. On static hosting, `GET /products/42` asks the server for a file that does not exist, and you get the *server's* 404 before React ever loads — see §13. That needs a rewrite, a `404.html` bounce, or a real HTML file emitted per route at build time. It is also why a client-rendered "Page not found" returns **HTTP 200** to a crawler, which is a soft 404: Google sees a successful response with not-found content. If SEO matters, the status has to come from the server or from prerendering; no amount of routing config changes it.
+
+---
+
 
 ---
 

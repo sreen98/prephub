@@ -19,6 +19,9 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'Find Duplicates',
   'Remove Duplicates',
   'Find Missing Number',
+  'Find All Missing Numbers',
+  'First Missing Positive',
+  'Missing Term in Arithmetic Sequence',
   'Move Zeros',
   'Rotate Array',
   'Bubble Sort',
@@ -198,4 +201,5 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'Form with Dynamic Fields',
   'Multi-Step Form (Wizard)',
   'Theme Switcher (dark/light)',
+  'Button (variants + sizes)',
 ]);

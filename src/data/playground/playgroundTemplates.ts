@@ -721,12 +721,13 @@ render(<App />);`,
     ],
   },
   {
-    label: 'JS Polyfills',
+    label: 'Spec Polyfills',
     tag: 'JS',
     kind: 'template',
     templates: [
       {
         name: 'How to Write a Polyfill',
+        difficulty: 'Easy',
         code: `// ═══════════════════════════════════════════════════════════════
 // HOW TO WRITE A POLYFILL — the meta-template
 // ═══════════════════════════════════════════════════════════════
@@ -854,6 +855,7 @@ console.log(JSON.stringify(native) === JSON.stringify(myImpl));   // true
       },
       {
         name: 'Array.map',
+        difficulty: 'Medium',
         code: `// Polyfill: Array.prototype.map
 Array.prototype.myMap = function(callback, thisArg) {
   // Preallocate: map returns an array of the SAME length, with holes left as
@@ -883,6 +885,7 @@ console.log("thisArg:   ", nums.myMap(function(n) { return n * this.factor; }, m
       },
       {
         name: 'Array.filter',
+        difficulty: 'Easy',
         code: `// Polyfill: Array.prototype.filter
 Array.prototype.myFilter = function(callback, thisArg) {
   const result = [];
@@ -912,6 +915,7 @@ console.log("Adults:", users.myFilter(u => u.age >= 18).map(u => u.name));`,
       },
       {
         name: 'Array.reduce',
+        difficulty: 'Medium',
         code: `// Polyfill: Array.prototype.reduce
 Array.prototype.myReduce = function(callback, initialValue) {
   let accumulator;
@@ -964,6 +968,7 @@ console.log("Flatten:", nested.myReduce((a, b) => a.concat(b), []));`,
       },
       {
         name: 'Array.forEach',
+        difficulty: 'Easy',
         code: `// Polyfill: Array.prototype.forEach
 Array.prototype.myForEach = function(callback, thisArg) {
   for (let i = 0; i < this.length; i++) {
@@ -988,6 +993,7 @@ console.log("Return value:", result); // undefined`,
       },
       {
         name: 'Array.find & findIndex',
+        difficulty: 'Easy',
         code: `// Polyfill: Array.prototype.find
 Array.prototype.myFind = function(callback, thisArg) {
   // NOTE: find and findIndex do NOT skip holes — unlike map/filter/forEach,
@@ -1025,6 +1031,7 @@ console.log("not found: ", users.myFindIndex(u => u.name === "Dave")); // -1`,
       },
       {
         name: 'Array.some & every',
+        difficulty: 'Easy',
         code: `// Polyfill: Array.prototype.some
 Array.prototype.mySome = function(callback, thisArg) {
   for (let i = 0; i < this.length; i++) {
@@ -1064,6 +1071,7 @@ console.log("Any valid:", fields.mySome(f => f.valid));`,
       },
       {
         name: 'Array.flat & flatMap',
+        difficulty: 'Medium',
         code: `// Polyfill: Array.prototype.flat
 Array.prototype.myFlat = function(depth = 1) {
   const result = [];
@@ -1109,6 +1117,7 @@ console.log("All items:", orders.myFlatMap(o => o.items));`,
       },
       {
         name: 'Function.bind',
+        difficulty: 'Hard',
         code: `// Polyfill: Function.prototype.bind
 Function.prototype.myBind = function(thisArg, ...boundArgs) {
   const fn = this;
@@ -1151,6 +1160,7 @@ console.log("Poly:  ", polyBound("."));`,
       },
       {
         name: 'Function.call & apply',
+        difficulty: 'Medium',
         code: `// Polyfill: Function.prototype.call
 // CAVEAT: this technique cannot match the native behaviour exactly. Assigning
 // the function as a property requires an object, so Object(thisArg) BOXES a
@@ -1196,6 +1206,7 @@ console.log("Max:", Math.max.myApply(null, nums));`,
       },
       {
         name: 'Promise.all',
+        difficulty: 'Medium',
         code: `// Polyfill: Promise.all
 Promise.myAll = function(promises) {
   return new Promise((resolve, reject) => {
@@ -1245,6 +1256,7 @@ Promise.myAll([]).then(r => console.log("Empty:", r)); // []`,
       },
       {
         name: 'Promise.allSettled',
+        difficulty: 'Medium',
         code: `// Polyfill: Promise.allSettled
 Promise.myAllSettled = function(promises) {
   return new Promise((resolve) => {
@@ -1296,6 +1308,7 @@ Promise.myAllSettled(apis).then(results => {
       },
       {
         name: 'Promise.race & any',
+        difficulty: 'Medium',
         code: `// Polyfill: Promise.race
 Promise.myRace = function(promises) {
   return new Promise((resolve, reject) => {
@@ -1349,6 +1362,7 @@ Promise.myAny([
       },
       {
         name: 'Array.includes',
+        difficulty: 'Easy',
         code: `// Polyfill for Array.prototype.includes
 // Spec quirks vs indexOf:
 //   includes uses SameValueZero — so NaN includes NaN === true
@@ -1373,6 +1387,7 @@ console.log([NaN].myIncludes(NaN));             // true — the SameValueZero di
       },
       {
         name: 'Object.assign',
+        difficulty: 'Easy',
         code: `// Polyfill for Object.assign
 // Copies enumerable own properties from sources to target.
 // Later sources OVERWRITE earlier ones for the same key.
@@ -1404,6 +1419,7 @@ console.log(Object.myAssign({}, "hello"));              // { 0: 'h', 1: 'e', 2: 
       },
       {
         name: 'Array.from',
+        difficulty: 'Medium',
         code: `// Polyfill for Array.from
 // Converts iterables and array-likes into real arrays.
 // Optional mapFn applied during creation (more efficient than .map after).
@@ -1441,6 +1457,7 @@ console.log(Array.myFrom(new Map([["a", 1], ["b", 2]]))); // [['a', 1], ['b', 2]
       },
       {
         name: 'Array.sort',
+        difficulty: 'Hard',
         code: `// Polyfill for Array.prototype.sort
 // Implementation here = QuickSort (V8 used to use this; modern V8 uses TimSort).
 // Default comparator converts to string and compares — that's why
@@ -1487,6 +1504,7 @@ console.log(users);                                      // [{age:25}, {age:30},
       },
       {
         name: 'Array.indexOf / lastIndexOf',
+        difficulty: 'Easy',
         code: `// Polyfill for Array.prototype.indexOf and lastIndexOf
 // Strict equality (===), so [NaN].indexOf(NaN) === -1.
 // (Use .includes if you need NaN-aware search — see the includes polyfill.)
@@ -1522,6 +1540,7 @@ console.log([NaN].myIndexOf(NaN));                 // -1  — strict equality go
       },
       {
         name: 'Array.reverse',
+        difficulty: 'Easy',
         code: `// Polyfill for Array.prototype.reverse
 // Mutates in place. Two-pointer swap from outside inward.
 
@@ -1552,6 +1571,7 @@ console.log(arr);                                  // [3, 2, 1]
       },
       {
         name: 'Array.slice',
+        difficulty: 'Easy',
         code: `// Polyfill for Array.prototype.slice
 // Returns a SHALLOW copy of a portion. Does NOT mutate the source.
 // Negative indices count from the end.
@@ -1588,6 +1608,7 @@ console.log(nested[0].x);              // 999 — same object!`,
       },
       {
         name: 'Array.splice',
+        difficulty: 'Medium',
         code: `// Polyfill for Array.prototype.splice
 // MUTATES the array. Three jobs in one method:
 //   1. Remove items from start to start+deleteCount
@@ -1640,6 +1661,7 @@ console.log(arr4);                              // [1, 2]`,
       },
       {
         name: 'Array.concat',
+        difficulty: 'Easy',
         code: `// Polyfill for Array.prototype.concat
 // Returns a new array combining the receiver with arguments.
 // Each argument: array → spread its elements; non-array → push as-is.
@@ -1680,6 +1702,7 @@ console.log(concatenated);                              // [1, 2, 3]`,
       },
       {
         name: 'String.padStart / padEnd',
+        difficulty: 'Easy',
         code: `// Polyfill for String.prototype.padStart and padEnd
 // Pads a string to a target length with a fill string (default: space).
 // Returns the original if already at or above target length.
@@ -1717,6 +1740,7 @@ console.log(\`\${"5".myPadStart(2, "0")}:\${"7".myPadStart(2, "0")}\`);  // "05:
       },
       {
         name: 'JSON.stringify',
+        difficulty: 'Hard',
         code: `// Polyfill for JSON.stringify
 // Recursive serialization with type-specific formatting.
 // (Simplified — does not handle indent / replacer / circular detection.)
@@ -1783,6 +1807,7 @@ console.log(JSON.myStringify({ a: 1, b: [1, 2] }) === JSON.stringify({ a: 1, b: 
       },
       {
         name: 'Object.keys / values / entries',
+        difficulty: 'Easy',
         code: `// Polyfill for Object.keys, Object.values, Object.entries
 // All three iterate ENUMERABLE OWN string-keyed properties.
 // (Not symbols, not inherited, not non-enumerable.)
@@ -1833,6 +1858,7 @@ console.log(Object.myKeys(child));        // ["own"]   — proto skipped`,
 
       {
         name: 'JSON.parse',
+        difficulty: 'Hard',
         code: `// Polyfill for JSON.parse — recursive descent parser.
 // (The native is a hand-written state machine; this is a teaching version
 // that covers strings, numbers, true/false/null, arrays, objects.)
@@ -1941,6 +1967,7 @@ console.log(JSON.myParse('{"name":"Ana","tags":["dev","js"],"age":30}'));`,
       },
       {
         name: 'Array.isArray',
+        difficulty: 'Easy',
         code: `// Polyfill for Array.isArray — the most reliable test.
 // typeof [] === 'object' (same as object/null), so we need a smarter check.
 
@@ -1973,6 +2000,7 @@ console.log(typeof {});          // "object"`,
       },
       {
         name: 'Object.create',
+        difficulty: 'Medium',
         code: `// Polyfill for Object.create — creates an object with the given prototype.
 // The classic 4-line implementation. Foundation of pre-class OOP in JS.
 
@@ -2036,6 +2064,7 @@ console.log(dict.toString);                        // "no inheritance"   (no [ob
       },
       {
         name: 'Object.freeze + deepFreeze',
+        difficulty: 'Medium',
         code: `// Polyfill for Object.freeze — and the deepFreeze variant interviewers love.
 // Native Object.freeze is shallow: nested objects can still be mutated.
 
@@ -2097,6 +2126,7 @@ console.log(Object.isFrozen(a));     // true`,
       },
       {
         name: 'Array.prototype.fill',
+        difficulty: 'Easy',
         code: `// Polyfill for Array.prototype.fill(value, start?, end?).
 // Mutates the array in place. Negative indices count from the end.
 // Common interview ask alongside Array.from.
@@ -2136,6 +2166,7 @@ console.log(realGrid);                           // [['a'], [], []]   — distin
       },
       {
         name: 'String.prototype.repeat',
+        difficulty: 'Easy',
         code: `// Polyfill for String.prototype.repeat — short but classic.
 // Throws on negative or non-finite count.
 
@@ -2184,6 +2215,7 @@ console.log(padLeft("42", 5, "0"));                   // "00042"`,
       },
       {
         name: 'Array.prototype.join',
+        difficulty: 'Easy',
         code: `// Polyfill for Array.prototype.join(separator).
 // Default separator is ",". null/undefined become empty strings.
 
@@ -2220,6 +2252,577 @@ console.log(text.split("hello").myJoin("hi")); // "hi world hi"
 // Native vs polyfill output match:
 const arr = [1, "two", null, true];
 console.log(arr.myJoin(" | ") === arr.join(" | "));   // true`,
+      },
+    ],
+  },
+  {
+    label: 'Utility Implementations',
+    tag: 'JS',
+    kind: 'template',
+    templates: [
+      {
+        name: 'once',
+        difficulty: 'Easy',
+        code: `// Utility: once(fn) — run a function at most once, cache its result.
+// Not a spec method. This is the "hand-rolled utility" family, and in
+// interviews it is asked more often than half the spec polyfills.
+//
+// The four things being graded:
+//   1. closure privacy — called/result are unreachable from outside
+//   2. this forwarding via apply — an arrow function here would be a BUG,
+//      because it would capture the defining scope instead
+//   3. caching the RESULT, not just suppressing the call
+//   4. nulling fn afterwards, so whatever it closed over can be collected
+
+function once(fn) {
+  let called = false;
+  let result;
+  return function (...args) {
+    if (called) return result;
+    called = true;
+    result = fn.apply(this, args);
+    fn = null;                 // release the closure; the result is kept
+    return result;
+  };
+}
+
+const init = once((n) => { console.log("  (side effect ran)"); return n * 2; });
+console.log("first  :", init(21));
+console.log("second :", init(99));   // 42 — the argument is ignored
+console.log("third  :", init(1));    // 42 — still the cached result
+
+// this is forwarded, which an arrow function would break:
+const counter = { n: 5, bump: once(function () { return this.n + 1; }) };
+console.log("this forwarded:", counter.bump());   // 6`,
+      },
+      {
+        name: 'curry',
+        difficulty: 'Medium',
+        code: `// Utility: curry(fn) — collect arguments until fn.length is satisfied.
+//
+// NOTE: this is a different question from the "Sum Curry" challenge
+// (sum(1)(2)(3)()), which accumulates an unbounded list and settles on an
+// empty call. This one is arity-driven: it knows when to fire because
+// fn.length tells it how many parameters were declared.
+//
+// The follow-ups:
+//   - fn.length counts only parameters BEFORE the first default or rest,
+//     so curry cannot work on (a, b = 1) or (...args). Say so.
+//   - partial application must work in any grouping: f(1)(2)(3),
+//     f(1, 2)(3) and f(1)(2, 3) all have to land the same.
+
+function curry(fn) {
+  return function curried(...args) {
+    if (args.length >= fn.length) return fn.apply(this, args);
+    return (...rest) => curried.apply(this, [...args, ...rest]);
+  };
+}
+
+const add3 = curry((a, b, c) => a + b + c);
+console.log("one at a time :", add3(1)(2)(3));
+console.log("two then one  :", add3(1, 2)(3));
+console.log("one then two  :", add3(1)(2, 3));
+console.log("all at once   :", add3(1, 2, 3));
+
+// The arity limit, stated honestly:
+const withDefault = (a, b = 2) => a + b;
+console.log("fn.length with a default:", withDefault.length);  // 1, not 2`,
+      },
+      {
+        name: 'deepEqual',
+        difficulty: 'Medium',
+        code: `// Utility: deepEqual(a, b) — structural equality.
+// The sibling of deepClone, and asked about as often.
+//
+// What separates a real answer from a shallow one:
+//   - Object.is for primitives, so NaN equals NaN and +0 does NOT equal -0
+//   - a WeakMap so a cycle does not recurse forever
+//   - prototype check, so [1,2] is not equal to {0:1, 1:2, length:2}
+//   - Date, RegExp, Map and Set need their own comparisons
+
+function deepEqual(a, b, seen = new WeakMap()) {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
+  if (seen.get(a) === b) return true;        // already comparing this pair
+  seen.set(a, b);
+
+  if (a instanceof Date)   return a.getTime() === b.getTime();
+  if (a instanceof RegExp) return a.source === b.source && a.flags === b.flags;
+
+  if (a instanceof Map) {
+    if (a.size !== b.size) return false;
+    for (const [k, v] of a) {
+      if (!b.has(k) || !deepEqual(v, b.get(k), seen)) return false;
+    }
+    return true;
+  }
+  if (a instanceof Set) {
+    if (a.size !== b.size) return false;
+    for (const v of a) if (!b.has(v)) return false;   // shallow for set members
+    return true;
+  }
+
+  const keysA = Reflect.ownKeys(a);
+  const keysB = Reflect.ownKeys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
+    if (!deepEqual(a[k], b[k], seen)) return false;
+  }
+  return true;
+}
+
+console.log("nested       :", deepEqual({ a: [1, { b: 2 }] }, { a: [1, { b: 2 }] }));  // true
+console.log("NaN === NaN  :", deepEqual(NaN, NaN));                                    // true
+console.log("+0 vs -0     :", deepEqual(0, -0));                                       // false
+console.log("Map          :", deepEqual(new Map([["k", 1]]), new Map([["k", 1]])));    // true
+console.log("array vs bag :", deepEqual([1, 2], { 0: 1, 1: 2, length: 2 }));           // false
+
+const x = { n: 1 }; x.self = x;
+const y = { n: 1 }; y.self = y;
+console.log("cycles       :", deepEqual(x, y));                                        // true`,
+      },
+      {
+        name: 'promisify',
+        difficulty: 'Medium',
+        code: `// Utility: promisify(fn) — turn a Node-style callback API into a promise.
+//
+// The contract being reproduced: the callback is the LAST argument and is
+// called as (err, value). A truthy err rejects, otherwise it resolves.
+//
+// The details people miss:
+//   - this must be forwarded, or promisifying a method loses its receiver
+//   - the original arguments must be spread BEFORE the callback is appended
+//   - a callback fired twice must not settle twice (promises already
+//     ignore the second settle, which is worth pointing out)
+
+function promisify(fn) {
+  return function (...args) {
+    return new Promise((resolve, reject) => {
+      fn.call(this, ...args, (err, value) => {
+        if (err) reject(err);
+        else resolve(value);
+      });
+    });
+  };
+}
+
+// A callback-style API to convert:
+function readish(name, cb) {
+  setTimeout(() => {
+    if (name) cb(null, "contents of " + name);
+    else cb(new Error("name is required"));
+  }, 5);
+}
+
+const readAsync = promisify(readish);
+
+readAsync("notes.txt").then((v) => console.log("resolved:", v));
+readAsync("").catch((e) => console.log("rejected:", e.message));
+
+console.log("promisify returns a function:", typeof readAsync);`,
+      },
+      {
+        name: 'Promise.prototype.finally',
+        difficulty: 'Medium',
+        code: `// Polyfill: Promise.prototype.finally
+// A spec method, but it lives here because the interesting part is the
+// same closure/chaining reasoning as the utilities around it.
+//
+// The rule that catches people: finally is PASS-THROUGH. It must not
+// change the settled value, and it must not swallow a rejection. The only
+// way it can affect the chain is by throwing or returning a rejected
+// promise of its own.
+//
+// It also has to WAIT for a thenable returned by the callback, which is
+// why each arm wraps the result in Promise.resolve before continuing.
+
+Promise.prototype.myFinally = function (onFinally) {
+  const C = this.constructor || Promise;
+  return this.then(
+    (value)  => C.resolve(onFinally()).then(() => value),
+    (reason) => C.resolve(onFinally()).then(() => { throw reason; }),
+  );
+};
+
+Promise.resolve("ok")
+  .myFinally(() => console.log("cleanup ran (fulfilled path)"))
+  .then((v) => console.log("value passed through:", v));
+
+Promise.reject(new Error("boom"))
+  .myFinally(() => console.log("cleanup ran (rejected path)"))
+  .catch((e) => console.log("rejection passed through:", e.message));
+
+// A value RETURNED from finally is ignored — this still prints 1, not 99:
+Promise.resolve(1)
+  .myFinally(() => 99)
+  .then((v) => console.log("return value ignored:", v));`,
+      },
+      {
+        name: 'myInstanceof (prototype chain)',
+        difficulty: 'Medium',
+        code: `// Utility: myInstanceof(obj, Ctor) — walk the prototype chain by hand.
+//
+// instanceof does not compare constructors. It asks a single question:
+// is Ctor.prototype anywhere on obj's prototype chain? Everything about
+// inheritance in JavaScript follows from that one sentence.
+//
+// The edge cases that are the actual question:
+//   - primitives are never instances of anything
+//   - the right-hand side must be callable, or it throws a TypeError
+//   - Object.create(null) makes an object with NO chain at all
+
+function myInstanceof(obj, Ctor) {
+  if (obj === null || (typeof obj !== "object" && typeof obj !== "function")) return false;
+  if (typeof Ctor !== "function") throw new TypeError("Right-hand side is not callable");
+
+  const target = Ctor.prototype;
+  let proto = Object.getPrototypeOf(obj);
+  while (proto !== null) {
+    if (proto === target) return true;
+    proto = Object.getPrototypeOf(proto);
+  }
+  return false;
+}
+
+class Animal {}
+class Dog extends Animal {}
+const rex = new Dog();
+
+console.log("Dog    :", myInstanceof(rex, Dog));      // true
+console.log("Animal :", myInstanceof(rex, Animal));   // true — one step further up
+console.log("Object :", myInstanceof(rex, Object));   // true — the chain ends there
+console.log("Array  :", myInstanceof(rex, Array));    // false
+console.log("number :", myInstanceof(1, Object));     // false — primitives have no chain
+
+// Print the chain itself, which is the thing worth being able to draw:
+let node = Object.getPrototypeOf(rex);
+const chain = [];
+while (node !== null) { chain.push(node.constructor ? node.constructor.name : "null-proto"); node = Object.getPrototypeOf(node); }
+console.log("chain  :", chain.join(" -> ") + " -> null");`,
+      },
+      {
+        name: 'myNew (the new operator)',
+        difficulty: 'Medium',
+        code: `// Utility: myNew(Ctor, ...args) — what the new operator actually does.
+//
+// Four steps, and step four is the one that surprises people:
+//   1. create a fresh object whose prototype is Ctor.prototype
+//   2. call Ctor with this bound to that object
+//   3. if the constructor returned an OBJECT, that object wins
+//   4. otherwise return the object from step 1
+//
+// Step 3 is why a constructor can hijack its own result, and it is the
+// mechanism behind the singleton pattern written as a class.
+
+function myNew(Ctor, ...args) {
+  if (typeof Ctor !== "function") throw new TypeError("not a constructor");
+  const obj = Object.create(Ctor.prototype);       // steps 1
+  const returned = Ctor.apply(obj, args);          // step 2
+  const isObject = returned !== null && (typeof returned === "object" || typeof returned === "function");
+  return isObject ? returned : obj;                // steps 3 and 4
+}
+
+function Point(x, y) { this.x = x; this.y = y; }
+Point.prototype.sum = function () { return this.x + this.y; };
+
+const p = myNew(Point, 2, 3);
+console.log("sum via prototype :", p.sum());          // 5
+console.log("instanceof Point  :", p instanceof Point);  // true
+
+// A primitive return is IGNORED:
+function ReturnsNumber() { this.a = 1; return 42; }
+console.log("primitive ignored :", JSON.stringify(myNew(ReturnsNumber)));   // {"a":1}
+
+// An object return REPLACES the instance:
+function ReturnsObject() { this.a = 1; return { b: 2 }; }
+console.log("object wins       :", JSON.stringify(myNew(ReturnsObject)));   // {"b":2}`,
+      },
+      {
+        name: 'retry with exponential backoff',
+        difficulty: 'Medium',
+        code: `// Utility: retry(task, options) — re-run a failing async task with
+// exponentially growing waits.
+//
+// There is a CHALLENGE version of this in Coding Challenges called
+// "Auto-Retry for Promises" if you want to write it yourself. This is the
+// reference implementation with the production concerns attached.
+//
+// Why the delay grows: a fixed delay hammers a service that is already
+// struggling. Doubling gives it room to recover.
+//
+// Why the JITTER matters, and this is the part interviews probe: without
+// it, every client that failed at the same moment retries at the same
+// moment, and you rebuild the spike you were backing off from. Randomising
+// the wait spreads the herd. Full jitter — a random point in [0, delay) —
+// is the variant AWS recommends.
+//
+// Retry only IDEMPOTENT work. Retrying a POST that already charged a card
+// charges it twice.
+
+function retry(task, options = {}) {
+  const attempts = options.attempts ?? 4;
+  const baseMs   = options.baseMs   ?? 100;
+  const factor   = options.factor   ?? 2;
+  const jitter   = options.jitter   ?? true;
+  const signal   = options.signal;
+
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+    const run = () => {
+      if (signal && signal.aborted) return reject(new Error("aborted"));
+      attempt++;
+      // Promise.resolve().then(task) so a SYNCHRONOUS throw inside task
+      // becomes a rejection instead of escaping retry entirely.
+      Promise.resolve().then(task).then(resolve, (err) => {
+        if (attempt >= attempts) return reject(err);
+        const flat = baseMs * Math.pow(factor, attempt - 1);
+        const wait = jitter ? Math.random() * flat : flat;
+        console.log("  attempt " + attempt + " failed, waiting ~" + Math.round(wait) + "ms");
+        setTimeout(run, wait);
+      });
+    };
+    run();
+  });
+}
+
+// Demo: fails twice, then succeeds. Short delays so it finishes here.
+let calls = 0;
+const flaky = () => {
+  calls++;
+  if (calls < 3) return Promise.reject(new Error("503 on call " + calls));
+  return "succeeded on call " + calls;
+};
+
+retry(flaky, { attempts: 5, baseMs: 10 }).then((v) => console.log("resolved:", v));
+
+// Exhausting the budget rejects with the LAST error, not a generic one:
+retry(() => Promise.reject(new Error("always down")), { attempts: 2, baseMs: 5 })
+  .catch((e) => console.log("gave up:", e.message));`,
+      },
+      {
+        name: 'Promise from scratch',
+        difficulty: 'Hard',
+        code: `// Utility: a Promise implementation with the full then-chaining state
+// machine. This is the standard senior-level async question, and the
+// natural step after writing Promise.all.
+//
+// The four things it has to get right:
+//   1. a state machine that settles ONCE — pending to fulfilled/rejected,
+//      never back, never twice
+//   2. callbacks queued while pending, flushed on settle
+//   3. then returns a NEW promise, and the handler result resolves it,
+//      which is what makes chaining work
+//   4. the resolution procedure: resolving with a thenable adopts its
+//      state rather than wrapping it
+//
+// Every callback runs in a MICROTASK (queueMicrotask). Running them
+// synchronously is the classic wrong answer — it makes ordering depend on
+// whether a promise happened to be already settled.
+
+class MyPromise {
+  constructor(executor) {
+    this.state = "pending";
+    this.value = undefined;
+    this.callbacks = [];
+
+    const settle = (state, value) => {
+      if (this.state !== "pending") return;       // settle once, ever
+      this.state = state;
+      this.value = value;
+      queueMicrotask(() => {
+        this.callbacks.forEach((cb) => cb());
+        this.callbacks = [];
+      });
+    };
+
+    const resolve = (value) => {
+      // The resolution procedure: adopt a thenable instead of wrapping it.
+      if (value && (typeof value === "object" || typeof value === "function")) {
+        let then;
+        try { then = value.then; } catch (e) { return settle("rejected", e); }
+        if (typeof then === "function") {
+          let done = false;                        // a thenable may call back twice
+          try {
+            then.call(value,
+              (v) => { if (!done) { done = true; resolve(v); } },
+              (r) => { if (!done) { done = true; settle("rejected", r); } });
+          } catch (e) {
+            if (!done) settle("rejected", e);
+          }
+          return;
+        }
+      }
+      settle("fulfilled", value);
+    };
+
+    try { executor(resolve, (r) => settle("rejected", r)); }
+    catch (e) { settle("rejected", e); }
+  }
+
+  then(onFulfilled, onRejected) {
+    return new MyPromise((resolve, reject) => {
+      const handle = () => {
+        const handler = this.state === "fulfilled" ? onFulfilled : onRejected;
+        if (typeof handler !== "function") {
+          // Pass through, so .then(null).catch(...) still sees the rejection.
+          if (this.state === "fulfilled") resolve(this.value);
+          else reject(this.value);
+          return;
+        }
+        try { resolve(handler(this.value)); } catch (e) { reject(e); }
+      };
+      if (this.state === "pending") this.callbacks.push(handle);
+      else queueMicrotask(handle);
+    });
+  }
+
+  catch(onRejected) { return this.then(undefined, onRejected); }
+
+  static resolve(v) { return v instanceof MyPromise ? v : new MyPromise((res) => res(v)); }
+  static reject(r)  { return new MyPromise((_, rej) => rej(r)); }
+}
+
+new MyPromise((resolve) => resolve(1))
+  .then((v) => { console.log("step 1:", v); return v + 1; })
+  .then((v) => { console.log("step 2:", v); return new MyPromise((r) => r(v * 10)); })
+  .then((v) => console.log("adopted a returned promise:", v));
+
+new MyPromise((_, reject) => reject(new Error("failed")))
+  .then((v) => console.log("never runs", v))
+  .catch((e) => console.log("caught after pass-through:", e.message));
+
+console.log("constructor runs synchronously, handlers do not");`,
+      },
+      {
+        name: 'React from Scratch (createElement + useState)',
+        difficulty: 'Hard',
+        code: `// Utility: React from scratch — createElement, components, and useState.
+//
+// "Build a mini React" is a reference question, not a trick. It is asked
+// because the answer explains three things people otherwise memorise:
+// why JSX needs React in scope, why a component is just a function, and
+// why hooks must be called in the same order every time.
+//
+// This one produces an HTML STRING rather than touching the DOM, so it
+// runs anywhere and the output is inspectable. A real reconciler diffs
+// two trees and patches the DOM; that part is noted at the end.
+
+// ---------- 1. createElement: JSX is sugar for this call ----------
+// <div id="a">hi</div>  compiles to  h("div", { id: "a" }, "hi")
+// Children are variadic and flattened, which is why an array of children
+// is legal in JSX. That is the entire mystery of "JSX needs React".
+function h(type, props, ...children) {
+  return { type, props: { ...(props || {}), children: children.flat() } };
+}
+
+// ---------- 2. The hook slots ----------
+// The whole hook mechanism is ONE array and ONE cursor. A hook does not
+// know its own name; it knows its POSITION. That is the rule of hooks,
+// stated as data rather than as a lint rule.
+let slots = [];
+let cursor = 0;
+let redrawScheduled = null;
+
+function useState(initial) {
+  const i = cursor++;                       // claim this slot, then advance
+  if (!(i in slots)) slots[i] = initial;    // first draw only
+  const set = (next) => {
+    slots[i] = typeof next === "function" ? next(slots[i]) : next;
+    if (redrawScheduled) redrawScheduled();      // a set triggers a redraw
+  };
+  return [slots[i], set];
+}
+
+// ---------- 3. toHTML: walk the tree, call the functions ----------
+function toHTML(node) {
+  if (node === null || node === undefined || node === false) return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(toHTML).join("");
+
+  // A COMPONENT is a function that returns a tree. There is nothing else
+  // to it — no class, no registry, no instance. Calling it is "rendering".
+  if (typeof node.type === "function") {
+    return toHTML(node.type(node.props));
+  }
+
+  const { children, ...attrs } = node.props;
+  const attrString = Object.entries(attrs)
+    .filter(([, v]) => v !== false && v !== null && v !== undefined)
+    .map(([k, v]) => " " + (k === "className" ? "class" : k) + '="' + v + '"')
+    .join("");
+  return "<" + node.type + attrString + ">" + toHTML(children) + "</" + node.type + ">";
+}
+
+// ---------- 4. The mount: reset the cursor before every draw ----------
+// This single line is why hook order matters. Every draw walks the same
+// slots from index 0, so slot 2 must be the same hook it was last time.
+function mount(component) {
+  const draw = () => {
+    cursor = 0;
+    const html = toHTML(h(component, null));
+    console.log("  " + html);
+    return html;
+  };
+  redrawScheduled = draw;
+  return draw();
+}
+
+// ---------- 5. Use it ----------
+let bump;                                        // stand-in for an onClick
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  const [label] = useState("clicks");
+  bump = () => setCount((c) => c + 1);
+  return h("div", { className: "counter" },
+    h("span", null, label, ": ", count),
+    h("button", { type: "button" }, "+1")
+  );
+}
+
+console.log("first draw:");
+mount(Counter);
+
+console.log("after two state updates:");
+bump();
+bump();
+
+// ---------- 6. Why the rules of hooks exist ----------
+// Put a hook behind a condition and the SLOT NUMBERS shift. Slot 1 was
+// "clicks"; on the next draw it becomes whatever the new first-called
+// hook is, and the state of one variable silently lands in another.
+slots = [];
+cursor = 0;
+redrawScheduled = null;
+
+function Broken(props) {
+  if (props && props.showTitle) {
+    useState("a title");          // only SOMETIMES claims slot 0
+  }
+  const [name] = useState("Ada");
+  return h("p", null, "name is: " + name);
+}
+
+cursor = 0;
+console.log("with the conditional hook taken:  " + toHTML(h(Broken, { showTitle: true })));
+cursor = 0;
+console.log("with the conditional hook skipped:" + toHTML(h(Broken, { showTitle: false })));
+console.log("slots are now:", JSON.stringify(slots));
+
+// The second draw read slot 0, which holds "a title", so name is wrong.
+// React cannot detect this, because a hook never tells it which hook it is.
+
+// ---------- What this deliberately leaves out ----------
+//   - Reconciliation: real React diffs the previous tree against the new
+//     one and patches only what changed. This throws the string away.
+//   - Keys: they exist so the diff can match children across reorders.
+//     With no diff there is nothing for a key to do.
+//   - Fibers, lanes and scheduling: React splits the work into units it
+//     can pause. Here toHTML is one recursive, uninterruptible call.
+//   - Effects: useEffect queues a callback to run AFTER the commit.
+//     There is no commit here, only a string.`,
       },
     ],
   },
@@ -2675,6 +3278,123 @@ test("Missing last", findMissing([0, 1]), 2);
 test("Missing first", findMissing([1, 2]), 0);
 test("Single missing 0", findMissing([1]), 0);
 test("Larger array", findMissing([9, 6, 4, 2, 3, 5, 7, 0, 1]), 8);`,
+      },
+      {
+        name: 'Find All Missing Numbers',
+        patterns: ['Hash Map / Set', 'In-Place'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Find All Missing Numbers =====
+// An array of n integers where every value is in the range [1, n].
+// Some values appear twice, which is exactly why others never appear.
+// Return every value in [1, n] that is missing, in ascending order.
+//
+// Example: findAllMissing([4, 3, 2, 7, 8, 2, 3, 1]) -> [5, 6]
+// Example: findAllMissing([1, 1])                   -> [2]
+//
+// Constraints:
+// - Every value is in [1, n] where n is the array length
+// - Duplicates are allowed
+// - A Set works and is O(n) space. The graded version uses O(1) extra
+//   space: treat the array as its own lookup table. For each value v,
+//   flip the sign at index v - 1 to record "seen". Afterwards every
+//   index still holding a positive number is a missing value.
+
+function findAllMissing(nums) {
+  // YOUR CODE HERE
+
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+test("Two missing", findAllMissing([4, 3, 2, 7, 8, 2, 3, 1]), [5, 6]);
+test("One missing", findAllMissing([1, 1]), [2]);
+test("Nothing missing", findAllMissing([1, 2, 3, 4]), []);
+test("Only one value present", findAllMissing([2, 2, 2, 2]), [1, 3, 4]);
+test("Single element", findAllMissing([1]), []);`,
+      },
+      {
+        name: 'First Missing Positive',
+        patterns: ['In-Place', 'Hash Map / Set'],
+        difficulty: 'Hard',
+        code: `// ===== CHALLENGE: First Missing Positive =====
+// Given an UNSORTED array holding any integers at all — negatives,
+// zero, duplicates, values far larger than the array — return the
+// smallest POSITIVE integer that does not appear in it.
+//
+// Example: firstMissingPositive([1, 2, 0])     -> 3
+// Example: firstMissingPositive([3, 4, -1, 1]) -> 2
+// Example: firstMissingPositive([7, 8, 9, 11]) -> 1
+//
+// Constraints:
+// - O(n) time and O(1) extra space is the graded answer
+// - Sorting is O(n log n) and a Set is O(n) space, so neither qualifies
+//
+// The insight that makes O(1) space possible at all: with only n slots
+// the answer can never exceed n + 1, so the array itself can serve as
+// the lookup table. Swap each value v into index v - 1 whenever
+// 1 <= v <= n, then the first index i where nums[i] !== i + 1 is the
+// answer. If every slot matches, the answer is n + 1.
+
+function firstMissingPositive(nums) {
+  // YOUR CODE HERE
+
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Missing 3", firstMissingPositive([1, 2, 0]), 3);
+test("Negatives ignored", firstMissingPositive([3, 4, -1, 1]), 2);
+test("All values too large", firstMissingPositive([7, 8, 9, 11]), 1);
+test("Empty array", firstMissingPositive([]), 1);
+test("Duplicates", firstMissingPositive([1, 1, 2, 2]), 3);
+test("Perfect run", firstMissingPositive([1, 2, 3, 4]), 5);`,
+      },
+      {
+        name: 'Missing Term in Arithmetic Sequence',
+        patterns: ['Binary Search', 'Math / Bit'],
+        difficulty: 'Medium',
+        code: `// ===== CHALLENGE: Missing Term in Arithmetic Sequence =====
+// An arithmetic sequence — each term differs from the previous one by
+// a constant step — has had exactly ONE middle term removed.
+// Given the remaining terms in order, return the term that is missing.
+//
+// Example: findMissingTerm([2, 5, 8, 14])  -> 11   (step 3)
+// Example: findMissingTerm([5, 7, 11, 13]) -> 9    (step 2)
+// Example: findMissingTerm([15, 12, 6, 3]) -> 9    (step -3)
+//
+// Constraints:
+// - The FIRST and LAST terms are always present and only a middle term
+//   is missing. Without that guarantee the step is ambiguous — you
+//   could not tell [2, 5, 8] from a sequence missing its endpoint.
+// - The array holds n terms, so the complete sequence held n + 1,
+//   which makes the step (last - first) / n
+// - The step may be negative. Aim for O(log n) with binary search.
+
+function findMissingTerm(seq) {
+  // YOUR CODE HERE
+
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Missing near the end", findMissingTerm([2, 5, 8, 14]), 11);
+test("Missing in the middle", findMissingTerm([5, 7, 11, 13]), 9);
+test("Descending sequence", findMissingTerm([15, 12, 6, 3]), 9);
+test("Crosses zero", findMissingTerm([-4, -2, 2, 4]), 0);
+test("Missing right after first", findMissingTerm([1, 5, 7, 9]), 3);
+test("Missing just before last", findMissingTerm([1, 3, 5, 9]), 7);`,
       },
       {
         name: 'Move Zeros',
@@ -10650,6 +11370,198 @@ render(
     <Demo />
   </ThemeProvider>
 );`,
+      },
+      {
+        name: 'Button (variants + sizes)',
+        jsx: true,
+        code: `// ===== MACHINE CODING: Button (variants + sizes) =====
+// This looks like a CSS question and is not one. What gets graded is the
+// PROP API: what a consumer can express, what they cannot express by
+// accident, and what the component refuses to let them get wrong.
+//
+// TASK
+//   1. variant + size as closed sets, resolved by lookup, never if-chains
+//   2. forward ref and every unknown prop, so it substitutes for <button>
+//   3. loading as a state distinct from disabled, announced to AT
+//   4. polymorphic "as" so the same design renders a link
+//   5. icon-only must be labelled, or it announces as "button"
+
+const VARIANTS = {
+  primary:   { background: "#4f46e5", color: "#fff",     border: "1px solid #4f46e5" },
+  secondary: { background: "#fff",    color: "#1e293b",  border: "1px solid #cbd5e1" },
+  ghost:     { background: "transparent", color: "#4f46e5", border: "1px solid transparent" },
+  danger:    { background: "#dc2626", color: "#fff",     border: "1px solid #dc2626" },
+};
+
+const SIZES = {
+  sm: { fontSize: 12, padding: "5px 10px",  borderRadius: 6,  gap: 5 },
+  md: { fontSize: 14, padding: "8px 14px",  borderRadius: 8,  gap: 6 },
+  lg: { fontSize: 16, padding: "11px 20px", borderRadius: 10, gap: 8 },
+};
+
+// A lookup, not a switch. Adding a variant is one line and cannot forget
+// a branch; an if-chain silently falls through to the default instead.
+function Button({
+  variant = "primary",
+  size = "md",
+  loading = false,
+  disabled = false,
+  iconOnly = false,
+  as: Tag = "button",
+  children,
+  style,
+  ref,
+  onClick,
+  type,
+  ...rest                      // everything else reaches the DOM node
+}) {
+  const v = VARIANTS[variant] || VARIANTS.primary;
+  const s = SIZES[size] || SIZES.md;
+
+  // Disabled and loading look the same but are not the same thing:
+  // loading means "your click was accepted, wait", disabled means "not
+  // available". Both must block activation; only loading is aria-busy.
+  const inert = disabled || loading;
+
+  // A native <button> gets the disabled attribute. Anything else does not
+  // have one, so it needs the ARIA equivalent plus a guarded handler.
+  const isNative = Tag === "button";
+
+  const base = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: s.gap,
+    fontSize: s.fontSize,
+    fontWeight: 600,
+    fontFamily: "inherit",
+    lineHeight: 1.2,
+    padding: iconOnly ? s.padding.split(" ")[0] + " " + s.padding.split(" ")[0] : s.padding,
+    borderRadius: s.borderRadius,
+    cursor: inert ? "not-allowed" : "pointer",
+    opacity: inert ? 0.6 : 1,
+    textDecoration: "none",
+    transition: "filter 120ms ease",
+  };
+
+  // rest is spread FIRST so the guarded handler below cannot be clobbered
+  // by a consumer passing onClick. Spread it last and disabled stops working
+  // on any element that has no native disabled attribute.
+  return (
+    <Tag
+      ref={ref}
+      {...rest}
+      // A <button> inside a <form> defaults to type="submit". Forgetting
+      // this is the single most common bug in a hand-rolled Button: every
+      // secondary action in the form submits it.
+      type={isNative ? type || "button" : undefined}
+      disabled={isNative ? inert : undefined}
+      aria-disabled={!isNative && inert ? true : undefined}
+      aria-busy={loading || undefined}
+      onClick={(e) => {
+        if (inert) { e.preventDefault(); return; }
+        if (onClick) onClick(e);
+      }}
+      style={{ ...base, ...v, ...style }}
+    >
+      {loading && <Spinner size={s.fontSize} />}
+      {children}
+    </Tag>
+  );
+}
+
+function Spinner({ size }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: size, height: size, flexShrink: 0,
+        border: "2px solid currentColor",
+        borderTopColor: "transparent",
+        borderRadius: "50%",
+        display: "inline-block",
+        animation: "btn-spin 700ms linear infinite",
+      }}
+    />
+  );
+}
+
+function Demo() {
+  const [busy, setBusy] = React.useState(false);
+  const [log, setLog] = React.useState([]);
+  const firstRef = React.useRef(null);
+  const nextId = React.useRef(0);
+
+  // An id, not the array index — the list is PREPENDED, so index is not identity.
+  const say = (m) => setLog((l) => [{ id: nextId.current++, text: m }, ...l].slice(0, 4));
+
+  const submit = () => {
+    setBusy(true);
+    say("submitting…");
+    setTimeout(() => { setBusy(false); say("done"); }, 900);
+  };
+
+  const row = { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 };
+
+  return (
+    <div style={{ fontFamily: "system-ui, sans-serif", padding: 20, maxWidth: 620 }}>
+      <style>{"@keyframes btn-spin { to { transform: rotate(360deg) } }"}</style>
+
+      <div style={row}>
+        <Button ref={firstRef} onClick={() => say("primary clicked")}>Primary</Button>
+        <Button variant="secondary" onClick={() => say("secondary clicked")}>Secondary</Button>
+        <Button variant="ghost" onClick={() => say("ghost clicked")}>Ghost</Button>
+        <Button variant="danger" onClick={() => say("danger clicked")}>Delete</Button>
+      </div>
+
+      <div style={row}>
+        <Button size="sm">Small</Button>
+        <Button size="md">Medium</Button>
+        <Button size="lg">Large</Button>
+      </div>
+
+      <div style={row}>
+        <Button disabled onClick={() => say("SHOULD NOT FIRE")}>Disabled</Button>
+        <Button loading={busy} onClick={submit}>{busy ? "Saving" : "Save"}</Button>
+        {/* Icon-only: without aria-label a screen reader announces "button". */}
+        <Button variant="secondary" iconOnly aria-label="Add item" onClick={() => say("icon clicked")}>
+          <span aria-hidden="true">+</span>
+        </Button>
+      </div>
+
+      <div style={row}>
+        {/* Same visual component, real anchor semantics: middle-click,
+            open-in-new-tab and the status bar all work, which a
+            <button onClick={navigate}> throws away. */}
+        <Button as="a" href="#demo" variant="ghost" onClick={() => say("navigated")}>
+          Link that looks like a button
+        </Button>
+        <Button onClick={() => firstRef.current && firstRef.current.focus()} variant="secondary" size="sm">
+          Focus the first button (ref works)
+        </Button>
+      </div>
+
+      <div style={{ fontSize: 12, color: "#475569", borderTop: "1px solid #e2e8f0", paddingTop: 10 }}>
+        {log.length === 0 ? "Click something." : log.map((l) => <div key={l.id}>{l.text}</div>)}
+      </div>
+    </div>
+  );
+}
+
+render(<Demo />);
+
+// WHAT AN INTERVIEWER IS LISTENING FOR
+//   - "variant and size are closed sets" — a union type, resolved by lookup.
+//     The TS version is Record<Variant, CSSProperties>, so adding a variant
+//     without styling it is a compile error rather than a silent default.
+//   - ...rest and ref, so the component is a drop-in for <button>. A Button
+//     that cannot take data-testid or onMouseEnter gets forked within a month.
+//   - loading is not disabled. Announce it with aria-busy, keep the label
+//     stable, and do not let the width jump when the spinner appears.
+//   - type="button" by default.
+//   - The polymorphic escape hatch: a link is a link. Production libraries
+//     use asChild (Radix) or a render prop rather than "as", because "as"
+//     cannot merge props onto a component the consumer already built.`,
       },
     ],
   },

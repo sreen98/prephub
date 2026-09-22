@@ -72,6 +72,6 @@ describe('buildTemplateCatalog', () => {
   });
 
   it('totalJsChallenges matches the JS challenge count in the index', () => {
-    expect(catalog().totalJsChallenges).toBe(94);
+    expect(catalog().totalJsChallenges).toBe(97);
   });
 });

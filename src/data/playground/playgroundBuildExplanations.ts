@@ -939,6 +939,71 @@ const multiStepForm: BuildExplanation = {
   ],
 };
 
+const buttonVariants: BuildExplanation = {
+  kind: 'build',
+  problem: 'Button (variants + sizes)',
+  problemStatement:
+    'Build the Button every design system starts with: a closed set of visual variants and sizes, a loading state that is not the same thing as disabled, and enough pass-through that it can stand in for a native <button> anywhere. The CSS is the easy half — what is being graded is the prop API, and specifically what a consumer cannot get wrong by accident.',
+  buildOrder: [
+    {
+      title: 'Close the sets before writing any styling',
+      excerpt: { from: 'const VARIANTS = {', lines: 6 },
+      detail:
+        'A variant is a closed set, so it belongs in a lookup keyed by that set — not an if-chain and not a switch. Adding a variant is then one line, and in the TypeScript version the map is typed Record<Variant, CSSProperties>, which makes "added a variant and forgot to style it" a compile error rather than a silent fall-through to the default.',
+      pitfall: 'An if-chain has a final else, so a typo in the variant name renders as primary and nobody notices until a designer does.',
+    },
+    {
+      title: 'Decide what the component owns and what it passes through',
+      excerpt: { from: '  as: Tag = "button",', lines: 8 },
+      detail:
+        'Every prop the component understands is destructured by name; everything else collects into rest and reaches the DOM node untouched. That single line is what lets the Button accept data-testid, onMouseEnter, form, aria-describedby and every other attribute you did not think of. ref is an ordinary prop in React 19, so it is destructured here too rather than needing forwardRef.',
+      pitfall: 'A Button that swallows unknown props gets forked within a month, because the first person who needs an attribute you did not anticipate has no way to pass it.',
+    },
+    {
+      title: 'Spread rest first, then the props you refuse to let a consumer break',
+      excerpt: { from: '      {...rest}', lines: 1 },
+      detail:
+        'Order in JSX is last-wins, so rest is spread BEFORE the guarded handler and the type default. Spread it last instead and a consumer passing onClick silently replaces the guard, which means clicking a disabled non-native Button fires the handler. The props after the spread are exactly the ones the component is responsible for.',
+      pitfall: 'This is the bug that makes disabled look like it works: a native <button disabled> blocks the click for you, so the broken guard only shows up once someone uses as="a".',
+    },
+    {
+      title: 'Default type to "button"',
+      excerpt: { from: 'type={isNative ? type ||', lines: 1 },
+      detail:
+        'A <button> inside a <form> defaults to type="submit". Every secondary action in a form — Cancel, Add row, Show more — therefore submits the form unless the type is set. It is the single most common defect in a hand-rolled Button, and it is invisible until the component is used inside a form for the first time.',
+      pitfall: 'The default must still be overridable, so it reads type || "button" rather than hard-coding it — a real submit button needs to say so.',
+    },
+    {
+      title: 'Separate loading from disabled',
+      excerpt: { from: 'const inert = disabled || loading;', lines: 1 },
+      detail:
+        'They look identical and mean opposite things. Disabled means "not available to you"; loading means "your click was accepted, wait". Both must block activation, which is why they collapse into one inert flag for behaviour — but only loading gets aria-busy, and the label should stay stable so the button does not change width underneath the pointer.',
+      pitfall: 'Announcing a loading button as merely disabled tells a screen-reader user the action is unavailable, when in fact it is already running.',
+    },
+    {
+      title: 'Make it polymorphic without throwing away semantics',
+      excerpt: { from: 'const isNative = Tag === "button";', lines: 1 },
+      detail:
+        'Navigation is a link, and a <button onClick={navigate}> loses middle-click, open-in-new-tab, the status bar and the browser\'s own handling. The as prop keeps one visual component across both. Everything that differs between them keys off isNative: only a real button has a disabled attribute, so anything else needs aria-disabled plus the guarded handler to stand in for it.',
+      pitfall: 'aria-disabled is announcement only — it does not block anything. Ship it without the handler guard and the control announces as disabled while still firing.',
+    },
+    {
+      title: 'Force a label on the icon-only case',
+      excerpt: { from: 'iconOnly aria-label="Add item"', lines: 2 },
+      detail:
+        'An icon-only button has no text content, so its accessible name is empty and it announces as just "button". The glyph itself is aria-hidden because it carries no meaning to a screen reader. In TypeScript this is worth encoding in the type: iconOnly: true can require aria-label through a discriminated union, so omitting it fails to compile.',
+      pitfall: 'A label that describes the icon rather than the action ("plus") is barely better than none — it should say what happens.',
+    },
+  ],
+  graded: [
+    { point: 'variant and size are resolved by lookup, not by conditionals', why: 'It shows you treat them as closed sets rather than as strings, which is what makes the component extensible without a growing branch and what lets the type system catch an unstyled variant at compile time.' },
+    { point: 'The component forwards rest props and ref', why: 'This is the difference between a Button that substitutes for the native element and one that has to be forked the first time someone needs an attribute you did not anticipate. Interviewers read it as knowing how a component gets consumed.' },
+    { point: 'type="button" is the default', why: 'It is a one-line detail that separates people who have shipped a design system from people who have built a button once, because the failure only appears inside a form and looks like a routing bug.' },
+    { point: 'loading and disabled are different states', why: 'Collapsing them loses the distinction between "unavailable" and "in progress", which matters to every screen-reader user and is the moment to mention aria-busy without being prompted.' },
+    { point: 'You can say why "as" is a compromise', why: 'Radix and friends use asChild or a render prop instead, because as cannot merge props onto a component the consumer already built. Naming that limit shows you know the pattern rather than having copied it.' },
+  ],
+};
+
 export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Form with Dynamic Fields': dynamicFields,
   'Multi-Step Form (Wizard)': multiStepForm,
@@ -978,4 +1043,5 @@ export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Modal (Portal + Focus Trap)': modalPortalFocusTrap,
   'Form with Validation': formValidation,
   'Theme Switcher (dark/light)': themeSwitcher,
+  'Button (variants + sizes)': buttonVariants,
 };

@@ -85,9 +85,14 @@ export function buildTemplateCatalog(filters: TemplateCatalogFilters): TemplateC
     })
     .filter(cat => cat.templates.length > 0);
 
-  // Challenges left after the tag filter — the denominator for every count below.
+  // Whatever is left after the mode + tag filter — the denominator for every
+  // count below. It follows `wantedKind` rather than always meaning
+  // "challenges", so the difficulty counts describe the set actually on
+  // screen. Reference templates carry a difficulty too now (Spec Polyfills /
+  // Utility Implementations), and a count that ignored them would contradict
+  // the badges rendered on the cards.
   const inScope: TemplateMeta[] = templateCategories
-    .filter(cat => (cat.kind ?? 'template') === 'challenge')
+    .filter(cat => (cat.kind ?? 'template') === wantedKind)
     .filter(cat => tag === 'all' || cat.tag.toLowerCase() === tag)
     .flatMap(cat => cat.templates);
 

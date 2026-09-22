@@ -125,7 +125,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 ## 🛠️ Interactive Tools
 
 - **[Query Playground](/query-playground)** — **34 write-and-check questions**, 20 PostgreSQL and 14 MongoDB. You write the query, run it against real seeded data and your answer is checked automatically. It runs an actual PostgreSQL build in the browser, so window functions, `DISTINCT ON`, `FILTER` and recursive CTEs all behave exactly as they would on a server; MongoDB questions run real aggregation pipelines.
-- **[Code Playground](/playground)** — **183 templates**: JS fundamentals and interview topics, **31 polyfills** written from scratch, **94 coding challenges** tagged by pattern and difficulty, and **38 React machine-coding** challenges — **132 challenges** in total. **88 have a multi-approach solution** with a Time/Space/Verdict comparison, and 35 have a step-by-step **Explain** modal with animated visual walkthroughs.
+- **[Code Playground](/playground)** — **197 templates**: JS fundamentals and interview topics, **32 spec polyfills** and **10 utility implementations** written from scratch, **97 coding challenges** tagged by pattern and difficulty, and **39 React machine-coding** challenges — **136 challenges** in total. **97 have a multi-approach solution** with a Time/Space/Verdict comparison, and **186 have an Explain walkthrough** — 147 animated algorithm steppers plus 39 React build-order guides.
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
 - **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.
 - **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.

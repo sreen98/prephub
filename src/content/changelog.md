@@ -1,5 +1,51 @@
 # What's New
 
+## v1.7.2 (September 2026)
+
+**Four questions added from a real interview debrief.** Someone sent through the list of what they were actually asked; 14 of the 18 topics were already covered, and these four were genuine blanks.
+
+- **Modern CSS Q11 — `position: sticky`.** What it actually is (relative until a threshold, then fixed *within its scrolling ancestor*, and never escaping its parent), a comparison across all five positioning schemes, and the three reasons it silently does nothing: no threshold set, an ancestor that quietly became the scroll container, or a parent too short to stick inside. The guide talked about sticky in seven places and had never once asked about it.
+- **React Router Q13 — 404 / Page Not Found.** The catch-all `path="*"` route, and why its position in the list no longer matters in v6 (routes are ranked by specificity, not matched in order). Separates the three different 404s people conflate: a URL matching no route, a route whose *data* is missing, and the server 404 that happens before React ever loads on static hosting — plus why a client-rendered 404 still returns HTTP 200 to Google.
+- **React Q61 — infinite re-render loops.** The four shapes they come in, the mechanism in one sentence, and fixes in the order worth trying — starting with "should this effect exist at all", because most of these are derived state in disguise. Ends with the fix that isn't one: emptying the dependency array stops the loop and buys you a stale closure, trading a loud bug for a silent one.
+- **Web Performance Q11 — a page making a dozen API calls.** The count is rarely the problem; the shape is. Includes a runnable demo showing four requests taking **800ms in sequence and 200ms in parallel** — same work, four times the wait. Then the order to fix things in, and the honest limit: the frontend can hide latency but it cannot remove a round trip, so eight resources for one screen is a server conversation.
+
+**Two new entries in the JavaScript comparison tables: Map vs Object, and Array vs Set.** Both were genuinely absent — zero mentions anywhere in the app — and both are asked constantly.
+
+The **Map vs Object** table leads with the thing that causes every real bug in this comparison: object keys are *strings*. `obj[1]` and `obj['1']` are the same key, every object used as a key stringifies to `"[object Object]"` and collides into one entry, and a plain `{}` already "has" a key called `toString` because it inherits one. It also covers the iteration-order rule people get wrong — integer-like keys come first in ascending numeric order, so `{ b:1, 2:1, a:1, 1:1 }` iterates `1, 2, b, a`, while a Map is always pure insertion order.
+
+The **Array vs Set** table is built around membership: `includes` scans, `has` is a hash lookup, and everything else follows from that. Includes the `NaN` asymmetry (`includes` finds it, `indexOf` never does), that Set silently converts `-0` to `+0`, and the gotcha worth volunteering in an interview — `new Set([{id: 1}, {id: 1}])` has size **2**, because Set dedupes by reference, so it does nothing at all for objects parsed out of JSON.
+
+Every claim in both tables was verified by running it.
+
+**The polyfill section is now two sections, and everything in it is tagged by difficulty.** It had 32 entries and all of them were *spec methods* — re-implementations of things JavaScript already ships. That is only half of what "polyfill" means in an interview; the other half is utilities that were never part of the language, and that half had nowhere to live.
+
+- **Spec Polyfills** — the original 32, unchanged.
+- **Utility Implementations** — nine new ones: `once`, `curry`, `deepEqual`, `promisify`, `Promise.prototype.finally`, `myInstanceof` (walking the prototype chain by hand), `myNew` (what the `new` operator actually does, including the step where an object return replaces your instance), **retry with exponential backoff**, and **a Promise written from scratch** with the full then-chaining state machine — the standard senior-level async question, and the natural step after `Promise.all`.
+
+**Every template in both sections, and every coding challenge, now carries an Easy / Medium / Hard tag**, so the list sorts toward what is worth doing next instead of leaving you to work down it in file order. The difficulty filter chips work while browsing templates now, not only challenges, and the counts beside them describe the set you are actually looking at.
+
+The tags are opinionated on purpose. `Array.join`, `Array.reverse` and `String.repeat` are Easy because nobody has ever been told apart by them — they are warm-ups. `Function.bind`, `Array.sort`, `JSON.stringify`, `JSON.parse` and the Promise implementation are the ones that carry weight.
+
+Worth knowing if you are hunting for something: **debounce, throttle, memoize, deep clone, EventEmitter, compose/pipe, auto-retry and the concurrency-limited task runner were already in the app** — they live under Coding Challenges, where you write them yourself against tests rather than read a finished version. The playground splits content by whether you solve it or read it, not by what family the function belongs to.
+
+**Three more missing-number challenges in the Code Playground.** The playground had `Find Missing Number` — one value absent from a run of 0 to n — and nothing else from that family. The three variants people actually get asked are now there too, taking the playground to **186 templates** and **135 challenges**.
+
+They look alike and are not. Each one takes away a guarantee the previous one leaned on, and the technique has to change as a result:
+
+- **Find All Missing Numbers** (Medium) — the array holds values from 1 to n with duplicates, so several values go missing at once. The trick worth knowing: a value belongs at a predictable slot, and every slot already carries a spare bit you can write to — its sign. Flip signs on the first pass, then report every slot still positive. No second array.
+- **First Missing Positive** (Hard) — now the array holds anything at all: negatives, zero, duplicates, numbers far bigger than the array. Sorting is too slow and a Set uses too much room. The realisation that unlocks it is that with n slots the answer can never be more than n + 1, so you are choosing between n + 1 candidates and already own enough space to record them. The solution also explains the one-line guard that stops the loop hanging on a duplicate — the most common way to fail this question.
+- **Missing Term in Arithmetic Sequence** (Medium) — the terms no longer step by one, they step by some constant, and one middle term is gone. Recover the step from the endpoints, then binary-search for the point where the sequence stops matching what it should be, which finds the answer without reading the whole array.
+
+Each ships with a full multi-approach solution and a step-by-step Explain walkthrough, and each closes with the trade-off that decides which version you would actually write — including why the fast binary-search answer quietly breaks when the step is not a whole number, and why the in-place trick that saves memory is usually the wrong choice in real code, because it destroys the array it was handed.
+**A second interview debrief, and five more gaps closed.** Another list of what someone was actually asked — 23 topics across a fundamentals round and a system-design round. Eighteen were already covered; these five were not.
+
+- **A `Button` template in React Machine Coding.** It reads as a CSS exercise and is not one: what an interviewer is actually grading is the prop API. Variants and sizes as closed sets, everything unknown passed straight through so it can stand in for a real `<button>`, a `loading` state that is not the same thing as `disabled`, `type="button"` by default — the one-line detail that stops every secondary action in a form from submitting it — and an escape hatch so a button that navigates can be a real link.
+- **`React from Scratch` in the playground.** `createElement`, components, and `useState`, in about eighty lines, rendering to a string you can read. The payoff is the last section: it takes a hook and puts it behind an `if`, and you watch one variable's state land in another. The rules of hooks stop being a lint rule you obey and become an obvious consequence of how they are stored.
+- **JavaScript Q27 — arrow vs normal functions.** Five differences, but only one is real: an arrow has no `this` of its own, and the other four follow from the same decision. Includes the case that catches people — a method written as an arrow inside an object literal can never see its own object, no matter how it is called.
+- **React Q62 — the class lifecycle mapped to hooks.** The table, and then the four places it breaks: `componentDidMount` runs before paint and `useEffect` runs after it, there is no `prevProps`, error boundaries are still class-only in React 19, and one lifecycle method usually becomes several effects. With a runnable demo of the bug the class shape invites — forgetting to resubscribe when a prop changes.
+- **Web Performance Q12 — reflow, repaint and compositing.** Why `transform` and `opacity` are the two properties everyone says are free: not because they are cheap, but because they cannot move anything else, so the browser can skip straight to the last stage. Plus layout thrashing, and the read-triggering properties worth knowing by name.
+
+
 ## v1.7.1 (September 2026)
 
 **AI-Augmented Development is now its own category, not a corner of AI Engineering.** They answer different questions: AI Engineering is about *building* AI features — RAG, agents, MCP, LLM plumbing — while this is about *using* AI tools to build anything, which is a workflow and governance topic that applies to a team shipping a payments service with no AI in it at all. It sits in the sidebar as **AI-Augmented Development → Using Claude Code Efficiently**.
