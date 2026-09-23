@@ -336,7 +336,7 @@ the right shape anyway, since neither body carries the other's branches.
 - All question extraction happens via `extractQuestions()` which parses two markdown patterns:
   1. **JS output-style** (`## QN` + ` ```…``` ` + `### ✅ Output` + `### 💡 Explanation`) — used only by the JavaScript guide.
   2. **Standard** (`**QN: text**` followed by an answer block, terminated by the next `**Q{N+1}:` marker **or a standalone `---` line**). Everything between the marker and that terminator becomes the Quiz-mode answer — so the explanation for a question must live BEFORE the `---` separator, not after it.
-- "Tricky Output Questions" sections live in **53 guides — 392 questions total**: React 26, TypeScript 19, JavaScript 16, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5, Generative AI 6, RAG 6, Agentic AI 6, MCP 6, LangChain & LangGraph 6, AI-Augmented Development 6. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
+- "Tricky Output Questions" sections live in **53 guides — 393 questions total**: React 26, TypeScript 19, JavaScript 17, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5, Generative AI 6, RAG 6, Agentic AI 6, MCP 6, LangChain & LangGraph 6, AI-Augmented Development 6. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
 - **Question ids must be unique — `dedupeIds()` in `data.ts` enforces it.** Ids are `` `${guideName}-q${N}` `` taken from the `**QN:**` marker, but most guides hold **two independent Q sequences** (the interview section and "Tricky Output Questions", each restarting at Q1), so that number is not unique within a file. **344 of 1,298 questions collided.** Ids are the localStorage keys for spaced-repetition state, so a collision made two different questions share one SM-2 record — reviewing one rescheduled the other, and both appeared in the same review queue. `dedupeIds()` runs at both `extractQuestions` return points and suffixes only the **second and later** occurrences (`-2`, `-3`), so first occurrences keep their original id and existing review history stays attached. Don't "simplify" this by renumbering all of them; that would silently reset every user's progress.
 - **`npm run verify:counts` guards every number stated in prose.** `scripts/verify-counts.js` derives the ground truth from `data.ts`, `playgroundTemplates.ts` and `playgroundSolutions.ts`, then asserts that README.md, CLAUDE.md and `src/content/README.md` (the app's Introduction page) literally contain the right figures — and checks that `playgroundSolutionKeys.ts` is in sync with `playgroundSolutions.ts`. **Run it after any content change**; it exits non-zero on drift, and the deploy workflow runs it before the build, so drift blocks the deploy rather than shipping a wrong number. Note the UI itself is safe — every on-screen count is derived (`allGuides.length`, `cat.templates.length`, `solvedCount / totalJsChallenges`), so only the prose can go stale. To register a new claim, add a line to the `claims` array in that script.
 - **Re-count rather than trust these numbers when editing.** The README/CLAUDE counts drifted before (they said "143 across 12 guides" while 8 more guides already had tricky sections). To recount guide items, count `{ name: '` occurrences inside each category's `items: [ … ]` array in `data.ts` — `grep -c "file: './content/" src/data.ts` over-counts because it includes cheat sheets and the Introduction entry.
@@ -1133,6 +1133,108 @@ Then `npm run playground:index` and `npm run content:meta`.
 `DEPTH_DEBT.stepsWithoutVisual` rises and the ratchet fails — it is a
 `toBeLessThanOrEqual`, so new content cannot add to it. Two approaches minimum,
 for the same reason.
+
+## Tenth audit — an IT-services frontend loop, 25 questions, 9 additions
+Technical + managerial rounds. 11 covered, 9 near-misses, 3 total blanks. **The
+blank theme was Agile/delivery: "sprint" never appeared in a single question**
+— only inside example STAR answers. Added Behavioral **Q22–Q26** (mid-sprint
+requirement change, not finishing in a sprint, prioritising several tasks,
+cross-team dependencies, "why do you want to join us" with a services-firm
+section), React **Q63** (hooks overview as a table, linking to §6.2), JavaScript
+**Q28** (map vs filter vs reduce, output executed both as a module and under
+`new Function`), and the **`Clean Mixed Array`** JS challenge (Easy, next to
+Remove Duplicates).
+
+- **The challenge's tests are built around the traps, not the happy path**:
+  `NaN` (`typeof` says number), `"7"` (a character by the stated rules), booleans
+  and `null` (which `Number()` converts to 1 and 0), `[10, 9, 1, 100]` (default
+  sort is lexicographic), and an input-not-mutated check (`sort` is in-place).
+  The filter is `Number.isFinite`, which never coerces — that is the whole answer.
+- **A React demo must not write `ref.current` during render**, even to show a
+  render counter. The first draft of Q63 did, which is exactly what react.dev
+  says not to do; it also wrapped `toUpperCase()` in `useMemo`, contradicting the
+  guide's own don't-memoize-cheap-work advice. Both removed.
+
+Counts: templates 197 → **198**, JS challenges 97 → **98**, challenges 136 →
+**137**, solutions 97 → **98**, explanations 186 → **187**. Totals after:
+Behavioral **26**, React **63**, JavaScript **28**.
+
+## Twelfth audit — 4 user-requested questions, all partial gaps
+Redux Toolkit **Q18** (`configureStore` — §5.1 had the code, no question and no
+explanation), Behavioral **Q27** (mentoring *approach* and measurable outcomes;
+Q8 in §5 is a single STAR story, which is a different answer), Frontend
+Architecture **Q18** (component library end to end; the pieces existed as
+Modern CSS Q8, Storybook Q12, Testing Q7 and FE-Arch Q10, and the answer links
+to them rather than restating them), React **Q65** (SSR vs CSR for SEO and
+performance; Q55 mentions SEO once and never covers crawlers or link previews).
+
+- **"SSE and CSE" was read as SSR/CSR.** SSE usually means Server-Sent Events,
+  which has nothing to do with SEO; the question's "affects SEO and performance"
+  settles it.
+- **The RTK facts were checked against redux-toolkit.js.org, and one assumption
+  was wrong:** RTK 2 does not *require* the `middleware` callback — it is
+  recommended, and a plain array still works in JavaScript. The docs also
+  confirm that supplying `middleware` or `enhancers` replaces the defaults
+  entirely, dev middleware is `actionCreatorInvariant, immutableStateInvariant,
+  thunk, serializableStateInvariant` while production is `[thunk]`, and
+  `autoBatchEnhancer` is a default enhancer.
+- **React Q65 uses this app as its example**, honestly: route shells remove the
+  deep-link 404 but are the same empty HTML for every guide, so a crawler or a
+  link-preview bot sees one page. That is the SSG gap noted under "Deep links
+  must not 404".
+- **Heredocs that contain backticks must be quoted (`<<'EOF'`).** An unquoted one
+  ran `` `sort` `` as a command substitution, which blocked on stdin and hung the
+  session; once killed, the edit completed with the two words silently deleted.
+
+Totals after: Redux Toolkit **18**, Behavioral **27**, Frontend Architecture
+**18**, React **65**.
+
+## A solution must obey its own challenge's constraints
+`Remove Duplicates` says "Do NOT use `new Set()`" and its BEST approach used a
+`Set`, under the comment "BEST when 'no Set' allowed" — reported by a reader
+pressing Show Solution. Every gate passed: the solution runs and prints only ✅,
+which is all `playgroundExecutable.test.ts` checks. **The executable suite proves
+a solution is correct, not that it answers the question asked.** Approach 1 is
+now a `Map` (not `{}`: object keys stringify, so `1` and `"1"` collide), and the
+`Set` one-liner is kept as the production answer, labelled as not allowed here.
+
+A sweep of every template with a "do not / without" line against its Approach 1
+found no other case — **but the same bug turned up an hour later one level down**:
+`Clean Mixed Array`'s Approach 3 was labelled "interviewer bans built-ins" and
+ended in `result.sort(...)`. So check EVERY approach whose label claims a
+constraint, not just Approach 1. It is now insertion into a sorted result, where
+the duplicate check falls out of the position search (verified against the
+reference on 5,000 random mixed arrays). When writing a challenge with a ban, re-read Approach 1
+against the ban before anything else. **In `playgroundSolutions.ts`, a `\n`
+inside a string in solution code must be written `\\n`** — the `code` value is
+a template literal, and a single backslash becomes a real newline inside a `""`
+string, which is a parse error that only the executable suite reports.
+
+## Eleventh audit — 10 senior "why does it break" questions, 6 additions
+4 covered by an exact-match question (Browser APIs tricky Q5, Web Perf Q12+Q10,
+CORS Q8, Web Security Q3/Q7). The other 6 had the material in **prose or a thin
+answer** — the recurring shape in senior lists, which ask the failure rather
+than the definition. Added JavaScript **Q29** (stale closure vs retention —
+same mechanism, opposite symptoms), **Q30** (async error escaping try/catch),
+**tricky Q17** under a new `### Async Performance` heading (resolved-promise
+chain freezes the UI; microtask queue drains fully before paint), React **Q64**
+(memoization slower + more memory), and **rewrote JavaScript Q7 and Q9 in
+place** — ids unchanged, so review history survives.
+
+- **Tricky Q17 is appended after Q16, not placed beside the other event-loop
+  questions (Q7–Q11)**, because inserting it there would renumber Q12–Q16 and
+  change their ids, orphaning review state. Put a new tricky question at the end.
+- **The broken forms in Q30 are tagged `text`**: a runnable `setTimeout(() => {
+  throw })` would raise a real uncaught error on Try it. Only the correct
+  handling patterns are `js`.
+- **All six demos are pinned in `interviewAnswerDemos.test.ts`** and were run as a
+  module and under `new Function` before being written. Probe-tested by removing
+  the yield in the tricky-Q17 fix and by un-path-copying Q9's `next`: 2 failures.
+- The harness only drains 50–400 ms, so demos that measure time use busy-waits
+  with **boolean** output (`>= 200`, `< 50`), never raw millisecond numbers.
+
+Counts: tricky 392 → **393** (JavaScript 16 → **17**). Totals after: JavaScript
+**30**, React **64**.
 
 ## Ninth audit — a second real debrief, 23 topics over two rounds, 5 gaps closed
 Round 1 fundamentals plus a round-2 HLD list, run through the standing method:

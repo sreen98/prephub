@@ -20,14 +20,14 @@ import { isBuildExplanation } from './explanationKind';
  * number. If it fails after a refactor, something was lost.
  */
 const EXPECTED = {
-  templates: 197,
+  templates: 198,
   categories: 8,
   blankStarters: 3,
-  jsChallenges: 97,
+  jsChallenges: 98,
   reactChallenges: 39,
   referenceTemplates: 61,
-  solutions: 97,
-  explanations: 186,   // 147 algorithm steppers + 39 React build-order walkthroughs
+  solutions: 98,
+  explanations: 187,   // 148 algorithm steppers + 39 React build-order walkthroughs
 };
 
 const jsChallenges = fullTemplates.filter((t) => t.kind === 'challenge' && t.tag === 'JS');

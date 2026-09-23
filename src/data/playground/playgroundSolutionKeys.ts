@@ -18,6 +18,7 @@ export const playgroundSolutionKeys: ReadonlySet<string> = new Set([
   'Group Anagrams',
   'Find Duplicates',
   'Remove Duplicates',
+  'Clean Mixed Array',
   'Find Missing Number',
   'Find All Missing Numbers',
   'First Missing Positive',

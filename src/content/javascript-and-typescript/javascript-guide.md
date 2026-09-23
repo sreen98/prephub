@@ -2873,26 +2873,44 @@ An infinite loop of macrotasks does not do this: the browser gets its render ste
 
 **Why any of this matters in practice:** the loop can only take the next task when the stack is empty, so one long synchronous function blocks input, animation and rendering alike. That is what Total Blocking Time measures, and why the fix is to break work up — `scheduler.yield()`, chunking, or moving it to a Worker, which is the only way to get a second thread.
 
-**Q7: Explain prototypal inheritance.**
+**Q7: Explain prototypal inheritance. If a property is missing from an object but is still accessible, what is the complete lookup process?**
 
-Every JavaScript object has an internal `[[Prototype]]` link to another object. When you access a property, JavaScript looks up the prototype chain:
+Every object has a hidden `[[Prototype]]` link to another object, or to `null`. Reading a property (the spec calls it `[[Get]]`) is a loop:
 
-1. Check the object itself
-2. Check its prototype
-3. Check the prototype's prototype
-4. Continue until `null` (end of chain: `Object.prototype.__proto__` is `null`)
+1. **Look at the object's own properties.** If the key is there as a **data property**, return its value. If it is an **accessor** (a getter), call the getter with `this` set to the *original* object, not the one where the getter was found.
+2. **If it is not there, follow `[[Prototype]]`** and repeat step 1 on that object.
+3. **If you reach `null`, return `undefined`.** A missing property is not an error. It just means the walk found nothing.
+
+So "missing from the object itself but still accessible" simply means *found further up the chain*. `dog.eats` below is not on `dog`, it is on `animal`. And `dog.toString()` is found two levels up, on `Object.prototype`.
 
 ```js
-const animal = { eat() { return 'eating'; } };
+const animal = {
+  eats: true,
+  get label() { return 'animal named ' + this.name; },
+};
 const dog = Object.create(animal);
-dog.bark = function() { return 'woof'; };
+dog.name = 'Rex';
 
-dog.bark();  // found on dog itself
-dog.eat();   // found on animal (dog's prototype)
-dog.toString(); // found on Object.prototype
+console.log(dog.eats);                              // true, found on animal
+console.log(Object.hasOwn(dog, 'eats'), 'eats' in dog); // false true
+console.log(dog.label);                             // animal named Rex
+console.log(dog.missing);                           // undefined, reached null
+
+dog.eats = false;                                   // a write creates an OWN property
+console.log(dog.eats, animal.eats);                 // false true
+delete dog.eats;
+console.log(dog.eats);                              // true again
+
+const bare = Object.create(null);
+console.log('toString' in bare);                    // false: no chain at all
 ```
 
-ES6 classes are syntactic sugar over this prototypal system.
+**What the chain does not do, and where interviews go next:**
+
+- **Writes do not walk the chain the same way.** `dog.eats = false` creates a new **own** property on `dog`. It *shadows* the inherited one, and `animal.eats` stays `true`. Delete the own property and the inherited value shows through again. Two exceptions: if the prototype has a **setter** for that key, the setter runs instead of creating a property; and if the prototype's property is **non-writable**, the write fails (silently in sloppy mode, with a `TypeError` in strict mode).
+- **Own vs inherited is a separate question.** `'eats' in dog` is `true` because `in` walks the chain. `Object.hasOwn(dog, 'eats')` is `false` because it checks only the object itself. `for...in` also walks the chain, while `Object.keys` returns own properties only. That difference is the usual source of "where did this extra key come from?"
+- **`Object.create(null)` has no chain at all.** There's no `toString` and no `hasOwnProperty`, which is exactly why it is used for dictionaries whose keys come from users: a key called `__proto__` or `constructor` cannot collide with anything.
+- **Classes are the same mechanism.** `class Dog extends Animal` sets `Dog.prototype`'s `[[Prototype]]` to `Animal.prototype`. Methods live on the prototype once, not on every instance, which is why they are shared.
 
 ---
 
@@ -2954,26 +2972,41 @@ console.log(whoAmI.call(null) === globalThis);   // true    — null was replace
 
 See **§4.3** for how `this` is resolved in the first place, which is what makes all of this necessary.
 
-**Q9: What is the difference between shallow copy and deep copy?**
+**Q9: What is the difference between shallow copy and deep copy? You copied an object with the spread operator, yet updating the copy changed the original state. Where did the shared reference remain?**
 
-- **Shallow copy**: Copies top-level properties. Nested objects are still shared references.
-- **Deep copy**: Recursively copies all levels. No shared references.
+`{ ...obj }` copies **one level**. It creates a new outer object and copies each top-level property into it. For a number or string, that copies the value. For an object, array, `Date` or `Map`, it copies the **reference**, so the new outer object points at the *same* inner object. The shared reference is therefore every nested object, one level down and below.
 
 ```js
-const original = { a: 1, nested: { b: 2 } };
+const state = {
+  user: { name: 'Ana', tags: ['admin'] },
+  updatedAt: new Date(0),
+};
 
-// Shallow copy methods
-const shallow1 = { ...original };
-const shallow2 = Object.assign({}, original);
-shallow1.nested.b = 99;
-console.log(original.nested.b);            // 99 (shared reference!)
+const copy = { ...state };
+copy.user.name = 'Ben';                              // looks like it edits the copy
+console.log(state.user.name);                        // Ben
+console.log(copy === state, copy.user === state.user); // false true
 
-// Deep copy methods
-const deep1 = structuredClone(original);   // modern (best)
-const deep2 = JSON.parse(JSON.stringify(original)); // loses functions, dates, etc.
-deep1.nested.b = 99;
-console.log(original.nested.b);            // 2 (independent copy)
+// Copy every level you change, and only those levels
+const next = { ...state, user: { ...state.user, name: 'Cy' } };
+console.log(state.user.name, next.user.name);        // Ben Cy
+console.log(next.user.tags === state.user.tags);     // true: untouched levels stay shared
+
+// A real deep copy, and what JSON loses
+const deep = structuredClone(state);
+deep.user.tags.push('editor');
+console.log(state.user.tags.length);                 // 1
+console.log(deep.updatedAt instanceof Date);         // true
+console.log(typeof JSON.parse(JSON.stringify(state)).updatedAt); // string
 ```
+
+Line by line: `copy === state` is `false`, so the spread did make a new object, and that is what fools people. `copy.user === state.user` is `true`, and that is where the bug lives. `copy.user.name = 'Ben'` walks into the shared `user` object and changes it for both.
+
+**Why this is a React bug, not just a JavaScript one.** React decides whether to re-render by comparing references with `Object.is`. Mutating `state.user.name` in place, then calling `setState` with an object whose `user` is the same reference, gives two results, both bad. Components that receive `user` see an unchanged reference and skip the update (`memo`, `useMemo`, effect dependencies). And the "previous" state you kept for undo or comparison was changed too, because it is the same object.
+
+**The fix is not a deep copy.** Copy **every level on the path you change** and nothing else, as `next` does above: new outer object, new `user`, and the untouched `tags` array stays shared. Sharing unchanged parts is correct and cheap, and it is what lets `memo` skip the parts that did not change. For deep updates, Immer (which Redux Toolkit uses) writes this copying for you from code that looks like a mutation.
+
+**When you really do need a deep copy**, use `structuredClone`. It handles nested objects, arrays, `Date`, `Map`, `Set` and circular references, but it throws on functions and DOM nodes. `JSON.parse(JSON.stringify(x))` is the older trick and it loses data: dates become strings, `undefined` and functions vanish, and `Map`/`Set` become `{}`.
 
 ---
 
@@ -3794,6 +3827,177 @@ hits -> 1
 
 ---
 
+**Q28: What is the difference between `map()`, `filter()` and `reduce()`, and how do you choose between them?**
+
+All three walk an array, call your callback once per element, and **return something new without changing the original**. The difference is the *shape* of what comes back, and that shape is how you choose:
+
+| Method | Returns | Length of result | Callback returns | Use it when |
+|---|---|---|---|---|
+| `map` | a new array | **always the same** as the input | the new value for this slot | transforming every item: prices to strings, users to `<li>`s |
+| `filter` | a new array | **same or shorter** | true/false: keep this item? | selecting a subset: paid orders, active users |
+| `reduce` | **anything**: number, object, array, Map | n/a | the new accumulator | combining many items into one: a total, a lookup by id, a count per group |
+
+A quick way to decide: *same number of things, changed?* `map`. *Fewer things, unchanged?* `filter`. *One thing out of many?* `reduce`. They chain naturally in that order: filter what you need, map it to the shape you want, reduce it to an answer.
+
+```js
+const orders = [
+  { id: 1, total: 40, paid: true },
+  { id: 2, total: 15, paid: false },
+  { id: 3, total: 60, paid: true },
+];
+
+// map: same length, each item transformed
+console.log(orders.map(o => o.id));                     // [1, 2, 3]
+
+// filter: same items, fewer of them
+console.log(orders.filter(o => o.paid).length);         // 2
+
+// reduce: many items in, one value out
+console.log(orders.reduce((sum, o) => sum + o.total, 0)); // 115
+
+// Chained: revenue from paid orders
+const revenue = orders
+  .filter(o => o.paid)
+  .map(o => o.total)
+  .reduce((sum, t) => sum + t, 0);
+console.log(revenue);                                   // 100
+
+// Gotcha 1: map passes (value, index, array)
+console.log(['1', '2', '3'].map(parseInt));             // [1, NaN, NaN]
+
+// Gotcha 2: filter(Boolean) also drops 0
+console.log([0, 1, 2, null].filter(Boolean));           // [1, 2]
+
+// Gotcha 3: reduce with no initial value throws on an empty array
+try {
+  [].reduce((a, b) => a + b);
+} catch (e) {
+  console.log(e.constructor.name);                      // TypeError
+}
+```
+
+**The three gotchas that come up in interviews**, all in the demo above:
+
+- **`map` passes three arguments, `(value, index, array)`.** `['1','2','3'].map(parseInt)` calls `parseInt('2', 1)` and `parseInt('3', 2)`, and those radixes are invalid for those digits, so you get `NaN`. Write `map(s => parseInt(s, 10))` or `map(Number)`.
+- **`filter` keeps anything *truthy*.** `filter(Boolean)` is a handy way to drop `null` and `undefined`, but it also drops `0`, `''` and `NaN`. If `0` is a valid value, say what you mean: `filter(x => x != null)`.
+- **Always give `reduce` an initial value.** Without one it uses the first element as the starting accumulator, which throws a `TypeError` on an empty array and gives the wrong type when you are building an object from an array of objects.
+
+**When not to use them.** `reduce` can do anything, and that is its weakness: a `reduce` that builds three things at once is harder to read than a `for...of` loop. If the callback needs a comment to explain it, a loop is usually clearer. Use `forEach` (or a loop) for side effects such as logging or DOM updates. Using `map` there builds an array nobody reads, and says "transform" when you mean "do". And a long chain walks the array once per step. That does not matter for hundreds of items, but in a hot path over large arrays a single loop is faster.
+
+---
+
+**Q29: A variable captured by a closure keeps returning an outdated value. Why does this happen, and how is it different from a closure retaining memory unnecessarily?**
+
+Both problems come from the same fact: **a closure keeps a reference to the variables of the scope it was created in**, for as long as the closure itself is alive. The two symptoms are opposite. A **stale closure** holds on to the *wrong variable*, so it shows an old value. A **retaining closure** holds on to the *right variable for too long*, so memory is never freed.
+
+```js
+// 1. A closure reads the LIVE variable, not a snapshot
+let live = 0;
+const read = () => live;
+live = 5;
+console.log('live binding:', read());        // 5
+
+// 2. Stale: each call makes a NEW variable, and the old closure keeps the old one
+function render(count) {
+  return () => console.log('handler sees', count);
+}
+const registered = render(0);   // registered once, like an effect with []
+render(1);
+render(2);                      // newer renders, newer variables, nobody listening
+registered();                   // handler sees 0
+
+// 3. Retention: the value is correct, it just lives far too long
+function attach() {
+  const big = new Array(1_000_000).fill('x');
+  return () => big.length;      // keeps all of big alive while this function is reachable
+}
+const handlers = [attach()];
+console.log('still reachable:', handlers[0]());   // 1000000
+handlers.length = 0;            // drop the last reference and the array can be collected
+```
+
+**Why a closure can go stale when it reads live variables.** Part 1 shows that a closure does *not* take a snapshot: change `live` and the closure sees `5`. Staleness happens when the code creates a **new variable** each time, and an old closure is still attached to an old one. That is exactly how a React component works: every render calls the function again, so every render has its own `count`. A callback registered during the first render (an effect with `[]`, a `setInterval`, a subscription) is permanently attached to render one's `count`, so it logs `0` forever. The closure isn't broken. It is faithfully reading a variable nobody updates any more.
+
+**Fixes for stale values:** list the value in the dependency array so the callback is recreated; use the functional update `setCount(c => c + 1)`, which asks React for the current value instead of reading a captured one; or keep the latest value in a ref when the callback must stay the same function.
+
+**Why retention is different.** In part 3 the value is correct. The problem is *reachability*: as long as something long-lived (a `window` listener, an interval, a cache, a global array) references the closure, everything the closure can see stays in memory, including `big`. Two details make this worse than it looks. The closure keeps the whole variable, so a closure that needs one field of a large response keeps the entire response. And in V8, closures created in the same scope share **one** environment, so a tiny callback can keep `big` alive because a *sibling* closure in that scope used it.
+
+**Fixes for retention:** remove the listener, clear the interval, or unsubscribe in the cleanup; copy out only the field you need before creating the closure; and set long-lived references to `null` when you are done. Q25 covers the leak side in depth.
+
+| Aspect | Stale closure | Retained memory |
+|---|---|---|
+| Symptom | Wrong, old value | Correct value, memory grows |
+| Cause | Closure attached to an **old** variable | Closure **still reachable** from something long-lived |
+| Where it shows up | Effects, timers and subscriptions in React | Listeners, intervals, caches that are never cleaned up |
+| Fix | Dependencies, functional updates, refs | Cleanup, unsubscribe, narrower captures |
+
+---
+
+**Q30: An error thrown inside an asynchronous callback escapes the surrounding `try/catch`. Why, and where should the error be handled?**
+
+`try/catch` only catches errors thrown **while the code in its block is running**, meaning while its stack frame is on the call stack. An asynchronous callback does not run then. `setTimeout(cb)`, `fetch(...).then(cb)` and an event listener only *schedule* `cb`. The `try` block finishes and its frame is gone. Later, the event loop calls `cb` from an empty stack, so when it throws there is no `try` above it anywhere. The error is reported as uncaught (for a thrown error) or as an unhandled rejection (for a promise).
+
+```text
+try {
+  setTimeout(() => {
+    throw new Error('boom');   // runs later, from a new, empty call stack
+  }, 0);
+} catch (e) {
+  console.log('never runs');   // the try block finished long ago
+}
+
+try {
+  loadUser();                  // returns a rejected promise; nothing throws here
+} catch (e) {
+  console.log('never runs');   // missing await: the rejection skips this
+}
+```
+
+(These two are tagged as plain text on purpose: running them would produce real uncaught errors.)
+
+**Handle the error where the code actually runs.** There are four places, from most to least preferred:
+
+```js
+async function loadUser() {
+  await null;
+  throw new Error('network down');
+}
+
+// 1. await inside try: the error comes back into this function
+async function withAwait() {
+  try {
+    await loadUser();
+  } catch (e) {
+    console.log('1 await + try:', e.message);
+  }
+}
+
+// 2. .catch on the promise
+loadUser().catch(e => console.log('2 .catch:', e.message));
+
+// 3. try/catch INSIDE the callback, where the code actually runs
+setTimeout(() => {
+  try {
+    throw new Error('timer failed');
+  } catch (e) {
+    console.log('3 inside the callback:', e.message);
+  }
+}, 0);
+
+withAwait();
+```
+
+1. **`await` inside `try`**. `await` resumes the function *inside* the `try` block, so a rejection is thrown right there and the `catch` works. This is the normal answer, and the most common bug is simply forgetting the `await`.
+2. **`.catch()` on the promise**, when you are not in an `async` function. Attach it to the *end* of the chain, and remember a `.catch` that returns a value turns the failure into a success.
+3. **`try/catch` inside the callback** for timers, event listeners and other non-promise callbacks, because that is the stack the error is thrown on.
+4. **Global handlers as a safety net**: `window.addEventListener('error', …)` and `'unhandledrejection'` for reporting what the first three missed (see §10.1). They are for logging, not for recovery, because by then you've lost the context of what failed.
+
+Why the demo prints `2` before `1`: the `.catch` call starts first, because `withAwait()` is only called on the last line, and `withAwait` then needs one more microtask to resume after its own `await`. The timer prints last because it is a task, and every microtask runs before the next task.
+
+**The React version of the same question**: an error boundary is effectively a `try/catch` around rendering, so it cannot catch an error in an event handler or a `fetch`. See React Q56.
+
+---
+
 ## 16. Tricky Output Questions
 
 Practice questions testing your understanding of JavaScript quirks — type coercion, reference types, and the event loop.
@@ -4447,6 +4651,65 @@ Which behaviour you want depends on whether the items are independent. Sequentia
 One more detail: `Array.fromAsync` also accepts a **sync** iterable of promises, in which case it awaits each element as it collects it. That makes `Array.fromAsync([p1, p2, p3])` behave like a sequential `Promise.all` — same result, no concurrency — which is almost never what you meant to write.
 
 **Takeaway:** `Array.fromAsync` is a sequential drain of an async iterable (`for await…of` in one line), not a concurrent one — reach for `Promise.all` or a concurrency pool when the work is independent.
+
+---
+
+### Async Performance
+
+**Q17: Promises are asynchronous, so how can a chain of already-resolved Promises freeze the UI?**
+
+```js
+const start = Date.now();
+setTimeout(() => console.log('timer waited 200ms+:', Date.now() - start >= 200), 0);
+
+let chain = Promise.resolve();
+for (let i = 0; i < 20; i++) {
+  chain = chain.then(() => {
+    const t = Date.now();
+    while (Date.now() - t < 10) {}   // 10 ms of real work per step
+  });
+}
+chain.then(() => console.log('chain done'));
+console.log('sync done');
+```
+
+**Output:**
+```
+sync done
+chain done
+timer waited 200ms+: true
+```
+
+**Explanation:**
+
+"Asynchronous" means *later*, not *somewhere else*. A `.then` callback still runs on the **main thread**, the same thread that handles clicks, runs timers and paints the screen. The promise only decides *when* the callback runs.
+
+That "when" is the **microtask queue**, and it has one rule that causes this: after each task, the engine runs **every** microtask in the queue, including any queued while it is running, before it does anything else. Each `.then` step here queues the next one as a microtask, so all 20 steps run back to back with no gap between them. The timer was due at 0 ms and waits the full 200 ms. A click handler, a scroll or a paint would wait exactly the same way. From the user's side, the page is frozen, even though no single function ran for more than 10 ms.
+
+The extreme case is a microtask that queues itself (`function starve() { Promise.resolve().then(starve); }`). It never ends, so the page never paints again, and there is no long function in the profiler to blame, just an endless run of tiny ones.
+
+**The fix is to give the browser a turn**, which means going back to the *task* queue, not the microtask queue:
+
+```js
+const start = Date.now();
+setTimeout(() => console.log('timer waited under 50ms:', Date.now() - start < 50), 0);
+
+const nextTask = () => new Promise(resolve => setTimeout(resolve, 0));
+
+async function work() {
+  for (let i = 0; i < 20; i++) {
+    const t = Date.now();
+    while (Date.now() - t < 10) {}   // same 10 ms per step
+    await nextTask();                // give the browser a turn
+  }
+  console.log('work done');
+}
+work();
+```
+
+Same 200 ms of total work, but now each step ends with `await` on a `setTimeout`, which is a *task*, so the browser can handle input, timers and a paint between steps. The timer now fires after about one step. In modern Chromium, `await scheduler.yield()` does the same thing and puts your work back at the front of the queue rather than the back. When the work is genuinely heavy (parsing a large file, image processing), move it to a **Web Worker**, which really is a different thread.
+
+**Takeaway:** promises change *when* code runs, not *where*. A long run of microtasks blocks the page as surely as one long function; yield to the task queue, or move the work off the main thread.
 
 ---
 

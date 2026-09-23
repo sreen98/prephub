@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { inspect } from 'node:util';
 
 /**
- * Q8, Q13, Q14, Q16 and Q17 each state an output. Extract the block from the guide
+ * Q7, Q8, Q9, Q13, Q14, Q16, Q17, Q29, Q30 and tricky Q17 each state an output. Extract the block from the guide
  * and run it, so a claim can never drift from what the "Try it" button prints.
  */
 describe('JavaScript guide interview answers print what they claim', () => {
@@ -193,5 +193,58 @@ describe('JavaScript guide interview answers print what they claim', () => {
   it('Q17 — deepFreeze walks the graph', () => {
     const snippet = block('function deepFreeze(obj, seen = new WeakSet())');
     expect(capture(snippet + "\nconsole.log(state.user.name);")).toEqual(['Ada']);
+  });
+
+  it('Q7 — lookup walks the chain, writes shadow it, null-prototype has none', () => {
+    expect(capture(block("get label() { return 'animal named ' + this.name; }"))).toEqual([
+      'true', 'false true', 'animal named Rex', 'undefined', 'false true', 'true', 'false',
+    ]);
+  });
+
+  it('Q9 — spread shares the nested object; path-copying does not', () => {
+    expect(capture(block('const copy = { ...state };'))).toEqual([
+      'Ben', 'false true', 'Ben Cy', 'true', '1', 'true', 'string',
+    ]);
+  });
+
+  it('Q29 — live binding, stale closure, retained value', () => {
+    expect(capture(block('const registered = render(0);'))).toEqual([
+      'live binding: 5', 'handler sees 0', 'still reachable: 1000000',
+    ]);
+  });
+
+  it('Q30 — each correct handling point catches, in the stated order', async () => {
+    expect(await captureAsync(block('async function withAwait()'), 50)).toEqual([
+      '2 .catch: network down',
+      '1 await + try: network down',
+      '3 inside the callback: timer failed',
+    ]);
+  });
+
+  it('tricky Q17 — a chain of resolved promises holds a 0 ms timer for the whole chain', async () => {
+    expect(await captureAsync(block('chain = chain.then(() => {'), 50)).toEqual([
+      'sync done', 'chain done', 'timer waited 200ms+: true',
+    ]);
+  });
+
+  it('tricky Q17 — yielding to the task queue lets the timer in early', async () => {
+    const logs = await captureAsync(block('const nextTask = () =>'), 400);
+    expect(logs).toEqual(['timer waited under 50ms: true', 'work done']);
+  });
+});
+
+describe('React guide Q64 — an unbounded memoize cache grows with zero hits', () => {
+  it('prints the claimed stats', () => {
+    const md = readFileSync('src/content/front-end/react-guide.md', 'utf8');
+    const i = md.indexOf('const formatTime = memoize(');
+    expect(i).toBeGreaterThan(-1);
+    const start = md.lastIndexOf('```js\n', i) + 6;
+    const snippet = md.slice(start, md.indexOf('```', start));
+    const logs: string[] = [];
+    /* eslint-disable @typescript-eslint/no-implied-eval -- running the guide's own snippet is the point */
+    const fn = new Function('console', snippet) as (c: unknown) => void;
+    /* eslint-enable @typescript-eslint/no-implied-eval */
+    fn({ log: (...a: unknown[]) => logs.push(a.map(v => inspect(v)).join(' ')) });
+    expect(logs).toEqual(['{ entries: 100000, hits: 0 }']);
   });
 });

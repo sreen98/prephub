@@ -1211,6 +1211,50 @@ extraReducers: (builder) => {
 
 ---
 
+**Q18: What is the use of `configureStore` in Redux Toolkit?**
+
+`configureStore` is the one function you call to **create the Redux store**, and it replaces the five-step setup plain Redux needed. With plain `createStore` you had to combine the reducers yourself, apply middleware, wire up the Redux DevTools extension with `compose`, and add thunk support, and every team did it slightly differently. `configureStore` does all of that in one call, with safe defaults.
+
+```ts
+import { configureStore } from '@reduxjs/toolkit';
+
+export const store = configureStore({
+  reducer: {
+    auth: authReducer,       // an object of slice reducers is combined for you
+    cart: cartReducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(logger),   // keep the defaults, add your own
+});
+
+// Types for the whole app, derived from the store itself
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+```
+
+**What one call does for you:**
+
+| Step | Plain Redux | `configureStore` |
+|---|---|---|
+| Combine reducers | call `combineReducers` yourself | pass an object to `reducer` |
+| Async support | install and apply `redux-thunk` | thunk included by default |
+| Catch mistakes | nothing | in development, checks that you never **mutate** state and never put **non-serializable** values (a `Date`, a class instance, a function) in state or actions |
+| DevTools | `compose` with `window.__REDUX_DEVTOOLS_EXTENSION__` | on by default (`devTools: true`); turn it off with `devTools: false` |
+| Batching | nothing | `autoBatchEnhancer` included, so many dispatches in a row notify subscribers once |
+
+The development checks are the part people underrate. The immutability check and the serializability check run **only in development**; in production the default middleware is just thunk. So they cost nothing for users, and they catch the two bugs that break Redux silently: a mutation that React never sees, and a `Date` in state that breaks persistence and time-travel debugging.
+
+**The mistakes worth knowing:**
+
+- **Passing your own middleware list replaces the defaults.** The docs are explicit: if you supply `middleware`, you are responsible for *all* of it. `middleware: () => [logger]` quietly removes thunk and both dev checks. Always start from `getDefaultMiddleware()` and `.concat()` (or `.prepend()`) your own. The same rule applies to `enhancers` and `getDefaultEnhancers()`.
+- **Use the callback form.** It is what the docs recommend, and it is what makes TypeScript infer the right `dispatch` type, including thunks. A plain array still works in JavaScript.
+- **Don't switch the checks off to silence a warning.** A serializability warning about a `Date` means the state shape is wrong: store `date.toISOString()` or a timestamp. Only ignore specific action types you understand, such as the ones redux-persist dispatches.
+- **For SSR and tests, create a store per request or per test.** Export a `makeStore()` function that calls `configureStore`, instead of one module-level `store`. A shared store leaks one user's state into another user's server render, and one test's state into the next test.
+
+**The one-sentence answer:** `configureStore` creates the store with good defaults (combined reducers, thunk, DevTools, batching, and development-only checks for mutation and non-serializable values), and `getDefaultMiddleware` is how you add to those defaults without losing them.
+
+---
+
 ## 14. Tricky Output Questions
 
 Practice questions testing your understanding of Redux reducer execution, Immer mutations, selector memoization, and thunk lifecycle.

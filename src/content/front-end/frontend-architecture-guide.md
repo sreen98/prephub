@@ -796,6 +796,57 @@ Four decisions are doing the work there. It is **controlled** (`value`/`onChange
 
 ---
 
+**Q18: How would you design a reusable design-system component library, and how do you keep it maintainable and scalable?**
+
+A component library is a **product whose users are other engineers**. Most of them fail not because the buttons are wrong, but because the API is too rigid (so teams fork it), too loose (so every screen looks different), or impossible to upgrade (so teams stay on an old version forever). Design for those three failures from the start.
+
+**1. Layer it, and let dependencies point one way.**
+
+| Layer | What it holds | Example |
+|---|---|---|
+| **Design tokens** | the raw decisions: colours, spacing, type scale, radii, shadows, motion | `--color-primary`, `--space-4` |
+| **Primitives** | behaviour and accessibility with no styling of their own | focus trap, popover positioning, roving tabindex |
+| **Components** | styled building blocks built from tokens and primitives | `Button`, `Input`, `Select`, `Dialog` |
+| **Patterns** | common combinations, documented rather than locked into one component | a form field with label, hint and error; an empty state |
+
+Tokens are the part people skip, and they are what makes theming and rebranding cheap. Keep them in one source (often exported from Figma and turned into CSS variables and a JS object with a tool like Style Dictionary), so design and code can't drift apart. For behaviour, **don't write your own focus trapping, keyboard handling and positioning** unless you have to. Build on a headless library such as Radix, React Aria or Ark UI. That is the most expensive, most bug-prone code in any library, and it is the least visible.
+
+**2. The API is the product, so design it carefully.**
+
+- **Compose instead of adding props.** A `Card` with `title`, `subtitle`, `footer`, `headerIcon` and `showDivider` grows a new prop every sprint. `<Card><Card.Header>…</Card.Header><Card.Body>…</Card.Body></Card>` doesn't. Compound components scale; configuration objects don't.
+- **Behave like the native element.** Pass through `...rest`, `className` and `ref`, so a `Button` can replace a `<button>` anywhere without surprises. Support both controlled and uncontrolled use (`value` + `onChange`, or `defaultValue`).
+- **Limit variants to a closed set.** `variant: 'primary' | 'secondary' | 'danger'`, `size: 'sm' | 'md' | 'lg'`. No `color="#ff0000"`. A closed set is what keeps the product consistent, and TypeScript enforces it.
+- **Leave an escape hatch**, such as an `asChild` or `as` prop, so a `Button` can render a router link without teams wrapping or forking it.
+- **No business logic.** The library knows about "a button that is loading", never "the checkout button". Once product logic gets in, only one product can use it.
+
+**3. Build accessibility in, not on.** Every component ships with correct roles, keyboard support, visible focus and labels. That is one of the biggest wins of having a library: fix a dialog's focus handling once and every product gets it. Test it with automated checks (axe) in CI, and by hand with a keyboard and a screen reader for the complex components.
+
+**4. Theming through CSS variables.** Components read tokens (`var(--color-primary)`), and themes (light, dark, per-brand) redefine the variables on a root element. Switching themes then costs no JavaScript and no re-render. Avoid runtime CSS-in-JS for a shared library: it adds a runtime cost to every consumer and does not work well with React Server Components.
+
+**5. Packaging, so consumers only pay for what they use.**
+
+- Publish **ES modules**, with one entry per component (`@acme/ui/button`), and mark the package `sideEffects` correctly so bundlers can drop unused components. (`@acme` stands for your company's package scope.)
+- Make `react` and `react-dom` **peer dependencies**, never regular ones, or apps end up with two copies of React and hooks break.
+- Set a **bundle-size budget per component** in CI, so one heavy dependency can't quietly slip in.
+
+**6. Maintainability: versioning and change management.** This is what decides whether the library survives its second year.
+
+- **Semantic versioning, strictly.** Breaking changes only in a major release. Use a tool like **Changesets** so every PR states its version bump and writes the changelog entry.
+- **Deprecate before you remove.** Mark it, log a warning in development, give a date, ship a **codemod** that rewrites old usage automatically, then remove it in the next major. Frontend Architecture Q10 covers rolling a breaking change out across many teams.
+- **Every component has a documented owner and a status** (experimental, stable, deprecated), so consumers know what they can depend on.
+
+**7. Quality gates.** Storybook for documentation and for building components in isolation (see Storybook Q12), with interaction tests for behaviour, **visual regression tests** so a spacing change shows up as a screenshot diff in review, axe checks for accessibility, and unit tests for logic. Testing Strategy Q7 covers testing a library that five teams depend on.
+
+**8. Scalability is mostly about people.**
+
+- **A contribution model.** Product teams can propose and contribute components through a short RFC and a review by the library team. Otherwise the library team becomes a bottleneck and teams build their own.
+- **A rule for what gets in**: a pattern needed by at least two products, not one team's one-off.
+- **Measure adoption**: which versions each product is on, how often components are overridden or forked, and how many local copies of "Button" exist in product code. A rising fork count is the earliest sign the API is wrong.
+
+**What to volunteer in the interview:** the hardest part is not building the components, it is **upgrades**. A library five teams can't upgrade has already failed, however good it looks. So say how you'd keep the upgrade path cheap: small releases, codemods, deprecation periods, and staying close to the teams who use it.
+
+---
+
 ## 11. Tricky Questions
 
 ---

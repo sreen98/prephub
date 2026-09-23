@@ -1836,71 +1836,249 @@ test("Counts: numbers", findDuplicatesByCount([1, 2, 3, 2, 4, 3, 5]), [2, 3]);
 
   'Remove Duplicates': `// ===== SOLUTION: Remove Duplicates =====
 //
-// ┌──────────────────────────────────────┬───────┬───────┬────────────┐
-// │ Approach                             │ Time  │ Space │ Verdict    │
-// ├──────────────────────────────────────┼───────┼───────┼────────────┤
-// │ 1. Set + push (preserves order)      │ O(n)  │ O(n)  │ BEST       │
-// │ 2. [...new Set(arr)] (1-line)        │ O(n)  │ O(n)  │ Idiomatic  │
-// │ 3. filter + indexOf                  │ O(n²) │ O(n)  │ Don't ship │
-// │ 4. reduce + includes                 │ O(n²) │ O(n)  │ Don't ship │
-// └──────────────────────────────────────┴───────┴───────┴────────────┘
+// The challenge bans Set, so the answer is a hash map you manage yourself.
+//
+// ┌──────────────────────────────────────┬───────┬───────┬──────────────────────┐
+// │ Approach                             │ Time  │ Space │ Verdict              │
+// ├──────────────────────────────────────┼───────┼───────┼──────────────────────┤
+// │ 1. Map as a "seen" table + push      │ O(n)  │ O(n)  │ BEST                 │
+// │ 2. Plain object as the table         │ O(n)  │ O(n)  │ Only for one type    │
+// │ 3. [...new Set(arr)]                 │ O(n)  │ O(n)  │ Real code, not here  │
+// │ 4. filter + indexOf                  │ O(n²) │ O(n)  │ Banned, and slow     │
+// └──────────────────────────────────────┴───────┴───────┴──────────────────────┘
 
-// ----- Approach 1: Set + manual push (BEST when "no Set" allowed) -----
-// Hash set lookup is O(1); preserves first-seen order via push.
+// ----- Approach 1: Map as the "seen" table (BEST, meets the constraints) -----
+// A Map is a hash map: has() and set() are O(1) on average, so one pass is O(n).
+// Pushing on first sight keeps the original order.
+// Why Map and not {}: Map keys keep their type, so 1 and "1" stay different,
+// and NaN matches NaN. See Approach 2 for what goes wrong with a plain object.
 function removeDuplicates(arr) {
-  const seen = new Set();
+  const seen = new Map();
   const result = [];
   for (const item of arr) {
     if (!seen.has(item)) {
-      seen.add(item);
+      seen.set(item, true);
       result.push(item);
     }
   }
   return result;
 }
 
-// ----- Approach 2: [...new Set(arr)] (idiomatic 1-liner — production) -----
-// Set preserves insertion order in JavaScript (since ES2015). Safe to use.
+// ----- Approach 2: plain object as the table (works for ONE type only) -----
+// The classic answer, and fine when every value is a number or every value is
+// a string. Object keys are always strings, so 1 and "1" become the same key,
+// and different objects all become the key "[object Object]".
+// Object.create(null) avoids the inherited keys: with a plain {}, a value of
+// "toString" or "constructor" would look as if it had already been seen.
+function removeDuplicatesObject(arr) {
+  const seen = Object.create(null);
+  const result = [];
+  for (const item of arr) {
+    if (!seen[item]) {
+      seen[item] = true;
+      result.push(item);
+    }
+  }
+  return result;
+}
+
+// ----- Approach 3: [...new Set(arr)] (what you'd write in real code) -----
+// Not allowed in this challenge, but worth saying in the interview: in
+// production this one line is the right answer. Set keeps insertion order.
 function removeDuplicatesSpread(arr) {
   return [...new Set(arr)];
 }
 
-// ----- Approach 3: filter + indexOf (DON'T SHIP — O(n²)) -----
-// Each indexOf is O(n); inside a filter that's O(n²). Easy to write,
-// terrible for large arrays.
+// ----- Approach 4: filter + indexOf (banned here, and O(n²)) -----
+// Each indexOf scans from the start, inside a loop over every element. It also
+// never finds NaN (indexOf uses ===), so every NaN is dropped.
 function removeDuplicatesIndexOf(arr) {
   return arr.filter((v, i) => arr.indexOf(v) === i);
-}
-
-// ----- Approach 4: reduce + includes (DON'T SHIP — same O(n²) issue) -----
-function removeDuplicatesReduce(arr) {
-  return arr.reduce((acc, v) => acc.includes(v) ? acc : [...acc, v], []);
 }
 
 // ===== TEST CASES =====
 const test = (name, actual, expected) => {
   const pass = JSON.stringify(actual) === JSON.stringify(expected);
-  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
 };
 
-console.log("--- Approach 1 (Set + push) — BEST ---");
+console.log("--- Approach 1 (Map) — BEST ---");
 test("Numbers", removeDuplicates([1, 2, 1, 3, 2, 4]), [1, 2, 3, 4]);
 test("Strings", removeDuplicates(["a", "b", "a", "c", "b"]), ["a", "b", "c"]);
 test("Already unique", removeDuplicates([1, 2, 3]), [1, 2, 3]);
 test("All same", removeDuplicates([5, 5, 5, 5]), [5]);
 test("Empty", removeDuplicates([]), []);
+test("1 and '1' are different values", removeDuplicates([1, "1", 1]), [1, "1"]);
+test("NaN matches NaN", removeDuplicates([NaN, 1, NaN]).length, 2);
 
-console.log("\\n--- Approach 2 ([...new Set]) — idiomatic ---");
+console.log("\\n--- Approach 2 (plain object) ---");
+test("Numbers", removeDuplicatesObject([1, 2, 1, 3, 2, 4]), [1, 2, 3, 4]);
+test("Strings, including 'toString'", removeDuplicatesObject(["toString", "a", "toString"]), ["toString", "a"]);
+console.log("Mixed types break it:", JSON.stringify(removeDuplicatesObject([1, "1"])), "(the string was dropped)");
+
+console.log("\\n--- Approach 3 ([...new Set]) — production ---");
 test("Spread: numbers", removeDuplicatesSpread([1, 2, 1, 3, 2, 4]), [1, 2, 3, 4]);
 
+console.log("\\n--- Approach 4 (filter + indexOf) ---");
+console.log("NaN is lost:", removeDuplicatesIndexOf([NaN, 1, NaN]).length, "item(s) left");
+
 // ===== When to pick which =====
-// - Production code → Approach 2 ([...new Set(arr)]). One line, native, fast.
-// - Interview "implement without Set" → Approach 1 (manual hash + push).
-//   Some interviewers explicitly forbid Set to test the underlying pattern.
-// - Approach 3 / 4 are baselines for the optimization discussion only.
+// - This challenge ("no Set") → Approach 1. Same idea as a Set, but you manage
+//   the lookup table yourself, which is exactly what the interviewer wants to see.
+// - Values all one type (all numbers, or all strings) → Approach 2 is fine.
+// - Real code → Approach 3, and say so: the ban is there to test the pattern,
+//   not because Set is bad.
+// - Approach 4 → only as the slow baseline in the optimisation discussion.`,
+
+  'Clean Mixed Array': `// ===== SOLUTION: Clean Mixed Array =====
 //
-// Why used: this is the dedupe pattern at the heart of "unique users,"
-// "distinct values," "uniqueness-by-key" problems.`,
+// ┌────────────────────────────────────────┬────────────┬───────┬──────────────┐
+// │ Approach                               │ Time       │ Space │ Verdict      │
+// ├────────────────────────────────────────┼────────────┼───────┼──────────────┤
+// │ 1. filter → Set → sort                 │ O(n log n) │ O(n)  │ BEST         │
+// │ 2. filter → sort → skip repeats        │ O(n log n) │ O(n)  │ No Set       │
+// │ 3. One loop + seen object, then sort   │ O(n log n) │ O(n)  │ No Set       │
+// │ 4. Insert in sorted order, by hand     │ O(n²)      │ O(n)  │ No built-ins │
+// │ 5. Variant: accept numeric strings     │ O(n log n) │ O(n)  │ If asked     │
+// └────────────────────────────────────────┴────────────┴───────┴──────────────┘
+//
+// The sort dominates in every version. Filtering and deduping are O(n).
+
+// ----- Approach 1: filter → Set → sort (BEST) -----
+// Three steps, each doing one job, in the order the question states them.
+// Number.isFinite is the right filter: it is false for strings, booleans,
+// null, undefined, NaN and Infinity, and it never converts its argument.
+// (typeof x === "number" lets NaN through, because NaN IS a number type.)
+function cleanNumbers(arr) {
+  const numbers = arr.filter(Number.isFinite);
+  const unique = [...new Set(numbers)];
+  return unique.sort((a, b) => a - b);
+}
+
+// ----- Approach 2: filter → sort → skip repeats (no Set) -----
+// Once the numbers are sorted, equal values sit next to each other, so a
+// duplicate is simply "the same as the one before it".
+function cleanNumbersNoSet(arr) {
+  const sorted = arr.filter(Number.isFinite).sort((a, b) => a - b);
+  return sorted.filter((n, i) => i === 0 || n !== sorted[i - 1]);
+}
+
+// ----- Approach 3: one loop + seen object, then sort (bans Set and filter, allows sort) -----
+// The underlying pattern made visible: a lookup of values already kept.
+// Use this when the interviewer rules out Set and filter but is happy with sort.
+// A plain object is safe as the lookup here, because only numbers get this far,
+// so there is no 1-vs-"1" key collision to worry about.
+function cleanNumbersSeen(arr) {
+  const seen = {};
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    const x = arr[i];
+    const isNumber = typeof x === "number" && x === x && x !== Infinity && x !== -Infinity;
+    if (isNumber && !seen[x]) {
+      seen[x] = true;
+      result.push(x);
+    }
+  }
+  return result.sort((a, b) => a - b);
+}
+
+// ----- Approach 4: no built-ins at all (interviewer bans sort, Set, filter) -----
+// Build the result ALREADY SORTED: for each number, walk to the place it
+// belongs and insert it there. That also removes duplicates for free: if the
+// value is already sitting at that place, it is a repeat, so skip it.
+// No sort(), no Set, no filter(), no push(), not even a "seen" table.
+function cleanNumbersManual(arr) {
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    const x = arr[i];
+    // x !== x is true only for NaN. The last two checks drop the infinities.
+    if (typeof x !== "number" || x !== x || x === Infinity || x === -Infinity) continue;
+
+    // Find the first position whose value is not smaller than x.
+    let pos = 0;
+    while (pos < result.length && result[pos] < x) pos++;
+
+    if (result[pos] === x) continue;   // already there: a duplicate
+
+    // Shift the larger values one place right, then drop x into the gap.
+    for (let j = result.length; j > pos; j--) result[j] = result[j - 1];
+    result[pos] = x;
+  }
+  return result;
+}
+// Cost: each insert scans and shifts at most the unique values kept so far,
+// so O(n × k) for k unique numbers, O(n²) in the worst case. That is fine at
+// interview sizes. If they then ask about a million values: write merge sort
+// for O(n log n), or use counting sort if the values are small integers.
+
+// ----- Approach 5: variant where "7" should count as 7 -----
+// Only if the interviewer says so. Number() is a trap on its own:
+// Number("") is 0, Number(" ") is 0, Number(true) is 1, Number(null) is 0.
+// So accept only real numbers, or strings that are not blank.
+function cleanNumbersLoose(arr) {
+  const numbers = [];
+  for (const x of arr) {
+    if (typeof x === "number") numbers.push(x);
+    else if (typeof x === "string" && x.trim() !== "") numbers.push(Number(x));
+  }
+  return [...new Set(numbers.filter(Number.isFinite))].sort((a, b) => a - b);
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+const cases = [
+  ["Numbers and letters", [5, "a", 3, 5, "b", 1, 3], [1, 3, 5]],
+  ["Sorts numerically, not as text", [10, 9, "x", 1, 100], [1, 9, 10, 100]],
+  ["Negatives and decimals", [-2, "z", 0.5, -2, 3], [-2, 0.5, 3]],
+  ["NaN is not a usable number", [NaN, 4, "n", NaN, 2], [2, 4]],
+  ["Numeric strings are characters", ["7", 7, "3"], [7]],
+  ["Booleans, null and undefined", [true, 2, null, undefined, 1, false], [1, 2]],
+  ["Nothing numeric", ["a", "b"], []],
+  ["Empty", [], []],
+];
+
+const approaches = [
+  ["Approach 1 (filter → Set → sort) — BEST", cleanNumbers],
+  ["Approach 2 (sort, skip repeats)", cleanNumbersNoSet],
+  ["Approach 3 (seen object + sort)", cleanNumbersSeen],
+  ["Approach 4 (no built-ins)", cleanNumbersManual],
+];
+
+for (const [label, fn] of approaches) {
+  console.log("--- " + label + " ---");
+  for (const [name, input, expected] of cases) test(name, fn(input), expected);
+  const input = [3, "a", 1, 3];
+  fn(input);
+  test("Does not change the input", input, [3, "a", 1, 3]);
+}
+
+console.log("--- Approach 5 (numeric strings count) ---");
+test("Strings become numbers", cleanNumbersLoose(["7", 7, "3", "a"]), [3, 7]);
+test("Blank strings are not 0", cleanNumbersLoose(["", " ", 5]), [5]);
+test("Booleans still rejected", cleanNumbersLoose([true, false, 2]), [2]);
+
+// ===== The traps this question is really testing =====
+// 1. [10, 9, 1].sort() gives [1, 10, 9]. With no comparator, sort compares
+//    values as STRINGS. Always pass (a, b) => a - b for numbers.
+// 2. typeof NaN is "number", so a typeof check alone keeps NaN, and NaN
+//    then breaks the sort comparator (every comparison with NaN is false).
+// 3. sort() changes the array it is called on. It is safe here because
+//    filter already returned a new array, but calling arr.sort() directly
+//    would change the caller's data.
+// 4. Ask what "numeric" means before coding. Is "7" a number? Is 3.5?
+//    Asking is part of the answer, not a delay.
+//
+// ===== When to pick which =====
+// - Interview default → Approach 1. It reads like the problem statement.
+// - "Without Set" → Approach 2 (sorting first makes duplicates adjacent)
+//   or Approach 3 (an explicit seen table, then sort).
+// - "No sort / no built-ins" → Approach 4, then mention you'd use 1 in
+//   real code, and merge sort if the input could be huge.
+// - Numeric strings allowed → Approach 5, and say why Number("") is a trap.`,
 
   'Find Missing Number': `// ===== SOLUTION: Find Missing Number =====
 //

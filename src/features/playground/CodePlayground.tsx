@@ -854,7 +854,7 @@ export default function CodePlayground() {
       />
 
       {/* Header -- always dark like an IDE */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2d333b] bg-[#1c2028] shrink-0 text-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-[#2d333b] bg-[#1c2028] shrink-0 text-slate-200">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => window.dispatchEvent(new Event('prephub:show-sidebar'))}
@@ -879,7 +879,7 @@ export default function CodePlayground() {
           )}
           <SolvedChip challengeNames={challengeNames} referenceNames={referenceNames} progress={progress} current={currentTemplate} />
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
           <button
             onClick={openDrawer}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white transition-colors"
@@ -1030,11 +1030,11 @@ export default function CodePlayground() {
                 </span>
               )}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={toggleBracketAutoClose}
                 className={
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ' +
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
                   (bracketAutoClose
                     ? 'border-emerald-700/50 bg-emerald-900/20 text-emerald-400 hover:bg-emerald-900/30'
                     : 'border-[#3d444d] text-slate-500 hover:bg-[#2d333b] hover:text-slate-300')
@@ -1047,7 +1047,7 @@ export default function CodePlayground() {
               <button
                 onClick={toggleWrap}
                 className={
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ' +
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
                   (wrapOn
                     ? 'border-indigo-700/50 bg-indigo-900/20 text-indigo-300 hover:bg-indigo-900/30'
                     : 'border-[#3d444d] text-slate-500 hover:bg-[#2d333b] hover:text-slate-300')
@@ -1060,7 +1060,7 @@ export default function CodePlayground() {
               <button
                 onClick={handleFormat}
                 disabled={isFormatting}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white transition-colors disabled:opacity-60"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white transition-colors disabled:opacity-60 whitespace-nowrap"
                 title="Format with Prettier (⌘⇧F)"
               >
                 {isFormatting
@@ -1068,7 +1068,7 @@ export default function CodePlayground() {
                   : <Wand2 size={11} />}
                 Format
               </button>
-              <span className="text-slate-600">
+              <span className="text-slate-600 whitespace-nowrap hidden xl:inline">
                 {code.split('\n').length} lines
               </span>
             </div>

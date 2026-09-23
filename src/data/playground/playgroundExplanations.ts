@@ -1157,52 +1157,169 @@ const findDuplicates: Explanation = {
 
 const removeDuplicates: Explanation = {
   problem: 'Remove Duplicates',
-  problemStatement: 'Return the array with duplicates removed (keep first occurrence).',
+  problemStatement: 'Return the array with duplicates removed, keeping the first occurrence, without using Set.',
   approaches: [{
-    id: 'set',
-    name: 'Set Pass',
+    id: 'map',
+    name: 'Map as a "Seen" Table',
     badge: 'best',
-    intuition: 'Walk the array. If you have not seen the value, add to result and to a "seen" set. Single pass, O(n).',
-    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Canonical' },
+    intuition:
+      "**The challenge bans Set, so you build the lookup yourself.** Walk the array once. For each value, ask a hash map \"have I seen this?\" If not, record it and push it to the result. Pushing on first sight is what keeps the original order.\n\n" +
+      "**Why a Map and not a plain object.** Object keys are always strings, so 1 and \"1\" would land on the same key and one of them would be dropped. A Map keeps each key's type, and it treats NaN as equal to NaN, so it dedupes exactly the way Set would. has() and set() are O(1) on average, which makes the whole pass O(n).",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Meets the constraints' },
     pseudocode: [
-      'seen = new Set(), out = []',
+      'seen = new Map(), out = []',
       'for x in arr:',
       '  if !seen.has(x):',
-      '    seen.add(x); out.push(x)',
+      '    seen.set(x, true); out.push(x)',
       'return out',
     ],
     example: { input: '[1, 2, 2, 3, 1, 4]', output: '[1, 2, 3, 4]' },
     steps: [
-      { title: 'Start. seen = {}, out = [].', pseudoLine: 0, set: { items: [] } },
-      { title: '1 → new. seen={1}, out=[1].', pseudoLine: 3, set: { items: [{ value: 1, highlight: 'new' }] } },
-      { title: '2 → new. seen={1,2}, out=[1,2].', pseudoLine: 3, set: { items: [{ value: 1 }, { value: 2, highlight: 'new' }] } },
-      { title: '2 → hit. Skip.', pseudoLine: 2, set: { items: [{ value: 1 }, { value: 2, highlight: 'hit' }] } },
-      { title: 'Final: out=[1,2,3,4].', pseudoLine: 4,
-        set: { items: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] },
+      { title: 'Start. seen is empty, out = [].', pseudoLine: 0, map: { entries: [] } },
+      { title: '1 is new. Record it and push: out = [1].', pseudoLine: 3,
+        map: { entries: [{ key: 1, value: 'true', highlight: 'new' }] } },
+      { title: '2 is new. Record it and push: out = [1, 2].', pseudoLine: 3,
+        map: { entries: [{ key: 1, value: 'true' }, { key: 2, value: 'true', highlight: 'new' }] } },
+      { title: '2 again. seen.has(2) is true, so skip it.', pseudoLine: 2,
+        map: { entries: [{ key: 1, value: 'true' }, { key: 2, value: 'true', highlight: 'hit' }] },
+        lookupOutcome: { kind: 'hit', key: 2 } },
+      { title: '3 is new, 1 is a repeat, 4 is new. Final: out = [1, 2, 3, 4].', pseudoLine: 4,
+        map: { entries: [{ key: 1, value: 'true' }, { key: 2, value: 'true' }, { key: 3, value: 'true' }, { key: 4, value: 'true' }] },
         result: { found: true, value: '[1, 2, 3, 4]' } },
     ],
-    tradeoffs: '`[...new Set(arr)]` is the one-liner equivalent. The Set version is O(n) average; sort-then-uniq is O(n log n). For tiny arrays, `arr.filter((x, i) => arr.indexOf(x) === i)` is acceptable but is O(n²).',
+    tradeoffs: 'A plain object (ideally Object.create(null), so "toString" is not already a key) works when every value has the same type, but it merges 1 and "1". filter + indexOf is banned here, and it is O(n²) and never finds NaN. Say in the interview that in real code [...new Set(arr)] is the right answer; the ban exists to test that you know what a Set does underneath.',
   },
   {
     id: 'spread-set',
-    name: 'Set Spread (One-Liner)',
+    name: 'Set Spread (Real-Code One-Liner)',
     badge: 'alternative',
     intuition:
-      "The idiomatic JS one-liner: `[...new Set(arr)]`. Construct a Set from the array (Set deduplicates by `===` equality), then spread it back into an array. Insertion order is preserved because Set guarantees iteration order matches insertion.\n\n" +
-      "Two passes total: one to build the Set, one to spread it back. Identical asymptotic complexity to the manual approach but a fraction of the code. The downside: zero opportunity to do anything else during the dedup (counting frequencies, conditional inclusion, etc.) — those need the explicit loop.",
-    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'The one-liner — use in production' },
+      "**Not allowed in this challenge, but worth knowing and worth saying.** [...new Set(arr)] builds a Set from the array (a Set keeps each value once) and spreads it back into an array. Set iteration follows insertion order, so the first occurrence of each value stays in place.\n\n" +
+      "It is the same idea as the Map approach, with the lookup table built into the language. The downside is that you cannot do anything else during the pass, such as counting how often each value appeared; that needs the explicit loop.",
+    complexity: { time: 'O(n)', space: 'O(n)', verdict: 'Use in production, not here' },
     pseudocode: [
       'return [...new Set(arr)]',
     ],
     example: { input: '[1, 2, 2, 3, 1, 4]', output: '[1, 2, 3, 4]' },
     steps: [
-      { title: 'Build Set from [1, 2, 2, 3, 1, 4]. Duplicates ignored. Set: {1, 2, 3, 4}.', pseudoLine: 0,
+      { title: 'Build a Set from [1, 2, 2, 3, 1, 4]. Repeats are ignored: {1, 2, 3, 4}.', pseudoLine: 0,
         set: { items: [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] } },
-      { title: 'Spread to array: [1, 2, 3, 4]. Order preserved because Set iteration is insertion order.', pseudoLine: 0,
+      { title: 'Spread back into an array: [1, 2, 3, 4], in first-seen order.', pseudoLine: 0,
         array: { cells: [1,2,3,4].map(v => ({ value: v, highlight: 'found' as const })) },
         result: { found: true, value: '[1, 2, 3, 4]' } },
     ],
-    tradeoffs: "Beautifully concise. Use unless you need to do something extra during dedup. NaN gotcha: `Set` treats two NaNs as equal (so they dedupe correctly), but `Array.prototype.indexOf` doesn't — that's why `arr.filter((x,i) => arr.indexOf(x) === i)` doesn't dedupe NaNs.",
+    tradeoffs: "Shortest and fastest to write. Set and Map both use SameValueZero equality, so NaN dedupes correctly here too, while indexOf-based versions drop it.",
+  }],
+};
+
+// ====================================================================
+
+const cleanMixedArray: Explanation = {
+  problem: 'Clean Mixed Array',
+  problemStatement: 'Given an array of numbers mixed with characters and other values, return only the numbers, with duplicates removed, sorted ascending.',
+  approaches: [{
+    id: 'filter-set-sort',
+    name: 'Filter → Set → Sort',
+    badge: 'best',
+    intuition:
+      "**Do the three jobs in the order the question states them**, one line each. Filter keeps the numbers, a Set removes the repeats, and sort puts them in order. An interviewer can check each line against the requirement, which is the point: this question grades clean, explainable logic more than cleverness.\n\n" +
+      "**Why Number.isFinite and not typeof.** typeof NaN is \"number\", so a typeof check keeps NaN, and NaN then breaks the sort, because every comparison with NaN is false. Number.isFinite is false for strings, booleans, null, undefined, NaN and Infinity, and it never converts its argument, so the string \"7\" stays out.\n\n" +
+      "**Why the comparator is not optional.** With no comparator, sort compares values as strings, so [10, 9, 1] becomes [1, 10, 9]. Passing (a, b) => a - b sorts by numeric value.",
+    complexity: { time: 'O(n log n)', space: 'O(n)', verdict: 'The answer to give' },
+    pseudocode: [
+      'numbers = arr.filter(Number.isFinite)',
+      'unique = [...new Set(numbers)]',
+      'return unique.sort((a, b) => a - b)',
+    ],
+    example: { input: '[5, "a", 3, 5, "b", 1, 3]', output: '[1, 3, 5]' },
+    steps: [
+      { title: 'Start with the mixed input: numbers and characters together.', pseudoLine: 0,
+        array: { cells: [{ value: 5 }, { value: '"a"' }, { value: 3 }, { value: 5 }, { value: '"b"' }, { value: 1 }, { value: 3 }] } },
+      { title: 'Filter with Number.isFinite. The numbers pass; "a" and "b" are dropped.', pseudoLine: 0,
+        detail: 'filter returns a new array, so the caller\'s array is untouched. That matters two lines later, because sort changes the array it is called on.',
+        array: { cells: [{ value: 5, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 5, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 3, highlight: 'found' }] } },
+      { title: 'Build a Set. The second 5 and the second 3 are already there, so they are skipped.', pseudoLine: 1,
+        set: { items: [{ value: 5 }, { value: 3, highlight: 'hit' }, { value: 1, highlight: 'new' }] } },
+      { title: 'Spread the Set back into an array: [5, 3, 1], in first-seen order.', pseudoLine: 1,
+        array: { cells: [{ value: 5 }, { value: 3 }, { value: 1 }] } },
+      { title: 'Sort with (a, b) => a - b. A negative result puts a first, so values go smallest to largest.', pseudoLine: 2,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 5, highlight: 'found' }] },
+        result: { found: true, value: '[1, 3, 5]' } },
+      { title: 'Why the comparator matters: without it, sort compares values as text.', pseudoLine: 2,
+        computation: { label: '[10, 9, 1].sort()', result: '[1, 10, 9]' },
+        note: '"10" comes before "9" as text, because "1" comes before "9". This is the most common bug in the whole question.' },
+    ],
+    tradeoffs: 'The sort is O(n log n) and dominates; filter and Set are O(n). Sorting after deduping is slightly cheaper than before, because there are fewer values to sort. If the interviewer asks whether "7" counts as a number, that is a variant, not a mistake: convert with Number() only for non-blank strings, because Number("") and Number(" ") are both 0.',
+    usesPolyfills: [
+      { builtin: 'Array.prototype.filter', templateName: 'Array.filter',
+        why: 'Keeps only the values the callback returns true for.' },
+      { builtin: 'Array.prototype.sort', templateName: 'Array.sort',
+        why: 'Sorts in place; with no comparator it compares values as strings.' },
+    ],
+  },
+  {
+    id: 'sort-skip-repeats',
+    name: 'Sort, Then Skip Repeats (No Set)',
+    badge: 'alternative',
+    intuition:
+      "**If the interviewer bans Set**, sort first. Once the numbers are sorted, equal values sit next to each other, so a duplicate is simply a value equal to the one before it. One more filter removes them.\n\n" +
+      "This is worth knowing because the same idea, \"sort so that related items become neighbours\", solves many other problems: merging intervals, finding duplicates in O(1) extra space, grouping.",
+    complexity: { time: 'O(n log n)', space: 'O(n)', verdict: 'Good follow-up answer' },
+    pseudocode: [
+      'sorted = arr.filter(Number.isFinite).sort((a, b) => a - b)',
+      'return sorted.filter((n, i) => i === 0 || n !== sorted[i - 1])',
+    ],
+    example: { input: '[5, "a", 3, 5, "b", 1, 3]', output: '[1, 3, 5]' },
+    steps: [
+      { title: 'Filter and sort first: [1, 3, 3, 5, 5]. The duplicates are now neighbours.', pseudoLine: 0,
+        array: { cells: [{ value: 1 }, { value: 3 }, { value: 3 }, { value: 5 }, { value: 5 }] } },
+      { title: 'i = 0: always keep the first value.', pseudoLine: 1,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 3 }, { value: 3 }, { value: 5 }, { value: 5 }], pointers: [{ index: 0, label: 'i', color: 'indigo' }] } },
+      { title: 'i = 2: 3 equals the value before it, so it is a duplicate. Skip.', pseudoLine: 1,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 3, highlight: 'hit' }, { value: 5 }, { value: 5 }], pointers: [{ index: 2, label: 'i', color: 'red' }] },
+        computation: { label: 'sorted[2] !== sorted[1]', lhs: '3', op: '!==', rhs: '3', result: 'false' } },
+      { title: 'i = 4: 5 equals the 5 before it. Skip. Result: [1, 3, 5].', pseudoLine: 1,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 3, highlight: 'hit' }, { value: 5, highlight: 'found' }, { value: 5, highlight: 'hit' }], pointers: [{ index: 4, label: 'i', color: 'red' }] },
+        result: { found: true, value: '[1, 3, 5]' } },
+    ],
+    tradeoffs: 'Same complexity as the Set version, and no Set. It sorts the duplicates too, so it does a little more sorting work; for interview-sized inputs that is irrelevant. The comparison n !== sorted[i - 1] relies on the array being sorted, so the order of the two steps is the algorithm.',
+  },
+  {
+    id: 'insert-sorted',
+    name: 'No Built-ins: Insert in Sorted Order',
+    badge: 'alternative',
+    intuition:
+      "**When the interviewer bans sort, Set and filter**, keep the result sorted the whole time instead of sorting at the end. For each number, walk the result to the first value that is not smaller, and insert it there by shifting the larger values one place right.\n\n" +
+      "**The dedupe comes free.** Because the result is always sorted, a repeat can only ever land on a copy of itself. If the value at the insert position is equal, it is a duplicate, and you skip it. One structure does both jobs, so there is no seen table.\n\n" +
+      "**Say the cost out loud.** Each insert scans and shifts at most the unique values kept so far, so it is O(n²) in the worst case. That is fine at interview sizes. If they ask about a million values, the answer is merge sort (O(n log n)), or counting sort when the values are small integers.",
+    complexity: { time: 'O(n²) worst case', space: 'O(n)', verdict: 'The answer when built-ins are banned' },
+    pseudocode: [
+      'for x in arr:',
+      '  if x is not a finite number: skip',
+      '  pos = first index where result[pos] >= x',
+      '  if result[pos] === x: skip (duplicate)',
+      '  shift result[pos..] one place right; result[pos] = x',
+      'return result',
+    ],
+    example: { input: '[5, "a", 3, 5, "b", 1, 3]', output: '[1, 3, 5]' },
+    steps: [
+      { title: '5: the result is empty, so insert at position 0.', pseudoLine: 4,
+        array: { cells: [{ value: 5, highlight: 'new' }] } },
+      { title: '"a" is not a number. Skip it.', pseudoLine: 1,
+        array: { cells: [{ value: 5 }] },
+        note: 'The number check is typeof x === "number", plus x === x (false only for NaN) and not Infinity.' },
+      { title: '3: 5 is not smaller than 3, so pos = 0. Shift 5 right and put 3 in front.', pseudoLine: 4,
+        array: { cells: [{ value: 3, highlight: 'new' }, { value: 5 }], pointers: [{ index: 0, label: 'pos', color: 'indigo' }] } },
+      { title: '5 again: walk past 3, stop at 5. result[pos] === 5, so it is a duplicate.', pseudoLine: 3,
+        array: { cells: [{ value: 3 }, { value: 5, highlight: 'hit' }], pointers: [{ index: 1, label: 'pos', color: 'red' }] },
+        lookupOutcome: { kind: 'hit', key: 5, at: 'position 1' } },
+      { title: '1: pos = 0. Shift 3 and 5 right, put 1 in front.', pseudoLine: 4,
+        array: { cells: [{ value: 1, highlight: 'new' }, { value: 3 }, { value: 5 }], pointers: [{ index: 0, label: 'pos', color: 'indigo' }] } },
+      { title: '3 again lands on the existing 3: duplicate. Final result: [1, 3, 5].', pseudoLine: 5,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 5, highlight: 'found' }] },
+        result: { found: true, value: '[1, 3, 5]' } },
+    ],
+    tradeoffs: 'No sort, Set, filter or push, and no seen table. The price is O(n²) worst case against O(n log n) for the built-in version. It is the same idea as insertion sort, with the duplicate check falling out of the position search. Mention that in real code you would use Approach 1.',
   }],
 };
 
@@ -8881,6 +8998,7 @@ export const playgroundExplanations: Record<string, AnyExplanation> = {
   'Group Anagrams': groupAnagrams,
   'Find Duplicates': findDuplicates,
   'Remove Duplicates': removeDuplicates,
+  'Clean Mixed Array': cleanMixedArray,
   'Find Missing Number': findMissingNumber,
   'Find All Missing Numbers': findAllMissingNumbers,
   'First Missing Positive': firstMissingPositive,

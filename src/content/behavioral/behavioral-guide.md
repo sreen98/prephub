@@ -1304,6 +1304,113 @@ These questions are about the behavioral interview process itself — understand
 
 ---
 
+**Q22: How do you handle requirements that change in the middle of a sprint?**
+
+> I start by not treating it as a disaster. A sprint is a planning tool, not a contract, and requirements change because the business learned something. What I won't accept is a change that arrives *silently*, where the scope grows and the date stays the same. So the first thing I do is make the trade visible.
+>
+> I ask three questions before touching code. **Is this a new requirement or a clarification?** Often "the requirement changed" really means the acceptance criteria were vague and someone has now filled them in. That is cheap and it belongs in the current story. **What does it replace?** If something new comes in, something has to go out, and the product owner is the one who picks, not me. "We can do this, and it means the export story moves to next sprint. Is that the trade you want?" **How far along are we?** A change to a story nobody has started costs nothing. A change to one that is half-built and in review can mean throwing away days of work, and that cost is worth saying out loud.
+>
+> In practice, a small change is absorbed and noted in the ticket so the history is honest. A large one gets swapped against something of similar size, agreed with the product owner, and mentioned at stand-up so the team isn't surprised. A change big enough to invalidate the sprint goal is rare, and the honest move is to say so and re-plan rather than pretend the goal still stands.
+>
+> Two things make this easier next time. I push for **thin vertical slices**, so a change hits one small story rather than a big half-finished one. And when the same kind of change keeps coming late, I raise it at the retrospective as a refinement problem rather than a delivery one. A requirement that changes every sprint is usually a question nobody asked before the sprint started.
+
+---
+
+**Q23: What happens if you cannot complete a task within the sprint?**
+
+> The failure an interviewer is listening for is not missing the sprint. It is **finding out on the last day**. Estimates are guesses, and a team that never carries anything over is padding its estimates. What they want to hear is that you noticed early and said so.
+>
+> So the first part of my answer is how I catch it. I compare progress with the estimate as I go, not at the end. If a two-day task is still unclear after the first day, that is the signal: something is harder than we thought, or I'm stuck on something I should have asked about. I raise it at the next stand-up in a form people can act on: "The date picker is taking longer because the library doesn't support our locale format. I think it's three more days, not one. I can finish it, or ship it with the native input this sprint and do the custom one next."
+>
+> Then there are really three options, and the team picks, not just me. **Cut scope**: deliver the part that has value now and split the rest into a new story. That is almost always the best outcome, because a smaller finished thing beats a larger unfinished one. **Get help**: pair with someone who knows that area, which is often faster than struggling alone and spreads the knowledge. **Carry it over**: honestly, with the remaining work re-estimated. It should not quietly roll forward with its original points.
+>
+> What I avoid is working nights to hide it. It makes the next estimate wrong too, because the team now believes the task took two days. And I bring it to the retrospective without making it personal: was the estimate wrong because of something we could have known, like an unfamiliar library, a missing API, or a vague ticket? If so, that is what we fix in refinement.
+
+---
+
+**Q24: How do you prioritise when several tasks are assigned to you at once?**
+
+> First I check whether it is really my call. If the tasks come from one product owner through one backlog, the order is usually already decided, and my job is to follow it and flag conflicts. The hard version is when the requests come from **different people who each think theirs is urgent**. Then the worst thing I can do is quietly pick one and let the others find out later.
+>
+> I sort by two things: **impact** (who is blocked or harmed if this waits, and how badly) and **effort**. Roughly, in order:
+>
+> 1. **Anything broken in production** or blocking a release comes first. It costs something every hour it sits there.
+> 2. **Anything blocking another person.** A thirty-minute review or an API answer that unblocks a teammate beats two days of my own feature work, because it multiplies.
+> 3. **Committed sprint work**, in backlog order.
+> 4. **Quick requests** that take under fifteen minutes. I either do them straight away or batch them, so they don't break up deep work all day.
+> 5. **Nice-to-haves**, which I write down rather than ignore.
+>
+> When two requests genuinely conflict, I don't settle it myself. I make it visible: "I have X for Priya and Y for the payments team, and I can't do both by Friday. Which matters more?" Then I get the person who owns priorities, usually the product owner or my lead, to decide, and I tell both requesters the outcome. That feels slower, but it avoids the far worse situation where two people each believe their task is happening.
+>
+> The last part is being honest about capacity. Saying yes to everything and delivering everything late is the least helpful answer. Giving a realistic date, even when it is not the one someone wanted, is what makes people trust your dates later.
+
+---
+
+**Q25: How do you handle dependencies on other teams?**
+
+> Most cross-team delays are not caused by anyone being slow. They happen because the other team found out about the dependency late, and it was never on their plan. So the most useful thing I do happens **before** anything is blocked: finding dependencies during refinement, not when I reach that line of code.
+>
+> Once I know about one, four habits handle most cases.
+>
+> - **Agree the contract first.** For an API, that means the endpoint, request and response shape, error cases and a rough date, written down (an OpenAPI spec, a shared doc, a ticket in their backlog). A verbal "yeah, we'll add a field" is not a dependency you can plan around.
+> - **Don't wait for them to finish.** Build against the agreed contract with a mock, such as MSW in the browser or a stub server, so the frontend is done and tested before the real API exists. Integration then becomes a short task instead of the whole remaining schedule.
+> - **Have one named person on each side**, and check in early and briefly rather than waiting for a deadline. "Is the `/orders` change still on for the 14th?" a week out is far kinder than "it's not ready?" on the 14th.
+> - **Make the risk visible on my side.** If their date slips, my product owner hears it from me, with the options: ship behind a feature flag, ship without that field, or move the release.
+>
+> When it is genuinely stuck because their team has other priorities, I escalate, but I escalate the *trade-off*, not a complaint: "Our release needs X from team B. They've deprioritised it for Y. Can the two leads decide which matters more?" That is a normal business decision, and making it early is much cheaper than a surprise at the end.
+>
+> One more thing worth mentioning: sometimes the right fix is removing the dependency. If we depend on another team for the same small change every sprint, it may be time to get write access to that repository, or to agree a pattern that lets us make it ourselves.
+
+---
+
+**Q26: Why do you want to join our company?**
+
+> This question fails for one reason more than any other: the answer could be said to *any* company. "You're a big, well-known brand," "I'll learn a lot," and "good work-life balance" say nothing about this employer, and interviewers hear them all day. A strong answer has three parts, and it only works if you did the research.
+>
+> 1. **Something specific about them**: a product, a client area, a technology they have publicly committed to, a recent announcement, or what someone who works there told you. One real detail beats five general compliments.
+> 2. **Something specific about you**: what you have done and what you want to do more of.
+> 3. **The connection between the two**: why this role, here, is the next step for you.
+>
+> For example: "I've spent three years on one product, and I've got good at going deep on a single codebase. What I want now is range: different domains, different kinds of client problems, and delivery at a larger scale. Your digital practice builds frontends for banking and retail clients, and those are the areas I've been reading about. This role would let me take the React depth I have and use it across very different problems."
+>
+> **For an IT services or consulting firm**, which is what this question means at companies like Accenture, the reasons that work are different from a product company's, and it is worth being honest about that:
+>
+> - **Variety**: exposure to several domains, clients and tech stacks in a few years, instead of one.
+> - **Scale and process**: large delivery programmes, mature Agile practices, working with distributed teams and client stakeholders.
+> - **Structured growth**: clear career levels, training and certifications, and the chance to move between projects and practices.
+> - **Client-facing skills**: learning to turn a client's business problem into a technical plan, which is a skill product engineers often don't build early.
+>
+> What to avoid: calling the company a stepping stone, talking only about the salary or the brand, criticising your current employer to explain the move (that is the "why are you leaving" question, §9.1, and should be kept separate), or pretending a services firm is a product company. Interviewers there know what the work is like. Showing that you understand it, and want it, is the answer.
+>
+> Finish by turning it into a question: "What do people who do well in this team have in common?" It shows interest and tells you whether your answer was right.
+
+---
+
+**Q27: How do you mentor junior engineers? What is your approach, and how do you know it worked?**
+
+> The weak answer is a list of kind activities: "I pair with them, I review their code, I'm always available." That describes being helpful, not mentoring. What the interviewer is listening for is a **method**, a way to **hand over independence step by step**, and **evidence** that it worked. If you have a real story, tell it (see Q8 in §5). This answer is the approach behind the story.
+>
+> **1. Start by finding out where they actually are.** In the first week I ask what they have built, what they're uneasy about, and where they want to be in a year. Then I look at one of their PRs. "Junior" covers everyone from a bootcamp graduate to someone strong on algorithms who has never worked in a large codebase, and they need very different things. I agree two or three concrete goals with them, such as "ship a feature end to end without me" or "lead one design review", because a goal you can't observe can't be reached.
+>
+> **2. Hand over ownership in stages.** Roughly: *I do, you watch* (pairing on a real ticket, with me explaining why, not just what). Then *you do, I watch* (they drive, I ask questions rather than give answers). Then *you do, I review* (they own a ticket and I review the PR). Then *you own it* (a small feature from design to release, with me as a safety net, not a gate). The skill is moving them to the next stage slightly **before** they feel ready, and backing off when something goes wrong rather than taking the keyboard.
+>
+> **3. Use code review as the main teaching tool.** I separate "must fix" from "suggestion" so they know what matters. I explain the reason, not just the change: "this re-renders the whole list on every keystroke, because…" instead of "use `memo`". And I often ask a question instead of writing the answer. Over time I review less line by line and more "how would this behave if the API were slow?"
+>
+> **4. Make it safe to be stuck.** I give them a rule: struggle for about thirty minutes, then ask, and bring what you have tried. That stops both failure modes, silently losing a day and asking before thinking. I also tell them about my own mistakes, because a junior who thinks seniors never break production will hide it when they do.
+>
+> **5. Give them visibility, not just tasks.** Let them present their feature in the demo, name them in the release notes, and bring them into a design discussion. Growing as an engineer is partly technical skill and partly being trusted, and the second only comes from being seen.
+>
+> **How I know it worked.** I look at things I can observe, not at how the mentoring felt:
+>
+> - **Time to independence**: how long until they ship a feature without me. Something like "from their first PR in week two to owning a feature end to end by month three" is the kind of claim to make, with your own numbers.
+> - **Review comments falling over time**, and changing from "fix this" to "have you considered".
+> - **They start answering other people's questions** in the team channel. That is the clearest sign.
+> - **A career outcome**: a promotion, a return offer, or leading a piece of work.
+>
+> **What I'd admit went wrong once**, because the interviewer will ask: early on I gave answers too quickly. It felt helpful and it made the person dependent on me. Asking "what have you tried?" first was slower for a week and much faster after that.
+
+---
+
 ## 16. References
 
 ### Books

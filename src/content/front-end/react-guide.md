@@ -5554,6 +5554,146 @@ Press **Switch room** and the console reads `close general` then `connect random
 
 ---
 
+**Q63: What are React Hooks, and what is each one used for?**
+
+Hooks are functions that let a **function component** use React features that used to need a class: state, side effects, context and refs. React stores each hook's data on the component's fiber **by call order**. That is the whole reason for the rules of hooks (Q47): call them at the top level, never inside a condition or loop, so the order is the same on every render.
+
+They were added in React 16.8 to fix three problems with classes. Stateful logic could only be reused through HOCs and render props, which wrapped components in layers. Related code was split across lifecycle methods: a subscription set up in `componentDidMount` was torn down in `componentWillUnmount`. And `this` binding was a constant source of bugs. A custom hook fixes the first, `useEffect` with a cleanup fixes the second, and a function component has no `this` at all.
+
+What each one is for, in one line (the full reference with pitfalls is [§6.2](#62-built-in-hooks-reference)):
+
+| Hook | Reach for it when |
+|---|---|
+| `useState` | A value that changes and should update the UI: an input, a toggle, a counter |
+| `useReducer` | Several related state values, or the next state depends on an action type |
+| `useEffect` | Syncing with something outside React: a subscription, a timer, a non-React widget. **Not** for deriving values ([§7.4](#74-when-not-to-use-useeffect)) |
+| `useLayoutEffect` | You must measure or change the DOM **before** the browser paints, to avoid a flicker |
+| `useContext` | Reading a value from a Provider higher up, without passing props through every level |
+| `useRef` | A mutable value that should **not** trigger a re-render (a timer id, the previous value), or a DOM node |
+| `useImperativeHandle` | Exposing a small API (`focus()`, `reset()`) to a parent's ref instead of the raw DOM node |
+| `useMemo` | An expensive calculation, or an object that must keep the same identity between renders |
+| `useCallback` | A function passed to a `memo` child or used in a dependency array, so it keeps the same identity |
+| `useTransition` | Marking an update as non-urgent so typing stays responsive (filtering a big list) |
+| `useDeferredValue` | The same idea when you receive the value and don't own the setter |
+| `useSyncExternalStore` | Subscribing to a store outside React (Redux, Zustand, `matchMedia`) without tearing |
+| `useId` | Stable, SSR-safe ids for `htmlFor` / `aria-describedby` |
+| `useDebugValue` | A label for a custom hook in React DevTools |
+
+React 19 added the forms and async hooks: `use` (read a promise or context, and it may be called conditionally), `useActionState`, `useFormStatus` and `useOptimistic`, all covered in [§16](#16-react-19-features).
+
+```tsx
+function SearchBox() {
+  const [query, setQuery] = useState('');          // state that drives the UI
+  const inputRef = useRef<HTMLInputElement>(null);  // DOM node, no re-render
+
+  useEffect(() => {                                 // sync with the outside world
+    inputRef.current?.focus();
+  }, []);
+
+  const upper = query.toUpperCase();               // derived during render, not stored
+
+  return (
+    <div>
+      <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)} />
+      <p>{upper || 'Type something'}</p>
+    </div>
+  );
+}
+
+render(<SearchBox />);
+```
+
+**What to volunteer:** the one hook people misuse most is `useEffect`. Most "my component loops" and "my data is stale" bugs are an effect doing a job that belongs in render (a derived value) or in an event handler (a response to a click). And when the same combination of hooks appears in two components, pull it into a **custom hook** ([§6.3](#63-custom-hooks), Q49). That is how hooks deliver the reuse classes never had.
+
+---
+
+**Q64: Memoization was added to improve performance, but the app became slower and used more memory. How is that possible?**
+
+Memoization is a trade: you **pay on every render** (store the previous inputs, compare them, keep the cached result) in exchange for **sometimes skipping work**. It only wins when the skipped work costs more than the checking, and when the cache actually gets hits. Each of the usual failures breaks one of those two conditions.
+
+**1. The memo never hits, so you pay for both.** `React.memo` compares every prop with `Object.is`. One inline object, array or arrow function (`style={{…}}`, `onClick={() => …}`, `items={list.filter(…)}`) is a new reference on every render, so the comparison fails every time. The component renders anyway, *plus* the comparison. `children` counts too: JSX passed as children is a new element on every render, so a memoized component that takes `children` usually re-renders on every parent render.
+
+**2. The dependencies change every render.** `useMemo(() => …, [options])`, where `options` is created during render, recomputes every time. Now it is the original work plus an allocated closure, an allocated dependency array and a comparison.
+
+**3. The work was cheap to begin with.** Wrapping `a + b`, a string format or a small `filter` in `useMemo` costs more than recomputing it. Most renders are fast. The expensive part is usually rendering a big subtree, not calculating a value.
+
+**4. Memory: caches keep things alive.** Each `useMemo` and `memo` keeps its last inputs and output for the life of the component. On a list of 10,000 memoized rows that is 10,000 sets of stored props. A hand-written `memoize` helper is worse, because it caches *every* input it has ever seen and never forgets any:
+
+```js
+function memoize(fn) {
+  const cache = new Map();
+  let hits = 0;
+  const memoized = (key) => {
+    if (cache.has(key)) { hits++; return cache.get(key); }
+    const value = fn(key);
+    cache.set(key, value);
+    return value;
+  };
+  memoized.stats = () => ({ entries: cache.size, hits });
+  return memoized;
+}
+
+const formatTime = memoize(ts => new Date(ts).toISOString());
+
+const base = Date.UTC(2026, 0, 1);
+for (let i = 0; i < 100000; i++) formatTime(base + i);   // every key is new
+
+console.log(formatTime.stats());   // { entries: 100000, hits: 0 }
+```
+
+Every timestamp is unique, so the cache has 100,000 entries and **zero hits**. It is pure memory growth, and every call now also does a `Map` lookup. The same happens with a memoized selector keyed by a new object, or a cache keyed by request params that include a timestamp.
+
+**How to find it.** Use the React DevTools Profiler, recording the same interaction with and without the memo. Turn on "Record why each component rendered" to see which prop changed. That is how you find the one unstable prop defeating a `memo`. For memory, take two heap snapshots around the interaction and look for a growing `Map` or retained props arrays.
+
+**What to do instead.**
+- Remove memoization the Profiler cannot justify.
+- Stabilise props so an existing `memo` actually works. Move state down to where it is used, or pass components as `children` so they aren't re-created.
+- Bound any cache you write (an LRU with a size limit), and never key one on values that are unique per call.
+- Let the React Compiler (Q27) do it. It memoizes at a finer grain than people do by hand, and it doesn't forget a dependency.
+
+**The sentence that answers the question:** memoization is not free. It is a bet that the inputs repeat and that the skipped work is expensive, and when either part is false you pay the checking cost and the memory cost for nothing.
+
+---
+
+**Q65: What are SSR and CSR, and how does each one affect SEO and performance?**
+
+**CSR (client-side rendering):** the server sends an almost empty HTML page and a JavaScript bundle. The browser downloads and runs the JavaScript, the app fetches its data, and only then does content appear. **SSR (server-side rendering):** the server runs the React components for each request and sends HTML that already contains the content. The browser shows it straight away, and then JavaScript **hydrates** it, attaching event handlers so it becomes interactive. Q55 covers the wider family, including SSG and ISR. This answer is about the two consequences interviewers ask about.
+
+**SEO: what does a crawler actually receive?**
+
+| Aspect | CSR | SSR |
+|---|---|---|
+| First HTML response | `<div id="root"></div>` plus script tags | the full content, headings, links and meta tags |
+| Google | can run JavaScript, but the page is **queued for rendering**, which can delay indexing, and anything that fails or times out while rendering is not indexed | indexes the HTML directly |
+| Other search engines | JavaScript support varies and is less reliable | fine |
+| **Link previews** (Slack, LinkedIn, WhatsApp, X, Facebook) | **broken or generic**: these crawlers do not run JavaScript, so they never see per-page `og:title` / `og:image` tags set by the app | correct per page |
+
+The link-preview row is the one people forget, and it is often the real reason a team needs server rendering: a shared product link that shows a blank card costs clicks even if Google indexes the page perfectly. Also, SEO needs more than content in the HTML: a real `<title>` and description per URL, proper links (`<a href>`, not `onClick` navigation), correct status codes (a missing page should return **404**, not a 200 "not found" screen), and a sitemap.
+
+**Performance: which metrics each one helps and hurts.**
+
+| Aspect | CSR | SSR |
+|---|---|---|
+| **TTFB** (time to first byte) | fast: a static file from a CDN | slower: the server renders, and often fetches data, first |
+| **FCP / LCP** (when content appears) | late: download, parse and run the JS, then fetch data, then render | early: the content is in the first response |
+| **Interactivity** (INP, TBT) | the page is interactive once it appears | the page can **look ready before it is**: until hydration finishes, clicks do nothing. Hydrating a big page is heavy main-thread work |
+| Later navigations | fast: only data is fetched, the app is already loaded | fast as well once hydrated, since SSR frameworks navigate on the client too |
+| Server cost | a static CDN, very cheap | a server running on every request, which needs scaling and caching |
+
+So **SSR moves the cost, it does not remove it.** It shows content sooner and makes the server do the work, but the same JavaScript still downloads and runs to hydrate. SSR can therefore give a better LCP and a *worse* INP on a slow phone. Streaming SSR (sending the page in chunks as data arrives) and React Server Components (components that never ship JavaScript to the browser) exist to reduce exactly that hydration cost.
+
+**How to choose:**
+
+- **Public pages that must be found or shared** (marketing, product pages, articles, docs): server-render them, or generate them at build time (SSG) if the content doesn't change per request. SSG gives the SEO of SSR with CDN-speed TTFB.
+- **Pages behind a login** (dashboards, admin tools, settings): CSR is fine. Crawlers can't reach them anyway, and returning users have the app cached.
+- **Most real products mix both**: static or server-rendered public pages, and a client-rendered app behind login. Frameworks like Next.js let you choose per route.
+
+**A real example: this app.** PrepHub is a client-rendered single-page app on GitHub Pages, which has no server. Every URL gets a copy of the same HTML shell, so deep links load without a redirect, but that shell is empty: the guide text only appears after JavaScript runs. That is fine for a study tool people use directly. But it means a crawler or a link-preview bot sees the same page for every guide. Fixing that would take pre-rendering each route to HTML at build time, which is the SSG option above.
+
+**The sentence that answers the question:** CSR is cheap to host and fast after the first load, but ships an empty page to crawlers and shows content late; SSR sends real content immediately, which is better for SEO and LCP, at the cost of server work and a hydration delay before the page responds.
+
+---
+
 ## 18. Tricky Output Questions
 
 Practice questions testing your understanding of React rendering behavior, hooks quirks, state batching, and closures.

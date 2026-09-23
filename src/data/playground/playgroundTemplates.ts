@@ -3248,6 +3248,48 @@ test("All same", removeDuplicates([5, 5, 5, 5]), [5]);
 test("Empty", removeDuplicates([]), []);`,
       },
       {
+        name: 'Clean Mixed Array',
+        patterns: ['Hash Map / Set', 'Sorting'],
+        difficulty: 'Easy',
+        code: `// ===== CHALLENGE: Clean Mixed Array =====
+// You get an array that mixes numbers with characters (and other junk).
+// Return only the numbers, with duplicates removed, sorted ascending.
+//
+// Example: cleanNumbers([5, "a", 3, 5, "b", 1, 3]) → [1, 3, 5]
+// Example: cleanNumbers([10, 9, "x", 1, 100])      → [1, 9, 10, 100]
+//
+// Rules (ask these in the interview before you code):
+// - A "number" means a real number value. The string "7" is a character.
+// - NaN, Infinity, true, null and undefined are not usable numbers.
+// - Sort numerically: 9 comes before 10.
+// - Do not change the input array.
+//
+// Aim for clean, readable steps: filter, then dedupe, then sort.
+
+function cleanNumbers(arr) {
+  // YOUR CODE HERE
+
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+test("Numbers and letters", cleanNumbers([5, "a", 3, 5, "b", 1, 3]), [1, 3, 5]);
+test("Sorts numerically, not as text", cleanNumbers([10, 9, "x", 1, 100]), [1, 9, 10, 100]);
+test("Negatives and decimals", cleanNumbers([-2, "z", 0.5, -2, 3]), [-2, 0.5, 3]);
+test("NaN is not a usable number", cleanNumbers([NaN, 4, "n", NaN, 2]), [2, 4]);
+test("Numeric strings are characters", cleanNumbers(["7", 7, "3"]), [7]);
+test("Booleans, null and undefined", cleanNumbers([true, 2, null, undefined, 1, false]), [1, 2]);
+test("Nothing numeric", cleanNumbers(["a", "b"]), []);
+test("Empty", cleanNumbers([]), []);
+const input = [3, "a", 1, 3];
+cleanNumbers(input);
+test("Does not change the input", input, [3, "a", 1, 3]);`,
+      },
+      {
         name: 'Find Missing Number',
         patterns: ['Math / Bit'],
         difficulty: 'Easy',

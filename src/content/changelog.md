@@ -1,5 +1,46 @@
 # What's New
 
+## v1.7.3 (September 2026)
+
+**Nine additions from another real interview debrief**, this time a Frontend Developer loop at a large IT services firm: a technical round, a managerial round and HR. Of the 25 questions asked, 11 were already covered, and these close the rest.
+
+**Agile and delivery questions, which had no home in the app at all.** The Behavioral guide covered conflict, failure and "why are you leaving", but never once asked about sprints. Four new questions:
+
+- **Behavioral Q22: requirements that change mid-sprint.** Three questions to ask before touching code: is it new or a clarification, what does it replace, and how far along are we. The rule behind all of them: scope can change, but never silently.
+- **Behavioral Q23: not finishing within the sprint.** What the interviewer listens for is not the miss, it's *finding out on the last day*. How to spot it early, and the three honest options: cut scope, get help, or carry it over with a fresh estimate.
+- **Behavioral Q24: prioritising several tasks at once.** A five-step order (production issues, then anything blocking someone else, then sprint work, then quick requests, then nice-to-haves), and why you don't settle a conflict between two requesters yourself.
+- **Behavioral Q25: dependencies on other teams.** Agree the contract first, build against a mock so you aren't waiting, and escalate the *trade-off*, not a complaint.
+
+**Behavioral Q26: "Why do you want to join our company?"** It fails most often because the answer could be said to any company. A three-part structure (something specific about them, something specific about you, how the two connect), plus a section on what actually works for **IT services and consulting firms**, where the honest reasons (variety, scale, structured growth, client-facing skills) are different from a product company's.
+
+**React Q63: what hooks are and what each one is for.** One table with a "reach for it when…" line for every built-in hook, why hooks replaced classes, and why call order is the reason the rules of hooks exist. Links to the full reference in §6.2.
+
+**JavaScript Q28: `map` vs `filter` vs `reduce`.** Choose by the shape of the result: same count changed, fewer unchanged, or one out of many. Includes the three gotchas interviewers love: `['1','2','3'].map(parseInt)` giving `[1, NaN, NaN]`, `filter(Boolean)` quietly dropping `0`, and `reduce` with no initial value throwing on an empty array.
+
+**New coding challenge: Clean Mixed Array.** The exact hands-on task from that interview: take an array of numbers mixed with characters, keep only the numbers, remove duplicates and sort. Easy on paper; the tests catch the three real traps: `typeof NaN` is `"number"`, the string `"7"` isn't a number, and `[10, 9, 1].sort()` gives `[1, 10, 9]` because sort compares text by default. Comes with five solutions and a step-by-step Explain walkthrough. One keeps an explicit "seen" table and sorts at the end, for when `Set` is banned but `sort` isn't. One of them uses **no built-ins at all**: no `sort`, no `Set`, no `filter`. It keeps the result sorted as it goes, so a duplicate always lands on a copy of itself and deduping comes free. Another covers the variant where numeric strings count.
+
+**Six more from a list of senior "explain why it breaks" questions.** Of ten, four were already answered well: out-of-order search responses, the reflow/repaint/compositing pipeline, "works in Postman but not the browser", and token storage. The other six were explained somewhere but never asked the way an interviewer asks them.
+
+- **JavaScript tricky Q17: how can already-resolved Promises freeze the UI?** "Asynchronous" means *later*, not *on another thread*. The microtask queue drains completely before the browser can paint or handle a click, so a chain of small `.then` steps blocks the page as surely as one long function. A runnable demo holds a 0 ms timer for 200 ms, and a second shows the fix: yield to the task queue.
+- **JavaScript Q29: stale closures vs closures that hold memory.** Same mechanism, opposite symptoms. One is attached to an *old* variable and shows the wrong value; the other is still reachable and keeps the right value alive for too long. Includes a comparison table and the fixes for each.
+- **JavaScript Q30: why an async error escapes `try/catch`.** The `try` block's stack frame is gone by the time the callback runs. Covers the four places to handle it, in order of preference, and why forgetting one `await` is the usual cause.
+- **JavaScript Q9, rewritten: the spread copy that changed the original.** Exactly where the shared reference survives (every nested object), why it becomes a React bug where nothing re-renders, and why the fix is copying the path you change, not a deep copy.
+- **JavaScript Q7, rewritten: the full prototype lookup.** Own property, then the chain, then `null`; getters running with the original object as `this`; why a write creates a new property instead of changing the prototype; `in` vs `Object.hasOwn`; and objects with no chain at all.
+- **React Q64: memoization that made the app slower.** Memoization is a bet that inputs repeat and the skipped work is expensive. The four ways that bet loses, including a demo cache with 100,000 entries and zero hits, and how to prove it with the Profiler.
+
+Every output shown in these answers was run, and is now checked on every build.
+
+**Fixed: playground buttons overlapping on laptop screens.** When the toolbar was too wide for one row, the "solved" counter slid underneath the Templates button. The toolbar now moves to its own row when space runs out, and the editor's small Auto-close / Wrap / Format buttons no longer break their labels across two lines.
+
+**Fixed: the Remove Duplicates solution broke its own rule.** The challenge says not to use `Set`, and the solution marked best used a `Set`. It now uses a `Map` as the "seen" table, with a note on why a `Map` and not a plain object: object keys are always strings, so `1` and `"1"` would be treated as the same value. The `Set` one-liner is still shown, labelled as what you'd write in real code, and the Explain walkthrough was updated to match.
+
+**Four more interview questions.**
+
+- **Redux Toolkit Q18: what `configureStore` is for.** What one call replaces, the development-only checks for mutated state and non-serializable values (and why they cost users nothing), and the classic mistake: passing your own middleware list silently removes thunk and both checks. Checked against the official Redux Toolkit docs.
+- **Behavioral Q27: how you mentor junior engineers.** A method rather than a list of kind things: find out where they are, hand over ownership in stages, use code review to teach, make it safe to be stuck. Plus how to show it worked, with outcomes you can observe, like time to independence and review comments that fall over time.
+- **Frontend Architecture Q18: designing a reusable component library.** Tokens, primitives, components and patterns as layers; an API built on composition rather than ever more props; accessibility and theming built in; packaging so apps only pay for what they use; and the part that decides whether it survives: versioning, deprecations and codemods, so teams can actually upgrade.
+- **React Q65: SSR vs CSR, and what each does to SEO and performance.** What a crawler actually receives, why link previews in Slack or LinkedIn break on client-rendered pages, which speed metrics each approach helps and hurts, and why server rendering moves the cost rather than removing it.
+
 ## v1.7.2 (September 2026)
 
 **Four questions added from a real interview debrief.** Someone sent through the list of what they were actually asked; 14 of the 18 topics were already covered, and these four were genuine blanks.
