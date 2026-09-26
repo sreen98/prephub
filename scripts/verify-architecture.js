@@ -739,6 +739,25 @@ check('no answer content is orphaned after a `---`', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 19. No source file may be gitignored
+// ---------------------------------------------------------------------------
+// `*Resume*` (meant for a personal PDF) matched ResumeBanner.tsx, so the file
+// existed locally, every local gate passed, and CI — which checks out only what
+// git tracks — failed on "Cannot find module './ResumeBanner'".
+check('no file under src/ is gitignored', () => {
+  const ignored = execSync(
+    'git ls-files --others --ignored --exclude-standard src scripts',
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+  ).split('\n').filter((f) => f && !f.startsWith('src/generated/') && !f.endsWith('.DS_Store'));
+  assert(
+    ignored.length === 0,
+    `these files are ignored by .gitignore, so CI will never see them: ${ignored.join(', ')}. `
+      + 'Add a `!path` exception after the pattern that matches them.',
+  );
+  return 'every source file is trackable';
+});
+
+// ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 const pad = Math.max(...checks.map((c) => c.name.length));

@@ -76,7 +76,9 @@ The numbering is referenced from code comments, so keep it stable.
    type-aware linting and `exhaustive-deps: error` stay on, the pre-push hook keeps every gate,
    the content glob is never `eager`, vendor chunks keep the `vendor-*` prefix, the app entry
    stays `app-*`, `injectRegister` stays `null`, and `prepare-content.js` never overwrites the
-   Introduction. **Probe every new guard by reintroducing the bug it guards.** Several guards
+   Introduction, and that no file under `src/`/`scripts/` is gitignored (check #19; the
+   personal-document patterns `*resume*`/`*Resume*` once hid `ResumeBanner.tsx` from CI).
+   **Probe every new guard by reintroducing the bug it guards.** Several guards
    here passed green while being unable to fail.
 9. **Tests are the gate for anything `tsc` cannot see.** `import.meta.glob` only resolves
    under Vite, so data-layer tests run in Vitest. Write a test for anything in `src/lib/`,

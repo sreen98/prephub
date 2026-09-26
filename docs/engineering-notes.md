@@ -2644,3 +2644,13 @@ it means cleaning all 97 in one sweep to keep the gate green.
 - **Git Workflows cheat sheet** — Interactive rebase, cherry-pick, bisect, reflog, Git Flow, GitHub Flow
 - **Mermaid rendering fixes** — `suppressErrorRendering`, off-screen container ref, DOM cleanup for orphaned elements
 - **"Try it" opens in new tab** — Code playground button uses `window.open()` instead of `navigate()` to preserve reading context
+
+## A source file was gitignored, so CI failed while every local gate passed
+Deploy of `97a643d` (v1.7.4) failed with `Cannot find module './ResumeBanner'`. The
+`.gitignore` patterns `*resume*` / `*Resume*`, added to keep a personal résumé PDF out of
+the repo, also matched `src/features/playground/ResumeBanner.tsx`. The file existed on
+disk, so typecheck, tests and the pre-push hook all passed; CI checks out only tracked
+files. Fixed with a `!src/features/playground/ResumeBanner.tsx` exception, and
+**verify:arch #19** now fails if `git ls-files --others --ignored` finds anything under
+`src/` or `scripts/` (bar `src/generated/` and `.DS_Store`). Probe-tested by removing
+the exception.
