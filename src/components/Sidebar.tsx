@@ -5,7 +5,7 @@ import {
   X, Sun, Moon, ChevronDown, BookOpen, Search, Sparkles, Type, Flame,
   GraduationCap, Bookmark, Flag, ScrollText, Lock, PanelLeftClose, FileText,
   CheckCircle, Circle, Zap, Terminal, List, Braces, Server, Layers, Monitor,
-  RotateCcw, Database,
+  RotateCcw, Database, Atom,
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcon';
 import { menuStructure, cheatSheets } from '../data';
@@ -45,6 +45,7 @@ const ACCENTS: Record<string, string> = {
   emerald: 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 shadow-sm',
   indigo: 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 shadow-sm',
   violet: 'bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 shadow-sm',
+  sky: 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400 shadow-sm',
 };
 
 interface ToolCounts { dueCount: number; bookmarksCount: number; checkpointsCount: number; hasUnreadChangelog: boolean }
@@ -68,7 +69,8 @@ const TOOLS: {
   { to: '/review', Icon: RotateCcw, label: 'Daily Review', accent: 'emerald',
     badge: (c) => countBadge(c.dueCount, 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold') },
   { to: '/interview', Icon: GraduationCap, label: 'Interview Sim', accent: 'indigo' },
-  { to: '/playground', Icon: Terminal, label: 'Code Playground', accent: 'emerald' },
+  { to: '/playground', Icon: Terminal, label: 'JavaScript Playground', accent: 'emerald' },
+  { to: '/playground/react', Icon: Atom, label: 'React Playground', accent: 'sky' },
   { to: '/query-playground', Icon: Database, label: 'Query Playground', accent: 'indigo' },
   { to: '/bookmarks', Icon: Bookmark, label: 'Bookmarks', accent: 'amber',
     badge: (c) => countBadge(c.bookmarksCount) },

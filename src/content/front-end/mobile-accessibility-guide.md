@@ -2,7 +2,7 @@
 
 Mobile accessibility is not "web accessibility on a small screen". The assistive technologies are different (**VoiceOver** and **TalkBack**, not desktop screen readers), the interaction model is gestural rather than keyboard-driven, and the platform APIs are native.
 
-This guide covers the platform behaviour and the React Native API surface. For web a11y — WCAG in depth, ARIA, focus management — see the [Accessibility guide](/frontend/accessibility); for React Native generally, the [React Native guide](/frontend/react-native).
+This guide covers the platform behaviour and the React Native API surface. For web a11y (short for accessibility) — WCAG in depth, ARIA, focus management — see the [Accessibility guide](/frontend/accessibility); for React Native generally, the [React Native guide](/frontend/react-native).
 
 ## Table of Contents
 
@@ -227,7 +227,7 @@ Use this to lengthen auto-dismiss timeouts or disable carousels — not to serve
 
 ## 8. Touch Targets and Motor Accessibility
 
-**Minimum target sizes** — the numbers to quote:
+**Minimum target sizes** — the numbers to quote. ("SC" throughout this guide means *success criterion*: one numbered, testable rule in WCAG, the Web Content Accessibility Guidelines.)
 
 | Standard | Minimum |
 |---|---|
@@ -325,7 +325,7 @@ const style = useAnimatedStyle(() => reduceMotion
 
 Reduce Motion means **replace movement with a cross-fade**, not remove all feedback — the user still needs to know something changed. The offenders are large parallax, zoom transitions, spinning loaders and auto-playing carousels.
 
-Also honour **Reduce Transparency** (iOS blur effects) and **prefers-crossfade-transitions**, and never auto-play video with sound. React Navigation's `animation: 'none'` or a fade preset is the simple screen-transition answer.
+Also honour **Reduce Transparency** (iOS blur effects) and iOS's **Prefer Cross-Fade Transitions** setting, and never auto-play video with sound. React Navigation's `animation: 'none'` or a fade preset is the simple screen-transition answer.
 
 ---
 
@@ -365,15 +365,15 @@ For screen transitions, React Navigation announces the new screen on both platfo
 ## 13. Forms and Errors
 
 ```jsx
-function Example() {
+function Example({ error }) {
   return (
     <>
       <Text nativeID="emailLabel">Email address</Text>
       <TextInput
         accessibilityLabel="Email address"
         accessibilityLabelledBy="emailLabel"        // Android
-        accessibilityHint="We'll send your confirmation here"
-        accessibilityState={{ invalid: !!error }}
+        // accessibilityState has no "invalid" key, so the error travels as text
+        accessibilityHint={error ? `Error: ${error}` : "We'll send your confirmation here"}
         keyboardType="email-address"
         autoComplete="email"                        // enables autofill + password managers
         textContentType="emailAddress"              // iOS autofill
@@ -388,7 +388,7 @@ function Example() {
 }
 ```
 
-Points that matter on mobile specifically: a `TextInput` **placeholder is not a label** — it disappears on focus and some readers ignore it; **`autoComplete`/`textContentType` are accessibility features**, because autofill removes typing for people for whom typing is expensive; the right **`keyboardType`** reduces effort; and errors must be announced, not only coloured. On submit, move focus to the **first invalid field** and announce a summary.
+Points that matter on mobile specifically: a `TextInput` **placeholder is not a label** — it disappears on focus and some readers ignore it; **`autoComplete`/`textContentType` are accessibility features**, because autofill removes typing for people for whom typing is expensive; the right **`keyboardType`** reduces effort; and errors must be announced, not only coloured. React Native's `accessibilityState` has no `invalid` key (its keys are `disabled`, `selected`, `checked`, `busy` and `expanded`), so the error has to reach the reader as words: in the field's hint or label, and through the `alert` text that is announced when it appears. On submit, move focus to the **first invalid field** and announce a summary.
 
 ---
 
@@ -397,6 +397,10 @@ Points that matter on mobile specifically: a `TextInput` **placeholder is not a 
 **Images.** Every meaningful image needs a label; decorative ones must be hidden, not labelled with empty text:
 
 ```jsx
+import { Image } from 'react-native';
+import logo from './assets/logo.png';
+import divider from './assets/divider.png';
+
 function Example() {
   return (
     <>
@@ -478,7 +482,7 @@ The manual pass that actually finds bugs, on a **real device**:
 4. Navigate with an external keyboard or Switch Control.
 5. Check contrast on the actual device outdoors, not just in a design tool.
 
-`accessibilityLabel` in RN maps to `testID`-adjacent automation on both platforms, so keep `testID` for automation and labels for users — overloading one for both produces announcements like "job-card-3".
+Because some automation tools can find elements by their accessibility label, it is tempting to use one string for both jobs. Don't: keep `testID` for automation and labels for users — a label written for a test script produces announcements like "job-card-3".
 
 ---
 
@@ -558,7 +562,7 @@ In layers, being honest that **automated tooling catches only about 30–40%**. 
 
 **Q5: You honour Reduce Motion by removing all animations, and now users complain they can't tell when a screen has changed. What's the right interpretation?**
 
-**Reduce Motion means replace movement with a non-vestibular transition, not eliminate feedback.** The setting exists because large-scale movement — parallax, zoom, sliding full screens — can trigger nausea, dizziness and migraine in people with vestibular disorders. It does not mean the interface should change instantly and silently, which removes the change cue everyone relies on and disproportionately affects users with cognitive disabilities. The correct substitution is a **cross-fade or opacity change** with no translation or scaling, which conveys "something changed" without motion; Apple's own guidance and the `prefers-crossfade-transitions` setting point the same way. So `useAnimatedStyle` should swap a `translateY` spring for a `withTiming` opacity fade, and React Navigation should use a fade preset rather than `animation: 'none'`. Pair it with a screen-reader announcement or focus move so the change is conveyed non-visually too.
+**Reduce Motion means replace movement with a non-vestibular transition, not eliminate feedback.** The setting exists because large-scale movement — parallax, zoom, sliding full screens — can trigger nausea, dizziness and migraine in people with vestibular disorders. It does not mean the interface should change instantly and silently, which removes the change cue everyone relies on and disproportionately affects users with cognitive disabilities. The correct substitution is a **cross-fade or opacity change** with no translation or scaling, which conveys "something changed" without motion; Apple's own guidance and iOS's Prefer Cross-Fade Transitions setting point the same way. So `useAnimatedStyle` should swap a `translateY` spring for a `withTiming` opacity fade, and React Navigation should use a fade preset rather than `animation: 'none'`. Pair it with a screen-reader announcement or focus move so the change is conveyed non-visually too.
 
 ---
 

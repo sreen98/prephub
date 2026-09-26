@@ -336,7 +336,7 @@ the right shape anyway, since neither body carries the other's branches.
 - All question extraction happens via `extractQuestions()` which parses two markdown patterns:
   1. **JS output-style** (`## QN` + ` ```…``` ` + `### ✅ Output` + `### 💡 Explanation`) — used only by the JavaScript guide.
   2. **Standard** (`**QN: text**` followed by an answer block, terminated by the next `**Q{N+1}:` marker **or a standalone `---` line**). Everything between the marker and that terminator becomes the Quiz-mode answer — so the explanation for a question must live BEFORE the `---` separator, not after it.
-- "Tricky Output Questions" sections live in **53 guides — 393 questions total**: React 26, TypeScript 19, JavaScript 17, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5, Generative AI 6, RAG 6, Agentic AI 6, MCP 6, LangChain & LangGraph 6, AI-Augmented Development 6. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
+- "Tricky Output Questions" sections live in **53 guides — 441 questions total**: React 26, TypeScript 31, JavaScript 53, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5, Generative AI 6, RAG 6, Agentic AI 6, MCP 6, LangChain & LangGraph 6, AI-Augmented Development 6. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
 - **Question ids must be unique — `dedupeIds()` in `data.ts` enforces it.** Ids are `` `${guideName}-q${N}` `` taken from the `**QN:**` marker, but most guides hold **two independent Q sequences** (the interview section and "Tricky Output Questions", each restarting at Q1), so that number is not unique within a file. **344 of 1,298 questions collided.** Ids are the localStorage keys for spaced-repetition state, so a collision made two different questions share one SM-2 record — reviewing one rescheduled the other, and both appeared in the same review queue. `dedupeIds()` runs at both `extractQuestions` return points and suffixes only the **second and later** occurrences (`-2`, `-3`), so first occurrences keep their original id and existing review history stays attached. Don't "simplify" this by renumbering all of them; that would silently reset every user's progress.
 - **`npm run verify:counts` guards every number stated in prose.** `scripts/verify-counts.js` derives the ground truth from `data.ts`, `playgroundTemplates.ts` and `playgroundSolutions.ts`, then asserts that README.md, CLAUDE.md and `src/content/README.md` (the app's Introduction page) literally contain the right figures — and checks that `playgroundSolutionKeys.ts` is in sync with `playgroundSolutions.ts`. **Run it after any content change**; it exits non-zero on drift, and the deploy workflow runs it before the build, so drift blocks the deploy rather than shipping a wrong number. Note the UI itself is safe — every on-screen count is derived (`allGuides.length`, `cat.templates.length`, `solvedCount / totalJsChallenges`), so only the prose can go stale. To register a new claim, add a line to the `claims` array in that script.
 - **Re-count rather than trust these numbers when editing.** The README/CLAUDE counts drifted before (they said "143 across 12 guides" while 8 more guides already had tricky sections). To recount guide items, count `{ name: '` occurrences inside each category's `items: [ … ]` array in `data.ts` — `grep -c "file: './content/" src/data.ts` over-counts because it includes cheat sheets and the Introduction entry.
@@ -435,7 +435,7 @@ Then still check by hand what a test cannot see:
 (The original audit write-up lived in a Claude artifact that no longer exists — don't go looking for it. The findings and their outcomes are recorded in full below, and the enforcement lives in `eslint.config.js` + `scripts/verify-architecture.js`.)
 **All seven findings are fixed.** "Enforced code rules" above is now the operative document — it describes the state of the repo, not a plan. Outcomes at the time of the audit: ESLint covers every `src` file type-aware (121 violations found and fixed on the first real run); a real test suite where there had been none; eager payload 898 → 525 KB; playground chunk 428 → 95 KB; `App.tsx` 1,608 → 833 lines; `ContentPage` extracted, split and now **under the standard 400-line limit with no ratchet exemption**; `CodePlayground` 1,988 → 1,253 with its internals in tested `lib/` modules; feature folders in place with every layering edge probe-tested.
 
-**`LEGACY_LARGE_FILES` in `eslint.config.js` is down to a single entry** — `CodePlayground.tsx` (920, lowered from 1,010 as `useTemplateCatalog` and then `playgroundScope` came out). Everything else now passes the standard 400-line / 300-function / complexity-20 limits with no exemption: `App.tsx` (456 lines, after `Sidebar` and `SearchModal` came out), `ContentPage`, `ExplanationModal`, `QuizMode` and `data.ts`. **The ceiling may shrink, never grow.** The remaining job is `CodePlayground`'s 1,300-line render — the template modal is the obvious next extraction.
+**`LEGACY_LARGE_FILES` in `eslint.config.js` is down to a single entry** — `CodePlayground.tsx` (**780**, lowered from 1,010 as `useTemplateCatalog`, `playgroundScope`, the toolbar/banner/notes extraction, `resolveInitialPlaygroundState` and then `usePreviewMount` came out). Everything else now passes the standard 400-line / 300-function / complexity-20 limits with no exemption: `App.tsx` (456 lines, after `Sidebar` and `SearchModal` came out), `ContentPage`, `ExplanationModal`, `QuizMode` and `data.ts`. **The ceiling may shrink, never grow.** The remaining job is `CodePlayground`'s 1,300-line render — the template modal is the obvious next extraction.
 
 **Three refactors produced real fixes rather than just smaller files**, which is the pattern to repeat:
 - `useTemplateFilters` — a reducer where changing tag or mode clears `pattern`/`difficulty` **as part of the transition**, so the "No templates found" bug is no longer expressible.
@@ -568,7 +568,7 @@ Two things worth writing down from the rewrite:
 
 - **`use()`'s exemption from the rules of hooks is explainable, not arbitrary.**
   The rules exist because `useState` is matched to its stored state *by call
-  order*, so a conditional hook shifts every later slot (§15.9). `use` reserves
+  order*, so a conditional hook shifts every later slot (Q47). `use` reserves
   no slot — a promise identifies itself, a context is read off the fiber — so
   there is no ordering to corrupt. Explaining that is far more useful than
   saying "it can be called conditionally".
@@ -1015,7 +1015,7 @@ would have made both numbers meaningless.
   anything ever clicked as finished — and a renamed or deleted template would let
   the chip read higher than its own denominator. `ChallengeProgress.test.tsx`
   pins that, and both halves of the fix are probe-tested.
-- `CodePlayground.tsx` is on a 920-line ratchet that may shrink and never grow, so
+- `CodePlayground.tsx` is on a line ratchet (now 780) that may shrink and never grow, so
   the new prop had to go on one line at the call site. Watch for that when adding
   anything to that file.
 
@@ -1188,6 +1188,553 @@ performance; Q55 mentions SEO once and never covers crawlers or link previews).
 
 Totals after: Redux Toolkit **18**, Behavioral **27**, Frontend Architecture
 **18**, React **65**.
+
+## React Q74–Q82 — the everyday "why does this happen" set
+Open-ended request ("add more React questions"), so the method was: list all 73
+question texts, grep the whole corpus per candidate topic, and pick topics with a
+reference SECTION but no QUESTION (Portals §15.7, StrictMode §15.9, forms §16.2–3)
+or with no coverage at all. Added under `### Rendering, Patterns and Everyday
+Pitfalls`: StrictMode double effects, batching + `flushSync`, portal event
+bubbling, `&&` rendering `0`, forms (controlled vs RHF vs actions), TypeScript
+with React, reusable-component patterns, stale closures, the
+component-defined-inside-a-component remount. **Skipped as already covered:** XSS in
+React (Web Security tricky Q1), lazy `useState` init (tricky Q16).
+- **The playground scope has `createPortal` and `flushSync` as bare names but NO
+  `ReactDOM`.** The first Q75 draft called `ReactDOM.flushSync` — valid in a real
+  app, a ReferenceError on Try it. Blocks show the real `react-dom` import as a
+  comment and call the bare name.
+- **The playground runs React's PRODUCTION build**, so StrictMode's double
+  invocation never shows there. Q74 says so explicitly; the test (dev build) pins
+  the three-line dev output instead.
+- TypeScript claims in Q79 were compiled against the repo's `@types/react` 19.2
+  (a temp file inside the repo, deleted after — a scratchpad file cannot resolve
+  `react`). Confirmed: generic inference catches `u.nme`, a variant union rejects
+  `"danger"`, `React.FC` no longer adds `children`.
+- React 19's reset of uncontrolled fields after a successful action is pinned in
+  `reactApiScenarioDemos.test.tsx` via `form.requestSubmit()` in jsdom; all nine
+  demos are pinned and two were probe-tested.
+
+Totals after: React interview **82**.
+
+## Fourteenth audit — 37 "real-time" React questions, 23 covered
+Same method: every `**Qn:**` in the corpus plus every template name, regex per
+candidate, then read the borderline answers. **Covered and left alone:**
+enterprise design + folder structure (FE-Arch Q14), useMemo/useCallback (Q7),
+useEffect vs useLayoutEffect (Q10), retries/timeouts (FE-Arch Q12), JWT storage +
+RBAC (FE-Arch Q4, Web Security Q3, Protected Route template), protected routes
+(Router Q7), debounce (Q54 + template), pagination (Data Table template),
+dependent/independent calls (Web Perf Q11), Context vs Redux (Redux Q10), duplicate
+submits (Rate-Limited Button), 100k list (FSD Q3), VDOM/reconciliation (Q1, Q8),
+slow page (Q25 + Web Perf), 50 renders (Q26, Q61).
+- **Rewritten in place, ids unchanged:** React Q2 (+context), React Q11 (thin list
+  → ordered fixes + a runnable children-as-props demo; this also answers "parent
+  changes frequently"), Redux Q1 (the problem Redux solves).
+- **Added:** React **Q66–Q73** under `### Real-World API & Data Scenarios` (memo,
+  sharing data, four API states, 10-second API, navigate away, 401 single-flight
+  refresh, React ↔ Spring Boot, CSV/PDF download); Redux **Q19** (the flow, with a
+  15-line store). Templates **Shopping Cart (reducer + derived totals)** and **File
+  Upload (progress + cancel)** — React Machine Coding 44 → **46**, templates 204 →
+  **206**, challenges 143 → **145**, explanations 193 → **195**.
+- **Spring facts were web-verified (Sept 2026), and one would have been wrong from
+  memory:** Boot's default error body is `{timestamp, status, error, path}` —
+  `message` is omitted since Boot 2.3 unless `server.error.include-message` is set —
+  so the client must not depend on it. Also verified: Spring Data `Pageable` is
+  0-based, 3.3+ warns on serialising `PageImpl` and `VIA_DTO` gives
+  `{content, page: {size, number, totalElements, totalPages}}`; ProblemDetail is
+  RFC 9457 `{type, title, status, detail, instance}`; multipart defaults are 1 MB
+  per file / 10 MB per request.
+- **`reactApiScenarioDemos.test.tsx` pins every new runnable block**, JSX ones
+  mounted in jsdom with fake timers. Advancing time needs **small steps, each in
+  its own `act`** — one big `advanceTimersByTimeAsync` runs only the first timer,
+  because React commits and schedules the next effect between them. Probe-tested
+  (single-flight refresh removed; `filename*` preference removed).
+- Test files are under the storage rule too: use `safeSet`/`safeRemove`, not
+  `localStorage.*`.
+
+Totals after: React interview **73**, Redux Toolkit **19**.
+
+## Thirteenth audit — 9 React machine-coding questions, 5 new templates, 4 rebuilt
+Matched against template NAMES and question text first. Accordion was covered in
+prose (FE-Arch Q9, a11y Q2) but its template had no ARIA or animation; Toast, Tabs
+and Chat templates existed but were shallow (no global store/queue, no keyboard
+or animation, no message status/typing); comments, sidebar, data table, like
+button and button rate-limiting had nothing. **Rebuilt in place, names unchanged**
+(Toast / Snackbar, Tabs, Accordion, Chat App) so saved progress keys survive —
+`baseHash` hands a pristine draft the new code. **New:** Nested Comments
+(recursive replies), Sidebar Navigation (responsive + submenus), Data Table
+(sort + filter + paginate), Like Button (optimistic + rollback), Rate-Limited
+Button (throttle vs lock). React Machine Coding 39 → **44**, templates 199 →
+**204**, challenges 138 → **143**, explanations 188 → **193**.
+
+- **`machineCodingBehaviour.test.tsx` is new and is the gate that matters here.**
+  `reactTemplates.test.tsx` only proves a template mounts; this one drives each
+  TASK line with real events and fake timers (queue beyond three, hover pause,
+  two-renders-per-reply, drawer Escape, arrow keys, aria-sort cycle, page reset,
+  like coalescing, same-tick lock, chat ack/retry, single-open). Probe-tested by
+  breaking the ref lock, the toast slice and the single-open `clear()`.
+- **Two ideas recur across these and are worth reusing:** an external store read
+  with `useSyncExternalStore` (toast queue callable outside React; per-comment
+  subscriptions so a reply re-renders two nodes), and `grid-template-rows: 0fr →
+  1fr` plus `visibility: hidden` for height animation that also removes closed
+  content from the Tab order.
+- **The same-tick double click is the test that matters for the lock.** A guard on
+  `busy` state passes every manual test; only two `click()` calls inside one
+  `act` expose it.
+- The first behaviour-test draft expected a second burst of like-clicks to send 0
+  requests. The design sends the first click immediately and one catch-up, so 2 —
+  the test was wrong, not the template. Read the template's own claim before
+  asserting.
+- A backtick in a comment (`` `ms` ``) was caught by the splice script's guard
+  before anything was written — keep that guard in any script that embeds code
+  into `playgroundTemplates.ts`.
+
+## Playground: Templates vs Challenges split, study tracks, problem panel
+- **Two entry points** in the header (`PlaygroundActions.tsx`): Templates opens
+  `TemplateModal` (its Challenges tab is hidden; the mode still exists internally,
+  and `TemplateModal.test.tsx` renders it directly), Challenges opens the new
+  `ChallengeBrowser`. The old bug: `openDrawer` resets the filter reducer to
+  `INITIAL` (mode `templates`), so the picker always opened on Templates even
+  mid-challenge.
+- **`src/data/playground/challengeTracks.ts`**: JS tracks are DERIVED from each
+  challenge's `patterns` (one per pattern, Easy→Hard, stable), plus an
+  "Array & String Walks" track for pattern-less challenges (5 had none). React
+  tracks are 7 hand-listed themes. `challengeTracks.test.ts` requires every JS
+  challenge in ≥1 track and every React challenge in exactly one.
+- **Problem statements**: `challengeProblems.ts` (227 KB source, ~62 KB gz, its own
+  lazy chunk via `challengeProblemIndex.ts`; read with `useChallengeProblems`,
+  a `useSyncExternalStore` hook, so no setState-in-effect). Written by a workflow
+  (14 batches + reviewers). **Every JS example carries a hidden `run` snippet;
+  `challengeProblems.test.ts` runs the reference solution then the snippet in a
+  `vm` context and requires the printed text to equal `output`** (290 examples).
+  The snippet gets its own captured console as a PARAMETER: capturing via a flag
+  also caught the solution's own delayed ✅ logs (the Debounce solution's timers).
+  Adding a challenge now also needs a `challengeProblems` entry, or that test fails.
+- **Found by the statement work:** the Merge Sorted Arrays solution defined
+  `merge(a, b)` while the challenge asks for `mergeSorted(arr1, arr2)`. Renamed.
+- **`CodePlayground.tsx` 920 → 805 counted lines, ratchet lowered to 805.** The
+  toolbar, resume banner and notes panel moved to `PlaygroundActions`,
+  `ResumeBanner` and `NotesPanel`. The `varsIgnorePattern` gap meant 12 unused
+  lucide imports (and `AnimatePresence`) were sitting there unreported; removed.
+- `ChallengeBrowser` is remounted per open (`key` on `browserOpen`) so it opens on
+  the current challenge's tab and active track; `useChallengeTrack` derives the
+  active track during render (active only while the open challenge is in it).
+- JS guide: interview **Q40** (why closures) and tricky **Q52–Q53** (shared counter
+  across timer/promise/await, from a real interview). Tricky 439 → **441**.
+
+## Two playgrounds: `/playground` (JavaScript) and `/playground/react`
+One component, two routes. `src/lib/playgroundFlavor.ts` holds `FLAVORS`
+(`path`, `tag`, `title`, `lastSessionKey`, `starters`) and
+`resolveInitialPlaygroundState(flavor)` (the handoff → last-session → first-
+template IIFE that used to live inline in CodePlayground, now tested in plain
+Node). **Only the catalogue is split:** each flavor locks the template filter
+(`useTemplateFilters(lockedTag)`; `reset` carries the tag so `openDrawer` keeps
+it), the Challenges browser (`lockedTag`, no JS/React switch) and the blank
+starters; the runner is untouched, so JSX pasted into the JS playground still runs.
+- **The routes need `key="js"`/`key="react"` in App.tsx.** Both render
+  `CodePlayground` at the same tree position, so without a key React Router's
+  switch between them is an UPDATE, not a remount: every `useState` initialiser
+  (initial template, filters, last session) would keep the other flavor's value.
+- **Resume is per flavor:** `playground-last-session` stays the JS key (existing
+  users keep their resume point) and `playground-last-session-react` is new.
+  `lastSessionFor('react')` falls back to the old key when it names a React
+  template, which is how pre-split React users keep theirs. Drafts and solved state
+  stay in the one shared `playground-progress` map, since a template belongs to one
+  flavor anyway. Both keys are pinned in `storageKeys.test.ts`.
+- **Counts are per playground.** TemplateModal's header and tab counts and the
+  ChallengeBrowser total follow the locked tag; the "N of 145" test became "of 46".
+- `PreBlock` opens `playground/react` when the snippet is JSX (its own `hasJSX` /
+  `hasRender`), NOT via `playgroundFlavor` — importing that module would pull the
+  playground index into the ContentPage chunk.
+- The collapsed-sidebar expand button is hidden on both routes
+  (`startsWith('/playground')`, which does not match `/query-playground`).
+
+## Redux Toolkit §11.4 + React §13 additions from an external article
+Source: anshurajsingh.com/blog/react-performance-optimization, a client-rendered
+Vite SPA. **WebFetch and curl both see only the `<title>`**; the post is a data
+object inside the site's JS bundle, extracted by finding `{slug:\`react-performance-optimization\``
+in `assets/index-*.js`. Written in our own words, with the article linked in the
+References of both guides, not copied.
+- Most of it was already covered (React §13.1–13.13, RTK §6.2, tricky Q5). Added:
+  RTK **§11.4** (the `===`-after-every-dispatch mechanism, bounded `lruMemoize` for
+  ever-changing arguments, `shallowEqual`, RTK Query sharing / `keepUnusedDataFor` /
+  per-item tags / `selectFromResult`) and **Q20**; React §13.6 profiling routine,
+  §13.4 "when not to virtualise", `Intl` instead of moment, rule 11 → per-PR analyzer + CI budget.
+- **One of its claims is outdated and was not propagated:** "createSelector only
+  caches the last inputs, so use a selector per component" is Reselect 4 / RTK 1.
+  Reselect 5 (RTK 2) defaults to `weakMapMemoize`, effectively unbounded (verified
+  on reselect.js.org), which is why §11.4 recommends `lruMemoize` with `maxSize`
+  for the opposite problem. `keepUnusedDataFor` default 60 s verified on the RTK docs.
+- Its before/after metrics (LCP 4.2 s → 2.1 s, 25,000 → 400 DOM nodes) are the
+  author's own measurements and were not reused as facts.
+
+## Fifteenth audit — 11 senior questions, 7 added, 1 rewritten, 3 covered
+Covered and left alone: error boundaries + async (React Q18, Q56), Server Action vs
+API route (Next.js Q9), `Promise.all` from scratch (JS Q10 + the Spec Polyfills
+template). **Rewritten in place, id unchanged:** React Q12 (Fiber internals, and
+that it makes rendering interruptible and prioritised, not faster; the benefit
+only applies to concurrent updates). **Added:** React §15.12 (CI/CD with GitHub
+Actions + required checks via rulesets; §15 has no TOC sub-entries, so none was
+needed), React Q84 (CI/CD pipeline) and Q85 (bundle 500 KB → 5 MB, framed as a
+regression to bisect, not an optimisation project) under `### Delivery and
+Scale`; Next.js Q10 (`revalidate` vs `cache`), Q11 (Server vs Client), Q12
+(streaming); Frontend Architecture Q20 (reusable Data Table) and Q21 (web + mobile reuse).
+- **Web-verified Sept 2026:** `actions/checkout` and `actions/setup-node` are at
+  **v7** (checked via the GitHub API, not a fetched page, which reported the wrong
+  years). With Cache Components on, `export const revalidate`/`dynamic`/`fetchCache`
+  **error** and are replaced by `use cache` + `cacheLife`; `revalidateTag` needs a
+  profile as its second argument; and a `use cache` entry is **in memory, per
+  deployment**, while the old `fetch` Data Cache persisted across deployments.
+- This repo's own `deploy.yml` still pins checkout/setup-node **@v4**; the guide
+  shows v7. Bumping the workflow is a separate decision.
+- The "share 80–90% of logic" figure in the first Q21 draft was removed: an
+  unsourced percentage reads as data.
+
+## Playground grading: hidden tests, React checks, TS type checks, interview mode, compare
+Six additions in one round; the shared rule is **solved means every visible test,
+every hidden test and (TS challenges) the type check passed**, and it lives in one
+place, `src/lib/challengeJudge.ts` (`prepareJudge` before the run, `finishJudge`
+after), tested in `challengeJudge.test.ts`.
+
+- **Hidden tests** (`src/lib/hiddenTests.ts`, data `src/data/playground/challengeHiddenTests.ts`,
+  lazy). A snippet per case, APPENDED to the reader's code so it sees their
+  declarations, but each case's `console` is a parameter, so its output never
+  mixes with the visible tests. `output` is never hand-written: it is what the
+  REFERENCE prints. `challengeHiddenTests.test.ts` re-derives every output through
+  the same harness and requires every test to FAIL on the stub (a test the stub
+  passes proves nothing). Probe-tested by corrupting one output.
+  - Authoring loop: write `{label, run, waitMs?}` JSON → `node scripts/dev/verify-hidden-tests.cjs in.json out.json`
+    (fills `output`, flags reference throws / prints nothing / stub already passes)
+    → `node scripts/dev/build-hidden-tests.cjs out*.json` regenerates the data file.
+  - Timer challenges need `waitMs`: the harness only auto-waits when the SNIPPET
+    mentions timers/promises, and a debounce snippet usually does not.
+  - `runInWorker` gained `waitFor: { marker, maxMs }`: the worker stays alive until
+    the harness's result line arrives instead of the usual 400 ms drain.
+  - The result line uses no ✅/❌, so the visible tally is untouched; the pill shows
+    `3/3 passed · 🔒 5/7 hidden`.
+  - The verifier needs `process.on('unhandledRejection')`: an async stub's own
+    visible tests reject with nobody listening and used to kill the process.
+- **React behaviour checks** (`src/lib/reactChecks.ts` runner, types in
+  `src/data/playground/reactCheckTypes.ts` so data/ never imports lib/, scripts in
+  `reactChecks.ts`). Steps target by role / accessible name / visible text /
+  label, never class names, so a reader's own markup passes if it behaves. Every
+  step retries for 1.5 s; the preview is REMOUNTED before each check
+  (`usePreviewMount().remount`, fresh `key`), so checks cannot leak state.
+  `click` fires pointerdown/mousedown/focus/pointerup/mouseup/click because
+  Auto-Complete selects on `onMouseDown`. Every script runs against its reference
+  template in jsdom with REAL timers, via `reactChallengeChecks.harness.tsx` split
+  into four shard files (`reactChallengeChecks.{1..4}.test.tsx`): one file took
+  125 s, four in parallel take ~35 s, and the checks cannot run concurrently in one
+  file because they share `document.body` and focus. `REACT_CHECKS_FILE=<json>`
+  runs a draft set; `node scripts/dev/build-react-checks.cjs <json>...` writes
+  `reactChecks.ts`. Coverage: ≥3 checks per React challenge (**216 checks, 46 templates**).
+  - Steps: click, fill, typeKeys, press (Tab / Shift+Tab move focus unless the
+    handler prevents default, from a non-tabbable focused element to the NEXT
+    focusable after it, as a browser does), hover, focus, blur, paste, drag,
+    scrollTo, wait, and the expectations. A check may declare `fetch` (one canned
+    response or a sequence) installed BEFORE mount and restored after, so loading /
+    error / Retry are testable without the network, in the test and the playground.
+  - `drag` spaces its events by a settle delay: a component that stores the dragged
+    item in state on dragstart only sees it at drop after a re-render, and firing
+    everything in one tick silently moved nothing.
+  - `visibleText` joins inline text with NO separator (React splits `+{n} waiting`
+    into three text nodes), treats a closed `<details>` as hidden, and searches
+    portal containers in `<body>` as well as the preview.
+  - The jsdom IntersectionObserver stub fires when `scrollTo` scrolls an observed
+    element (or its container) into view; it does not fire on `observe()`, so a
+    check that scrolls right after a re-created observer must wait for it.
+- **TypeScript challenges** are graded by the real compiler: `src/lib/typeCheck.ts`
+  (pure, `typeCheckSource(ts, source, libs)`), run in `typeCheck.worker.ts` via
+  `typeCheckClient.ts`. The worker is **4.2 MB / 1.1 MB gzip**, lazy, and not
+  precached (the precache glob only matches `app-*`/`vendor-*`). The ES2022 lib
+  files are an eager `import.meta.glob` over `/node_modules/typescript/lib/` (the
+  compiler host is synchronous). There is **no DOM lib**, on purpose: the JS
+  sandbox is a Worker, so a snippet must not type-check against `document`; a
+  prelude declares `console` and timers. Verified the BUILT worker, not just the
+  source: with `process` removed (as in a browser worker) it reports TS2322 and
+  passes clean code. In Node the bundle fails on `os` stubs because it sees
+  `process` and tries to build `ts.sys`; that is a Node-only artefact.
+- **Interview mode** (`useInterviewMode`, `InterviewControl`): 15/30/45 min, the
+  session is stored (`playground-interview-active`) so a reload cannot reset the
+  clock, attempts in `playground-interview-history`; the Challenges list shows the
+  best solved time. While it runs on the open challenge, `PlaygroundActions` renders
+  no Explain / Compare / Show Solution (`AnswerButtons`).
+- **Compare** (`CompareModal`, `src/lib/lineDiff.ts`): the reader's code beside the
+  reference solution (or the original template when there is none), LCS over
+  lines ignoring indentation, changed runs paired onto one row.
+- **Writing the checks found four template bugs no gate could see**, three of them
+  breaking Run outright in the playground:
+  - `Client Cache` declared `const cache`, which collides with React's own `cache`
+    export in the scope, so it was a SyntaxError on Run. `reactTemplates.test.tsx`
+    missed it because it built a HAND-WRITTEN scope; it now uses the real
+    `buildReactScope`, and failed on exactly this until the rename (`queryCache`).
+    **A test that re-implements the thing it tests is testing its own copy.**
+  - `Modal (Portal + Focus Trap)` called `ReactDOM.createPortal`; the scope has
+    `createPortal` as a bare name and no `ReactDOM`, so opening it blanked the preview.
+  - `Optimistic UI Updates` passed an event handler to `<form action>`: a React 19
+    action receives FormData, so the first Add threw.
+  - `Carousel` had no accessible signal for the current slide; `Pagination`, `Modal
+    Component`, `Responsive Navbar` and `Responsive Images` got the a11y their own
+    requirements claimed (aria-current, dialog semantics, `inert` closed menu,
+    `loading="eager"` + `fetchPriority="high"` on the hero).
+- **Check re-runs the whole program before each check**
+  (`usePreviewMount().setProgram`), not just a re-mount: templates keep stores,
+  Maps and lazy resources at module level, and with only a re-mount one check's
+  state leaked into the next. The console lines those re-runs print are dropped
+  (`appendLines(lines, keep)`).
+- **`detectJSX` treats TypeScript generics as JSX** (`Equal<A, B>` matches `<[A-Z]`),
+  so a `lang: 'ts'` template would run on the main-thread React path. CodePlayground
+  skips `detectJSX` when `currentLang === 'ts'`; a `.tsx` template still works.
+- **Adding a JS challenge now also needs** a `challengeProblems.ts` entry and 4+
+  hidden tests (`scripts/dev/verify-hidden-tests.cjs`); a TypeScript challenge
+  instead needs its stub to have ≥1 diagnostic and its solution 0
+  (`typeChallenges.test.ts`), and `verify-counts.js` counts it as a JS challenge.
+- Counts after: templates 206 → **218**, categories 8 → **9**, JS challenges 99 → **111**
+  (6 tree/DOM + 6 TypeScript), challenges 145 → **157**, solutions 99 → **111**,
+  explanations 195 → **201**, JS study tracks 15 → **17**.
+- `CodePlayground` 789 → **780**: the preview mount moved to `usePreviewMount`, the
+  lazy data caches to `lazyPlaygroundData.ts` (added to the verify:arch
+  explanations-import check's file list), and `PlaygroundActions` was split
+  (`SummaryPill`, `AnswerButtons`) when complexity hit 31.
+
+## Challenge code no longer restates the problem
+Every challenge template opened with a comment block (`// ===== CHALLENGE: X =====`,
+description, `Example:`, `Constraints:`) that the Problem panel now shows, so the
+statement existed twice and the stub started 10–20 lines down. Removed from all
+99 JS challenges (two header glyph styles: `=====` and `═════`, which is why the
+first pass matched only 57). **React templates kept their design notes**
+(`SINGLE OR MULTIPLE?`, `CONTEXT, REDUX OR AN EVENT SYSTEM?`, …): only the intro
+paragraph and the `// TASK` list went, because those duplicate the panel's
+requirements and the rest is teaching the panel does not carry. Approach hints
+in JS headers ("use the sum trick", "Map preserves insertion order") went too:
+they spoiled the problem, and Explain / Show Solution carry them.
+`challengeProblems.test.ts` fails if a challenge template reintroduces a
+`CHALLENGE:`/`MACHINE CODING:` header or a `// TASK` block.
+- **Saved drafts are stripped too.** An edited draft outranks the template (the
+  `baseHash` rule), so a reader who had worked on a challenge still saw the old
+  header — reported within minutes. `src/lib/challengeHeader.ts`
+  (`stripChallengeHeader`) applies the same rules to a draft on read, in
+  `usePlaygroundProgress`'s `load()` and in `resolveInitialPlaygroundState`, and
+  acts only when the code STARTS with the old header, so a reader's own comments
+  are never touched; the next autosave persists the result. Verified once against
+  the pre-change template file: all 145 old challenge templates strip to exactly
+  today's templates, so a never-edited draft becomes byte-identical to the stub.
+  (That check is a one-off, not a test: it needs the old file, and a test reading
+  `git show HEAD:` would stop meaning anything after the next commit.)
+- **The Problem panel height is draggable** (`ChallengeProblemPanel`, its own
+  `useResizableHeight`, key `playground-problem-height`, pinned in
+  `storageKeys.test.ts`). It lives in the panel rather than `useEditorPrefs` so
+  CodePlayground's line ratchet is untouched. The handle is a focusable
+  `role="separator"` with arrow-key steps and double-click reset; pointer capture
+  keeps the drag alive outside the handle.
+
+## Try it is now CORRECT for every guide block — measured, not estimated
+The old "67 props-less blocks, 21 throw" figure was an undercount. A mechanical
+scan that reproduces `PreBlock`'s transform exactly (last component in source order,
+auto-appended `render(<X />)`), then `stripModuleSyntax` → `transpileSource` →
+`buildReactScope`, mounted in jsdom, found **199 auto-rendered blocks, 152 broken or
+degenerate**. After this round: **0**.
+- **`src/lib/tryItEligibility.ts` (`canRunInPlayground`) now gates the button** in
+  `PreBlock`, alongside the language check. No button for: an import from any package
+  other than `react`/`react-dom`/`react-dom/client` (type-only imports and CSS
+  side-effect imports are ignored), relative imports, React Native primitives, and
+  async Server Components / `'use server'`. About 50 blocks lost a button that could
+  never work. The preferred content fix for a library-dependent block is therefore
+  to add the REAL import line: it makes the example honest and removes the button.
+- **About 100 were fixed in content** by a workflow (one agent per guide plus a
+  reviewer), each fix proven by re-running the scan: marked stand-ins
+  (`// stand-in so this example runs on its own`), Demo harnesses with realistic
+  props, and deliberately broken examples retagged `text`.
+- **`useFormStatus` is added to the playground scope by hand**: it is a hook, but it
+  lives in `react-dom`, so the React-derived scope never saw it.
+- The scan itself is kept OUTSIDE `src/` (scratchpad `tryit-scan.test.tsx.keep`),
+  because as a `.test.tsx` under `src/` it would join `npm test` and write a file.
+  Copy it in to run it; `SCAN_FILES` and `SCAN_OUT` filter and redirect it.
+- **Output claims:** a scanner (`outscan.cjs`, scratchpad) runs every js/ts block
+  followed by an `**Output:**` block. Its FIRST version matched lazily across code
+  fences, so a block with no claim got paired with a claim thousands of lines later;
+  an agent caught it. The code group must exclude ``` (fixed). Framework claims
+  (Express 4/5, Redux Saga, Redux Toolkit, MongoDB, Node CJS vs ESM ordering) were
+  verified by installing the packages in a scratch directory and running them. One
+  real error: Express 4 Q5 said an async throw leaves the request hanging, but on
+  Node 24 the process crashes (exit 1). The 25 remaining scanner "differences" are
+  all harness limits (no db, no saga middleware, CJS/ESM ordering, compile-time
+  claims, `Temporal`), each individually verified.
+- **`npm audit fix` (no `--force`): 27 → 2.** The 2 left need React Router 7
+  (a breaking migration): an open-redirect in `<Link>`/`useNavigate` with
+  user-controlled paths, and an SSR hydration issue. Neither applies to this app (static
+  link targets, no SSR), so the migration is left as a decision.
+- Also fixed: the Behavioral guide's §4 had subsections numbered `3.1`/`3.2` (renamed
+  4.1/4.2; nothing linked to the old anchors), and the Introduction's stale
+  "120 challenges" figure was removed rather than replaced, since no count check tracks it.
+
+## JS tricky Q41–Q51 and TS tricky Q20–Q31 — and the ✗ convention for TS errors
+Audit of both output sections for missing topics. JS added: `finally` overriding
+`return`, class field init order, `#private`, `-0`/`NaN` equality, `arguments`,
+holes/`length`, `valueOf`/`toString`, the synchronous executor, `?.`
+short-circuit, named function expressions, Symbol/Map keys. TS added the
+types-vs-runtime family plus narrowing edges (listed in the cheat sheet, rules
+11–21). Interview Q14 already covers declaration merging, so it was **not**
+duplicated as a tricky question.
+- **The TS convention, to keep for any new TS tricky question:** a compile error is a
+  COMMENTED line ending `// ✗ TSnnnn: <message>`, so Try it runs the block and shows
+  the real output. `typescriptGuideTypes.test.ts` checks three things per block:
+  clean as written, each ✗ line uncommented gives exactly that code, and the
+  transpiled block prints exactly the following `text` block. Probe-tested by
+  changing an error code and an output line.
+- **TS tricky Q1–Q19 now follow the ✗ convention too.** A line that would THROW at
+  runtime is commented with its ✗ message (Q13's `a.foo.bar`/`b.foo.bar`, Q3's
+  call); an error line that runs harmlessly stays active with a trailing `// ✗`
+  (Q5, Q7, Q11). Q3's second block had a `{ /* … */ }` placeholder (itself a type
+  error) and called a `start()` defined only in the block above, so Try it threw a
+  ReferenceError; it is now self-contained. The pinning test runs every Q1–Q19
+  block through `stripModuleSyntax` + `transpileModule` (exactly what Try it does)
+  and requires it not to throw, and requires the compile errors to equal the active
+  ✗ annotations. Five blocks are allow-listed as harness artefacts, each with a
+  reason (continuations, and deliberate re-declarations of `Required`/`Readonly`/
+  `Event`). Its "finds the blocks" guard caught a vacuous first run: the region
+  slice ended at the INTERVIEW section's `**Q20:`, which comes first in the file.
+- **Two of my own draft claims were wrong and were caught before shipping:** "C#
+  initialises subclass fields like JavaScript" (it initialises them BEFORE the base
+  constructor; only Java matches), and a pointer to a hole-behaviour list in §7.3 that
+  does not exist. Verify cross-language and cross-reference claims too, not only outputs.
+- Q50 is strict-mode dependent (assigning to a named function expression's name
+  throws in strict code, is silently ignored in sloppy), so the demo uses
+  `'use strict'` + `try/catch` to print the same everywhere.
+
+## React upgraded to 19.3; BFF topic; JS §1.8 + Q35–Q39; tricky Q27–Q40
+- **`react`/`react-dom`/`@types/react`/`@types/react-dom` are now `^19.3.0`.** The
+  playground scope picks up `ViewTransition` and `addTransitionType` automatically
+  (it is derived from React's exports); `browser` from `react-dom` was added by
+  hand next to `createPortal`/`flushSync`. React §16.11's examples were turned from
+  `text` into runnable `tsx` blocks and are pinned in `reactApiScenarioDemos.test.tsx`,
+  which now builds its scope with the playground's own `buildReactScope`, so a test
+  sees exactly what Try it provides. **jsdom has no `CSS.escape`**, which
+  `<ViewTransition>` calls; it is stubbed in that one test (browsers all have it).
+  The superseded note below ("this app runs React 19.2.4") no longer applies.
+- **BFF lives in Frontend Architecture §2.3** (a `###` under Multi-Product
+  Architecture, so no top-level section was renumbered and no anchor moved) plus
+  interview Q19. Its aggregation demo is pinned in `frontendArchitectureDemos.test.ts`
+  and probe-tested (`allSettled` → `all` fails it). The shallow System Design §8 BFF
+  sketch and OAuth Q6 are left as they are; §2.3 is the full treatment.
+- **JS §1.8 "Why JavaScript Is Everywhere"** plus `### About the Language Itself`
+  Q35–Q39. The Stack Overflow figure (66%, #1, 2025 survey) was checked against
+  survey.stackoverflow.co/2025/technology.
+- **Tricky Q27–Q40** fill the classic gaps (var/let loop, hoisting, TDZ, closure
+  liveness, `this`, float precision, `typeof`, `+` coercion, sort/parseInt, catch
+  recovery, `return await`, generator `next(value)`, defaults vs `null`, ASI).
+  Outputs were generated by running each block, not written by hand. Two demos had
+  to change first: Q28 is a `SyntaxError` at module top level (a `var` and a
+  function with the same name), so it runs inside a function; and Q35 printed
+  `NaN` as `null` via `JSON.stringify`, so it uses `join`.
+- **`interviewAnswerDemos.test.ts`'s `block()` now rejects a non-unique marker.**
+  Adding it immediately exposed two EXISTING tests (interview Q30, §1.2) whose
+  markers now also matched new tricky blocks. They still passed only because the
+  intended block happened to come first. Both got more specific markers.
+
+## React 19.3 shipped on 9 September 2026 — the old "Canary-only" notes are superseded
+Web-verified against react.dev/blog/2026/09/09/react-19-3. `<ViewTransition>`,
+`addTransitionType` and Fragment Refs are **stable in 19.3**; 19.3 also adds
+`use(browser())` (react-dom) and Trusted Types support, with no removals. The
+v1.1.0 note further down ("`<ViewTransition>` and Fragment Refs are still
+Canary-only — latest stable is 19.2.x, there is no 19.3") was true when written
+and is **now wrong** — do not propagate it. React guide §16.10 (status table) was
+corrected, **§16.11 "React 19.3 — What's New"** and interview **Q83** were added,
+and the same stale claim was fixed in Modern CSS §13.3/gotchas/cheat-sheet rule 53
+and Next.js §"Next 16". The 19.3 examples are `text` blocks because **this app runs
+React 19.2.4**, so a `tsx` block using `ViewTransition` would throw on Try it.
+Bumping the app's own `react` is a dependency decision left to the user.
+- **React Compiler §16.1 rewritten**: shows the compiled output (`_c(n)` cache),
+  memoizing after an early return, the **Vite 8 setup** (`@vitejs/plugin-react` v6
+  no longer runs Babel — use `reactCompilerPreset()` with `@rolldown/plugin-babel`;
+  the old `react({ babel: … })` form is v5 and earlier), the "Memo ✨" DevTools
+  badge, `"use no memo"`, React 17/18 via `react-compiler-runtime` + `target`, and
+  why to `--save-exact`. `eslint-plugin-react-hooks` is **7.x** now (this repo has
+  7.0.1); references to "v6" were updated.
+
+## Full clarity audit — 91 files, 21 batches, audit agent + reviewer agent each
+User opted into a multi-agent workflow ("All guides, parallel agents"). Method worth
+reusing:
+- **Snapshot first** (`scratchpad/audit-snapshot/`), and diff against the snapshot,
+  not `git` — the working tree already held uncommitted session work, so a git diff
+  would have mixed the two.
+- **Hard constraints the agents were given, then checked mechanically** by
+  `audit-check.py` (compares every file with its snapshot): fenced code blocks
+  byte-identical, heading lines identical (they are anchor ids for TOC, deep links,
+  bookmarks and checkpoints), question-marker lines identical (ids = review
+  history, counts pinned by a test), the Introduction's numbers unchanged, no empty
+  first table header. Probe-tested by breaking a copy of the snapshot. Result: 79
+  files changed, **0 violations**.
+- Outcome: ~794 prose fixes, ~110 of them factual corrections. **Every
+  output-changing correction was executed before accepting it**: Python tricky Q3
+  (`257 is 257` → True/True in one file, confirmed on CPython 3.13), Redux Toolkit
+  tricky Q1/Q3 against real Immer 10.2 (`return state` is allowed; only mutate +
+  return a NEW object throws; writing an identical primitive keeps the reference).
+- **One deliberate code-block change afterwards:** RTK tricky Q1's Pattern C was
+  `return state`, which does not throw, so the answer had to say the question's
+  premise was wrong. Changed the example to `return { ...state }`, which does, so
+  the question and answer agree again. That is the only code block the audit touched.
+- **Open items** (145 flagged-but-unchanged factual concerns, 124 weak sections left)
+  were collected per guide in `scratchpad/audit-open-items.md`. Many of the concerns
+  are inside code blocks the agents were forbidden to edit, such as a lazy-loaded
+  hero image in React §13.8 and `UI rendering` listed as a macrotask in JS §11's
+  diagram. Work through them per guide rather than in bulk.
+
+## JavaScript §1 is now "how JavaScript works" — Q31–Q34 point at it
+The user asked for §1 (five bullets) to explain single-threaded, non-blocking, the
+event loop and workers, and for the under-the-hood Q&A to move up. **Applied the
+standing rule "a deep topic lives in its numbered section; the interview answer
+points at it":** the Q31–Q34 bodies became **§1.1–§1.3 and §1.7** (with
+"Short answer:" leads turned into plain openings and "(Q32)"-style refs rewritten
+to "§1.2"), three new subsections were written (**§1.4 single-threaded, §1.5
+non-blocking, §1.6 event loop**, each with a pinned demo), and Q31–Q34 in §15
+were rewritten as ~4-sentence answers ending "Full explanation: §1.x". **Their ids
+are unchanged**, so Quiz mode and review history keep them. Q6's "simple
+version" opener (with the coffee demo) moved to §1.5 and Q6 now opens with a
+three-sentence recap pointing at §1.4–§1.6. §11 stays as the reference diagram.
+- The guide's TOC lists top-level sections only, so the new `### 1.x` headings
+  needed no TOC entries.
+- Test markers in `interviewAnswerDemos.test.ts` are content-based, so the moved
+  blocks kept passing; the test names were relabelled to §1.x.
+
+(The note below describes the original Q31–Q34 before the move.)
+
+## JavaScript Q31–Q34 — How JavaScript Works Under the Hood
+User asked for engine / function-reference / event-loop / worker questions with
+**easy** explanations. Audit first: the event loop was already JavaScript Q6
+(thorough but dense) and Node Q2; Node Q12 and Browser APIs Q11 covered workers
+narrowly. So: **Q6 got a "simple version first" opening in place** (id unchanged),
+and four new questions went under a new `### How JavaScript Works Under the Hood`
+heading after Q30 — Q31 engine vs runtime + parse/interpret/JIT/deopt, Q32
+execution context + call stack + hoisting as the creation phase, Q33 `fn` vs
+`fn()` and the three reference bugs, Q34 Web Workers (plus Node `worker_threads`).
+- **The shape that reads as "easy":** a bolded one-sentence short answer, one
+  everyday analogy, then small runnable demos with their output. Keep it.
+- **Two-file worker examples are tagged `text`** — a `js` tag would ship a Try-it
+  button pointing at a `worker.js` that does not exist.
+- Q33's detached-method demo starts with `'use strict'`: in the sloppy playground
+  script `this` would be `globalThis`, and `name` means different things in a
+  window, a worker and Node.
+- All demos (8) are pinned in `interviewAnswerDemos.test.ts`; probe-tested.
+- **Noticed, not fixed:** Node Q12's snippet comments a `SharedArrayBuffer` as a
+  "Transferable (zero-copy)" — it is shared, not transferred. Worth a rewrite.
+
+Totals after: JavaScript interview **34**.
+
+## JavaScript tricky Q18–Q26 — Objects & References
+A user asked for "deep object" output questions. Nine were appended **after Q17**
+under `### Objects & References (Deep Dive)` (never inserted mid-sequence, so no
+existing id moves): object-as-key collision, integer-like key ordering, shallow
+spread, pass-by-sharing, `fill({})` shared reference, JSON round-trip losses,
+`structuredClone` cycles/`DataCloneError`, shallow `freeze`, spread running
+getters. Each output was run as a module **and** under `new Function`, and all
+nine are pinned in `interviewAnswerDemos.test.ts` (probe-tested).
+- **Q25 starts with `'use strict'` on purpose.** The playground runs a sloppy
+  script, where a write to a frozen property fails silently; the directive makes
+  the throw — and therefore the printed `true` — identical in both modes.
+- Test markers must be unique in the whole guide: `const config = Object.freeze(`
+  already appeared twice earlier, so the first pin silently tested the wrong block.
+
+Counts: tricky 393 → **402** (JavaScript 17 → **26**).
 
 ## A solution must obey its own challenge's constraints
 `Remove Duplicates` says "Do NOT use `new Set()`" and its BEST approach used a

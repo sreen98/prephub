@@ -35,7 +35,7 @@ Four attacker positions, and they need different defences:
 | Attacker | Can do | Defence lives |
 |---|---|---|
 | **Device owner** (rooted/jailbroken) | read storage, hook functions, dump memory, patch the binary | **server-side** |
-| **Network attacker** (hostile Wi-Fi) | intercept, downgrade, MITM | TLS, pinning |
+| **Network attacker** (hostile Wi-Fi) | intercept, downgrade, MITM (man-in-the-middle — reading or altering traffic in transit) | TLS, pinning |
 | **Malicious app** on the same device | claim URL schemes, read world-readable files, screen-record | scoped storage, verified links |
 | **Someone holding the phone** | shoulder-surf, use an unlocked app | biometrics, timeouts, snapshot masking |
 
@@ -69,7 +69,7 @@ await SecureStore.setItemAsync('refresh_token', token, {
 
 **`AsyncStorage` is not secure storage.** It is an unencrypted SQLite file (Android) or a plaintext file (iOS) readable on a rooted device and often included in backups. Storing a token there is the single most common mobile security defect in React Native apps.
 
-iOS Keychain accessibility classes matter: `WhenUnlocked` is the sensible default; `AfterFirstUnlock` is needed for background access; **`ThisDeviceOnly` prevents the item syncing to iCloud Keychain** and travelling to the user's other devices — usually what you want for a device-bound refresh token. On Android, request **`setUserAuthenticationRequired(true)`** and StrongBox where available so the key is unusable without a fresh unlock.
+iOS Keychain accessibility classes matter: `WhenUnlocked` is the sensible default; `AfterFirstUnlock` is needed for background access; **`ThisDeviceOnly` prevents the item syncing to iCloud Keychain** and travelling to the user's other devices — usually what you want for a device-bound refresh token. On Android, request **`setUserAuthenticationRequired(true)`** and StrongBox (a dedicated security chip; without it, keys live in the TEE — trusted execution environment — an isolated area of the main processor) where available so the key is unusable without a fresh unlock.
 
 Note that hardware-backed keys mean the **key** can't be extracted — but data your app decrypts into memory can still be read by a debugger on a rooted device. Storage encryption raises cost; it doesn't make the device trustworthy.
 
@@ -132,7 +132,7 @@ Note the trade-off with `AfterFirstUnlock` accessibility: background sync needs 
 
 A mobile app is a **public client**: it cannot keep a client secret (§9), so the classic authorization-code flow with a secret doesn't apply.
 
-**Authorization Code + PKCE** is the answer, and it is mandatory in OAuth 2.1:
+**Authorization Code + PKCE** is the answer, and it is mandatory in OAuth 2.1. PKCE (Proof Key for Code Exchange) replaces the secret the app cannot keep with a one-time random value the app invents per login, so only the app that started the login can finish it:
 
 ```
 1. app generates code_verifier (random) and code_challenge = S256(verifier)
@@ -170,7 +170,7 @@ Baseline first: **TLS 1.2+ everywhere, no exceptions.** iOS enforces this with *
 </network-security-config>
 ```
 
-**Certificate pinning** binds your app to a specific key, so a MITM with a device-installed root CA cannot intercept. It defends against a hostile network *and* against a user who installs a proxy CA to inspect traffic.
+**Certificate pinning** binds your app to a specific key. Normally a phone accepts any certificate signed by any certificate authority (CA) in its trust store — including one an attacker or the user installed. With a pin, the app accepts only your key, so a MITM with a device-installed root CA cannot intercept. It defends against a hostile network *and* against a user who installs a proxy CA to inspect traffic.
 
 The reason pinning is a risky control, and the thing interviewers want to hear: **a pin outlives your ability to change it.** If you pin a leaf certificate and rotate it, every installed app breaks and you cannot fix it without a store release — days of outage. So:
 
@@ -180,7 +180,7 @@ The reason pinning is a risky control, and the thing interviewers want to hear: 
 - Have a **kill switch**: a server-controlled flag (fetched over a non-pinned channel, or a signed config) that can disable pinning remotely.
 - Pin only the domains that matter, and don't pin third-party CDNs you don't control.
 
-Pinning is bypassable on a rooted device with Frida in minutes, so it is **anti-casual-inspection**, not a guarantee. That's fine — the goal is raising cost.
+Pinning is bypassable on a rooted device with Frida (a tool that injects scripts into a running app to rewrite its functions) in minutes, so it is **anti-casual-inspection**, not a guarantee. That's fine — the goal is raising cost.
 
 ---
 

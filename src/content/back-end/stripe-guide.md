@@ -33,7 +33,7 @@ This guide covers the Stripe API contract end-to-end with a backend-engineer foc
 Stripe is a **payment-processing platform** with REST APIs, SDKs in every major language, hosted UI components, and a webhook-driven event model. The mental model:
 
 - **You** describe the money movement (charge $50, set up a $10/mo subscription, refund half of order #42).
-- **Stripe** handles card networks, fraud detection, 3DS authentication, retries, and compliance.
+- **Stripe** handles card networks, fraud detection, 3DS authentication (3D Secure, the extra "confirm it's you" step the cardholder's bank can demand), retries, and compliance.
 - **You** listen to webhook events for finality and update your database.
 
 What Stripe is *not*: a database for your application's source of truth. Stripe knows about its own objects (PaymentIntents, Customers, Subscriptions). It doesn't know about your User, Order, or Cart models. Your job is to stitch them together via webhooks and metadata.
@@ -88,7 +88,7 @@ Two key types, two environments. Mixing them up is the most common source of mys
 
 ## 3. Architecture — Client / Server Split
 
-The single most important rule with Stripe: **card numbers never touch your server.** This is what keeps you out of expensive PCI compliance scope (see §14). The client tokenizes the card directly with Stripe; your server only sees a token.
+The single most important rule with Stripe: **card numbers never touch your server.** This is what keeps you out of expensive PCI compliance scope (PCI DSS is the security standard the card networks impose on anyone who handles card numbers; see §14). The client tokenizes the card directly with Stripe; your server only sees a token.
 
 ```
            ┌──────────────┐    1. card number    ┌────────┐
@@ -138,7 +138,7 @@ Three Stripe-provided UI options, in increasing order of "Stripe handles more":
 
 **Stripe Elements** — granular React/JS components for individual fields (`<CardNumberElement>`, `<CardExpiryElement>`). You design the form completely. Most flexibility, most code.
 
-**Payment Element** — single drop-in component that renders the right UI for every payment method (card, Apple Pay, Google Pay, ACH, BNPL like Klarna/Affirm, regional methods). Stripe maintains the UI; you get every payment method you've enabled in the dashboard automatically.
+**Payment Element** — single drop-in component that renders the right UI for every payment method (card, Apple Pay, Google Pay, ACH US bank debits, BNPL — "buy now, pay later" — like Klarna/Affirm, regional methods). Stripe maintains the UI; you get every payment method you've enabled in the dashboard automatically.
 
 ```jsx
 import { Elements, PaymentElement } from '@stripe/react-stripe-js';
@@ -228,7 +228,7 @@ Always integers. `$49.99` → `4999`. JPY (no minor units) → just `4999` for �
 
 ### 5.2 Why not the old Charges API
 
-Charges synchronously charged the card and returned success/failure. SCA (mandatory 3DS in Europe since 2019) needs an *async* step where the user authenticates on their bank's page mid-flow — Charges can't model that. PaymentIntent has an explicit `requires_action` state for it.
+Charges synchronously charged the card and returned success/failure. SCA (Strong Customer Authentication — the European rule that makes 3DS mandatory for most online card payments since 2019) needs an *async* step where the user authenticates on their bank's page mid-flow — Charges can't model that. PaymentIntent has an explicit `requires_action` state for it.
 
 Don't write new code against `stripe.charges.create()`. It still exists for backwards compat but is functionally deprecated.
 
@@ -272,14 +272,14 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 
 ### 6.2 Signature verification — non-optional
 
-Without verification, anyone who guesses your URL can POST fake events that say "payment succeeded" and trigger fulfillment for unpaid orders. The signature is an HMAC of `timestamp.body` keyed by your webhook secret — Stripe's SDK has `constructEvent()` that does it correctly.
+Without verification, anyone who guesses your URL can POST fake events that say "payment succeeded" and trigger fulfillment for unpaid orders. The signature is an HMAC (a keyed hash — only someone holding the secret can produce the right value) of `timestamp.body` keyed by your webhook secret — Stripe's SDK has `constructEvent()` that does it correctly.
 
 ### 6.3 Idempotency — Stripe will retry
 
 Stripe retries webhook deliveries with exponential backoff for up to **3 days** if your endpoint returns non-2xx or times out (after 30 seconds). Two implications:
 
 1. **Same event will arrive multiple times.** You need to handle duplicates.
-2. **A long-running handler will trigger retries.** Acknowledge fast (2xx + 200 within seconds), enqueue the heavy work to a background queue.
+2. **A long-running handler will trigger retries.** Acknowledge fast (return a 2xx within a few seconds) and push the heavy work onto a background queue, so a slow email or PDF step never makes Stripe think the delivery failed.
 
 The standard idempotent webhook pattern:
 
@@ -353,7 +353,7 @@ console.log(pi1.id === pi2.id);   // true
 
 - **Tie to the business operation, not the HTTP request.** `pi-create-order-42` is stable across retries; `pi-create-${Date.now()}` is not.
 - Stripe stores keys for **24 hours**. Same key after 24h gets a fresh response.
-- Different request body + same key = error. Stripe returns the *original* response and a header signaling the body mismatch.
+- Different request body + same key = error. Stripe compares the parameters with the original request and rejects the mismatch rather than guessing which one you meant — it almost always means two different operations are sharing a key.
 
 **Where idempotency is mandatory:**
 
@@ -516,7 +516,9 @@ async function run() {
       discounts: [{ promotion_code: promoId }],
     });
   } catch (err) {
-    if (err.code === 'coupon_expired' || err.code === 'promotion_code_limit_reached') {
+    // coupon_expired is the one coupon-specific code Stripe documents.
+    // Log err.code and err.message for any other discount rejection rather than guessing at codes.
+    if (err.code === 'coupon_expired') {
       return { error: 'Sorry, this coupon was just claimed. Please try a different code.' };
     }
     throw err;
@@ -540,12 +542,17 @@ CREATE TABLE coupon_redemptions (
   reserved_at     TIMESTAMP NOT NULL DEFAULT NOW(),
   committed_at    TIMESTAMP,
   expires_at      TIMESTAMP NOT NULL,
-  stripe_pi_id    TEXT,
-  UNIQUE (user_id, promotion_code, status) WHERE status IN ('reserved', 'committed')
+  stripe_pi_id    TEXT
 );
+
+-- One active redemption per (user, code). A partial rule needs a unique INDEX:
+-- PostgreSQL does not accept a WHERE clause on a UNIQUE constraint inside CREATE TABLE.
+CREATE UNIQUE INDEX one_active_redemption
+  ON coupon_redemptions (user_id, promotion_code)
+  WHERE status IN ('reserved', 'committed');
 ```
 
-The unique constraint enforces "one active redemption per (user, code)" — duplicate inserts throw. Now the flow is:
+The partial unique index enforces "one active redemption per (user, code)": a second reserved or committed row for the same pair throws, while any number of `expired` rows are allowed, so the user can try again after a reservation lapses. Now the flow is:
 
 ```js
 async function applyCoupon(userId, code) {
@@ -620,7 +627,7 @@ Time  User               Your Server                 DB                Stripe
                          ── (idempotency key) ───▶                              ↓ atomic
                                                                                 ↓ either
                                                                                 ↓ accept
-                                                                                ↓ or 'limit_reached'
+                                                                                ↓ or reject
                                                      ◀── PI client_secret
  t3   Confirm w/ Stripe.js                                            ◀── confirm ─── Stripe
  t4                       ◀── webhook  ─────────────                                  ↓
@@ -629,7 +636,7 @@ Time  User               Your Server                 DB                Stripe
 
 **Common mistakes to avoid:**
 
-- **Tracking redemptions only in your app DB** without using Stripe's `max_redemptions`. Two requests racing in the gap between your validate and your insert will both pass — your unique constraint isn't enough on its own without the reservation TTL.
+- **Counting the global cap yourself** in your app DB instead of relying on Stripe's `max_redemptions`. Your "how many are left?" read and your later write are separate steps, so two checkouts racing between them both see a slot free. Stripe's check is atomic with the redemption; yours is not. Your own table is for per-user rules, not the global count.
 - **Committing in the client's success callback** instead of the webhook. The user's tab might close before the callback runs; the webhook is guaranteed to arrive (eventually).
 - **Reservation without TTL.** If a reservation never expires, abandoned carts hold codes forever. Always set `expires_at`.
 
@@ -696,7 +703,7 @@ async function handleWebhook(event) {
 
 ## 12. Strong Customer Authentication (SCA / 3D Secure)
 
-PSD2 in Europe (since 2019) requires multi-factor authentication for most online card transactions. The user gets pinged by their bank's app or SMS code mid-checkout. Stripe handles this via **3D Secure 2** (`requires_action` state on the PaymentIntent).
+PSD2 (the EU's revised Payment Services Directive) has, since 2019, required multi-factor authentication for most online card transactions. The user gets pinged by their bank's app or SMS code mid-checkout. Stripe handles this via **3D Secure 2** (`requires_action` state on the PaymentIntent).
 
 The PaymentIntent flow handles SCA automatically — you just need to:
 
@@ -707,7 +714,7 @@ The PaymentIntent flow handles SCA automatically — you just need to:
 
 **Off-session charges** (recurring billing) need `off_session: true` on the PaymentIntent. If SCA *is* required and the customer isn't present, the charge fails with `authentication_required`. Your server gets a `payment_intent.payment_failed` webhook; you email the customer with a link to re-authenticate.
 
-**Exemptions** — low-value, low-risk, recurring (after the first), and merchant-initiated transactions can skip SCA. Stripe's Radar handles exemption requests automatically; you don't need to compute them yourself.
+**Exemptions** — low-value, low-risk, recurring (after the first), and merchant-initiated transactions can skip SCA. Stripe requests the applicable exemption on your behalf; you don't need to compute them yourself.
 
 ---
 
@@ -729,18 +736,19 @@ const pi = await stripe.paymentIntents.create({
   currency: 'usd',
   application_fee_amount: 500,            // $5 platform fee
   transfer_data: { destination: 'acct_seller_xyz' },   // $95 to seller
-}, {
-  stripeAccount: 'acct_seller_xyz',       // act on behalf of seller
 });
+// No stripeAccount option: this is a destination charge, created on the
+// platform's own account. Passing stripeAccount would make it a direct charge
+// on the seller's account instead, which is a different funds flow.
 ```
 
-**KYC** — Connect accounts must complete identity verification (name, address, EIN/SSN, bank account) before they can receive payouts. Stripe provides a hosted onboarding flow — don't try to collect this yourself.
+**KYC** (know your customer — the legal duty to verify who you are paying out to) — Connect accounts must complete identity verification (name, address, EIN/SSN, bank account) before they can receive payouts. Stripe provides a hosted onboarding flow — don't try to collect this yourself.
 
 ---
 
 ## 14. PCI Compliance and Security
 
-PCI DSS (Payment Card Industry Data Security Standard) is the rule book card networks impose on anyone handling card data. Compliance levels are based on transaction volume; even a small merchant must self-assess (SAQ).
+PCI DSS (Payment Card Industry Data Security Standard) is the rule book card networks impose on anyone handling card data. Compliance levels are based on transaction volume; even a small merchant must fill in a Self-Assessment Questionnaire (SAQ). There are several SAQ variants, and which one applies depends on how much card data your systems can touch.
 
 **The whole point of Stripe.js / Elements / Checkout is to keep you in SAQ A**, the lightest scope. SAQ A means:
 - You never see, store, or transmit primary account numbers (PANs).
@@ -750,9 +758,9 @@ PCI DSS (Payment Card Industry Data Security Standard) is the rule book card net
 If you ever:
 - Submit a card number to your own server (even as proxy)
 - Render a card-input field outside of Stripe's iframe
-- Log a token along with PII
+- Log a token along with PII (personally identifiable information — name, email, address)
 
-…you escalate to SAQ A-EP or SAQ D, with much larger compliance overhead (penetration testing, ASV scans, network segmentation, $$$).
+…you escalate to SAQ A-EP or SAQ D, with much larger compliance overhead (penetration testing, quarterly external vulnerability scans by an Approved Scanning Vendor (ASV), network segmentation, and the cost that comes with all of it).
 
 **Other practical security:**
 
@@ -876,7 +884,7 @@ Always in **integer minor units**. $49.99 → 4999 cents. JPY (no minor unit) �
 
 An idempotency key tells Stripe "if you've seen this key before, return the same response — don't create a duplicate." It's the single most important defense against double-charges from network retries. Use it on **every state-changing API call**: PaymentIntents, Refunds, Subscriptions, Transfers.
 
-Tie the key to the **business operation**, not the HTTP request: `pi-create-order-42`, not `pi-${Date.now()}`. Stripe stores keys for 24 hours; same key after 24h gets a fresh response. If the request body differs but the key matches, Stripe returns the original response with a header signaling the body mismatch — that's a bug in your code.
+Tie the key to the **business operation**, not the HTTP request: `pi-create-order-42`, not `pi-${Date.now()}`. Stripe stores keys for 24 hours; same key after 24h gets a fresh response. If the request body differs but the key matches, Stripe rejects the request with an error — that's a bug in your code, usually two different operations sharing one key.
 
 ---
 
@@ -951,7 +959,7 @@ stripe.paymentIntents.create({
 
 Sellers must complete **KYC** (know-your-customer) before payouts — name, address, tax id, bank account. Stripe provides hosted onboarding (`stripe.accounts.createLink`) — never collect this yourself.
 
-Disputes/refunds against the original charge debit the seller, not the platform (configurable).
+Know who pays when it goes wrong: with this charge type (a *destination charge* — the platform creates the charge and transfers the seller's share), refunds and disputes are debited from the **platform's** balance. You recover the money from the seller by reversing the transfer (`reverse_transfer: true` on the refund, or a transfer reversal for a dispute), so your terms with sellers need to allow that.
 
 ---
 
@@ -964,7 +972,7 @@ Two integration requirements:
 1. Use PaymentIntent (not legacy Charges) — it has the state machine for the async authentication step.
 2. For off-session charges (recurring billing), if SCA is needed and the customer isn't present, the charge fails with `authentication_required`. Listen for `payment_intent.payment_failed` and email the customer with a link to re-authenticate the saved method.
 
-Exemptions exist (low-value, low-risk, recurring after the first, merchant-initiated). Stripe's Radar requests them automatically; you don't compute them yourself.
+Exemptions exist (low-value, low-risk, recurring after the first, merchant-initiated). Stripe requests the applicable one on your behalf; you don't compute them yourself.
 
 ---
 
@@ -1029,9 +1037,9 @@ Practice questions on the more subtle interview scenarios.
 
 This is a **time-of-check vs time-of-use (TOCTOU)** race. The validation happens at t=0 ("yes, the coupon has redemptions left"), the redemption happens at t=30 seconds, and any number of concurrent redemptions can land in between. The fix is to never rely on the validation result as binding — only the *redemption* is binding.
 
-**Layer 1 — Stripe enforces the global cap atomically.** Don't reproduce `max_redemptions` in your application database. When you actually create the PaymentIntent or Subscription with the discount, Stripe checks the count atomically as part of that API call and rejects with `coupon_expired` or `promotion_code_limit_reached` if exhausted. The validation step in your UI is *advisory*; the binding check happens at redemption. You handle the rejection gracefully — show the user "this code was just claimed, please try another."
+**Layer 1 — Stripe enforces the global cap atomically.** Don't reproduce `max_redemptions` in your application database. When you actually create the PaymentIntent or Subscription with the discount, Stripe checks the count atomically as part of that API call and rejects the call if the coupon is used up (the only coupon-specific code Stripe documents is `coupon_expired`, so log the code and message of any other rejection). The validation step in your UI is *advisory*; the binding check happens at redemption. You handle the rejection gracefully — show the user "this code was just claimed, please try another."
 
-**Layer 2 — Reserve in your DB for per-user constraints.** Stripe enforces global caps and per-customer caps (via `first_time_transaction` or per-customer Promotion Codes). For your business rules — "one per email," "stackable up to N times" — add a `coupon_redemptions` table with a unique constraint on `(user_id, promotion_code, status='reserved')`. Insert the reservation with a 15-minute TTL when the user enters the code. Concurrent redemption attempts by the same user fail at the unique-constraint level.
+**Layer 2 — Reserve in your DB for per-user constraints.** Stripe enforces global caps and per-customer caps (via `first_time_transaction` or per-customer Promotion Codes). For your business rules — "one per email," "stackable up to N times" — add a `coupon_redemptions` table with a partial unique index on `(user_id, promotion_code)` covering only active (`reserved` or `committed`) rows. Insert the reservation with a 15-minute TTL when the user enters the code. Concurrent redemption attempts by the same user fail at the unique-constraint level.
 
 **Layer 3 — Idempotency keys.** Tie the idempotency key to the reservation id, not the request: `idempotencyKey: \`redeem-\${reservation.id}\``. Double-clicks on "Pay" hit the same key and Stripe returns the same PaymentIntent.
 
@@ -1041,7 +1049,7 @@ This is a **time-of-check vs time-of-use (TOCTOU)** race. The validation happens
 t=0   user enters code        → reserve (DB unique constraint)
 t=30  user clicks Pay         → PI.create with idempotency key
                                 → Stripe atomically checks max_redemptions
-                                → either succeeds or fails with limit_reached
+                                → either succeeds or is rejected
 t=60  webhook arrives          → commit reservation
 ```
 
@@ -1066,7 +1074,7 @@ Subtle correctness points:
 - The key must be **stable across retries.** `pi-create-${Date.now()}` produces a different key every call, defeating idempotency. Tie the key to the order id, the user's checkout session, or any business artifact that persists across retries.
 - The key must be **scoped to the operation.** Reusing `pi-${userId}` across multiple orders means the second order returns the first order's PI — silent data corruption. Include the operation specifier: `pi-create-order-${orderId}`.
 - The 24-hour storage window means same-key calls after 24h get a fresh response. Don't rely on idempotency for permanent dedup; use your `processed_events` table for that.
-- Different request body + same key = Stripe returns the original response and a header (`Idempotent-Replayed: true`) plus a body-mismatch warning. This is a bug in your code; surface it loudly.
+- Different request body + same key = Stripe rejects the request with an idempotency error instead of replaying. (A genuine replay of the *same* request is marked with an `Idempotent-Replayed: true` response header.) A mismatch is a bug in your code; surface it loudly.
 
 The same idea applies to Refunds, Subscriptions, Transfers, Customer creation, and any other state-changing call. The cost of always passing an idempotency key is one HTTP header; the upside is "one of the most common production payment bugs becomes impossible."
 
@@ -1088,7 +1096,7 @@ Revoking on the first `invoice.payment_failed` event:
 
 1. Cuts off paying customers whose cards eventually succeed on retry — they discover this when they realize they've lost access without warning.
 2. Skips the dunning UX that lets the user fix the underlying issue (update their card via the Stripe customer portal). Your support team gets the inbound complaints instead.
-3. Inflates churn metrics — what should be a 5% transient-fail-then-recover becomes "involuntary cancellation."
+3. Inflates churn metrics — customers whose payment would have recovered on retry get counted as "involuntary cancellation."
 
 The right pattern:
 
@@ -1097,7 +1105,7 @@ The right pattern:
 - On **`customer.subscription.deleted`** (only fires after dunning gives up — typically 2-3 weeks later, or per your dashboard settings): revoke access.
 - Optionally, on the *final* dunning attempt (just before cancellation), email a last-chance reminder.
 
-A small refinement for high-trust products: after dunning ends in cancellation, give a 7–14 day grace period where the user's data is preserved and a one-click "reactivate" path is offered. This recovers ~10–20% of involuntarily-canceled subscriptions in most B2B SaaS contexts.
+A small refinement for high-trust products: after dunning ends in cancellation, give a 7–14 day grace period where the user's data is preserved and a one-click "reactivate" path is offered. Some of those customers never meant to leave — their card simply expired — and this gives them an easy way back.
 
 The deeper lesson: **payment failures are a UX event, not a security event.** Treat them with the same care as a forgot-password flow.
 
@@ -1146,11 +1154,11 @@ The deeper architectural takeaway: never treat your DB's payment state as author
 
 **Explanation:**
 
-The problem is that the DB write and the email aren't in the same transactional boundary, so they have different "successful state" semantics. Two visible failure modes:
+Short answer: the DB write and the email are two separate side effects with no shared transaction, so when Stripe retries, the handler cannot tell which of them already happened. Depending on how it is written, the retry either sends the email twice or never sends it.
 
-1. **The email gets sent twice.** First webhook delivery: DB write succeeded, email send succeeded, then *something else* (the DB commit ack? a logging call?) failed and you returned 500. Stripe retries. Your handler runs again — your dedup table doesn't show this event yet (because the first attempt aborted before writing it), the DB row update is idempotent, but the email send executes a second time. The customer gets two "Order confirmed!" emails.
+1. **The email gets sent twice.** A retry reruns the whole handler. Re-running the DB write is harmless if it is idempotent (setting an order to `paid` twice changes nothing), but re-running the email is not. And "the email failed" is often not what happened: a call to the email provider that timed out may still have delivered the message. The same applies whenever anything *after* the email fails and returns 500. Either way the retry sends a second "Order confirmed!" email.
 
-2. **The email never gets sent.** First delivery: DB write succeeded but the email service was down. Your handler caught the email error, returned 200 (so Stripe doesn't retry), and silently lost the email. Customer's order is paid but they don't know.
+2. **The email never gets sent.** If the handler records the event id in its dedup table before the email (or in the same transaction as the DB write), the retry sees the event as already processed and skips everything, including the email that failed. Or the handler catches the email error and returns 200 so Stripe stops retrying, and the email is simply dropped. Either way the customer has paid and has no confirmation.
 
 **The fix is the outbox pattern.** Both effects must be transactional — either both happen or neither does. Achieved by:
 

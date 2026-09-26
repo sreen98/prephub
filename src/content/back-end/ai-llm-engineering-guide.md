@@ -145,7 +145,7 @@ That asymmetry drives the design rules:
 - **Always stream** anything a human waits for. A 6-second response that starts rendering at 400 ms feels fast; the same response delivered atomically at 6 s feels broken.
 - **Shorter output is faster output.** "Answer in two sentences" is a latency optimisation, not just a style preference.
 - **Parallelise independent calls**, but remember tool-calling loops are inherently sequential — each turn depends on the previous result.
-- **Don't put a slow model in a synchronous request path** that has a hard SLA. Queue it and notify.
+- **Don't put a slow model in a synchronous request path** that has a hard SLA (service-level agreement: a promised response time). Queue it and notify.
 
 ---
 
@@ -352,7 +352,7 @@ for (let turn = 0; turn < MAX_TURNS; turn++) {
 
 ### 7.2 Rules That Come Up as Questions
 
-- **Authorize inside the tool, against the session — never against the model's claim.** The model may pass any `orderId` it likes, including one belonging to another customer, either because it hallucinated or because a user talked it into doing so. `runTool` must check that *this* user may read *that* order. A tool without its own authorization check is a direct IDOR vulnerability.
+- **Authorize inside the tool, against the session — never against the model's claim.** The model may pass any `orderId` it likes, including one belonging to another customer, either because it hallucinated or because a user talked it into doing so. `runTool` must check that *this* user may read *that* order. A tool without its own authorization check is a direct IDOR (insecure direct object reference: the server fetches whatever ID it is handed without checking the caller may see it) vulnerability.
 - **Validate arguments with a schema.** Constrained generation reduces malformed arguments; it doesn't eliminate semantically wrong ones.
 - **Descriptions are the API docs the model reads.** Vague descriptions are the number one cause of a model calling the wrong tool or filling in a plausible-looking wrong argument. Say what it does, when to use it, and what the arguments mean.
 - **Return errors to the model rather than throwing.** Models are good at recovering from "Error: order not found — check the ID format", which turns a dead end into a retry.
@@ -395,7 +395,7 @@ The split matters because it maps to *who is in control*. Tools are model-driven
               └─────────────┘          └──────────────┘    └──────────────┘
 ```
 
-One host, many clients, one client per server. Messages are JSON-RPC 2.0.
+One host, many clients, one client per server. Messages are JSON-RPC 2.0, a small standard format for sending "call this method with these params" requests and their responses as JSON.
 
 #### Transports
 
@@ -404,7 +404,13 @@ Two are defined:
 - **stdio** — the server runs as a **local subprocess** and exchanges messages over stdin/stdout. This is what a local filesystem, git or database server uses. Trivial to run, no network, no auth needed because the process boundary *is* the boundary.
 - **HTTP** — a single MCP endpoint, with optional **Server-Sent Events** for server-to-client streaming. This is how remote and hosted servers work.
 
-The **2026-07-28 specification** was the biggest change since MCP launched, and it is worth knowing because it is exactly the kind of "why does this matter operationally" question senior interviews ask. It made the protocol core **stateless**: transport-level session management was removed entirely, and protocol version, client identity and capabilities now travel in a `_meta` parameter on each request. Plus header-based routing, cacheable list results, Multi-Round-Trip Requests, authorization hardening, and a formal extensions framework (including MCP Apps for server-rendered UI and a Tasks extension for long-running work).
+The **2026-07-28 specification** was the biggest change since MCP launched, and it is worth knowing because it is exactly the kind of "why does this matter operationally" question senior interviews ask. It made the protocol core **stateless**: transport-level session management was removed entirely, and protocol version, client identity and capabilities now travel in a `_meta` parameter on each request. The same release also added:
+
+- **Header-based routing.** The method and tool name travel in the `Mcp-Method` and `Mcp-Name` HTTP headers, so a gateway can route or authorise a request without parsing its body.
+- **Cacheable list results.** The answer to "which tools do you have?" can be cached instead of re-fetched on every request.
+- **Multi-Round-Trip Requests.** Previously a server could send its own request back to the client (for example, "ask the user for a missing value") over a connection held open. Now the server returns an `input_required` result instead; the client collects the answer and retries the original request with it attached. No open connection is needed, which is what statelessness requires.
+- **Authorization hardening**, bringing MCP's OAuth flow closer to how OAuth and OpenID Connect are deployed elsewhere.
+- **A formal extensions framework.** Optional features live outside the core spec, with their own IDs and versions, and client and server agree which ones they support. Two official ones shipped with it: **MCP Apps** (the server supplies a UI to render) and **Tasks** (long-running work the client can check on later).
 
 **Why statelessness is the headline:** a stateful protocol needs sticky sessions, which means you cannot put a remote MCP server behind an ordinary round-robin load balancer, and horizontal scaling requires shared session storage. Stateless means a remote MCP server is *just another HTTP workload* — deploy it on the same boring infrastructure as the rest of your APIs, scale it the same way, and lose nothing when an instance is recycled.
 
@@ -444,7 +450,7 @@ This is where the interview goes, and the answers follow directly from §11:
 
 - **An MCP server is an API, so it needs API security.** Authentication, authorization per caller, rate limits, input validation, audit logs. The protocol does not provide these for you; the 2026 spec hardened *authorization* but your handler still has to check permissions.
 - **Tool descriptions are attacker-controllable if the server is third-party.** A malicious server can describe a tool in a way designed to manipulate the model into calling it with sensitive arguments ("use this tool for all password resets"). This is **tool poisoning**, and it is why installing an MCP server is a trust decision comparable to installing an npm package with install scripts.
-- **Many servers in one host means one shared context window.** A prompt injection delivered through a document read by server A can drive a tool call on server B. This is the lethal trifecta assembled out of parts nobody audited together — often called a **confused deputy** problem.
+- **Many servers in one host means one shared context window.** A prompt injection delivered through a document read by server A can drive a tool call on server B. This is the lethal trifecta assembled out of parts nobody audited together — often called a **confused deputy** problem: the model legitimately holds server B's permissions, and is tricked into using them on the attacker's behalf.
 - **Least privilege per server.** Read-only credentials for read-only servers; scope tokens to the user, not the service.
 - **Human confirmation for consequential tools**, which is why MCP clients prompt before running a tool the first time.
 
@@ -601,9 +607,9 @@ Retrieval quality is dominated by chunking, and this is the most common source o
 
 Pure vector search has a known weakness: it is bad at **exact matches** — product codes, error numbers, names, rare acronyms. Semantic similarity doesn't help you find `ERR_1042`.
 
-**Hybrid search** runs vector search and keyword search (BM25) and fuses the results, typically with Reciprocal Rank Fusion. This is one of the highest-return upgrades to a naive RAG system.
+**Hybrid search** runs vector search and keyword search (BM25, the classic search-engine ranking that scores documents by how often the query's exact words appear, weighting rare words more) and fuses the results, typically with Reciprocal Rank Fusion (each document scores by its rank in each list, so a document near the top of both lists wins, and you never have to compare the two systems' incompatible raw scores). This is one of the highest-return upgrades to a naive RAG system.
 
-**Reranking** then takes the ~20 fused candidates and scores each one against the query with a cross-encoder — slower per pair but far more accurate than embedding similarity — and you send the top 3–5 to the model. Fewer, better chunks beats more, noisier chunks on both quality and cost.
+**Reranking** then takes the ~20 fused candidates and scores each one against the query with a cross-encoder — a model that reads the query and the chunk *together* and outputs a relevance score, instead of comparing two vectors computed separately. That is slower per pair but far more accurate than embedding similarity. You then send the top 3–5 to the model. Fewer, better chunks beats more, noisier chunks on both quality and cost.
 
 ### 9.4 Grounding and Citations
 
@@ -777,7 +783,7 @@ The browser fetches that image, and the secret is in the attacker's access log. 
 ### 11.3 Practical Defences
 
 - **Never treat model output as trusted.** It is user input that took a scenic route. Sanitise before rendering (DOMPurify or equivalent), never `dangerouslySetInnerHTML` raw model markdown, never `eval` it, and never interpolate it into SQL, a shell command or a URL.
-- **Restrict outbound rendering.** A strict `Content-Security-Policy` limiting `img-src` and `connect-src` neutralises the image-exfiltration trick even if injection succeeds. Consider stripping or proxying links and images in model output entirely.
+- **Restrict outbound rendering.** A strict `Content-Security-Policy` (CSP, a response header that tells the browser which origins a page may load images, scripts and connections from) limiting `img-src` and `connect-src` neutralises the image-exfiltration trick even if injection succeeds. Consider stripping or proxying links and images in model output entirely.
 - **Authorize in the tool, against the session.** Every tool checks that *this user* may perform *this action* on *this resource*, ignoring anything the model asserted. This is the single highest-value control, and it turns most injections into a permission error.
 - **Least privilege, scoped per request.** Read-only credentials for read-only tools. If the agent doesn't need to send email, don't give it the tool.
 - **Human-in-the-loop for consequential and irreversible actions** — spending money, external communication, deletion, permission changes.
@@ -790,7 +796,7 @@ The browser fetches that image, and the secret is in the attacker's access log. 
 - **API keys stay server-side. Always.** A key in frontend code, in a public env var (`NEXT_PUBLIC_*`, `VITE_*`), or in a mobile bundle is a key that will be extracted and used. Route every call through your backend.
 - **Rate limit and quota per user**, not just per IP. An LLM endpoint is a cost-amplification target: a few unauthenticated requests can generate a large bill. Cap tokens per request *and* requests per user per hour.
 - **Input size limits.** Reject oversized inputs before they reach the provider.
-- **PII.** Know what you send to a third-party model, whether the provider trains on it (check your tier's data-retention terms), and redact where you can. This is a compliance question in regulated industries and comes up in interviews there.
+- **PII** (personally identifiable information: names, emails, addresses, IDs). Know what you send to a third-party model, whether the provider trains on it (check your tier's data-retention terms), and redact where you can. This is a compliance question in regulated industries and comes up in interviews there.
 - **Log responsibly.** Traces are essential for debugging but they contain user content — redact, restrict access, and set retention.
 - **Moderation.** A cheap classifier pass on input and/or output where user-facing content could be abusive or harmful.
 
@@ -804,7 +810,7 @@ Provider APIs fail in specific ways, and each needs a different response:
 
 | Failure | Response |
 |---|---|
-| `429` rate limit | Exponential back-off **with jitter**, honour `Retry-After`. Client-side queue |
+| `429` rate limit | Exponential back-off **with jitter** (a random delay, so throttled clients don't all retry at the same instant), honour `Retry-After`. Client-side queue |
 | `5xx` / overloaded | Retry with back-off, then fall back to another model or provider |
 | Timeout | Cap it yourself — don't inherit an unbounded default. Stream so partial results survive |
 | Context length exceeded | Truncate history or retrieved chunks and retry. Count tokens *before* sending |
@@ -841,7 +847,7 @@ Browser ──▶ Your backend (BFF) ──▶ LLM provider
                   └─▶ traces, metrics, cost accounting
 ```
 
-The browser must never talk to the provider directly. The backend is where the API key lives, and it is also the only place you can enforce authentication, per-user rate limits, token caps, input validation, tool authorization, logging and cost accounting. Every one of those is impossible from the client. "Why can't the frontend call the model directly?" is a screening question, and "the API key would be public" is only the first of six reasons.
+The browser must never talk to the provider directly. The backend here is a BFF (backend for frontend: a server your team owns that sits between the browser and everything else). It is where the API key lives, and it is also the only place you can enforce authentication, per-user rate limits, token caps, input validation, tool authorization, logging and cost accounting. Every one of those is impossible from the client. "Why can't the frontend call the model directly?" is a screening question, and "the API key would be public" is only the first of six reasons.
 
 ### 13.2 Synchronous vs Queued
 
@@ -1015,7 +1021,7 @@ And if you build one, the production requirements are non-negotiable: **four bud
 
 Two pipelines.
 
-**Ingestion — offline, idempotent, re-runnable.** Fetch or watch the sources; parse; chunk on **semantic boundaries** (headings, paragraphs) at roughly 300–800 tokens with 10–20% overlap, never splitting a sentence, table or code block; **prepend document and section context to each chunk** before embedding, so the vector captures where the text sits; embed; upsert into the vector store with metadata `{ source, title, section, updated_at, acl }`. It must be re-runnable because documents change — you need upsert semantics and a deletion path for removed documents, or the index rots.
+**Ingestion — offline, idempotent, re-runnable.** Fetch or watch the sources; parse; chunk on **semantic boundaries** (headings, paragraphs) at roughly 300–800 tokens with 10–20% overlap, never splitting a sentence, table or code block; **prepend document and section context to each chunk** before embedding, so the vector captures where the text sits; embed; upsert into the vector store with metadata `{ source, title, section, updated_at, acl }`, where `acl` (access-control list) records which users or groups may read that document. It must be re-runnable because documents change — you need upsert semantics and a deletion path for removed documents, or the index rots.
 
 **Query — online.** Authenticate → rate limit per user → validate input → **rewrite the query using conversation history** (without this, a follow-up like "and the enterprise one?" retrieves nothing) → **hybrid retrieval** (vector + BM25, fused) **filtered by the user's ACL and tenant inside the query** → rerank with a cross-encoder, keep the top 3–5 → build a grounded prompt with numbered sources, inline citations and an `INSUFFICIENT_CONTEXT` escape hatch → stream to the client, sanitising rendered output → log tokens, cost, latency, retrieval scores, citations and feedback.
 
@@ -1061,7 +1067,7 @@ Temperature 0 makes the sampler greedy — always take the highest-probability t
 - **Batched GPU arithmetic.** Your request is batched with other users', and floating-point addition is not associative, so a different batch composition can change the arithmetic enough to flip a near-tie between two candidate tokens. You do not control batch composition.
 - **Model version updates.** If you didn't pin a version, "latest" changes under you without a deploy.
 - **Provider-side routing** across hardware or serving stacks.
-- **Any non-zero `top_p`/`top_k` interaction** and, on some models, a genuinely stochastic path even at 0.
+- **The setting is not always honoured.** Many reasoning models accept only their default temperature of 1. The API rejects a request for 0, and some client libraries quietly drop the parameter instead, so the model samples normally whatever your code says.
 
 The implications shape your whole test and cache strategy:
 

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, BookOpen, ChevronRight, Shuffle, Braces } from 'lucide-react';
 import type { Difficulty, Pattern } from '../../data/playground/playgroundTemplates';
 import {
-  ALL_PATTERNS, PATTERN_GROUPS, allTemplates, blankStarters,
+  ALL_PATTERNS, PATTERN_GROUPS, allTemplates,
   type CategoryMeta, type TemplateMeta,
 } from '../../data/playground/templateIndex';
 import type { UseTemplateFiltersReturn } from '../../hooks/useTemplateFilters';
@@ -11,7 +11,7 @@ import BlankStarterList from './BlankStarterList';
 import TemplateFilterSidebar from './TemplateFilterSidebar';
 import TemplateGrid from './TemplateGrid';
 import type { ProgressEntry } from '../../hooks/usePlaygroundProgress';
-import type { TemplateLang } from '../../data/playground/playgroundTemplates';
+import type { TemplateLang, BlankStarter } from '../../data/playground/playgroundTemplates';
 
 // The template picker. Extracted from CodePlayground, where it was 453 of the
 // component's ~1,400 lines.
@@ -40,19 +40,23 @@ export interface TemplateModalProps {
   onPickTemplate: (t: TemplateMeta) => void;
   onPickBlank: (s: { name: string; lang: TemplateLang; code: string }) => void;
   onToast: (message: string) => void;
+  starters: BlankStarter[];
 }
 
 export default function TemplateModal({
   open, onClose, filters, searchRef, categories, tagOptions,
   difficultyCounts, patternCounts, scopeHasPatterns, scopeHasDifficulty,
-  selectedName, getEntry, onPickTemplate, onPickBlank, onToast,
+  selectedName, getEntry, onPickTemplate, onPickBlank, onToast, starters,
 }: TemplateModalProps) {
   // The shell only needs the search box, the mode tabs and the footer counts;
   // the two panes take the whole `filters` object and destructure what they
   // need themselves.
   const { search: drawerSearch, mode: modalMode, setSearch: setDrawerSearch, setMode: setModalMode } = filters;
 
-  const allChallenges = allTemplates.filter(t => t.kind === 'challenge');
+  // Counts follow the playground's language (filters.tag), not the whole catalogue.
+  const inTag = (t: { tag: string }): boolean => filters.tag === 'all' || t.tag.toLowerCase() === filters.tag;
+  const allChallenges = allTemplates.filter(t => t.kind === 'challenge' && inTag(t));
+  const referenceCount = allTemplates.filter(t => t.kind === 'template' && inTag(t)).length;
   const isSolved = (name: string): boolean => getEntry(name)?.status === 'solved';
   const solvedTotal = allChallenges.filter(t => isSolved(t.name)).length;
 
@@ -93,10 +97,10 @@ export default function TemplateModal({
                       </h2>
                       <span className="text-[11px] text-slate-400">
                         {modalMode === 'blank'
-                          ? 'Start fresh in JS, TS, or React'
+                          ? `Start fresh in ${starters.map((s) => s.name).join(' or ')}`
                           : modalMode === 'challenges'
                             ? `${solvedTotal} of ${allChallenges.length} challenges solved`
-                            : `${allTemplates.filter(t => t.kind === 'template').length} reference snippets`}
+                            : `${referenceCount} reference snippets`}
                       </span>
                     </div>
                   </div>
@@ -130,9 +134,11 @@ export default function TemplateModal({
                 {/* Mode toggle: Templates / Challenges / Blank */}
                 <div className="flex items-center gap-1 px-5 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20">
                   {([
-                    { id: 'templates' as const,  label: 'Templates',   count: allTemplates.filter(t => t.kind === 'template').length },
-                    { id: 'challenges' as const, label: 'Challenges',  count: allTemplates.filter(t => t.kind === 'challenge').length },
-                    { id: 'blank' as const,      label: 'Blank',       count: blankStarters.length },
+                    { id: 'templates' as const,  label: 'Templates',   count: referenceCount },
+                    // No Challenges tab: challenges have their own browser, grouped into
+                    // study tracks (ChallengeBrowser). The 'challenges' mode still works
+                    // inside this component, but nothing here switches to it.
+                    { id: 'blank' as const,      label: 'Blank',       count: starters.length },
                   ]).map(({ id, label, count }) => (
                     <button
                       key={id}
@@ -183,7 +189,7 @@ export default function TemplateModal({
                 {/* Body — Blank mode shows starter cards; otherwise the 2-pane layout */}
                 {/* Body — Blank mode shows starter cards; otherwise the 2-pane layout */}
                 {modalMode === 'blank' ? (
-                  <BlankStarterList onPick={onPickBlank} />
+                  <BlankStarterList onPick={onPickBlank} starters={starters} />
                 ) : (
                 <div className="flex-1 flex min-h-0">
                   <TemplateFilterSidebar
@@ -210,7 +216,7 @@ export default function TemplateModal({
                 <div className="px-5 py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
                   <p className="text-[11px] text-slate-400">
                     {modalMode === 'blank'
-                      ? `${blankStarters.length} starters`
+                      ? `${starters.length} starters`
                       : `${categories.reduce((n, c) => n + c.templates.length, 0)} matching`}
                   </p>
                   <p className="text-[11px] text-slate-400">

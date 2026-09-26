@@ -25,7 +25,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
  * removed from this list entirely rather than left with a generous ceiling.
  */
 const LEGACY_LARGE_FILES = {
-  'src/features/playground/CodePlayground.tsx': 920,
+  'src/features/playground/CodePlayground.tsx': 780,
 }
 
 export default defineConfig([

@@ -55,17 +55,17 @@ The single biggest structural difference from Android: **you cannot ship without
 ## 2. Apple Developer Program
 
 - **$99/year**, per account. Required to distribute on the App Store or via TestFlight.
-- **Individual vs Organization.** An Organization account requires a **D-U-N-S number** and legal-entity verification, which is what takes a week. It also gives you team roles and shows your company name as the seller — an Individual account shows your personal name, which is usually not what a business wants. Migrating later is painful, so choose correctly up front.
+- **Individual vs Organization.** An Organization account requires a **D-U-N-S number** (a nine-digit business identifier issued by Dun & Bradstreet, which Apple uses to confirm your company exists) and legal-entity verification, which is what takes a week. It also gives you team roles and shows your company name as the seller — an Individual account shows your personal name, which is usually not what a business wants. Migrating later is painful, so choose correctly up front.
 - **Roles**: Account Holder (one, owns the agreement), Admin, App Manager, Developer, Marketing, Finance. Only the Account Holder can accept new agreements — a common release blocker when Apple updates terms and the holder is on leave.
 - The **Apple Developer Enterprise Program** ($299/yr) is for internal-only distribution and is not a route to the public store.
 
-Alternatives for internal apps: **Ad Hoc** distribution (up to 100 devices per type, registered by UDID) and **Custom Apps for Business** through Apple Business Manager.
+Alternatives for internal apps: **Ad Hoc** distribution (up to 100 devices per type, each registered by its UDID — the device's unique hardware identifier) and **Custom Apps for Business** through Apple Business Manager.
 
 ---
 
 ## 3. Code Signing — the Core Concept
 
-This is where iOS deployment actually breaks, and it is the most-asked area in interviews. Four pieces must agree:
+This is where iOS deployment actually breaks, and it is the most-asked area in interviews. The idea: iOS will only run an app, and the App Store will only accept one, if it can verify **who signed it** and that the signer was **allowed to build this app, for these devices, with these capabilities**. Four pieces must agree:
 
 | Piece | What it is | Lives where |
 |---|---|---|
@@ -82,7 +82,7 @@ Certificate (who)  +  App ID (what)  +  Devices (where)  +  Entitlements (allowe
                   Signed .app → .ipa
 ```
 
-**Certificate types:** *Apple Development* (run on your registered devices) and *Apple Distribution* (App Store and Ad Hoc). The **private key never leaves the machine that generated the CSR** — which is why a certificate downloaded onto a new laptop is useless without exporting the key as a `.p12`. Losing the key means revoking and re-issuing.
+**Certificate types:** *Apple Development* (run on your registered devices) and *Apple Distribution* (App Store and Ad Hoc). You get a certificate by generating a **CSR** (certificate signing request) on your Mac and uploading it to Apple; the CSR carries only the public key. The **private key never leaves the machine that generated the CSR** — which is why a certificate downloaded onto a new laptop is useless without exporting the key as a `.p12` (a password-protected file bundling the certificate with its private key). Losing the key means revoking and re-issuing.
 
 **Provisioning profile types:**
 
@@ -116,7 +116,7 @@ Enabling a capability writes an **entitlement** into `App.entitlements`, and the
 <array><string>applinks:example.com</string></array>
 ```
 
-**`aps-environment`** deserves attention: it is `development` for debug builds and `production` for App Store builds, and it selects which APNs environment your device token is valid for. A token minted against the sandbox will silently fail against production APNs (§16).
+**`aps-environment`** deserves attention: it is `development` for debug builds and `production` for App Store builds, and it selects which APNs (Apple Push Notification service — Apple's server that delivers every push) environment your device token is valid for. A token minted against the sandbox will silently fail against production APNs (§16).
 
 ---
 
@@ -185,7 +185,8 @@ xcodebuild -exportArchive -archivePath build/App.xcarchive \
 # 3. upload
 xcrun altool --upload-app -f build/App.ipa --type ios \
   --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-# (or `xcrun notarytool`/Transporter; altool is deprecated in favour of the ASC API)
+# (or the Transporter app / Xcode Organizer. Not notarytool: that notarizes macOS
+#  apps. altool's deprecation covers notarization only; App Store uploads still work)
 ```
 
 ```xml
@@ -195,9 +196,9 @@ xcrun altool --upload-app -f build/App.ipa --type ios \
 <key>uploadSymbols</key><true/>          <!-- dSYMs for crash symbolication -->
 ```
 
-**Always upload symbols.** Without dSYMs, crash reports are hex addresses instead of stack frames — and for React Native you additionally need the **JS source map** uploaded to your crash reporter, or JS stack traces are minified garbage.
+**Always upload symbols.** Without dSYMs (debug symbol files that map machine addresses back to function names and line numbers), crash reports are hex addresses instead of stack frames — and for React Native you additionally need the **JS source map** uploaded to your crash reporter, or JS stack traces are minified garbage.
 
-The archive is a `.xcarchive` (app plus dSYMs); the `.ipa` is the signed, zipped payload. Bitcode was **removed in Xcode 14** — if a tutorial mentions enabling it, the tutorial is stale.
+The archive is a `.xcarchive` (app plus dSYMs); the `.ipa` (iOS App Store package) is the signed, zipped payload you actually upload. Bitcode was **removed in Xcode 14** — if a tutorial mentions enabling it, the tutorial is stale.
 
 ---
 
@@ -259,7 +260,7 @@ The **App Store Connect API** automates all of this — essential once releases 
 
 The workflow that works: push every build to **internal** TestFlight automatically from CI (no review, instant), and promote a chosen build to **external** groups for wider beta. Beta App Review is lighter than App Store review but still catches crashes on launch and missing demo credentials.
 
-Details worth knowing: builds **expire after 90 days**; testers must install the TestFlight app; **`expiresAfter` / build expiry can be set manually**; feedback and crash reports flow back through TestFlight, including screenshots testers annotate; and a build that passed Beta App Review still has to pass full App Store review, which is stricter.
+Details worth knowing: builds **expire after 90 days**; testers must install the TestFlight app; you can also **expire a build early** (TestFlight → the build → *Expire Build*) so testers can no longer install it — worth doing for a build with a bad bug, because otherwise testers can keep installing it for the full 90 days, even after it ships; feedback and crash reports flow back through TestFlight, including screenshots testers annotate; and a build that passed Beta App Review still has to pass full App Store review, which is stricter.
 
 Because internal TestFlight needs no review, it is also the fastest path to verifying a production-signed build on a real device — worth doing before every submission, since a signing or entitlement problem that only manifests in a Release build is otherwise found by the reviewer.
 
@@ -297,7 +298,7 @@ Declared in App Store Connect, shown on your product page: for each data type, w
 
 ### App Tracking Transparency
 
-If you track users across apps or websites owned by other companies — including using IDFA — you **must** call `ATTrackingManager.requestTrackingAuthorization` and provide `NSUserTrackingUsageDescription`. Accessing the IDFA without consent is a hard rejection. Note most users decline, so any business model depending on IDFA needs a fallback.
+If you track users across apps or websites owned by other companies — including using the IDFA (Identifier for Advertisers, a per-device advertising ID) — you **must** call `ATTrackingManager.requestTrackingAuthorization` and provide `NSUserTrackingUsageDescription`. Accessing the IDFA without consent is a hard rejection. Note most users decline, so any business model depending on IDFA needs a fallback.
 
 Two more requirements that mirror Android's: **account deletion must be offered in-app** if the app supports account creation (since June 2022), and **Sign in with Apple** must be offered if you offer any third-party social login.
 
@@ -423,7 +424,7 @@ Apple reduces delivered size automatically with **app thinning**: **slicing** (p
 - Ship images in **asset catalogs**, not loose files, and prefer HEIC/WebP where practical.
 - Strip unused architectures and enable dead-code stripping in Release.
 - Audit dependencies — an unused SDK is pure size.
-- For React Native, enable **Hermes** (smaller and faster startup than JSC) and check the JS bundle size.
+- For React Native, enable **Hermes** (React Native's own JavaScript engine: smaller and faster startup than JSC, the JavaScriptCore engine it replaces) and check the JS bundle size.
 - Use the **App Store Connect App Size report** for real per-device download and install sizes; the `.ipa` size is not what users download.
 
 ---
@@ -431,10 +432,10 @@ Apple reduces delivered size automatically with **app thinning**: **slicing** (p
 ## 19. iOS-Specific React Native Concerns
 
 - **CocoaPods.** Native dependencies come through `Podfile`/`Podfile.lock`; run `pod install` after any native dependency change, and commit the lockfile. `cd ios && pod install --repo-update` fixes a large share of "it doesn't build on my machine".
-- **Expo managed vs bare.** Managed + EAS handles signing and needs no Mac. Bare gives full native control and requires you to own the Xcode project. **Prebuild/CNG** regenerates the `ios/` directory from config, so hand edits are lost unless expressed as a **config plugin**.
+- **Expo managed vs bare.** Managed + EAS handles signing and needs no Mac. Bare gives full native control and requires you to own the Xcode project. **Prebuild/CNG** (Continuous Native Generation) regenerates the `ios/` directory from config, so hand edits are lost unless expressed as a **config plugin**.
 - **New Architecture.** Fabric and TurboModules are the default in recent React Native; verify each native dependency supports it before upgrading, since an unmaintained module is what blocks the migration.
 - **Hermes** is the default engine; keep the `.hbc` **source map** and upload it to your crash reporter or JS stack traces are unreadable.
-- **OTA updates.** EAS Update (or CodePush) can ship **JS-only** changes without review — legitimate and explicitly permitted, provided you do not change the app's purpose or add features that would need review. Anything touching native code still needs a full submission. Guideline 3.1.1 and 2.5.2 set the boundary: don't ship functionality the reviewer never saw.
+- **OTA (over-the-air) updates.** EAS Update (or CodePush) pushes a new JavaScript bundle straight to installed apps, so you can ship **JS-only** changes without review — legitimate and explicitly permitted, provided you do not change the app's purpose or add features that would need review. Anything touching native code still needs a full submission. Guideline 3.1.1 and 2.5.2 set the boundary: don't ship functionality the reviewer never saw.
 - **Debug-only settings must not leak** — the ATS localhost exception (§12) and any dev menu.
 
 ---

@@ -198,7 +198,7 @@ SELECT * FROM users WHERE id IN (SELECT user_id FROM orders);
 SELECT DISTINCT u.* FROM users u JOIN orders o ON o.user_id = u.id;
 ```
 
-Modern planners often rewrite `IN` and `EXISTS` into the same semi-join, so the performance difference is smaller than folklore suggests. What *is* reliably true: **`NOT EXISTS` is safe where `NOT IN` is not**, and `EXISTS` expresses intent better than `JOIN` + `DISTINCT`.
+Modern planners often rewrite `IN` and `EXISTS` into the same semi-join, so the performance difference is smaller than folklore suggests. (A semi-join is a join that only asks "is there at least one match?" and returns each left row once, never multiplied.) What *is* reliably true: **`NOT EXISTS` is safe where `NOT IN` is not**, and `EXISTS` expresses intent better than `JOIN` + `DISTINCT`.
 
 ---
 
@@ -326,6 +326,8 @@ SELECT total, status FROM orders WHERE user_id = 1 ORDER BY created_at;
 -- → Index Only Scan. Often 10x faster because it avoids the random heap reads.
 ```
 
+"The heap" is Postgres's name for the table's own storage, where the full rows live. A normal index lookup finds a row location in the index and then jumps to the heap to fetch the row — one random read per row. An index-only scan skips that second jump.
+
 This is one of the highest-return optimisations for a hot read path. In MySQL/InnoDB, secondary indexes implicitly include the primary key, so `(user_id, created_at)` covers a query also selecting `id`.
 
 ### 6.4 The Other Index Types (Postgres)
@@ -349,7 +351,7 @@ CREATE INDEX idx_lower_email ON users (LOWER(email));
 -- Without it, WHERE LOWER(email) = '…' CANNOT use an index on email.
 ```
 
-**A predicate wrapped in a function can't use a plain index on that column.** `WHERE LOWER(email) = 'a@b.com'`, `WHERE DATE(created_at) = '2026-09-01'` and `WHERE amount::text = '100'` all defeat the index. Either index the expression, or rewrite the predicate to be **sargable** — `created_at >= '2026-09-01' AND created_at < '2026-09-02'` uses the index; `DATE(created_at) = …` does not.
+**A predicate wrapped in a function can't use a plain index on that column.** `WHERE LOWER(email) = 'a@b.com'`, `WHERE DATE(created_at) = '2026-09-01'` and `WHERE amount::text = '100'` all defeat the index. Either index the expression, or rewrite the predicate to be **sargable** (short for "search-argument-able": the bare column is compared to a value, so the database can look that value up in the sorted index) — `created_at >= '2026-09-01' AND created_at < '2026-09-02'` uses the index; `DATE(created_at) = …` does not.
 
 ### 6.5 The Cost of Indexes
 
@@ -389,7 +391,7 @@ Nested Loop  (cost=0.43..842.11 rows=1 width=64) (actual time=0.03..412.7 rows=8
 | Strategy | Good when | Bad when |
 |---|---|---|
 | **Nested Loop** | the outer side is tiny and the inner has an index | the outer side is large — cost is O(n×m) |
-| **Hash Join** | one side fits in `work_mem`; no useful index | the hash spills to disk |
+| **Hash Join** | one side fits in `work_mem` (Postgres's memory budget for a single sort or hash operation); no useful index | the hash outgrows that budget and spills to disk |
 | **Merge Join** | both inputs are already sorted (or indexed in that order) | requires an expensive sort first |
 
 A `Seq Scan` is **not automatically bad** — reading a whole small table, or a query returning 60% of a large one, is genuinely faster sequentially than via an index, because sequential I/O beats thousands of random reads. Saying that unprompted signals you understand the planner rather than pattern-matching on keywords.
@@ -411,12 +413,14 @@ COMMIT;   -- or ROLLBACK
 |---|---|---|
 | **Atomicity** | all statements or none | the write-ahead log / undo log |
 | **Consistency** | constraints hold before and after | constraints, triggers, your schema |
-| **Isolation** | concurrent transactions don't corrupt each other | MVCC and/or locking (§9) |
+| **Isolation** | concurrent transactions don't corrupt each other | MVCC (multi-version concurrency control — see below) and/or locking (§9) |
 | **Durability** | a committed transaction survives a crash | WAL flushed to disk (`fsync`) |
+
+MVCC means the database keeps several versions of a row: a writer creates a new version instead of overwriting in place, and each transaction reads the versions that were committed when its snapshot was taken. That is how readers avoid waiting on writers.
 
 **Consistency is the one candidates misstate.** It does *not* mean "the data is correct" in a business sense — it means the database's declared constraints are never violated by a committed transaction. If your business rule isn't expressed as a constraint, ACID doesn't protect it.
 
-Two practical notes. **Durability is tunable and often traded away**: Postgres's `synchronous_commit = off` makes commits much faster at the cost of losing the last fraction of a second on a crash — sometimes correct for analytics ingest, never for payments. And **keep transactions short**: a long-running transaction holds locks, and in Postgres it prevents vacuum from reclaiming dead tuples, which causes table bloat well after the transaction ends. Never hold a transaction open across a network call to a third party.
+Two practical notes. **Durability is tunable and often traded away**: Postgres's `synchronous_commit = off` makes commits much faster at the cost of losing the last fraction of a second on a crash — sometimes correct for analytics ingest, never for payments. And **keep transactions short**: a long-running transaction holds locks, and in Postgres it prevents vacuum (the background job that deletes old row versions no transaction can still see — "dead tuples") from reclaiming them, so the table bloats well after the transaction ends. Never hold a transaction open across a network call to a third party.
 
 ---
 
@@ -460,7 +464,7 @@ COMMIT;                                   COMMIT;
 
 Each transaction read a consistent snapshot and wrote a *different row*, so there's no write-write conflict for Repeatable Read to detect. The fixes:
 
-1. **`SERIALIZABLE`** isolation. Postgres uses Serializable Snapshot Isolation, which detects the dangerous read-write dependency and aborts one transaction with a serialisation failure — so **your application must be prepared to retry** on `40001`. That retry loop is the price of serialisable, and forgetting it is the usual reason teams say "serializable broke our app."
+1. **`SERIALIZABLE`** isolation. Postgres uses Serializable Snapshot Isolation (SSI: transactions still read snapshots, but the engine tracks what each one read and wrote), which detects the dangerous read-write dependency and aborts one transaction with a serialisation failure — so **your application must be prepared to retry** on `40001`. That retry loop is the price of serialisable, and forgetting it is the usual reason teams say "serializable broke our app."
 2. **Materialise the conflict** — take an explicit lock on a row both transactions must touch (`SELECT … FOR UPDATE` on a shared "schedule" row), turning the write skew into a write-write conflict the engine already handles.
 3. **Express it as a constraint** where possible, so the database enforces the invariant regardless of isolation.
 
@@ -636,9 +640,9 @@ Other rules:
 The order matters — most teams reach for the last item when the first four would have done.
 
 1. **Fix the queries and indexes.** Genuinely most "we need to scale" situations are one missing index or one N+1. Measure first (`pg_stat_statements`).
-2. **Connection pooling.** Each Postgres connection is a process with real memory cost, and hundreds of idle connections from serverless functions will exhaust the server. **PgBouncer** (transaction pooling) is the standard answer, and it's mandatory in front of Lambda-style workloads. Note transaction pooling breaks session-level features (`SET`, advisory locks, prepared statements) — a real constraint to mention.
+2. **Connection pooling.** Each Postgres connection is a process with real memory cost, and hundreds of idle connections from serverless functions will exhaust the server. **PgBouncer** in transaction-pooling mode (a small proxy that lends a real database connection to a client only for the duration of one transaction, so thousands of clients share a few dozen connections) is the standard answer, and it's mandatory in front of Lambda-style workloads. Note transaction pooling breaks session-level features (`SET`, advisory locks, prepared statements) — a real constraint to mention.
 3. **Caching.** Redis in front of expensive reads, or a materialised view refreshed on a schedule for a heavy aggregate.
-4. **Read replicas.** Send reads to replicas, writes to the primary. The thing to name unprompted: **replication lag** means a read replica can serve stale data, so a user who just wrote and immediately reads may not see their own write. Route read-your-writes traffic to the primary, or use a causality token.
+4. **Read replicas.** Send reads to replicas, writes to the primary. The thing to name unprompted: **replication lag** means a read replica can serve stale data, so a user who just wrote and immediately reads may not see their own write. Route read-your-writes traffic to the primary, or use a causality token (the write returns its log position, and a replica only serves that user's next read once it has replayed past that position).
 5. **Partitioning** (declarative in Postgres). Split one logical table into physical partitions by range (time) or list (tenant). Wins: dropping old data becomes an instant `DROP TABLE` instead of a huge `DELETE`, and queries with the partition key in the predicate scan far less. Only helps if your queries **include the partition key** — otherwise every partition is scanned and you've made things worse.
 6. **Sharding.** Split data across independent databases by a shard key. This is the last resort because it costs you cross-shard joins, cross-shard transactions, and a permanent operational burden — and the shard key is nearly impossible to change later. See the System Design guide.
 
@@ -773,7 +777,7 @@ Four anomalies, and each level prevents progressively more:
 
 Two things to volunteer. **The defaults differ**: Postgres and Oracle default to Read Committed, MySQL/InnoDB to Repeatable Read — so identical code behaves differently across engines. And **implementations diverge at the same named level**: Postgres's Repeatable Read is snapshot isolation and *does* prevent phantoms, but still permits write skew; InnoDB uses next-key locks so locking reads don't see phantoms either.
 
-**Write skew is the one worth explaining**, because it's the reason Serializable exists. Two on-call engineers, a rule that one must stay on call: both read `count = 2`, both conclude it's safe to remove themselves, both write *different rows*, and nobody is on call. No write-write conflict, so snapshot isolation can't detect it. Fixes: `SERIALIZABLE` (Postgres uses SSI and aborts one with `40001` — **so you must implement a retry loop**, which is the part teams forget), materialise the conflict with `SELECT … FOR UPDATE` on a shared row, or express the invariant as a constraint.
+**Write skew is the one worth explaining**, because it's the reason Serializable exists. Two on-call engineers, a rule that one must stay on call: both read `count = 2`, both conclude it's safe to remove themselves, both write *different rows*, and nobody is on call. No write-write conflict, so snapshot isolation can't detect it. Fixes: `SERIALIZABLE` (Postgres uses SSI, Serializable Snapshot Isolation, which tracks read/write dependencies between snapshot transactions, and aborts one with `40001` — **so you must implement a retry loop**, which is the part teams forget), materialise the conflict with `SELECT … FOR UPDATE` on a shared row, or express the invariant as a constraint.
 
 ---
 
@@ -823,7 +827,7 @@ CREATE POLICY tenant_isolation ON invoices
 ```
    A forgotten `WHERE tenant_id = …` now returns zero rows instead of another tenant's data. Without RLS you're relying on every query in the codebase forever, which is the failure mode that produces the headline breach.
 3. **Set the tenant in a transaction-scoped `SET LOCAL`**, so it can't leak across pooled connections. This interacts with PgBouncer — transaction pooling is fine with `SET LOCAL`, session pooling is not.
-4. **A data-access layer** that takes the tenant from the authenticated session and never from a request parameter — otherwise you've built IDOR at the tenant level (see the Web Security guide).
+4. **A data-access layer** that takes the tenant from the authenticated session and never from a request parameter — otherwise you've built IDOR (insecure direct object reference: the caller picks an ID and the server trusts it) at the tenant level (see the Web Security guide).
 5. **Partition by `tenant_id`** (list or hash) once volume justifies it, which also makes "delete a tenant's data" a `DROP TABLE`.
 
 Then the operational realities to raise unprompted: **noisy neighbours** (one huge tenant degrading everyone — mitigate with per-tenant rate limits and the option to promote a big tenant to its own database), **per-tenant backup and restore** (very hard in a shared schema — restoring one tenant means extracting rows, not restoring a snapshot), and **migrations** (one migration for shared schema versus N for schema-per-tenant, which is a strong argument for the shared model at scale).
@@ -844,7 +848,7 @@ Where something else genuinely wins:
 - **Genuinely schemaless, rapidly-changing documents** → a document store. Though `jsonb` covers most of this while keeping transactions and joins.
 - **Analytics over billions of rows** → a **columnar** store (ClickHouse, BigQuery, Snowflake). This is the clearest case: row-oriented storage is the wrong physical layout for scanning two columns of a billion rows, and the difference is orders of magnitude.
 
-The framing I'd end on: **the question is usually not "instead of" but "in addition to."** A typical system is Postgres as the system of record, Redis for cache and rate limits, and a columnar warehouse for analytics fed by CDC. The failure mode to avoid is picking a specialist store for a workload a relational database handles fine, then discovering you need transactions and joins after all — which is far more common than the reverse.
+The framing I'd end on: **the question is usually not "instead of" but "in addition to."** A typical system is Postgres as the system of record, Redis for cache and rate limits, and a columnar warehouse for analytics fed by CDC (change data capture — streaming every committed row change out of the database's log). The failure mode to avoid is picking a specialist store for a workload a relational database handles fine, then discovering you need transactions and joins after all — which is far more common than the reverse.
 
 
 ---
@@ -960,13 +964,17 @@ BEGIN;
 COMMIT;
 ```
 
-**Answer:** The final balance is **40**, not −20. One withdrawal of 60 was silently lost. This is a **lost update**, and `REPEATABLE READ` does not prevent it when the write is a blind overwrite computed in application code.
+**Answer:** The final balance is **40**, not −20. One withdrawal of 60 was silently lost. This is a **lost update**: a value computed in application code was written back as an absolute number, overwriting the other transaction's change. Whether `REPEATABLE READ` stops it depends on the engine — MySQL/InnoDB lets both commit (the premise of the question), while Postgres aborts one of them — so it is not something to rely on.
 
 **Explanation:**
 
-The critical detail is that the application **read a value, computed outside the database, and wrote back an absolute number.** Both transactions read `100`, both computed `40`, and both wrote `40`. In Postgres's snapshot isolation, T2's `UPDATE` blocks until T1 commits, then re-checks — and because the row's *new* value doesn't invalidate T2's `WHERE id = 1` predicate, T2 proceeds and overwrites. Two withdrawals of 60 happened; the balance dropped by 60 once.
+The critical detail is that the application **read a value, computed outside the database, and wrote back an absolute number.** Both transactions read `100`, both computed `40`, and both wrote `40`. Two withdrawals of 60 happened; the balance dropped by 60 once.
 
-(MySQL/InnoDB behaves similarly here. In Postgres, `REPEATABLE READ` would raise a serialisation failure if T2's `UPDATE` conflicted with a concurrently-updated row — but the classic trap is that many applications retry blindly or use `READ COMMITTED`, where T2 simply re-reads the fresh row and still overwrites with its stale computation.)
+How each engine handles T2's `UPDATE`, which has to wait for T1's row lock:
+
+- **MySQL/InnoDB at `REPEATABLE READ`:** once T1 commits, T2's `UPDATE` writes to the latest row version and succeeds. Its `SET balance = 40` still carries the stale computation, so both commit and one withdrawal vanishes.
+- **Postgres at `READ COMMITTED`** (Postgres's default): same outcome — T2 re-checks the latest row, the `WHERE id = 1` still matches, and it overwrites.
+- **Postgres at `REPEATABLE READ`:** T2 fails with a serialisation error (`40001`, "could not serialize access due to concurrent update"), because the row changed after its snapshot. The update is not lost — but only if the application then re-runs the *whole* transaction, re-reading the balance. Retrying just the `UPDATE` with the old `40` reintroduces the bug.
 
 **Four fixes, roughly in order of preference:**
 
@@ -992,7 +1000,7 @@ Option 1 is the answer to give first, because it eliminates the class of bug rat
 
 The generalisable lesson: **isolation levels protect what the database can see.** A computation performed in your application, between a `SELECT` and an `UPDATE`, is invisible to the engine — so no isolation level can reason about it. Either keep the computation inside the statement, or tell the database about the dependency with an explicit lock or a version predicate.
 
-**Takeaway:** a read-modify-write in application code is a lost-update race that `REPEATABLE READ` won't catch, because the engine can't see your computation — express it as a single relative `UPDATE` (`balance = balance - 60 AND balance >= 60`), or use `FOR UPDATE` or a version column.
+**Takeaway:** a read-modify-write in application code is a lost-update race that `REPEATABLE READ` does not reliably catch (MySQL lets it through; Postgres aborts one transaction and leaves the retry to you), because the engine can't see your computation — express it as a single relative `UPDATE` (`balance = balance - 60 AND balance >= 60`), or use `FOR UPDATE` or a version column.
 
 ---
 
@@ -1015,7 +1023,7 @@ The diagnostic is comparing **estimated `rows` against actual `rows`** in `EXPLA
 
 **2. Index or table bloat.** In Postgres, `UPDATE`s and `DELETE`s leave dead tuples that autovacuum reclaims. A large migration can outpace autovacuum, or a long-running transaction can block it entirely — leaving an index physically much larger than its live contents, so each lookup reads more pages. Fix: `REINDEX CONCURRENTLY`, and investigate why autovacuum fell behind.
 
-**3. The data distribution changed.** If the migration made a previously-selective column unselective (a `status` column that was 50/50 and is now 99% one value), the same index is now a poor choice for that value — and worse, a **plan that's right for one parameter value is wrong for another**. This is the parameter-sniffing family of problems.
+**3. The data distribution changed.** If the migration made a previously-selective column unselective (a `status` column that was 50/50 and is now 99% one value), the same index is now a poor choice for that value — and worse, a **plan that's right for one parameter value is wrong for another**. This is the parameter-sniffing family of problems: a plan chosen or cached for one parameter value gets reused for another value where it is a poor fit.
 
 **4. The working set no longer fits in cache.** The table grew past available memory, so reads that were served from `shared_buffers`/page cache are now hitting disk. Nothing about the plan changed; the physics did. `EXPLAIN (ANALYZE, BUFFERS)` shows this as a shift from `shared hit` to `read`.
 
@@ -1157,7 +1165,7 @@ KEYS & ENGINES
 
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/current/) — genuinely one of the best technical manuals in software
 - [Use The Index, Luke!](https://use-the-index-luke.com) — the definitive free resource on indexing and SQL performance
-- [PostgreSQL — Using EXPLAIN](https://www.postgresql.org/docs/current/using-explain.html) and [explain.dave.cx](https://explain.dalibo.com) for visualising plans
+- [PostgreSQL — Using EXPLAIN](https://www.postgresql.org/docs/current/using-explain.html) and [explain.dalibo.com](https://explain.dalibo.com) for visualising plans
 - [PostgreSQL — Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html) — the authoritative account of what each level guarantees
 - [Jepsen — Consistency Models](https://jepsen.io/consistency) — rigorous definitions of the isolation and consistency landscape
 - [Designing Data-Intensive Applications](https://dataintensive.net) — Kleppmann; the reference for isolation, replication and partitioning

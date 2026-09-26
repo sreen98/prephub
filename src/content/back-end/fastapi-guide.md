@@ -1,6 +1,6 @@
 # FastAPI — Interview Guide
 
-FastAPI is an **ASGI** web framework built on Starlette (routing, middleware) and Pydantic (validation). Its distinguishing idea is that **type hints are the source of truth**: the same annotation drives validation, serialisation, dependency injection and the OpenAPI schema.
+FastAPI is an **ASGI** (Asynchronous Server Gateway Interface — the standard contract between a Python async web server and your app) web framework built on Starlette (routing, middleware) and Pydantic (validation). Its distinguishing idea is that **type hints are the source of truth**: the same annotation drives validation, serialisation, dependency injection and the OpenAPI schema (a machine-readable description of every endpoint, which is what generates the interactive `/docs` page).
 
 Assumes the [Python guide](/backend/python) for asyncio and Pydantic fundamentals. The two things interviews probe hardest: **`async def` vs `def`** (§4) and **dependency injection** (§5).
 
@@ -30,9 +30,9 @@ Assumes the [Python guide](/backend/python) for asyncio and Pydantic fundamental
 
 ## 1. ASGI vs WSGI
 
-**WSGI** (Flask, Django ≤2) is a synchronous protocol: one request occupies one worker thread from start to finish. A request waiting 200 ms on a database holds that thread doing nothing.
+**WSGI** (Web Server Gateway Interface — used by Flask and Django ≤2) is the older, synchronous contract: one request occupies one worker thread from start to finish. A request waiting 200 ms on a database holds that thread doing nothing.
 
-**ASGI** is the async successor. A single event-loop worker can hold thousands of in-flight requests, because each one yields the loop while awaiting I/O. It also supports WebSockets and server-sent events, which WSGI structurally cannot.
+**ASGI** is the async successor. A single event-loop worker — one thread that switches to another request whenever the current one is waiting — can hold thousands of in-flight requests, because each one yields (hands back) the loop while awaiting I/O. It also supports WebSockets and server-sent events, which WSGI structurally cannot.
 
 ```
 client → uvicorn (ASGI server) → Starlette (routing/middleware) → your handler
@@ -143,7 +143,7 @@ Rule of thumb: **if your libraries are async, use `async def`; if they're blocki
 
 ## 5. Dependency Injection
 
-FastAPI's DI system is its most distinctive feature. A dependency is any callable; its own parameters are resolved recursively.
+FastAPI's DI (dependency injection) system is its most distinctive feature: instead of a handler building its own database session or looking up the current user, it declares that it needs them with `Depends(...)` and FastAPI builds them and passes them in. A dependency is any callable; its own parameters are resolved recursively, so dependencies can depend on other dependencies.
 
 ```python
 from fastapi import Depends, HTTPException, status
@@ -214,7 +214,7 @@ def decode(token: str) -> dict:
                       audience=AUD, issuer=ISS)
 ```
 
-Points that get probed: return an **identical error** for unknown user and wrong password (otherwise it's a user-enumeration oracle); **pin the algorithm** list when decoding, because accepting the token's own `alg` allows the `alg: none` and HS/RS confusion attacks; verify `exp`, `aud` and `iss`; hash with argon2 or bcrypt, never a bare SHA; and for browser clients prefer httpOnly cookies plus CSRF protection over `localStorage`. Authorization belongs in a dependency or the service layer, and object-level checks must verify **ownership**, not just existence.
+Points that get probed: return an **identical error** for unknown user and wrong password (otherwise it's a user-enumeration oracle); **pin the algorithm** list when decoding, because accepting the token's own `alg` lets an attacker choose how their token is checked — `alg: none` (no signature at all) or HS/RS confusion (the attacker signs a token with HMAC, using the server's public RSA key as the secret, and a server that trusts the header verifies it with that same public key and accepts it); verify `exp`, `aud` and `iss`; hash with argon2 or bcrypt, never a bare SHA; and for browser clients prefer httpOnly cookies plus CSRF protection over `localStorage`. Authorization belongs in a dependency or the service layer, and object-level checks must verify **ownership**, not just existence.
 
 ---
 
@@ -415,14 +415,14 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 4
 ```
 
-**Workers give you CPU parallelism** (one process each, sidestepping the GIL); **async gives concurrency within a worker**. Rule of thumb: workers ≈ CPU cores for CPU-bound, fewer with high async concurrency. Remember every worker holds its own connection pool.
+**Workers give you CPU parallelism** (one process each, sidestepping the GIL — the Global Interpreter Lock, which lets only one thread run Python code at a time within a process); **async gives concurrency within a worker**. Rule of thumb: workers ≈ CPU cores for CPU-bound, fewer with high async concurrency. Remember every worker holds its own connection pool.
 
 Where the time actually goes, in order:
 
 1. **Blocking calls in `async def`** (§4) — the single biggest self-inflicted wound.
 2. **A new HTTP client per request** — create it in `lifespan` (§9).
 3. **Pydantic validation of large payloads.** v2 is Rust-fast, but validation is proportional to data size. Validate at the boundary, don't re-validate internally, and consider dropping `response_model` when you're returning data you just built.
-4. **N+1 queries** from lazy ORM relationships — eager-load explicitly.
+4. **N+1 queries** from lazy ORM relationships — one query fetches a list, then accessing a relationship on each row fires one more query per row. Eager-load explicitly.
 5. **Sync ORM inside async handlers.**
 
 Deployment: run behind a reverse proxy for TLS and buffering control, set `--proxy-headers` and `forwarded-allow-ips` so client IPs and scheme are correct, expose `/healthz` (liveness) and `/readyz` (readiness — see the [Docker & K8s guide](/backend/docker-kubernetes)), and **disable the interactive docs in production** if the API isn't public: `FastAPI(docs_url=None, redoc_url=None, openapi_url=None)`.

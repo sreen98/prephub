@@ -23,13 +23,13 @@
 
 Amazon EC2 (Elastic Compute Cloud) is a web service that provides **resizable virtual servers** (instances) in the AWS cloud. You can launch instances with the OS, CPU, memory, storage, and networking configuration you need, and only pay for what you use.
 
-Key characteristics:
-- **Virtual machines** — run Linux, Windows, or macOS on AWS hardware
-- **Elastic** — scale capacity up/down in minutes
-- **Complete control** — root/admin access, choose instance type, storage, networking
-- **Pay-as-you-go** — per-second billing (minimum 60 seconds)
-- **Global** — launch in any AWS region and availability zone
-- **Integrates** — with VPC, EBS, ELB, Auto Scaling, IAM, CloudWatch
+What that means in practice:
+- **Virtual machines** — each instance is a VM running Linux, Windows, or macOS on AWS hardware, so anything that runs on a server you own runs here.
+- **Elastic** — you add or remove instances in minutes instead of ordering hardware, which is why you can size for today's load rather than next year's.
+- **Complete control** — you get root/admin access and choose the instance type, storage and networking. The flip side is that patching, scaling and the OS are your job, not AWS's.
+- **Pay-as-you-go** — billing is per second (minimum 60 seconds), so a stopped instance stops the compute bill (attached EBS storage is still charged).
+- **Global** — you can launch in any AWS Region (a geographic area) and Availability Zone (one or more isolated data centres within that Region), which is how you place servers near users and survive a data-centre failure.
+- **Integrates** — with VPC (your private network), EBS (disks), ELB (load balancers), Auto Scaling, IAM (permissions) and CloudWatch (monitoring), covered in later sections.
 
 ### When to Use EC2
 
@@ -111,6 +111,8 @@ Real-world example:
   - Redis cache cluster                 → r6g.xlarge  (4 vCPU, 32 GB)
   - ML training with GPUs               → p4d.24xlarge (8 NVIDIA A100)
 ```
+
+What "burstable" means, since step 1 depends on it: t-family instances run at a low baseline CPU and earn credits while they are idle, then spend those credits to run faster during a spike. That makes them cheap for servers that are quiet most of the time. A server that is busy all day burns through its credits and is either held to the baseline or, in unlimited mode, billed for the extra, so a steady CPU-heavy workload belongs on the m- or c-family instead.
 
 ### 2.3 Instance Naming Convention
 
@@ -1192,6 +1194,8 @@ Best practice for health check endpoint:
   - Keep it lightweight (< 100ms response)
 ```
 
+Be careful with "check dependencies". If every instance reports unhealthy when the shared database is down, the load balancer sees the whole fleet fail at once, and an Auto Scaling Group using ELB health checks starts terminating and replacing instances that were never the problem. A common compromise: the load balancer's check confirms this instance can serve (the process is up, its own disk and memory are fine), and dependency health goes to monitoring and alarms instead.
+
 ```bash
 # Check target health
 aws elbv2 describe-target-health \
@@ -1741,7 +1745,7 @@ Savings Plans:
 
 Comparison:
   Flexibility:     Savings Plans > Convertible RI > Standard RI
-  Max discount:    Standard RI (72%) > EC2 SP (72%) > Compute SP (66%)
+  Max discount:    Standard RI (72%) = EC2 SP (72%) > Compute SP (66%)
   Applies to:      RI = EC2 only, Compute SP = EC2 + Lambda + Fargate
 ```
 
@@ -1795,7 +1799,7 @@ When you **stop** an instance: the instance shuts down, the public IP is release
 
 **Q5: What are the main EBS volume types and when would you use each?**
 
-The four main types are: **gp3** (General Purpose SSD) — the default choice for most workloads including boot volumes, web servers, and dev environments; it provides a baseline of 3,000 IOPS and 125 MB/s which you can increase independently of volume size. **io2** (Provisioned IOPS SSD) — for databases requiring guaranteed, sustained IOPS with sub-millisecond latency (up to 64,000 IOPS). **st1** (Throughput Optimized HDD) — for big data and log processing where high sequential throughput matters (up to 500 MB/s) but not random I/O. **sc1** (Cold HDD) — the cheapest option for infrequently accessed data. Note that only SSD types (gp3, io2) can be used as boot volumes.
+The four main types are: **gp3** (General Purpose SSD) — the default choice for most workloads including boot volumes, web servers, and dev environments; it provides a baseline of 3,000 IOPS and 125 MB/s which you can increase independently of volume size. **io2** (Provisioned IOPS SSD) — for databases requiring guaranteed, sustained IOPS (input/output operations per second) with sub-millisecond latency (up to 64,000 IOPS, or 256,000 on io2 Block Express, per the table in §7.1). **st1** (Throughput Optimized HDD) — for big data and log processing where high sequential throughput matters (up to 500 MB/s) but not random I/O. **sc1** (Cold HDD) — the cheapest option for infrequently accessed data. Note that only SSD types (gp3, io2) can be used as boot volumes.
 
 ---
 
@@ -1805,7 +1809,9 @@ The four main types are: **gp3** (General Purpose SSD) — the default choice fo
 
 **Q6: Explain the difference between ALB, NLB, and when to use each.**
 
-**ALB (Application Load Balancer)** operates at Layer 7 (HTTP/HTTPS) and supports advanced routing — path-based (`/api/*` to one target group, `/static/*` to another), host-based (`api.example.com` vs `www.example.com`), header-based, and query string routing. It is ideal for web applications, microservices, and container-based architectures. **NLB (Network Load Balancer)** operates at Layer 4 (TCP/UDP) and is designed for extreme performance — it can handle millions of requests per second with ultra-low latency. NLB provides static IP addresses (one per AZ) and preserves the client's source IP natively. Use NLB for gaming servers, IoT, financial applications, or when you need static IPs. In practice: if your application speaks HTTP, use ALB; if it needs raw TCP/UDP performance or static IPs, use NLB.
+Short answer: if your traffic is HTTP, use an ALB; if you need raw TCP/UDP speed, a fixed IP address, or the client's real IP without reading headers, use an NLB.
+
+**ALB (Application Load Balancer)** operates at Layer 7 (HTTP/HTTPS) and supports advanced routing — path-based (`/api/*` to one target group, `/static/*` to another), host-based (`api.example.com` vs `www.example.com`), header-based, and query string routing. It is ideal for web applications, microservices, and container-based architectures. **NLB (Network Load Balancer)** operates at Layer 4 (TCP/UDP) and is designed for extreme performance — it can handle millions of requests per second with ultra-low latency. NLB provides static IP addresses (one per AZ) and preserves the client's source IP natively. Use NLB for gaming servers, IoT, financial applications, or when you need static IPs, for example because a partner's firewall only allows a fixed list of addresses.
 
 ---
 
@@ -1823,7 +1829,7 @@ The difference is in the **route table**. A public subnet has a route to an **In
 
 **Q9: How would you design a highly available architecture on EC2?**
 
-A highly available EC2 architecture spans **multiple Availability Zones**: deploy instances in at least 2 AZs using an **Auto Scaling Group** with a minimum of 2 instances. Place an **Application Load Balancer** in front to distribute traffic across AZs — if one AZ fails, the ALB routes traffic to healthy instances in the other AZ. Use **EBS volumes** in each AZ (they are AZ-specific) and automate backups with snapshots that can be restored in another AZ. For databases, use **Multi-AZ RDS** or replicate across AZs. Set proper **health checks** (ELB health check, not just EC2 status) so unhealthy instances are replaced automatically. Use an **Elastic IP** or DNS (Route 53) for a stable endpoint. The ASG should have a health check grace period long enough for instances to boot and pass checks before being considered unhealthy.
+A highly available EC2 architecture spans **multiple Availability Zones**: deploy instances in at least 2 AZs using an **Auto Scaling Group** with a minimum of 2 instances. Place an **Application Load Balancer** in front to distribute traffic across AZs — if one AZ fails, the ALB routes traffic to healthy instances in the other AZ. Use **EBS volumes** in each AZ (they are AZ-specific) and automate backups with snapshots that can be restored in another AZ. For databases, use **Multi-AZ RDS** or replicate across AZs. Set proper **health checks** (ELB health check, not just EC2 status) so unhealthy instances are replaced automatically. Give clients the ALB's DNS name (usually behind a Route 53 alias record) as the stable endpoint; an Elastic IP does not fit here, because it points at a single instance and would bypass the load balancer (see §11). The ASG should have a health check grace period long enough for instances to boot and pass checks before being considered unhealthy.
 
 ---
 
@@ -1858,6 +1864,8 @@ An alternative approach uses a single ASG with an **instance refresh**: update t
 
 **Q12: You have a production EC2 instance with high CPU usage and growing latency. Walk through your troubleshooting approach.**
 
+Short answer: first find out whether the load is genuine (more traffic than the instance can serve) or waste (one runaway process, a slow query, a throttled disk), because the first is fixed by scaling and the second is not. Scaling a server that is burning CPU on a bug just buys a bigger bill. The steps below narrow that down from the outside in.
+
 1. **CloudWatch metrics**: Check CPUUtilization, NetworkIn/Out, DiskReadOps, StatusCheckFailed. Determine if this is a sustained trend or a spike.
 2. **SSH into the instance** and run `top` or `htop` to identify the process consuming CPU. Check if it is your application, a background job, or a system process.
 3. **Check if the instance is right-sized**: If the application has genuinely outgrown the instance, vertical scaling (larger instance type) or horizontal scaling (add instances behind a load balancer) is needed.
@@ -1870,6 +1878,8 @@ An alternative approach uses a single ASG with an **instance refresh**: update t
 ---
 
 **Q13: Explain the difference between Spot Instances, Spot Fleets, and Spot placement scores. How would you architect a fault-tolerant batch processing system using Spot?**
+
+**Short answer:** a Spot Instance is one cheap machine AWS can take back; a Spot Fleet keeps a target amount of capacity by replacing machines that are taken back; a placement score tells you where a Spot request is likely to succeed. A batch system survives Spot by assuming any worker can vanish: spread across many instance types and AZs, keep jobs in a queue, and checkpoint progress.
 
 **Spot Instances** use unused EC2 capacity at up to 90% discount but can be reclaimed with a 2-minute warning. **Spot Fleet** is a collection of Spot (and optionally On-Demand) instances that maintains your target capacity — if one Spot instance is reclaimed, the fleet launches a replacement. The `capacityOptimized` allocation strategy selects pools with the most available capacity, reducing interruptions. **Spot placement scores** (1-10) indicate the likelihood that a Spot request will succeed in a specific region/AZ for a given instance type.
 
@@ -1914,7 +1924,9 @@ VPC: 10.0.0.0/16
 
 **Q15: A company is migrating from on-premises to AWS. They have 200 servers of varying sizes, some with bursty workloads and some with steady-state usage. How would you advise them on EC2 instance selection and pricing strategy?**
 
-**Step 1 — Assessment and right-sizing**: Use AWS Migration Hub and the AWS Application Discovery Service to profile existing server utilization (CPU, memory, disk, network). Most on-premises servers are over-provisioned — typically 20-40% average utilization. Map each server to the closest EC2 instance type, then right-size down.
+**Short answer:** measure before you buy. Profile what each server really uses, map it to a smaller instance type, then match the pricing model to the workload's shape: commitments (Savings Plans or Reserved Instances) for the steady baseline, On-Demand for what scales up and down, and Spot for work that can be interrupted. Commit only after a few weeks of real usage data, because a commitment sized on over-provisioned servers locks in the waste.
+
+**Step 1 — Assessment and right-sizing**: Use AWS Migration Hub and the AWS Application Discovery Service to profile existing server utilization (CPU, memory, disk, network). Most on-premises servers are over-provisioned: a 2014 NRDC (Natural Resources Defense Council) study put average server utilization at just 12–18%. Map each server to the closest EC2 instance type, then right-size down.
 
 **Step 2 — Instance type mapping**:
 - Bursty workloads with low average CPU → **t3/t4g** (burstable instances earn CPU credits when idle, spend them during bursts). If burstable credit model does not fit, use t3 unlimited (pay for extra burst).
@@ -1936,11 +1948,11 @@ VPC: 10.0.0.0/16
 
 **Instance metadata** is data about your instance available at `http://169.254.169.254/latest/meta-data/` from within the instance. It includes the instance ID, instance type, public/private IP, IAM role credentials, security group IDs, and more. **User data** is a script (bash or cloud-init) you provide at launch time that runs once on first boot (or on every boot if configured) — typically used to install software, configure the instance, or pull application code.
 
-**IMDSv1** (Instance Metadata Service v1) uses simple HTTP GET requests with no authentication. This is a security risk: if an attacker achieves SSRF (Server-Side Request Forgery) on your application, they can query the metadata endpoint and steal IAM role credentials. This was the attack vector in the 2019 Capital One breach.
+**IMDSv1** (Instance Metadata Service v1) uses simple HTTP GET requests with no authentication. This is a security risk: if an attacker achieves SSRF (Server-Side Request Forgery: tricking your server into making an HTTP request on the attacker's behalf, for example by giving it a URL to "fetch a preview" of) on your application, they can query the metadata endpoint and steal IAM role credentials. This was the attack vector in the 2019 Capital One breach.
 
-**IMDSv2** adds a session-based authentication mechanism: the client must first send a PUT request to get a session token (with a TTL you specify), then include that token in the `X-aws-ec2-metadata-token` header on subsequent GET requests. This mitigates SSRF attacks because: (1) most SSRF vulnerabilities only allow GET requests, not PUT, (2) the token header prevents simple proxy-based attacks, and (3) you can set a short hop limit (TTL=1) so the token cannot be forwarded from containers.
+**IMDSv2** adds a session-based authentication mechanism: the client must first send a PUT request to get a session token (with a TTL you specify), then include that token in the `X-aws-ec2-metadata-token` header on subsequent GET requests. This mitigates SSRF attacks because: (1) most SSRF vulnerabilities only allow GET requests, not PUT, (2) the token header prevents simple proxy-based attacks, and (3) the PUT response carries an IP hop limit (the packet's time-to-live, set with `HttpPutResponseHopLimit`); at 1, the response cannot survive an extra network hop, so it never reaches a container on bridge networking or anything relayed through a misconfigured router, NAT or VPN on the instance.
 
-**Best practice**: Enforce IMDSv2 by setting `HttpTokens: required` in the launch template. This is now the default for new instances. Additionally, restrict IAM role permissions to the minimum required (least privilege), and use VPC endpoints to reduce reliance on instance metadata for service access.
+**Best practice**: Enforce IMDSv2 by setting `HttpTokens: required` in the launch template. Newer AMIs such as Amazon Linux 2023 already require it, but set it explicitly rather than relying on the image. Additionally, restrict the instance's IAM role to the minimum permissions it needs (least privilege), so that credentials stolen through any route can do as little as possible.
 
 ```bash
 # Enforce IMDSv2 on a new instance (launch template)

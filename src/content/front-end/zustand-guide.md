@@ -24,7 +24,7 @@ A small store that lives outside React, with **selector-level subscriptions** �
 
 ## 1. Why Zustand Exists
 
-Zustand (German for "state") is a ~1 KB store built on `useSyncExternalStore`. The store lives **outside** React; components subscribe to the slices they care about.
+Zustand (German for "state") is a ~1 KB store built on `useSyncExternalStore` — React's built-in hook for letting a component read from, and re-render on changes to, data that lives outside React. The store lives **outside** React; components subscribe to the slices they care about by passing a **selector**, a small function such as `s => s.theme` that picks the one value the component needs out of the whole state.
 
 **The problem it solves is a specific one.** React Context has no partial subscription: when the context value changes, **every** consumer re-renders, regardless of which field it reads. Split a context into five and you have five providers to nest and five decisions to maintain. Zustand keeps one store and makes the *selector* the unit of subscription — a component re-renders only when the value it selected actually changed.
 
@@ -86,6 +86,8 @@ Three things about `set` that catch people out:
 ### Using it
 
 ```tsx
+import { useCartStore } from './cartStore'; // the store defined above
+
 function Cart() {
   const items = useCartStore((s) => s.items);
   const removeItem = useCartStore((s) => s.removeItem);
@@ -143,7 +145,7 @@ const { items, total } = useCartStore(
 );
 ```
 
-`useShallow` compares one level deep, so a new wrapper object with the same field references is treated as unchanged. **In Zustand v5 this is the only supported form** — the old `useStore(selector, shallow)` second argument was removed.
+`useShallow` compares one level deep: instead of asking "is this the same object?", it asks "does each field hold the same value as last time?", so a new wrapper object with the same field references is treated as unchanged. **In Zustand v5 this is the only supported form** — the old `useStore(selector, shallow)` second argument was removed.
 
 ### Derived values
 
@@ -224,7 +226,7 @@ const useStore = create(
 | `immer` | Write "mutations" that produce immutable updates | Adds ~14 KB; only worth it for genuinely deep state |
 | `subscribeWithSelector` | `subscribe` with a selector and an equality check | Only needed for imperative subscriptions outside React (§7) |
 
-**Ordering:** `devtools` goes outermost so it sees every change; `persist` wraps the creator so it can rehydrate; `immer` goes innermost, next to your state. Getting `persist` and `devtools` the wrong way round means the devtools log shows rehydration as a user action.
+**Ordering:** `devtools` goes outermost so every change passes through it; `persist` wraps the creator so it can rehydrate; `immer` goes innermost, next to your state. Swap `persist` and `devtools` and rehydration calls the store's raw setter, which bypasses `devtools` entirely: the restored state never appears in the log, so DevTools keeps showing the pre-hydration values until the next action. In the correct order rehydration does show up, as one unnamed `anonymous` entry, and that entry is expected.
 
 **`persist` is asynchronous on rehydration.** The first render can happen before storage is read, which is a hydration mismatch waiting to happen in SSR. `useStore.persist.hasHydrated()` and `onRehydrateStorage` exist for exactly that.
 
@@ -389,7 +391,7 @@ The store holds state outside React and keeps a set of subscribers. Each `useSto
 
 **Q3: Why `useSyncExternalStore` rather than `useState` and `useEffect`?**
 
-Because it is the purpose-built primitive for reading an external mutable source, and it prevents **tearing**. With `useState` + `useEffect` the subscription is established after paint, so the first frame can show stale data; worse, under concurrent rendering React can interrupt and resume a render, and two components reading the same store mid-update can display different values within one frame. `useSyncExternalStore` gives React a snapshot function it can call during render and forces a synchronous re-render when the store changes, which closes both holes.
+Because it is the purpose-built primitive for reading an external mutable source, and it prevents **tearing** — two parts of the same screen showing different versions of the same data at once. With `useState` + `useEffect` the subscription is established after paint, so the first frame can show stale data; worse, under concurrent rendering React can interrupt and resume a render, and two components reading the same store mid-update can display different values within one frame. `useSyncExternalStore` gives React a snapshot function it can call during render and forces a synchronous re-render when the store changes, which closes both holes.
 
 ---
 

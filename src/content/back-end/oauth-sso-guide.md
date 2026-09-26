@@ -39,7 +39,7 @@ OAuth's insight: **issue a separate credential for the third-party app, scoped t
 
 The user logs into the real service. The real service issues a token to the third-party app. That token says "this app can read your photos but not your contacts, and expires in 1 hour." If the app misbehaves, you revoke the token without touching your password.
 
-OAuth 1.0 (2010) was the first standard. OAuth 2.0 (2012) is what every modern API uses — Google, GitHub, Microsoft, Stripe, every "Sign in with X" button you see. OAuth 2.1 (in draft as of 2024–2025) is a consolidation that removes legacy flows.
+OAuth 1.0 (2010) was the first standard. OAuth 2.0 (2012) is what every modern API uses — Google, GitHub, Microsoft, Stripe, every "Sign in with X" button you see. OAuth 2.1 is a consolidation that removes legacy flows; it is still an IETF Internet-Draft (a working document, not yet a published RFC) as of September 2026, but its rules already reflect current best practice.
 
 ---
 
@@ -58,7 +58,7 @@ And several types of tokens / codes:
 
 | Token | Lifetime | What it does |
 |---|---|---|
-| **Access Token** | 5 min – 1 hr | Bearer credential the client uses to call the API |
+| **Access Token** | 5 min – 1 hr | Bearer credential (whoever holds it can use it, no further proof asked) the client uses to call the API |
 | **Refresh Token** | days – months | Long-lived; trade for a fresh access token without re-prompting user |
 | **Authorization Code** | ~60 sec | One-time-use intermediary in the Authorization Code flow |
 | **ID Token** (OIDC) | matches access token | A JWT that identifies the user (only with OpenID Connect) |
@@ -106,7 +106,7 @@ This is THE flow you use for any user-facing app. Five steps:
 
 **Why the indirection (code → token instead of token directly)?** The code travels through the user's BROWSER (which is untrusted — could be malware, browser extension, network tap). The code is single-use, short-lived, and useless without the client_secret. The actual tokens never touch the browser in the classic web-app flow — they come back over the server-to-server `/token` exchange.
 
-**The `state` parameter** is a CSRF protection. The client generates a random `state`, sends it in step 1, and verifies it matches in step 3. Without `state`, an attacker could trick a logged-in victim into authorizing the attacker's account on the third-party app.
+**The `state` parameter** is CSRF protection (cross-site request forgery: a request the victim's browser sends without the victim meaning to). The client generates a random `state`, remembers it in the user's session, sends it in step 1, and checks that the same value comes back in step 3. A callback that arrives with a `state` you never issued was not started by this user, so you reject it. Without that check, an attacker can send a victim a callback link carrying the *attacker's* authorization code, and the victim's session ends up signed in to the attacker's account — where anything the victim uploads or types is visible to the attacker.
 
 ### Minimal Node.js implementation
 
@@ -218,7 +218,7 @@ async function sha256Base64Url(s) {
 }
 ```
 
-**OAuth 2.1 makes PKCE mandatory for ALL clients**, not just public ones. Even confidential server-side clients benefit because it removes one class of authorization-code-injection attacks.
+**OAuth 2.1 makes PKCE mandatory for ALL clients**, not just public ones. Even confidential server-side clients benefit: a `client_secret` proves *which app* is redeeming a code, but not that this code belongs to the login *this browser* started. PKCE binds the code to the verifier created at the start of that specific login, so a stolen code injected into someone else's callback cannot be redeemed.
 
 ---
 
@@ -272,7 +272,7 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMiLCJleHAiOjE3MTYwfQ.signatur
 
 Receiving a JWT means nothing until you've verified it. Required checks:
 
-1. **Signature** — recompute the signature using the issuer's public key (fetched from `/.well-known/jwks.json`) and compare. If you skip this, ANY token "validates."
+1. **Signature** — verify the signature using the issuer's public key, fetched from its JWKS (JSON Web Key Set: the issuer's published list of current public keys, usually at `/.well-known/jwks.json`). If you skip this, ANY token "validates," because anyone can write any payload.
 2. **`exp` (expiration)** — must be in the future.
 3. **`iat` / `nbf` (issued at / not before)** — must be in the past.
 4. **`iss` (issuer)** — must match your trusted issuer URL.
@@ -438,7 +438,7 @@ When a user clicks Log Out, you need to:
 2. **Revoke the refresh token** (separate revoke, or the same call depending on server).
 3. **Destroy the local session** (clear cookies / storage).
 4. **Notify the user's other SESSIONS** if you support session listing.
-5. **Notify the IdP** (RP-Initiated Logout in OIDC: redirect to `/end_session_endpoint`).
+5. **Notify the IdP** (RP-Initiated Logout in OIDC — RP means relying party, i.e. your app, which relies on the IdP for identity: redirect to `/end_session_endpoint`).
 6. **In SSO scenarios:** decide whether to log them out of the IdP entirely or just the current app.
 
 **The IdP logout decision is the hard part.** If a user clicks "Log out" in App A:
@@ -466,7 +466,7 @@ Tokens in the URL fragment (legacy Implicit flow) could leak via the `Referer` h
 Skipping any of signature / iss / aud / exp / nbf validation. Especially common: validating signature but not audience — letting one app's token authenticate to another app.
 
 ### Mixing access and ID tokens
-Sending the ID token to a resource API (it's not an access token; the API will likely accept it but you've lost the access-control benefits).
+Sending the ID token to a resource API. An ID token is addressed to your client app (its `aud` is your client_id, not the API) and carries no scopes, so an API that accepts it is either skipping its audience check or has nothing to base permissions on. Send the access token to APIs; use the ID token once, at login, to learn who the user is.
 
 ### Client secret in JavaScript
 The `client_secret` is for confidential clients (servers) only. SPAs and mobile apps must use PKCE — no secret.
@@ -604,9 +604,9 @@ In short: every OIDC flow is an OAuth flow with extra payload. You use OAuth alo
 
 **Q2: What is OAuth's `state` parameter for?**
 
-CSRF protection. The client generates a random `state` value at the start of an OAuth flow, stores it in the user's session, and includes it in the `/authorize` redirect. When the auth server redirects back with the authorization code, it echoes the `state` back. The client verifies the returned state matches what it stored.
+Short answer: CSRF protection — it proves that the callback your app receives belongs to a login *this user* started. The client generates a random `state` value at the start of an OAuth flow, stores it in the user's session, and includes it in the `/authorize` redirect. When the auth server redirects back with the authorization code, it echoes the `state` back. The client verifies the returned state matches what it stored.
 
-Without `state`, an attacker could craft an OAuth callback URL that injects THEIR authorization code into the VICTIM'S session, causing the victim's app to log in as the attacker — a session-fixation attack.
+Without `state`, an attacker could craft an OAuth callback URL that injects THEIR authorization code into the VICTIM'S session, causing the victim's app to log in as the attacker. This is usually called login CSRF. It sounds harmless, but whatever the victim then does — saves a card, uploads a document, types a search — lands in an account the attacker can read.
 
 ---
 
@@ -637,9 +637,10 @@ PKCE's win: even if step 4's authorization code is intercepted (browser extensio
 
 **Q5: Where should you store tokens in a browser-based SPA?**
 
-The honest answer is "it depends, and the contemporary best practice is to avoid storing them in the browser at all."
+**Short answer:** preferably nowhere. Use the BFF (Backend for Frontend) pattern, where a small server you own keeps the tokens and the browser holds only an HttpOnly session cookie. If you truly cannot run a backend, keep the access token in memory and renew it silently. The reason is XSS (cross-site scripting): any storage JavaScript can read, a malicious script running in your page can read too.
 
-Options:
+How the options compare:
+
 - **localStorage / sessionStorage:** persistent and easy, but ANY XSS gives an attacker the token. The default attack surface is "any malicious script that runs in your origin."
 - **In-memory JavaScript variable:** safer from XSS (the token disappears on reload), but lost on reload — requires silent renewal.
 - **HttpOnly cookie:** the JS can't read it, so XSS can't steal it directly. But you need CSRF protection (SameSite=Lax minimum).
@@ -740,7 +741,7 @@ If you're shipping a B2B SaaS, support BOTH. If consumer-only, OIDC is sufficien
 
 **Q11: How does logout in an SSO system work across multiple apps?**
 
-This is harder than logging in. Options:
+Short answer: each app has its own session, and the IdP has a session too, so "logout" means deciding which of those to end and then actually telling each one. Logging in only needed one redirect; logging out has to reach every app. Options:
 
 **Front-channel logout (SAML SLO):** the IdP sends logout requests to every SP the user was logged into. Via browser redirects. Problems: if any SP is slow/unreachable, the chain stalls; bidirectional handshakes break behind certain network configs.
 
@@ -758,7 +759,7 @@ The product decision: should logging out of App A log the user out of EVERYTHING
 
 The `aud` (audience) claim identifies the intended recipient of the token. The auth server stamps it when issuing the token — typically the `client_id` of the app the user authenticated to.
 
-**Why it matters:** without checking `aud`, App B will happily accept tokens issued for App A. An attacker who legitimately authenticates with App A (low security) can then use that token to access App B (high security).
+**Why it matters:** without checking `aud`, App B will happily accept tokens issued for App A, as long as the same auth server signed them. That turns every app sharing your auth server into a way in. If App A is malicious or compromised, it receives the tokens of users who sign in to it — and it can replay those tokens to App B, which accepts them and acts as those users. Checking `aud` makes App B accept only tokens that were issued *for App B*.
 
 ```js
 // CORRECT: pin the expected audience
@@ -771,7 +772,7 @@ const { payload } = await jwtVerify(token, JWKS, {
 // → accepts ANY Google-signed token, including ones issued to other apps
 ```
 
-Always pin `audience` to your client_id. The OAuth 2.0 spec calls this the most-skipped check and the source of many real-world breaches.
+Always pin `audience` to your client_id (or, for an API validating access tokens, to the API's own identifier).
 
 ---
 
@@ -781,7 +782,7 @@ Always pin `audience` to your client_id. The OAuth 2.0 spec calls this the most-
 
 It's NOT safe. Decoding a JWT without verification is meaningless — anyone can mint a JWT with any payload. The signature is what proves the token came from Google.
 
-The attack: the user runs malware that intercepts the redirect-back URL, replaces the legitimate ID token with one the attacker minted (signed with a key the attacker controls, with `email: ceo@yourcompany.com`), and sends it to your callback. If you decode without verification, you'll happily log in the attacker as the CEO.
+The attack needs no malware and no interception. The attacker writes their own JWT with `email: ceo@yourcompany.com` in the payload, signs it with any key (or none), and sends it to your callback or API themselves. The base64 decodes exactly like a real one. If you only decode, you log the attacker in as the CEO.
 
 The fix: ALWAYS verify the signature against the issuer's public key (fetched from `/.well-known/jwks.json`), pin the `iss` claim to Google's exact URL, and pin `aud` to your client_id. The `jose` or `google-auth-library` packages do all this for you — use them, don't roll your own.
 
@@ -806,7 +807,7 @@ Several:
 1. **Metadata exchange ceremony.** SAML requires you to exchange XML metadata files describing your SP (Service Provider) endpoints and certificates. Customers often ask you to upload to their AD FS console; updates require re-exchange.
 2. **Clock skew.** SAML assertions have very tight time windows (often 5 minutes); if your servers and theirs aren't NTP-synced, assertions fail with "not yet valid" or "expired" errors that are painful to debug.
 3. **Just-in-Time provisioning.** Often customers won't pre-create accounts in your system; the first SAML login should create the user. You'll need attribute mapping (their `emailAddress` claim → your `email` field, their `firstName` → `first_name`, etc.).
-4. **Signature canonicalization issues.** XML-DSig signs the canonicalized XML, and there are multiple canonicalization algorithms. Mismatches between your SAML library and theirs cause "invalid signature" errors that look like a key problem but are actually a c14n problem.
+4. **Signature canonicalization issues.** XML-DSig (the XML signature standard SAML uses) signs a *canonicalized* form of the XML — whitespace, attribute order and namespaces normalised first — and there are several canonicalization algorithms. Mismatches between your SAML library and theirs cause "invalid signature" errors that look like a key problem but are actually a c14n (short for canonicalization) problem.
 5. **Single Logout (SLO) reliability.** If SLO is required, expect to debug "phantom session" problems for weeks.
 6. **No standard discovery.** Unlike OIDC, there's no `/.well-known` endpoint. You'll be configuring URLs, certificates, and binding types by hand for every customer.
 
@@ -816,18 +817,19 @@ Library: `samlify` or `passport-saml` for Node, `OneLogin/python3-saml` for Pyth
 
 **Q4: A pen tester reports they can log into your app using their account but with someone else's tokens by manipulating the `aud` claim. Walk through what went wrong.**
 
-This is the classic missing-aud-check bug. The flow:
+Short answer: App B is not checking `aud`, so it accepts any token the shared auth server signed, including tokens that were issued to a different app.
 
-1. Pen tester logs into THEIR account on App A (an OAuth-protected app they legitimately own).
-2. App A's auth server issues them a JWT with `aud: app-a`.
-3. Pen tester sends this token to App B's API with `Authorization: Bearer <token>`.
-4. App B verifies the signature (passes — same auth server signed it).
-5. App B does NOT check the `aud` claim.
-6. App B reads the `sub` claim and authenticates the request as that user… but App B's database has its own user mapping. The pen tester's `sub` from App A might happen to match a different user in App B's database.
+Note first what the tester *cannot* have done: edit the `aud` value inside a signed token. Changing any claim breaks the signature. What "manipulating the audience" means in practice is presenting a token whose audience is some other app, and finding that App B does not care. The flow:
 
-Result: the pen tester accessed App B as another user.
+1. The tester controls App A — an app registered with the same auth server (they built it, or it is a low-security app they have compromised).
+2. A victim signs in to App A. The auth server issues a token with `aud: app-a` and the victim's `sub`, and App A now holds it.
+3. The tester sends that token to App B's API as `Authorization: Bearer <token>`.
+4. App B verifies the signature. It passes, because the same auth server really did sign it.
+5. App B never checks `aud`, reads `sub`, and treats the request as the victim.
 
-The fix: always check `aud` matches your expected client_id. Token verification libraries make this a one-line option (`audience: '...'`). Forgetting it is one of the most common findings in OAuth security audits.
+Result: the tester is acting in App B as the victim, using a token the victim only ever gave to App A.
+
+The fix: check that `aud` equals your own client_id (or API identifier) on every token. Verification libraries make this a one-line option (`audience: '...'`), and it is precisely the option people leave out.
 
 ---
 
@@ -835,9 +837,9 @@ The fix: always check `aud` matches your expected client_id. Token verification 
 
 Common culprits when "works in Chrome, breaks in Safari":
 
-1. **sessionStorage cleared between redirects.** Safari's Intelligent Tracking Prevention (ITP) can clear cross-domain sessionStorage data on redirect. If you stored the `code_verifier` in sessionStorage and the OAuth flow goes through a different domain, ITP may wipe it before you can use it. Move to in-memory state managed by a single-page navigation, or use cookies with proper SameSite.
+1. **The `code_verifier` is gone when the callback loads.** The verifier is created before the redirect to the IdP (identity provider) and read back on your callback page, so wherever you stored it must survive the round trip. `sessionStorage` is scoped to one tab *and* one origin, so if the callback lands in a different tab, or the flow starts on `www.example.com` and returns to `example.com`, the store is empty. That fails in every browser, so check it before blaming Safari. Safari's Intelligent Tracking Prevention (ITP) adds its own deletion rules: it clears script-writable storage, `sessionStorage` included, after 7 days without user interaction with the site. The usual fix is a short-lived cookie set by your own origin, or a BFF so the verifier never lives in the browser.
 2. **Third-party cookies.** If the IdP needs a session cookie to skip re-authentication and you're in a top-level navigation, this is usually fine. But silent renewal in an iframe (older patterns) breaks completely in Safari with ITP enabled.
-3. **Date/time skew.** Older Safari builds had clock-drift issues that caused JWT validation to fail with "not yet valid."
+3. **Clock skew.** Not Safari-specific, but it shows up as "works on my machine": if the SPA validates the ID token itself, it compares the token's `iat`/`nbf` (issued-at / not-before) times with the device clock, and a device whose clock is behind rejects a fresh token as "not yet valid." Allow a small leeway, or leave validation to the server.
 4. **Cross-origin redirect issues.** Some IdPs use multiple redirect hops; Safari may strip referrer info more aggressively, breaking flows that depend on it.
 
 Debug: open the Safari Web Inspector → Network tab → record the full flow. The `code_verifier` must persist through the redirect; the most common Safari failure is that it doesn't.

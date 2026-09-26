@@ -134,7 +134,7 @@ Lets a child align to its **parent's** tracks — the proper fix for making titl
 @container side (min-width: 400px) { .card { flex-direction: row; } }
 @container style(--theme: dark) { ... }         /* style queries */
 ```
-Media queries ask about the **viewport**; container queries ask about the **parent** — which is what component-level responsiveness actually needs. Note `container-type: inline-size` creates containment, so the container can no longer be sized by its children's height.
+Media queries ask about the **viewport**; container queries ask about the **parent** — which is what component-level responsiveness actually needs. Note `container-type: inline-size` creates size containment on the inline axis, so the container's **width** can no longer come from its children — a shrink-to-fit container (a float, an inline-block, a flex item with no set width) collapses. Its height still follows its content.
 
 ## Alignment Reference
 | Property | Axis | Works on |
@@ -157,7 +157,7 @@ padding-inline: 1rem; margin-block: 2rem;
 inset: 0;                                    /* top/right/bottom/left */
 width: min(65ch, 100%);  clamp(1rem, 2.5vw, 2rem);
 height: 100dvh;                              /* dvh/svh/lvh — mobile toolbars */
-position: sticky; top: 0;                    /* needs a scrolling ancestor */
+position: sticky; top: 0;                    /* needs an inset; an overflow:hidden/auto ancestor traps it */
 overflow: clip; overscroll-behavior: contain;
 ```
 
@@ -175,7 +175,7 @@ overflow: clip; overscroll-behavior: contain;
 - `justify-items` and `justify-self` **do not exist in flexbox**.
 - Percentage `height` needs a definite parent height; percentage `gap` resolves against the container.
 - `100vh` on mobile is the *largest* viewport, so content hides behind toolbars — use `100dvh`.
-- `position: sticky` silently fails if any ancestor has `overflow: hidden|auto|scroll`, or if no offset is set.
+- `position: sticky` sticks within the **nearest ancestor that has `overflow: hidden|auto|scroll`**, so if that ancestor is not the thing actually scrolling, the element never sticks. It also does nothing without an offset such as `top: 0`.
 - `transform`, `filter` and `will-change` create a **containing block**, breaking `position: fixed` children.
 - `z-index` only works on positioned or flex/grid items, and only within its stacking context.
 - `gap` is not the same as `margin` — it doesn't apply on the outer edges.

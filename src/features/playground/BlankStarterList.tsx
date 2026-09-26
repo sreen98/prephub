@@ -1,14 +1,15 @@
 import { ChevronRight } from 'lucide-react';
-import { blankStarters } from '../../data/playground/templateIndex';
-import type { TemplateLang } from '../../data/playground/playgroundTemplates';
+import type { TemplateLang, BlankStarter } from '../../data/playground/playgroundTemplates';
 
 // The "Blank" tab of the template picker: three tiny language scaffolds.
 // Their code ships eagerly with the index, so picking one needs no fetch.
 
 export default function BlankStarterList({
-  onPick,
+  onPick, starters,
 }: {
   onPick: (s: { name: string; lang: TemplateLang; code: string }) => void;
+  /** The current playground's starters: JS and TS, or React. */
+  starters: BlankStarter[];
 }) {
   const handleBlankStarter = onPick;
   return (
@@ -17,7 +18,7 @@ export default function BlankStarterList({
         Pick a language and start with a tiny scaffold — no template content. Run, edit, experiment.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {blankStarters.map((starter) => {
+        {starters.map((starter) => {
           const isReact = starter.lang === 'jsx' || starter.lang === 'tsx';
           return (
             <button

@@ -306,6 +306,7 @@ check('explanation bodies are not statically imported by the playground UI', () 
     'src/features/playground/ExplanationModal.tsx',
     'src/features/playground/BuildExplanationModal.tsx',
     'src/features/playground/AlgorithmExplanationModal.tsx',
+    'src/features/playground/lazyPlaygroundData.ts',
   ];
   const offenders = [];
   for (const f of files) {

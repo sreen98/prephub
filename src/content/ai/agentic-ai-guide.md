@@ -125,7 +125,7 @@ An agent's context grows every single step — each tool result is appended and 
 - **Truncate tool output** at the boundary. Cap each result, and prefer a summary plus a handle the agent can use to fetch more.
 - **Compaction / summarisation.** When the context approaches a threshold, replace older turns with a summary that preserves decisions, findings, and open questions — and keeps recent turns verbatim, because those are what the next step depends on.
 - **Externalise state.** Let the agent write findings to a file or a scratchpad tool and read them back on demand, rather than carrying everything in the window. This is the pattern behind agents that run for hours.
-- **Keep the stable prefix stable.** System prompt and tool definitions first, so prompt caching applies across steps. In a twenty-step loop, caching the prefix is a large saving, and interpolating a step counter into the system prompt destroys it.
+- **Keep the stable prefix stable.** Prompt caching means the provider reuses its work on a prompt's unchanged opening section and bills it at a discount — but only while that section is byte-identical. So put the system prompt and tool definitions first, and caching applies across steps. In a twenty-step loop, caching the prefix is a large saving, and interpolating a step counter into the system prompt destroys it.
 - **Re-anchor the goal.** On long runs, restating the objective near the end of the context measurably reduces drift.
 
 ---
@@ -225,7 +225,7 @@ Agents need **two** kinds of evaluation, and most teams only build the first.
 | Metric | Why |
 |---|---|
 | Task success rate | the headline number |
-| Steps and tokens per task (p50/p95) | p95 is where your cost lives |
+| Steps and tokens per task (p50/p95) | p50 is the typical run, p95 the value only the slowest 5% exceed — and p95 is where your cost lives |
 | Budget-exhaustion rate | rising means tasks are drifting harder, or a tool regressed |
 | Tool error rate, per tool | one broken tool degrades everything downstream |
 | Human escalation rate | the honest measure of autonomy |
@@ -371,7 +371,7 @@ I would also mention conflict: when a new memory contradicts an old one, somethi
 
 **Q9: Your agent takes four minutes and twenty steps. How do you build that in a web application?**
 
-Not inside a request. I would model the run as a durable process: a run id created immediately and returned, work executed by a worker, and the client polling or subscribing over SSE or WebSocket for progress.
+Not inside a request. I would model the run as a durable process: a run id created immediately and returned, work executed by a worker, and the client polling or subscribing over SSE (Server-Sent Events, a one-way server-to-browser stream) or WebSocket for progress.
 
 **Checkpoint after every step**, so a crash resumes rather than restarts — restarting is not just slow, it re-executes side effects. That in turn requires idempotency keys on every write tool, because resuming can replay the step that was in flight when the process died. Persist the whole trajectory, not just the answer, for debugging and audit.
 

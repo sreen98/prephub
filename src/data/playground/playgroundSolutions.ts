@@ -1447,7 +1447,7 @@ test("Replace: mismatched", isValidReplace("([)]"), false);
 // ----- Approach 1: Two-pointer merge (BEST) -----
 // Walk both arrays in parallel; pick the smaller current head each step.
 // This is the merge-step of merge sort — the canonical answer.
-function merge(a, b) {
+function mergeSorted(a, b) {
   const result = [];
   let i = 0, j = 0;
   while (i < a.length && j < b.length) {
@@ -1486,11 +1486,11 @@ const test = (name, actual, expected) => {
 };
 
 console.log("--- Approach 1 (two-pointer) — BEST ---");
-test("Equal lengths", merge([1, 3, 5], [2, 4, 6]), [1, 2, 3, 4, 5, 6]);
-test("Different lengths", merge([1, 2, 3], [4, 5, 6, 7]), [1, 2, 3, 4, 5, 6, 7]);
-test("One empty", merge([], [1, 2, 3]), [1, 2, 3]);
-test("Both empty", merge([], []), []);
-test("With duplicates", merge([1, 2, 2], [2, 3]), [1, 2, 2, 2, 3]);
+test("Equal lengths", mergeSorted([1, 3, 5], [2, 4, 6]), [1, 2, 3, 4, 5, 6]);
+test("Different lengths", mergeSorted([1, 2, 3], [4, 5, 6, 7]), [1, 2, 3, 4, 5, 6, 7]);
+test("One empty", mergeSorted([], [1, 2, 3]), [1, 2, 3]);
+test("Both empty", mergeSorted([], []), []);
+test("With duplicates", mergeSorted([1, 2, 2], [2, 3]), [1, 2, 2, 2, 3]);
 
 console.log("\\n--- Approach 2 (concat + sort) — same outputs but slower ---");
 test("Sort: equal", mergeConcatSort([1, 3, 5], [2, 4, 6]), [1, 2, 3, 4, 5, 6]);
@@ -1938,8 +1938,9 @@ console.log("NaN is lost:", removeDuplicatesIndexOf([NaN, 1, NaN]).length, "item
 // │ 1. filter → Set → sort                 │ O(n log n) │ O(n)  │ BEST         │
 // │ 2. filter → sort → skip repeats        │ O(n log n) │ O(n)  │ No Set       │
 // │ 3. One loop + seen object, then sort   │ O(n log n) │ O(n)  │ No Set       │
-// │ 4. Insert in sorted order, by hand     │ O(n²)      │ O(n)  │ No built-ins │
-// │ 5. Variant: accept numeric strings     │ O(n log n) │ O(n)  │ If asked     │
+// │ 4. Dedupe by hand, then bubble sort    │ O(n²)      │ O(n)  │ No built-ins │
+// │ 5. Insert in sorted order, by hand     │ O(n²)      │ O(n)  │ One pass     │
+// │ 6. Variant: accept numeric strings     │ O(n log n) │ O(n)  │ If asked     │
 // └────────────────────────────────────────┴────────────┴───────┴──────────────┘
 //
 // The sort dominates in every version. Filtering and deduping are O(n).
@@ -1983,7 +1984,41 @@ function cleanNumbersSeen(arr) {
 }
 
 // ----- Approach 4: no built-ins at all (interviewer bans sort, Set, filter) -----
-// Build the result ALREADY SORTED: for each number, walk to the place it
+// The easiest version to write under pressure: two steps you already know.
+// Step 1 keeps each real number once, checking the result for a copy.
+// Step 2 is bubble sort: swap neighbours that are out of order, and after
+// each pass the largest remaining value has "bubbled" to the end, which is
+// why the inner loop can stop i places short.
+// No sort(), no Set, no filter(), no push().
+function cleanNumbersBubble(arr) {
+  const result = [];
+  for (let i = 0; i < arr.length; i++) {
+    const x = arr[i];
+    // x !== x is true only for NaN. The last two checks drop the infinities.
+    if (typeof x !== "number" || x !== x || x === Infinity || x === -Infinity) continue;
+
+    let dup = false;
+    for (let j = 0; j < result.length; j++) if (result[j] === x) dup = true;
+    if (!dup) result[result.length] = x;
+  }
+
+  for (let i = 0; i < result.length; i++) {
+    for (let j = 0; j < result.length - 1 - i; j++) {
+      if (result[j] > result[j + 1]) {
+        const tmp = result[j];
+        result[j] = result[j + 1];
+        result[j + 1] = tmp;
+      }
+    }
+  }
+  return result;
+}
+// Cost: the duplicate check and the sort are each O(n²) in the worst case.
+// That is fine at interview sizes, and it is the easiest version to explain:
+// "keep unique numbers, then bubble sort".
+
+// ----- Approach 5: no built-ins, sorted as you go (one pass) -----
+// A tighter follow-up to Approach 4. Build the result ALREADY SORTED: for each number, walk to the place it
 // belongs and insert it there. That also removes duplicates for free: if the
 // value is already sitting at that place, it is a repeat, so skip it.
 // No sort(), no Set, no filter(), no push(), not even a "seen" table.
@@ -2011,7 +2046,7 @@ function cleanNumbersManual(arr) {
 // interview sizes. If they then ask about a million values: write merge sort
 // for O(n log n), or use counting sort if the values are small integers.
 
-// ----- Approach 5: variant where "7" should count as 7 -----
+// ----- Approach 6: variant where "7" should count as 7 -----
 // Only if the interviewer says so. Number() is a trap on its own:
 // Number("") is 0, Number(" ") is 0, Number(true) is 1, Number(null) is 0.
 // So accept only real numbers, or strings that are not blank.
@@ -2045,7 +2080,8 @@ const approaches = [
   ["Approach 1 (filter → Set → sort) — BEST", cleanNumbers],
   ["Approach 2 (sort, skip repeats)", cleanNumbersNoSet],
   ["Approach 3 (seen object + sort)", cleanNumbersSeen],
-  ["Approach 4 (no built-ins)", cleanNumbersManual],
+  ["Approach 4 (no built-ins, bubble sort)", cleanNumbersBubble],
+  ["Approach 5 (no built-ins, sorted as you go)", cleanNumbersManual],
 ];
 
 for (const [label, fn] of approaches) {
@@ -2056,7 +2092,7 @@ for (const [label, fn] of approaches) {
   test("Does not change the input", input, [3, "a", 1, 3]);
 }
 
-console.log("--- Approach 5 (numeric strings count) ---");
+console.log("--- Approach 6 (numeric strings count) ---");
 test("Strings become numbers", cleanNumbersLoose(["7", 7, "3", "a"]), [3, 7]);
 test("Blank strings are not 0", cleanNumbersLoose(["", " ", 5]), [5]);
 test("Booleans still rejected", cleanNumbersLoose([true, false, 2]), [2]);
@@ -2076,9 +2112,10 @@ test("Booleans still rejected", cleanNumbersLoose([true, false, 2]), [2]);
 // - Interview default → Approach 1. It reads like the problem statement.
 // - "Without Set" → Approach 2 (sorting first makes duplicates adjacent)
 //   or Approach 3 (an explicit seen table, then sort).
-// - "No sort / no built-ins" → Approach 4, then mention you'd use 1 in
-//   real code, and merge sort if the input could be huge.
-// - Numeric strings allowed → Approach 5, and say why Number("") is a trap.`,
+// - "No sort / no built-ins" → Approach 4 (easiest to write), then offer
+//   Approach 5 as the one-pass follow-up. Mention you'd use 1 in real code,
+//   and merge sort if the input could be huge.
+// - Numeric strings allowed → Approach 6, and say why Number("") is a trap.`,
 
   'Find Missing Number': `// ===== SOLUTION: Find Missing Number =====
 //
@@ -6456,6 +6493,107 @@ test("Mixed (spread)", findMaxSpread([3, 7, 1, 9, 4]), 9);
 //   and can throw "Maximum call stack size exceeded").
 // - Sort + last → O(n log n) waste; never pick this.`,
 
+  'Max Consecutive Ones': `// ===== SOLUTION: Max Consecutive Ones =====
+//
+// ┌──────────────────────────────────┬───────┬───────┬───────────────┐
+// │ Approach                         │ Time  │ Space │ Verdict       │
+// ├──────────────────────────────────┼───────┼───────┼───────────────┤
+// │ 1. Running count, reset on 0     │ O(n)  │ O(1)  │ BEST          │
+// │ 2. join + split on "0"           │ O(n)  │ O(n)  │ Cute one-liner│
+// │ 3. Follow-up: flip up to k zeros │ O(n)  │ O(1)  │ Sliding window│
+// └──────────────────────────────────┴───────┴───────┴───────────────┘
+//
+// The trap: the answer is the LONGEST RUN of 1s, not the total number
+// of 1s. [1,1,0,1,1,1] has five 1s, but the answer is 3.
+
+// ----- Approach 1: Running count, reset on 0 (BEST) -----
+// count = length of the run that ends at the current element.
+// maxCount = the best run seen so far.
+// Update maxCount on EVERY 1, not only when a 0 ends the run. If you
+// only update on a 0, a run that reaches the end of the array is never
+// counted: [0,1,1,1] would return 0.
+function maxConsecutiveOnes(nums) {
+  let maxCount = 0;
+  let count = 0;
+  for (const num of nums) {
+    if (num === 1) {
+      count++;
+      maxCount = Math.max(maxCount, count);
+    } else {
+      count = 0;
+    }
+  }
+  return maxCount;
+}
+
+// ----- Approach 2: join + split on "0" -----
+// [1,1,0,1,1,1].join("") is "110111"; split("0") gives ["11", "111"].
+// The longest piece is the longest run. Readable, but it builds a
+// string and an array of pieces (O(n) extra space), and it only works
+// because every value is a single character 0 or 1.
+function maxConsecutiveOnesSplit(nums) {
+  return nums
+    .join("")
+    .split("0")
+    .reduce((best, run) => Math.max(best, run.length), 0);
+}
+
+// ----- Approach 3: Follow-up — you may flip up to k zeros -----
+// The usual next question. Keep a window [left, right] that holds at
+// most k zeros. Grow it to the right; when it holds too many zeros,
+// move left forward until one zero has left the window. The window is
+// then a run of 1s once its zeros are flipped.
+// With k = 0 this is exactly Approach 1.
+function maxConsecutiveOnesFlipK(nums, k) {
+  let left = 0;
+  let zeros = 0;
+  let best = 0;
+  for (let right = 0; right < nums.length; right++) {
+    if (nums[right] === 0) zeros++;
+    while (zeros > k) {
+      if (nums[left] === 0) zeros--;
+      left++;
+    }
+    best = Math.max(best, right - left + 1);
+  }
+  return best;
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + expected + ", got " + actual);
+};
+
+const arr = [1,1,1,1,1,1,0,0,1,0,1,1,1,1,1,0];
+
+console.log("--- Approach 1 (Running count) — BEST ---");
+test("Interview array", maxConsecutiveOnes(arr),                    6);
+test("Longest run is not the total", maxConsecutiveOnes([1,1,0,1,1,1]), 3);
+test("Run at the very end", maxConsecutiveOnes([0,0,1,1,1]),        3);
+test("All ones",        maxConsecutiveOnes([1,1,1,1]),              4);
+test("All zeros",       maxConsecutiveOnes([0,0,0]),                0);
+test("Empty",           maxConsecutiveOnes([]),                     0);
+
+console.log("--- Approach 2 (join + split) ---");
+test("Interview array (split)", maxConsecutiveOnesSplit(arr),       6);
+test("Run at the end (split)",  maxConsecutiveOnesSplit([0,1,1]),   2);
+test("Empty (split)",           maxConsecutiveOnesSplit([]),        0);
+
+console.log("--- Approach 3 (flip up to k zeros) ---");
+test("k = 0 is Approach 1",     maxConsecutiveOnesFlipK(arr, 0),    6);
+test("k = 1 joins two runs",    maxConsecutiveOnesFlipK(arr, 1),    7);
+test("k = 2",                   maxConsecutiveOnesFlipK(arr, 2),    9);
+test("k covers every zero",     maxConsecutiveOnesFlipK([0,0,1], 5), 3);
+
+// ===== When to pick which =====
+// - DEFAULT → Approach 1. One pass, two variables, and every line maps
+//   to a sentence you can say out loud.
+// - join + split → fine as a "can you do it in one line" answer, but
+//   say the extra O(n) space and the 0/1-only assumption.
+// - Flip k → have it ready. "What if you could flip one zero?" is the
+//   standard follow-up, and it is where the sliding window comes in.`,
+
   'Find Min and Max': `// ===== SOLUTION: Find Min and Max =====
 //
 // ┌──────────────────────────────────┬───────────┬───────┬───────────┐
@@ -8377,4 +8515,1288 @@ try { sumTail(big); } catch (e) { overflowed = e instanceof RangeError; }
 test("No TCO in V8",     overflowed,                   true);
 test("reduce handles it",sumReduce(big),               100000);
 test("divide handles it",sumDivide(big),               100000);`,
+  'DOM Tree Height': `// ===== SOLUTION: DOM Tree Height =====
+//
+// ┌──────────────────────────────────┬──────┬───────────────┬──────────────┐
+// │ Approach                         │ Time │ Space         │ Verdict      │
+// ├──────────────────────────────────┼──────┼───────────────┼──────────────┤
+// │ 1. Recursive DFS: 1 + max(child) │ O(n) │ O(h) stack    │ BEST to say  │
+// │ 2. BFS, count the levels         │ O(n) │ O(widest lvl) │ No recursion │
+// │ 3. Iterative DFS, stack of depth │ O(n) │ O(n)          │ Also safe    │
+// └──────────────────────────────────┴──────┴───────────────┴──────────────┘
+// n = number of nodes, h = height of the tree.
+
+// ----- Approach 1: Recursive DFS (BEST: the definition, written as code) -----
+// The height of a node is 1 (itself) plus the height of its tallest child.
+// A leaf has no children, so the max over nothing is 0 and a leaf is 1.
+// An empty tree (null) is 0, which is also the base case that stops us.
+function treeHeight(node) {
+  if (!node) return 0;
+  let tallest = 0;
+  for (const child of node.children) tallest = Math.max(tallest, treeHeight(child));
+  return 1 + tallest;
+}
+
+// ----- Approach 2: BFS, one loop turn per level -----
+// Process the tree a whole level at a time. Every time a level finishes,
+// the height grows by one. The queue never holds more than two levels,
+// and there is no recursion, so a 100,000-deep chain cannot overflow.
+function treeHeightBFS(root) {
+  if (!root) return 0;
+  let level = [root];
+  let height = 0;
+  while (level.length) {
+    height++;
+    const next = [];
+    for (const node of level) next.push(...node.children);
+    level = next;
+  }
+  return height;
+}
+
+// ----- Approach 3: Iterative DFS with an explicit stack of [node, depth] -----
+// The recursion of Approach 1, with the call stack made visible. Each entry
+// remembers how deep it is, and the answer is the deepest depth seen.
+function treeHeightStack(root) {
+  if (!root) return 0;
+  const stack = [[root, 1]];
+  let best = 0;
+  while (stack.length) {
+    const [node, depth] = stack.pop();
+    best = Math.max(best, depth);
+    for (const child of node.children) stack.push([child, depth + 1]);
+  }
+  return best;
+}
+
+// ═════ TREE HELPER (plain objects standing in for DOM nodes) ═════
+const el = (tag, ...children) => ({ tag, children });
+
+// ═════ TEST CASES (every approach) ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const page = el("html",
+  el("head", el("title")),
+  el("body",
+    el("header", el("nav", el("ul", el("li"), el("li")))),
+    el("main", el("p"))));
+
+for (const [label, fn] of [["recursive", treeHeight], ["BFS", treeHeightBFS], ["stack", treeHeightStack]]) {
+  test(label + ": nested page", fn(page), 6);
+  test(label + ": single node", fn(el("div")), 1);
+  test(label + ": empty tree", fn(null), 0);
+  test(label + ": wide but shallow", fn(el("ul", el("li"), el("li"), el("li"), el("li"))), 2);
+  test(label + ": deepest branch is the last child", fn(el("div", el("p"), el("p"), el("section", el("div", el("span"))))), 4);
+}
+
+// A 100,000-deep chain: the recursive version would throw RangeError here.
+let chain = el("leaf");
+for (let i = 0; i < 100000; i++) chain = el("div", chain);
+test("BFS survives a 100,001-deep chain", treeHeightBFS(chain), 100001);
+
+// ===== When to pick which =====
+// - Default → Approach 1. It is the definition of height, and a real DOM is
+//   rarely more than a few dozen levels deep, so the stack is never at risk.
+// - Untrusted or generated trees (parsed JSON, a comment thread) → Approach 2
+//   or 3: no recursion, so no RangeError on a pathological depth.
+// - Follow-up "height of the widest level" or "print level by level" → Approach 2,
+//   because it already has each level in hand.`,
+  'Invert Binary Tree': `// ===== SOLUTION: Invert Binary Tree =====
+//
+// ┌──────────────────────────────────┬──────┬───────────────┬──────────────┐
+// │ Approach                         │ Time │ Space         │ Verdict      │
+// ├──────────────────────────────────┼──────┼───────────────┼──────────────┤
+// │ 1. Recursive: swap, then recurse │ O(n) │ O(h) stack    │ BEST         │
+// │ 2. BFS with a queue              │ O(n) │ O(widest lvl) │ No recursion │
+// │ 3. Iterative DFS with a stack    │ O(n) │ O(h)          │ Also safe    │
+// └──────────────────────────────────┴──────┴───────────────┴──────────────┘
+
+// ----- Approach 1: Recursive (BEST) -----
+// Mirroring a tree = swap this node's two children, then mirror each subtree.
+// The order does not matter (swap first or recurse first), as long as every
+// node gets its own swap exactly once.
+function invertTree(root) {
+  if (!root) return null;
+  [root.left, root.right] = [root.right, root.left];
+  invertTree(root.left);
+  invertTree(root.right);
+  return root;
+}
+
+// ----- Approach 2: BFS with a queue -----
+// Visit nodes level by level and swap each one's children. Using a head
+// index instead of queue.shift() keeps each dequeue O(1).
+function invertTreeBFS(root) {
+  const queue = root ? [root] : [];
+  for (let head = 0; head < queue.length; head++) {
+    const n = queue[head];
+    [n.left, n.right] = [n.right, n.left];
+    if (n.left) queue.push(n.left);
+    if (n.right) queue.push(n.right);
+  }
+  return root;
+}
+
+// ----- Approach 3: Iterative DFS with a stack -----
+// Same as Approach 2 with pop() instead of a queue: the visiting order
+// changes, the result does not, because each swap is independent.
+function invertTreeStack(root) {
+  const stack = root ? [root] : [];
+  while (stack.length) {
+    const n = stack.pop();
+    [n.left, n.right] = [n.right, n.left];
+    if (n.left) stack.push(n.left);
+    if (n.right) stack.push(n.right);
+  }
+  return root;
+}
+
+// ═════ TREE HELPERS ═════
+const node = (val, left = null, right = null) => ({ val, left, right });
+const shape = (n) => (n ? [n.val, shape(n.left), shape(n.right)] : null);
+
+// ═════ TEST CASES (every approach) ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+for (const [label, fn] of [["recursive", invertTree], ["BFS", invertTreeBFS], ["stack", invertTreeStack]]) {
+  const full = node(4, node(2, node(1), node(3)), node(7, node(6), node(9)));
+  test(label + ": full tree", shape(fn(full)), [4, [7, [9, null, null], [6, null, null]], [2, [3, null, null], [1, null, null]]]);
+  test(label + ": single node", shape(fn(node(1))), [1, null, null]);
+  test(label + ": empty tree", fn(null), null);
+  test(label + ": left chain becomes a right chain", shape(fn(node(1, node(2, node(3))))), [1, null, [2, null, [3, null, null]]]);
+  const same = node(5, node(3), node(8));
+  test(label + ": returns the same root, mirrored in place", fn(same) === same && same.left.val === 8, true);
+  const twice = node(1, node(2, node(4)), node(3));
+  fn(fn(twice));
+  test(label + ": inverting twice restores the tree", shape(twice), [1, [2, [4, null, null], null], [3, null, null]]);
+}
+
+// ===== When to pick which =====
+// - Default → Approach 1. Four lines, and the whole idea is visible.
+// - A very deep (degenerate) tree → Approach 2 or 3, which cannot overflow.
+// - The classic mistake: "left = invert(right); right = invert(left)" without
+//   a temporary. The second line reads the NEW left, so both sides end up
+//   the same subtree. Destructuring swaps both at once and avoids it.`,
+  'Level-Order Traversal': `// ===== SOLUTION: Level-Order Traversal =====
+//
+// ┌───────────────────────────────────────┬──────┬───────────────┬─────────────┐
+// │ Approach                              │ Time │ Space         │ Verdict     │
+// ├───────────────────────────────────────┼──────┼───────────────┼─────────────┤
+// │ 1. BFS queue, snapshot the level size │ O(n) │ O(widest lvl) │ BEST        │
+// │ 2. DFS carrying a depth index         │ O(n) │ O(h) stack    │ Neat        │
+// │ 3. BFS, swap in a fresh array per lvl │ O(n) │ O(widest lvl) │ Same as 1   │
+// └───────────────────────────────────────┴──────┴───────────────┴─────────────┘
+
+// ----- Approach 1: BFS with a queue (BEST) -----
+// A queue hands nodes out in the order they went in, so the root comes
+// first, then all of depth 1, then all of depth 2. The one trick is knowing
+// where a level ends: before processing a level, read how many nodes the
+// queue holds. Exactly that many belong to this level; everything pushed
+// while processing them belongs to the next one.
+// "head" is a read index, so dequeuing is O(1). queue.shift() re-indexes the
+// whole array on every call and turns this into O(n²) on a wide tree.
+function levelOrder(root) {
+  if (!root) return [];
+  const result = [];
+  const queue = [root];
+  let head = 0;
+  while (head < queue.length) {
+    const levelSize = queue.length - head;
+    const level = [];
+    for (let i = 0; i < levelSize; i++) {
+      const node = queue[head++];
+      level.push(node.tag);
+      for (const child of node.children) queue.push(child);
+    }
+    result.push(level);
+  }
+  return result;
+}
+
+// ----- Approach 2: DFS carrying the depth -----
+// Walk depth-first, and pass the depth down. The depth is the index of the
+// level array to append to. Visiting children left to right means every
+// level fills left to right too, even though we jump between levels.
+function levelOrderDFS(root) {
+  const result = [];
+  const visit = (node, depth) => {
+    if (!node) return;
+    if (!result[depth]) result[depth] = [];
+    result[depth].push(node.tag);
+    for (const child of node.children) visit(child, depth + 1);
+  };
+  visit(root, 0);
+  return result;
+}
+
+// ----- Approach 3: BFS, one array per level -----
+// Keep the current level as its own array and build the next one beside it.
+// No level-size bookkeeping: the arrays ARE the levels.
+function levelOrderSwap(root) {
+  const result = [];
+  let level = root ? [root] : [];
+  while (level.length) {
+    result.push(level.map((n) => n.tag));
+    level = level.flatMap((n) => n.children);
+  }
+  return result;
+}
+
+// ═════ TREE HELPER (plain objects standing in for DOM nodes) ═════
+const el = (tag, ...children) => ({ tag, children });
+
+// ═════ TEST CASES (every approach) ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const page = el("body",
+  el("header", el("h1"), el("nav")),
+  el("main", el("article", el("p"), el("p"))),
+  el("footer"));
+
+for (const [label, fn] of [["BFS", levelOrder], ["DFS", levelOrderDFS], ["per-level arrays", levelOrderSwap]]) {
+  test(label + ": page", fn(page), [["body"], ["header", "main", "footer"], ["h1", "nav", "article"], ["p", "p"]]);
+  test(label + ": single node", fn(el("div")), [["div"]]);
+  test(label + ": empty tree", fn(null), []);
+  test(label + ": a chain", fn(el("a", el("b", el("c")))), [["a"], ["b"], ["c"]]);
+  test(label + ": left to right across different parents", fn(el("r", el("x", el("x1")), el("y"), el("z", el("z1"), el("z2")))), [["r"], ["x", "y", "z"], ["x1", "z1", "z2"]]);
+}
+
+// ===== When to pick which =====
+// - Default → Approach 1. It is what "level order" means, and it extends to
+//   the usual follow-ups: zigzag order (reverse every other level), the
+//   rightmost node of each level (the "right side view"), level averages.
+// - Approach 2 when you are already writing a recursive walk; say out loud
+//   that it only works because children are visited left to right.
+// - Approach 3 reads best, at the cost of a new array per level.`,
+  'getElementsByClassName from Scratch': `// ===== SOLUTION: getElementsByClassName from Scratch =====
+//
+// ┌──────────────────────────────────────┬──────────┬────────────┬─────────────┐
+// │ Approach                             │ Time     │ Space      │ Verdict     │
+// ├──────────────────────────────────────┼──────────┼────────────┼─────────────┤
+// │ 1. Recursive DFS + Set of classes    │ O(n · c) │ O(h)       │ BEST        │
+// │ 2. Iterative DFS, explicit stack     │ O(n · c) │ O(n)       │ No recursion│
+// │ 3. Recursive DFS + includes (no Set) │ O(n·c·k) │ O(h)       │ Fine if tiny│
+// └──────────────────────────────────────┴──────────┴────────────┴─────────────┘
+// n = nodes, c = classes per node, k = classes asked for.
+
+// Shared by every approach: "  card   big " → ["card", "big"].
+// Split on any run of whitespace (a class attribute may hold tabs or
+// newlines too), and drop the empty strings that leading or trailing
+// spaces leave behind.
+const toClassList = (str) => (str || "").split(/\\s+/).filter(Boolean);
+
+// ----- Approach 1: Recursive DFS with a Set (BEST) -----
+// "Document order" is pre-order depth-first: a node comes before its
+// children, and its children before its next sibling. That is exactly the
+// order a recursive walk visits them in.
+// The match test is "every wanted class is in this node's class set".
+// A substring check (className.includes("car")) is the classic bug: it
+// matches "card" and "cardboard".
+// Like the real element.getElementsByClassName, only DESCENDANTS are
+// searched, so the walk starts at the root's children.
+function getElementsByClassName(root, classNames) {
+  const wanted = toClassList(classNames);
+  const result = [];
+  if (wanted.length === 0) return result;   // the DOM matches nothing for ""
+  const visit = (node) => {
+    const own = new Set(toClassList(node.className));
+    if (wanted.every((c) => own.has(c))) result.push(node);
+    for (const child of node.children) visit(child);
+  };
+  for (const child of root.children) visit(child);
+  return result;
+}
+
+// ----- Approach 2: Iterative DFS with an explicit stack -----
+// A stack pops the LAST thing pushed, so push the children in reverse:
+// then the first child is popped first and document order is kept.
+// Pushing them in order is the usual bug here: the results come out
+// right-to-left.
+function getElementsByClassNameStack(root, classNames) {
+  const wanted = toClassList(classNames);
+  const result = [];
+  if (wanted.length === 0) return result;
+  const stack = [...root.children].reverse();
+  while (stack.length) {
+    const node = stack.pop();
+    const own = new Set(toClassList(node.className));
+    if (wanted.every((c) => own.has(c))) result.push(node);
+    for (let i = node.children.length - 1; i >= 0; i--) stack.push(node.children[i]);
+  }
+  return result;
+}
+
+// ----- Approach 3: Recursive DFS with Array includes -----
+// Same walk, but check membership with includes on the split array.
+// Real class lists hold a handful of names, so this is just as fast in
+// practice; the Set only wins when nodes carry many classes.
+function getElementsByClassNameIncludes(root, classNames) {
+  const wanted = toClassList(classNames);
+  const result = [];
+  const visit = (node) => {
+    const own = toClassList(node.className);
+    if (wanted.length && wanted.every((c) => own.includes(c))) result.push(node);
+    node.children.forEach(visit);
+  };
+  root.children.forEach(visit);
+  return result;
+}
+
+// ═════ TREE HELPERS (plain objects standing in for DOM nodes) ═════
+const el = (id, className, ...children) => ({ tag: "div", id, className, children });
+const ids = (nodes) => nodes && nodes.map((n) => n.id);
+
+// ═════ TEST CASES (every approach) ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const root = el("root", "app",
+  el("a", "card big",
+    el("a1", "card"),
+    el("a2", "big card featured")),
+  el("b", "cardboard"),
+  el("c", "  card   big  "),
+  el("d", "", el("d1", "card big")));
+
+for (const [label, fn] of [["recursive", getElementsByClassName], ["stack", getElementsByClassNameStack], ["includes", getElementsByClassNameIncludes]]) {
+  test(label + ": one class, document order", ids(fn(root, "card")), ["a", "a1", "a2", "c", "d1"]);
+  test(label + ": every class must match, in any order", ids(fn(root, "big card")), ["a", "a2", "c", "d1"]);
+  test(label + ": whole class names only", ids(fn(root, "car")), []);
+  test(label + ": the root itself is not included", ids(fn(root, "app")), []);
+  test(label + ": extra spaces in the query", ids(fn(root, "  featured ")), ["a2"]);
+  test(label + ": empty query matches nothing", ids(fn(root, "")), []);
+}
+
+// ===== When to pick which =====
+// - Default → Approach 1. Say the three rules out loud: whole names not
+//   substrings, every class not any, descendants only in document order.
+// - Very deep trees → Approach 2, and mention the reversed push.
+// - Follow-up: the real API returns a LIVE HTMLCollection that updates as the
+//   DOM changes; this returns a snapshot array, like querySelectorAll does.`,
+  'Find Matching Node in Identical Tree': `// ===== SOLUTION: Find Matching Node in Identical Tree =====
+//
+// ┌──────────────────────────────────────────┬──────────────┬────────┬────────────┐
+// │ Approach                                 │ Time         │ Space  │ Verdict    │
+// ├──────────────────────────────────────────┼──────────────┼────────┼────────────┤
+// │ 1. Path of child indexes up, walk B down │ O(h · w)     │ O(h)   │ BEST       │
+// │ 2. Walk A and B together until target    │ O(n)         │ O(h)   │ No parents │
+// └──────────────────────────────────────────┴──────────────┴────────┴────────────┘
+// h = depth of target, w = siblings per node (the indexOf), n = all nodes.
+
+// ----- Approach 1: Record the path up, replay it down (BEST) -----
+// The two trees have the same shape, so a node is fully described by its
+// POSITION: "child 1 of the root, then child 1 of that". Climb from the
+// target to rootA through parent pointers, writing down which child index
+// each step came from. Then start at rootB and follow the same indexes in
+// reverse order (top-down).
+// It only touches the nodes on one path, not the whole tree. Comparing tags
+// or text instead of positions is the trap: siblings can look identical.
+function findCorrespondingNode(rootA, rootB, target) {
+  const path = [];
+  let node = target;
+  while (node !== rootA) {
+    if (!node || !node.parent) return null;   // climbed off the top: not in tree A
+    path.push(node.parent.children.indexOf(node));
+    node = node.parent;
+  }
+  let match = rootB;
+  for (let i = path.length - 1; i >= 0; i--) match = match.children[path[i]];
+  return match;
+}
+
+// ----- Approach 2: Walk both trees in lockstep -----
+// No parent pointers needed. Walk A and B at the same time, always taking the
+// same child in each, so the pair on top of the stack is always "a node in A
+// and its twin in B". When the A side is the target, the B side is the answer.
+// It may visit the whole tree, so it is O(n) rather than O(depth).
+function findCorrespondingNodeWalk(rootA, rootB, target) {
+  const stack = [[rootA, rootB]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    if (a === target) return b;
+    for (let i = 0; i < a.children.length; i++) stack.push([a.children[i], b.children[i]]);
+  }
+  return null;
+}
+
+// ═════ TREE HELPERS (plain objects standing in for DOM nodes) ═════
+const el = (tag, ...children) => ({ tag, parent: null, children });
+const withParents = (node, parent = null) => {
+  node.parent = parent;
+  for (const child of node.children) withParents(child, node);
+  return node;
+};
+const makePage = () => withParents(
+  el("div",
+    el("p"),
+    el("p", el("span"), el("span")),
+    el("p")));
+
+// ═════ TEST CASES (every approach) ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const A = makePage();
+const B = makePage();
+
+for (const [label, fn] of [["path", findCorrespondingNode], ["lockstep walk", findCorrespondingNodeWalk]]) {
+  test(label + ": root maps to root", fn(A, B, A) === B, true);
+  test(label + ": a leaf", fn(A, B, A.children[0]) === B.children[0], true);
+  test(label + ": two levels down", fn(A, B, A.children[1].children[1]) === B.children[1].children[1], true);
+  test(label + ": same tag as its siblings", fn(A, B, A.children[2]) === B.children[2], true);
+  test(label + ": a node that is not in tree A", fn(A, B, makePage().children[0]), null);
+}
+
+// ===== When to pick which =====
+// - Default → Approach 1. It uses the parent pointer every DOM node has
+//   (parentNode), and does work proportional to the depth only.
+// - No parent pointers, or you want one pass that is easy to prove → Approach 2.
+// - In a real DOM the index is Array.prototype.indexOf.call(parent.children, node),
+//   because children is an HTMLCollection, not an array.
+// - Follow-up: "what if B is only similar, not identical?" Then a position can
+//   fall off the end of B; guard match.children[i] and return null.`,
+  'Lowest Common Ancestor of Two Nodes': `// ===== SOLUTION: Lowest Common Ancestor of Two Nodes =====
+//
+// ┌──────────────────────────────────────────┬──────────┬───────┬────────────┐
+// │ Approach                                 │ Time     │ Space │ Verdict    │
+// ├──────────────────────────────────────────┼──────────┼───────┼────────────┤
+// │ 1. Set of a's ancestors, climb from b    │ O(h)     │ O(h)  │ BEST to say│
+// │ 2. Equalise depths, then climb together  │ O(h)     │ O(1)  │ BEST space │
+// │ 3. Two pointers that swap starting nodes │ O(h)     │ O(1)  │ Clever     │
+// └──────────────────────────────────────────┴──────────┴───────┴────────────┘
+// h = height of the tree. None of them looks at any node off the two paths.
+
+// ----- Approach 1: Remember a's ancestors in a Set -----
+// Every ancestor of a, including a itself, goes into a Set. Then climb from
+// b: the first node on b's way up that is already in the Set is the lowest
+// one they share. Including a and b themselves is what makes
+// "one is the ancestor of the other" and "the same node twice" work.
+function lowestCommonAncestor(a, b) {
+  const seen = new Set();
+  for (let n = a; n; n = n.parent) seen.add(n);
+  for (let n = b; n; n = n.parent) if (seen.has(n)) return n;
+  return null;   // no shared ancestor: different trees
+}
+
+// ----- Approach 2: Equalise the depths, then climb in step -----
+// Count how far each node is from its root. Lift the deeper one until both
+// are at the same depth. From there, move both up one step at a time: the
+// first time they point at the same node, that node is the answer.
+// If the roots differ they never meet and both become null.
+function lowestCommonAncestorDepth(a, b) {
+  const depth = (n) => { let d = 0; for (; n.parent; n = n.parent) d++; return d; };
+  let da = depth(a), db = depth(b);
+  while (da > db) { a = a.parent; da--; }
+  while (db > da) { b = b.parent; db--; }
+  while (a !== b) { a = a.parent; b = b.parent; }
+  return a;
+}
+
+// ----- Approach 3: Two pointers that swap starting points -----
+// The same trick as "intersection of two linked lists". Walk p up from a and
+// q up from b; when one runs off the top, restart it at the OTHER node. After
+// the swap both have walked depth(a) + depth(b) steps in total, so they
+// arrive at the common ancestor together. In different trees they both reach
+// null at the same moment and the loop ends there.
+function lowestCommonAncestorSwap(a, b) {
+  let p = a, q = b;
+  while (p !== q) {
+    p = p ? p.parent : b;
+    q = q ? q.parent : a;
+  }
+  return p;
+}
+
+// ═════ TREE HELPERS (plain objects standing in for DOM nodes) ═════
+const el = (id, ...children) => ({ id, parent: null, children });
+const withParents = (node, parent = null) => {
+  node.parent = parent;
+  for (const child of node.children) withParents(child, node);
+  return node;
+};
+const idOf = (n) => (n === null ? null : n && n.id);
+
+// ═════ TEST CASES (every approach) ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const root = withParents(
+  el("root",
+    el("a",
+      el("a1", el("a1x")),
+      el("a2")),
+    el("b", el("b1"))));
+const [a, b] = root.children;
+const [a1, a2] = a.children;
+const a1x = a1.children[0];
+const b1 = b.children[0];
+const stranger = withParents(el("other", el("x"))).children[0];
+
+for (const [label, fn] of [["ancestor set", lowestCommonAncestor], ["equalise depths", lowestCommonAncestorDepth], ["swap pointers", lowestCommonAncestorSwap]]) {
+  test(label + ": siblings", idOf(fn(a1, a2)), "a");
+  test(label + ": different depths", idOf(fn(a1x, a2)), "a");
+  test(label + ": different subtrees", idOf(fn(a1x, b1)), "root");
+  test(label + ": one is an ancestor of the other", idOf(fn(a, a1x)), "a");
+  test(label + ": the same node twice", idOf(fn(b1, b1)), "b1");
+  test(label + ": nodes in different trees", idOf(fn(a1, stranger)), null);
+}
+
+// ===== When to pick which =====
+// - Default → Approach 1. Easiest to get right under pressure and easiest to
+//   explain; the Set costs O(h), which for a DOM is tiny.
+// - Asked for O(1) extra space → Approach 2, then mention Approach 3 as the
+//   version with no depth counting at all.
+// - In a real DOM, a.contains(b) answers "is a an ancestor of b" natively, so
+//   another option is to climb from a until the node contains b.
+// - Without parent pointers this is a different problem: recurse from the
+//   root and return the node where a and b are found in different subtrees.`,
+  'MyPick and MyOmit': `// ===== SOLUTION: MyPick and MyOmit =====
+//
+// ┌──────────────────────────────────────────────┬──────────────────────┬──────────┐
+// │ Approach                                     │ Keeps readonly / ?   │ Verdict  │
+// ├──────────────────────────────────────────────┼──────────────────────┼──────────┤
+// │ 1. Pick: mapped type over K                  │ Yes                  │ BEST     │
+// │    Omit: key remapping with "as"             │ Yes                  │          │
+// │ 2. Omit as Pick of the other keys            │ Yes                  │ Classic  │
+// │ 3. Omit over Exclude<keyof T, K> directly    │ NO (loses modifiers) │ Trap     │
+// └──────────────────────────────────────────────┴──────────────────────┴──────────┘
+
+// ----- Approach 1: a mapped type over K, and key remapping for Omit -----
+// "K extends keyof T" is the constraint that makes MyPick<Todo, "nope"> an
+// error. [P in K] walks the chosen keys, and T[P] looks up each key's type.
+// Because K is constrained to keyof T, TypeScript treats this as a
+// "homomorphic" mapped type and copies readonly and ? across from T.
+type MyPick<T, K extends keyof T> = { [P in K]: T[P] };
+
+// Key remapping: "as" renames each key, and renaming a key to never drops it.
+// Mapping over keyof T (not over a computed key set) keeps the modifiers too.
+type MyOmit<T, K extends keyof T> = { [P in keyof T as P extends K ? never : P]: T[P] };
+
+// ----- Approach 2: Omit is Pick of every OTHER key -----
+// This is how the built-in Omit is written. Exclude<keyof T, K> removes K from
+// the union of keys, and MyPick keeps the modifiers for the keys that remain.
+// (The built-in Omit constrains K to "keyof any", so Omit<Todo, "nope"> is NOT
+// an error there. Ours is stricter on purpose.)
+type MyOmitViaPick<T, K extends keyof T> = MyPick<T, Exclude<keyof T, K>>;
+
+// ----- Approach 3 (the trap): mapping over Exclude directly -----
+// { [P in Exclude<keyof T, K>]: T[P] } gives the right KEYS but is no longer
+// homomorphic, so readonly and ? are silently dropped: description?: string
+// comes out as description: string | undefined. Test _omit3 below shows it.
+type MyOmitLossy<T, K extends keyof T> = { [P in Exclude<keyof T, K>]: T[P] };
+
+// The runtime halves. The return types do the real work; building the object
+// needs an assertion, because the object is built up one key at a time and
+// TypeScript cannot follow a loop to see that the result has the final shape.
+function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): MyPick<T, K> {
+  const out = {} as MyPick<T, K>;
+  for (const key of keys) out[key] = obj[key];
+  return out;
+}
+
+function omit<T extends object, K extends keyof T>(obj: T, keys: K[]): MyOmit<T, K> {
+  const drop = new Set<PropertyKey>(keys);
+  const source = obj as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(source)) {
+    if (!drop.has(key)) out[key] = source[key];
+  }
+  return out as MyOmit<T, K>;
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+interface Todo {
+  readonly id: number;
+  title: string;
+  description?: string;
+  completed: boolean;
+}
+
+type _pick1 = Expect<Equal<MyPick<Todo, "title">, { title: string }>>;
+type _pick2 = Expect<Equal<MyPick<Todo, "title" | "completed">, { title: string; completed: boolean }>>;
+type _pick3 = Expect<Equal<MyPick<Todo, "id" | "description">, { readonly id: number; description?: string }>>;
+type _omit1 = Expect<Equal<MyOmit<Todo, "description" | "completed">, { readonly id: number; title: string }>>;
+type _omit2 = Expect<Equal<MyOmit<Todo, "id" | "title">, { description?: string; completed: boolean }>>;
+type _via1 = Expect<Equal<MyOmitViaPick<Todo, "description" | "completed">, { readonly id: number; title: string }>>;
+type _via2 = Expect<Equal<MyOmitViaPick<Todo, "id" | "title">, { description?: string; completed: boolean }>>;
+// The trap, pinned: the lossy version is NOT equal to the right answer.
+type _omit3 = Expect<Equal<Equal<MyOmitLossy<Todo, "id" | "title">, { description?: string; completed: boolean }>, false>>;
+
+// These must NOT compile: a key that Todo does not have is a mistake.
+// @ts-expect-error
+type _bad1 = MyPick<Todo, "nope">;
+// @ts-expect-error
+type _bad2 = MyOmit<Todo, "nope">;
+// @ts-expect-error
+type _bad3 = MyOmitViaPick<Todo, "nope">;
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+const todo: Todo = { id: 1, title: "Write tests", description: "for pick and omit", completed: false };
+test("pick one key", pick(todo, ["title"]), { title: "Write tests" });
+test("pick two keys", pick(todo, ["id", "completed"]), { id: 1, completed: false });
+test("omit one key", omit(todo, ["description"]), { id: 1, title: "Write tests", completed: false });
+test("omit two keys", omit(todo, ["id", "title"]), { description: "for pick and omit", completed: false });
+test("omit does not change the input", todo, { id: 1, title: "Write tests", description: "for pick and omit", completed: false });
+
+// ===== When to pick which =====
+// - In an interview, write Approach 1 and say why "K extends keyof T" is there.
+// - Mention Approach 2 as how lib.es5.d.ts defines Omit, and that the built-in
+//   is looser (K extends keyof any) so a typo in the key is not caught.
+// - If asked "why does my Omit make optional fields required-with-undefined?",
+//   the answer is Approach 3: the mapped type stopped being homomorphic.`,
+  'Model an API Response': `// ===== SOLUTION: Model an API Response =====
+//
+// ┌──────────────────────────────────────────────┬──────────────────────────┬──────────┐
+// │ Approach                                     │ Exhaustive because       │ Verdict  │
+// ├──────────────────────────────────────────────┼──────────────────────────┼──────────┤
+// │ 1. Discriminated union + switch + never      │ assertNever(state)       │ BEST     │
+// │ 2. Same union + a handler object per status  │ the object type requires │ Nice     │
+// │                                              │ one handler per status   │          │
+// │ 3. One object with optional fields (the bug) │ nothing                  │ Avoid    │
+// └──────────────────────────────────────────────┴──────────────────────────┴──────────┘
+
+interface User {
+  id: number;
+  name: string;
+}
+
+// ----- The type -----
+// One object type per state, all sharing a literal "status" field: the
+// DISCRIMINANT. Each state carries only the fields that exist in that state,
+// so "success without data" or "loading with data" cannot be written at all.
+//
+// Compare approach 3, the shape most code starts with:
+//   { loading: boolean; data?: T; error?: string }
+// Three independent fields describe 2 x 2 x 2 = 8 combinations, and only three
+// of them are real. The other five (loading AND error, data AND error, ...)
+// type-check fine and turn into UI bugs.
+type RequestState<T> =
+  | { status: "loading" }
+  | { status: "success"; data: T }
+  | { status: "error"; error: string };
+
+// ----- Approach 1: switch on the discriminant, never in the default -----
+// Inside each case TypeScript NARROWS state to that one member, which is why
+// state.data is allowed in "success" and would be an error in "loading".
+// After every case has returned, the only type left is never. assertNever
+// accepts only never, so adding a fourth state (say "idle") to the union
+// turns the default branch into a compile error until you handle it.
+function assertNever(value: never): never {
+  throw new Error("Unhandled state: " + JSON.stringify(value));
+}
+
+function describeState(state: RequestState<User>): string {
+  switch (state.status) {
+    case "loading":
+      return "Loading...";
+    case "success":
+      return "Hello, " + state.data.name;
+    case "error":
+      return "Failed: " + state.error;
+    default:
+      return assertNever(state);
+  }
+}
+
+// ----- Approach 2: one handler per status -----
+// Handlers<S, R> is a mapped type with one key per status, and each handler
+// receives that status's member of the union (Extract picks it out). Leaving a
+// handler out is a missing-property error, so this is exhaustive without a
+// switch. It suits rendering, where each branch is a small function anyway.
+type Handlers<S extends { status: string }, R> = {
+  [K in S["status"]]: (state: Extract<S, { status: K }>) => R;
+};
+
+// The one assertion: TypeScript cannot prove that handlers[state.status] is the
+// handler for THIS state (it does not track that the two keys are the same
+// value, the "correlated union" limit), so it is told. The public signature
+// above is what callers see, and that part is fully checked.
+function match<S extends { status: string }, R>(state: S, handlers: Handlers<S, R>): R {
+  const handler = handlers[state.status as S["status"]] as (s: S) => R;
+  return handler(state);
+}
+
+function describeWithHandlers(state: RequestState<User>): string {
+  return match(state, {
+    loading: () => "Loading...",
+    success: (s) => "Hello, " + s.data.name,
+    error: (s) => "Failed: " + s.error,
+  });
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+type _status = Expect<Equal<RequestState<User>["status"], "loading" | "success" | "error">>;
+type _data = Expect<Equal<Extract<RequestState<User>, { status: "success" }>["data"], User>>;
+type _error = Expect<Equal<Extract<RequestState<User>, { status: "error" }>["error"], string>>;
+
+// These must NOT compile: each one is a state the UI should never be in.
+// @ts-expect-error success with no data
+const bad1: RequestState<User> = { status: "success" };
+// @ts-expect-error loading does not carry data yet
+const bad2: RequestState<User> = { status: "loading", data: { id: 1, name: "Ada" } };
+// @ts-expect-error an error needs its message
+const bad3: RequestState<User> = { status: "error" };
+// @ts-expect-error there is no "idle" state in this model
+const bad4: RequestState<User> = { status: "idle" };
+
+// And the handler object must cover every status. This function is never
+// called: the checker reads it, the runtime skips it.
+function missingHandler(state: RequestState<User>) {
+  // @ts-expect-error no handler for "error"
+  return match(state, { loading: () => "", success: () => "" });
+}
+
+// ===== RUNTIME TESTS (both approaches) =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+for (const [label, fn] of [["switch", describeState], ["handlers", describeWithHandlers]] as const) {
+  test(label + ": loading", fn({ status: "loading" }), "Loading...");
+  test(label + ": success", fn({ status: "success", data: { id: 1, name: "Ada" } }), "Hello, Ada");
+  test(label + ": error", fn({ status: "error", error: "Network timeout" }), "Failed: Network timeout");
+}
+
+// ===== When to pick which =====
+// - Default → Approach 1. It is the pattern interviewers are asking for, and
+//   the never check is the part they grade: say out loud that it turns "I
+//   forgot a case" from a runtime bug into a compile error.
+// - Approach 2 when every branch is a small render function; it is the same
+//   exhaustiveness, enforced by an object type instead of a switch.
+// - The follow-up is usually "what about idle, or refetching with stale data?"
+//   Add a member to the union ({ status: "refreshing"; data: T }) and let the
+//   compiler list every place that now needs handling.`,
+  'DeepReadonly<T>': `// ===== SOLUTION: DeepReadonly<T> =====
+//
+// ┌───────────────────────────────────────────────┬──────────────────────────┬──────────┐
+// │ Approach                                      │ Handles                  │ Verdict  │
+// ├───────────────────────────────────────────────┼──────────────────────────┼──────────┤
+// │ 1. Conditional + recursive mapped type        │ objects, arrays, fns     │ BEST     │
+// │ 2. Same, plus Map and Set                     │ + ReadonlyMap/ReadonlySet│ If asked │
+// │ 3. Readonly<T> (the built-in)                 │ top level only           │ Shallow  │
+// └───────────────────────────────────────────────┴──────────────────────────┴──────────┘
+
+// ----- Approach 1: recurse through every property -----
+// Three cases, in this order:
+//   1. A function stays exactly as it is. This check must come BEFORE the
+//      object check, because functions are objects too, and mapping over a
+//      function's keys turns it into {}: you could no longer call it.
+//   2. Any other object (arrays included) becomes a mapped type that adds
+//      readonly to every key and recurses into every value.
+//   3. Everything else is a primitive, already immutable, returned as is.
+// Arrays need no special case: when T is a type parameter, a mapped type over
+// keyof T is "homomorphic", and TypeScript maps an array to a readonly array
+// (number[] becomes readonly number[], which has no push).
+type DeepReadonly<T> =
+  T extends (...args: any[]) => any ? T
+  : T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+  : T;
+
+// ----- Approach 2: the same, with Map and Set -----
+// A Map's entries are not properties, so approach 1 leaves map.set() callable.
+// The standard library already has read-only views of both: ReadonlyMap has
+// get/has/forEach but no set or delete, ReadonlySet has no add.
+type DeepReadonlyCollections<T> =
+  T extends (...args: any[]) => any ? T
+  : T extends Map<infer K, infer V> ? ReadonlyMap<DeepReadonlyCollections<K>, DeepReadonlyCollections<V>>
+  : T extends Set<infer V> ? ReadonlySet<DeepReadonlyCollections<V>>
+  : T extends object ? { readonly [K in keyof T]: DeepReadonlyCollections<T[K]> }
+  : T;
+
+// Approach 3, for contrast: the built-in Readonly<T> is ONE level deep, so
+// cfg.name is protected and cfg.server.port = 1 still compiles.
+
+// ----- The runtime twin -----
+// Types are erased when the code runs, so DeepReadonly stops nothing at
+// runtime. Object.freeze does, but it is shallow as well, so deepFreeze
+// recurses first and freezes on the way back out. The return needs one
+// assertion: the value is the same object, now described by a stricter type.
+function deepFreeze<T>(value: T): DeepReadonly<T> {
+  if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value as DeepReadonly<T>;
+}
+
+// Approach 2's extra tests.
+type _map = Expect<Equal<DeepReadonlyCollections<Map<string, { n: number }>>, ReadonlyMap<string, { readonly n: number }>>>;
+type _set = Expect<Equal<DeepReadonlyCollections<{ ids: Set<number> }>, { readonly ids: ReadonlySet<number> }>>;
+type _same = Expect<Equal<DeepReadonlyCollections<Config>, DeepReadonly<Config>>>;
+function collectionMutations(m: DeepReadonlyCollections<Map<string, number>>, s: DeepReadonlyCollections<Set<number>>) {
+  // @ts-expect-error ReadonlyMap has no set
+  m.set("a", 1);
+  // @ts-expect-error ReadonlySet has no add
+  s.add(1);
+}
+// And the contrast with the built-in: Readonly<T> stops at the first level.
+function shallow(cfg: Readonly<Config>) {
+  cfg.server.port = 8080; // compiles: that is exactly the gap DeepReadonly closes
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+interface Config {
+  name: string;
+  server: { host: string; port: number; tls: { enabled: boolean } };
+  tags: string[];
+  onReady: () => void;
+}
+
+type _prim = Expect<Equal<DeepReadonly<string>, string>>;
+type _fn = Expect<Equal<DeepReadonly<(x: number) => string>, (x: number) => string>>;
+type _arr = Expect<Equal<DeepReadonly<{ id: number }[]>, readonly { readonly id: number }[]>>;
+type _deep = Expect<Equal<DeepReadonly<Config>, {
+  readonly name: string;
+  readonly server: { readonly host: string; readonly port: number; readonly tls: { readonly enabled: boolean } };
+  readonly tags: readonly string[];
+  readonly onReady: () => void;
+}>>;
+
+// These must NOT compile: every level is read-only. This function is never
+// called, so the checker reads these lines and the runtime never runs them.
+function mutations(cfg: DeepReadonly<Config>) {
+  // @ts-expect-error top level
+  cfg.name = "other";
+  // @ts-expect-error two levels down
+  cfg.server.port = 8080;
+  // @ts-expect-error three levels down
+  cfg.server.tls.enabled = false;
+  // @ts-expect-error arrays become readonly arrays, which have no push
+  cfg.tags.push("new");
+  cfg.onReady(); // functions are left alone, so calling one is fine
+}
+
+// ===== RUNTIME TESTS: deepFreeze is the runtime twin of DeepReadonly =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+const config: Config = {
+  name: "api",
+  server: { host: "localhost", port: 3000, tls: { enabled: true } },
+  tags: ["a", "b"],
+  onReady: () => {},
+};
+const frozen = deepFreeze(config);
+test("returns the same object", frozen === config, true);
+test("top level is frozen", Object.isFrozen(config), true);
+test("nested object is frozen", Object.isFrozen(config.server), true);
+test("deepest object is frozen", Object.isFrozen(config.server.tls), true);
+test("arrays are frozen", Object.isFrozen(config.tags), true);
+test("primitives pass through", deepFreeze(42), 42);
+
+// ===== When to pick which =====
+// - Default → Approach 1, and say why the function check comes first.
+// - Approach 2 if the interviewer asks "what about a Map?" (it is the usual
+//   follow-up), or if your state really holds Maps and Sets.
+// - Pair the type with deepFreeze only where runtime protection matters
+//   (shared config, test fixtures). In app state, the type is usually enough,
+//   and freezing large trees on every update costs time.`,
+  'Type-safe groupBy': `// ===== SOLUTION: Type-safe groupBy =====
+//
+// ┌─────────────────────────────────────────────┬─────────────────────────────┬──────────┐
+// │ Approach                                    │ Return type                 │ Verdict  │
+// ├─────────────────────────────────────────────┼─────────────────────────────┼──────────┤
+// │ 1. Generic T and K, Record<K, T[]>          │ every key claimed present   │ BEST     │
+// │ 2. Same, returning Partial<Record<K, T[]>>  │ honest: a group may be      │ Strict   │
+// │                                             │ missing, so T[] | undefined │          │
+// └─────────────────────────────────────────────┴─────────────────────────────┴──────────┘
+// Runtime is O(n) time and O(n) space for both.
+
+// ----- Approach 1: two type parameters -----
+// T is inferred from the array, K from what the callback returns.
+// "K extends PropertyKey" (string | number | symbol) does two jobs:
+//   - it rejects a callback that returns something that cannot be a key;
+//   - it makes TypeScript keep LITERAL types, so u => u.role infers
+//     "admin" | "editor" | "viewer" rather than widening to string.
+// Record<K, T[]> then says "an object with exactly those keys".
+//
+// The object is created with Object.create(null), which has no prototype, so
+// a key such as "__proto__" or "constructor" is an ordinary key. With a plain
+// {} literal, out["__proto__"] reads Object.prototype and the push breaks.
+// Object.create returns any, which is why no assertion is needed here.
+function groupBy<T, K extends PropertyKey>(items: T[], key: (item: T) => K): Record<K, T[]> {
+  const out: Record<K, T[]> = Object.create(null);
+  for (const item of items) {
+    const k = key(item);
+    (out[k] ??= []).push(item);
+  }
+  return out;
+}
+
+// ----- Approach 2: admit that a group can be missing -----
+// Record<K, T[]> promises a "viewer" array even when no user is a viewer, so
+// byRole.viewer.length type-checks and then throws. Partial makes every
+// group T[] | undefined, and the compiler makes the caller handle the gap.
+// Choose this when K is a union of known values that may not all appear.
+function groupByPartial<T, K extends PropertyKey>(items: T[], key: (item: T) => K): Partial<Record<K, T[]>> {
+  const out: Partial<Record<K, T[]>> = Object.create(null);
+  for (const item of items) {
+    const k = key(item);
+    (out[k] ??= []).push(item);
+  }
+  return out;
+}
+
+// Approach 2's type test: a group is T[] | undefined, so it must be checked.
+const partial = groupByPartial([{ role: "admin" as const }], (u) => u.role);
+type _partial = Expect<Equal<typeof partial.admin, { role: "admin" }[] | undefined>>;
+function mustCheck() {
+  // @ts-expect-error possibly undefined: the group might not exist
+  partial.admin.length;
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+interface User {
+  name: string;
+  role: "admin" | "editor" | "viewer";
+  age: number;
+}
+
+const users: User[] = [
+  { name: "Ada", role: "admin", age: 36 },
+  { name: "Linus", role: "editor", age: 28 },
+  { name: "Grace", role: "admin", age: 45 },
+  { name: "Tim", role: "viewer", age: 28 },
+];
+
+const byRole = groupBy(users, (u) => u.role);
+const byParity = groupBy([1, 2, 3, 4, 5], (n) => (n % 2 === 0 ? "even" : "odd"));
+const byAge = groupBy(users, (u) => u.age);
+
+type _role = Expect<Equal<typeof byRole, Record<"admin" | "editor" | "viewer", User[]>>>;
+type _parity = Expect<Equal<typeof byParity, Record<"even" | "odd", number[]>>>;
+type _age = Expect<Equal<typeof byAge, Record<number, User[]>>>;
+type _item = Expect<Equal<typeof byRole.admin, User[]>>;
+
+// These must NOT compile. This function is never called, so the checker
+// reads these lines and the runtime never runs them.
+function misuse() {
+  // @ts-expect-error there is no "owner" group: the key type is exactly the role union
+  byRole.owner;
+  // @ts-expect-error an object cannot be a property key
+  groupBy(users, (u) => ({ role: u.role }));
+  // @ts-expect-error the callback gets a User, which has no email
+  groupBy(users, (u) => u.email);
+}
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+test("group by role", byRole?.admin?.map((u) => u.name), ["Ada", "Grace"]);
+test("every role present", Object.keys(byRole ?? {}).sort(), ["admin", "editor", "viewer"]);
+test("keeps input order in each group", byAge?.[28]?.map((u) => u.name), ["Linus", "Tim"]);
+test("computed string keys", byParity, { odd: [1, 3, 5], even: [2, 4] });
+test("empty input", groupBy([], (x: number) => x), {});
+test("a key named __proto__ is just a key", groupBy(["__proto__", "a"], (s) => s)?.["__proto__"], ["__proto__"]);
+test("partial: present group", groupByPartial(users, (u) => u.role).editor?.map((u) => u.name), ["Linus"]);
+test("partial: groups by a computed label", groupByPartial(users, (u) => (u.age > 40 ? "senior" : "junior")).senior?.map((u) => u.name), ["Grace"]);
+
+// ===== When to pick which =====
+// - Default → Approach 1: it matches Object.groupBy's shape and it is what the
+//   question asks for. Volunteer the Record-claims-every-key caveat.
+// - Approach 2 when the groups are a fixed union that may not all be present
+//   (roles, statuses), because then Record<K, T[]> lies.
+// - Object.groupBy (ES2024) exists now and types as Partial<Record<K, T[]>>,
+//   i.e. Approach 2. It also returns a null-prototype object, for the
+//   __proto__ reason above. Map.groupBy is the choice when keys are objects.`,
+  'Typed EventEmitter': `// ===== SOLUTION: Typed EventEmitter =====
+//
+// ┌────────────────────────────────────────────┬────────────────────────────┬──────────┐
+// │ Approach                                   │ Listener storage           │ Verdict  │
+// ├────────────────────────────────────────────┼────────────────────────────┼──────────┤
+// │ 1. Generic class, methods generic in E     │ mapped type of Sets        │ BEST     │
+// │ 2. createEmitter() factory with a closure  │ same, private by closure   │ Also fine│
+// └────────────────────────────────────────────┴────────────────────────────┴──────────┘
+// on / off / emit are O(1) to register or remove, O(listeners) to emit.
+
+// ----- Approach 1: the event map drives every signature -----
+// Everything rests on one idea: Events is a map from event NAME to PAYLOAD
+// type, and every method is a lookup in it.
+//   - E extends keyof Events: the event name must be a key of the map, so a
+//     typo such as "logni" is a compile error.
+//   - Events[E]: the payload type for THAT name. Because E is inferred from the
+//     string you pass, emit("login", ...) checks the payload against
+//     { user: string } and on("message", m => ...) gives m the message type.
+// The storage is a mapped type as well: for each event, an optional Set of
+// listeners for its payload. A Set makes off() one delete, and it ignores the
+// same function registered twice.
+type Listener<P> = (payload: P) => void;
+
+class TypedEmitter<Events> {
+  private listeners: { [E in keyof Events]?: Set<Listener<Events[E]>> } = {};
+
+  on<E extends keyof Events>(event: E, listener: Listener<Events[E]>): void {
+    (this.listeners[event] ??= new Set()).add(listener);
+  }
+
+  off<E extends keyof Events>(event: E, listener: Listener<Events[E]>): void {
+    this.listeners[event]?.delete(listener);
+  }
+
+  emit<E extends keyof Events>(event: E, payload: Events[E]): void {
+    // Copy first, so a listener that calls off() during emit does not change
+    // the set being iterated.
+    for (const listener of [...(this.listeners[event] ?? [])]) listener(payload);
+  }
+}
+
+// ----- Approach 2: a factory function instead of a class -----
+// Identical types; the listeners live in a closure, so they are private at
+// runtime too (a TypeScript "private" field is erased and still readable).
+function createEmitter<Events>() {
+  const listeners: { [E in keyof Events]?: Set<Listener<Events[E]>> } = {};
+  return {
+    on<E extends keyof Events>(event: E, listener: Listener<Events[E]>): void {
+      (listeners[event] ??= new Set()).add(listener);
+    },
+    off<E extends keyof Events>(event: E, listener: Listener<Events[E]>): void {
+      listeners[event]?.delete(listener);
+    },
+    emit<E extends keyof Events>(event: E, payload: Events[E]): void {
+      for (const listener of [...(listeners[event] ?? [])]) listener(payload);
+    },
+  };
+}
+
+// Approach 2's tests: the same type errors, and the same behaviour.
+const factory = createEmitter<{ ping: { n: number } }>();
+const pings: number[] = [];
+const onPing = (p: { n: number }) => pings.push(p.n);
+factory.on("ping", onPing);
+factory.emit("ping", { n: 1 });
+factory.off("ping", onPing);
+factory.emit("ping", { n: 2 });
+function factoryMisuse() {
+  // @ts-expect-error not an event of this emitter
+  factory.emit("pong", { n: 1 });
+  // @ts-expect-error n must be a number
+  factory.emit("ping", { n: "1" });
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+type AppEvents = {
+  login: { user: string };
+  logout: { reason: string };
+  message: { from: string; text: string };
+};
+
+const emitter = new TypedEmitter<AppEvents>();
+const log: string[] = [];
+
+// The listener's parameter type comes from the event name.
+emitter.on("message", (m) => {
+  type _payload = Expect<Equal<typeof m, { from: string; text: string }>>;
+  log.push(m.from + ": " + m.text);
+});
+
+// These must NOT compile. This function is never called, so the checker
+// reads these lines and the runtime never runs them.
+function misuse() {
+  // @ts-expect-error "logni" is not an event
+  emitter.emit("logni", { user: "ada" });
+  // @ts-expect-error login's payload needs a user
+  emitter.emit("login", { name: "ada" });
+  // @ts-expect-error logout's payload is { reason }, not a string
+  emitter.emit("logout", "bye");
+  // @ts-expect-error a login listener receives { user }, which has no text
+  emitter.on("login", (p) => log.push(p.text));
+  // @ts-expect-error off must name a real event too
+  emitter.off("nope", () => {});
+}
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+emitter.emit("message", { from: "ada", text: "hi" });
+test("listener receives the payload", log, ["ada: hi"]);
+
+const seen: string[] = [];
+const onLogin = (p: { user: string }) => seen.push("first " + p.user);
+emitter.on("login", onLogin);
+emitter.on("login", (p) => seen.push("second " + p.user));
+emitter.emit("login", { user: "grace" });
+test("every listener runs, in order", seen, ["first grace", "second grace"]);
+
+emitter.off("login", onLogin);
+emitter.emit("login", { user: "tim" });
+test("off removes only that listener", seen, ["first grace", "second grace", "second tim"]);
+
+let threw = false;
+try { emitter.emit("logout", { reason: "idle" }); } catch { threw = true; }
+test("emit with no listeners does nothing", threw, false);
+test("events do not leak into each other", log, ["ada: hi"]);
+test("factory: on, emit and off", pings, [1]);
+
+// ===== When to pick which =====
+// - Either is a full answer; the class reads like Node's EventEmitter, the
+//   factory keeps the listeners truly private.
+// - The follow-up is usually "what about an event with no payload?" Make the
+//   payload argument disappear with a conditional rest tuple:
+//     emit<E extends keyof Events>(event: E, ...args: Events[E] extends undefined ? [] : [payload: Events[E]])
+//   so emit("logout") needs no second argument while emit("login", ...) still
+//   requires one. An optional "payload?:" cannot do that: it would make the
+//   payload optional for every event.
+// - Say that off() needs the SAME function reference that on() received, so an
+//   inline arrow can never be removed. Returning an unsubscribe function from
+//   on() is the common fix.`,
+  'Paths<T> (dotted keys)': `// ===== SOLUTION: Paths<T> (dotted keys) =====
+//
+// ┌─────────────────────────────────────────────┬───────────────────────────┬──────────┐
+// │ Approach                                    │ Recursive types           │ Verdict  │
+// ├─────────────────────────────────────────────┼───────────────────────────┼──────────┤
+// │ 1. Mapped type + template literal, recursed │ hits the depth limit      │ BEST     │
+// │ 2. Same, with a depth counter               │ stops at N levels         │ Robust   │
+// └─────────────────────────────────────────────┴───────────────────────────┴──────────┘
+
+// ----- Approach 1 -----
+// For every string key K of T:
+//   - if T[K] is a plain object, the paths are K itself PLUS K + "." + each
+//     path inside T[K] (the recursion);
+//   - otherwise K is a leaf, and the path is just K.
+// A template literal type with a union inside it DISTRIBUTES:
+// \`\${"server"}.\${"host" | "port"}\` is "server.host" | "server.port". That is
+// what turns a nested object into a flat union of strings.
+// The trailing [keyof T & string] turns the mapped object into the union of
+// its values. "& string" drops number and symbol keys, which cannot be
+// written into a dotted string.
+// Arrays and functions are treated as leaves, so "tags" is a path but
+// "tags.length" or "tags.0" is not. (Including them is a design choice; most
+// form and i18n libraries stop at arrays or special-case numeric indexes.)
+type IsLeaf<V> = V extends readonly unknown[] ? true : V extends (...args: any[]) => any ? true : V extends object ? false : true;
+
+type Paths<T> = {
+  [K in keyof T & string]: IsLeaf<T[K]> extends true ? K : K | \`\${K}.\${Paths<T[K]>}\`;
+}[keyof T & string];
+
+// PathValue walks the same path back down. "infer" splits the string at the
+// FIRST dot: "server.tls.enabled" gives Head = "server", Rest = "tls.enabled".
+type PathValue<T, P extends string> =
+  P extends \`\${infer Head}.\${infer Rest}\`
+    ? Head extends keyof T ? PathValue<T[Head], Rest> : never
+    : P extends keyof T ? T[P] : never;
+
+// P is constrained to Paths<T>, so a wrong path is rejected at the call site,
+// and the return type is computed from the path the caller wrote. The body
+// works on unknown values, so it needs one assertion at the end: the loop
+// cannot prove what type it arrived at, the signature already has.
+function get<T, P extends Paths<T> & string>(obj: T, path: P): PathValue<T, P> {
+  let current: unknown = obj;
+  for (const key of path.split(".")) {
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current as PathValue<T, P>;
+}
+
+// ----- Approach 2: a depth limit -----
+// A self-referencing type (a tree node whose child is the same type) makes
+// approach 1 recurse forever: Paths<TreeNode> is error TS2615, "Type of
+// property 'child' circularly references itself". A counter fixes that: Prev
+// maps a depth to the one below it, and at 0 the recursion stops.
+type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+type PathsLimited<T, Depth extends number = 5> = [Depth] extends [never] ? never : {
+  [K in keyof T & string]: IsLeaf<T[K]> extends true ? K : K | \`\${K}.\${PathsLimited<T[K], Prev[Depth]>}\`;
+}[keyof T & string];
+
+interface TreeNode { value: number; child: TreeNode }
+type _limited = Expect<Equal<PathsLimited<TreeNode, 2>, "value" | "child" | "child.value" | "child.child" | "child.child.value" | "child.child.child">>;
+type _limitedSame = Expect<Equal<PathsLimited<Settings>, Paths<Settings>>>;
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+interface Settings {
+  theme: string;
+  server: { host: string; port: number; tls: { enabled: boolean } };
+  tags: string[];
+}
+
+type _flat = Expect<Equal<Paths<{ a: number; b: string }>, "a" | "b">>;
+type _nested = Expect<Equal<Paths<{ a: { b: { c: number } } }>, "a" | "a.b" | "a.b.c">>;
+type _settings = Expect<Equal<Paths<Settings>,
+  "theme" | "server" | "server.host" | "server.port" | "server.tls" | "server.tls.enabled" | "tags">>;
+type _value = Expect<Equal<PathValue<Settings, "server.tls">, { enabled: boolean }>>;
+
+const settings: Settings = {
+  theme: "dark",
+  server: { host: "localhost", port: 8080, tls: { enabled: true } },
+  tags: ["a", "b"],
+};
+
+// get returns the type AT the path, not unknown.
+const port = get(settings, "server.port");
+const tls = get(settings, "server.tls.enabled");
+type _port = Expect<Equal<typeof port, number>>;
+type _tls = Expect<Equal<typeof tls, boolean>>;
+
+// These must NOT compile. This function is never called, so the checker
+// reads these lines and the runtime never runs them.
+function misuse() {
+  // @ts-expect-error no such key under server
+  get(settings, "server.nope");
+  // @ts-expect-error a path cannot end in a dot
+  get(settings, "server.");
+  // @ts-expect-error arrays are leaves: the path stops at tags
+  get(settings, "tags.length");
+  // @ts-expect-error the value at server.port is a number, not a string
+  const s: string = get(settings, "server.port");
+}
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+test("top-level key", get(settings, "theme"), "dark");
+test("two levels", port, 8080);
+test("three levels", tls, true);
+test("path to an object", get(settings, "server.tls"), { enabled: true });
+test("path to an array", get(settings, "tags"), ["a", "b"]);
+
+// ===== When to pick which =====
+// - Default → Approach 1, and explain the two moves: distribution of a union
+//   inside a template literal, and [keyof T] to collect the mapped values.
+// - Approach 2 as soon as the data can refer to itself (trees, linked
+//   comments), or when a very wide type makes the editor slow.
+// - This is the typing behind react-hook-form's register("address.city") and
+//   i18n keys such as t("home.title"): a string API that still catches typos.`,
 };

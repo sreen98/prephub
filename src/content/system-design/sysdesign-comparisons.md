@@ -12,26 +12,28 @@ Vertical scaling (scale-up) adds power to the machine you already have — more 
 |---|---|---|
 | **Approach** | More power to existing machine | More machines to the pool |
 | **Complexity** | Simple — no code changes | Complex — load balancing, partitioning |
-| **Cost curve** | Exponential | Linear |
+| **Cost curve** | Steeper than linear at the top end (owned hardware) | Roughly linear |
 | **Downtime** | Usually requires restart | Zero downtime |
 | **Upper limit** | Hardware ceiling | Theoretically unlimited |
 | **SPOF** | Yes | No (with redundancy) |
 | **State** | Simple (single machine) | Complex (distributed) |
 | **Best for** | Databases, early-stage apps | Stateless services, web tier |
 
-**Why the cost curve diverges**: a 2× bigger EC2 instance roughly doubles in price — but an 8× bigger one costs far more than 8× because the hardware at the top end is specialized (high-frequency CPUs, NVMe arrays). Commodity hardware × N is the cheap path. Once you're past the knee of the curve, scaling out is almost always cheaper per unit of work.
+**Why the cost curve diverges**: on hardware you buy, the top-end parts (the fastest CPUs, the most memory per board, NVMe arrays) are specialized and priced at a premium, so a machine 8× as powerful costs far more than 8 ordinary ones. Commodity hardware × N is the cheap path. In the cloud, price within one instance family is close to linear, so there the argument for scaling out is less about cost per unit and more about the hardware ceiling and the single machine whose failure takes everything down.
 
 **Why vertical is simpler**: your app stays single-node. No distributed locking, no session affinity, no split-brain scenarios, no "which node owns this data?" question. This is why you keep databases vertical for as long as possible — the engineering cost of sharding a database is enormous.
 
 **Why stateless services scale horizontally well**: if any worker can serve any request, you just load-balance. Once workers need to remember state (session, in-memory cache), you need sticky sessions or a shared state store, which adds complexity.
 
-**When to use which**: Start vertical for simplicity. Move horizontal when approaching hardware limits, needing high availability (removing SPOFs), or when the stateless layer of your system (web / app servers) is the bottleneck. Keep databases vertical longer; shard only when you've exhausted read replicas, caching, and query optimization.
+**When to use which**: Start vertical for simplicity. Move horizontal when approaching hardware limits, needing high availability (removing SPOFs — single points of failure, one component whose death takes the whole system down), or when the stateless layer of your system (web / app servers) is the bottleneck. Keep databases vertical longer; shard only when you've exhausted read replicas, caching, and query optimization.
 
 ---
 
 ## SQL vs NoSQL (System Design Depth)
 
 This isn't really SQL vs NoSQL — it's which consistency / scale / query tradeoff you want. Relational DBs default to strong consistency on a single primary with optional async replicas. Document stores (Mongo, DynamoDB) let you pick per-operation consistency and scale horizontally. Wide-column stores (Cassandra) are AP-first — built for extreme write throughput at the cost of strict consistency.
+
+The CP / AP labels in the table come from the CAP theorem: when the network splits the cluster (a **P**artition), a system must either refuse some requests so no one reads stale data (**C**onsistency, "CP") or keep answering from whatever replica it can reach, accepting stale reads (**A**vailability, "AP").
 
 | Feature | SQL (PostgreSQL, MySQL) | NoSQL — Document (MongoDB, DynamoDB) | NoSQL — Wide-Column (Cassandra) |
 |---|---|---|---|
@@ -44,9 +46,9 @@ This isn't really SQL vs NoSQL — it's which consistency / scale / query tradeo
 
 **Why "schema-less" is overrated**: document stores don't force a schema at insert time, but every app has an implicit schema — the one the code assumes. Without a DB-enforced schema, that implicit schema drifts across versions and you end up writing migration code anyway. The real NoSQL advantage isn't "no schema" — it's *horizontal scalability* and *predictable access patterns*.
 
-**Why Cassandra writes are so fast**: writes hit an in-memory memtable and a commit log locally, then replicate asynchronously. No primary coordinator to bottleneck. Reads, however, may need to scan multiple SSTables and reconcile — which is why access patterns must be designed around the partition key.
+**Why Cassandra writes are so fast**: writes hit an in-memory table (the *memtable*) and an append-only commit log locally, then replicate asynchronously. Appending is the cheapest thing a disk can do, and there is no primary coordinator to bottleneck. Reads, however, may need to scan several SSTables (the immutable sorted files the memtable is periodically flushed to) and reconcile them — which is why access patterns must be designed around the partition key.
 
-**Why DynamoDB forces access-pattern-first modeling**: queries outside the partition key require a secondary index (GSI / LSI), and each GSI doubles your write cost. So you model your table around the reads you need, sometimes duplicating data across indexes. This is the opposite of "design the schema, write any query".
+**Why DynamoDB forces access-pattern-first modeling**: queries outside the partition key require a secondary index (a GSI or LSI — global or local secondary index), and every write to the table is also written to each GSI, so one GSI roughly doubles your write cost. So you model your table around the reads you need, sometimes duplicating data across indexes. This is the opposite of "design the schema, write any query".
 
 **When to use which**: SQL for complex queries, strong consistency, and small-to-medium scale where joins and transactions matter (finance, orders, user profiles). Document store for flexible schemas and horizontal scale (catalogs, feeds, sessions). Wide-column for extreme write throughput (time-series, logs, messaging).
 
@@ -91,11 +93,13 @@ The defining tradeoff in distributed systems. Strong consistency means every rea
 | **Conflict resolution** | Prevented | Required |
 | **Use case** | Banking, inventory, booking | Social feeds, analytics, caching |
 
+Two terms in the table: a **CRDT** (conflict-free replicated data type) is a data structure — a counter, a set, a text document — designed so that replicas which accepted different writes can always be merged into the same result, in any order, with no coordination. A **vector clock** is a per-replica counter attached to each write that lets the system tell whether one write happened before another or whether the two were concurrent, which is exactly the case that needs conflict resolution.
+
 **Why strong consistency costs latency**: a write must propagate to enough replicas (a *quorum*) before the system acknowledges it. That's an extra round trip on every write. Protocols like Raft and Paxos make this work correctly in the face of failures, but the round trip is unavoidable.
 
 **Why eventual consistency is everywhere**: most of what we do online doesn't need strong consistency. Seeing a slightly stale friend count, an outdated view of comments, a cached product listing — none of these break the app. Eventual consistency gives you low latency and high availability in exchange for occasional (bounded) staleness.
 
-**CAP theorem's oversimplification**: in reality, it's **PACELC** — if there's a **P**artition, choose **A** or **C**; **E**lse (no partition), choose **L**atency or **C**onsistency. Even without partitions, you're choosing between waiting for coordination (low latency) or getting the freshest value (low latency).
+**CAP theorem's oversimplification**: in reality, it's **PACELC** — if there's a **P**artition, choose **A** or **C**; **E**lse (no partition), choose **L**atency or **C**onsistency. Even without partitions, you're choosing between answering without waiting for coordination (low latency) and waiting so you return the freshest value (consistency).
 
 **When to use which**: Strong for financial correctness (money transfers, inventory decrements, seat booking). Eventual for availability and low latency (social feeds, search results, caches, analytics). Most systems are a mix — use strong consistency selectively where it matters.
 
@@ -117,7 +121,7 @@ A monolith is one deployable unit — one codebase, one build, one process. Micr
 | **Complexity** | Simple to build and deploy | Complex: service mesh, tracing, discovery |
 | **Best for** | Small teams, startups, MVPs | Large teams, independent release cadences |
 
-**Why microservices aren't "always better"**: they replace function calls with network calls. That's 1000× slower and 1000× more failure modes (timeouts, partial success, ordering issues). For a 5-engineer team on a new product, splitting a single app into 12 services creates more problems than it solves.
+**Why microservices aren't "always better"**: they replace function calls with network calls. A network call is orders of magnitude slower than an in-process call, and it can fail in ways a function call never does (timeouts, partial success, messages arriving out of order). For a 5-engineer team on a new product, splitting a single app into 12 services creates more problems than it solves.
 
 **The real reason companies move to microservices**: **team scaling**, not performance. When you have 200 engineers and everyone commits to the same monolith, deployment coordination becomes a bottleneck. Splitting into services lets teams deploy independently.
 

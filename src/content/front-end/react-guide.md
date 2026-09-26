@@ -49,14 +49,14 @@
 
 ## 1. What is React?
 
-React is a **JavaScript library for building user interfaces**, created by Meta. It uses a component-based architecture where UIs are built from small, reusable pieces.
+React is a **JavaScript library for building user interfaces**, created by Meta. The one idea behind it: you write a function that says what the screen should look like for the current data, and React works out which DOM changes get the page there. You stop writing "find this element, change its text" code by hand.
 
 Key concepts:
-- **Declarative** — describe what the UI should look like, React handles DOM updates
-- **Component-based** — encapsulated pieces that manage their own state
-- **Virtual DOM** — efficient diffing algorithm for minimal DOM updates
-- **Unidirectional data flow** — data flows down (parent to child via props)
-- **JSX** — HTML-like syntax in JavaScript
+- **Declarative** — you describe the result ("show this list"), not the steps ("append this `<li>`"). When data changes you describe the new result and React applies the difference, so the UI cannot drift out of sync with your data.
+- **Component-based** — the UI is split into functions (components) that each own their markup, logic and state. You can reason about, test and reuse one piece without reading the whole page.
+- **Virtual DOM** — a component returns a lightweight JavaScript description of the UI, not real DOM nodes. React compares the new description with the previous one and touches the real DOM only where they differ, because real DOM writes are the expensive part.
+- **Unidirectional data flow** — data flows down, from parent to child via props. A child that wants to change something calls a function its parent passed in. That makes it easy to answer "where did this value come from?": look upward.
+- **JSX** — HTML-like syntax inside JavaScript. It is only syntax: each tag compiles to a function call (see §2).
 
 ---
 
@@ -136,11 +136,13 @@ const GreetingArrow = ({ name }: { name: string }) => {
 // Usage
 const app = <Greeting name="Alice" />;
 const same = <GreetingArrow name="Alice" />;
+
+render(<>{app}{same}</>);
 ```
 
 ### 3.2 Class Components
 
-Class components are the older way of writing React components using ES6 classes. While function components with hooks are the modern standard, class components are still found in legacy codebases and are required for error boundaries. Understanding them is important for interviews and maintaining existing code.
+Class components are the older way of writing React components using ES6 classes. Function components with hooks are the modern standard, but you still need to read classes for two reasons: plenty of existing code is written with them, and an error boundary (a component that catches render errors below it) can still only be written as a class.
 
 #### Basic Class Component
 
@@ -582,6 +584,14 @@ class ErrorBoundary extends React.Component<
 Putting the update-phase methods together:
 
 ```tsx
+// stand-ins so this example runs on its own
+interface User { name: string }
+const UserCard = ({ data }: { data: User }) => <p>{data.name}</p>;
+// a fake fetch that answers after 500 ms (the playground has no /api)
+const fetch = (_url: string, _init?: RequestInit) =>
+  new Promise<{ json: () => Promise<User> }>((resolve) =>
+    setTimeout(() => resolve({ json: async () => ({ name: 'Ada Lovelace' }) }), 500));
+
 interface DataFetcherProps { userId: string }
 interface DataFetcherState { data: User | null }
 
@@ -618,6 +628,8 @@ class DataFetcher extends React.Component<DataFetcherProps, DataFetcherState> {
     return this.state.data ? <UserCard data={this.state.data} /> : <p>Loading…</p>;
   }
 }
+
+render(<DataFetcher userId="1" />);
 ```
 
 The whole thing is roughly ten lines as a function component with `useEffect` — the guard becomes the dependency array and the teardown becomes the cleanup return, which is the argument for hooks in one comparison. See §7.2 for the mapping.
@@ -800,12 +812,14 @@ The **strict-mode warning** is what prompts the rename in modern React: any of t
 
 ### 3.3 Component Composition
 
-Composition is React's primary pattern for code reuse. Components can accept `children` as a prop to wrap other components, creating flexible and reusable UI containers.
+Composition is how React reuses code: instead of one component *inheriting* from another, a component renders other components, or accepts them through the `children` prop and places them inside itself. The wrapper (`Card` below) owns the frame and styling and knows nothing about what goes inside, so the same `Card` works for a user, a product or an error message without a new subclass for each.
 
 ```tsx
 function Card({ children }: { children: React.ReactNode }) {
   return <div className="card">{children}</div>;
 }
+
+interface User { name: string; email: string }
 
 function UserCard({ user }: { user: User }) {
   return (
@@ -815,11 +829,13 @@ function UserCard({ user }: { user: User }) {
     </Card>
   );
 }
+
+render(<UserCard user={{ name: 'Alice', email: 'alice@example.com' }} />);
 ```
 
 ### 3.4 Component Organization
 
-Follow a consistent file structure to keep your codebase maintainable. One component per file with named exports is the most common convention.
+One component per file with a named export is the most common convention. The file name then tells you where a component lives, and a named export means every import uses the same name, so renames and "find all references" work reliably (a default export can be imported under any name).
 
 ```
 // One component per file, named export
@@ -839,7 +855,7 @@ export function UsersPage() {
 
 ## 4. Props
 
-Props are read-only inputs passed from parent to child.
+Props are the inputs a parent passes to a child, like arguments to a function. They are read-only: the child must never modify them, because the parent owns that data and would not know it changed. To change a value, the child calls a callback prop (such as `onEdit` below) and lets the parent update its own state.
 
 ```tsx
 // Typing props
@@ -863,9 +879,18 @@ function UserCard({ name, age, email = 'N/A', onEdit, children }: UserCardProps)
 }
 
 // Spread props
+type ButtonProps = { variant: 'primary' | 'secondary' };
+
 function Button({ variant, ...rest }: ButtonProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return <button className={variant} {...rest} />;
 }
+
+// Usage
+render(
+  <UserCard name="Alice" age={30} onEdit={(id) => console.log('edit', id)}>
+    <Button variant="primary" onClick={() => console.log('clicked')}>Follow</Button>
+  </UserCard>
+);
 ```
 
 ### Props vs State
@@ -1038,7 +1063,7 @@ setItems(items.map(item => item === 'old' ? 'new' : item)); // update
 
 ### 5.3 useReducer (Complex State)
 
-`useReducer` is an alternative to `useState` for complex state logic with multiple sub-values or when the next state depends on the previous one. It follows the Redux reducer pattern.
+`useReducer` is an alternative to `useState` for state with several related values. Instead of calling setters directly, a component **dispatches** an action (a plain object such as `{ type: 'increment' }` describing what happened), and a **reducer** — a pure function `(state, action) => newState` — decides what the next state is. The benefit is that every possible state change lives in one function you can read and unit-test on its own, rather than being spread across event handlers. It is the same pattern Redux uses, scoped to one component.
 
 ```tsx
 type State = { count: number; step: number };
@@ -1090,6 +1115,8 @@ function Parent() {
 function UserCard({ name, role }) {
   return <p>{name} — {role}</p>;
 }
+
+render(<Parent />);
 ```
 
 **2. Child → parent: a callback prop.** Data flows one way in React, so a child cannot "set" the parent's state. The parent passes a function down and the child calls it — the child reports an event, the parent decides what it means.
@@ -1113,6 +1140,11 @@ function SearchBox({ onSearch }) {
     </form>
   );
 }
+
+// stand-in so this example runs on its own
+const Results = ({ query }) => <p>Results for: {query || '(nothing yet)'}</p>;
+
+render(<Parent />);
 ```
 
 Note the child keeps its **own** input state and only notifies the parent on submit. Lifting every keystroke to the parent re-renders the whole subtree on each character — a common and avoidable performance bug.
@@ -1129,6 +1161,20 @@ function Dashboard() {
     </>
   );
 }
+
+// stand-ins so this example runs on its own
+const JobList = ({ onSelect, selectedId }) => (
+  <ul>
+    {[1, 2, 3].map(id => (
+      <li key={id}>
+        <button onClick={() => onSelect(id)}>{id === selectedId ? '▶ ' : ''}Job {id}</button>
+      </li>
+    ))}
+  </ul>
+);
+const JobDetail = ({ id }) => <p>{id ? `Details for job ${id}` : 'Pick a job'}</p>;
+
+render(<Dashboard />);
 ```
 
 The trade-off: state placed too high re-renders more of the tree than necessary, so lift it to the **closest** common parent, not to the root.
@@ -1157,6 +1203,8 @@ function Form() {
   );
 }
 function TextInput({ ref, ...props }) { return <input ref={ref} {...props} />; }
+
+render(<Form />);
 ```
 
 Use `useImperativeHandle` to expose a **narrow** API (`{ focus, clear }`) rather than the raw DOM node.
@@ -1181,6 +1229,8 @@ Use `useImperativeHandle` to expose a **narrow** API (`{ focus, clear }`) rather
 
 1. **Only call hooks at the top level** — not inside loops, conditions, or nested functions
 2. **Only call hooks from React functions** — components or custom hooks
+
+**Why these rules exist:** React does not know your hooks by name. It stores each component's hook state in a list and matches the first `useState` call to slot 1, the second to slot 2, and so on, **by call order**. If a hook sits inside an `if`, a render where the condition is false skips it, every later hook shifts up one slot, and each one receives another hook's state. Calling hooks at the top level guarantees the same order on every render. The second rule exists because only a component or custom hook runs while React is tracking that list. The linter plugin `eslint-plugin-react-hooks` enforces both. Q47 walks through the mechanism in detail.
 
 ### 6.2 Built-in Hooks Reference
 
@@ -1303,7 +1353,7 @@ ref.current  // read or write — does NOT trigger re-render
 1. **DOM references** — `<input ref={inputRef} />`, then `inputRef.current.focus()`.
 2. **Instance variables** — store interval IDs, previous values, mutable flags that don't drive UI.
 
-**When to use it.** Anything you need to remember across renders that should NOT cause a re-render when it changes. Setters in event handlers, timeouts, "did this run already" guards.
+**When to use it.** Anything you need to remember across renders that should NOT cause a re-render when it changes: timer ids, the previous value of a prop, "did this run already" guards.
 
 **Pitfall — don't read `.current` during render.** Doing so makes render impure. Read it inside effects and handlers.
 
@@ -1421,7 +1471,7 @@ const width = useSyncExternalStore(
 );
 ```
 
-**What it does.** Tear-free subscription to any external store: Redux, Zustand, browser APIs (`window.localStorage`, `window.matchMedia`), event emitters. React guarantees consistent reads across concurrent rendering.
+**What it does.** Subscribes a component to a store that lives outside React — Redux, Zustand, browser APIs (`window.localStorage`, `window.matchMedia`), event emitters — and re-renders it when the store changes. The reason it exists instead of "`useState` + `useEffect`" is **tearing**: under concurrent rendering React can pause a render halfway, and if the store changes during the pause, components rendered before and after the change would show different values on the same screen. `useSyncExternalStore` detects that and re-renders consistently.
 
 **When to use it.** Building a state library, subscribing to a global event source, or wrapping a browser API in a hook. End users of Redux/Zustand never call this directly — the libraries use it under the hood.
 
@@ -1468,7 +1518,7 @@ startTransition(() => { setExpensiveState(next); });
 
 **When to use it.** When typing into a search box would freeze the UI because the result list is expensive to render. Wrap the expensive state update in `startTransition`; let the input field update urgently.
 
-**Pitfall — only state, not events.** You can't transition a network call or `setTimeout`. The body of `startTransition` must be synchronous and only call setters.
+**Pitfall — it marks state updates, nothing else.** A transition does not make a network call or a `setTimeout` faster or lower-priority; it only changes how React schedules the *state updates* made inside it. In React 18 the callback had to be synchronous. React 19 also accepts an async function (an "Action", see §16), but a `set` call that runs after an `await` inside it is no longer part of the transition unless you wrap that call in `startTransition` again.
 
 ```tsx
 function Search() {
@@ -1530,6 +1580,17 @@ function useToggle(initial = false) {
 **Using it:**
 
 ```tsx
+// the hook from above, repeated so this example runs on its own
+function useToggle(initial = false) {
+  const [value, setValue] = useState(initial);
+  const toggle = useCallback(() => setValue(v => !v), []);
+  return [value, toggle, setValue] as const;
+}
+// stand-in so this example runs on its own
+const Details = ({ onClose }: { onClose: () => void }) => (
+  <p>Some details. <button onClick={onClose}>Close</button></p>
+);
+
 function Panel() {
   const [isOpen, toggleOpen, setOpen] = useToggle();
 
@@ -1542,6 +1603,8 @@ function Panel() {
     </>
   );
 }
+
+render(<Panel />);
 ```
 
 #### `useDebounce` — delay a fast-changing value
@@ -1569,6 +1632,16 @@ function useDebounce<T>(value: T, delay: number): T {
 **Using it:**
 
 ```tsx
+// the hook from above, repeated so this example runs on its own
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
 function SearchBox({ onSearch }: { onSearch: (q: string) => void }) {
   const [query, setQuery] = useState('');
   const debounced = useDebounce(query, 500);
@@ -1579,6 +1652,14 @@ function SearchBox({ onSearch }: { onSearch: (q: string) => void }) {
   // The input stays bound to `query`, so typing feels instant.
   return <input value={query} onChange={e => setQuery(e.target.value)} />;
 }
+
+function Demo() {
+  // useCallback keeps onSearch stable, so the effect above only re-runs when `debounced` changes.
+  const onSearch = useCallback((q: string) => console.log('search:', q), []);
+  return <SearchBox onSearch={onSearch} />;
+}
+
+render(<Demo />);
 ```
 
 **Note the split.** The input reads `query` (immediate, so typing is responsive); the effect reads `debounced` (delayed). Binding the input to `debounced` would make the field feel broken.
@@ -1649,6 +1730,26 @@ A `.finally(() => setLoading(false))` runs on **every** settlement, including an
 **Using it.** The union narrows for you:
 
 ```tsx
+// stand-ins so this example runs on its own: a fake useFetch that "loads" for
+// 600 ms and returns canned data, plus a Spinner. Use the real hook above in an app.
+type FetchState<T> =
+  | { status: 'loading'; data: null; error: null }
+  | { status: 'success'; data: T;    error: null }
+  | { status: 'error';   data: null; error: Error };
+function useFetch<T>(url: string | null): FetchState<T> {
+  const [data, setData] = useState<T | null>(null);
+  useEffect(() => {
+    if (!url) return;
+    setData(null);
+    const t = setTimeout(() => setData({ id: 1, name: 'Ada Lovelace', email: 'ada@example.com' } as T), 600);
+    return () => clearTimeout(t);
+  }, [url]);
+  return data === null
+    ? { status: 'loading', data: null, error: null }
+    : { status: 'success', data, error: null };
+}
+const Spinner = () => <p>Loading…</p>;
+
 type User = { id: number; name: string; email: string };
 
 function Profile({ id }: { id: number }) {
@@ -1659,11 +1760,44 @@ function Profile({ id }: { id: number }) {
 
   return <h1>{data.name}</h1>;   // `data` is User here, not User | null
 }
+
+render(<Profile id={1} />);
 ```
 
 **Composed with `useDebounce`** — note `null` as the skip signal, and `encodeURIComponent`:
 
 ```tsx
+// stand-ins so this example runs on its own: useDebounce from above, and a fake
+// useFetch that "loads" for 600 ms and returns canned results.
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+type FetchState<T> =
+  | { status: 'loading'; data: null; error: null }
+  | { status: 'success'; data: T;    error: null }
+  | { status: 'error';   data: null; error: Error };
+type Result = { id: number; title: string };
+function useFetch<T>(url: string | null): FetchState<T> {
+  const [data, setData] = useState<T | null>(null);
+  useEffect(() => {
+    if (!url) return;
+    setData(null);
+    const q = decodeURIComponent(url.split('q=')[1] ?? '');
+    const results: Result[] = [1, 2, 3].map(id => ({ id, title: `${q} result ${id}` }));
+    const t = setTimeout(() => setData(results as T), 600);
+    return () => clearTimeout(t);
+  }, [url]);
+  return data === null
+    ? { status: 'loading', data: null, error: null }
+    : { status: 'success', data, error: null };
+}
+const Spinner = () => <p>Loading…</p>;
+
 function Search() {
   const [query, setQuery] = useState('');
   const debounced = useDebounce(query, 500);
@@ -1680,6 +1814,8 @@ function Search() {
     </>
   );
 }
+
+render(<Search />);
 ```
 
 **One caveat on that composition.** With `url === null` the effect early-returns, so the state keeps whatever it was — clearing the input leaves the last results on screen. If you want an empty query to clear them, add an `idle` status:
@@ -1753,6 +1889,20 @@ function useLocalStorage<T>(key: string, initialValue: T) {
 **Using it:**
 
 ```tsx
+// a short copy of the hook above, so this example runs on its own
+function useLocalStorage<T>(key: string, initialValue: T) {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw === null ? initialValue : (JSON.parse(raw) as T);
+    } catch { return initialValue; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ }
+  }, [key, value]);
+  return [value, setValue] as const;
+}
+
 function ThemeToggle() {
   const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('theme', 'light');
 
@@ -1767,6 +1917,8 @@ function ThemeToggle() {
     </button>
   );
 }
+
+render(<ThemeToggle />);
 ```
 
 **The generic is a claim, not a guarantee** — same as in `useFetch`. `JSON.parse(raw) as T` will happily hand you a number where you promised `'light' | 'dark'`. If the value drives anything important, validate it: `raw === 'dark' || raw === 'light' ? raw : fallback`.
@@ -1794,10 +1946,28 @@ function useMediaQuery(query: string): boolean {
 **Using it** — the component says nothing about listeners at all:
 
 ```tsx
+// the hook from above, repeated so this example runs on its own
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
+// stand-ins so this example runs on its own
+const DesktopNav = () => <nav>Desktop nav (resize the window below 768px)</nav>;
+const MobileNav = () => <nav>Mobile nav (widen the window past 768px)</nav>;
+
 function Nav() {
   const isWide = useMediaQuery('(min-width: 768px)');
   return isWide ? <DesktopNav /> : <MobileNav />;
 }
+
+render(<Nav />);
 ```
 
 Every consumer gets the cleanup for free, and the resync-before-subscribe fix was made once. For a value you read *from* an external store rather than an event stream you accumulate, prefer `useSyncExternalStore` — see §6.2 and Q50.
@@ -1863,7 +2033,7 @@ shouldComponentUpdate -> React.memo()
 
 ### 7.3 Common Pitfalls
 
-These are the most common mistakes developers make with `useEffect`. Understanding them will save hours of debugging.
+Three mistakes account for most `useEffect` bugs. All three come from the same fact: an effect is a closure over the render that created it, so it sees that render's values and nothing newer.
 
 ```tsx
 // 1. Missing dependency
@@ -1899,6 +2069,12 @@ useEffect(() => {
   return () => { cancelled = true; };
 }, [id]);
 ```
+
+**What each one is doing:**
+
+1. **Stale closure.** With `[]` the effect runs once, so the interval callback keeps the `count` from the first render (0) forever and sets 1 every second. The updater form `prev => prev + 1` asks React for the current value instead of reading the captured one, so the dependency array can honestly stay empty.
+2. **Object dependency.** React compares dependencies with `Object.is`, which for an object means "same reference?". If `filters` is built during render (`const filters = { search, page }`), it is a new object every render, so the effect re-runs every render — often an infinite fetch loop if the fetch sets state. Depending on the primitive fields compares values instead.
+3. **Race condition.** If `id` changes from 1 to 2 while request 1 is in flight, request 1 can finish *after* request 2 and overwrite the screen with the wrong user. The cleanup runs when `id` changes, flips `cancelled` for the old effect, and the late response is ignored. An `AbortController` does the same job and also cancels the network request.
 
 ### 7.4 When NOT to Use useEffect
 
@@ -1985,9 +2161,15 @@ The official React docs have an entire page titled *"You Might Not Need an Effec
 
 ## 8. Event Handling
 
-React uses synthetic events that wrap native browser events for cross-browser consistency. Event handlers are written in camelCase (`onClick`, not `onclick`) and receive a `SyntheticEvent` object.
+React passes your handler a **synthetic event**: a React wrapper around the browser's native event with the same interface (`target`, `preventDefault()`, `stopPropagation()`) that behaves the same in every browser. The native event is still there as `e.nativeEvent` if you need it. Handlers are written in camelCase (`onClick`, not `onclick`) and you pass a function, not a string.
+
+One pattern below is worth reading twice: `handleItemClick(item.id)` is *called* during render, and it returns the actual click handler. That is how you pass an argument without writing `onClick={() => handleItemClick(item.id)}` inline — both create a new function per item per render, so pick whichever reads better.
 
 ```tsx
+// stand-ins so this example runs on its own
+const items = [{ id: 'a', name: 'First item' }, { id: 'b', name: 'Second item' }];
+const submit = () => console.log('submitted with Enter');
+
 function EventExamples() {
   // Click
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -2026,6 +2208,8 @@ function EventExamples() {
     </form>
   );
 }
+
+render(<EventExamples />);
 ```
 
 ---
@@ -2073,9 +2257,11 @@ function StatusView() {
 
 ### 9.2 Lists
 
-Render lists by mapping over arrays in JSX. Every list item must have a unique `key` prop so React can efficiently track changes.
+Render lists by mapping over arrays in JSX. Every list item needs a `key` prop that identifies it among its siblings. On the next render React matches old and new items **by key**, not by position, so it can tell that an item moved, was inserted or was removed — and keep that item's DOM node and state attached to it. Without a stable key, an item's state (a typed-in input, an open menu) can end up on the wrong row after a reorder. §14.4 shows the algorithm.
 
 ```tsx
+type User = { id: number; name: string };
+
 // Map over array
 function UserList({ users }: { users: User[] }) {
   return (
@@ -2092,6 +2278,8 @@ function UserList({ users }: { users: User[] }) {
 // - Must be stable (don't use index as key if list can reorder)
 // - Use IDs from data, not array index
 // - Keys help React identify which items changed/added/removed
+
+render(<UserList users={[{ id: 1, name: 'Ana' }, { id: 2, name: 'Ben' }]} />);
 ```
 
 ---
@@ -2100,7 +2288,7 @@ function UserList({ users }: { users: User[] }) {
 
 ### 10.1 Controlled Components
 
-In a controlled component, React state is the single source of truth for form values. Every input change flows through a state update.
+In a controlled component, React state is the single source of truth for form values: the input shows `value={email}` and every keystroke goes through `setEmail`. Because the value lives in state, you can validate on every keystroke, disable the submit button, or reformat input as the user types. The cost is a re-render of the component on every keystroke, which is fine for most forms.
 
 ```tsx
 function LoginForm() {
@@ -2132,7 +2320,7 @@ function LoginForm() {
 
 ### 10.2 Uncontrolled Components (useRef)
 
-Uncontrolled components let the DOM handle form state. Use `useRef` to read values when needed, typically on form submission.
+Uncontrolled components let the DOM keep the value, the way a plain HTML form does. You set a starting value with `defaultValue` (not `value`) and read the current value through a ref, typically on submit. Nothing re-renders while the user types, so this suits simple forms, file inputs (which can only be uncontrolled) and wrapping non-React widgets. The trade-off is that you cannot react to the value until you go and read it.
 
 ```tsx
 function SearchForm() {
@@ -2154,7 +2342,7 @@ function SearchForm() {
 
 ### 10.3 React Hook Form + Zod
 
-For complex forms with validation, a form library reduces boilerplate. React Hook Form with Zod provides type-safe validation with minimal re-renders.
+For large forms with validation, a library saves you writing a `useState` and an error message per field. **React Hook Form** registers inputs as *uncontrolled* (the `register` call attaches a ref), so typing does not re-render the form on every keystroke; it re-renders when form state you actually read, such as `errors`, changes. **Zod** is a schema library: you describe the shape once, it validates the data at runtime, and `z.infer` derives the TypeScript type from the same schema, so the type and the validation cannot disagree. `zodResolver` connects the two.
 
 ```tsx
 import { useForm } from 'react-hook-form';
@@ -2247,9 +2435,15 @@ function Header() {
 }
 
 // 5. Wrap app
-<ThemeProvider>
-  <App />
-</ThemeProvider>
+function App() {
+  return <Header />;   // stand-in for the rest of your app
+}
+
+render(
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>
+);
 ```
 
 **Why the context type is `T | null` and the hook throws.** `createContext` needs a default value, and there is rarely an honest one — a theme provider has no sensible "no provider" theme. Passing `null` and typing the context as `ThemeContextType | null` makes that explicit, and then the `useTheme` hook does two jobs: it converts "you forgot the Provider" from a `Cannot read properties of null` several frames away into a named error at the point of use, and it narrows the type so **no consumer has to handle `null`**. Without the hook, every component reading the context carries a null check that can never fire in practice.
@@ -2262,13 +2456,15 @@ function Header() {
 
 ### 11.2 When to Use Context vs State Management
 
-| Use Case | Solution |
-|----------|---------|
-| Theme, locale, auth user | Context |
-| Simple prop drilling (2-3 levels) | Just pass props |
-| Complex server state (API data) | TanStack Query / SWR |
-| Complex client state (many updates) | Zustand / Jotai (Redux for legacy) |
-| Form state | React Hook Form |
+Context is a way to *deliver* a value, not a state manager: it has no partial subscription, so every consumer re-renders whenever the value changes. That makes it right for data that many components read and that rarely changes, and wrong for anything that updates often.
+
+| Use Case | Solution | Why |
+|----------|---------|-----|
+| Theme, locale, auth user | Context | Read everywhere, changes rarely, so the re-render-every-consumer cost is seldom paid |
+| Simple prop drilling (2-3 levels) | Just pass props | Explicit and free; Context would hide the data flow for no gain |
+| Complex server state (API data) | TanStack Query / SWR | Caching, deduplication, refetching and retries are the whole job ([§11.3](#113-server-state-vs-client-state-the-most-important-distinction)) |
+| Complex client state (many updates) | Zustand / Jotai (Redux for legacy) | A component subscribes to the slice it reads, so a frequent update does not re-render every consumer |
+| Form state | React Hook Form | Keeps field values out of React state by default, so typing does not re-render the whole form |
 
 ### 11.3 Server State vs Client State — The Most Important Distinction
 
@@ -2357,6 +2553,8 @@ function Parent() {
 }
 ```
 
+**When to use which:** a ref object (pattern 1) is the default. A **callback ref** (pattern 3) is a function React calls with the DOM node when it is attached (and with `null` when it is removed, unless in React 19 it returns a cleanup function instead); use it when you need to *do* something the moment the node appears, such as measuring it, especially for elements that mount later or conditionally. Pattern 4 is the pre-React-19 way to let a parent reach a child's DOM node; in React 19 `ref` is an ordinary prop, so `forwardRef` is no longer needed (§16.9).
+
 ---
 
 ## 13. Performance Optimization
@@ -2377,9 +2575,28 @@ const UserCard = React.memo(function UserCard({ name, age }: Props) {
 // Custom comparison — return true to SKIP the re-render. Here the component
 // deliberately ignores `age` changes.
 const UserCardNameOnly = React.memo(
-  function UserCardNameOnly(props: Props) { return <div>{props.name}</div>; },
+  function UserCardNameOnly(props: Props) {
+    console.log('UserCardNameOnly rendered');
+    return <div>{props.name}</div>;
+  },
   (prev, next) => prev.name === next.name,
 );
+
+// Demo: click the button and watch the console. `age` changes every click, so
+// UserCard re-renders each time, but the comparator ignores `age`, so
+// "UserCardNameOnly rendered" is logged only once, on mount.
+function Demo() {
+  const [age, setAge] = useState(30);
+  return (
+    <>
+      <button onClick={() => setAge(a => a + 1)}>Birthday</button>
+      <UserCard name="Ana" age={age} />
+      <UserCardNameOnly name="Ana" age={age} />
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
 ### 13.2 useMemo and useCallback
@@ -2404,6 +2621,8 @@ const handleDelete = useCallback((id: string) => {
 useCallback(fn, deps)  ===  useMemo(() => fn, deps)
 ```
 
+Note one bug in the `useMemo` example above: `users.sort(...)` sorts the array **in place**, so it mutates the `users` prop the parent owns. Write `users.toSorted(...)` or `[...users].sort(...)` (see §5.2 Rule 2).
+
 `useCallback` is literally syntactic sugar over `useMemo` for the function-reference case — same dependency-array semantics, same memoization mechanism, same bailout behavior. Knowing the equivalence proves you understand both hooks rather than just memorizing two recipes.
 
 **When NOT to reach for either** (a senior signal — most devs over-apply these):
@@ -2417,10 +2636,11 @@ useCallback(fn, deps)  ===  useMemo(() => fn, deps)
 
 ### 13.3 Code Splitting (Lazy Loading)
 
-Code splitting with `React.lazy` and `Suspense` lets you load components on demand, reducing the initial bundle size.
+Code splitting means shipping your app as several JavaScript files instead of one, so the first page load downloads only what the first screen needs. `React.lazy` takes a function that calls a dynamic `import()`; the bundler turns each dynamic import into a separate file (a "chunk"), and React downloads it the first time the component renders. While it downloads, the component *suspends* and the nearest `<Suspense>` shows its `fallback`. §13.11 covers the strategies and the traps.
 
 ```tsx
 import { lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
 
 // Lazy load component
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -2503,6 +2723,8 @@ function VirtualList({ items }: { items: Item[] }) {
 }
 ```
 
+**When not to virtualise.** Virtualisation removes rows from the DOM, and several things depended on them being there: the browser's find-in-page (Ctrl/Cmd+F) cannot find text in rows that are not rendered, screen readers cannot tell how many rows exist unless you add `aria-rowcount`/`aria-setsize`, rows of different heights need measuring (or the scrollbar jumps), and linking to an item by anchor needs code to scroll the virtualiser first. So virtualise when a list can realistically reach several hundred rows or the Profiler shows the list dominating an interaction; a 30-row list gains nothing and loses all of that.
+
 ### 13.5 Concurrent Features (`useTransition`, `useDeferredValue`)
 
 React 18's concurrent renderer lets you mark some updates as **non-urgent** so the browser stays responsive while heavy work happens in the background. Without these, a slow filter on every keystroke blocks the input thread; with them, the input stays at 60 fps and the list catches up.
@@ -2523,7 +2745,7 @@ Higher-priority lanes can preempt lower ones. If the user types again while Reac
 
 **Lanes — the priority bitmap under the hood.** React 18+ replaced the older "expiration time" model with a **31-bit bitmap** where each bit is one priority level. Bitwise operations (`AND`/`OR`) make priority checks cheap — combining lanes, finding the highest-priority pending lane, and clearing a lane after commit are all single CPU instructions. The scheduler picks the highest-priority pending lane on each tick; lower-priority work can be paused, queued behind a higher-priority update, and resumed when the urgent work completes. A practical consequence: a click in the middle of a long transition immediately preempts that transition, and the transition restarts (not resumes) with the latest state — that's why concurrent rendering is described as *interruptible* rather than *resumable*.
 
-**Time slicing — the 5-millisecond yield.** React's renderer doesn't process the entire fiber tree in one synchronous burst. It does work for **~5ms**, then calls `MessageChannel.postMessage` (a microtask-faster-than-`setTimeout`) to yield back to the browser. The browser handles input, paints, runs other tasks, then schedules React's continuation. This is what keeps a 16-frame budget intact during a heavy render — even a 200ms render is invisible to the user because input events get to run between slices.
+**Time slicing — the 5-millisecond yield.** React's renderer doesn't process the entire fiber tree in one synchronous burst. It does work for **~5ms**, then yields back to the browser by scheduling its continuation as a new task with `MessageChannel.postMessage`. That is a regular task (not a microtask — a microtask would run before the browser got a chance to paint), and React uses it instead of `setTimeout(fn, 0)` because nested `setTimeout` calls are clamped to a minimum delay of about 4 ms. The browser handles input, paints, runs other tasks, then runs React's continuation. This is what keeps the ~16 ms per-frame budget (60 frames per second) intact during a heavy render — even a 200ms render is invisible to the user because input events get to run between slices.
 
 **Double buffering — current and work-in-progress trees.** React maintains **two fiber trees**: the **current tree** (what's painted on screen) and a **work-in-progress tree** (what's being computed). Every fiber holds an `alternate` pointer to its counterpart in the other tree. When a render completes, React commits by *swapping* the pointers — an O(1) atomic operation. If a higher-priority update interrupts the work-in-progress tree, React can throw it away without affecting what's on screen. Without double buffering, mid-render interruption would corrupt the visible UI.
 
@@ -2548,24 +2770,27 @@ This is what powers the "message appears instantly while sending" UX in modern c
 ```tsx
 import { useState, useTransition, useDeferredValue, useMemo } from 'react';
 
-function ProductSearch({ products }: { products: Product[] }) {
-  const [query, setQuery] = useState('');
+type Product = { name: string };
+const PRODUCTS: Product[] = Array.from({ length: 5000 }, (_, i) => ({ name: `Product ${i}` }));
+
+function ProductList({ items }: { items: Product[] }) {
+  return <ul>{items.slice(0, 50).map(p => <li key={p.name}>{p.name}</li>)}</ul>;
+}
+
+// Option A — useTransition: you own the slow state update.
+function SearchWithTransition({ products }: { products: Product[] }) {
+  const [query, setQuery] = useState('');           // urgent: what the input shows
+  const [filterText, setFilterText] = useState(''); // non-urgent: what the list filters by
   const [isPending, startTransition] = useTransition();
 
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
-    // Urgent: input value updates immediately (controlled input stays snappy)
-    setQuery(e.target.value);
-    // Non-urgent: heavy filter can be interrupted by the next keystroke
-    startTransition(() => {
-      // ...trigger downstream state update if needed
-    });
+    setQuery(e.target.value);                              // input stays snappy
+    startTransition(() => setFilterText(e.target.value));  // next keystroke can interrupt this
   }
 
-  // Or: defer derivation rather than the setter
-  const deferredQuery = useDeferredValue(query);
   const filtered = useMemo(
-    () => products.filter(p => p.name.includes(deferredQuery)),
-    [products, deferredQuery],
+    () => products.filter(p => p.name.includes(filterText)),
+    [products, filterText],
   );
 
   return (
@@ -2576,9 +2801,38 @@ function ProductSearch({ products }: { products: Product[] }) {
     </>
   );
 }
+
+// Option B — useDeferredValue: defer the value instead of the setter.
+function SearchWithDeferredValue({ products }: { products: Product[] }) {
+  const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);   // lags behind query while React is busy
+  const filtered = useMemo(
+    () => products.filter(p => p.name.includes(deferredQuery)),
+    [products, deferredQuery],
+  );
+
+  return (
+    <>
+      <input value={query} onChange={e => setQuery(e.target.value)} />
+      {query !== deferredQuery && <span>Updating…</span>}
+      <ProductList items={filtered} />
+    </>
+  );
+}
+
+function Demo() {
+  return (
+    <>
+      <SearchWithTransition products={PRODUCTS} />
+      <SearchWithDeferredValue products={PRODUCTS} />
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
-`useTransition` wraps **state setters** that schedule slow updates. `useDeferredValue` wraps a **value** so a derived computation lags behind the latest input — useful when the slow consumer isn't yours to wrap.
+`useTransition` wraps **state setters** that schedule slow updates, which is why Option A needs a second piece of state: one for the input (urgent) and one for the list (non-urgent). `useDeferredValue` wraps a **value** so a derived computation lags behind the latest input — useful when the slow consumer isn't yours to wrap. It has no `isPending`; comparing `query !== deferredQuery` gives you the same signal.
 
 ### 13.6 Profiling and Measuring Performance
 
@@ -2597,6 +2851,14 @@ You can't fix what you can't see. Use the right tool for the layer you're invest
 
 The React DevTools Profiler records a session of renders and shows a flamegraph of how long each component took. Yellow/red components are the slow ones — start there. The "Ranked" view sorts by duration; the "Why did this render?" toggle (in DevTools settings) annotates each render with the prop/state/hook that changed.
 
+**A profiling session that finds the real problem:**
+
+1. **Record an interaction, not the page load.** Mounting and interacting are different costs with different fixes; the slowness users complain about is usually an interaction (typing, filtering, switching tabs).
+2. **Rank by render time, not render count.** Forty renders of 1 ms each are not the problem; two renders of 80 ms are.
+3. **Read *why* each slow component rendered.** A parent re-rendering, a prop whose value is equal but whose reference is new, and a context value changing each have a different fix (§13.7).
+4. **Check the browser's Performance panel as well.** The Profiler shows React's work only; a long task (over 50 ms) that is layout, style or a third-party script will not appear in it.
+5. **Change one thing, then record again.** A fix that is not re-measured is a guess, and memoization in particular can make things slower (Q64).
+
 **Render vs commit — what the profiler actually measures.** A React update has two phases. The **render phase** is pure: React calls your component functions, builds the new fiber tree, and runs reconciliation. The **commit phase** is when React actually mutates the DOM and runs effects (`useLayoutEffect` synchronously, `useEffect` after paint). The profiler shows you both — the flamegraph bars represent render-phase time per component, and the commit duration sits at the top. A common confusion: "my component is slow" usually means "the render phase is slow"; if your work is in `useEffect`, the profiler bar for that component will look fine because effects run *after* the recorded commit. For effect-heavy bottlenecks, switch to the Chrome Performance tab.
 
 **Actual vs base duration.** Each Profiler bar shows two numbers: *actual duration* (how long this render took) and *base duration* (how long it would take with no memoization). The gap between them is the value memoization is adding — if base ≈ actual, your memoization isn't doing anything (the component is re-rendering anyway), which usually means a reference-equality bug in props.
@@ -2607,7 +2869,7 @@ The React DevTools Profiler records a session of renders and shows a flamegraph 
 - **INP (Interaction to Next Paint)** — replaced FID in March 2024. INP measures the **worst-case latency** between any user interaction (click, tap, key) and the next paint, not just the first one. Good ≤ 200ms, poor > 500ms. This is the React-specific killer: long renders, expensive event handlers, and hydration all spike INP. Lighthouse cannot measure INP reliably (it has no real interactions); you only see it via real-user monitoring.
 - **CLS (Cumulative Layout Shift)** — sum of unexpected layout shifts during the page's lifetime. Good ≤ 0.1, poor > 0.25. Common causes: images without `width`/`height`, late-loading fonts that change line metrics, banners injected after first paint, and ads without reserved space.
 
-These three are Google's **search ranking signals** as of 2021 (LCP, FID/INP, CLS), so they have business consequences beyond user feel. The `web-vitals` library measures them using the same algorithms Chrome itself ships, then hands you a callback you can wire to any analytics endpoint:
+Google's ranking systems have used Core Web Vitals since the 2021 page experience update (then LCP, FID and CLS; INP took FID's place in March 2024), so they have business consequences beyond user feel. The `web-vitals` library measures them using the same algorithms Chrome itself ships, then hands you a callback you can wire to any analytics endpoint:
 
 ```tsx
 // Report Core Web Vitals to your analytics endpoint
@@ -2657,10 +2919,12 @@ So when you write `<Child style={{ color: 'red' }} />`, you create a brand-new o
 | Inline callback to memoized child              | useCallback (or move handler to leaf)            |
 | Context value changes on every parent render   | useMemo the value object; split into 2 contexts  |
 | Anonymous function inside .map() in deps       | Hoist or useCallback                             |
-| Updating state with the same value             | React bails out for primitives, NOT for objects  |
+| setState with a new object, same contents      | Pass back the same object; a copy always renders |
 | Parent re-renders entire subtree on URL change | Move route boundaries closer to the leaf         |
 | Tall provider tree wrapping the whole app      | Co-locate providers; consider Zustand/Jotai     |
 ```
+
+A note on the `setState` row: React's bail-out compares with `Object.is`, so it skips the render whenever you pass back the **same reference**, whether that is a primitive or an unchanged object. What does *not* bail out is a *new* object with identical contents (`setUser({ ...user })`), because that is a different reference.
 
 The classic Context fan-out trap — every consumer re-renders when *any* field of `value` changes:
 
@@ -2690,33 +2954,45 @@ function Good({ user, theme, setTheme, children }: {
     </AuthContext.Provider>
   );
 }
+
+// Demo so the example runs on its own
+function Demo() {
+  const [theme, setTheme] = useState('light');
+  return (
+    <Good user="Ada" theme={theme} setTheme={setTheme}>
+      <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>Theme: {theme}</button>
+    </Good>
+  );
+}
+render(<Demo />);
 ```
 
 ### 13.8 Image and Asset Optimization
 
 Images are usually the biggest payload on a React page and the dominant LCP element. Quick wins:
 
-**Why images dominate LCP.** A typical landing page ships ~50 KB of HTML, ~200 KB of JS, and ~1 MB of images. The hero image is almost always the Largest Contentful Paint element by area, which means **its download time is your LCP**. Until that image is decoded and painted, Google's measurement is still "loading." Three forces shape image performance — file size (which format and resolution), download priority (browser fetch ordering), and decode/layout cost (how much work the main thread does to paint it). Each attribute below addresses one of those forces.
+**Why images dominate LCP.** On a typical page, images are the largest share of the bytes: tens of KB of HTML and a few hundred KB of JS, against roughly 1 MB of images. The hero image is almost always the Largest Contentful Paint element by area, which means **its download time is your LCP**. Until that image is decoded and painted, Google's measurement is still "loading." Three forces shape image performance — file size (which format and resolution), download priority (browser fetch ordering), and decode/layout cost (how much work the main thread does to paint it). Each attribute below addresses one of those forces.
 
 **What each attribute actually does:**
 
 - **`width` / `height`** — reserves layout space *before* the image loads, preventing CLS. The browser computes the aspect ratio from these and inserts a placeholder box of the right size. Without them, content below the image jumps when it loads.
-- **`loading="lazy"`** — defers the network request until the image is near the viewport (the browser uses an internal threshold, ~1500px below the fold). Cheap to apply to every offscreen image; do **not** apply it to the LCP image, since that delays your most important asset.
+- **`loading="lazy"`** — defers the network request until the image is near the viewport (Chrome starts the fetch about 1250px before the image scrolls into view on a fast connection, and 2500px ahead on 3G or slower). Cheap to apply to every offscreen image; do **not** apply it to the LCP image, since that delays your most important asset.
 - **`decoding="async"`** — tells the browser the image can be decoded off the main thread. Decoding a large JPEG can stall input for tens of milliseconds; `async` removes that from the critical path.
 - **`fetchpriority="high" / "low"`** — overrides the browser's heuristic for the request priority. Mark the LCP image `high` (browsers default `<img>` to medium); mark below-the-fold and decorative images `low`.
 - **`srcSet` / `sizes`** — gives the browser multiple resolutions and a hint about how wide the image will display. The browser picks the smallest file that's still sharp at the user's DPR. A single 1920×1080 hero is wasted bytes for a 400px-wide phone.
 - **`<link rel="preload" as="image">`** — fires the request as soon as the HTML parses, in parallel with CSS/JS. Pair with `fetchpriority="high"` for the LCP image; without preload, the request only starts after the browser parses far enough to discover the `<img>` tag in JS-rendered React output.
 
 ```tsx
-// Native lazy-loading + explicit dimensions to prevent CLS
-const hero = (
+// An OFFSCREEN image: native lazy-loading + explicit dimensions to prevent CLS.
+// (Not the hero: the LCP image must never be lazy — see the preload below.)
+const belowTheFold = (
   <img
-    src="/hero.webp"
+    src="/team-photo.webp"
     width={1200}
     height={630}
     loading="lazy"          // defer offscreen images
     decoding="async"        // don't block the main thread on decode
-    alt="Hero"
+    alt="Our team"
   />
 );
 
@@ -2748,7 +3024,7 @@ Modern React apps almost always use one of these. Pick based on dev-experience n
 | Dev server         | Bundles before serving               | Native ESM — serves source on demand   |
 | Cold start         | Seconds-to-minutes on big apps       | Sub-second                             |
 | HMR                | Full module graph rebuild            | Per-module, near-instant               |
-| Production build   | Webpack itself                       | Rollup (under the hood)                |
+| Production build   | Webpack itself                       | Rollup up to v7; Rolldown from v8      |
 | Config             | Verbose, plugin-heavy                | Minimal; sensible defaults             |
 | Loader/plugin eco  | Largest in JS tooling                | Growing; compatible with Rollup plugins|
 | Best for           | Legacy apps, heavy custom transforms | New apps, fast feedback loops          |
@@ -2759,6 +3035,8 @@ Modern React apps almost always use one of these. Pick based on dev-experience n
 There's a catch: ESM in the browser doesn't work for `node_modules`. Vite **pre-bundles** dependencies once with esbuild on first start (cached after that), converting CommonJS packages into a single ESM file per dependency to keep the import waterfall shallow.
 
 For production, Vite uses **Rollup** instead of esbuild, even though esbuild is faster. The trade-off is intentional: Rollup produces smaller, more aggressively tree-shaken output and has a richer plugin ecosystem for production concerns (legacy browser support, advanced code splitting, asset hashing). Build speed matters less in CI than runtime performance for users.
+
+**This split describes Vite up to version 7.** Vite 8 replaced both esbuild and Rollup with **Rolldown**, one Rust-based bundler used in development and production, so dev and production no longer run through different tools. The reasoning above is still why the split existed, and what you will see in most existing projects. The [Frontend Tooling guide](/frontend/tooling) covers the 2026 toolchain.
 
 Webpack 5 closed part of the gap with **persistent caching** (the file system cache means the second build is much faster than the first) and **Module Federation** (the canonical answer for micro-frontends). But per-module HMR and the bundle-free dev server are still Vite's structural edge.
 
@@ -2880,7 +3158,9 @@ This applies to **your application** too, not just published libraries. If your 
    - You used the whole `_` object; nothing to shake.
 2. Importing from a CommonJS-only build of a library
    - lodash, moment, many older react libraries.
-   - Fix: lodash → lodash-es; moment → date-fns/dayjs.
+   - Fix: lodash → lodash-es; moment → date-fns/dayjs, or no library at all:
+     Intl.DateTimeFormat and Intl.RelativeTimeFormat are built into the browser
+     and cover most date formatting.
 3. Missing `sideEffects: false` in package.json
    - Bundler conservatively keeps everything.
 4. Babel transpiling ESM down to CommonJS BEFORE the bundler sees it
@@ -2959,11 +3239,11 @@ Compare to parallel loading where A, B, and C all start at t=0:
 - **Prefetch on intent**: start the dynamic import on hover or focus, so by the time the user clicks, the chunk is already in the cache.
 - **Restructure**: hoist the lazy boundary to the route level, so all the route's lazy children resolve their imports off a single chunk.
 
-**`startTransition` + lazy.** Wrapping a navigation that crosses a Suspense boundary in `startTransition` makes React **keep the previous UI visible** until the new chunk loads, instead of swapping in the fallback. The Suspense fallback only shows if the load takes longer than the transition timeout (~5s by default). This is what turns a flash-of-spinner into a smooth route change.
+**`startTransition` + lazy.** Wrapping a navigation that crosses an already-visible Suspense boundary in `startTransition` makes React **keep the previous UI on screen** until the new chunk (and any data) is ready, instead of replacing the page with the fallback. Use `isPending` to show a small loading hint meanwhile. This is what turns a flash-of-spinner into a smooth route change.
 
 ### 13.12 Server Components, SSR, and Streaming
 
-Sending less JS to the browser is the biggest performance lever there is. React 19 + frameworks like Next.js (App Router), Remix, and TanStack Start make this easier.
+Every kilobyte of JavaScript has to be downloaded, parsed and executed before the page responds, and on a mid-range phone the parse-and-execute part is often the slow one. So the most reliable way to speed up a React page is to send less JavaScript. Server-side rendering and React Server Components (RSC, components that run only on the server) are the tools for that; frameworks like Next.js (App Router), Remix and TanStack Start wire them up for you.
 
 **Three rendering models — and how they differ.**
 
@@ -2987,7 +3267,7 @@ Sending less JS to the browser is the biggest performance lever there is. React 
 
 **The taxonomy in one place:**
 
-- **Server Components** render on the server and ship only HTML — zero JS for that subtree. Use them for data-heavy, non-interactive UI.
+- **Server Components** render on the server and send their rendered output (HTML on the first load, the RSC payload on client-side navigation) but none of their own JavaScript. Use them for data-heavy, non-interactive UI.
 - **Client Components** (`'use client'`) hydrate and run in the browser — keep these for interactive leaves.
 - **Streaming SSR** (`renderToPipeableStream` / `renderToReadableStream`) sends HTML in chunks as the data resolves, paired with `<Suspense>` boundaries. The browser paints above-the-fold content before the slow data section finishes.
 
@@ -3022,7 +3302,7 @@ function Page() {
 }
 ```
 
-Each Suspense boundary is also an independent code-split point: React lazy-loads the JS for that boundary on demand. So it's *both* a data-fetch boundary and a hydration boundary. The mental model: design Suspense boundaries around *user goals* — header, content, comments, sidebar — not technical layers.
+Each Suspense boundary is also an independent **hydration** unit, and if the code inside it is lazy-loaded, the boundary is where React waits for that chunk. So it is *both* a data-loading boundary and a hydration boundary. The mental model: design Suspense boundaries around *user goals* — header, content, comments, sidebar — not technical layers.
 
 **Progressive Hydration — older non-React-built-in flavor.** A general technique that pre-dates React's selective hydration: defer hydration of components that aren't visible or aren't interactive yet. Implementations include hydrating on `IntersectionObserver` (when scrolled into view), on first user interaction (click/hover/focus), or on `requestIdleCallback` (during browser idle). Astro's "client directives" (`client:idle`, `client:visible`, `client:only`) are the canonical example. With React 18+, selective hydration covers most of the use cases, but `client:visible`-style hydration is still useful for far-below-the-fold widgets where you'd rather not even download the JS until the user scrolls.
 
@@ -3100,9 +3380,9 @@ Even without RSC, plain SSR + hydration improves LCP on content-heavy pages. The
 Follow these rules of thumb to keep your React app fast.
 
 ```
-1.  Don't optimize prematurely — React is fast by default
+1.  Don't optimize prematurely — re-rendering is cheap: React only touches the DOM where output changed
 2.  Profile first — React DevTools Profiler for renders, Lighthouse for load
-3.  Avoid creating objects/arrays/functions in render unless they're props to memoized children
+3.  New objects/arrays/functions in render are fine; stabilise them only when they're props to memoized children or effect deps
 4.  Use stable keys in lists (id, not index, when items can reorder or splice)
 5.  Move state as close to where it's needed as possible — co-location > global
 6.  Memoize Context value objects; split unrelated state into separate contexts
@@ -3110,7 +3390,7 @@ Follow these rules of thumb to keep your React app fast.
 8.  Virtualize long lists (1000+ items)
 9.  Use useTransition / useDeferredValue for slow state-derived UI
 10. Lazy-load offscreen images, set width/height to prevent CLS, preload the LCP image
-11. Run a bundle analyzer on every release; chase duplicates and lodash/moment
+11. Run a bundle analyzer on every PR that adds a dependency, not just before a release, and enforce a size budget in CI (§15.12); chase duplicates and lodash/moment
 12. Tree-shake — named ESM imports + sideEffects:false
 13. Track INP, LCP, CLS in production with web-vitals → analytics
 14. Prefer Server Components for non-interactive, data-heavy UI
@@ -3197,7 +3477,7 @@ This is correctness-fine **only if items never reorder, splice, or filter**. The
 2. Sees `Row` at index 1 with the data that *used to be* at index 0 → another prop update.
 3. ...and so on for every row.
 
-The visible result: every row's props "changed," so every memoization is invalidated, every controlled input loses its state, and the whole list re-renders. With `key={item.id}`, React matches by identity — the new item gets a fresh mount, the rest are untouched, and `React.memo` or `useMemo` work as designed.
+The visible result: every row's props "changed," so every memoization is invalidated and the whole list re-renders. Worse, each row's **local state stays with its position**, not its data: if row 0 had a half-typed input or an open menu, after the prepend that state now sits on the new item, and every other row's state is shifted by one. With `key={item.id}`, React matches by identity — the new item gets a fresh mount, the rest are untouched, and `React.memo` or `useMemo` work as designed.
 
 ### 14.5 Fiber — the data structure that makes interruption possible
 
@@ -3252,11 +3532,13 @@ After roughly 5ms of work, React calls `shouldYield()` (which uses `MessageChann
 1. **Don't redeclare components inside other components.** Each parent render creates a *new* function reference, which Fiber sees as a new `type`, which triggers unmount + remount of every instance. The bug looks like "my input loses focus on every keystroke."
 
    ```jsx
-   // BAD
+   // BAD — type a letter: the input loses focus after every keystroke
    function Parent() {
-     const Input = () => <input />;     // new ref every render → remount
+     const [text, setText] = useState('');
+     const Input = () => <input value={text} onChange={(e) => setText(e.target.value)} />; // new ref every render → remount
      return <Input />;
    }
+   render(<Parent />);
    ```
 
 2. **Mounting is expensive; updating is cheap.** A change that flips the type unmounts the entire subtree. If you can preserve the type and just change props, do.
@@ -3273,9 +3555,11 @@ After roughly 5ms of work, React calls `shouldYield()` (which uses `MessageChann
 
 ### 15.1 Compound Components
 
-The compound component pattern lets related components share implicit state. It's how libraries like Radix UI and Headless UI work.
+A compound component is a set of components designed to be used together, like `<select>` and `<option>` in HTML. The parent (`Tabs`) holds the state and shares it with its pieces through Context, so the user of the component never passes `activeTab` around by hand — they just arrange `Tabs.Tab` and `Tabs.Panel` in whatever markup they want. The benefit over one big `<Tabs items={[...]} />` component with many props is flexibility: the caller controls the layout and content, while the parent still controls the behaviour. Libraries like Radix UI and Headless UI are built this way.
 
 ```tsx
+const TabsContext = createContext({ activeTab: 0, setActiveTab: (_index: number) => {} });
+
 function Tabs({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState(0);
 
@@ -3308,19 +3592,21 @@ Tabs.Panel = function TabPanel({ index, children }: { index: number; children: R
 };
 
 // Usage
-<Tabs>
-  <Tabs.List>
-    <Tabs.Tab index={0}>Tab 1</Tabs.Tab>
-    <Tabs.Tab index={1}>Tab 2</Tabs.Tab>
-  </Tabs.List>
-  <Tabs.Panel index={0}>Content 1</Tabs.Panel>
-  <Tabs.Panel index={1}>Content 2</Tabs.Panel>
-</Tabs>
+render(
+  <Tabs>
+    <Tabs.List>
+      <Tabs.Tab index={0}>Tab 1</Tabs.Tab>
+      <Tabs.Tab index={1}>Tab 2</Tabs.Tab>
+    </Tabs.List>
+    <Tabs.Panel index={0}>Content 1</Tabs.Panel>
+    <Tabs.Panel index={1}>Content 2</Tabs.Panel>
+  </Tabs>
+);
 ```
 
 ### 15.2 Render Props
 
-Render props is a pattern where a component accepts a function as a prop and calls it to determine what to render. It enables flexible code reuse.
+Render props is a pattern where a component accepts a function as a prop and calls it to decide what to render. The component owns some behaviour (here: tracking the mouse) and hands its data to your function, so the *behaviour* is reused while each caller chooses its own *markup*. It was the standard way to share stateful logic before hooks.
 
 ```tsx
 interface MousePosition { x: number; y: number }
@@ -3338,12 +3624,12 @@ function MouseTracker({ render }: { render: (pos: MousePosition) => React.ReactN
 }
 
 // Usage
-<MouseTracker render={({ x, y }) => <p>Mouse: {x}, {y}</p>} />
+render(<MouseTracker render={({ x, y }) => <p>Mouse: {x}, {y}</p>} />);
 ```
 
 ### 15.3 Custom Hook Pattern (Preferred over Render Props)
 
-Custom hooks have largely replaced render props and HOCs as the preferred way to share stateful logic between components.
+Custom hooks have largely replaced render props and HOCs (§15.4) for sharing stateful logic. The same mouse-tracking logic becomes a function that returns a value: no extra component in the tree, no callback nesting when you need two of them, and the data arrives as an ordinary variable you can name however you like.
 
 ```tsx
 function useMousePosition() {
@@ -3372,13 +3658,20 @@ function Component() {
 A HOC is a function that takes a component and returns a new component with extra behaviour. It was the dominant reuse pattern before hooks.
 
 ```tsx
+// stand-ins so this example runs on its own
+const analytics = { track: (event: string, name: string) => console.log('track', event, name) };
+const Dashboard = () => <h2>Dashboard</h2>;
+
 function withLogging<P extends object>(Wrapped: React.ComponentType<P>) {
   return function WithLogging(props: P) {
     useEffect(() => { analytics.track('mount', Wrapped.name); }, []);
     return <Wrapped {...props} />;
   };
 }
-export default withLogging(Dashboard);
+const DashboardWithLogging = withLogging(Dashboard);
+export default DashboardWithLogging;
+
+render(<DashboardWithLogging />);
 ```
 
 **Why hooks replaced them for most cases:** HOCs create "wrapper hell" in the component tree, they obscure where a prop came from (three HOCs deep, which one injected `user`?), prop-name collisions are silent, static methods and refs need manual forwarding, and typing them well is genuinely hard.
@@ -3394,6 +3687,8 @@ The convention if you write one: name it `withX`, hoist static methods, forward 
 The original split (Dan Abramov, 2015) separated **container** components (fetch data, hold state, know about the outside world) from **presentational** components (take props, render UI, know nothing about where data came from).
 
 ```tsx
+import { useQuery } from '@tanstack/react-query';
+
 // Container — knows about data
 function UserListContainer() {
   const { data, isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
@@ -3517,7 +3812,7 @@ None of this happens in production. The double-invoke is not a bug and should no
 
 The two failures it exposes, both real:
 
-```tsx
+```text
 // Impure render — mutates a prop; StrictMode makes it push twice
 function List({ items }) { items.push('extra'); /* … */ }
 
@@ -3569,44 +3864,208 @@ The consequences that get asked:
 
 ---
 
+### 15.12 CI/CD — Lint, Type-check and Test on Every Pull Request
+
+**CI (continuous integration) runs the same checks on every change, on a clean machine, before it can merge. CD (continuous delivery or deployment) turns the merged code into a release automatically.** The part interviews ask about most is the gate: a pull request (PR) cannot merge until lint, the type checker and the tests pass. Two pieces make that work. The workflow runs the checks, and a repository rule makes their results **required**. Without the rule, a red check is only advice.
+
+The npm scripts the workflow calls:
+
+```json
+{
+  "scripts": {
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "vite build"
+  }
+}
+```
+
+`--max-warnings=0` turns warnings into failures; otherwise warnings pile up and nobody reads them. `tsc --noEmit` is a separate step because **Vite and esbuild strip types without checking them**, so `vite build` succeeds on code with type errors.
+
+The workflow, in `.github/workflows/ci.yml`:
+
+```yaml
+name: CI
+
+on:
+  pull_request:            # every PR, including PRs from forks
+  push:
+    branches: [main]       # and every merge, so main is always known-good
+  merge_group:             # only needed if you turn on the merge queue
+
+permissions:
+  contents: read           # least privilege: CI reads code, it does not push
+
+concurrency:
+  # A new push to a PR cancels that PR's previous, now-pointless run.
+  # Pushes to main are never cancelled, so every merge gets a full result.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc   # the same Node version as local development
+          cache: npm                  # reuse the npm download cache between runs
+      - run: npm ci                   # install exactly what package-lock.json says
+      - run: npm run lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - run: npm test -- --coverage
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: npm ci
+      - run: npm run build            # catches what the others cannot: a failing bundle
+```
+
+**Why four jobs and not one job with four steps:** jobs run in parallel, so the wall-clock time is the slowest check rather than the sum, and each job is a separately named check on the PR, so the author sees *which* thing failed without opening a log. The cost is installing dependencies four times (the npm cache keeps that to seconds). Once the setup steps are copied more than twice, move them into a composite action (a reusable group of steps, in `.github/actions/setup/action.yml`).
+
+**Blocking the merge.** In the repository's Settings, open **Rules → Rulesets** (or the older **Branches → Branch protection rules**) and create a rule for `main`:
+
+1. **Require a pull request before merging**, so nobody pushes straight to `main`.
+2. **Require status checks to pass**, and add `lint`, `typecheck`, `test` and `build`. The names are the job ids above, which is why they should be short and stable.
+3. **Require branches to be up to date before merging**, or turn on the **merge queue**, which tests each PR combined with the ones queued ahead of it. The merge queue is why the workflow listens to `merge_group`: without that trigger the queue waits for a check that never starts.
+4. **Block force pushes** to `main`.
+
+**The mistakes that come up in reviews and interviews:**
+
+- **A required check that never runs blocks the PR forever.** If the workflow has a `paths:` filter (for example "only run when `src/` changes"), a docs-only PR never produces the `test` check, and GitHub shows it as *Expected, waiting for status* until someone overrides it. Do not path-filter required workflows. If you need to skip work, let the job run and skip its steps.
+- **Renaming a job silently breaks the rule.** The ruleset still requires `test`, the workflow now reports `unit-tests`, and every PR waits. Rename both together.
+- **`pull_request_target` is not a fix for missing secrets.** PRs from forks get no secrets and a read-only token, by design. `pull_request_target` runs with the base repository's secrets and write token, so checking out the PR's code in it runs a stranger's code with your credentials. Keep tests on `pull_request`.
+- **Pin third-party actions to a full commit SHA** (`uses: some-org/action@3f1c…`), because a tag like `@v2` can be moved to point at different code, and let Dependabot propose updates. Official `actions/*` pinned by major version is a common, accepted compromise.
+- **Keep it fast.** Past ten minutes people stop waiting for CI and start merging around it. Cache dependencies, run jobs in parallel, shard slow test suites across machines (`vitest run --shard=1/3`), and move end-to-end tests to a separate, non-blocking or nightly workflow if they are slow and flaky.
+- **Local hooks are a convenience, CI is the gate.** A pre-push hook that runs the same checks catches problems in seconds, but `--no-verify` skips it, so only the required check actually guarantees anything. This app does exactly that: `npm run verify` runs six gates locally in a pre-push hook, and the deploy workflow runs the same six.
+
+**The CD half, briefly:** a `deploy` job runs only on `push` to `main`, declares `needs: [lint, typecheck, test, build]`, and targets a GitHub **environment** (`environment: production`), which can require a reviewer's approval and holds that environment's secrets. Cloud credentials come from **OIDC** (the cloud trusts GitHub's short-lived identity token), not a long-lived access key stored as a secret. Many teams also deploy a **preview** of every PR to its own URL, so reviewers can click through the change. Interview Q84 walks through the whole pipeline.
+
+
+---
+
 ## 16. React 19 Features
 
 ### 16.1 React Compiler (stable since 1.0)
 
-React Compiler reached **1.0 on 7 October 2025** and is production-ready for both React and React Native. It is a build-time optimising compiler that inserts memoization for you, so `useMemo`, `useCallback` and `React.memo` become unnecessary in most components.
+**Short answer:** React Compiler is a build step that adds memoization to your components for you. It works out which values in a component can change between renders, and caches everything else, so in the components it can compile you no longer write `useMemo`, `useCallback` or `React.memo` by hand. It reached **1.0 on 7 October 2025**, works with React 17, 18 and 19, and is production-ready for React and React Native.
 
-```bash
+**The problem it solves.** A component re-runs on every render. Objects, arrays and functions created inside it are new each time, so a `memo` child sees "new" props and re-renders, and an effect with that value in its dependency array re-runs. The manual fix, wrapping values in `useMemo`/`useCallback` and children in `memo`, is tedious, easy to get subtly wrong (one unstable prop defeats it), and clutters the code (§13.2, Q64). The compiler does that bookkeeping for you, and more precisely.
+
+**What it actually outputs.** Take this component:
+
+```text
+function Greeting({ user, onLogout }) {
+  const name = user.firstName + ' ' + user.lastName;
+  return <Header title={name} onLogout={onLogout} />;
+}
+```
+
+The compiled version (simplified) keeps a small **cache array per component instance**, and recomputes each piece only when the values it depends on have changed:
+
+```text
+import { c as _c } from 'react/compiler-runtime';
+
+function Greeting({ user, onLogout }) {
+  const $ = _c(5);                       // a cache with 5 slots, kept between renders
+  let name;
+  if ($[0] !== user) {                   // user changed? recompute and store
+    name = user.firstName + ' ' + user.lastName;
+    $[0] = user; $[1] = name;
+  } else {
+    name = $[1];                          // unchanged: reuse the cached value
+  }
+  let header;
+  if ($[2] !== name || $[3] !== onLogout) {
+    header = <Header title={name} onLogout={onLogout} />;
+    $[2] = name; $[3] = onLogout; $[4] = header;
+  } else {
+    header = $[4];                        // same element object, so React skips Header
+  }
+  return header;
+}
+```
+
+Two things follow from that shape, and they are why it is better than hand-written memoization:
+
+- **It is finer-grained.** It caches individual values and individual JSX elements, not just whatever you happened to wrap in a hook. Returning the *same element object* is what lets React skip re-rendering `Header`, without `Header` being wrapped in `memo`.
+- **It can memoize after an early return.** Hooks cannot be called conditionally, so `useMemo` can never come after `if (!props.items) return null;`. The compiler is not a hook, so it can.
+
+**How it works.** It ships as a Babel plugin but does its own analysis: it turns your code into an internal representation (a control-flow graph, which it calls HIR) and runs data-flow analysis over it to learn which values each piece depends on and which of them can change. That is how it knows `name` only depends on `user`.
+
+**The rules it depends on, and what happens when you break them.** This is the part interviewers press on. The compiler only optimises a component when its analysis shows the component follows the **Rules of React**:
+
+- **Pure rendering:** same props and state in, same JSX out; no side effects while rendering.
+- **No mutation** of props, state or hook return values, such as pushing into a prop array during render.
+- **Rules of Hooks:** hooks at the top level, in the same order every render (Q47).
+
+When it cannot prove a component follows them, it **skips that component and leaves it as it was**. Nothing crashes. The component just gets no benefit, silently, which is easy to miss. That makes adopting the compiler mostly a lint exercise. The compiler's checks are built into **`eslint-plugin-react-hooks`** (7.x at the time of writing; its `recommended` preset includes them, and `recommended-latest` adds newer experimental ones), so the linter points at the code that would be skipped.
+
+**Setting it up.** Install it with an exact version:
+
+```text
 npm install --save-dev --save-exact babel-plugin-react-compiler@latest
 ```
 
-```js
-// vite.config.js
-export default {
-  plugins: [react({ babel: { plugins: ['babel-plugin-react-compiler'] } })],
-};
-```
+`--save-exact` is deliberate. A future compiler version may memoize at a different granularity, and if some component quietly breaks the rules, that can change how often an effect fires. Pin the version and upgrade on purpose, with tests.
 
-**How it works.** Despite shipping as a Babel plugin, the compiler is largely decoupled from Babel: it takes Babel's AST and lowers it into its own **HIR** (high-level intermediate representation), runs data-flow analysis to determine exactly which values a component reads and which of those can change, and then emits code that caches each intermediate value in a hidden slot array keyed by its real dependencies. The result is *finer-grained* than hand-written memoization — it can memoize a single JSX subtree or one property access, where `useMemo` only works at whatever boundary you happened to wrap.
+- **Vite 8 (`@vitejs/plugin-react` v6, which no longer runs Babel itself):** add Babel back just for the compiler.
 
-Meta's reported results: up to **12% faster** initial load and navigation, and some interactions over **2.5× faster**, with no memory increase.
+  ```text
+  // vite.config.js
+  import { defineConfig } from 'vite';
+  import react, { reactCompilerPreset } from '@vitejs/plugin-react';
+  import babel from '@rolldown/plugin-babel';   // npm install -D @rolldown/plugin-babel
 
-**The rules it depends on.** This is the part interviewers press on, because the compiler is not magic — it is a *conditional* optimisation. It only compiles a component when it can prove the component follows the Rules of React:
+  export default defineConfig({
+    plugins: [react(), babel({ presets: [reactCompilerPreset()] })],
+  });
+  ```
 
-- **Purity** — rendering must be idempotent. Same props and state in, same JSX out, no side effects during render.
-- **Immutability** — props, state and hook return values must not be mutated. Pushing into a prop array during render breaks the analysis.
-- **Rules of Hooks** — hooks called unconditionally, at the top level, in the same order.
+- **Older Vite (`@vitejs/plugin-react` v5 and earlier):** `react({ babel: { plugins: ['babel-plugin-react-compiler'] } })`.
+- **Next.js:** `reactCompiler: true` in `next.config`. **Expo SDK 54+:** on by default.
+- **React 17 or 18:** also install `react-compiler-runtime` and set the compiler's `target` option to your React version.
 
-When the compiler cannot prove those hold, it **bails out and skips that component**, silently leaving it unoptimised. So a codebase that violates the rules doesn't crash — it just quietly gets no benefit, which is much harder to notice. This is why compiler adoption is really a *lint* project: the compiler-powered rules ship in **`eslint-plugin-react-hooks` v6** (recommended preset, flat config by default), and they tell you which components bailed out and why. The correct rollout order is lint first, fix violations, then enable the compiler.
+**Checking that it worked.** In React DevTools, compiled components show a **"Memo ✨"** badge next to their name. A component without the badge was skipped, which is your cue to look at what the linter says about it. To exclude one component on purpose (while you fix it, for example), put the directive `"use no memo";` as the first line of its body.
 
-**What it does not do.** It does not replace `useTransition`, `useDeferredValue`, virtualization, or code splitting — those solve scheduling and payload problems, not re-render problems. It does not fix a component that re-renders because you recreate a context value every render at the provider. And it does not help across the network boundary.
+**Rolling it out on an existing app:**
 
-**Migration guidance:** don't strip existing `useMemo`/`useCallback` calls preemptively — they are harmless once the compiler is on, and removing them in bulk is a large, risky diff for no measurable win. Stop *adding* new ones instead, and delete them opportunistically when you're already editing the file. Two cases still need manual memoization even with the compiler: a value whose referential identity is part of an external contract (a dependency array in a third-party hook), and a genuinely expensive computation you want cached across props changes the compiler considers relevant.
+1. Turn on the lint rules and fix what they report: mutation during render, side effects in render, conditional hooks.
+2. Enable the compiler, either everywhere or for one directory first.
+3. Check the ✨ badges on your important screens, and profile before and after (Q20).
+4. **Leave existing `useMemo`/`useCallback` alone.** They do no harm with the compiler on, and removing them in bulk is a large, risky diff that can change what gets memoized. Stop adding new ones, and remove old ones only when you are already editing that code.
+
+Meta reported that on the Quest Store, initial loads and page navigations became up to **12%** faster and some interactions over **2.5×** faster, with memory use unchanged.
+
+**What it does not do.** It does not replace `useTransition`/`useDeferredValue` (those decide *when* work runs), virtualisation (too many DOM nodes) or code splitting (too much JavaScript). It cannot help a component that re-renders because its parent passes a genuinely new value each time, such as a context provider that builds a fresh object on every render from state that really changed. And `useMemo`/`useRef` still have a job when an outside API needs the *same* object across renders as a matter of correctness, not speed (Q27).
 
 ---
 
 ### 16.2 Actions and useActionState
 
-`Actions` are React 19's answer to form handling and async mutations — they replace the manual loading/error state patterns most devs have rebuilt a hundred times.
+In React 19, an **Action** is an async function that React runs inside a transition — typically the function that handles a form submission or a mutation. Because React is running it, React can track whether it is still pending and what it returned, which replaces the `isLoading` / `error` `useState` pair you would otherwise write by hand for every form. `useActionState` is the hook that exposes that tracking.
 
 ```tsx
 function UpdateName() {
@@ -3637,6 +4096,11 @@ The contract: pass an async function and an initial state; React gives you back 
 The companion to `useActionState`. It reads the submission status of the **nearest enclosing `<form>` from inside any descendant component** — without prop-drilling.
 
 ```tsx
+import { useFormStatus } from 'react-dom';
+
+// stand-in so this example runs on its own: a fake server call that takes a second
+const updateProfile = (formData: FormData) => new Promise((resolve) => setTimeout(resolve, 1000));
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   return <button disabled={pending}>{pending ? 'Saving…' : 'Save'}</button>;
@@ -3660,9 +4124,14 @@ The triad to remember as one concept: **`useActionState`** (form-level state mac
 
 `use` reads a resource — a promise or a context — during render. It is the one API in React that is **not bound by the rules of hooks**: it can be called inside an `if`, inside a loop, or after an early return.
 
-That exemption is not an inconsistency. The rules exist because `useState` and friends are matched to their stored state **by call order** (§15.9), so a conditional hook shifts every slot after it. `use` reserves no slot — a promise identifies itself, and a context is looked up on the fiber — so there is no ordering to corrupt.
+That exemption is not an inconsistency. The rules exist because `useState` and friends are matched to their stored state **by call order** (see Q47), so a conditional hook shifts every slot after it. `use` reserves no slot — a promise identifies itself, and a context is looked up on the fiber — so there is no ordering to corrupt.
 
 ```tsx
+// stand-ins so this example runs on its own
+const ThemeContext = createContext('dark');
+const commentsPromise = new Promise<Comment[]>((resolve) =>
+  setTimeout(() => resolve([{ id: 1, text: 'First!' }, { id: 2, text: 'Great post' }]), 500));
+
 // Read a promise during render (with Suspense)
 function Comments({ commentsPromise }: { commentsPromise: Promise<Comment[]> }) {
   const comments = use(commentsPromise);   // suspends until it resolves
@@ -3673,17 +4142,27 @@ function Comments({ commentsPromise }: { commentsPromise: Promise<Comment[]> }) 
 function Theme({ isEnabled }: { isEnabled: boolean }) {
   if (isEnabled) {
     const theme = use(ThemeContext);
-    return <div className={theme} />;
+    return <div className={theme}>Theme: {theme}</div>;
   }
   return null;
 }
+
+function Demo() {
+  return (
+    <Suspense fallback={<p>Loading comments…</p>}>
+      <Comments commentsPromise={commentsPromise} />
+      <Theme isEnabled />
+    </Suspense>
+  );
+}
+render(<Demo />);
 ```
 
 **With a promise, `use` suspends.** The component stops rendering, the nearest `<Suspense>` shows its fallback, and React retries when the promise resolves. A rejection propagates to the nearest error boundary. So the loading and error states are the boundaries you already have, not two more pieces of component state.
 
 **The pitfall that costs people an afternoon: never create the promise during render.**
 
-```tsx
+```text
 // ✗ Infinite loop. A new promise every render, so `use` suspends every render.
 function Comments() {
   const comments = use(fetch('/api/comments').then(r => r.json()));
@@ -3710,6 +4189,9 @@ React has to be able to recognise the promise it suspended on. A fresh one each 
 The automatic part is the whole value. Hand-rolled optimistic UI means holding a second copy of the list, merging it with the real one, and — the part that always rots — unwinding it correctly when the request fails. `useOptimistic` reverts on its own, on success *and* on error, because the optimistic value only exists for the lifetime of the action.
 
 ```tsx
+// stand-in so this example runs on its own: a fake server call
+const api = { createTodo: (todo: { title: string }) => new Promise((resolve) => setTimeout(resolve, 1000)) };
+
 function TodoList({ todos }: { todos: Todo[] }) {
   const [optimisticTodos, addOptimisticTodo] = useOptimistic(
     todos,
@@ -3737,6 +4219,10 @@ function TodoList({ todos }: { todos: Todo[] }) {
     </form>
   );
 }
+
+// The todos prop is never refreshed here, so a new row fades in and then
+// disappears when the action ends: the failure mode described below.
+render(<TodoList todos={[{ id: '1', title: 'Read about useOptimistic' }]} />);
 ```
 
 **How the two arguments work.** The first is the real state — whatever you would render if nothing were pending. The second is a reducer, `(currentState, optimisticValue) => nextState`, and it must be pure: return a new array, never push into `state`. While no action is running, `optimisticTodos` **is** `todos`; the reducer is not involved at all.
@@ -3752,11 +4238,17 @@ function TodoList({ todos }: { todos: Todo[] }) {
 Shipped stable in **React 19.2**. `<Activity />` lets you mark a part of the tree as `visible` or `hidden`. A hidden activity **keeps its state** but has its **effects destroyed** — so timers stop, subscriptions close, and nothing keeps running in the background. When it becomes visible again, React restores the saved state and **re-creates the effects**.
 
 ```tsx
+// stand-ins so this example runs on its own
+const HomeTab = () => <p>Home</p>;
+const SearchTab = () => <input placeholder="Type here, switch tabs, come back" />;
+
 function App() {
   const [tab, setTab] = useState('home');
 
   return (
     <>
+      <button onClick={() => setTab('home')}>Home</button>
+      <button onClick={() => setTab('search')}>Search</button>
       <Activity mode={tab === 'home' ? 'visible' : 'hidden'}>
         <HomeTab />
       </Activity>
@@ -3796,6 +4288,17 @@ Also stable in **React 19.2**, and the direct answer to the single most common `
 Consider a chat room that connects to a socket and shows a toast on connect:
 
 ```tsx
+// stand-ins so this example runs on its own
+const createConnection = (roomId) => {
+  let onConnected = () => {};
+  return {
+    on: (_event, fn) => { onConnected = fn; },
+    connect: () => { console.log('connect', roomId); setTimeout(() => onConnected(), 100); },
+    disconnect: () => console.log('disconnect', roomId),
+  };
+};
+const showToast = (message, theme) => console.log(message, '(' + theme + ' toast)');
+
 // The problem: theme is used in the callback, so the linter demands it in deps —
 // and now changing the theme tears down and rebuilds the connection.
 function ChatRoom({ roomId, theme }) {
@@ -3806,6 +4309,17 @@ function ChatRoom({ roomId, theme }) {
     return () => conn.disconnect();
   }, [roomId, theme]);   // ← theme should not be here, but removing it lies to the linter
 }
+
+function Demo() {
+  const [theme, setTheme] = useState('light');
+  return (
+    <>
+      <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>Theme: {theme}</button>
+      <ChatRoom roomId="general" theme={theme} />
+    </>
+  );
+}
+render(<Demo />);
 ```
 
 Every workaround for this was bad. Omitting `theme` from the deps array suppresses a real warning and captures a stale value. Adding it reconnects the socket on an unrelated UI change. A `useRef` mirror of `theme` works but is three lines of ceremony per value and is easy to get out of sync.
@@ -3813,6 +4327,17 @@ Every workaround for this was bad. Omitting `theme` from the deps array suppress
 `useEffectEvent` splits the callback into a **reactive** part (the effect) and a **non-reactive** part (the event):
 
 ```tsx
+// stand-ins so this example runs on its own
+const createConnection = (roomId) => {
+  let onConnected = () => {};
+  return {
+    on: (_event, fn) => { onConnected = fn; },
+    connect: () => { console.log('connect', roomId); setTimeout(() => onConnected(), 100); },
+    disconnect: () => console.log('disconnect', roomId),
+  };
+};
+const showToast = (message, theme) => console.log(message, '(' + theme + ' toast)');
+
 function ChatRoom({ roomId, theme }) {
   const onConnected = useEffectEvent(() => {
     showToast('Connected!', theme);   // always reads the latest theme
@@ -3825,6 +4350,17 @@ function ChatRoom({ roomId, theme }) {
     return () => conn.disconnect();
   }, [roomId]);   // ← honest and complete: only roomId is reactive
 }
+
+function Demo() {
+  const [theme, setTheme] = useState('light');
+  return (
+    <>
+      <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>Theme: {theme}</button>
+      <ChatRoom roomId="general" theme={theme} />
+    </>
+  );
+}
+render(<Demo />);
 ```
 
 The function returned by `useEffectEvent` is **stable across renders** (so it never needs to be a dependency) but its body always sees the **latest** props and state (so it is never stale). It gives you the two properties that `useCallback` and `useRef` could only ever give you one of at a time.
@@ -3832,7 +4368,7 @@ The function returned by `useEffectEvent` is **stable across renders** (so it ne
 Rules that come up as interview questions:
 
 - It may only be **called from inside an effect** (or another effect event), never during render and never passed to a child as a prop. Doing so is a lint error, because a value that is stable *and* always-fresh has no consistent meaning during render.
-- The linter in `eslint-plugin-react-hooks` v6 **knows** about it and correctly omits effect events from dependency arrays — that tooling support is what makes it usable rather than another footgun.
+- The linter in `eslint-plugin-react-hooks` (6.1 and later) **knows** about it and correctly omits effect events from dependency arrays — that tooling support is what makes it usable rather than another footgun.
 - The mental test: *does this logic describe when to synchronise (reactive → dependency), or what to do when something happens (non-reactive → effect event)?* Connecting to `roomId` is synchronisation. Showing a toast is an event.
 
 This complements — not replaces — §7.4's advice. The first question is still "should this be an effect at all?" `useEffectEvent` is for the effects that survive that question.
@@ -3909,7 +4445,17 @@ Two long-standing APIs now have simpler forms, with the old ones slated for remo
 function MyInput({ placeholder, ref }) {
   return <input placeholder={placeholder} ref={ref} />;
 }
-<MyInput ref={inputRef} />
+
+function Demo() {
+  const inputRef = useRef(null);
+  return (
+    <>
+      <MyInput placeholder="Name" ref={inputRef} />
+      <button onClick={() => inputRef.current.focus()}>Focus the input</button>
+    </>
+  );
+}
+render(<Demo />);
 ```
 
 Note `ref` on a **class** component is still the instance, not a prop.
@@ -3917,7 +4463,20 @@ Note `ref` on a **class** component is still the instance, not a prop.
 ```jsx
 // <Context> is its own provider
 const ThemeContext = createContext('');
-<ThemeContext value="dark">{children}</ThemeContext>    // not <ThemeContext.Provider>
+
+function App() {
+  return (
+    // not <ThemeContext.Provider>
+    <ThemeContext value="dark">
+      <Toolbar />
+    </ThemeContext>
+  );
+}
+
+function Toolbar() {
+  return <p>Theme: {useContext(ThemeContext)}</p>;
+}
+render(<App />);
 ```
 
 Both have codemods, and both old forms (`forwardRef`, `<Context.Provider>`) will be removed in a future major.
@@ -3960,17 +4519,131 @@ This deprecates the old pattern of React calling your ref with `null` on unmount
 
 ### 16.10 Where React Actually Is — Versions and Experimental Status
 
-Interviewers ask this to check whether you track the ecosystem or just repeat blog posts.
+Interviewers ask this to check whether you follow the ecosystem or repeat old blog posts. As of September 2026:
 
 | Feature | Status |
 |---|---|
-| **Latest stable** | React **19.2.x** (19.2 shipped Oct 2025; patch releases through 2026). There is no 19.3 or 20 |
-| **React Compiler** | **1.0, stable** (Oct 2025). Production-ready, opt-in |
-| **`eslint-plugin-react-hooks`** | **v6** — flat config by default, includes compiler-powered rules |
-| **`<Activity />`, `useEffectEvent`, `cacheSignal`, Partial Pre-rendering** | **Stable in 19.2** |
-| **`<ViewTransition>`, `addTransitionType`, Fragment Refs** | **Canary only** — still experimental |
+| **Latest stable** | React **19.3** (9 September 2026). Before it, 19.2 (October 2025) and its patch releases |
+| **`<ViewTransition>`, `addTransitionType`, Fragment Refs** | **Stable in 19.3** (they were Canary-only through 19.2) |
+| **`browser()` in `react-dom`, Trusted Types support** | **New and stable in 19.3** |
+| **`<Activity />`, `useEffectEvent`, `cacheSignal`, Partial Pre-rendering** | Stable since 19.2 |
+| **React Compiler** | **1.0, stable** (October 2025). Opt-in; on by default in Expo SDK 54+ |
+| **`eslint-plugin-react-hooks`** | **7.x**. Flat config is the default preset; `recommended` includes the compiler-powered rules |
+| **Governance** | React moved to the **React Foundation**, hosted by the Linux Foundation (February 2026) |
 
-That last row is the one worth being careful about. A great deal of 2026 writing treats `<ViewTransition>` as shipped because it appears in React Labs posts and in canary-tracking frameworks. It is not in a stable release. The correct answer to "how would you animate a route transition in React today?" is either the **browser's** View Transitions API (`document.startViewTransition`) driven from your router, or your framework's wrapper — not React's `<ViewTransition>`, unless you have deliberately pinned a canary.
+**The trap in this area is dates.** A great deal of writing from 2025 and early 2026 correctly said `<ViewTransition>` was experimental, and it is now stable. The reverse mistake was just as common before September 2026: treating it as shipped because it appeared in React Labs posts. When you mention a React feature in an interview, say which version it arrived in. §16.11 covers what 19.3 added.
+
+---
+
+### 16.11 React 19.3 — What's New (September 2026)
+
+**Short answer:** 19.3 is mostly about **animation and DOM control**. `<ViewTransition>` animates elements as they enter, leave, move or change, using the browser's View Transitions API; Fragment Refs let you reach the DOM nodes of a group of siblings without adding a wrapper element; `browser()` marks a component as client-only during server rendering; and React now works with the browser's Trusted Types protection against XSS. There are no removals or breaking changes.
+
+#### `<ViewTransition>`: animate UI changes
+
+Wrap part of the tree in `<ViewTransition>` and React animates it when a **Transition** changes it. By default the animation is a cross-fade; you customise it with CSS.
+
+```tsx
+// In a real file: import { ViewTransition, startTransition, useState } from 'react';
+const PHOTOS = [
+  { id: 'p1', label: 'Mountains', color: '#2563eb' },
+  { id: 'p2', label: 'Forest', color: '#16a34a' },
+  { id: 'p3', label: 'Desert', color: '#d97706' },
+];
+
+function Gallery() {
+  const [index, setIndex] = useState(0);
+  const photo = PHOTOS[index];
+  // A Transition, so <ViewTransition> animates it. A plain setIndex would not.
+  const next = () => startTransition(() => setIndex((i) => (i + 1) % PHOTOS.length));
+
+  return (
+    <div>
+      {/* A new key means the old slide EXITS and the new one ENTERS, so React cross-fades them. */}
+      <ViewTransition key={photo.id}>
+        <div style={{ width: 240, height: 140, borderRadius: 8, background: photo.color, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 20 }}>
+          {photo.label}
+        </div>
+      </ViewTransition>
+      <button onClick={next} style={{ marginTop: 12 }}>Next</button>
+    </div>
+  );
+}
+
+render(<Gallery />);
+```
+
+What makes it different from animating by hand:
+
+- **It animates four kinds of change:** *enter* (the `<ViewTransition>` was added), *exit* (it was removed, and React keeps it on screen long enough to animate it out, which is the part that is hard to do yourself), *update* (its contents changed) and *share* (an element with the same `name` disappears in one place and appears in another, such as a thumbnail growing into a full-size image).
+- **It only runs for updates marked as Transitions:** `startTransition`, a `<Suspense>` boundary revealing its content, or `useDeferredValue`. An ordinary `setState` does not animate. That is deliberate: urgent updates such as typing should never wait for an animation.
+- **It works with Suspense.** A `<ViewTransition>` around a `<Suspense>` boundary animates the switch from the fallback to the real content. The recommended pattern is: the fallback appears straight away with no animation, and the switch to the loaded content animates.
+- **`addTransitionType('next')`** inside `startTransition` labels *why* the change happened, so the same update can slide left for "next" and right for "previous", with `enter`/`exit` props mapping each type to a CSS class.
+
+It is DOM-only for now; React Native support is in progress. Before 19.3, the way to do this was the browser's `document.startViewTransition()` driven from your router, which still works and is covered in the Modern CSS guide.
+
+#### Fragment Refs: reach a group of elements without a wrapper
+
+A component that renders several siblings has no single DOM node to put a ref on, and adding a wrapper `<div>` can break a flex or grid layout. In 19.3, `<Fragment ref={ref}>` gives you a **FragmentInstance** that acts on its children:
+
+```tsx
+// In a real file: import { Fragment, useRef, useEffect } from 'react';
+function ResultRow({ item }) {
+  return <button style={{ display: 'block', margin: '4px 0' }}>{item.title}</button>;
+}
+
+function Results({ items }) {
+  const groupRef = useRef(null);
+  useEffect(() => {
+    groupRef.current.focus();                    // focuses the first focusable child: "First result"
+  }, []);
+  return (
+    <Fragment ref={groupRef}>
+      {items.map((item) => <ResultRow key={item.id} item={item} />)}
+    </Fragment>
+  );
+}
+
+render(<Results items={[{ id: 1, title: 'First result' }, { id: 2, title: 'Second result' }]} />);
+```
+
+A FragmentInstance can `addEventListener`/`removeEventListener` on all its children, `focus()`/`focusLast()`/`blur()`, attach an `IntersectionObserver` or `ResizeObserver` with `observeUsing()`, and measure or scroll (`getClientRects()`, `scrollIntoView()`). The benefit is attaching behaviour to children you did not write, without changing their DOM.
+
+#### `browser()`: client-only components without hydration errors
+
+Some components can only render in the browser: they read `localStorage`, `window`, or the user's time zone. Rendering them on the server either crashes or produces HTML that does not match the client, which is a hydration mismatch (Q35). The usual workaround was a `mounted` flag set in an effect, which renders twice.
+
+```tsx
+// In a real file: import { use, Suspense } from 'react'; import { browser } from 'react-dom';
+function LocalTime() {
+  use(browser());                                // on the server: suspend, show the Suspense fallback
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return <p>Your time zone: {zone}</p>;
+}
+
+render(
+  <Suspense fallback={<p>Loading your time zone…</p>}>
+    <LocalTime />
+  </Suspense>
+);
+```
+
+On the server, `use(browser())` suspends, so the nearest `<Suspense>` fallback is sent in the HTML. On the client it does nothing, and the component renders normally. Like `use`, it can be called after an early return or inside a condition.
+
+#### Trusted Types
+
+Trusted Types is a browser feature that, when a site enables it with a Content Security Policy header, refuses to let raw strings reach dangerous places such as `innerHTML`. Only values created by an approved policy are allowed. Until 19.3, React converted every value to a plain string first, which stripped that approval and broke the protection. React now passes `TrustedHTML`, `TrustedScript` and `TrustedScriptURL` through unchanged, so a site can enforce Trusted Types and still use `dangerouslySetInnerHTML` safely (the Web Security guide covers Trusted Types).
+
+#### Smaller changes worth knowing
+
+- **Server Components can render a context directly:** `<UserContext value={user}>` from a Server Component, with no separate `'use client'` Provider wrapper.
+- **Transitions render independently** instead of being merged into one render, so a slow transition no longer holds back an unrelated one.
+- **StrictMode double-invokes effects during hydration** too, matching client-rendered apps, so the Q74 checks now cover server-rendered pages.
+- **A warning when `use` is called incorrectly inside a condition.**
+- **React DOM:** `onFullscreenChange`/`onFullscreenError` events, `onReset` when React resets a form after an action, `submit` events include the `submitter`, and `resize` updates are batched until the next frame.
+- Many fixes, including `useDeferredValue` getting stuck on an old value and `useEffectEvent` reading stale values inside `memo` and `forwardRef` components.
+
+**Upgrading:** 19.3 adds features without removing anything, so moving from 19.2 is a version bump. If you were on a Canary build to use `<ViewTransition>`, you can move back to a stable release.
 
 ---
 
@@ -3982,28 +4655,69 @@ That last row is the one worth being careful about. A great deal of 2026 writing
 
 **Q1: What is the Virtual DOM?**
 
-The Virtual DOM is a lightweight JavaScript representation of the actual DOM. When state changes:
-1. React creates a new Virtual DOM tree
-2. Diffs it against the previous one (reconciliation)
-3. Calculates the minimum set of changes needed
-4. Applies only those changes to the real DOM (commit phase)
+**Short answer:** the Virtual DOM is the plain JavaScript object tree your components return (React elements) — a cheap description of what the page should look like. React compares the new description with the previous one and changes the real DOM only where they differ.
 
-This is faster than directly manipulating the DOM because DOM operations are expensive, and batching/minimizing them improves performance.
+When state changes:
+1. React calls your components again and gets a new element tree
+2. Diffs it against the previous one (reconciliation, §14)
+3. Works out the smallest set of DOM changes that turns the old page into the new one
+4. Applies only those changes to the real DOM (the commit phase)
+
+**Why it exists:** creating and comparing JavaScript objects is cheap; touching the real DOM (and the layout and paint it triggers) is expensive. The Virtual DOM lets you write code as if you re-render the whole screen on every change, while React makes sure only the parts that differ actually hit the DOM.
+
+**The nuance worth volunteering:** it is not "faster than the DOM". Carefully hand-written DOM updates can beat it, because React does the diffing work on top of the DOM work. What it buys you is that the simple, declarative code is *fast enough* without you tracking every change by hand.
 
 ---
 
-**Q2: What is the difference between state and props?**
+**Q2: What is the difference between state, props and context?**
 
-- **Props**: External data passed from parent to child. Read-only. The child cannot modify them.
-- **State**: Internal data owned by the component. Mutable via `setState`/`useState`. Changes trigger re-renders.
+**Short answer:** **props** are inputs a parent passes to a child, **state** is data a component owns and can change, and **context** is data a component makes available to *everything* below it without passing it through each level.
 
-Props flow down (parent -> child). State is local. A parent's state often becomes a child's props.
+| Question | Props | State | Context |
+|---|---|---|---|
+| Who owns it | the parent | the component itself | the nearest `Provider` above |
+| Who can change it | only the parent (the child receives a read-only copy) | the component, with its setter | whoever owns the value given to the Provider |
+| How it travels | one level down, explicitly | stays put, unless passed down as props | skips levels: any descendant can read it |
+| Typical use | configuring a child: `label`, `onClick`, `items` | form input, open/closed, selected tab | theme, current user, language |
+
+They are not three separate kinds of data. They are three ways the *same* value can reach a component. In the example below, `theme` is **state** in `App`, it becomes the **context** value, and `Toolbar` passes `label` down as a **prop**.
+
+```tsx
+const ThemeContext = React.createContext('light');
+
+function App() {
+  const [theme, setTheme] = React.useState('dark');       // state: App owns it
+  return (
+    <ThemeContext.Provider value={theme}>                  {/* context: offered to everything below */}
+      <Toolbar />
+      <button onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>Switch theme</button>
+    </ThemeContext.Provider>
+  );
+}
+
+function Toolbar() {
+  return <ThemedButton label="Save" />;                   // prop: passed one level down
+}
+
+function ThemedButton({ label }) {
+  const theme = React.useContext(ThemeContext);           // read directly, no props in between
+  return <button style={{ background: theme === 'dark' ? '#333' : '#eee', color: theme === 'dark' ? '#fff' : '#000' }}>{label} ({theme})</button>;
+}
+
+render(<App />);
+```
+
+**When to use which.** Start with state in the component that needs it. If a child needs it, pass it as a prop. If many components at different depths need it and passing it through every level gets painful ("prop drilling"), move it into context.
+
+**The catch with context:** every component that reads a context re-renders whenever its value changes, and there is no way to subscribe to only part of it. That makes it great for values that rarely change (theme, user, locale) and a poor fit for fast-changing data. Q33 covers how to split a context, and the Zustand guide covers stores that let components subscribe to one field.
 
 ---
 
 **Q3: What is JSX?**
 
-JSX is a syntax extension for JavaScript that looks like HTML. It allows you to write UI structure directly in JavaScript. JSX is compiled to `React.createElement()` calls by tools like Babel or the TypeScript compiler.
+**Short answer:** JSX is HTML-like syntax inside JavaScript that a compiler (Babel, TypeScript, esbuild) turns into ordinary function calls. Browsers never see it.
+
+Each tag becomes a call that creates a React element, a plain object describing what to render. (Modern toolchains call `jsx()` from `react/jsx-runtime` rather than `React.createElement`, which is why you no longer need `import React` at the top of every file, but the idea is the same.) Knowing this explains JSX's rules: `{}` accepts an *expression* but not an `if` statement, because it becomes a function argument; you write `className` because the attributes become a JavaScript object and `class` is a reserved word; and a component must return a single root because a function returns one value.
 
 ```tsx
 <h1 className="title">Hello</h1>
@@ -4059,7 +4773,9 @@ const controlled = <input value={name} onChange={e => setName(e.target.value)} /
 const uncontrolled = <input ref={inputRef} defaultValue="" />;
 ```
 
-Controlled is preferred for most cases (validation, formatting, conditional disabling).
+**Short answer:** in a controlled input React state holds the value; in an uncontrolled input the DOM holds it and you read it when you need it.
+
+Controlled is the usual default because the value is always available in state, so you can validate as the user types, reformat input, or disable the submit button without touching the DOM. The cost is a re-render on every keystroke. Uncontrolled suits simple forms read only on submit, file inputs (which are always uncontrolled), and non-React widgets. The mistake to avoid is switching one input between the two, for example by passing `value={undefined}` at first and a string later — React warns because it no longer knows who owns the value.
 
 ---
 
@@ -4069,7 +4785,9 @@ Controlled is preferred for most cases (validation, formatting, conditional disa
 
 **Q6: Explain the useEffect hook and its dependency array.**
 
-`useEffect` runs side effects after render. The dependency array controls when:
+**Short answer:** `useEffect` runs code after React has updated the screen, to keep something *outside* React (a subscription, a timer, the document title, a non-React widget) in sync with your props and state. The dependency array lists the values that sync depends on, and React re-runs the effect only when one of them changes.
+
+The dependency array controls when it runs:
 
 - **No array**: runs after every render
 - **Empty array `[]`**: runs once on mount, cleanup on unmount
@@ -4082,27 +4800,30 @@ useEffect(() => {
 }, [userId]);                               // re-run when userId changes
 ```
 
-The cleanup function runs before the next effect and on unmount — used for unsubscribing, clearing timers, cancelling requests.
+The cleanup function runs before the next effect and on unmount — used for unsubscribing, clearing timers, cancelling requests. Think of each run as "connect to `userId`" and each cleanup as "disconnect from the old `userId`": when `userId` changes, React disconnects the old one before connecting the new one.
+
+The dependency array must list **every** prop or state value the effect reads. Leaving one out does not mean "don't re-run"; it means the effect keeps using the value from an old render (a stale closure). §7.3 shows the three classic bugs.
 
 ---
 
 **Q7: What is the difference between useMemo and useCallback?**
 
-Both memoize values to avoid unnecessary recalculation:
+**Short answer:** `useMemo` caches the *result* of a function; `useCallback` caches the *function itself*. Both return the cached thing until a dependency changes.
+
 - `useMemo(() => value, [deps])`: Memoizes a **computed value**
 - `useCallback((args) => fn(args), [deps])`: Memoizes a **function reference**
 
 `useCallback(fn, deps)` is equivalent to `useMemo(() => fn, deps)`.
 
-Use `useMemo` for expensive computations. Use `useCallback` when passing callbacks to memoized children (with React.memo) to prevent unnecessary re-renders.
+Use `useMemo` for expensive computations, or to keep an object's reference stable. Use `useCallback` when passing a callback to a child wrapped in `React.memo`: a function written inline is a new object on every render, so the memoized child would see a "changed" prop and re-render anyway. Without a memoized consumer, `useCallback` buys nothing.
 
-Note: With the React Compiler (React 19+), manual memoization is often unnecessary.
+Note: with the React Compiler enabled, manual memoization is often unnecessary — for the components it manages to compile (§16.1).
 
 ---
 
 **Q8: How does React reconciliation work?**
 
-Reconciliation is React's algorithm for efficiently updating the DOM:
+**Short answer:** reconciliation is how React works out what changed. It compares the element tree from this render with the one from the last render and turns the differences into DOM updates. A perfect tree comparison is far too slow, so React takes shortcuts that are right in practice.
 
 1. When state/props change, React creates a new Virtual DOM tree
 2. Compares it with the previous tree (diffing)
@@ -4112,18 +4833,20 @@ Reconciliation is React's algorithm for efficiently updating the DOM:
    - Keys help match elements in lists (reorder instead of recreate)
 4. Batches all DOM updates and applies them in one commit
 
+The shortcut with consequences: an element of a different type (say `<div>` becoming `<section>`, or `<ProfileA>` becoming `<ProfileB>`) is never compared in detail — React throws away the old subtree, **including its state**, and builds a new one. §14 covers the algorithm and Fiber.
+
 ---
 
 **Q9: Explain the Context API and when to use it.**
 
-Context provides a way to pass data through the component tree without prop drilling. It consists of:
+**Short answer:** Context lets a component make a value available to every component below it, so you do not have to pass it as a prop through each layer in between ("prop drilling"). It consists of:
 1. `createContext()` — creates the context
 2. `Context.Provider` — wraps components that need access
 3. `useContext()` — consumes the value
 
 Best for: theme, locale, auth user, feature flags — data that many components need but doesn't change frequently.
 
-Not ideal for: frequently updating data (every consumer re-renders on change). Use state management libraries for that.
+Not ideal for: frequently updating data. Every component that reads a context re-renders when its value changes, and it cannot subscribe to just one field of it, so a fast-changing value in a big context re-renders a lot of the tree. Stores such as Zustand let each component subscribe to only the field it reads (see Q33 and §11).
 
 ---
 
@@ -4148,41 +4871,98 @@ If you're not sure which to use, use `useEffect`.
 
 ---
 
-**Q11: How do you prevent unnecessary re-renders?**
+**Q11: How do you prevent unnecessary re-renders? What if a parent changes often and re-renders all its children?**
 
-1. **React.memo**: Skip re-render if props haven't changed
-2. **useMemo/useCallback**: Stabilize references passed as props
-3. **State colocation**: Keep state close to where it's used
-4. **Component splitting**: Break large components so state changes only affect relevant parts
-5. **Context splitting**: Separate frequently-changing context from stable context
-6. **Avoid inline objects/arrays in JSX**: `style={{ color: 'red' }}` creates new object every render
+**Short answer:** first measure, then fix the *structure* before reaching for `memo`. Most re-render problems disappear when the fast-changing state is moved to where it is used, so the expensive parts are no longer inside the component that changes.
 
-Profile with React DevTools Profiler before optimizing — premature optimization is the root of all evil.
+**Why children re-render at all.** When a component's state changes, React re-renders that component **and everything it renders**, whether or not their props changed. That is usually cheap and correct. It becomes a problem when a parent updates often (a timer, a text input, mouse position, a live feed) and one of its children is expensive.
+
+**The fixes, in the order to try them:**
+
+1. **Measure first.** React DevTools Profiler, with "Highlight updates when components render" switched on, shows what actually re-renders and how long it takes (Q26). Many "unnecessary" renders cost under a millisecond and are not worth any code.
+2. **Move the state down.** If only a small part of the page uses the changing value, put the state in a small component that owns just that part. The rest of the page no longer re-renders when it changes.
+3. **Lift the content up, and pass it as `children`.** When the state has to stay in a wrapper, pass the expensive part in from outside. The `children` element was created by the parent *above* the changing component, so it is the same element on every re-render, and React skips it.
+4. **`React.memo` with stable props.** Wrap the expensive child so it skips a re-render when its props are the same as last time. That only works if the props really are the same: an inline object, array or arrow function is new on every render, so stabilise those with `useMemo` and `useCallback` (Q7, Q66).
+5. **Split contexts** by how often they change, so a fast-changing value does not re-render every consumer of a slow one (Q33).
+6. **React Compiler** memoises automatically when it is enabled, which removes most of the manual `memo`/`useMemo`/`useCallback` work (Q27).
+
+Fix 3 surprises people most, so here it is running. Both versions have the same ticking state; only where the child is created differs.
+
+```tsx
+function Expensive({ label }) {
+  console.log('render', label);
+  return <p>{label}</p>;
+}
+
+function useTicks(count) {
+  const [tick, setTick] = React.useState(0);
+  React.useEffect(() => {
+    if (tick >= count) return;
+    const id = setTimeout(() => setTick((t) => t + 1), 10);
+    return () => clearTimeout(id);
+  }, [tick, count]);
+  return tick;
+}
+
+// The ticking state and the child live in the same component,
+// so every tick re-renders the child.
+function Before() {
+  const tick = useTicks(3);
+  return <div>tick {tick} <Expensive label="inside" /></div>;
+}
+
+// Same ticking state, but the child is created ABOVE it and passed in.
+function Ticker({ children }) {
+  const tick = useTicks(3);
+  return <div>tick {tick} {children}</div>;
+}
+function After() {
+  return <Ticker><Expensive label="as children" /></Ticker>;
+}
+
+render(<><Before /><After /></>);
+```
+
+```text
+render inside
+render as children
+render inside
+render inside
+render inside
+```
+
+`inside` renders four times (once on mount, then once per tick). `as children` renders once, even though its wrapper re-rendered three times, and there is no `memo` anywhere. This is the cheapest fix there is, and the one interviewers most like to hear.
 
 ---
 
-**Q12: Explain React Fiber architecture.**
+**Q12: Explain React Fiber architecture. How does it work internally, and why does it improve performance?**
 
-Fiber is React's internal reconciliation engine (since React 16). Key concepts:
+**Fiber is React's rendering engine since React 16. It turned rendering from one uninterruptible recursive call into a loop over small units of work that React can pause, prioritise and resume.** The old engine (the "stack reconciler") walked the whole component tree in one go; a big update blocked the main thread until it finished, so typing and clicks waited behind it. Fiber keeps the work in data structures instead of the call stack, which is what makes stopping halfway possible.
 
-- **Fiber node**: A unit of work representing a component. Each component has a fiber.
-- **Work loop**: Processes fibers incrementally, can pause and resume
-- **Priority scheduling**: High-priority updates (user input) interrupt low-priority updates (data fetching)
-- **Two phases**:
-  - **Render phase**: Builds new fiber tree, calculates changes (can be interrupted)
-  - **Commit phase**: Applies changes to DOM (cannot be interrupted, synchronous)
+**How it works internally:**
 
-Fiber enables: concurrent rendering, Suspense, transitions, and time-slicing.
+- **A fiber is a plain object, one per component instance or element.** It holds the component `type`, its `key`, the props it rendered with (`memoizedProps`) and the new ones (`pendingProps`), its state (for a function component, the linked list of its hooks in `memoizedState`), `flags` describing what the commit must do (insert, update, delete, run effects), and `lanes`, its pending priorities.
+- **The tree is linked by pointers, not nested calls:** `child` (first child), `sibling` (next sibling) and `return` (parent). Because the position is stored in the object, React can stop after any fiber and later continue from exactly there.
+- **Double buffering.** There are two trees: `current`, which matches the screen, and the **work-in-progress** tree being built. Each fiber points to its twin through `alternate`. React builds the new tree off to the side and, when it is complete, swaps the pointer: the work-in-progress tree becomes `current` in one step.
+- **The work loop has two halves per fiber.** `beginWork` on the way down calls the component (or skips it: if props, state and context are unchanged it **bails out** and reuses the old subtree), and `completeWork` on the way up prepares the DOM changes. Between fibers, in concurrent rendering, the loop asks the scheduler whether its time slice (about 5 ms) is used up; if so, it yields to the browser and resumes on the next task.
+- **Two phases.** The **render phase** (building the work-in-progress tree) is interruptible and may be thrown away and restarted if a more urgent update arrives, which is why rendering must be pure. The **commit phase** (applying the DOM changes, then running layout effects, then scheduling effects) is synchronous and cannot be interrupted, so the user never sees a half-updated screen.
+- **Lanes are priorities.** Each update is assigned a lane: discrete input such as a click or keypress gets the synchronous lane, `startTransition` gets a transition lane, and hidden or offscreen work gets idle. React always works on the most urgent lanes first, and can abandon a half-finished transition render to handle a keystroke.
+
+**Why it improves performance, stated precisely:** Fiber does not make React do *less* work, and a single render is not faster. It makes the work **interruptible and prioritised**, so the page stays responsive while expensive rendering happens: typing stays instant while a filtered list re-renders in a transition. That shows up as better responsiveness (INP, Interaction to Next Paint) rather than a faster total. It is also the foundation for everything concurrent: `useTransition`, `useDeferredValue`, Suspense, streaming SSR with selective hydration, and `<Activity>`.
+
+**The caveat worth volunteering:** the benefit only applies to updates rendered concurrently (inside `startTransition`, or deferred values). An ordinary `setState` from a click still renders synchronously to completion, so a component that takes 300 ms to render still blocks for 300 ms. The fix there is to make it cheaper or mark the update as a transition. §14.5–14.6 go deeper.
 
 ---
 
 **Q13: What are React Server Components (RSC)?**
 
-Server Components run on the server and send rendered HTML + serialized data to the client. They:
+**Short answer:** Server Components are components that run only on the server — at build time or per request — and send their *rendered output* to the browser, never their code. So a component that queries a database or imports a large markdown library adds nothing to the JavaScript bundle. The output travels as the RSC payload (a serialized description of the rendered tree) that React in the browser merges with Client Components.
+
+They:
 - Can access server resources directly (database, file system)
 - Don't add to the client JavaScript bundle
-- Cannot use state, effects, or event handlers
-- Can import and render Client Components
+- Cannot use state, effects, or event handlers — those need code running in the browser, which is exactly what a Server Component does not have
+- Can import and render Client Components (files marked `'use client'`), which is how interactive pieces are placed inside server-rendered pages
 
 ```tsx
 // Server Component (default in App Router)
@@ -4203,13 +4983,13 @@ function Counter() {
 
 **Q14: How would you handle global state without Redux?**
 
-Multiple approaches:
+**Short answer:** first split the state by kind. Data that comes from an API is *server state* and belongs in a fetching cache such as TanStack Query (formerly React Query). What is left is usually small, and for that Context + `useReducer` or a tiny store like Zustand is enough (§11.3).
 
-1. **Context + useReducer**: Built-in, good for moderate complexity
-2. **Zustand**: Minimal, hook-based, no provider needed
-3. **Jotai**: Atomic state model, bottom-up approach
-4. **React Query**: For server state (API data)
-5. **useSyncExternalStore**: Subscribe to external stores
+1. **Context + useReducer**: built in, no dependency. Fine for values that change rarely; every consumer re-renders when the value changes.
+2. **Zustand**: a store outside React that components read through a hook with a *selector* (`useStore(s => s.count)`), so a component re-renders only when the field it selected changes. No Provider needed.
+3. **Jotai**: state split into many small independent pieces ("atoms"); a component subscribes only to the atoms it reads.
+4. **TanStack Query**: for server state — caching, refetching, deduplicating requests and retries, which a general store would make you write yourself.
+5. **useSyncExternalStore**: the React hook the libraries above use to subscribe safely; reach for it directly only if you are writing your own store.
 
 ```tsx
 // Zustand example
@@ -4230,12 +5010,14 @@ function Counter() {
 
 **Q15: Explain the difference between `useTransition` and `useDeferredValue`.**
 
-Both mark updates as non-urgent (low priority), allowing urgent updates (like typing) to not be blocked.
+**Short answer:** both let React render an update at low priority, so urgent updates such as typing are never blocked. `useTransition` marks a **state update you trigger**; `useDeferredValue` marks a **value you receive**.
 
 - **useTransition**: Wraps a state update to mark it as non-urgent
   ```tsx
   const [isPending, startTransition] = useTransition();
-  startTransition(() => setSearchResults(expensiveFilter(query)));
+  // The callback itself runs immediately; only the state update inside it is low priority.
+  // So set the filter text here, and let the slow filtering happen in the interruptible render.
+  startTransition(() => setFilterText(query));
   ```
 
 - **useDeferredValue**: Defers a value — shows the old value while the new one is computing
@@ -4251,19 +5033,21 @@ Use `useTransition` when you control the state update. Use `useDeferredValue` wh
 
 **Q16: What is Suspense and how does it work?**
 
-Suspense lets components "wait" for something before rendering, showing a fallback in the meantime.
+**Short answer:** `<Suspense>` shows a fallback while something inside it is not ready yet (code still downloading, or data still loading), then swaps in the real content once it is.
 
 ```tsx
 <Suspense fallback={<Spinner />}>
-  <LazyComponent />                         // code splitting
-  <DataComponent />                         // data fetching (with use() or React Query)
+  <LazyComponent />                         {/* code splitting */}
+  <DataComponent />                         {/* data fetching (with use() or React Query) */}
 </Suspense>
 ```
 
 How it works internally:
-1. A child component "suspends" by throwing a Promise
-2. React catches it, shows the fallback
+1. A child component "suspends": it signals that it is waiting on a Promise. Classically this was done by throwing the Promise during render
+2. React catches it, shows the nearest fallback
 3. When the Promise resolves, React re-renders the child with the data
+
+You never throw a Promise yourself. `React.lazy`, `use()` and Suspense-enabled libraries (TanStack Query's `useSuspenseQuery`, framework data loaders) do it for you, and the exact mechanism is an internal detail React is free to change.
 
 Use cases: lazy loading, data fetching, nested loading states, streaming SSR.
 
@@ -4271,22 +5055,24 @@ Use cases: lazy loading, data fetching, nested loading states, streaming SSR.
 
 **Q17: How does the React Compiler work?**
 
-The React Compiler (React 19) automatically optimizes components at build time:
+**Short answer:** it is a build step that analyses each component, works out which values can change between renders, and adds a small cache so everything else is reused instead of recreated. The effect is the memoization you would otherwise write by hand with `useMemo`, `useCallback` and `memo`, applied automatically and more precisely.
 
-1. Analyzes component code at compile time
-2. Identifies values that need memoization
-3. Inserts `useMemo` and `useCallback` equivalents automatically
-4. Memoizes JSX elements that haven't changed
+What it does at build time:
 
-This means you no longer need to manually write `useMemo`, `useCallback`, or `React.memo` — the compiler handles it. It's a Babel plugin that runs during build.
+1. Turns each component into an internal representation and runs data-flow analysis on it, to learn what each value depends on.
+2. Emits code that keeps a **cache array per component instance** (`const $ = _c(n)`), and recomputes a value or rebuilds a JSX element only when something it depends on has changed.
+3. Returns the **same element object** when nothing changed, which is what lets React skip re-rendering that child, without the child needing `memo`.
 
-Requirements: Components must follow the rules of React (pure rendering, no side effects during render).
+It is finer-grained than hand-written memoization, and it can memoize after an early return, which `useMemo` cannot, because hooks cannot be called conditionally. §16.1 shows the compiled output.
+
+The part worth volunteering: it only compiles components that follow the Rules of React (pure rendering, no mutation of props or state, hooks at the top level). A component that breaks them is **silently skipped**, so "we turned the compiler on" does not mean every component got optimised. The lint rules in `eslint-plugin-react-hooks` point at the code that causes skips, and React DevTools shows a **"Memo ✨"** badge on the components that were compiled.
 
 ---
 
+
 **Q18: How would you implement error boundaries?**
 
-Error boundaries catch JavaScript errors in the component tree below them and display a fallback UI instead of crashing the whole app.
+**Short answer:** write a class component with `static getDerivedStateFromError` (to switch to a fallback) and usually `componentDidCatch` (to log), and wrap the parts of the tree that can fail. Error boundaries catch JavaScript errors in the component tree below them and display a fallback UI instead of crashing the whole app.
 
 ```tsx
 class ErrorBoundary extends React.Component<
@@ -4309,10 +5095,19 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+// stand-in so this example runs on its own: throws during render once clicked
+function RiskyComponent() {
+  const [broken, setBroken] = useState(false);
+  if (broken) throw new Error('Boom');
+  return <button onClick={() => setBroken(true)}>Break it</button>;
+}
+
 // Usage
-<ErrorBoundary fallback={<p>Something went wrong</p>}>
-  <RiskyComponent />
-</ErrorBoundary>
+render(
+  <ErrorBoundary fallback={<p>Something went wrong</p>}>
+    <RiskyComponent />
+  </ErrorBoundary>
+);
 ```
 
 Error boundaries must be class components (no hook equivalent yet). They catch rendering errors, lifecycle errors, and constructor errors — but NOT event handler errors, async errors, or SSR errors.
@@ -4370,12 +5165,14 @@ Things to chase down on every release:
 | Dev server | Bundles before serving | Native ESM, no bundling |
 | Cold start | Slow on big apps (seconds-to-minutes) | Sub-second |
 | HMR | Module-graph rebuild | Per-module, near-instant |
-| Production | Webpack itself | Rollup |
+| Production | Webpack itself | Rollup up to v7; Rolldown from v8 |
 | Config | Verbose, plugin-heavy | Minimal defaults |
 | Plugin ecosystem | Largest in JS tooling | Growing (Rollup-compatible) |
 
 **Pick Vite** for new projects, fast feedback loops, and standard React apps — it's the default in 2025+.
 **Pick Webpack** when you have heavy custom transforms (legacy Babel pipelines, Module Federation in micro-frontends), or when you're already deep into a Webpack codebase and migration risk outweighs the dev-experience win. Webpack 5's persistent caching narrowed the cold-start gap, but per-module HMR is still Vite's edge.
+
+Vite 8 (March 2026) replaced Rollup, and esbuild in development, with one Rust bundler, Rolldown, so dev and production now run through the same tool (see §13.9).
 
 ---
 
@@ -4387,7 +5184,7 @@ What breaks it:
 
 1. **CommonJS imports** (`require`) — dynamic by design, not statically analyzable.
 2. **Default-importing a whole library**: `import _ from 'lodash'` — there's nothing to shake; you used the whole namespace.
-3. **`sideEffects: true`** in `package.json` (the default if absent) — bundler assumes the file mutates global state and keeps it.
+3. **No `"sideEffects": false`** in `package.json`. Without that field (or with it set to `true`), the bundler must assume importing a file can change global state, such as registering a polyfill or injecting CSS, so it keeps the file even when you use none of its exports.
 4. **Transpiling ESM down to CommonJS** before the bundler sees it (old Babel configs).
 5. **Re-exports through barrel files** that re-export modules with side effects.
 
@@ -4450,7 +5247,7 @@ Two cases still need you:
 
 The rollout order is the real answer, and it follows from how the compiler fails. It only compiles a component when it can prove purity, immutability and the Rules of Hooks; when it can't, it **bails out and silently leaves that component unoptimised**. Nothing breaks — you just get no benefit, invisibly. So:
 
-1. **Lint first.** The compiler-powered rules ship in `eslint-plugin-react-hooks` **v6** (recommended preset, flat config by default). They report which components would bail out and why.
+1. **Lint first.** The compiler-powered rules ship in `eslint-plugin-react-hooks` (7.x today; flat config and the `recommended` preset since 6.1). They report which components would bail out and why.
 2. **Fix the violations** — mutation of props or state during render, side effects in render bodies, conditional hooks.
 3. **Then enable the compiler**, and check the build output for remaining bail-outs.
 4. **Don't bulk-delete existing `useMemo`/`useCallback`.** They are harmless once the compiler is on, and a mass removal is a large, risky diff for no measurable gain. Stop adding new ones; delete opportunistically while editing.
@@ -4482,6 +5279,17 @@ Details that distinguish a good answer: a hidden activity is not frozen — its 
 It resolves the tension between an *honest* dependency array and a *fresh* value. Some logic inside an effect is **reactive** (changing it should re-run the effect) and some is not (it should just read the latest value). Before 19.2, the dependency array couldn't express that distinction, so you had three bad options: omit the value and lie to the linter while capturing a stale closure; include it and re-run the effect on an unrelated change; or mirror it into a `useRef` by hand.
 
 ```tsx
+// stand-ins so this example runs on its own
+const showToast = (msg, theme) => console.log(msg, '(' + theme + ' toast)');
+function createConnection(roomId) {
+  let onConnected = () => {};
+  return {
+    on: (_event, cb) => { onConnected = cb; },
+    connect: () => { console.log('connect', roomId); setTimeout(() => onConnected(), 100); },
+    disconnect: () => console.log('disconnect', roomId),
+  };
+}
+
 function ChatRoom({ roomId, theme }) {
   const onConnected = useEffectEvent(() => showToast('Connected!', theme));
 
@@ -4491,7 +5299,24 @@ function ChatRoom({ roomId, theme }) {
     conn.connect();
     return () => conn.disconnect();
   }, [roomId]);   // honest AND complete — theme is not reactive here
+
+  return <p>Room: {roomId}</p>;
 }
+
+// Changing the theme does NOT reconnect; changing the room does.
+function Demo() {
+  const [roomId, setRoomId] = useState('general');
+  const [theme, setTheme] = useState('light');
+  return (
+    <>
+      <button onClick={() => setRoomId(r => (r === 'general' ? 'random' : 'general'))}>Switch room</button>
+      <button onClick={() => setTheme(t => (t === 'light' ? 'dark' : 'light'))}>Toggle theme ({theme})</button>
+      <ChatRoom roomId={roomId} theme={theme} />
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
 The returned function is **stable across renders** (so it never belongs in a dependency array) but its body always reads the **latest** props and state (so it is never stale). `useCallback` gives you stability at the cost of staleness; a plain inline function gives freshness at the cost of stability. `useEffectEvent` is the only thing that gives both.
@@ -4585,6 +5410,19 @@ function Provider({ user, setUser, children }: {
 //    Split into separate contexts instead.
 // 3. High-frequency data in context → every consumer re-renders on every tick.
 //    Context has no partial subscription; use a store with selectors.
+
+// A consumer and a harness so Try it has something to show
+function CurrentUser() {
+  const { user, setUser } = useContext(UserContext) as { user: string; setUser: (u: string) => void };
+  return <button onClick={() => setUser(user === 'Ana' ? 'Ben' : 'Ana')}>Signed in as {user}</button>;
+}
+
+function Demo() {
+  const [user, setUser] = useState('Ana');
+  return <Provider user={user} setUser={setUser}><CurrentUser /></Provider>;
+}
+
+render(<Demo />);
 ```
 
 The fixes, in order:
@@ -4844,9 +5682,17 @@ useEffect(() => {
 
 **Q44: How do components communicate in React? Walk through the options.**
 
-Five mechanisms, and the skill is picking the smallest one that fits. **Parent → child is props** — the default and it covers most cases. **Child → parent is a callback prop**: data flows one way, so a child cannot set the parent's state; the parent passes a function down and the child calls it, meaning the child reports an event and the parent decides what it means. **Siblings communicate by lifting state up** to their closest common ancestor, which then passes it back down — that is all that phrase means, and the important qualifier is *closest*, because state placed too high re-renders more of the tree than necessary. **Context is for genuine prop drilling**, where a distant descendant needs a value and every intermediate component would only forward it; two or three levels of forwarding isn't worth solving, and Context isn't free — every consumer re-renders when the value changes, and an object literal as `value` gets a new reference on every parent render, so memoise it and split rarely-changing config from frequently-changing data. **Refs are for imperative actions rather than data** — focusing an input, playing a video — and in React 19 `ref` is a normal prop so `forwardRef` isn't needed; expose a narrow API with `useImperativeHandle` rather than the raw node. Beyond that, when unrelated branches share state the answer is a store, not more lifting: TanStack Query for server state, Zustand or Redux for client state.
+**Short answer:** five mechanisms, and the skill is picking the smallest one that fits the relationship. [§5.4](#54-component-communication) walks through each with code; this is the version to say out loud.
 
-One detail worth volunteering because it's a real performance bug: when lifting state for a controlled input, keep the transient value local to the child and notify the parent on **commit** (submit or blur) rather than on every keystroke — otherwise each character re-renders the whole subtree.
+- **Parent → child: props.** The default, and it covers most cases.
+- **Child → parent: a callback prop.** Data flows one way, so a child cannot set its parent's state. The parent passes a function down; the child calls it to report an event, and the parent decides what it means.
+- **Sibling ↔ sibling: lift the state** to their *closest* common ancestor, which passes it back down. Closest matters, because state placed higher than needed re-renders more of the tree.
+- **Distant descendant: Context**, but only for real prop drilling, where the middle layers would just forward a value. It is not free: every consumer re-renders when the value changes, so memoise the `value` object and split rarely-changing data from frequently-changing data.
+- **Imperative action: a ref**, for actions rather than data (focus an input, play a video). In React 19 `ref` is an ordinary prop, so `forwardRef` is no longer needed; expose a narrow API with `useImperativeHandle` instead of the raw DOM node.
+
+When unrelated branches share state, the answer is a store, not more lifting: TanStack Query for server state, Zustand or Redux for client state.
+
+One detail worth volunteering, because it is a real performance bug: when a child's input feeds the parent, keep the in-progress value in the child and notify the parent on **commit** (submit or blur). Lifting every keystroke re-renders the whole subtree on each character.
 
 **Q45: What did React 19 remove, and how would you approach upgrading a large codebase to it?**
 
@@ -4890,6 +5736,14 @@ function Stopwatch({ tick }: { tick: () => void }) {
 
   return <button onClick={start}>Start</button>;
 }
+
+// Harness: the ticks are counted in state by the parent, which is what repaints
+function Demo() {
+  const [ticks, setTicks] = useState(0);
+  return <><SearchField /><Stopwatch tick={() => setTicks(t => t + 1)} /> {ticks}s</>;
+}
+
+render(<Demo />);
 ```
 
 **When NOT to use it.** If the value is displayed, it belongs in state — a ref change will not repaint, so the screen goes stale. The classic bug: `useRef(0)`, increment it in a click handler, render `{ref.current}`, and the number never visibly changes until something *else* triggers a render, at which point it jumps.
@@ -4908,7 +5762,8 @@ Two rules:
 
 **The reason is that hooks are matched by call order, not by name.** React keeps a linked list of hook states per component and walks it in the order the hooks are called. It has no idea that the third `useState` is "the one for the name field"; it only knows it is third. Put a hook behind a condition and the positions shift:
 
-```tsx
+```text
+// ✗ Broken on purpose — tagged text so there is no Try it button.
 function Profile({ showName }) {
   const [id, setId] = useState(1);           // slot 1
   if (showName) {
@@ -4954,6 +5809,18 @@ function Columns() {
   );
 }
 // <tr><Columns /></tr> produces valid markup; a wrapper <div> would not.
+
+function Table() {
+  return (
+    <table>
+      <tbody>
+        <tr><Columns /></tr>
+      </tbody>
+    </table>
+  );
+}
+
+render(<Table />);
 ```
 
 **The one case that needs the long form: keys.** The shorthand `<>` cannot take props, so a Fragment in a list needs `<React.Fragment key={...}>`:
@@ -4995,6 +5862,10 @@ function useMediaQuery(query: string): boolean {
 
   return matches;
 }
+
+// stand-ins so this example runs on its own
+const DesktopNav = () => <nav>Desktop navigation</nav>;
+const MobileNav = () => <nav>Mobile navigation (resize the window)</nav>;
 
 // Consuming it — the component says nothing about listeners at all
 function Nav() {
@@ -5224,7 +6095,7 @@ They differ on one axis: **when the HTML is generated.** Everything else follows
 **Two things worth volunteering:**
 
 - **SSR does not make your app fast on its own.** It improves FCP and LCP because pixels arrive sooner, but the JavaScript still ships and still hydrates; TTI can be *worse* than CSR if you send a large bundle, because the page looks ready while it is not yet interactive.
-- **React Server Components are a different axis.** RSC is about *where components execute and whether their code ships at all* — it is not "SSR but newer". See §16.8 and the Next.js & RSC guide.
+- **React Server Components are a different axis.** RSC is about *where components execute and whether their code ships at all* — it is not "SSR but newer". See §13.12 and the Next.js & RSC guide.
 
 ---
 
@@ -5274,6 +6145,20 @@ function Safe() {
   if (!data) return <Spinner />;
   return <Result data={data} />;
 }
+
+// stand-ins so this example runs on its own (the playground has no /api/thing,
+// so the request fails and the boundary shows it)
+const Spinner = () => <p>Loading…</p>;
+const Result = ({ data }) => <pre>{JSON.stringify(data)}</pre>;
+class Boundary extends React.Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    return this.state.error ? <p role="alert">Caught by the boundary: {this.state.error.message}</p> : this.props.children;
+  }
+}
+
+render(<Boundary><Safe /></Boundary>);
 ```
 
 That `if (error) throw error` line is the whole trick, and it is what data libraries do for you: TanStack Query's `throwOnError` and React Router's `errorElement` both take a rejected promise and re-throw it during render so a boundary can handle it.
@@ -5377,6 +6262,12 @@ function withLogging(Wrapped) {
     return <Wrapped {...props} />;
   };
 }
+
+// Using it — defined once, outside render
+const Profile = ({ name }) => <p>Hello, {name}</p>;
+const ProfileWithLogging = withLogging(Profile);
+
+render(<ProfileWithLogging name="Ada" />);
 ```
 
 **For most of what HOCs were used for — sharing stateful logic — a custom hook is strictly better**, and that is the answer an interviewer is listening for. Hooks avoid the three real problems HOCs have:
@@ -5406,9 +6297,18 @@ function TextField({ ref }) {              // React 19: ref is a normal prop
 }
 
 // Parent
-const field = useRef(null);
-<TextField ref={field} />;
-field.current.focus();      // only focus and clear exist — not the raw node
+function Form() {
+  const field = useRef(null);
+  return (
+    <>
+      <TextField ref={field} />
+      <button onClick={() => field.current.focus()}>Focus</button>
+      <button onClick={() => field.current.clear()}>Clear</button>
+    </>
+  );                        // only focus and clear exist — not the raw node
+}
+
+render(<Form />);
 ```
 
 **The point is narrowing, not access.** Handing back the raw DOM node makes every internal detail part of your public API: a consumer can restyle it, read its children, or attach listeners, and you can never change the markup again. Exposing `{ focus, clear }` is a contract you can keep.
@@ -5464,6 +6364,8 @@ function Cart({ items }: { items: { price: number }[] }) {
   const total = items.reduce((sum, i) => sum + i.price, 0);  // not useEffect + useState
   return <p>Total: {total}</p>;
 }
+
+render(<Cart items={[{ price: 12 }, { price: 30 }]} />);
 ```
 
 **2. Depend on primitives, not on the object.** `[user.id]` is stable across renders in a way `[user]` is not.
@@ -5694,6 +6596,1079 @@ So **SSR moves the cost, it does not remove it.** It shows content sooner and ma
 
 ---
 
+### Real-World API & Data Scenarios
+
+These come from "real-time" interview lists, where the question describes a situation rather than naming an API. Most of them are about data from a server: how it gets to the screen, what the user sees while it is on its way, and what happens when it does not arrive.
+
+**Q66: What is `React.memo`, and when should you use it?**
+
+**Short answer:** `React.memo` wraps a component so that React **skips re-rendering it when its props are the same as last time**. Use it for a component that is expensive to render *and* often re-rendered by its parent with unchanged props.
+
+"The same" means each prop is compared with `Object.is`, one by one (a *shallow* comparison). Numbers and strings compare by value. Objects, arrays and functions compare by **reference**, so one created during the parent's render is new every time, and `memo` never skips.
+
+```tsx
+function Plain({ label }) {
+  console.log('Plain renders');
+  return <p>{label}</p>;
+}
+
+const Memoised = React.memo(function Memoised({ label }) {
+  console.log('Memoised renders');
+  return <p>{label}</p>;
+});
+
+const MemoisedWithObject = React.memo(function MemoisedWithObject({ style }) {
+  console.log('MemoisedWithObject renders');
+  return <p style={style}>styled</p>;
+});
+
+function Parent() {
+  const [count, setCount] = React.useState(0);
+  React.useEffect(() => {
+    if (count < 2) setCount(count + 1);       // re-render the parent twice more
+  }, [count]);
+  return (
+    <div>
+      <Plain label="hi" />
+      <Memoised label="hi" />
+      <MemoisedWithObject style={{ color: 'tomato' }} />
+    </div>
+  );
+}
+
+render(<Parent />);
+```
+
+```text
+Plain renders
+Memoised renders
+MemoisedWithObject renders
+Plain renders
+MemoisedWithObject renders
+Plain renders
+MemoisedWithObject renders
+```
+
+The parent rendered three times. `Plain` followed it every time, `Memoised` rendered only once because `"hi"` equals `"hi"`, and `MemoisedWithObject` gained nothing: `{ color: 'tomato' }` is a new object on every render. Moving that object outside the component, or wrapping it in `useMemo`, would fix it.
+
+**Use it when** a list row, chart or large form section is slow to render and its parent re-renders for unrelated reasons. **Skip it when** the component is cheap (the comparison then costs more than it saves), when its props change on nearly every render anyway, or when moving state down fixes the problem without it (Q11). If the project uses React Compiler, it adds this memoisation for you.
+
+---
+
+**Q67: Two components need to share the same data. How would you design it?**
+
+**Short answer:** move the data to the **closest parent they both have** and pass it down as props ("lifting state up"). Reach for context or a store only when that parent is far away or many components need it. And if the data comes from a server, let a query cache share it.
+
+```tsx
+function SearchBox({ query, onQueryChange }) {
+  return <input value={query} onChange={(e) => onQueryChange(e.target.value)} placeholder="Search" />;
+}
+
+function ResultCount({ query }) {
+  const fruits = ['apple', 'banana', 'cherry', 'grape'];
+  const count = fruits.filter((f) => f.includes(query.toLowerCase())).length;
+  return <p>{count} matching fruits</p>;
+}
+
+// The shared value lives in the nearest common parent.
+function Page() {
+  const [query, setQuery] = React.useState('');
+  return (
+    <div>
+      <SearchBox query={query} onQueryChange={setQuery} />
+      <ResultCount query={query} />
+    </div>
+  );
+}
+
+render(<Page />);
+```
+
+Neither sibling owns `query`. The parent owns it, gives the value to both, and gives the setter to the one that changes it. Data flows one way, so there is exactly one place to look when it is wrong.
+
+**When lifting is not enough, pick by what the data is:**
+
+| Situation | Use |
+|---|---|
+| Siblings, or a few levels apart | lift state to the common parent |
+| Many components at different depths, value changes rarely (user, theme, locale) | context |
+| Many components, value changes often, or complex update logic | a store: Zustand, Redux Toolkit |
+| The data comes from an API | a query cache (TanStack Query, RTK Query): both components ask for the same key and share one request |
+
+The last row is the one most often missed. If two components show the same user's profile, neither should own a copy. Both call `useQuery({ queryKey: ['user', id] })`, the cache makes one request, and both update together when it refetches.
+
+---
+
+**Q68: How do you handle loading, success, empty and error states for an API call?**
+
+**Short answer:** model the request as **one status value** with four possible states, and render something specific for each. The two that get forgotten are **empty**, which is a success with nothing in it, and **error**, which needs a way to try again.
+
+Three separate booleans (`isLoading`, `isError`, `hasData`) allow combinations that make no sense, like loading *and* failed at once. One `status` field cannot be in two states. The TypeScript guide's Q25 shows the typed version of the same idea.
+
+```tsx
+// A fake API so each state can be tried. Real code would call fetch here.
+function fetchUsers(outcome) {
+  return new Promise((resolve, reject) =>
+    setTimeout(() => {
+      if (outcome === 'error') reject(new Error('Server returned 500'));
+      else resolve(outcome === 'empty' ? [] : ['Asha', 'Ravi', 'Meera']);
+    }, 600)
+  );
+}
+
+function useUsers(outcome) {
+  const [state, setState] = React.useState({ status: 'loading' });
+  const [attempt, setAttempt] = React.useState(0);
+
+  React.useEffect(() => {
+    let ignore = false;
+    setState({ status: 'loading' });
+    fetchUsers(outcome)
+      .then((users) => { if (!ignore) setState({ status: 'success', users }); })
+      .catch((error) => { if (!ignore) setState({ status: 'error', error }); });
+    return () => { ignore = true; };            // a newer request replaces this one
+  }, [outcome, attempt]);
+
+  return { state, retry: () => setAttempt((n) => n + 1) };
+}
+
+function UserList({ outcome }) {
+  const { state, retry } = useUsers(outcome);
+
+  if (state.status === 'loading') return <p aria-busy="true">Loading users…</p>;
+  if (state.status === 'error') {
+    return (
+      <div role="alert">
+        <p>Could not load users. {state.error.message}</p>
+        <button onClick={retry}>Try again</button>
+      </div>
+    );
+  }
+  if (state.users.length === 0) return <p>No users yet. Invite someone to get started.</p>;
+  return <ul>{state.users.map((u) => <li key={u}>{u}</li>)}</ul>;
+}
+
+function Demo() {
+  const [outcome, setOutcome] = React.useState('success');
+  return (
+    <div>
+      {['success', 'empty', 'error'].map((o) => (
+        <button key={o} onClick={() => setOutcome(o)} aria-pressed={outcome === o}>{o}</button>
+      ))}
+      <UserList outcome={outcome} />
+    </div>
+  );
+}
+
+render(<Demo />);
+```
+
+**What makes each state good, not just present:**
+
+- **Loading.** A **skeleton** (grey shapes where the content will be) beats a spinner for anything with a known layout, because the page does not jump when the data arrives. For requests that are usually fast, wait about 200 ms before showing anything, or users see a flash. When *refetching* data that is already on screen, keep showing the old data with a small "updating" hint rather than blanking it.
+- **Empty.** Say what is empty and what to do next ("No orders yet. Browse products"). A blank area looks like a bug.
+- **Error.** Say what failed in plain words, keep the rest of the page working, and offer **Try again**. Distinguish "you are offline" from "the server failed" if you can. `role="alert"` makes a screen reader announce it.
+- **Success.** Only here is the data guaranteed to exist, so only here do you read it.
+
+**In practice** TanStack Query and RTK Query give you exactly this status field, plus retries, caching and cancellation, and most teams should not hand-write the hook above. Being able to write it is what the question is testing.
+
+---
+
+**Q69: An API response takes 10 seconds. What would you show the user?**
+
+**Short answer:** feedback that **changes with time**, so the user knows it is still working. Show the page structure immediately, say it is taking longer than usual after a few seconds, and offer a way to cancel. If the operation is *routinely* this slow, the real fix is on the server: turn it into a background job.
+
+Research on response times (Jakob Nielsen's classic limits) gives the three thresholds this follows: about **0.1 s** feels instant, about **1 s** keeps the user's train of thought, and beyond about **10 s** people lose focus and start doing something else.
+
+| Time waiting | What to show |
+|---|---|
+| 0 – 1 s | the page layout with a skeleton where the slow part will go; the rest of the page usable |
+| 1 – 3 s | a spinner or progress indicator on the slow part only |
+| about 3 s | a message: "This is taking longer than usual…" |
+| about 8 s | a **Cancel** button, and if it helps, "You can leave this page, we'll notify you when it's ready" |
+| a timeout you chose | stop waiting and show an error with **Try again** |
+
+If the server can report progress (a percentage, "step 2 of 4"), show it. A real progress bar feels faster than an unknown wait of the same length.
+
+```tsx
+// Picks a message based on how long we have been waiting.
+function useWaitingMessage(isWaiting) {
+  const [seconds, setSeconds] = React.useState(0);
+  React.useEffect(() => {
+    if (!isWaiting) return;
+    setSeconds(0);
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [isWaiting]);
+
+  if (!isWaiting) return null;
+  if (seconds < 3) return 'Loading your report…';
+  if (seconds < 8) return 'This is taking longer than usual…';
+  return 'Still working. You can cancel and try again later.';
+}
+
+function Report() {
+  const [waiting, setWaiting] = React.useState(true);
+  const message = useWaitingMessage(waiting);
+  return (
+    <div>
+      <p aria-live="polite">{message || 'Report ready.'}</p>
+      {waiting && <button onClick={() => setWaiting(false)}>Cancel</button>}
+    </div>
+  );
+}
+
+render(<Report />);
+```
+
+**Things that make it worse:**
+
+- **Blocking the whole page** with a full-screen spinner when only one panel is slow. Load everything else and let the user work.
+- **No timeout.** A `fetch` has none by default and can wait for minutes. Set one with `AbortSignal.timeout(ms)`, somewhat longer than the slowest normal response.
+- **Retrying automatically** on a slow request that has not failed. That adds load to a server that is already struggling.
+
+**When 10 seconds is normal (reports, exports, AI generation):** do not keep an HTTP request open for it. The server answers straight away with `202 Accepted` and a job id, the browser checks the job's status by polling, Server-Sent Events or a WebSocket, and the user can leave and come back. The API Design guide's Q9 covers the server side.
+
+---
+
+**Q70: The user navigates away while an API request is still running. What should happen?**
+
+**Short answer:** it depends on what the request is for. A request that only **loads data for that page** should be **cancelled**, because nobody will see the result. A request that **changes something** (save, pay, upload) should usually be **allowed to finish**, and its result reported somewhere that is still on screen.
+
+**Cancelling a page's data request** is done with an `AbortController`. The effect's cleanup function runs when the component unmounts, which is exactly when the user leaves the page.
+
+```tsx
+// A fake fetch that honours an AbortSignal, as the real fetch does.
+function fakeFetch(url, { signal }) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve({ url, rows: 3 }), 300);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(new DOMException('The request was cancelled', 'AbortError'));
+    });
+  });
+}
+
+function ReportPage() {
+  const [data, setData] = React.useState(null);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    fakeFetch('/api/report', { signal: controller.signal })
+      .then(setData)
+      .catch((err) => {
+        if (err.name === 'AbortError') console.log('request cancelled, nothing to show');
+        else console.log('real failure, show the error state');
+      });
+    return () => controller.abort();          // runs when the user leaves this page
+  }, []);
+
+  return <p>{data ? 'Loaded ' + data.rows + ' rows' : 'Loading…'}</p>;
+}
+
+function App() {
+  const [page, setPage] = React.useState('report');
+  React.useEffect(() => {
+    const id = setTimeout(() => {
+      console.log('user navigates away');
+      setPage('home');
+    }, 100);
+    return () => clearTimeout(id);
+  }, []);
+  return page === 'report' ? <ReportPage /> : <p>Home</p>;
+}
+
+render(<App />);
+```
+
+```text
+user navigates away
+request cancelled, nothing to show
+```
+
+**Why cancelling matters:**
+
+- **It saves work.** The browser stops downloading, and the server may stop too if it watches for the client disconnecting.
+- **It prevents the real bug, which is stale data landing on the wrong screen.** With a parameter in the URL (say `/users/1` then `/users/2`), the slow response for user 1 can arrive *after* the fast one for user 2 and overwrite it. Aborting the old request, or ignoring its result as Q68's `ignore` flag does, stops that.
+- It is **not** about a memory leak warning any more. React 18 removed the "can't perform a state update on an unmounted component" warning, because the update is simply ignored. The warning taught people to fear the wrong thing.
+
+**Treat the error for what it is.** An `AbortError` is not a failure the user should see, so check `err.name` and ignore it, as the demo does. Showing "Something went wrong" because the user clicked a link is a common bug.
+
+**Do not cancel a save.** Aborting a `fetch` stops the browser waiting; it does **not** undo anything on the server, which may already have written the change. So for a mutation, let it finish and report the result through something that outlives the page, such as a toast (the Toast / Snackbar template), or ask "Leave without saving?" when there are unsaved changes.
+
+**You often get this for free.** TanStack Query passes a `signal` to your query function and cancels it when nothing is using the query any more, and React Router's data loaders receive `request.signal`, which is aborted when the user navigates away mid-load.
+
+---
+
+**Q71: Your backend returns 401 Unauthorized. How would you refresh the token automatically?**
+
+**Short answer:** put the logic in **one place**, the function every API call goes through. When a response is a 401, refresh the access token **once**, retry the original request **once** with the new token, and if the refresh itself fails, log the user out. The detail that is graded is making sure several requests that fail at the same moment share **one** refresh.
+
+**The flow:**
+
+1. A request comes back `401`. The access token has expired.
+2. Call the refresh endpoint. The **refresh token** travels in an `HttpOnly` cookie, so JavaScript never reads it (the OAuth & SSO guide's Q5 explains why).
+3. Store the new access token **in memory** and retry the original request once.
+4. If the refresh fails, the session is over: clear the user, and send them to the login page with a link back to where they were.
+
+**The race.** A page often fires several requests at once. If the token has expired, they all get a 401 together, and a naive handler refreshes several times in parallel. With refresh-token rotation, where each refresh invalidates the previous refresh token, the second refresh uses a token the first one just invalidated, fails, and logs the user out for no reason. The fix is **single-flight**: the first 401 starts the refresh and stores its promise, and every other 401 waits on that same promise.
+
+```js
+// ---- a fake server: the token the browser starts with has expired ----
+let currentValidToken = 'token-2';
+let refreshCalls = 0;
+
+async function server(path, token) {
+  await new Promise((r) => setTimeout(r, 20));
+  if (path === '/auth/refresh') {
+    refreshCalls++;
+    return { status: 200, body: { accessToken: currentValidToken } };
+  }
+  if (token !== currentValidToken) return { status: 401 };
+  return { status: 200, body: path + ' ok' };
+}
+
+// ---- the client: every request goes through apiFetch ----
+let accessToken = 'token-1';     // kept in memory, never in localStorage
+let refreshing = null;           // the ONE refresh in progress, shared by every caller
+
+function refreshAccessToken() {
+  if (!refreshing) {
+    refreshing = server('/auth/refresh')        // the refresh cookie is sent automatically
+      .then((res) => {
+        if (res.status !== 200) throw new Error('Session expired, please log in again');
+        accessToken = res.body.accessToken;
+      })
+      .finally(() => { refreshing = null; });   // the next expiry starts a fresh refresh
+  }
+  return refreshing;
+}
+
+async function apiFetch(path, alreadyRetried = false) {
+  const res = await server(path, accessToken);
+  if (res.status === 401 && !alreadyRetried) {
+    await refreshAccessToken();                // everyone with a 401 waits for the same refresh
+    return apiFetch(path, true);               // retry ONCE, never in a loop
+  }
+  if (res.status === 401) throw new Error('Still unauthorised after refreshing: log out');
+  return res.body;
+}
+
+// Three requests that all hit an expired token at the same moment.
+Promise.all([apiFetch('/orders'), apiFetch('/profile'), apiFetch('/cart')]).then((results) => {
+  console.log(results.join(', '));
+  console.log('refresh calls:', refreshCalls);
+});
+```
+
+```text
+/orders ok, /profile ok, /cart ok
+refresh calls: 1
+```
+
+**Three rules that stop it looping or leaking:**
+
+- **Retry once.** The `alreadyRetried` flag means a request that still gets a 401 with a fresh token fails, rather than refreshing forever.
+- **Never run the 401 handler on the refresh call itself.** If `/auth/refresh` returns 401, that is the "log out" signal, not a reason to refresh again.
+- **Only retry after refreshing if the request is safe to repeat.** A `GET` always is. A `POST` that the server may have half-processed should carry an idempotency key (the Rate-Limited Button template explains it).
+
+**With axios** this is a response interceptor: on a 401, await the shared refresh promise, set the new header, and return `axios(originalConfig)` with a `_retry` flag on the config. Same logic, same three rules.
+
+**Across tabs**, each tab has its own memory, so two tabs can still refresh at the same time. `navigator.locks.request('token-refresh', …)` makes the refresh single-flight across tabs too, and a `BroadcastChannel` can hand the new token to the others. **Proactive refresh**, renewing a minute before the token expires, reduces how often users hit the 401 at all, but you still need the 401 path, because clocks drift and laptops sleep.
+
+---
+
+**Q72: How would a React app communicate with Spring Boot microservices?**
+
+**Short answer:** not directly with each service. The browser talks to **one entry point**, an API gateway (often Spring Cloud Gateway) or a Backend for Frontend (BFF, a small server owned by the frontend team), which routes each request to the right service. On the React side, every call goes through **one API client module** that knows the base URL, attaches authentication, and turns every error into one shape.
+
+```text
+Browser (React)
+   │  https://app.example.com/api/...      one origin, one auth check
+   ▼
+API gateway / BFF            Spring Cloud Gateway: routing, JWT check, rate limits, CORS
+   ├── /api/orders/**   →  order-service     (Spring Boot)
+   ├── /api/users/**    →  user-service      (Spring Boot)
+   └── /api/payments/** →  payment-service   (Spring Boot)
+```
+
+**Why a single entry point:** the browser does not need to know how many services exist or where they run, authentication is checked in one place, and every call is same-origin, so there are no CORS rules to maintain per service. Services can be split, merged or moved without shipping a new frontend.
+
+**The React side, piece by piece:**
+
+1. **One API client.** A single module (a small `fetch` wrapper or an axios instance) holds the base URL from an environment variable (`import.meta.env.VITE_API_URL` in Vite), sends credentials, handles the 401 refresh (Q71), and sets a timeout. Components never call `fetch` with a hard-coded URL.
+2. **Local development without CORS.** Point the dev server's proxy at the backend, so the browser still sees one origin:
+
+   ```text
+   // vite.config.js
+   export default defineConfig({
+     server: {
+       proxy: { '/api': 'http://localhost:8080' },   // the gateway, or a single service
+     },
+   });
+   ```
+
+3. **CORS, when the frontend really is on a different origin.** Configure it **once, at the gateway**, not with `@CrossOrigin` on every controller. With cookies or credentials you must list exact origins (a `*` is not allowed with credentials), and any response header the frontend needs to read, such as `Content-Disposition` for downloads (Q73), must be listed in `exposedHeaders`.
+4. **Types generated from the backend.** With `springdoc-openapi`, each service publishes an OpenAPI description, and tools such as `openapi-typescript` or `orval` generate TypeScript types or a whole client from it. A renamed field in a Java DTO then fails the frontend build instead of failing in production.
+5. **One error shape.** Spring Boot returns errors in one of two formats, so convert both at the client boundary:
+
+```js
+// Spring Boot errors arrive in one of two shapes. Turn both into one.
+//  - ProblemDetail (RFC 9457): { type, title, status, detail, instance }
+//    used when spring.mvc.problemdetails.enabled=true, or returned by your own handlers
+//  - Boot's default error page: { timestamp, status, error, path }
+//    where "message" is left out unless server.error.include-message is set
+function toAppError(status, body = {}) {
+  const message =
+    body.detail ||                       // ProblemDetail's human-readable explanation
+    body.message ||                      // only if the server was configured to include it
+    body.title ||
+    body.error ||
+    'Request failed';
+  return { status, message, path: body.instance || body.path || null };
+}
+
+console.log(toAppError(404, { type: 'about:blank', title: 'Not Found', status: 404, detail: 'Order 42 does not exist', instance: '/api/orders/42' }).message);
+console.log(toAppError(500, { timestamp: '2026-09-26T10:00:00Z', status: 500, error: 'Internal Server Error', path: '/api/orders' }).message);
+console.log(toAppError(502).message);
+```
+
+```text
+Order 42 does not exist
+Internal Server Error
+Request failed
+```
+
+**Three Spring-specific details that trip React developers:**
+
+- **Pages start at 0.** Spring Data's `Pageable` reads `?page=0&size=20&sort=name,asc`, and page 0 is the first page. Your table probably shows "Page 1", so convert at the API client (`page: uiPage - 1`) rather than scattering `- 1` through components.
+- **The page response shape.** Returning a Spring Data `Page` directly has no guaranteed JSON structure (Spring Data 3.3+ logs a warning about it). With `@EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO)` it becomes a stable `{ content: [...], page: { size, number, totalElements, totalPages } }`. Agree on this shape with the backend team once.
+- **Authentication.** Typically the gateway, or each service as an OAuth 2.0 *resource server*, validates the JWT on every request. If you use a session cookie instead of a bearer token, Spring Security's CSRF protection applies, and the frontend must send the CSRF token back in a header.
+
+**Real-time updates** from Spring come as WebSockets (often with the STOMP protocol on top) or Server-Sent Events (`SseEmitter`). Those also go through the gateway; the Real-Time Web guide covers the client side.
+
+---
+
+**Q73: How would you download a CSV or PDF file returned by a Spring Boot API?**
+
+**Short answer:** if the browser can reach the file with its cookies, just **link to it** and let the browser download it. If the request needs an `Authorization` header, **fetch it as a blob**, create a temporary URL for it, and click a hidden link. In the second case, the gotcha is the file name: it is in the `Content-Disposition` header, which JavaScript cannot read cross-origin unless the server exposes it.
+
+**Option 1: a plain link (best when it works).** If authentication is a cookie and the API is same-origin (or behind your gateway), an ordinary link is enough:
+
+```text
+<a href="/api/reports/42/export?format=csv" download>Download CSV</a>
+```
+
+The browser streams the file straight to disk, shows its own progress bar, and never holds the whole file in memory, so it works for a 2 GB export. The server's `Content-Disposition: attachment; filename="report.csv"` tells it to save rather than display, and names the file.
+
+**Option 2: fetch, blob, temporary link.** Needed when the API expects `Authorization: Bearer …`, because a plain link cannot send headers. (It uses `document`, so it is shown as text rather than run here.)
+
+```text
+async function downloadFile(url, accessToken) {
+  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+
+  // Check first. A failed request still has a body: the error JSON.
+  // Skip this and the user downloads "report.pdf" containing {"status":500,...}.
+  if (!res.ok) throw new Error('Download failed: ' + res.status);
+
+  const blob = await res.blob();
+  const filename = filenameFromDisposition(res.headers.get('Content-Disposition')) || 'download';
+
+  const objectUrl = URL.createObjectURL(blob);    // a temporary URL pointing at the blob in memory
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename;                          // "save as this name" instead of navigating
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);                 // free the memory; the download has started
+}
+```
+
+For a PDF you want to **view** rather than save, `window.open(objectUrl)` opens it in the browser's PDF viewer instead.
+
+**Reading the file name** is the fiddly part. Servers send it in two forms: `filename="report.csv"`, and `filename*=UTF-8''…` for names with non-ASCII characters, which should win when both are present.
+
+```js
+function filenameFromDisposition(header) {
+  if (!header) return null;
+  // filename*=UTF-8''na%C3%AFve.csv  (RFC 5987: percent-encoded, preferred when present)
+  const encoded = /filename\*\s*=\s*([^']*)''([^;]+)/i.exec(header);
+  if (encoded) return decodeURIComponent(encoded[2].trim());
+  // filename="report.csv"  or  filename=report.csv
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header);
+  return plain ? plain[1].trim() : null;
+}
+
+console.log(filenameFromDisposition('attachment; filename="orders-2026-09.csv"'));
+console.log(filenameFromDisposition("attachment; filename=\"naive.csv\"; filename*=UTF-8''na%C3%AFve.csv"));
+console.log(filenameFromDisposition('inline'));
+```
+
+```text
+orders-2026-09.csv
+naïve.csv
+null
+```
+
+**The header that silently disappears.** If the frontend and API are on different origins, the browser hides every response header from JavaScript except a short safe list, and `Content-Disposition` is not on it. `res.headers.get('Content-Disposition')` then returns `null` even though the header is visible in DevTools. The server must send `Access-Control-Expose-Headers: Content-Disposition`; in Spring that is `exposedHeaders("Content-Disposition")` in the CORS configuration. On the Spring side the header itself is easiest to build with `ContentDisposition.attachment().filename("report.csv", StandardCharsets.UTF_8).build()`, which also produces the `filename*` form.
+
+**Two more details worth saying:**
+
+- **Large files.** A blob holds the entire file in memory before the save starts. For big exports, prefer option 1, or have the server return a short-lived signed URL (for example an S3 pre-signed URL) that the browser can download directly.
+- **CSV and Excel.** Excel on Windows guesses the encoding of a CSV and often gets UTF-8 wrong, turning `é` into `Ã©`. Starting the file with a byte-order mark (`﻿`) makes it read UTF-8 correctly.
+
+---
+
+### Rendering, Patterns and Everyday Pitfalls
+
+Questions that come up in almost every React interview, usually phrased as "why does this happen?". Most answers point to a reference section above for depth.
+
+**Q74: Why does my effect run twice in development?**
+
+**Short answer:** because your app is wrapped in `<StrictMode>`. In **development only**, StrictMode mounts every component, immediately unmounts it, and mounts it again, so each effect runs setup → cleanup → setup. It is a test: if your effect's cleanup does not fully undo its setup, the double run exposes the bug now, instead of in production. Production runs everything once.
+
+```tsx
+function Chat({ roomId }) {
+  React.useEffect(() => {
+    console.log('connect to', roomId);
+    return () => console.log('disconnect from', roomId);   // the cleanup undoes the setup
+  }, [roomId]);
+  return <p>Room: {roomId}</p>;
+}
+
+render(
+  <React.StrictMode>
+    <Chat roomId="general" />
+  </React.StrictMode>
+);
+```
+
+```text
+connect to general
+disconnect from general
+connect to general
+```
+
+That is the output in a development build. (This app's playground runs React's *production* build, so Try it prints only the first line: StrictMode checks do nothing in production.)
+
+Because the cleanup undoes the setup, a connect-disconnect-connect sequence leaves exactly one connection, which is the correct end state. The double run only looks wrong. It becomes a real bug when the cleanup is missing: two subscriptions, two timers, two chat connections.
+
+**Why React does this.** React may genuinely unmount and remount a component while keeping its state: with `<Activity>` (Q28), fast refresh during development, and features that are still being built. An effect that survives the StrictMode check survives all of those. §15.9 has the full list of what StrictMode double-invokes.
+
+**How to respond to it:**
+
+- **Subscriptions, timers, listeners, connections:** return a cleanup that undoes them. This is always the fix.
+- **Data fetching:** ignore or abort the first request in the cleanup (Q68's `ignore` flag, Q70's `AbortController`). You will see two requests in the Network tab in development; the first is cancelled or ignored. In production there is one.
+- **Something that must happen once per app load** (analytics init, reading a URL token): do it outside React, at module level or before `render`, not in a component's effect.
+
+**What not to do:** remove `<StrictMode>`, or add a `useRef` flag that skips the second run. Both hide the symptom and keep the bug.
+
+---
+
+**Q75: What is automatic batching, and when would you use `flushSync`?**
+
+**Short answer:** when you call several state setters in a row, React **batches** them: it waits until your code finishes and then re-renders **once** with all the changes. Since React 18 this happens everywhere, including inside `setTimeout`, promises and native event listeners, which is why it is called *automatic* batching. `flushSync` is the rare opt-out: it forces React to apply an update and update the DOM **immediately**.
+
+```tsx
+function Profile() {
+  const [name, setName] = React.useState('');
+  const [age, setAge] = React.useState(0);
+  console.log('render', JSON.stringify({ name, age }));
+
+  React.useEffect(() => {
+    setTimeout(() => {
+      setName('Asha');       // no render yet
+      setAge(30);            // still no render
+    }, 50);                  // one render after the callback finishes
+  }, []);
+
+  return <p>{name} {age}</p>;
+}
+
+render(<Profile />);
+```
+
+```text
+render {"name":"","age":0}
+render {"name":"Asha","age":30}
+```
+
+Two setters, one render. Before React 18 this code would have rendered twice (updates inside a `setTimeout` were not batched), and briefly shown a name with the wrong age. The benefit is both speed and correctness: the screen never shows a half-applied update.
+
+**The consequence people trip on:** state does not change the moment you call the setter. Reading `name` right after `setName('Asha')` still gives the old value, because the new one only exists in the *next* render (tricky Q1 walks through it).
+
+**When `flushSync` is actually needed:** when the next line of code must see the updated DOM, usually to measure it or move focus.
+
+```tsx
+// In a real file: import { flushSync } from 'react-dom';
+function Messages() {
+  const [items, setItems] = React.useState(['first']);
+  const listRef = React.useRef(null);
+
+  const add = () => {
+    flushSync(() => {
+      setItems((list) => [...list, 'message ' + (list.length + 1)]);
+    });
+    // The DOM already has the new item here, so this sees it.
+    console.log('items in the DOM:', listRef.current.children.length);
+    listRef.current.lastElementChild.scrollIntoView({ block: 'nearest' });
+  };
+
+  return (
+    <div>
+      <ul ref={listRef}>{items.map((m) => <li key={m}>{m}</li>)}</ul>
+      <button onClick={add}>Add</button>
+    </div>
+  );
+}
+
+render(<Messages />);
+```
+
+Clicking **Add** logs `items in the DOM: 2`. Without `flushSync` it would log `1`, and the scroll would target the item that *used* to be last.
+
+Use it sparingly. It forces a synchronous render, skips the scheduling React would otherwise do, and a `flushSync` inside a render or an effect is itself a warning. Most "I need the DOM after updating" cases are better handled with an effect or a ref callback.
+
+---
+
+**Q76: What is a portal, and how do events behave inside one?**
+
+**Short answer:** `createPortal(children, domNode)` renders children into a **different place in the DOM**, usually `document.body`, while keeping them in the **same place in the React tree**. It exists for modals, tooltips and dropdowns that would otherwise be clipped by an ancestor's `overflow: hidden` or lose a `z-index` fight. §15.7 has the details.
+
+**The graded part is what "same place in the React tree" means.** Context still reaches the portalled children, and React events **bubble up the React tree, not the DOM tree**. A click inside a modal that lives in `document.body` still reaches an `onClick` on the component that rendered the modal.
+
+```tsx
+// In a real file: import { createPortal } from 'react-dom';
+function Page() {
+  const [target, setTarget] = React.useState(null);   // the DOM node to portal into
+
+  return (
+    <div>
+      <section onClick={() => console.log('section heard the click')}>
+        <p>The button below is rendered somewhere else in the DOM.</p>
+        {target && createPortal(
+          <button onClick={() => console.log('button clicked')}>Click me</button>,
+          target
+        )}
+      </section>
+      {/* Outside the section in the DOM. */}
+      <div ref={setTarget} style={{ marginTop: 20, padding: 10, border: '1px dashed #888' }} />
+    </div>
+  );
+}
+
+render(<Page />);
+```
+
+Clicking the button prints:
+
+```text
+button clicked
+section heard the click
+```
+
+In the DOM, the button is not inside the `<section>` at all. React still delivers the click to the section's handler, because in React's tree the button is its child.
+
+**Why this matters in practice:**
+
+- **"Click outside to close" breaks.** A handler that checks `sectionRef.current.contains(event.target)` says the click was *outside*, because in the DOM it was. Check against the portal's own node too.
+- **A parent's `onClick` fires for clicks inside the modal.** If a card opens a modal and the card itself is clickable, clicks in the modal bubble to the card. Call `event.stopPropagation()` at the modal's root.
+- **Accessibility is still your job.** A portal moves the markup; it does not trap focus, restore focus on close, or hide the page behind from screen readers. The Modal (Portal + Focus Trap) template does all three.
+
+---
+
+**Q77: Why does `{count && <Badge />}` show a `0` on the screen?**
+
+**Short answer:** because `&&` returns its **left side** when that side is falsy, and React renders the number `0` as text. `false`, `null` and `undefined` render nothing, but `0` and `NaN` are numbers, so they appear. Use a real boolean, or a ternary.
+
+```tsx
+function Badge({ count }) {
+  return <span> ({count} new)</span>;
+}
+
+function Inbox({ count }) {
+  return (
+    <p>
+      Inbox
+      {count && <Badge count={count} />}
+    </p>
+  );
+}
+
+render(<Inbox count={0} />);
+```
+
+This renders `Inbox0`. The expression `0 && <Badge />` evaluates to `0`, and `0` is valid content. The same happens with `{items.length && <List />}` on an empty list, and with `NaN` from a failed calculation.
+
+**Three safe forms:**
+
+```tsx
+function Inbox({ count }) {
+  return (
+    <div>
+      <p>Inbox {count > 0 && <span>({count} new)</span>}</p>              {/* a real boolean */}
+      <p>Inbox {count ? <span>({count} new)</span> : null}</p>            {/* a ternary */}
+      <p>Inbox {Boolean(count) && <span>({count} new)</span>}</p>         {/* explicit conversion */}
+    </div>
+  );
+}
+
+render(<Inbox count={0} />);
+```
+
+**Two related rules that come up in the same conversation:**
+
+- **Conditional rendering unmounts.** `{isOpen && <Panel />}` destroys the panel and its state when it closes. If the panel holds a half-filled form, hide it instead: CSS, the `hidden` attribute, or `<Activity mode="hidden">` in React 19 (Q28).
+- **The same component in the same position keeps its state**, even across branches of a ternary. `{isAdmin ? <Form role="admin" /> : <Form role="user" />}` is one `Form` whose props changed, so its state carries over. Give each branch a different `key` when that is not what you want (Q34).
+
+---
+
+**Q78: How would you build a form in React? Compare controlled inputs, a form library and React 19 form actions.**
+
+**Short answer:** all three work, and they suit different forms. **Controlled inputs** give you the value on every keystroke, which is right for live validation and inputs that affect other UI. A **form library** such as React Hook Form suits big forms with many validation rules. **React 19 form actions** handle the submit itself (pending state, errors, reset) with very little code.
+
+| Aspect | Controlled inputs | React Hook Form | Form actions (React 19) |
+|---|---|---|---|
+| Where the values live | React state, one `useState` per field or one object | the DOM, read by the library through refs | the DOM, read as `FormData` on submit |
+| Re-renders while typing | every keystroke | almost none | none |
+| Validation | you write it | rules or a schema (Zod, Yup), per field | on submit, in the action |
+| Pending and error state | you write it | built in | built in: `useActionState`, `useFormStatus` |
+| Best for | small forms, live feedback, dependent fields | large forms, complex validation | submit-centric forms, Server Actions in Next.js |
+
+**What form actions look like.** You pass a function to the form's `action`. React calls it with the form's data when it is submitted, `useActionState` keeps whatever the action returned (usually an error or a success message), and `isPending` is true while it runs.
+
+```tsx
+// Pretend server call: rejects taken usernames.
+function saveUsername(name) {
+  return new Promise((resolve) =>
+    setTimeout(() => resolve(name === 'admin' ? { error: 'That username is taken' } : { ok: true }), 300)
+  );
+}
+
+async function signUp(previousState, formData) {
+  const name = String(formData.get('username') || '').trim();
+  if (name.length < 3) return { error: 'At least 3 characters', value: name };
+  const result = await saveUsername(name);
+  if (result.error) return { error: result.error, value: name };
+  return { message: 'Welcome, ' + name + '!' };
+}
+
+function SignUpForm() {
+  const [state, formAction, isPending] = React.useActionState(signUp, {});
+  return (
+    <form action={formAction}>
+      <label>
+        Username <input name="username" defaultValue={state.value || ''} />
+      </label>
+      <button type="submit" disabled={isPending}>{isPending ? 'Saving…' : 'Sign up'}</button>
+      {state.error && <p role="alert">{state.error}</p>}
+      {state.message && <p>{state.message}</p>}
+    </form>
+  );
+}
+
+render(<SignUpForm />);
+```
+
+Try `ab`, then `admin`, then a real name. Three things happen with no extra code: the button disables itself while the action runs; the error comes back from the action as state, so no `try/catch` or error `useState` is needed; and after a **successful** submit React **resets the form's uncontrolled inputs**, which is why the failed cases pass the typed value back through `defaultValue`.
+
+`useFormStatus()` (from `react-dom`) gives a child component such as a shared `<SubmitButton>` the pending state of whichever form it is inside, so the button does not need a prop. It must be called in a component rendered *inside* the `<form>`.
+
+**How to choose in an interview:** "Uncontrolled plus an action for most submit forms, controlled where the UI reacts while the user types, and React Hook Form with a schema once there are more than a handful of rules." Whichever you pick, validation on the client is for the user's convenience; the server validates again.
+
+---
+
+**Q79: How do you type React components with TypeScript?**
+
+**Short answer:** type **props** with a `type` or `interface`, **children** as `React.ReactNode`, **events** with React's event types, and use **generics** when a component works with items of any type. Let inference do the rest; most hooks need no annotation at all.
+
+```tsx
+// 1. Props, with children typed as ReactNode (anything React can render)
+type CardProps = {
+  title: string;
+  footer?: React.ReactNode;           // optional
+  children: React.ReactNode;
+};
+
+function Card({ title, footer, children }: CardProps) {
+  return (
+    <section>
+      <h3>{title}</h3>
+      {children}
+      {footer && <footer>{footer}</footer>}
+    </section>
+  );
+}
+
+// 2. Extending a native element: every <button> prop, plus your own
+type ButtonProps = React.ComponentProps<'button'> & { variant?: 'primary' | 'ghost' };
+
+function Button({ variant = 'primary', ...rest }: ButtonProps) {
+  return <button data-variant={variant} {...rest} />;
+}
+
+// 3. Events and state
+function Search() {
+  const [query, setQuery] = React.useState('');                          // inferred: string
+  const [picked, setPicked] = React.useState<string | null>(null);        // annotate when the start value is not the full type
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value);
+  return (
+    <div>
+      <input value={query} onChange={onChange} />
+      <Button onClick={() => setPicked(query)}>Pick</Button>
+      {picked && <p>Picked: {picked}</p>}
+    </div>
+  );
+}
+
+// 4. A generic component: the item type is inferred from the items you pass
+type ListProps<T> = {
+  items: T[];
+  getKey: (item: T) => string;
+  renderItem: (item: T) => React.ReactNode;
+};
+
+function List<T>({ items, getKey, renderItem }: ListProps<T>) {
+  return <ul>{items.map((item) => <li key={getKey(item)}>{renderItem(item)}</li>)}</ul>;
+}
+
+function App() {
+  const users = [{ id: 'u1', name: 'Asha' }, { id: 'u2', name: 'Ravi' }];
+  return (
+    <Card title="Team" footer={<small>2 people</small>}>
+      <List items={users} getKey={(u) => u.id} renderItem={(u) => u.name} />
+      <Search />
+    </Card>
+  );
+}
+
+render(<App />);
+```
+
+**What each of those buys you**, checked with the TypeScript compiler:
+
+- **The generic `List`** infers `T` as `{ id: string; name: string }` from `items`, so a typo inside `renderItem`, `(u) => u.nme`, is a compile error: *Property 'nme' does not exist… Did you mean 'name'?*
+- **`React.ComponentProps<'button'>`** gives `Button` every native prop (`onClick`, `disabled`, `type`, `aria-*`) with the right types, and `variant="danger"` fails because it is not in the union.
+- **`React.ChangeEvent<HTMLInputElement>`** makes `e.target.value` a `string`. Inline handlers (`onChange={(e) => …}`) are inferred and need no annotation.
+
+**Two questions that usually follow:**
+
+- **`React.FC` or a plain function?** Either works. `React.FC` used to add a hidden `children` prop, which is why many style guides banned it; since React 18's types it no longer does, so `const Card: React.FC<{ title: string }> = ({ title, children }) => …` is now an error on `children`. Plain functions with typed props are the more common style today.
+- **Generic arrow functions in `.tsx`:** `const List = <T,>(props: ListProps<T>) => …` needs the trailing comma, or the parser reads `<T>` as a JSX tag.
+
+(The playground strips types without checking them, so Try it runs this but cannot show a type error; see the TypeScript guide's Q10.)
+
+---
+
+**Q80: What patterns do you use to make a component reusable?**
+
+**Short answer:** start with **composition through `children`**, the simplest and most flexible. When parts of a component need to share state, use **compound components**. When the parent needs to control *what* is rendered, use a **render prop**. And for anything with a value, support both **controlled and uncontrolled** use.
+
+**1. Composition with `children` and "slot" props.** Instead of a component with fifteen props for every variation, let the caller pass content in. `<Card title="…" footer={<Actions />}>{body}</Card>` is easier to extend than `<Card title body footerText footerButtonLabel onFooterClick />`.
+
+**2. Compound components.** Several components that work together, sharing state through context, so the caller arranges the pieces freely. This is how `<select>`/`<option>` works, and how most component libraries build tabs, menus and accordions.
+
+```tsx
+const DisclosureContext = React.createContext(null);
+
+function Disclosure({ children, defaultOpen = false }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  const id = React.useId();
+  return <DisclosureContext.Provider value={{ open, setOpen, id }}>{children}</DisclosureContext.Provider>;
+}
+
+function useDisclosure() {
+  const ctx = React.useContext(DisclosureContext);
+  if (!ctx) throw new Error('Disclosure parts must be inside <Disclosure>');   // a clear error beats a null crash
+  return ctx;
+}
+
+Disclosure.Button = function DisclosureButton({ children }) {
+  const { open, setOpen, id } = useDisclosure();
+  return <button aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>{children}</button>;
+};
+
+Disclosure.Panel = function DisclosurePanel({ children }) {
+  const { open, id } = useDisclosure();
+  return <div id={id} hidden={!open}>{children}</div>;
+};
+
+function App() {
+  return (
+    <Disclosure>
+      <h3><Disclosure.Button>Shipping details</Disclosure.Button></h3>   {/* the caller decides the markup around it */}
+      <Disclosure.Panel>Ships in 2 working days.</Disclosure.Panel>
+    </Disclosure>
+  );
+}
+
+render(<App />);
+```
+
+The caller put the button inside an `<h3>`, which `Disclosure` never had to know about. With a single `<Disclosure title body />` component, that would have needed another prop.
+
+**3. Render props.** The component owns the behaviour and calls a function you pass to render it. `<Autocomplete renderOption={(option, { active }) => …} />` lets each caller style an option without the component knowing. Custom hooks replaced most render props for sharing *logic* (Q49); they are still the right tool when the component has to decide *where* your markup goes.
+
+**4. Controlled and uncontrolled.** A reusable input, tabs or accordion should accept `value` plus `onChange` (the parent controls it) **or** `defaultValue` (the component manages itself). The usual implementation: use the prop when it is given, internal state when it is not. The Frontend System Design guide's tricky Q8 covers what to do when a caller passes both.
+
+**What to avoid:** a "god component" with a prop for every case (`showIcon`, `iconPosition`, `iconColor`…), and HOCs for new code (Q59). The test for a good API is whether the next unexpected requirement needs a new prop or can be done by the caller.
+
+---
+
+**Q81: What is a stale closure in React, and how do you fix one?**
+
+**Short answer:** every render creates new functions, and each function remembers the props and state **of the render it was created in**. A function that keeps running after later renders, such as a `setInterval` callback or an event listener added once, keeps seeing those old values. That is a stale closure.
+
+```tsx
+function Timer() {
+  const [count, setCount] = React.useState(0);
+
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      setCount(count + 1);          // "count" is the value from the FIRST render: always 0
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);                            // the effect never re-runs, so the callback is never replaced
+
+  return <p>{count}</p>;
+}
+
+render(<Timer />);
+```
+
+This shows `1` and then stays at `1` forever. The interval callback was created during the first render, when `count` was `0`, so every tick computes `0 + 1`. (Tricky Q6 traces it tick by tick.)
+
+**The fixes, and when each fits:**
+
+| Fix | Code | Use when |
+|---|---|---|
+| **Functional update** | `setCount((c) => c + 1)` | the new state depends only on the old state. The simplest fix here |
+| **Correct dependencies** | `}, [count]);` | the effect should restart when the value changes. Here that means a new interval every second, which works but is wasteful |
+| **A ref holding the latest value** | `latest.current = value` in an effect, read `latest.current` in the callback | a long-lived callback needs the latest value, and restarting is expensive (a socket, a subscription) |
+| **`useEffectEvent`** (React 19.2) | `const onTick = useEffectEvent(() => …)` | logic inside an effect needs the latest props and state, without being a reason to re-run the effect (Q29) |
+
+**How to spot it:** a value that is right on the first render and never updates; a handler that "remembers" an old filter or an old user; an `eslint-disable` above a dependency array. The `react-hooks/exhaustive-deps` lint rule catches most of these before they ship, which is why disabling it is a code-review flag.
+
+---
+
+**Q82: Why does my input lose focus on every keystroke?**
+
+**Short answer:** almost always because a **component is defined inside another component**. Each render of the parent creates a brand-new component function, React sees a different component type in that position, and it **unmounts the old one and mounts a new one**, which throws away the input, its focus and its state.
+
+```tsx
+function Form() {
+  const [name, setName] = React.useState('');
+
+  // ❌ A new component function on every render of Form
+  function NameField() {
+    return <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Type here" />;
+  }
+
+  return (
+    <div>
+      <NameField />
+      <p>Hello {name}</p>
+    </div>
+  );
+}
+
+render(<Form />);
+```
+
+Type one letter: the letter appears, and the input loses focus. `setName` re-renders `Form`, which defines a new `NameField`. To React, `NameField` from the previous render and `NameField` from this one are two different components (they are two different function objects), so reconciliation (Q8) replaces the whole subtree.
+
+**The fix is to define components at the top level** and pass what they need as props:
+
+```tsx
+function NameField({ value, onChange }) {
+  return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Type here" />;
+}
+
+function Form() {
+  const [name, setName] = React.useState('');
+  return (
+    <div>
+      <NameField value={name} onChange={setName} />
+      <p>Hello {name}</p>
+    </div>
+  );
+}
+
+render(<Form />);
+```
+
+**Other causes of the same symptom**, all of them a remount rather than a re-render:
+
+- **A `key` that changes every render**, such as `key={Math.random()}` or `key={Date.now()}`. A new key means a new component.
+- **Switching the element type**: `{editing ? <input … /> : <textarea … />}` swaps the element, so focus is lost by design.
+- **A parent higher up that remounts**, for example a layout that renders different wrappers on different screen sizes.
+
+A quick way to check: add `React.useEffect(() => { console.log('mounted'); return () => console.log('unmounted'); }, [])` to the input's component. If typing prints `unmounted` then `mounted`, it is being remounted, not re-rendered.
+
+---
+
+**Q83: What is new in React 19.3?**
+
+**Short answer:** React 19.3 (September 2026) made `<ViewTransition>` and Fragment Refs stable, and added `browser()` for client-only components and support for the browser's Trusted Types. It removes nothing, so upgrading from 19.2 is a version bump.
+
+The four things to name, with one line each on why they matter:
+
+- **`<ViewTransition>`** animates elements entering, leaving, moving or changing, using the browser's View Transitions API. It only runs for Transitions (`startTransition`, Suspense reveals, `useDeferredValue`), so urgent updates such as typing never wait for an animation, and it can animate an element *leaving*, which is the hard part to do by hand.
+- **Fragment Refs** give a ref to a group of siblings, so you can focus, observe or listen to them without adding a wrapper `<div>` that might break a flex or grid layout.
+- **`use(browser())`** makes a component render only in the browser: on the server it suspends and sends the Suspense fallback, avoiding the hydration mismatch that comes from reading `window` or `localStorage` during server rendering.
+- **Trusted Types** now work with React, because it stopped converting values to strings before they reach the DOM, so a site can enforce that XSS protection with a Content Security Policy.
+
+The answer that shows you follow the ecosystem closely: before 19.3, `<ViewTransition>` was Canary-only, and the right way to animate route changes was the browser's `document.startViewTransition()` driven from the router. Knowing *when* a feature became stable is part of the answer (§16.10, §16.11).
+
+---
+
+### Delivery and Scale
+
+**Q84: How would you design a CI/CD pipeline for a React application?**
+
+**Order the stages so the cheapest checks fail first, build the app once, and promote that same build through each environment.** Full workflow and the merge-blocking rule: §15.12.
+
+1. **On every pull request:** install with `npm ci` (cached), then lint, type-check, unit and component tests, and a production build, in parallel. All four are **required checks**, so a failure blocks the merge.
+2. **Budgets in the same run:** a bundle-size check (`size-limit`, or a script comparing the build's gzip size with `main`) fails the PR if the initial JavaScript grows more than an agreed amount, and an accessibility smoke test (axe on a few key pages) catches regressions no unit test sees.
+3. **A preview deployment per PR:** the build is deployed to a throwaway URL, and a short Playwright end-to-end suite runs against it. Reviewers click the real thing instead of imagining it from a diff.
+4. **On merge to `main`:** build once, store the output as an artifact, deploy it to staging, run smoke tests, then promote **the same artifact** to production (automatically, or after an approval on the `production` environment). Rebuilding for production means shipping something that was never tested.
+5. **After deploy:** watch error rates and Core Web Vitals from real users for a few minutes, and roll back automatically if they spike.
+
+**The details that show you have run one:**
+
+- **Build-time environment variables are public.** Anything prefixed `VITE_` (or `NEXT_PUBLIC_`) is inlined into the JavaScript every visitor downloads, so API keys and secrets never go there. Configuration that differs per environment either comes from a small `config.json` fetched at startup (one build, many environments) or requires one build per environment.
+- **Caching rules make deploys atomic.** Hashed files (`app-3f9a1c.js`) are cached for a year; `index.html` is never cached. Upload the new hashed files first and switch `index.html` last, so no user ever loads an HTML page that points at files that are not there yet.
+- **Rollback is re-pointing, not rebuilding.** Keep the previous build and switch back to it in seconds.
+- **Old tabs keep the old version.** After a deploy, a user with the app open requests chunk files that no longer exist, so keep the previous release's files available for a while and catch `ChunkLoadError` with a "reload" prompt.
+- **Feature flags separate deploy from release:** merge unfinished work switched off, and turn it on without deploying.
+
+---
+
+**Q85: A React app's JavaScript bundle has grown from 500 KB to 5 MB. How would you find the cause and fix it?**
+
+**Treat it as a regression with a cause, not as a performance project: a tenfold jump almost never comes from features, so find the change that caused it before optimising anything.** Q25 covers the general ways to shrink a bundle; this question is about diagnosis.
+
+**1. Confirm what grew, and measure the right number.** Look at the initial route's JavaScript, compressed (gzip or Brotli), because that is what users download and parse before the page works. Total size across every lazy chunk is a different and much less important number.
+
+**2. Compare two builds, not one.** Run a bundle analyzer (`rollup-plugin-visualizer` for Vite, `webpack-bundle-analyzer`, or `source-map-explorer` on any build) on the last good commit and on today's, side by side (§13.10). If you do not know when it happened, bisect: build a commit from the middle of the range, check the size, and repeat. That finds the responsible commit in a handful of builds.
+
+**3. Check the usual causes of a jump this size:**
+
+| Cause | What it looks like in the analyzer | Fix |
+|---|---|---|
+| A development build or inline source maps shipped | React's development build, warning strings everywhere | build with `NODE_ENV=production`; source maps as separate files |
+| A whole library imported for one function | all of `lodash`, every icon, every `date-fns` or `moment` locale | named imports from ESM builds, per-icon imports, load only the locales you use |
+| Two versions of the same package | `react`, `lodash` or a UI kit appearing twice | `npm ls <pkg>`, then `npm dedupe` or align versions |
+| A lazy boundary broken by a static import | a page that should be its own chunk sits inside the main bundle | find the plain `import` of the lazy module and remove it |
+| Data or assets inlined into JavaScript | a large JSON file, or images as base64 strings | fetch the data at run time; lower the asset-inlining limit |
+| Polyfills for browsers you no longer support | `core-js` in full | update `browserslist`, import polyfills by feature |
+| Server-only code in the client bundle | a database or PDF library in a client chunk | keep it on the server (`import 'server-only'` in Next.js) |
+
+**4. Then prevent it happening again, which is the part most answers skip.** Add a size budget to CI that fails the pull request when the initial bundle grows by more than an agreed amount, and publish the analyzer report on each PR. The jump from 500 KB to 5 MB happened because nothing measured the bundle on each change; a budget turns it into a red check on the one PR that caused it (§15.12).
+
+---
+
 ## 18. Tricky Output Questions
 
 Practice questions testing your understanding of React rendering behavior, hooks quirks, state batching, and closures.
@@ -5725,6 +7700,8 @@ function Counter() {
 
 **Explanation:**
 
+**In one line:** `count` is a constant captured when this render ran, so all three calls queue "set to 1", and the log still reads that render's `0`.
+
 This question tests two intertwined mechanisms: closure capture of state variables and React's batching of state updates inside event handlers. When `Counter` renders, React destructures the current state value `0` into the local const `count`. The `handleClick` function is re-created each render and closes over that specific `count = 0`. Because `count` is a plain constant in that render's scope, it cannot change mid-handler — there is no way for `setCount` to mutate it.
 
 Now trace the three calls. `setCount(count + 1)` is identical to `setCount(0 + 1)` three times in a row; React simply queues "set state to 1" three times. These are all direct value updates, not functional updaters, so React does not chain them against any pending state — each call overwrites the previous one's queued value. When the handler finishes, React batches the queued updates and schedules a single re-render with the final queued value, `1`.
@@ -5755,6 +7732,8 @@ function Counter() {
 
 **Explanation:**
 
+**In one line:** A function passed to `setCount` receives the latest pending value, so the three calls chain 0 → 1 → 2 → 3.
+
 This is the same shape as Q1 but swaps the direct value for a functional updater, and that single change fixes the staleness problem. When you pass a function to `setState`, React does not queue a value — it queues a transformation. During the next render, React walks the update queue in order, feeding each updater the result of the previous one. The updater itself does not close over `count`; it receives the latest pending state as its `prev` argument, freshly passed in by React at flush time.
 
 Tracing the queue: starting from committed state `0`, the first updater produces `0 + 1 = 1`. React feeds that `1` into the second updater, yielding `2`. The third updater then produces `3`. Only after all three are processed does React schedule a single re-render with the final value `3`. The three calls are still batched — the user sees exactly one render — but because each updater computes from the latest pending value rather than from a captured closure, their effects actually compound.
@@ -5784,6 +7763,8 @@ function Counter() {
 **Rendered value after first click:** `1`
 
 **Explanation:**
+
+**In one line:** The queue applies 1, then 2, then the last direct call sets it back to `count + 1`, which is still `0 + 1`: a direct value overwrites whatever came before it.
 
 This one demonstrates how React's update queue treats the two kinds of updates uniformly: each entry is applied in order, but a direct value update ignores whatever pending state came before it, while a functional updater computes from it. The render captured `count = 0`, so both direct calls in this handler are really `setCount(1)` — not `setCount(count + 1)` that somehow re-reads the latest value.
 
@@ -5821,6 +7802,8 @@ render 5
 ```
 
 **Explanation:**
+
+**In one line:** All five updates happen inside one event handler, so React batches them and renders once, with the chained result `5`.
 
 This question tests automatic batching — a foundational optimization in React. In React 18 and later, any synchronous sequence of state updates inside a single "tick" of JavaScript (event handler, effect body, promise continuation, timeout callback, etc.) is collapsed into one re-render. Earlier versions only batched inside React event handlers; 18's concurrent renderer extended batching everywhere.
 
@@ -5865,6 +7848,8 @@ D: mount effect
 
 **Explanation:**
 
+**In one line:** The component body runs top to bottom during render; effects run afterwards in the order they were declared, and a cleanup only runs before the next effect or on unmount, never on first mount.
+
 React's lifecycle is a sequence of distinct phases, and each kind of work runs in exactly one of them. The render phase is the synchronous execution of the component function itself — it must be pure, so React (or Strict Mode) can call it multiple times safely. All top-level code in the function body, including both `console.log` calls, runs here: first `A`, then the hook calls (which merely register effects; they do not run the effect bodies yet), then `E`.
 
 After the render phase, React commits the result to the DOM, lets the browser paint, and then enters the effect phase. Effects fire in the order they were declared, so `B` runs before `D`. Cleanups are queued alongside effects but only execute before the next effect run or on unmount — there is nothing to clean up on the very first mount, so `C` never appears in this output.
@@ -5899,6 +7884,8 @@ function Timer() {
 
 **Explanation:**
 
+**In one line:** The effect ran once, so its interval callback forever sees the first render's `count` of `0`, and keeps setting the state to `1`.
+
 This is the canonical "stale closure in useEffect" bug, and it hinges on how dependency arrays interact with JavaScript closures. An empty `[]` tells React: "only run this effect once, on mount." React complies — it captures the effect function as it existed on the first render, runs it, and never re-creates it. But that effect function closes over the `count` identifier from the first render's scope, where `count === 0`. Nothing in the effect itself can ever see a newer `count`, because re-renders create new local `count` bindings in new function scopes that this old closure knows nothing about.
 
 Every interval tick thus reads `count` as `0` and calls `setCount(0 + 1)`. The first tick re-renders with `count = 1`, but the interval callback still fires from the original closure. The second tick also calls `setCount(1)` — which is the same value React already has, so React bails out and skips the re-render (see Q12). The log keeps printing `0` forever and the UI is stuck at `1`.
@@ -5926,6 +7913,8 @@ function App() {
 **Output:** `"effect ran"` logs on **every** render.
 
 **Explanation:**
+
+**In one line:** A fresh object literal is a new reference on every render, and React compares dependencies by reference, so the effect never sees them as unchanged.
 
 React compares dependency arrays with `Object.is`, which is essentially strict equality plus correct handling of `NaN` and `-0`. For primitives like numbers and strings, `Object.is` compares by value, so stable values yield stable deps. For objects, arrays, and functions, it compares by reference — two objects with identical keys and values are considered different if they live at different memory addresses.
 
@@ -5961,6 +7950,8 @@ function App() {
 **Rendered value:** `5`
 
 **Explanation:**
+
+**In one line:** The timeout callback was created in the render where `count` was `0`, and state inside a render never changes, so it logs `0` even though the screen shows `5`.
 
 State in React is not a mutable variable you can re-read; it is a snapshot pinned to a specific render. When the component rendered for the first time, `useState(0)` returned the value `0` and React bound that value to the local const `count` in that particular invocation of `App`. The `handleClick` function defined in that render — and any callback defined inside it, including the `setTimeout` one — closes over that specific `count`.
 
@@ -6002,6 +7993,8 @@ function App() {
 - Screen shows: `Ref value: 3`
 
 **Explanation:**
+
+**In one line:** Changing `ref.current` does not ask React to re-render, so the screen only catches up when some other update causes a render.
 
 `useRef` and `useState` look superficially similar — both give you a per-component value that persists across renders — but they plug into two completely different parts of the React runtime. A ref is a mutable container (`{ current: X }`) whose identity is preserved across renders; React does not track reads or writes to `.current`. A state value, by contrast, is immutable from the component's perspective, and calling its setter is what informs React that it needs to reconcile and re-render.
 
@@ -6046,6 +8039,8 @@ Child rendered
 
 **Explanation:**
 
+**In one line:** Rendering a parent renders all of its children by default, props or not; only `React.memo` would let `Child` skip.
+
 React's reconciliation model is deliberately simple: when a component renders, React walks the entire subtree it produces and re-renders every child, regardless of whether props changed. The reason is that children may read from context, hooks, or other external sources that React cannot inspect — so the safe default is to re-render everything and let the virtual DOM diff figure out what actually needs to touch the real DOM.
 
 When `Parent` updates, it returns new React elements for its children. Even though `<Child />` has no props, it is still a fresh element object referencing the `Child` component, and React evaluates it by calling `Child()` again. The `console.log("Child rendered")` fires. If `Child` eventually produces the same JSX structure, React will diff and realize nothing needs to change in the DOM — but the component function itself always runs.
@@ -6083,6 +8078,8 @@ Child rendered
 
 **Explanation:**
 
+**In one line:** `{ color: "red" }` is a new object each render, so `React.memo`'s reference comparison always sees a changed prop.
+
 `React.memo` compares the new props to the previous props with a shallow equality check: for each key, it runs `Object.is(prev[key], next[key])`. If every key matches, it bails out and reuses the last render; if any key differs, it re-renders. For primitives like `color: "red"` as a direct prop, this works nicely. But here the prop is the entire `style` object.
 
 Each time `Parent` renders, the JSX expression `style={{ color: "red" }}` evaluates fresh, producing a new object literal with a different memory address. Memo compares the old `style` object to the new `style` object, `Object.is` returns `false`, and Child re-renders — defeating the entire reason for wrapping it in memo.
@@ -6112,6 +8109,8 @@ render(<App />);
 **Output:** `rendered 1` on mount, and **nothing at all** on any click. Press **Try it** and click as many times as you like — the counter never moves.
 
 **Explanation:**
+
+**In one line:** The new value is `Object.is`-equal to the current one and nothing else is pending, so React drops the update at the moment you call `setCount`, without rendering.
 
 React bails out when the new state is `Object.is`-equal to the current state, and the interesting part is *where* it bails out, because there are two different paths.
 
@@ -6162,6 +8161,8 @@ function App() {
 
 **Explanation:**
 
+**In one line:** A different `key` tells React this is a different component, so it unmounts the old `Input` (and its state) and mounts a fresh one.
+
 React's reconciliation algorithm uses position plus key to decide whether an element in the new render corresponds to an existing instance in the old one. Without an explicit key, React matches by position in the parent's children array — the first `<Input />` at position 0 today is treated as the same instance as the first `<Input />` at position 0 yesterday, so its hook state, DOM node, and effects are all preserved. With an explicit `key`, React uses that key as the identity instead.
 
 When the user clicks Reset, `setId(id + 1)` changes `id` from 1 to 2. On the next render, the JSX produces `<Input key={2} />`, but React remembers the previous child had `key={1}`. The keys don't match, so React treats this as a different component instance altogether: it unmounts the key-1 Input (running any cleanup effects, destroying the hook state, removing the DOM node) and mounts a fresh key-2 Input (calling the function for the first time, running `useState("")`, firing mount effects). The input clears because its internal `text` state starts over at `""`, and `console.log("Input mounted")` fires because the component body executed as a first-time render.
@@ -6210,6 +8211,8 @@ render(<Demo />);
 
 **Explanation:**
 
+**In one line:** React matches `useState` calls to stored state by call order, so skipping one on a later render leaves fewer hooks than React stored, and it throws.
+
 React does not actually see the names of your hooks. Internally, each component has an array (technically a linked list) of hook slots. On every render, React walks through your component function from top to bottom; each hook call reads the next slot in sequence. The identity of a hook — which state it owns, which effect it is — is determined purely by the order of the call, not by any variable name.
 
 On the first render with `showName = true`, React records three slots: slot 0 = count state, slot 1 = name state, slot 2 = age state. On the next render with `showName = false`, your code calls only two hooks: `useState(0)` and `useState(25)`. React sees hook #0 (fine — matches count) and hook #1, but now this call is your `useState(25)` while slot 1 in memory is holding "React". React detects the mismatch — fewer hook calls than last time — and throws the dev-mode error: "Rendered fewer hooks than expected." The exact wording varies by direction, but the cause is identical: the ordered correspondence between call sites and slots has been broken.
@@ -6251,6 +8254,8 @@ setup 2
 
 **Explanation:**
 
+**In one line:** Before each re-run, React calls the previous effect's cleanup, which still holds the `count` from its own render.
+
 A `useEffect` with a dependency array is not a "when it changes" handler; it is a "keep this effect synchronized with these values" declaration. Every render where the deps have changed, React first runs the previous render's cleanup function, then runs the new render's effect function. That two-step dance is what keeps subscriptions, timers, and external resources in sync with the current props and state.
 
 On mount, there is no previous effect to clean up, so only the setup runs — and the effect closes over the first render's `count = 0`, so it logs `setup 0`. When `count` changes to `1`, React re-renders, detects that the `[count]` dep changed, and enters the commit phase. Before running the new effect, it invokes the *old* cleanup function, which was created in the render where `count` was `0`. That cleanup closes over `count = 0` and logs `cleanup 0`. Then the new effect runs, closing over `count = 1`, and logs `setup 1`.
@@ -6289,6 +8294,8 @@ render 43
 ```
 
 **Explanation:**
+
+**In one line:** Passing the function itself (not its result) lets React call it only on mount; later renders ignore the initial-state argument.
 
 `useState` accepts either an initial value or an initializer function. When you pass a non-function value, React stores it as-is the first time and ignores the argument on every subsequent render. When you pass a function, React recognizes the special form — it invokes the function to compute the initial state exactly once, on the first render, and then ignores it forever after. This is called the *lazy initial state* optimization.
 
@@ -6394,8 +8401,17 @@ function AppProvider({ children }) {
 
 function ThemedButton() {
   const { theme } = useContext(Ctx);     // only reads theme
+  console.log('ThemedButton render');    // logged so Try it shows each re-render
   return <button className={theme}>Go</button>;
 }
+
+// Harness: a page that reads user. "Navigate" changes only user — watch ThemedButton log anyway
+function Page() {
+  const { setUser } = useContext(Ctx);
+  return <><ThemedButton /><button onClick={() => setUser({ at: Date.now() })}>Navigate</button></>;
+}
+
+render(<AppProvider><Page /></AppProvider>);
 ```
 
 **Output:** Every `ThemedButton` re-renders on user updates, even though it only reads `theme`.
@@ -6421,6 +8437,20 @@ function AppProvider({ children }) {
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
+
+// stand-ins so this example runs on its own
+const Ctx = createContext(null);
+function ThemedButton() {
+  const { theme } = useContext(Ctx);
+  console.log('ThemedButton render');
+  return <button className={theme}>Go</button>;
+}
+function Page() {
+  const { setUser } = useContext(Ctx);
+  return <><ThemedButton /><button onClick={() => setUser({ at: Date.now() })}>Navigate</button></>;
+}
+
+render(<AppProvider><Page /></AppProvider>);
 ```
 
 Measured on React 19: the theme-only consumer re-renders on a `user` change **with or without** that `useMemo`. What `useMemo` does fix is a *different* problem — re-renders caused by the provider's **parent** re-rendering when nothing in the value actually changed. Worth doing, but it is not the answer to this question.
@@ -6447,8 +8477,17 @@ function AppProvider({ children }) {
 // Subscribes to ThemeCtx only, so a user change cannot reach it.
 const ThemedButton = React.memo(function ThemedButton() {
   const { theme } = useContext(ThemeCtx);
+  console.log('ThemedButton render');    // logged so Try it shows each re-render
   return <button className={theme}>Go</button>;
 });
+
+// Harness: a page that reads user. "Navigate" changes only user — ThemedButton no longer logs
+function Page() {
+  const { setUser } = useContext(UserCtx);
+  return <><ThemedButton /><button onClick={() => setUser({ at: Date.now() })}>Navigate</button></>;
+}
+
+render(<AppProvider><Page /></AppProvider>);
 ```
 
 **`React.memo` on the consumer is part of the fix, not an extra.** Splitting stops the *context* notifying it, but `AppProvider` still re-renders when `user` changes, and re-rendering a parent re-renders its children by default. Only with both does the count reach zero — measured: 1 re-render with the split alone, 0 with the split plus `memo`.
@@ -6468,7 +8507,7 @@ If you need one logical store with genuine field-level subscription, that is wha
 
 When you use the array index as `key`, React's reconciler matches old and new children by position, not identity. Before the prepend, the first row had `key=0` and the data for `oldItems[0]`. After the prepend, the first row still has `key=0` but now holds `newItem`. React looks up `key=0`, sees a "match," and instead of mounting a new row at the top and shifting the rest, it **reuses** the first DOM node and just updates its props. Every row's props change because every row's data shifted, so every row's hooks/state/DOM are reconciled. With 5,000 rows that's a massive amount of unnecessary work — and any internal Row state (controlled inputs, expanded/collapsed flags) now belongs to the *wrong* item.
 
-If you used `key={item.id}` instead, the reconciler matches by identity. The new row gets a fresh mount; existing rows keep their identity, their state, and — crucially — React doesn't re-render them at all because their props haven't changed.
+If you used `key={item.id}` instead, the reconciler matches by identity. The new row gets a fresh mount; existing rows keep their identity, their state and their DOM nodes, and React only inserts one node at the top. Their props are unchanged too, so if `Row` is wrapped in `React.memo`, React skips re-rendering them entirely. (Without `memo` the rows still re-run because the parent re-rendered, but they produce identical output and touch no DOM.)
 
 The bug compounds with `React.memo`: memoization can't help when index keys make every prop look "changed" from the reconciler's point of view.
 
@@ -6493,6 +8532,12 @@ function Search({ products }) {
 
   return <><input value={query} onChange={onChange} />{isPending && "…"}<List items={filtered}/></>;
 }
+
+// stand-ins so this example runs on its own: 50,000 products, first 50 shown
+const List = ({ items }) => <p>{items.length} matches: {items.slice(0, 50).map(p => p.name).join(', ')}</p>;
+const products = Array.from({ length: 50000 }, (_, i) => ({ name: 'product ' + i }));
+
+render(<Search products={products} />);
 ```
 
 **Output:** Without `useTransition`, every keystroke schedules one render that re-runs the 50K filter and re-renders the list synchronously — the input value can't update until that render commits. With `useTransition`, the input updates on every keystroke at full speed; the filtered list catches up in the background.
@@ -6723,6 +8768,8 @@ function TagList({ tags }) {
   const all = [...tags, 'featured'];       // or tags.concat('featured')
   return <ul>{all.map(t => <li key={t}>{t}</li>)}</ul>;
 }
+
+render(<TagList tags={['new', 'sale']} />);
 ```
 
 **Takeaway:** React Compiler bails out silently on components that violate purity or immutability, so rule violations cost you the optimisation rather than producing an error — and StrictMode's double-invoke is the tool that makes the underlying impurity visible.
@@ -6732,6 +8779,15 @@ function TagList({ tags }) {
 **Q26: The dependency array is empty and the linter is happy. Why does switching rooms never reconnect?**
 
 ```tsx
+// stand-in so this example runs on its own
+function createConnection(roomId) {
+  return {
+    on: (_event, cb) => setTimeout(cb, 100),
+    connect: () => console.log('connect', roomId),
+    disconnect: () => console.log('disconnect', roomId),
+  };
+}
+
 function ChatRoom({ roomId }) {
   const connect = useEffectEvent(() => {
     const conn = createConnection(roomId);
@@ -6743,7 +8799,20 @@ function ChatRoom({ roomId }) {
     const conn = connect();
     return () => conn.disconnect();
   }, []);        // linter: no warning
+  return <p>Showing room: {roomId}</p>;
 }
+
+function Demo() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <button onClick={() => setRoomId(r => (r === 'general' ? 'random' : 'general'))}>Switch room ({roomId})</button>
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
 **Behaviour:**
@@ -6766,6 +8835,16 @@ The distinction to apply is *what kind of logic this is*:
 Written correctly, each piece goes where it belongs:
 
 ```tsx
+// stand-in so this example runs on its own
+const showToast = (msg, theme) => console.log(msg, '(' + theme + ' toast)');
+function createConnection(roomId) {
+  return {
+    on: (_event, cb) => setTimeout(cb, 100),
+    connect: () => console.log('connect', roomId),
+    disconnect: () => console.log('disconnect', roomId),
+  };
+}
+
 function ChatRoom({ roomId, theme }) {
   const onConnected = useEffectEvent(() => showToast('Connected!', theme));  // event
 
@@ -6775,7 +8854,20 @@ function ChatRoom({ roomId, theme }) {
     conn.connect();
     return () => conn.disconnect();
   }, [roomId]);                            // honest and complete
+  return <p>Showing room: {roomId}</p>;
 }
+
+function Demo() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <button onClick={() => setRoomId(r => (r === 'general' ? 'random' : 'general'))}>Switch room ({roomId})</button>
+      <ChatRoom roomId={roomId} theme="dark" />
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
 The generalisable warning: `useEffectEvent` makes awkward effects tolerable, which makes it a tempting way to silence any dependency you find inconvenient. Silencing a dependency you *wanted* to react to converts a loud lint warning into a quiet behavioural bug. The moment you reach for it to make a warning go away rather than to express "this is an event", you are using it wrong.
@@ -6793,7 +8885,7 @@ React Output Cheat Sheet:
 3.  React 18+ batches all state updates in event handlers
 4.  useEffect runs AFTER browser paint, not during render
 5.  useEffect cleanup captures values from the render it was created in
-6.  Object/array deps in useEffect always trigger re-runs (reference equality)
+6.  Object/array deps created during render re-run the effect every time (new reference)
 7.  React.memo does shallow compare — new object refs bypass it
 8.  Changing `key` completely remounts the component
 9.  Hooks must be called in the same order every render
@@ -6812,3 +8904,4 @@ React Output Cheat Sheet:
 - [React Documentation](https://react.dev) — Official React docs with interactive examples
 - [React API Reference](https://react.dev/reference/react) — Complete hooks and components API
 - [React GitHub](https://github.com/facebook/react) — Source code and issue tracker
+- [Building Performant React Applications](https://anshurajsingh.com/blog/react-performance-optimization) — a worked profiling, Redux Toolkit selector, code-splitting and virtualisation pass on a real dashboard app

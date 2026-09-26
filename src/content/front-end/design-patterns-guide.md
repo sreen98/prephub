@@ -547,7 +547,7 @@ const out = new VideoConverter().convert('input.mp4', 'avi');
 
 ### 4.6 Flyweight
 
-**Intent:** Use sharing to support large numbers of fine-grained objects efficiently. Separate the *intrinsic* state (shareable) from the *extrinsic* state (per-instance).
+**Intent:** Use sharing to support large numbers of fine-grained objects efficiently. Split each object's data into two parts: the *intrinsic* state, which is the same for many objects (a tree species' name, colour and texture), and the *extrinsic* state, which is unique to each one (where this particular tree stands). Store the intrinsic part once and share it; keep only the small extrinsic part per object. In the example, 100,000 trees would otherwise each carry their own copy of a large texture.
 
 **Use when:** You're rendering thousands or millions of objects with mostly-shared data (forest of trees with the same texture, characters in a text editor with the same font glyph, particles in a game).
 
@@ -864,7 +864,7 @@ class PDFReport extends ReportGenerator {
 }
 ```
 
-**Real-world examples:** React class lifecycle methods (`componentDidMount`, `render`) override steps in React's Template Method. Express `Router.use` middleware overrides. Django/Rails framework methods.
+**Real-world examples:** React class lifecycle methods (`componentDidMount`, `render`) override steps in React's Template Method. Node.js streams: `stream.Readable` runs the buffering and back-pressure algorithm and your subclass supplies only `_read()` (or `_transform()` for a `Transform` stream). Django/Rails framework methods. (Express middleware is *not* an example — each handler decides whether to call `next()`, which makes it Chain of Responsibility, §5.1.)
 
 ### 5.10 Visitor
 
@@ -899,6 +899,10 @@ class TotalSizeVisitor implements Visitor {
 class FindByNameVisitor implements Visitor { /* ... */ }
 ```
 
+**Why `accept()` exists.** It looks redundant — why not call `visitor.visitFile(file)` directly? Because code walking a tree usually holds a node whose concrete type it does not know (`File | Folder`). Calling `node.accept(v)` lets the *node* pick the right method: `File.accept` always calls `visitFile`, `Folder.accept` always calls `visitFolder`. So which code runs depends on two runtime types at once — the node's (through `accept`) and the visitor's (through the `v` you passed). That is called **double dispatch**, and it is the whole trick: new operations are new visitor classes, and no caller ever writes a type check. The cost is the other direction: adding a new node type means adding a method to every visitor.
+
+In JavaScript the same idea is often written without `accept()`: the visitor is a plain object keyed by node type, and the traversal looks up `visitor[node.type]`. That is how Babel and ESLint visitors work (`{ Identifier(path) { … } }`).
+
 **Real-world examples:** AST traversal — Babel and ESLint plugins are Visitors over the JS AST. SQL query planners visit tree nodes. The Composite + Visitor combination is one of the most common pattern pairings.
 
 ---
@@ -912,6 +916,11 @@ React has its own canon that doesn't map cleanly to GoF.
 **Intent:** A function that takes a component and returns a new enhanced component. Same idea as the Decorator pattern.
 
 ```jsx
+// stand-ins so this example runs on its own
+const useUser = () => ({ name: 'Ada' });
+const LoginPrompt = () => <p>Please log in</p>;
+const Dashboard = ({ user, title }) => <h2>{title}: welcome, {user.name}</h2>;
+
 function withAuth(Component) {
   return function AuthGated(props) {
     const user = useUser();
@@ -920,6 +929,8 @@ function withAuth(Component) {
   };
 }
 const ProtectedDashboard = withAuth(Dashboard);
+
+render(<ProtectedDashboard title="Reports" />);
 ```
 
 Rare in modern React — hooks made HOCs largely obsolete for state injection. Still useful for **structural** wrapping (error boundaries, suspense boundaries, theme providers).
@@ -934,7 +945,15 @@ function MouseTracker({ children }) {
   return <div onMouseMove={e => setPos({ x: e.clientX, y: e.clientY })}>{children(pos)}</div>;
 }
 
-<MouseTracker>{pos => <p>{pos.x}, {pos.y}</p>}</MouseTracker>
+function Demo() {
+  return (
+    <MouseTracker>
+      {pos => <p style={{ padding: 40, border: '1px dashed' }}>Move the mouse here: {pos.x}, {pos.y}</p>}
+    </MouseTracker>
+  );
+}
+
+render(<Demo />);
 ```
 
 Largely replaced by custom hooks (`useMouse()` instead). Still common in libraries that need to render custom JSX based on internal state (Headless UI, Radix UI primitives use a hybrid of compound + render-prop patterns).
@@ -978,11 +997,17 @@ Tabs.Panel = ({ index, children }) => {
   return active === index ? <div>{children}</div> : null;
 };
 
-<Tabs>
-  <Tabs.List><Tabs.Tab index={0}>One</Tabs.Tab><Tabs.Tab index={1}>Two</Tabs.Tab></Tabs.List>
-  <Tabs.Panel index={0}>Content 1</Tabs.Panel>
-  <Tabs.Panel index={1}>Content 2</Tabs.Panel>
-</Tabs>
+function Demo() {
+  return (
+    <Tabs>
+      <Tabs.List><Tabs.Tab index={0}>One</Tabs.Tab><Tabs.Tab index={1}>Two</Tabs.Tab></Tabs.List>
+      <Tabs.Panel index={0}>Content 1</Tabs.Panel>
+      <Tabs.Panel index={1}>Content 2</Tabs.Panel>
+    </Tabs>
+  );
+}
+
+render(<Demo />);
 ```
 
 **Real-world:** Radix UI, Headless UI, React Aria — every modern component library uses this pattern. The user composes; the library wires the Context.
@@ -998,11 +1023,23 @@ Largely deprecated by hooks — the same separation now happens via custom hooks
 **Intent:** A top-level component that owns state and exposes it to a subtree via Context.
 
 ```jsx
+const ThemeContext = createContext(null);
+
 function ThemeProvider({ children }) {
   const [theme, setTheme] = useState('light');
   const value = useMemo(() => ({ theme, setTheme }), [theme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
+
+// the consumer side: a hook, so components never touch the context object
+const useTheme = () => useContext(ThemeContext);
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  return <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>Theme: {theme}</button>;
+}
+
+render(<ThemeProvider><ThemeToggle /></ThemeProvider>);
 ```
 
 Universal React pattern. Combine with custom hooks (`useTheme()`) for the consumer side.
@@ -1032,14 +1069,14 @@ Same as GoF Command + Mediator combined. Redux is this scaled up to a global sto
 
 Patterns become anti-patterns when applied wrong:
 
-- **Singleton-as-global-state.** Most "Singletons" you see are just globals dressed up. Pass dependencies explicitly.
-- **Factory of one.** A factory that produces only one type, called from one place — delete it; just use `new`.
-- **God component / God object.** One component or class doing 10 things. Extract.
-- **Prop drilling 5+ levels.** When you find yourself passing a prop through 5 components that don't use it, lift to Context or state library.
-- **HOC pyramid.** `withAuth(withTheme(withRouter(withTracking(Component))))` — replace with hooks.
-- **Premature abstraction.** Building a Strategy interface for one strategy. Inline until you have three concrete cases.
-- **Anemic domain model.** A class with only getters/setters and no behavior — Data Class smell.
-- **Service Locator.** A global registry where everyone goes to find services. Hides dependencies; makes testing miserable.
+- **Singleton-as-global-state.** Most "Singletons" you see are just globals dressed up: any code can read or change them, and nothing in a function's signature says it depends on one. Pass dependencies explicitly so they are visible and a test can swap them.
+- **Factory of one.** A factory that produces only one type, called from one place, adds a file and a jump to follow without deciding anything. Delete it; just use `new`.
+- **God component / God object.** One component or class doing 10 things. Every change touches it, so it collects merge conflicts and bugs, and it cannot be tested one concern at a time. Extract each concern into its own unit.
+- **Prop drilling 5+ levels.** When you find yourself passing a prop through 5 components that don't use it, every one of them must change when the prop does. Lift it to Context or a state library so only the components that read it know about it.
+- **HOC pyramid.** `withAuth(withTheme(withRouter(withTracking(Component))))` hides where each prop comes from, and two wrappers can silently overwrite the same prop name. Hooks make each dependency an explicit line inside the component instead.
+- **Premature abstraction.** Building a Strategy interface for one strategy. You pay for the indirection now, and your guess about what will vary is usually wrong. Keep the code inline until real cases exist: a second case is the earliest point to generalise, because only then can you see which axis actually varies (§2.2). The "rule of three" — abstract on the third duplicate, not the second — is the more cautious version of the same advice, and the better default when the two cases you have might just be coincidentally similar.
+- **Anemic domain model.** A class with only getters/setters and no behavior — the Data Class smell. The rules about that data then end up scattered across whatever code uses it, so the same check is written (and gets out of sync) in several places.
+- **Service Locator.** A global registry where everyone goes to find services. Like Singleton, it hides dependencies: you cannot tell from a class's constructor what it needs, and tests must configure the global registry before anything runs.
 
 ---
 
@@ -1073,7 +1110,7 @@ Patterns become anti-patterns when applied wrong:
 
 **Pattern combinations you'll see often:**
 
-- Observer + Command = event-sourced systems (every state change is a Command emitted through an Observer)
+- Command + Observer = event-driven systems. A Command is a *request* ("add item to cart") that can still be rejected; once it is applied, the resulting *event* ("item added") is published to observers. Event sourcing stores those events, not the commands, as the record of what happened — the distinction matters because a replay must reproduce facts, not re-run requests that might now fail
 - Composite + Visitor = AST traversal (Babel, ESLint)
 - Strategy + Factory = "give me the strategy object for this configuration"
 - Mediator + Observer = Redux (store mediates; components observe)
@@ -1180,7 +1217,7 @@ Use **Strategy (composition)** when:
 - You want to swap the behavior at runtime (a hierarchy fixes the type at construction).
 - Multiple orthogonal axes of variation need to combine — three sort orders × two display formats = 6 subclasses with inheritance, but 3 + 2 strategies with composition.
 
-The general advice "favor composition over inheritance" exists because Strategy scales to combinations linearly while inheritance scales exponentially. Inheritance also locks in the variants at compile time; Strategy can be swapped at runtime.
+The general advice "favor composition over inheritance" exists because with Strategy the number of pieces grows by *adding* the options on each axis, while with inheritance it grows by *multiplying* them (every combination needs its own subclass). Inheritance also locks in the variants at compile time; Strategy can be swapped at runtime.
 
 In FP/JS-land, "Strategy" usually just means "pass a function" — `Array.sort(compareFn)`, `array.filter(predicate)`, validation rule arrays.
 

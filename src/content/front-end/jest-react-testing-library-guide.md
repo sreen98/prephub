@@ -273,6 +273,8 @@ const mockAsync = jest.fn()
 
 ### 4.2 Mock Modules (jest.mock / vi.mock)
 
+`jest.mock('./path')` replaces a whole module for the test file, so any code that imports it gets your fake instead. Jest hoists `jest.mock` calls above every `import` before the file runs, so the mock takes effect even when you write it below the import lines.
+
 ```ts
 // Mock entire module
 jest.mock('./api-client', () => ({
@@ -447,6 +449,8 @@ it('polls until complete', async () => {
 
 React Testing Library (RTL) is a testing utility that encourages testing components **the way users interact with them** — not implementation details.
 
+"Implementation details" means anything a user cannot see: the name of a state variable, which hook holds it, an internal method. The reason to avoid testing them is practical. A test that checks `state.isOpen` breaks the day you rename it or move it into a reducer, even though the modal still opens — so the test fails when nothing is broken, and people learn to ignore it. A test that clicks "Open" and checks a dialog appeared survives that refactor and only fails when a user would notice.
+
 ```bash
 npm install --save-dev @testing-library/react @testing-library/jest-dom @testing-library/user-event
 ```
@@ -527,6 +531,8 @@ findAllBy...| ❌ throw      | ✅ return []   | ✅ return []   | Yes ✅
 7. getByTitle       — title attribute (low priority)
 8. getByTestId      — last resort (data-testid)
 ```
+
+The order follows how a real person finds things. `getByRole` looks elements up in the accessibility tree — the structure a screen reader uses — so `getByRole('button', { name: /submit/i })` only passes if the button really is announced as "Submit", and your test doubles as a basic accessibility check. `data-testid` is invisible to users, so a test that relies on it proves nothing about what they experience.
 
 ### 7.4 Query Examples
 
@@ -1177,6 +1183,8 @@ it('dispatches action on button click', async () => {
 
 ### 13.1 Setup QueryClient for Tests
 
+Give every test its own `QueryClient` with retries turned off. The fresh client is what keeps tests apart: React Query caches results inside the client, so a shared client would let one test's cached data show up in the next. Retries matter because React Query retries a failed query three times, with a growing delay between tries (exponential backoff), before it reports an error. A test that checks your error state would sit through all of those retries and could hit the test timeout. `gcTime` (how long a cached result is kept once no component is using it; called `cacheTime` before v5) is set to `0` here so unused entries are dropped straight away instead of lingering after the test.
+
 ```tsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -1459,12 +1467,12 @@ expect(component.state.isOpen).toBe(true);     // testing internal state
 // ✅ GOOD: Testing visible behavior
 expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-// ❌ BAD: getBy inside waitFor
+// ⚠️ WORKS, BUT WORDY: getBy inside waitFor
 await waitFor(() => {
-  screen.getByText('Loaded');                  // throws immediately → confusing errors
+  screen.getByText('Loaded');                  // waitFor retries until getBy stops throwing
 });
 
-// ✅ GOOD: Use findBy for async
+// ✅ BETTER: findBy says the same thing in one line
 await screen.findByText('Loaded');
 
 // ❌ BAD: Unnecessary act()
@@ -1482,6 +1490,8 @@ await new Promise(r => setTimeout(r, 2000));   // flaky, slow
 await waitFor(() => expect(screen.getByText('Done')).toBeInTheDocument());
 ```
 
+The ⚠️ pair is a style point, not a bug: `getBy` inside `waitFor` works. `waitFor` catches the error `getBy` throws and retries until it stops throwing, which is exactly what `findBy` does internally (§9.3) — and it is why the last ✅ above is fine. Prefer `findBy` for "wait for one element" because it says the same thing in one line. Keep `waitFor` for when you are waiting on an **assertion** rather than an element — several conditions at once, or something disappearing.
+
 ---
 
 ## 17. Configuration & Setup
@@ -1491,7 +1501,7 @@ await waitFor(() => expect(screen.getByText('Done')).toBeInTheDocument());
 ```ts
 export default {
   testEnvironment: 'jsdom',
-  setupFilesAfterSetup: ['./src/test/setup.ts'],
+  setupFilesAfterEnv: ['./src/test/setup.ts'],
   transform: {
     '^.+\\.tsx?$': 'ts-jest',
   },
@@ -1659,7 +1669,7 @@ They work together: Jest runs the tests and provides assertions; RTL provides to
 8. getByTestId      — ❌ LAST RESORT: users can't see data-testid
 ```
 
-**Why this order?** Queries higher in the list test accessibility. If you can't find an element by role, your component might have an accessibility problem.
+**Why this order?** It ranks queries by how closely they match the way a real person finds an element. `getByRole` searches the accessibility tree — what a screen reader announces — so it finds a button only if it is exposed as a button with that name. That makes every test a small accessibility check: if you can't find an element by role, a screen-reader user probably can't either. The lower queries lean on things users see less reliably (a placeholder vanishes once you type), and `data-testid` is invisible to users, so it proves only that the element exists in the markup.
 
 ---
 
@@ -1710,6 +1720,8 @@ await user.type(input, 'Hello');
 
 **Q5: How do you test that an element is NOT in the document?**
 
+Use a `queryBy` query. It returns `null` when nothing matches, so you can assert on the absence; a `getBy` query throws instead, and the test fails before your assertion ever runs. For something that is on screen now and should go away, wait for it with `waitForElementToBeRemoved`.
+
 ```ts
 // ✅ CORRECT: Use queryBy (returns null if not found)
 expect(screen.queryByText('Error message')).not.toBeInTheDocument();
@@ -1736,11 +1748,11 @@ render(<Component />);
 screen.getByText('Hello');
 ```
 
-**Why `screen`?**
-- No need to destructure (cleaner code, especially with many queries).
-- Works the same way regardless of where you render.
-- Better error messages (shows the full DOM when query fails).
-- Accessible globally after any `render()` call.
+**Why `screen`?** Short answer: it saves bookkeeping. `screen` is a set of queries already bound to `document.body`, so you import it once and use it anywhere.
+
+- You don't have to keep adding names to a destructuring line every time the test needs a new query, or thread those functions into helper functions.
+- It queries the whole page, so elements rendered outside your component's container (modals in a portal, toasts) are found the same way as everything else.
+- It is what the RTL docs and ESLint plugin (`eslint-plugin-testing-library`) recommend, so tests read the same across a codebase.
 
 ---
 
@@ -1749,6 +1761,8 @@ screen.getByText('Hello');
 ---
 
 **Q7: How do you test async operations (API calls, loading states)?**
+
+Short answer: control the data source, then walk the states in the order a user sees them. Mock the API so it resolves (or rejects) with data you chose; assert the loading state **synchronously** right after `render`, because it is on screen immediately; then `await` a `findBy` query, which keeps retrying until the data arrives. Write a separate test for the failure path — the error state is where real bugs hide.
 
 ```tsx
 // Mock the API
@@ -1847,9 +1861,13 @@ server.use(
 
 **Best practice:** Use `jest.mock` for unit tests (fast), MSW for integration tests (realistic).
 
+The difference is *where* the fake sits. `jest.mock` replaces one of your own modules, so the test is tied to that file's path and function names: move `getUsers` to another file, or switch from `fetch` to axios, and the test breaks although the app still works — while the code in between (URL building, headers, response parsing) is never exercised. MSW (Mock Service Worker) intercepts the actual HTTP request at the network layer, so all of your code runs for real and only the server is fake. The same handlers can also be reused in the browser during development.
+
 ---
 
 **Q10: How do you test custom hooks?**
+
+Call the hook through `renderHook`. A hook can only run inside a component, so `renderHook` mounts a tiny test component that calls it and hands you the latest return value as `result.current`. Any call that changes the hook's state goes inside `act()`, so React finishes the update before you read the new value.
 
 ```tsx
 import { renderHook, act } from '@testing-library/react';
@@ -1898,7 +1916,7 @@ describe('useToggle', () => {
 
 **Q11: What is `within()` and when do you use it?**
 
-`within()` scopes queries to a specific container element:
+`within()` scopes queries to a specific container element. Use it when the same label appears more than once on the page — two "Edit" buttons, one per card — and you need the one inside a particular card. Without it, `getBy` throws because it found more than one match:
 
 ```tsx
 render(
@@ -1926,9 +1944,19 @@ within(card).getByRole('button', { name: /edit/i }); // Alice's edit button
 
 **Q12: How do you test error boundaries?**
 
+Short answer: render the boundary around a child that throws on purpose, and assert the fallback UI appears. The one extra step is silencing `console.error`: React logs every error a boundary catches, even though catching it is the behaviour you want, so without the spy your test output fills with a scary-looking stack trace for a passing test.
+
+Create the spy in `beforeEach` and restore it in `afterEach`, as below. Do not put the `mockRestore()` call at the top level of the file: top-level code runs when Jest *loads* the file, before any test executes, so the spy would be removed before the render it was meant to silence.
+
 ```tsx
-// Suppress React error boundary console output
-const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+// Suppress React error boundary console output, for each test only
+let consoleSpy: jest.SpyInstance;
+beforeEach(() => {
+  consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+});
+afterEach(() => {
+  consoleSpy.mockRestore();
+});
 
 const ThrowingComponent = () => {
   throw new Error('Test crash');
@@ -1943,8 +1971,6 @@ it('shows fallback on error', () => {
 
   expect(screen.getByText('Something went wrong')).toBeInTheDocument();
 });
-
-consoleSpy.mockRestore();
 ```
 
 ---
@@ -1954,6 +1980,8 @@ consoleSpy.mockRestore();
 ---
 
 **Q13: How would you test a component with React.lazy and Suspense?**
+
+Short answer: treat it like any other async load. `React.lazy` loads the component through a dynamic `import()`, which returns a promise, so on the first render `Suspense` shows its fallback. Assert the fallback synchronously, then `await` a `findBy` for something inside the real component — `findBy` retries until the import resolves and React swaps the fallback out.
 
 ```tsx
 it('shows fallback while loading lazy component', async () => {
@@ -1978,7 +2006,7 @@ it('shows fallback while loading lazy component', async () => {
 
 **Q14: How do you handle `window.matchMedia` or browser APIs in tests?**
 
-jsdom doesn't implement all browser APIs. Mock them in setup:
+Mock them yourself. Tests run in jsdom (a JavaScript imitation of a browser DOM, not a real browser), and jsdom does not implement some browser APIs, `window.matchMedia` among them. A component that calls it throws `TypeError: window.matchMedia is not a function`. Define a default stub in the setup file so every test has one, then override it in the tests that care about the result:
 
 ```tsx
 // setup.ts — runs before all tests
@@ -2032,6 +2060,8 @@ RTL's query priority (getByRole first) already encourages accessible markup. If 
 
 **Q16: How do you test components that use `IntersectionObserver` or `ResizeObserver`?**
 
+Short answer: jsdom (the simulated browser Jest runs in) has no layout engine, so it never knows whether anything is visible or what size it is, and these observers do not exist there. Replace the class with a fake whose constructor **saves the callback** your component passes in. The test can then call that callback itself with `isIntersecting: true` — "pretending" the element scrolled into view — and assert what the component does next. Wrap the call in `act()` because it triggers state updates from outside React.
+
 ```tsx
 // Mock IntersectionObserver
 let intersectionCallback: IntersectionObserverCallback;
@@ -2068,6 +2098,8 @@ it('loads more items when scrolled into view', async () => {
 
 **Q17: What is snapshot testing? When should (and shouldn't) you use it?**
 
+A snapshot test saves the rendered output the first time it runs, then fails whenever later output differs from the saved copy. It tells you *that* something changed, not whether the change is right, so a person still has to read the diff and decide. That makes it a cheap tripwire for unintended changes, but a weak test of behaviour.
+
 ```tsx
 it('matches snapshot', () => {
   const { container } = render(<Button label="Click me" variant="primary" />);
@@ -2096,7 +2128,7 @@ it('matches inline snapshot', () => {
 
 **Q18: How do you test portals (modals rendered outside root)?**
 
-RTL renders into a detached `div`, and `screen` queries the entire `document.body`. So portals (which render outside the root div) are automatically queryable:
+RTL renders your component into a `div` it appends to `document.body`, and `screen` queries the entire `document.body` — not just that div. A portal (`createPortal`, which mounts children into a different DOM node, typically straight under `body`) therefore lands inside the area `screen` searches, so it is automatically queryable:
 
 ```tsx
 it('renders modal in portal', async () => {
@@ -2118,7 +2150,9 @@ No special setup needed — `screen` queries the entire document.
 
 **Q19: What is the `act()` warning and how do you fix it?**
 
-The "not wrapped in act" warning means a state update happened outside of React's batch:
+Short answer: `act()` tells React "apply every pending state update and effect now, before I look at the screen". The warning means a component updated at a moment the test did not wait for — usually after an `await` it never made, or from a timer — so your assertions may have run against an out-of-date UI. The fix is almost never to sprinkle `act()` around; it is to make the test wait for the update (with `findBy`/`waitFor`), or to wrap the thing that *causes* it (advancing fake timers, calling a hook method directly).
+
+The warning looks like this:
 
 ```
 Warning: An update to Component inside a test was not wrapped in act(...)
@@ -2158,6 +2192,8 @@ act(() => result.current.increment());         // ✅ wrap state change in act
 ---
 
 **Q20: How do you debug failing RTL tests?**
+
+Look at what was actually rendered before guessing. Most failing RTL tests come down to one of three things: the element is not there yet, it has a different role or name from the one you queried, or its text differs from what you expected. `screen.debug()` prints the DOM, and `logRoles()` prints each element's role and accessible name — the values `getByRole` matches against.
 
 ```tsx
 // 1. screen.debug() — print current DOM
@@ -2207,6 +2243,8 @@ RTL encourages INTEGRATION tests:
 ```
 
 **RTL intentionally does NOT support shallow rendering.** It renders the full component tree, testing how components work together — not in isolation.
+
+The diagram labels both lower layers "Many", which hides the real disagreement. The classic **testing pyramid** puts most of your tests at the unit level, because unit tests are the fastest and cheapest. The **testing trophy** (Kent C. Dodds' shape, and the one RTL is built around) makes integration the widest layer instead. The reasoning: in a React app most bugs live in how pieces fit together — a hook wired to the wrong prop, a form that never calls the API — and a unit test of each piece alone cannot see them. An RTL test renders the real components together and is still fast, so it gives most of the confidence of an end-to-end test at close to the cost of a unit test. Unit tests stay the right tool for pure logic such as reducers, selectors and helpers.
 
 ---
 
@@ -2313,6 +2351,8 @@ it('shows error message', async () => {
 ---
 
 **Q25: How would you structure tests for a real-world feature?**
+
+Keep each test file next to the file it tests, and test each layer at the lowest level that can catch its bugs: pure helpers with plain unit tests, hooks with `renderHook`, components through RTL, and one page-level test for the full user flow. Putting the test beside its source means that moving or deleting a file moves or deletes its test with it.
 
 ```
 features/users/

@@ -1285,8 +1285,45 @@ const cleanMixedArray: Explanation = {
     tradeoffs: 'Same complexity as the Set version, and no Set. It sorts the duplicates too, so it does a little more sorting work; for interview-sized inputs that is irrelevant. The comparison n !== sorted[i - 1] relies on the array being sorted, so the order of the two steps is the algorithm.',
   },
   {
+    id: 'dedupe-bubble',
+    name: 'No Built-ins: Dedupe, Then Bubble Sort',
+    badge: 'alternative',
+    intuition:
+      "**When the interviewer bans sort, Set and filter**, the easiest answer is two steps you already know. First, walk the input and keep each real number once: before adding it, loop over the result to check it is not already there. Second, bubble sort the result.\n\n" +
+      "**Bubble sort in one sentence:** compare each pair of neighbours and swap them if they are out of order. After one full pass the largest value has bubbled to the end, so each later pass can stop one place sooner.\n\n" +
+      "**Say the cost out loud.** The duplicate check and the sort are each O(n²) in the worst case. That is fine at interview sizes, and nobody has to squint to follow it. If they ask for something tighter, offer the next approach, which sorts as it goes.",
+    complexity: { time: 'O(n²)', space: 'O(n)', verdict: 'Easiest to write when built-ins are banned' },
+    pseudocode: [
+      'for x in arr:',
+      '  if x is not a finite number: skip',
+      '  if x is already in result: skip',
+      '  append x to result',
+      'repeat: swap neighbours that are out of order',
+      'return result',
+    ],
+    example: { input: '[5, "a", 3, 5, "b", 1, 3]', output: '[1, 3, 5]' },
+    steps: [
+      { title: '5 is a number and result is empty, so append it.', pseudoLine: 3,
+        array: { cells: [{ value: 5, highlight: 'new' }] } },
+      { title: '"a" is not a number. Skip it.', pseudoLine: 1,
+        array: { cells: [{ value: 5 }] },
+        note: 'The number check is typeof x === "number", plus x === x (false only for NaN) and not Infinity.' },
+      { title: '3 is new, append it. Then 5 again: the loop over result finds a copy, so skip.', pseudoLine: 2,
+        array: { cells: [{ value: 5, highlight: 'hit' }, { value: 3 }] },
+        lookupOutcome: { kind: 'hit', key: 5, at: 'position 0' } },
+      { title: '1 is new, append it. 3 again is a copy, skip. Unique numbers, still unsorted: [5, 3, 1].', pseudoLine: 3,
+        array: { cells: [{ value: 5 }, { value: 3 }, { value: 1, highlight: 'new' }] } },
+      { title: 'Pass 1: 5 > 3, swap. 5 > 1, swap. The largest value, 5, is now at the end.', pseudoLine: 4,
+        array: { cells: [{ value: 3 }, { value: 1 }, { value: 5, highlight: 'found' }], pointers: [{ index: 1, label: 'j', color: 'indigo' }] } },
+      { title: 'Pass 2: 3 > 1, swap. No need to look at 5 again. Final result: [1, 3, 5].', pseudoLine: 5,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 3, highlight: 'found' }, { value: 5, highlight: 'found' }] },
+        result: { found: true, value: '[1, 3, 5]' } },
+    ],
+    tradeoffs: 'No sort, Set, filter or push. Two familiar steps, each easy to explain, at O(n²) against O(n log n) for the built-in version. The next approach does the same job in one pass by keeping the result sorted as it goes.',
+  },
+  {
     id: 'insert-sorted',
-    name: 'No Built-ins: Insert in Sorted Order',
+    name: 'No Built-ins: Sorted As You Go',
     badge: 'alternative',
     intuition:
       "**When the interviewer bans sort, Set and filter**, keep the result sorted the whole time instead of sorting at the end. For each number, walk the result to the first value that is not smaller, and insert it there by shifting the larger values one place right.\n\n" +
@@ -4179,6 +4216,81 @@ const findMaximum: Explanation = {
         result: { found: true, value: '9' } },
     ],
     tradeoffs: '`Math.max(...nums)` is the one-liner — but spread for huge arrays can hit stack limits (~10⁵ elements). Use `nums.reduce((m, x) => x > m ? x : m, -Infinity)` for big inputs.',
+  }],
+};
+
+const maxConsecutiveOnes: Explanation = {
+  problem: 'Max Consecutive Ones',
+  problemStatement: 'Given an array of 0s and 1s, return the length of the longest run of consecutive 1s.',
+  approaches: [{
+    id: 'running-count',
+    name: 'Running Count, Reset on 0',
+    badge: 'best',
+    intuition:
+      "**Keep two numbers as you walk the array.** `count` is the length of the run of 1s that ends at the current element. `maxCount` is the longest run seen so far. A 1 extends the run, so `count` goes up by one. A 0 breaks the run, so `count` goes back to 0.\n\n" +
+      "**The trap is reading the question as \"how many 1s\".** [1,1,0,1,1,1] has five 1s, but the answer is 3. Counting only works if you reset on every 0.\n\n" +
+      "**Update `maxCount` on every 1, not when the run ends.** If you only compare when you hit a 0, a run that reaches the end of the array is never counted, so [0,1,1,1] would return 0. Updating on every 1 means there is nothing left to check after the loop.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'The answer to give' },
+    pseudocode: [
+      'maxCount = 0, count = 0',
+      'for num in nums:',
+      '  if num === 1: count++; maxCount = max(maxCount, count)',
+      '  else: count = 0',
+      'return maxCount',
+    ],
+    example: { input: '[1, 1, 0, 1, 1, 1]', output: '3' },
+    steps: [
+      { title: 'Start with count = 0 and maxCount = 0.', pseudoLine: 0,
+        array: { cells: [{ value: 1 }, { value: 1 }, { value: 0 }, { value: 1 }, { value: 1 }, { value: 1 }] },
+        computation: { label: 'count / maxCount', result: '0 / 0' } },
+      { title: 'i = 0 and 1: two 1s in a row. count becomes 2, and so does maxCount.', pseudoLine: 2,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 0 }, { value: 1 }, { value: 1 }, { value: 1 }], pointers: [{ index: 1, label: 'i', color: 'indigo' }] },
+        computation: { label: 'count / maxCount', result: '2 / 2' } },
+      { title: 'i = 2: a 0 breaks the run. count resets to 0, but maxCount keeps 2.', pseudoLine: 3,
+        array: { cells: [{ value: 1 }, { value: 1 }, { value: 0, highlight: 'hit' }, { value: 1 }, { value: 1 }, { value: 1 }], pointers: [{ index: 2, label: 'i', color: 'red' }] },
+        computation: { label: 'count / maxCount', result: '0 / 2' } },
+      { title: 'i = 3 and 4: a new run starts. count reaches 2, which only ties maxCount.', pseudoLine: 2,
+        array: { cells: [{ value: 1 }, { value: 1 }, { value: 0 }, { value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 1 }], pointers: [{ index: 4, label: 'i', color: 'indigo' }] },
+        computation: { label: 'count / maxCount', result: '2 / 2' } },
+      { title: 'i = 5: count becomes 3 and beats maxCount. This run ends at the end of the array.', pseudoLine: 2,
+        array: { cells: [{ value: 1 }, { value: 1 }, { value: 0 }, { value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }], pointers: [{ index: 5, label: 'i', color: 'emerald' }] },
+        computation: { label: 'count / maxCount', result: '3 / 3' },
+        note: 'No 0 follows this run. A version that only updates maxCount when it sees a 0 would miss it and return 2.' },
+      { title: 'The loop ends. Return maxCount = 3.', pseudoLine: 4,
+        result: { found: true, value: '3' } },
+    ],
+    tradeoffs: 'One pass and two variables, so it cannot be beaten asymptotically: every element has to be read at least once. The usual follow-up is "what if you may flip up to k zeros?", which is the sliding-window approach.',
+  },
+  {
+    id: 'flip-k-window',
+    name: 'Follow-up: Flip Up to k Zeros (Sliding Window)',
+    badge: 'alternative',
+    intuition:
+      "**The standard next question: you may turn up to k zeros into 1s.** Now a reset on every 0 is wrong, because a 0 you are allowed to flip does not end the run.\n\n" +
+      "**Keep a window that holds at most k zeros.** Move `right` forward one element at a time and count the zeros inside the window. When there are more than k, move `left` forward until one zero has left. Every window that passes this check is a run of 1s once its zeros are flipped, so the answer is the widest one.\n\n" +
+      "**With k = 0 this is the first approach**, because the window can never hold a 0. Saying that out loud shows the two answers are the same idea.",
+    complexity: { time: 'O(n)', space: 'O(1)', verdict: 'Have it ready for the follow-up' },
+    pseudocode: [
+      'left = 0, zeros = 0, best = 0',
+      'for right in 0..n-1:',
+      '  if nums[right] === 0: zeros++',
+      '  while zeros > k: if nums[left] === 0: zeros--; left++',
+      '  best = max(best, right - left + 1)',
+      'return best',
+    ],
+    example: { input: '[1, 1, 0, 1, 1, 1], k = 1', output: '6' },
+    steps: [
+      { title: 'right = 0 to 2: the window [1, 1, 0] holds one zero, which is allowed with k = 1.', pseudoLine: 2,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 0, highlight: 'compare' }, { value: 1 }, { value: 1 }, { value: 1 }], pointers: [{ index: 0, label: 'L', color: 'amber' }, { index: 2, label: 'R', color: 'indigo' }] },
+        computation: { label: 'zeros / best', result: '1 / 3' } },
+      { title: 'right = 3 to 5: only 1s are added, so the window keeps growing.', pseudoLine: 4,
+        array: { cells: [{ value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 0, highlight: 'compare' }, { value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }, { value: 1, highlight: 'found' }], pointers: [{ index: 0, label: 'L', color: 'amber' }, { index: 5, label: 'R', color: 'indigo' }] },
+        computation: { label: 'right - left + 1', lhs: '5', op: '- 0 +', rhs: '1', result: '6' } },
+      { title: 'The whole array fits with one zero flipped. Return 6.', pseudoLine: 5,
+        result: { found: true, value: '6' },
+        note: 'If a second 0 entered the window, left would move past the first 0 before the width was measured again.' },
+    ],
+    tradeoffs: 'Still O(n): left and right each move forward at most n times, so the inner while loop does not make it quadratic. It needs no extra memory beyond three counters.',
   }],
 };
 
@@ -8960,8 +9072,617 @@ const sumWithoutLoopsExpl: Explanation = {
   ],
 };
 
+// ====================================================================
+// Trees and DOM traversal. The trees are plain objects standing in for DOM
+// nodes ({ tag, children } or { val, left, right }), because the JS playground
+// runs in a Worker with no DOM.
+// ====================================================================
+
+const domTreeHeightExpl: Explanation = {
+  problem: 'DOM Tree Height',
+  problemStatement: 'Given the root of a node tree ({ tag, children }), return its height: the number of nodes on the longest path from the root down to a leaf. An empty tree (null) has height 0.',
+  approaches: [
+    {
+      id: 'recursive',
+      name: 'Recursive DFS: 1 + tallest child',
+      badge: 'best',
+      intuition:
+        "The definition of height is already recursive: a node is one level, plus however tall its tallest child is.\n\n" +
+        "So ask every child for its height, keep the biggest, add 1. A leaf has no children, the max over nothing is 0, and a leaf comes out as 1. The `null` check is the base case, and it also answers the empty-tree case for free.\n\n" +
+        "Each node is visited once, so it is O(n). The recursion is as deep as the tree, which for a real DOM is a few dozen levels at most.",
+      complexity: { time: 'O(n)', space: 'O(h) call stack', verdict: 'Best to say first' },
+      pseudocode: [
+        'function height(node):',
+        '  if node is null: return 0',
+        '  tallest = 0',
+        '  for child of node.children: tallest = max(tallest, height(child))',
+        '  return 1 + tallest',
+      ],
+      example: { input: 'html > body > main > p   (plus head > title)', output: '4' },
+      steps: [
+        {
+          title: 'height(html) asks each child for its height, starting with head.',
+          pseudoLine: 3,
+          callStack: { frames: [{ call: 'height(html)', status: 'pending' }, { call: 'height(head)', status: 'active' }] },
+        },
+        {
+          title: 'head has one child, title. title is a leaf: 1 + max over nothing = 1. So head = 2.',
+          pseudoLine: 4,
+          callStack: { frames: [{ call: 'height(html)', status: 'pending' }, { call: 'height(head)', status: 'returned', returns: '2' }] },
+          computation: { label: 'head', lhs: '1', op: '+', rhs: 'height(title) = 1', result: '2' },
+        },
+        {
+          title: 'Next child: body → main → p. p is a leaf (1), main = 2, body = 3.',
+          pseudoLine: 4,
+          callStack: { frames: [{ call: 'height(html)', status: 'pending' }, { call: 'height(body)', status: 'returned', returns: '3' }] },
+          computation: { label: 'body', lhs: '1', op: '+', rhs: 'height(main) = 2', result: '3' },
+        },
+        {
+          title: 'html keeps the tallest child (body, 3) and adds itself.',
+          pseudoLine: 4,
+          computation: { label: 'html', lhs: '1', op: '+', rhs: 'max(2, 3)', result: '4' },
+          result: { found: true, value: '4' },
+        },
+      ],
+      tradeoffs: 'Shortest and clearest. The only risk is a pathologically deep tree (tens of thousands of levels), where the call stack overflows with a RangeError. A browser DOM never gets there; a tree built from untrusted data can.',
+    },
+    {
+      id: 'bfs',
+      name: 'BFS: count the levels',
+      badge: 'alternative',
+      intuition:
+        "Height is also just the number of levels. So walk the tree one whole level at a time and count how many levels there are.\n\n" +
+        "Start with `[root]`. Each turn of the loop builds the next level from every child of the current one, and adds 1 to the height. When a level has no children the next level is empty and the loop stops.\n\n" +
+        "There is no recursion at all, so depth cannot overflow anything. The memory in use is the widest level instead of the deepest path.",
+      complexity: { time: 'O(n)', space: 'O(widest level)', verdict: 'No recursion' },
+      pseudocode: [
+        'if root is null: return 0',
+        'level = [root], height = 0',
+        'while level is not empty:',
+        '  height++',
+        '  level = every child of every node in level',
+        'return height',
+      ],
+      example: { input: 'html > body > main > p   (plus head > title)', output: '4' },
+      steps: [
+        {
+          title: 'Level 1 is just the root.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 'html', highlight: 'i' }] },
+          computation: { label: 'height', result: '1' },
+        },
+        {
+          title: 'Level 2: the children of html.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'head', highlight: 'new' }, { value: 'body', highlight: 'new' }] },
+          computation: { label: 'height', result: '2' },
+        },
+        {
+          title: 'Level 3: title (from head) and main (from body).',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'title', highlight: 'new' }, { value: 'main', highlight: 'new' }] },
+          computation: { label: 'height', result: '3' },
+        },
+        {
+          title: 'Level 4: only p. Its children form an empty level, so the loop ends.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 'p', highlight: 'new' }] },
+          result: { found: true, value: '4' },
+        },
+      ],
+      tradeoffs: 'Same O(n) time, no stack risk, and it already has each level in hand, which is what the follow-ups (widest level, print by level) need. Slightly more code than the recursive version.',
+    },
+  ],
+};
+
+const invertBinaryTreeExpl: Explanation = {
+  problem: 'Invert Binary Tree',
+  problemStatement: 'Given the root of a binary tree ({ val, left, right }), mirror it in place (every left child becomes the right child and the other way round) and return the root.',
+  approaches: [
+    {
+      id: 'recursive',
+      name: 'Recursive: swap, then recurse',
+      badge: 'best',
+      intuition:
+        "A mirrored tree is one where every single node has its two children swapped. Nothing else changes.\n\n" +
+        "So the whole algorithm is: swap this node's `left` and `right`, then do the same for each subtree. The empty tree is the base case.\n\n" +
+        "**The trap** is swapping with two assignments and no temporary: `root.left = invert(root.right); root.right = invert(root.left)` reads the NEW left on the second line, so both sides end up as the same subtree. Destructuring `[a, b] = [b, a]` swaps both at once.",
+      complexity: { time: 'O(n)', space: 'O(h) call stack', verdict: 'Canonical' },
+      pseudocode: [
+        'function invert(node):',
+        '  if node is null: return null',
+        '  swap node.left and node.right',
+        '  invert(node.left)',
+        '  invert(node.right)',
+        '  return node',
+      ],
+      example: { input: '4 (2 (1, 3), 7 (6, 9))', output: '4 (7 (9, 6), 2 (3, 1))' },
+      steps: [
+        {
+          title: 'At 4: swap its children. 7 is now on the left, 2 on the right.',
+          pseudoLine: 2,
+          dualArray: {
+            left: { label: 'before (left, right)', cells: [{ value: 2 }, { value: 7 }] },
+            right: { label: 'after', cells: [{ value: 7, highlight: 'new' }, { value: 2, highlight: 'new' }] },
+          },
+        },
+        {
+          title: 'Recurse into the new left child, 7: swap 6 and 9.',
+          pseudoLine: 3,
+          callStack: { frames: [{ call: 'invert(4)', status: 'pending' }, { call: 'invert(7)', status: 'active' }] },
+          dualArray: {
+            left: { label: '7 before', cells: [{ value: 6 }, { value: 9 }] },
+            right: { label: '7 after', cells: [{ value: 9, highlight: 'new' }, { value: 6, highlight: 'new' }] },
+          },
+        },
+        {
+          title: 'Then the right child, 2: swap 1 and 3. Leaves just swap two nulls.',
+          pseudoLine: 4,
+          callStack: { frames: [{ call: 'invert(4)', status: 'pending' }, { call: 'invert(2)', status: 'active' }] },
+          dualArray: {
+            left: { label: '2 before', cells: [{ value: 1 }, { value: 3 }] },
+            right: { label: '2 after', cells: [{ value: 3, highlight: 'new' }, { value: 1, highlight: 'new' }] },
+          },
+        },
+        {
+          title: 'Every node has been swapped exactly once. Return the same root.',
+          pseudoLine: 5,
+          array: { cells: [{ value: 4 }, { value: 7 }, { value: 2 }, { value: 9 }, { value: 6 }, { value: 3 }, { value: 1 }] },
+          result: { found: true, value: 'level order 4, 7, 2, 9, 6, 3, 1' },
+        },
+      ],
+      tradeoffs: 'Four lines and the idea is fully visible. Recursion depth equals tree height, so a degenerate 100,000-node chain would overflow; balanced trees never come close.',
+    },
+    {
+      id: 'bfs',
+      name: 'BFS with a queue',
+      badge: 'alternative',
+      intuition:
+        "Each swap only touches one node, so the ORDER we visit nodes in does not matter. Any traversal that reaches every node works.\n\n" +
+        "A queue gives a level-by-level visit with no recursion: take a node, swap its children, put the (non-null) children in the queue. Reading with a head index instead of `queue.shift()` keeps every dequeue O(1).",
+      complexity: { time: 'O(n)', space: 'O(widest level)', verdict: 'No recursion' },
+      pseudocode: [
+        'queue = [root] (or [] if root is null)',
+        'for each node taken from the front of queue:',
+        '  swap node.left and node.right',
+        '  push the non-null children onto queue',
+        'return root',
+      ],
+      example: { input: '4 (2 (1, 3), 7 (6, 9))', output: '4 (7 (9, 6), 2 (3, 1))' },
+      steps: [
+        {
+          title: 'Take 4, swap its children, queue them: 7 then 2.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 4, highlight: 'i' }, { value: 7, highlight: 'new' }, { value: 2, highlight: 'new' }], pointers: [{ index: 0, label: 'head', color: 'indigo' }] },
+        },
+        {
+          title: 'Take 7, swap to (9, 6), queue both.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 4 }, { value: 7, highlight: 'i' }, { value: 2 }, { value: 9, highlight: 'new' }, { value: 6, highlight: 'new' }], pointers: [{ index: 1, label: 'head', color: 'indigo' }] },
+        },
+        {
+          title: 'Take 2, swap to (3, 1), queue both.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 4 }, { value: 7 }, { value: 2, highlight: 'i' }, { value: 9 }, { value: 6 }, { value: 3, highlight: 'new' }, { value: 1, highlight: 'new' }], pointers: [{ index: 2, label: 'head', color: 'indigo' }] },
+        },
+        {
+          title: 'The leaves swap two nulls and queue nothing. The head reaches the end.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 4 }, { value: 7 }, { value: 2 }, { value: 9 }, { value: 6 }, { value: 3 }, { value: 1 }] },
+          result: { found: true, value: 'level order 4, 7, 2, 9, 6, 3, 1' },
+        },
+      ],
+      tradeoffs: 'Same result and O(n) time, safe on any depth. Swapping the queue for a stack (pop instead of reading from the front) gives an iterative DFS that works just as well.',
+    },
+  ],
+};
+
+const levelOrderExpl: Explanation = {
+  problem: 'Level-Order Traversal',
+  problemStatement: 'Given the root of a node tree ({ tag, children }), return the tags grouped by depth: one array per level, top to bottom, each level left to right. An empty tree gives [].',
+  approaches: [
+    {
+      id: 'bfs',
+      name: 'BFS: snapshot the level size',
+      badge: 'best',
+      intuition:
+        "A queue hands nodes out in the order they went in. Put the root in, and every time you take a node out, put its children in: the root comes out first, then everything at depth 1, then depth 2. That is breadth-first search.\n\n" +
+        "The one extra trick is knowing where a level ENDS. Before you start a level, read how many nodes are waiting in the queue. Exactly that many belong to this level; anything pushed while you process them belongs to the next.\n\n" +
+        "Use a read index (`head`) rather than `queue.shift()`: shift re-indexes the whole array on every call, which quietly makes a wide tree O(n²).",
+      complexity: { time: 'O(n)', space: 'O(widest level)', verdict: 'Canonical' },
+      pseudocode: [
+        'queue = [root], head = 0, result = []',
+        'while head < queue.length:',
+        '  size = queue.length - head      // nodes in this level',
+        '  level = []',
+        '  repeat size times: node = queue[head++]; level.push(node.tag); push node.children',
+        '  result.push(level)',
+        'return result',
+      ],
+      example: { input: 'body (header (h1, nav), main (article), footer)', output: '[["body"], ["header","main","footer"], ["h1","nav","article"]]' },
+      steps: [
+        {
+          title: 'Queue holds only body, so this level has size 1.',
+          pseudoLine: 2,
+          array: { cells: [{ value: 'body', highlight: 'i' }], pointers: [{ index: 0, label: 'head', color: 'indigo' }] },
+          computation: { label: 'size', lhs: 'queue.length 1', op: '-', rhs: 'head 0', result: '1' },
+        },
+        {
+          title: 'Process body: level ["body"]. Its three children join the queue.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'body' }, { value: 'header', highlight: 'new' }, { value: 'main', highlight: 'new' }, { value: 'footer', highlight: 'new' }], pointers: [{ index: 1, label: 'head', color: 'indigo' }] },
+          map: { entries: [{ key: 0, value: 'body', highlight: 'new' }] },
+        },
+        {
+          title: 'Size is now 3. Take header, main, footer; their children (h1, nav, article) queue behind them.',
+          pseudoLine: 4,
+          array: { cells: [{ value: 'body' }, { value: 'header', highlight: 'i' }, { value: 'main', highlight: 'i' }, { value: 'footer', highlight: 'i' }, { value: 'h1', highlight: 'new' }, { value: 'nav', highlight: 'new' }, { value: 'article', highlight: 'new' }], pointers: [{ index: 4, label: 'head', color: 'indigo' }] },
+          map: { entries: [{ key: 0, value: 'body' }, { key: 1, value: 'header, main, footer', highlight: 'new' }] },
+        },
+        {
+          title: 'The last level has no children, so nothing is queued and the loop ends.',
+          pseudoLine: 6,
+          map: { entries: [{ key: 0, value: 'body' }, { key: 1, value: 'header, main, footer' }, { key: 2, value: 'h1, nav, article', highlight: 'new' }] },
+          result: { found: true, value: '3 levels' },
+        },
+      ],
+      tradeoffs: 'The shape interviewers expect, and the base for every follow-up: zigzag order, the rightmost node per level, level averages. Memory is the widest level, which on a flat DOM (a long list) can be most of the tree.',
+    },
+    {
+      id: 'dfs-depth',
+      name: 'DFS carrying a depth index',
+      badge: 'alternative',
+      intuition:
+        "You do not need to visit the tree in level order to PRODUCE level order. Walk it depth-first, but pass the current depth down, and append each tag to `result[depth]`.\n\n" +
+        "It works because children are visited left to right: within any one level, a node on the left is always reached before a node to its right, even though the walk keeps jumping between levels.\n\n" +
+        "Recursion depth is the tree height, and there is no queue at all.",
+      complexity: { time: 'O(n)', space: 'O(h) call stack', verdict: 'Neat' },
+      pseudocode: [
+        'result = []',
+        'function visit(node, depth):',
+        '  if result[depth] is missing: result[depth] = []',
+        '  result[depth].push(node.tag)',
+        '  for child of node.children: visit(child, depth + 1)',
+        'visit(root, 0); return result',
+      ],
+      example: { input: 'body (header (h1, nav), main (article), footer)', output: '[["body"], ["header","main","footer"], ["h1","nav","article"]]' },
+      steps: [
+        {
+          title: 'visit(body, 0) creates level 0 and appends body.',
+          pseudoLine: 3,
+          callStack: { frames: [{ call: 'visit(body, 0)', status: 'active' }] },
+          map: { entries: [{ key: 0, value: 'body', highlight: 'new' }] },
+        },
+        {
+          title: 'Down into header at depth 1, then h1 and nav at depth 2.',
+          pseudoLine: 4,
+          callStack: { frames: [{ call: 'visit(body, 0)', status: 'pending' }, { call: 'visit(header, 1)', status: 'pending' }, { call: 'visit(nav, 2)', status: 'active' }] },
+          map: { entries: [{ key: 0, value: 'body' }, { key: 1, value: 'header', highlight: 'new' }, { key: 2, value: 'h1, nav', highlight: 'new' }] },
+        },
+        {
+          title: 'Back up to main at depth 1: it lands AFTER header, because header was visited first.',
+          pseudoLine: 3,
+          callStack: { frames: [{ call: 'visit(body, 0)', status: 'pending' }, { call: 'visit(main, 1)', status: 'active' }] },
+          map: { entries: [{ key: 0, value: 'body' }, { key: 1, value: 'header, main', highlight: 'hit' }, { key: 2, value: 'h1, nav, article', highlight: 'new' }] },
+        },
+        {
+          title: 'footer finishes level 1. Every level reads left to right.',
+          pseudoLine: 5,
+          map: { entries: [{ key: 0, value: 'body' }, { key: 1, value: 'header, main, footer', highlight: 'hit' }, { key: 2, value: 'h1, nav, article' }] },
+          result: { found: true, value: '3 levels' },
+        },
+      ],
+      tradeoffs: 'Short, and handy when you are already writing a recursive walk. Its correctness depends on the left-to-right child order, so say that out loud; and it cannot answer "stop after level k" as naturally as BFS.',
+    },
+  ],
+};
+
+const getElementsByClassNameExpl: Explanation = {
+  problem: 'getElementsByClassName from Scratch',
+  problemStatement: 'Given a root node ({ className, children }) and a space-separated string of class names, return every DESCENDANT of the root whose class list contains all of the requested classes, in document order.',
+  approaches: [
+    {
+      id: 'recursive',
+      name: 'Recursive DFS + a Set of classes',
+      badge: 'best',
+      intuition:
+        "Three rules decide the answer, and each is a common way to get it wrong:\n\n" +
+        "1. **Whole class names, not substrings.** Split `className` on whitespace and compare names. `className.includes('car')` matches `card` and `cardboard`.\n" +
+        "2. **Every requested class, not any.** `'big card'` needs both, in any order.\n" +
+        "3. **Descendants, in document order.** Document order is pre-order depth-first: a node before its children, its children before its next sibling. A recursive walk visits nodes in exactly that order. Like the real `element.getElementsByClassName`, the root itself is not included.\n\n" +
+        "Split the query once. For each node, build a Set of its classes and check that every requested class is in it.",
+      complexity: { time: 'O(n · c)', space: 'O(h) call stack', verdict: 'Canonical' },
+      pseudocode: [
+        'wanted = split(classNames) on whitespace, drop empties',
+        'if wanted is empty: return []',
+        'function visit(node):',
+        '  own = Set(split(node.className))',
+        '  if every class in wanted is in own: result.push(node)',
+        '  for child of node.children: visit(child)',
+        'for child of root.children: visit(child); return result',
+      ],
+      example: { input: 'query "big card" over a(card big) > [a1(card), a2(big card featured)], b(cardboard)', output: '[a, a2]' },
+      steps: [
+        {
+          title: 'Split the query once: "big card" → ["big", "card"].',
+          pseudoLine: 0,
+          array: { cells: [{ value: 'big', highlight: 'new' }, { value: 'card', highlight: 'new' }] },
+        },
+        {
+          title: 'Visit a: its classes are {card, big}. Both requested classes are there → match.',
+          pseudoLine: 4,
+          set: { items: [{ value: 'card', highlight: 'hit' }, { value: 'big', highlight: 'hit' }] },
+          lookupOutcome: { kind: 'hit', key: 'a', at: 'result[0]' },
+        },
+        {
+          title: 'Go down before across: a1 is {card}. "big" is missing → skip.',
+          pseudoLine: 4,
+          set: { items: [{ value: 'card', highlight: 'hit' }] },
+          lookupOutcome: { kind: 'miss', key: 'big' },
+        },
+        {
+          title: 'a2 is {big, card, featured} → match. Extra classes do not matter.',
+          pseudoLine: 4,
+          set: { items: [{ value: 'big', highlight: 'hit' }, { value: 'card', highlight: 'hit' }, { value: 'featured' }] },
+          lookupOutcome: { kind: 'hit', key: 'a2', at: 'result[1]' },
+        },
+        {
+          title: 'b is {cardboard}. "card" is not "cardboard" → skip. Done.',
+          pseudoLine: 6,
+          set: { items: [{ value: 'cardboard' }] },
+          result: { found: true, value: '[a, a2]' },
+        },
+      ],
+      tradeoffs: 'O(n) nodes, each checked against c of its own classes. Recursion is fine for a real DOM. The real API returns a LIVE collection that updates when the DOM changes; this returns a snapshot array, like querySelectorAll.',
+    },
+    {
+      id: 'stack',
+      name: 'Iterative DFS with an explicit stack',
+      badge: 'alternative',
+      intuition:
+        "The same pre-order walk with the call stack made explicit. A stack pops the LAST item pushed, so to keep document order you must push each node's children in REVERSE: then the first child is on top and comes out first.\n\n" +
+        "Pushing children in their natural order is the bug to mention: the walk still finds every match, but lists them right to left within each parent.",
+      complexity: { time: 'O(n · c)', space: 'O(n) stack', verdict: 'No recursion' },
+      pseudocode: [
+        'wanted = split(classNames); if empty return []',
+        'stack = root.children, reversed',
+        'while stack is not empty:',
+        '  node = stack.pop()',
+        '  if node has every wanted class: result.push(node)',
+        '  push node.children in reverse order',
+        'return result',
+      ],
+      example: { input: 'query "big card" over a(card big) > [a1(card), a2(big card featured)], b(cardboard)', output: '[a, a2]' },
+      steps: [
+        {
+          title: 'Start with the root\'s children reversed, so a is on top.',
+          pseudoLine: 1,
+          stack: { items: [{ value: 'b' }, { value: 'a', highlight: 'new' }], action: 'push' },
+        },
+        {
+          title: 'Pop a → match. Push its children reversed: a2, then a1 on top.',
+          pseudoLine: 5,
+          stack: { items: [{ value: 'b' }, { value: 'a2', highlight: 'new' }, { value: 'a1', highlight: 'new' }], action: 'push' },
+          lookupOutcome: { kind: 'hit', key: 'a', at: 'result[0]' },
+        },
+        {
+          title: 'Pop a1 (no "big" → skip), then a2 → match.',
+          pseudoLine: 4,
+          stack: { items: [{ value: 'b' }], action: 'pop' },
+          lookupOutcome: { kind: 'hit', key: 'a2', at: 'result[1]' },
+        },
+        {
+          title: 'Pop b ("cardboard" → skip). The stack is empty.',
+          pseudoLine: 6,
+          stack: { items: [], action: 'pop' },
+          result: { found: true, value: '[a, a2]' },
+        },
+      ],
+      tradeoffs: 'Same result and cost, safe on any depth. The reversed push is the whole difficulty; everything else is identical to the recursive version.',
+    },
+  ],
+};
+
+const findMatchingNodeExpl: Explanation = {
+  problem: 'Find Matching Node in Identical Tree',
+  problemStatement: 'Two trees A and B have exactly the same shape. Given a node in A (nodes have parent and children), return the node at the same position in B, or null if the node is not in A.',
+  approaches: [
+    {
+      id: 'path',
+      name: 'Record the path up, replay it down',
+      badge: 'best',
+      intuition:
+        "Because the trees have the same shape, a node is fully described by its POSITION: \"child 1 of the root, then child 1 of that\". Tags or text cannot identify it, because siblings can look identical.\n\n" +
+        "So climb from the target to rootA using `parent`, and at each step write down which child index you came from (`parent.children.indexOf(node)`). That list is the path, bottom-up. Then start at rootB and follow the same indexes top-down, i.e. in reverse.\n\n" +
+        "It only touches the nodes on one path, never the rest of the tree. If you climb off the top without meeting rootA, the target was not in A: return null.",
+      complexity: { time: 'O(h · w)', space: 'O(h)', verdict: 'Canonical' },
+      pseudocode: [
+        'path = [], node = target',
+        'while node !== rootA:',
+        '  if node has no parent: return null',
+        '  path.push(index of node in node.parent.children)',
+        '  node = node.parent',
+        'match = rootB',
+        'for index in path, last to first: match = match.children[index]',
+        'return match',
+      ],
+      example: { input: 'target = A.children[1].children[1]', output: 'B.children[1].children[1]' },
+      steps: [
+        {
+          title: 'Target is the 2nd span under the 2nd p. It is child index 1 of its parent.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1, highlight: 'new' }] },
+          computation: { label: 'indexOf', lhs: 'p.children', op: 'indexOf', rhs: 'span', result: '1' },
+        },
+        {
+          title: 'Climb to the p. It is child index 1 of the root div.',
+          pseudoLine: 3,
+          array: { cells: [{ value: 1 }, { value: 1, highlight: 'new' }] },
+          computation: { label: 'indexOf', lhs: 'div.children', op: 'indexOf', rhs: 'p', result: '1' },
+        },
+        {
+          title: 'Reached rootA. The path, bottom-up, is [1, 1].',
+          pseudoLine: 5,
+          array: { cells: [{ value: 1 }, { value: 1 }] },
+          note: 'The path is recorded from the target upward, so it must be read backwards to walk downward.',
+        },
+        {
+          title: 'In B: rootB → children[1] → children[1]. That is the twin.',
+          pseudoLine: 6,
+          callStack: { frames: [{ call: 'rootB', status: 'returned' }, { call: 'children[1] (p)', status: 'returned' }, { call: 'children[1] (span)', status: 'active' }] },
+          result: { found: true, value: 'B.children[1].children[1]' },
+        },
+      ],
+      tradeoffs: 'Work is proportional to the target\'s depth (times the sibling count for indexOf), not to the tree size. In a real DOM, children is an HTMLCollection, so the index is Array.prototype.indexOf.call(parent.children, node).',
+    },
+    {
+      id: 'lockstep',
+      name: 'Walk both trees in lockstep',
+      badge: 'alternative',
+      intuition:
+        "If you have no parent pointers, walk A and B TOGETHER. Keep a stack of pairs `[a, b]`, starting with `[rootA, rootB]`. For every pair, push `[a.children[i], b.children[i]]` for each i.\n\n" +
+        "Because you always take the same child on both sides, every pair is \"a node in A and its twin in B\". The moment the A side is the target, the B side is the answer.\n\n" +
+        "It can visit the whole tree before finding the target, so it is O(n), but it needs nothing except children.",
+      complexity: { time: 'O(n)', space: 'O(h)', verdict: 'No parent pointers needed' },
+      pseudocode: [
+        'stack = [[rootA, rootB]]',
+        'while stack is not empty:',
+        '  [a, b] = stack.pop()',
+        '  if a === target: return b',
+        '  for each i: stack.push([a.children[i], b.children[i]])',
+        'return null',
+      ],
+      example: { input: 'target = A.children[1].children[1]', output: 'B.children[1].children[1]' },
+      steps: [
+        {
+          title: 'Start with the two roots as a pair.',
+          pseudoLine: 0,
+          stack: { items: [{ value: 'A.div | B.div', highlight: 'new' }], action: 'push' },
+        },
+        {
+          title: 'Not the target. Push the three child pairs.',
+          pseudoLine: 4,
+          stack: { items: [{ value: 'p0 | p0' }, { value: 'p1 | p1' }, { value: 'p2 | p2', highlight: 'new' }], action: 'push' },
+        },
+        {
+          title: 'Pop p2 (no children), then p1: push its two span pairs.',
+          pseudoLine: 4,
+          stack: { items: [{ value: 'p0 | p0' }, { value: 'span0 | span0' }, { value: 'span1 | span1', highlight: 'new' }], action: 'push' },
+        },
+        {
+          title: 'Pop span1: the A side is the target, so return the B side.',
+          pseudoLine: 3,
+          stack: { items: [{ value: 'p0 | p0' }, { value: 'span0 | span0' }], action: 'pop' },
+          result: { found: true, value: 'B.children[1].children[1]' },
+        },
+      ],
+      tradeoffs: 'Simple to prove correct and needs no parent pointers, but it may walk the whole tree. Prefer the path approach when parentNode is available, which in the DOM it always is.',
+    },
+  ],
+};
+
+const lowestCommonAncestorExpl: Explanation = {
+  problem: 'Lowest Common Ancestor of Two Nodes',
+  problemStatement: 'Given two nodes a and b in a tree whose nodes have parent pointers, return their lowest (deepest) common ancestor. A node counts as its own ancestor. Return null if they are in different trees.',
+  approaches: [
+    {
+      id: 'ancestor-set',
+      name: 'Set of a\'s ancestors, climb from b',
+      badge: 'best',
+      intuition:
+        "Walk up from a to the root and put every node you pass, a itself included, into a Set. Those are all of a's ancestors.\n\n" +
+        "Now walk up from b. The FIRST node on b's way up that is already in the Set is the lowest ancestor they share: any higher shared node would be reached later.\n\n" +
+        "Including a and b themselves is what makes the edge cases work: if a is an ancestor of b, b's climb reaches a and stops there; if a and b are the same node, b is in the Set immediately. If b reaches the top without a hit, they are in different trees.",
+      complexity: { time: 'O(h)', space: 'O(h)', verdict: 'Easiest to get right' },
+      pseudocode: [
+        'seen = new Set()',
+        'for n = a; n; n = n.parent: seen.add(n)',
+        'for n = b; n; n = n.parent:',
+        '  if seen.has(n): return n',
+        'return null',
+      ],
+      example: { input: 'a = a1x (root > a > a1 > a1x), b = a2 (root > a > a2)', output: 'a' },
+      steps: [
+        {
+          title: 'Climb from a1x and remember every node: a1x, a1, a, root.',
+          pseudoLine: 1,
+          set: { items: [{ value: 'a1x', highlight: 'new' }, { value: 'a1', highlight: 'new' }, { value: 'a', highlight: 'new' }, { value: 'root', highlight: 'new' }] },
+        },
+        {
+          title: 'Climb from a2. a2 itself is not in the Set.',
+          pseudoLine: 3,
+          set: { items: [{ value: 'a1x' }, { value: 'a1' }, { value: 'a' }, { value: 'root' }] },
+          lookupOutcome: { kind: 'miss', key: 'a2' },
+        },
+        {
+          title: 'Next is a: it is in the Set. The first shared node is the lowest one.',
+          pseudoLine: 3,
+          set: { items: [{ value: 'a1x' }, { value: 'a1' }, { value: 'a', highlight: 'hit' }, { value: 'root' }] },
+          lookupOutcome: { kind: 'hit', key: 'a' },
+          result: { found: true, value: 'a' },
+        },
+      ],
+      tradeoffs: 'Only the two root paths are touched, never the rest of the tree. The Set costs O(h) memory, which for a DOM is a few dozen entries. In a real DOM, node.contains(other) gives a native alternative: climb from a until the node contains b.',
+    },
+    {
+      id: 'equalise-depth',
+      name: 'Equalise depths, then climb in step',
+      badge: 'alternative',
+      intuition:
+        "Without extra memory: count how far each node is from the root. Lift the deeper one until both are at the same depth.\n\n" +
+        "Now they are the same distance from their common ancestor, so move both up one step at a time. The first time they point at the same node, that node is the answer.\n\n" +
+        "If they are in different trees, they never meet and both become null together, which returns null.",
+      complexity: { time: 'O(h)', space: 'O(1)', verdict: 'Best on space' },
+      pseudocode: [
+        'da = depth(a), db = depth(b)',
+        'while da > db: a = a.parent; da--',
+        'while db > da: b = b.parent; db--',
+        'while a !== b: a = a.parent; b = b.parent',
+        'return a',
+      ],
+      example: { input: 'a = a1x (depth 3), b = a2 (depth 2)', output: 'a' },
+      steps: [
+        {
+          title: 'Depths: a1x is 3 steps from root, a2 is 2.',
+          pseudoLine: 0,
+          computation: { label: 'depths', lhs: 'depth(a1x) = 3', op: 'vs', rhs: 'depth(a2) = 2' },
+        },
+        {
+          title: 'a1x is deeper by one: lift it to a1. Both are at depth 2 now.',
+          pseudoLine: 1,
+          dualArray: {
+            left: { label: 'a side', cells: [{ value: 'a1x' }, { value: 'a1', highlight: 'i' }] },
+            right: { label: 'b side', cells: [{ value: 'a2', highlight: 'j' }] },
+          },
+        },
+        {
+          title: 'a1 !== a2, so both step up: a1 → a, a2 → a.',
+          pseudoLine: 3,
+          dualArray: {
+            left: { label: 'a side', cells: [{ value: 'a1' }, { value: 'a', highlight: 'found' }] },
+            right: { label: 'b side', cells: [{ value: 'a2' }, { value: 'a', highlight: 'found' }] },
+          },
+        },
+        {
+          title: 'They point at the same node. That is the lowest common ancestor.',
+          pseudoLine: 4,
+          result: { found: true, value: 'a' },
+        },
+      ],
+      tradeoffs: 'O(1) extra space and still O(h) time. A neater variant skips the depth counting: two pointers that restart at the OTHER node when they run off the top meet at the ancestor after depth(a) + depth(b) steps, the same trick as intersecting two linked lists.',
+    },
+  ],
+};
+
 export const playgroundExplanations: Record<string, AnyExplanation> = {
   ...playgroundBuildExplanations,
+  // Trees and DOM traversal
+  'DOM Tree Height': domTreeHeightExpl,
+  'Invert Binary Tree': invertBinaryTreeExpl,
+  'Level-Order Traversal': levelOrderExpl,
+  'getElementsByClassName from Scratch': getElementsByClassNameExpl,
+  'Find Matching Node in Identical Tree': findMatchingNodeExpl,
+  'Lowest Common Ancestor of Two Nodes': lowestCommonAncestorExpl,
   'Integer to Roman': integerToRomanExpl,
   'Reverse Integer': reverseIntegerExpl,
   'Isomorphic Strings': isomorphicExpl,
@@ -9062,6 +9783,7 @@ export const playgroundExplanations: Record<string, AnyExplanation> = {
   'Search in Rotated Sorted Array': searchRotated,
   // Batch: Find Max Family
   'Find Maximum in Array': findMaximum,
+  'Max Consecutive Ones': maxConsecutiveOnes,
   'Find Min and Max': findMinMax,
   'Third Largest Number': thirdLargest,
   'Kth Largest Element': kthLargest,

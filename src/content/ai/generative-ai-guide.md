@@ -63,7 +63,7 @@ Three consequences that come up constantly:
 - **The model cannot see spelling.** "How many r's in strawberry?" is hard because the model never sees the letters — it sees two or three tokens. Character-level tasks (reversing a string, counting letters) are a known weak spot, and the fix is to hand the job to code via a tool, not to prompt harder.
 - **Arithmetic is fragile** for the same reason: `1234567890` splits into arbitrary pieces with no positional meaning. Use a calculator tool for anything that must be exact.
 
-**Input and output tokens are priced differently** — output is typically 3–5× the cost of input, because generating requires one forward pass per token while input can be processed in parallel. A common cost mistake is optimising a long system prompt while ignoring a `max_tokens` that lets the model ramble.
+**Input and output tokens are priced differently** — output is typically 3–5× the cost of input, because generating requires one forward pass (one full run of the model) per output token while input can be processed in parallel. A common cost mistake is optimising a long system prompt while ignoring a `max_tokens` that lets the model ramble.
 
 ---
 
@@ -98,7 +98,7 @@ An **embedding** is a list of numbers — typically 384 to 3,072 of them — rep
 
 Similarity is measured by **cosine similarity** — the angle between two vectors, from -1 to 1. Angle rather than distance, because the *direction* carries the meaning while the length mostly reflects incidental things like text length.
 
-This is the machinery behind semantic search, RAG, clustering, deduplication and recommendation. Three rules that matter in practice:
+This is the machinery behind semantic search, RAG (retrieval-augmented generation: find the relevant documents, then put them in the prompt), clustering, deduplication and recommendation. Three rules that matter in practice:
 
 1. **You must use the same model for the query and the documents.** Vectors from different models are not comparable — not "less accurate", but meaningless. Changing embedding model means re-embedding your entire corpus.
 2. **Dimensions are a real trade-off.** More dimensions capture more nuance and cost more to store and search. Several modern models support *Matryoshka* truncation — you can cut a 3,072-dim vector to 512 and keep most of the quality, which is the cheap win when your index gets big.
@@ -117,6 +117,8 @@ Understanding the three stages explains most of a model's behaviour.
 | **Alignment (RLHF / RLAIF / DPO)** | optimise toward human or AI preference judgements | tone, refusals, helpfulness, formatting habits |
 
 **The base model is not a chatbot.** Ask a pre-trained-only model "What is the capital of France?" and a plausible continuation is a list of more quiz questions — it is completing a document, not answering. SFT is what turns completion into conversation.
+
+The alignment acronyms: **RLHF** is reinforcement learning from human feedback (people rank answers, the model is trained toward the preferred ones), **RLAIF** is the same with an AI model doing the ranking, and **DPO** (direct preference optimisation) trains directly on pairs of preferred and rejected answers.
 
 **Alignment explains the quirks.** Excessive hedging, over-apologising, refusing benign requests, or opening with "Certainly!" are learned preferences, not reasoning. It also produces **sycophancy** — agreeing with a user who pushes back even when the original answer was right, because agreement was rated highly. When you evaluate a model, test it with a user who disagrees.
 
@@ -137,7 +139,7 @@ The model outputs a probability for every token in its vocabulary. **Sampling** 
 | `stop` sequences | end generation when this string appears | structured output, agent loops |
 | `seed` | request reproducibility | best-effort only — see below |
 
-**"Temperature 0 is deterministic" is the single most common wrong answer here.** It makes sampling *greedy* — always take the highest-probability token — which removes one source of randomness. It does not make the system deterministic, because batching on the provider's side changes floating-point accumulation order, mixture-of-experts routing varies, and hardware kernels differ. A `seed` improves your odds; nothing guarantees it. **Design your tests around this**: assert on structure and semantics, never on exact strings.
+**"Temperature 0 is deterministic" is the single most common wrong answer here.** It makes sampling *greedy* — always take the highest-probability token — which removes one source of randomness. It does not make the system deterministic, because batching on the provider's side changes floating-point accumulation order, mixture-of-experts routing (in models that send each token to a few of many sub-networks) varies, and hardware kernels differ. A `seed` improves your odds; nothing guarantees it. **Design your tests around this**: assert on structure and semantics, never on exact strings.
 
 ---
 
@@ -217,7 +219,7 @@ Image models work on a fundamentally different principle from LLMs, and confusin
 - **Fewer steps means faster and rougher.** Step count is your latency/quality dial. Distilled few-step models trade some fidelity for near-real-time output.
 - **Conditioning is the extension point.** Image-to-image, inpainting (regenerate a masked region), and structural control (pose, depth, edges) are all ways of constraining the denoising with something beyond the text prompt.
 
-**Text-in-images has improved but remains a known weakness**, and images are where provenance matters most: **C2PA content credentials** and watermarking are how generated media is labelled, and "how do you know this was AI-generated?" is now a reasonable production question.
+**Text-in-images has improved but remains a known weakness**, and images are where provenance matters most: **C2PA content credentials** (an industry standard for attaching signed "how this was made" metadata to a media file) and watermarking are how generated media is labelled, and "how do you know this was AI-generated?" is now a reasonable production question.
 
 ---
 
@@ -268,7 +270,7 @@ The ladder, cheapest first. **Interviewers are testing whether you reach for fin
 Three numbers describe generation performance, and conflating them is a classic interview slip:
 
 - **TTFT (time to first token)** — how long until something appears. Dominated by prompt processing, so it scales with *input* size. This is what the user perceives as "did it hear me?".
-- **TPOT / inter-token latency** — the gap between tokens once flowing. Perceived as reading speed.
+- **TPOT (time per output token) / inter-token latency** — the gap between tokens once flowing. Perceived as reading speed.
 - **Total latency** = TTFT + (output tokens × TPOT). **Output length is usually the dominant term**, which is why "be concise" in the prompt is a genuine latency optimisation.
 
 **Why streaming is not optional.** A 400-token answer might take 8 seconds to complete. Streamed, the user starts reading at 0.4 s. Nothing about the total changed; the experience is completely different.
@@ -276,7 +278,7 @@ Three numbers describe generation performance, and conflating them is a classic 
 **The three levers that actually move cost**, in order of impact:
 
 1. **Route by difficulty.** Most traffic does not need your best model. A cheap model for the common path with escalation on failure typically cuts spend by more than half.
-2. **Cache.** Prompt caching for the stable prefix; an exact-match or semantic cache for repeated questions. Support and docs traffic is extremely repetitive.
+2. **Cache.** Prompt caching for the stable prefix; an exact-match or semantic cache (one that returns a stored answer when a new question's embedding is close enough to an earlier one) for repeated questions. Support and docs traffic is extremely repetitive.
 3. **Cut tokens.** Shorter system prompts, retrieval instead of stuffing, a real `max_tokens`, and asking for terse output.
 
 **Batching** is the server-side counterpart: GPUs are throughput devices, so providers batch many requests through one forward pass. That is why per-token pricing is so low, and also why your latency varies with someone else's load.
@@ -297,7 +299,7 @@ Everything else is a consequence. There is no memory between calls, so conversat
 
 The model produces a distribution, not an answer, and sampling chooses from it — so randomness is built into the design. Temperature reshapes that distribution: low sharpens it toward the most likely tokens, high flattens it toward variety.
 
-Temperature 0 makes sampling **greedy** — always take the top token — which removes sampling randomness but does **not** give you determinism. Providers batch requests together, and floating-point addition is not associative, so the same request in a different batch can produce slightly different logits and occasionally a different token. Mixture-of-experts routing and hardware differences add more. A `seed` parameter is best-effort.
+Temperature 0 makes sampling **greedy** — always take the top token — which removes sampling randomness but does **not** give you determinism. Providers batch requests together, and floating-point addition is not associative, so the same request in a different batch can produce slightly different logits (the raw score the model gives each token before it becomes a probability) and occasionally a different token. Mixture-of-experts routing and hardware differences add more. A `seed` parameter is best-effort.
 
 Practically: use temperature 0 for extraction and classification because it is *stabler*, not because it is deterministic, and never write a test that asserts an exact output string. Assert on schema, on required fields, and on semantic checks.
 
@@ -343,7 +345,7 @@ An embedding is a vector representing meaning, such that similar meanings point 
 
 They fail in ways worth naming. **Negation is nearly invisible** — "the deploy succeeded" and "the deploy failed" are extremely close. **Exact identifiers do not work**: error codes, SKUs, function names and version numbers need lexical matching, because an embedding captures gist rather than characters. **Domain jargon can be poorly represented** if it was rare in the embedding model's training. And **the similarity is not truth**: a passage can be topically perfect and factually irrelevant.
 
-The practical answer is hybrid search — combine dense vector search with BM25-style keyword search and fuse the rankings — plus a reranker over the merged candidates. Also worth stating: query and documents must be embedded by the same model, and changing that model means re-indexing everything.
+The practical answer is hybrid search — combine dense vector search with BM25-style keyword search (BM25 is the classic algorithm that ranks documents by matching words) and fuse the rankings — plus a reranker (a second, slower model that scores each query–passage pair directly) over the merged candidates. Also worth stating: query and documents must be embedded by the same model, and changing that model means re-indexing everything.
 
 ---
 
@@ -353,7 +355,7 @@ I would treat it as a decision with three triggers rather than a preference. Def
 
 I would move to open weights when one of three things is true: **data residency or regulation** makes sending data to a third party impossible; **volume** is high and steady enough that the arithmetic flips — you are paying for idle GPUs, so it only wins above a real utilisation threshold; or you need **deep fine-tuning and ownership of the artifact**, including protection from a provider deprecating a model under you.
 
-The honest costs of self-hosting are the ones people skip: serving infrastructure, autoscaling GPUs, quantisation and throughput tuning, evaluation when you upgrade, and the engineers to run it. I would also mention the hybrid most mature systems land on — a small open model for the high-volume easy path, a frontier API for the hard path — and note that "open source" usually means open *weights* under a licence with real restrictions.
+The honest costs of self-hosting are the ones people skip: serving infrastructure, autoscaling GPUs, quantisation (storing weights at lower numeric precision to cut memory and cost) and throughput tuning, evaluation when you upgrade, and the engineers to run it. I would also mention the hybrid most mature systems land on — a small open model for the high-volume easy path, a frontier API for the hard path — and note that "open source" usually means open *weights* under a licence with real restrictions.
 
 ---
 
@@ -373,7 +375,7 @@ In layers, from cheap and deterministic to expensive and subjective.
 
 Start with **assertions**: does it parse as valid JSON, match the schema, stay under a length limit, contain the required fields, avoid forbidden content. These are fast, free and catch most regressions.
 
-Then **reference-based** checks where a ground truth exists — exact match for extraction, or retrieval metrics like recall@k and MRR for the retrieval stage, which you should always evaluate separately from generation because they fail for different reasons.
+Then **reference-based** checks where a ground truth exists — exact match for extraction, or retrieval metrics like recall@k (did a correct document appear in the top *k* results) and MRR (mean reciprocal rank — how near the top the first correct result sits) for the retrieval stage, which you should always evaluate separately from generation because they fail for different reasons.
 
 Then **LLM-as-judge** for the subjective dimensions — helpfulness, faithfulness to sources, tone. It correlates reasonably with human judgement if you use a rubric with concrete criteria rather than "rate 1-10", and you must know its biases: position bias (favouring the first option), verbosity bias (favouring longer answers), and self-preference (favouring output from the same model family). Randomise order and, where it matters, use a different model family as judge.
 
@@ -431,7 +433,7 @@ The reframing that scores: retrieval is a *precision* mechanism, not a workaroun
 
 It is an authorisation bug, and the fix belongs in retrieval, not in the prompt. A very common implementation error is to embed the entire corpus into one index and filter afterwards, or to instruct the model "only answer from documents the user can access" — the model cannot enforce that, and instructions are not an access-control mechanism.
 
-The retrieval query itself must be scoped by the user's permissions, via metadata filters applied *inside* the search or per-tenant indexes. That has consequences worth naming: permissions change, so the index needs the current ACL rather than a snapshot from ingest time; deletions must propagate, because a document removed from the source is still answerable while it remains in the index; and caches must be keyed per user, or one user's cached answer leaks to another.
+The retrieval query itself must be scoped by the user's permissions, via metadata filters applied *inside* the search or per-tenant indexes. That has consequences worth naming: permissions change, so the index needs the current ACL (access-control list: who may read the document) rather than a snapshot from ingest time; deletions must propagate, because a document removed from the source is still answerable while it remains in the index; and caches must be keyed per user, or one user's cached answer leaks to another.
 
 Also worth mentioning: even correct filtering can leak through side channels — "no results found" versus a refusal can reveal that a document exists.
 
@@ -463,7 +465,7 @@ Almost certainly the sampling configuration — most often a fixed `seed` that w
 
 A third possibility if you added caching: a semantic cache keyed on embedding similarity will happily serve one image for many "similar enough" prompts, which looks exactly like this. That is a threshold problem, and image prompts need a much tighter one than support questions, because small wording differences are meant to matter.
 
-The diagnosis approach is the useful part of the answer: vary one thing at a time against a fixed prompt set — seed, steps, guidance scale, cache on/off — because these three causes look identical from the outside and only differ in what restores diversity.
+The diagnosis approach is the useful part of the answer: vary one thing at a time against a fixed prompt set — seed, steps, guidance scale (how strongly each denoising step is pushed toward the prompt), cache on/off — because these three causes look identical from the outside and only differ in what restores diversity.
 
 ---
 

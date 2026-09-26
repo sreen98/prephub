@@ -27,7 +27,7 @@ Terraform is **declarative infrastructure as code**: you describe the desired en
 
 ## 1. Infrastructure as Code
 
-The problem IaC solves is **drift and irreproducibility**. Click-ops in a cloud console leaves no record of why a security group has a rule, no way to recreate an environment identically, and no review step before a production change.
+The problem IaC (infrastructure as code — cloud resources defined in files you commit and review, instead of created by hand) solves is **drift and irreproducibility**. Click-ops (clicking through a cloud console to make changes) leaves no record of why a security group has a rule, no way to recreate an environment identically, and no review step before a production change.
 
 **Declarative vs imperative** is the distinction to get right:
 
@@ -39,6 +39,8 @@ The trade-off is that declarative tools need to know what already exists, which 
 ---
 
 ## 2. HCL Building Blocks
+
+Terraform files are written in HCL (HashiCorp Configuration Language), a declarative format of named blocks and `key = value` attributes. The blocks below are the whole vocabulary you need to read most configurations.
 
 ```hcl
 terraform {
@@ -369,10 +371,10 @@ Practices that separate a working pipeline from a dangerous one:
 
 - **Apply the saved plan file**, so what was reviewed is what runs.
 - **Never `-auto-approve` a freshly computed plan** in production.
-- **OIDC federation** for cloud credentials, not long-lived access keys.
+- **OIDC federation** for cloud credentials, not long-lived access keys. OIDC (OpenID Connect) lets the CI system prove its identity to the cloud and receive short-lived credentials per run, so there is no stored key to leak — and a Terraform pipeline's credentials can usually change everything.
 - Concurrency control so two pipelines can't apply the same state.
-- Policy as code — **OPA/Conftest**, Sentinel, or `tflint` — to reject, say, an unencrypted bucket before apply.
-- `tfsec`/`checkov` for security scanning, and `infracost` to surface cost deltas in the PR.
+- Policy as code — rules written as code and run against the plan in CI, using tools such as **OPA/Conftest** (Open Policy Agent), HashiCorp's Sentinel, or the `tflint` linter — to reject, say, an unencrypted bucket before apply rather than finding it in an audit afterwards.
+- `tfsec`/`checkov` scan the configuration for insecure settings, and `infracost` shows how much a change will add to the monthly bill, right in the PR where a reviewer can question it.
 - Set `TF_IN_AUTOMATION=1` and `-input=false` so nothing waits on a prompt.
 
 ---

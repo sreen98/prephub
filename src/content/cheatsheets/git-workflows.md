@@ -52,8 +52,8 @@ git bisect visualize                 # show remaining suspects in gitk
 
 # Automated bisect with a test script
 git bisect start HEAD v1.0.0
-git bisect run npm test              # auto-marks via exit code (0=good, 1=bad)
-git bisect run ./test-script.sh      # any script works
+git bisect run npm test              # auto-marks via exit code: 0=good, 125=skip, other 1-127=bad
+git bisect run ./test-script.sh      # any script works; exit >127 aborts the bisect
 ```
 
 ## Reflog
@@ -414,11 +414,11 @@ git config --global feature.manyFiles true       # optimize for large repos
 | Apply a commit from another branch | `git cherry-pick <hash>` |
 | Undo a merge that was pushed | `git revert -m 1 <merge-hash>` |
 | See who last changed each line | `git blame -w -C path/to/file` |
-| Find when a function was deleted | `git log -S "functionName" --diff-filter=D` |
+| Find when a function was deleted | `git log -S "functionName"` (newest hit is the removal; `--diff-filter=D` would only match deleted *files*) |
 | Remove a file from all history | `git filter-repo --path secret.env --invert-paths` |
 | Work on two branches simultaneously | `git worktree add ../other-dir other-branch` |
 | Auto-resolve repeated conflicts | `git config rerere.enabled true` |
-| Clean up merged remote branches | `git fetch --prune` |
+| Drop local refs to branches deleted on the remote | `git fetch --prune` |
 | Create a patch for code review | `git format-patch -1 HEAD` |
 | Rebase without losing local changes | `git config rebase.autoStash true` then `git pull --rebase` |
 | Find all commits that touched a file | `git log --follow -p -- path/to/file` |

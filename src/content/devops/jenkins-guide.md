@@ -39,7 +39,7 @@ Compare with the GitHub Actions workflow in the [Docker, K8s & CI/CD guide](/bac
 ```
 
 - **Controller** (formerly "master"): schedules builds, serves the UI, stores configuration and history in `JENKINS_HOME`, and hosts plugins.
-- **Agent** (formerly "slave"): a machine with **executors**, each able to run one build at a time. Agents connect inbound (via JNLP/WebSocket) or are launched outbound over SSH.
+- **Agent** (formerly "slave"): a machine with **executors**, each able to run one build at a time. Agents either connect inbound — the agent dials the controller over JNLP (Jenkins' own agent protocol) or WebSocket, which works when the controller can't reach the agent — or are launched outbound, with the controller starting them over SSH.
 
 **Run no builds on the controller.** Set its executor count to **0**. A build on the controller has filesystem access to `JENKINS_HOME`, which holds credentials and every job's configuration — so a malicious or careless `Jenkinsfile` becomes full compromise. This is the single most important architectural rule in Jenkins.
 
@@ -181,7 +181,7 @@ Rules that get asked about:
 - **Scope credentials to a folder**, not globally, so one team's job can't use another's secrets.
 - Jenkins **masks** credential values in console output — but masking is a string match. `echo $TOKEN | base64` defeats it, so masking is a safety net, not a control.
 - **Never interpolate a secret into a Groovy string** with `"${TOKEN}"`: double-quoted Groovy interpolation happens *before* the shell runs, so the secret can end up in the process list and in `set -x` output. Use single quotes and let the shell expand `$TOKEN` from the environment.
-- Prefer short-lived credentials — OIDC federation to a cloud role — over long-lived keys stored in Jenkins.
+- Prefer short-lived credentials — OIDC federation to a cloud role, where the cloud trusts a signed identity token from the build and hands back temporary credentials that expire on their own — over long-lived keys stored in Jenkins, which are only as safe as every job that can read them.
 
 ---
 
@@ -224,7 +224,7 @@ triggers {
 }
 ```
 
-**Prefer webhooks** (`GitHub hook trigger for GITScm polling`) over `pollSCM`: polling means every job asks the SCM on a timer, which scales badly and adds latency up to the poll interval.
+**Prefer webhooks** (`GitHub hook trigger for GITScm polling`) over `pollSCM`: polling means every job asks the SCM (source control system — GitHub, GitLab, Bitbucket) "anything new?" on a timer, which scales badly and adds latency up to the poll interval.
 
 The **`H`** in a cron expression means "hash" — Jenkins spreads jobs across the interval based on the job name, so a hundred jobs on `H 2 * * *` don't all start at 02:00 and stampede the agents. Using `0 2 * * *` everywhere is a classic self-inflicted load spike.
 
@@ -287,7 +287,7 @@ Jenkins is a build server that executes arbitrary code with access to your deplo
 
 **Untrusted contributions.** A pull request from a fork carries a `Jenkinsfile` the contributor controls. Building it automatically means running attacker-supplied code with your agent's credentials. Require approval for PRs from non-collaborators, and give fork builds a credential-free agent.
 
-**Plugins are the main CVE surface.** Jenkins' power is ~1,900 plugins, and its vulnerability history is mostly plugin-shaped. Keep them updated, remove unused ones, and subscribe to the security advisories.
+**Plugins are the main CVE surface** (CVEs are publicly catalogued vulnerabilities). Jenkins' power is ~1,900 plugins, each written and maintained separately, and its vulnerability history is mostly plugin-shaped. Keep them updated, remove unused ones, and subscribe to the security advisories.
 
 Also: run agents as an unprivileged user, avoid mounting the Docker socket into build containers (that is root on the host), put the controller behind SSO with the CLI and JNLP ports closed to the internet, and audit with the Audit Trail plugin.
 

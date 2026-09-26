@@ -4,7 +4,7 @@ The LLD round — "design a parking lot", "design a rate limiter", "design an el
 
 It's also the round candidates most often go into unprepared, because it has no LeetCode equivalent and it rewards a *method* rather than a memorised answer.
 
-This guide covers the method, the principles that actually get graded, and several worked designs. The Design Patterns guide covers the full GoF catalogue; the System Design guide covers distributed concerns.
+This guide covers the method, the principles that actually get graded, and several worked designs. The Design Patterns guide covers the full GoF catalogue (the 23 patterns from the 1994 "Gang of Four" *Design Patterns* book); the System Design guide covers distributed concerns.
 
 ---
 
@@ -212,14 +212,18 @@ class LargeElectricCar extends ElectricCar {}
 class LargeElectricCarWithTrailer extends LargeElectricCar {}   // …
 
 // ✓ Compose capabilities
+type Size = 'SMALL' | 'MEDIUM' | 'LARGE';
+type Capability = 'ELECTRIC' | 'TRAILER' | 'ACCESSIBLE';
+
 class Vehicle {
   constructor(
     public readonly size: Size,
-    public readonly capabilities: Set<Capability> = new Set(),
+    public readonly capabilities: readonly Capability[] = [],
   ) {}
-  has(c: Capability) { return this.capabilities.has(c); }
+  has(c: Capability) { return this.capabilities.includes(c); }
 }
-const v = new Vehicle(Size.LARGE, new Set([Capability.ELECTRIC, Capability.TRAILER]));
+const v = new Vehicle('LARGE', ['ELECTRIC', 'TRAILER']);
+console.log(v.size, v.has('ELECTRIC'), v.has('ACCESSIBLE')); // LARGE true false
 ```
 
 **Use inheritance when** there's a genuine, stable "is-a" that satisfies Liskov and you want to share an implementation — and even then prefer a shallow hierarchy (one level). **Use composition when** you're modelling *capabilities*, *behaviours* or *variations*, which is most of the time.
@@ -504,12 +508,14 @@ class TokenBucketLimiter implements RateLimiter {
 | **Token bucket** | O(1) | **controlled, by design** | good |
 | Leaky bucket | O(1) | smoothed output | good |
 
+The two rows without code: a **sliding window counter** keeps only the current and previous fixed-window counts and weights the previous one by how much of it still overlaps the last minute — nearly the precision of the log at the memory cost of the fixed window. A **leaky bucket** queues requests and lets them out at a constant rate, so it smooths bursts instead of permitting them; pick it when the thing downstream cannot absorb a burst at all.
+
 ### 7.3 The Design Points to Volunteer
 
 - **`Clock` is injected.** Without it you cannot test a rate limiter without `sleep`, and tests with real sleeps are slow and flaky (see the Testing Strategy guide). This one detail signals real experience.
 - **`cost` as a parameter** lets one endpoint consume more budget than another — useful and nearly free.
-- **Memory is unbounded** as written: a map keyed by user grows forever. Needs LRU eviction or TTL expiry. Raising this before you're asked is a strong move.
-- **Going distributed** changes the problem, not the interface: the state must be shared, so it moves to Redis, and the read-modify-write must be **atomic** — a Lua script or `INCR` with `EXPIRE`, never `GET` then `SET`, which is the lost-update race from the SQL guide. Mention that per-instance limiting means N instances allow N× the limit.
+- **Memory is unbounded** as written: a map keyed by user grows forever. Needs LRU eviction (drop the least recently used keys once the map is full) or TTL expiry (drop a key after it has been idle for a set time). Raising this before you're asked is a strong move.
+- **Going distributed** changes the problem, not the interface: the state must be shared, so it moves to Redis, and the read-modify-write must be **atomic** — a Lua script (Redis runs a script to completion without interleaving other clients' commands) or `INCR` with `EXPIRE`, never `GET` then `SET`, where two requests can both read the same count before either writes — the lost-update race from the SQL guide. Mention that per-instance limiting means N instances allow N× the limit.
 - **Fail open or closed?** If Redis is down, do you reject everything (safe, but an availability outage) or allow everything (available, but unprotected)? There's no universal answer — for a login endpoint, closed; for a read API, open. Naming the choice is the point.
 
 ---
@@ -1055,7 +1061,7 @@ async function run() {
 
 **Q3: Your `Square extends Rectangle` code compiles, all its own tests pass, and it breaks a caller that worked fine with `Rectangle`. Why is this a design error rather than a bug?**
 
-**Answer:** It violates the **Liskov Substitution Principle** — `Square` is not usable everywhere `Rectangle` is, because it silently strengthens a precondition the caller relied on. The class is correct in isolation and wrong as a subtype.
+**Answer:** It violates the **Liskov Substitution Principle** — `Square` is not usable everywhere `Rectangle` is, because it silently weakens a **postcondition** (what a method promises is true after it returns) that the caller relied on: `Rectangle.setWidth` promises the height stays the same, and `Square.setWidth` changes it. The class is correct in isolation and wrong as a subtype.
 
 **Explanation:**
 
@@ -1089,8 +1095,8 @@ Nothing here is a coding mistake. `Square` correctly maintains its own invariant
 |---|---|
 | A subclass **throws** on an inherited method | `ReadOnlyList.add()` → `throw new Error('unsupported')` |
 | A subclass **narrows** accepted input | base takes any number, subclass rejects negatives |
-| A subclass **strengthens a precondition** | `Square.setWidth` requires you not to care about height |
-| A subclass **weakens a postcondition** | base guarantees a sorted result, subclass doesn't |
+| A subclass **strengthens a precondition** (demands more before a call) | base method works in any state, subclass requires `init()` to have been called first |
+| A subclass **weakens a postcondition** (promises less after a call) | `Square.setWidth` also changes the height; or base guarantees a sorted result, subclass doesn't |
 | Callers need `instanceof` to behave correctly | the type system has stopped helping |
 
 **The fixes**, and which you choose says something about your judgement:
@@ -1101,7 +1107,7 @@ Nothing here is a coding mistake. `Square` correctly maintains its own invariant
 
 Option 1 is usually best, and it generalises: **most LSP violations are really mutability problems.** The contract that breaks is almost always about *how state can change*, so removing the ability to mutate removes the contract to violate.
 
-**Takeaway:** Liskov is about substitutable behaviour, not taxonomy — a subclass that throws, narrows an input, strengthens a precondition or forces callers to use `instanceof` is a design error, and the usual fix is immutability or composition rather than a cleverer override.
+**Takeaway:** Liskov is about substitutable behaviour, not taxonomy — a subclass that throws, narrows an input, strengthens a precondition, weakens a postcondition or forces callers to use `instanceof` is a design error, and the usual fix is immutability or composition rather than a cleverer override.
 
 ---
 
@@ -1133,7 +1139,7 @@ SOLID (what each one buys)
     field, repeated in several methods. Fix: strategy interface + registry.
 12. L — substitutable behaviour, NOT taxonomy. "Is-a" in English ≠ "is-a" in code.
     Tells: throws on an inherited method · narrows input · strengthens a
-    precondition · callers need instanceof.
+    precondition · weakens a postcondition · callers need instanceof.
 13. I — don't force implementers to depend on unused methods. Tell: implementations
     full of "not supported".
 14. D — inject dependencies, don't construct them. THE PAYOFF IS TESTABILITY:

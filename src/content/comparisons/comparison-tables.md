@@ -55,7 +55,7 @@ A quick-reference guide organized as comparison tables covering the "X vs Y" que
 
 ### 1.1 var vs let vs const
 
-Understanding variable declaration is foundational. Interviewers test this to gauge your knowledge of scoping, hoisting, and modern JavaScript best practices.
+The short version: `var` is scoped to the whole function and can be read (as `undefined`) before its line runs; `let` and `const` are scoped to the nearest `{ }` block and throw if touched before their line. `const` additionally forbids re-assigning the name — though an object it points to can still be changed.
 
 | Feature | `var` | `let` | `const` |
 |---|---|---|---|
@@ -74,7 +74,7 @@ Understanding variable declaration is foundational. Interviewers test this to ga
 
 ### 1.2 == vs ===
 
-This is one of the most common interview questions. It tests whether you understand JavaScript's type coercion rules and can predict surprising behaviors.
+`===` compares type and value and never converts anything. `==` first *coerces* (converts) the two sides toward a common type, then compares — which is where results like `0 == ""` being `true` come from.
 
 | Feature | `==` (Loose Equality) | `===` (Strict Equality) |
 |---|---|---|
@@ -94,7 +94,7 @@ This is one of the most common interview questions. It tests whether you underst
 
 ### 1.3 null vs undefined
 
-Interviewers test this to see if you understand JavaScript's two distinct "absence of value" types and the subtle difference in intent.
+Both mean "no value", but they are set by different parties: the engine produces `undefined` on its own (an unassigned variable, a missing argument or property), while `null` only appears when a developer writes it on purpose.
 
 | Feature | `null` | `undefined` |
 |---|---|---|
@@ -102,7 +102,7 @@ Interviewers test this to see if you understand JavaScript's two distinct "absen
 | **Type** | `typeof null === "object"` (historical bug) | `typeof undefined === "undefined"` |
 | **Default function params** | Does **not** trigger defaults | Triggers default parameter values |
 | **JSON serialization** | Included in JSON (`"key": null`) | **Omitted** from JSON output |
-| **Arithmetic coercion** | Converts to `0` (`null + 5 === 5`) | Converts to `NaN` (`undefined + 5 === NaN`) |
+| **Arithmetic coercion** | Converts to `0` (`null + 5` is `5`) | Converts to `NaN` (`undefined + 5` is `NaN` — note `=== NaN` would be `false`, since `NaN` equals nothing) |
 | **Equality** | `null == undefined` is `true` | `null === undefined` is `false` |
 | **Who sets it** | Developer explicitly | JavaScript engine (uninitialized vars, missing args, missing properties) |
 | **In optional chaining** | `obj?.prop` returns `undefined` for both null and undefined `obj` | Same behavior |
@@ -113,7 +113,7 @@ Interviewers test this to see if you understand JavaScript's two distinct "absen
 
 ### 1.4 map vs forEach
 
-A classic question that reveals whether you understand functional programming principles and when to produce a new array vs. perform side effects.
+`map` builds and returns a new array from what your callback returns; `forEach` returns nothing and exists only to *do* something for each element. Using `map` and ignoring its result is the tell that you wanted `forEach`.
 
 | Feature | `map()` | `forEach()` |
 |---|---|---|
@@ -132,14 +132,14 @@ A classic question that reveals whether you understand functional programming pr
 
 ### 1.5 Promise.all vs allSettled vs race vs any
 
-Interviewers use this to test your grasp of concurrent async patterns and error-handling strategies.
+All four take a list of promises and run them concurrently; they differ only in *when they finish* and *what counts as failure*. `all` fails on the first rejection, `allSettled` never fails, `race` takes the first to finish either way, `any` takes the first success.
 
 | Feature | `Promise.all` | `Promise.allSettled` | `Promise.race` | `Promise.any` |
 |---|---|---|---|---|
 | **Resolves when** | All promises fulfill | All promises settle (fulfill or reject) | First promise settles | First promise **fulfills** |
 | **Rejects when** | Any single promise rejects | Never rejects | First promise settles (if it rejects) | All promises reject |
 | **Return value** | Array of fulfilled values | Array of `{status, value/reason}` objects | Value/reason of the first settled | Value of the first fulfilled |
-| **Error on rejection** | `AggregateError`? No — rejects with first rejection reason | No error — all results captured | Rejects if first to settle rejects | `AggregateError` (when all reject) |
+| **Error on rejection** | Rejects with the first rejection reason (not an `AggregateError`) | No error — all results captured | Rejects if first to settle rejects | `AggregateError` (when all reject) |
 | **Short-circuits** | Yes, on first rejection | No — always waits for all | Yes, on first settlement | Yes, on first fulfillment |
 | **Use case** | Parallel independent tasks where all must succeed | Fire-and-forget; need results regardless of failure | Timeout patterns; fastest response | Fastest successful response from redundant sources |
 | **Introduced in** | ES2015 | ES2020 | ES2015 | ES2021 |
@@ -150,7 +150,7 @@ Interviewers use this to test your grasp of concurrent async patterns and error-
 
 ### 1.6 for...in vs for...of
 
-This question tests whether you know the difference between iterating over object keys vs. iterable values — a common source of bugs.
+`for...in` walks an object's property *names* (including inherited ones); `for...of` walks the *values* an iterable hands out. On an array, `for...in` gives you the indexes as strings — `"0"`, `"1"` — which is the usual bug.
 
 | Feature | `for...in` | `for...of` |
 |---|---|---|
@@ -169,7 +169,7 @@ This question tests whether you know the difference between iterating over objec
 
 ### 1.7 Arrow Functions vs Regular Functions
 
-A deeper question than it appears — it tests your understanding of `this`, the prototype chain, and function capabilities.
+The one real difference is that an arrow function has no `this` of its own — it uses the `this` of the code around it. Most other rows (no `arguments`, cannot be used with `new`, no `prototype`) follow from arrows being designed as lightweight callbacks rather than methods or constructors.
 
 | Feature | Arrow Function | Regular Function |
 |---|---|---|
@@ -190,7 +190,7 @@ A deeper question than it appears — it tests your understanding of `this`, the
 
 ### 1.8 call vs apply vs bind
 
-This tests your understanding of explicit `this` binding, which is essential for understanding JavaScript's execution context.
+All three let you choose what `this` is inside a function. `call` and `apply` run the function immediately (they differ only in whether arguments come as a list or an array); `bind` does not run it — it returns a new function with `this` locked in, for later.
 
 | Feature | `call` | `apply` | `bind` |
 |---|---|---|---|
@@ -255,7 +255,7 @@ The real question is membership. Everything else follows from `includes` being a
 
 ### 2.1 Class vs Function Components
 
-This comparison reveals whether you are up to date with modern React. Function components with Hooks are now the standard.
+Function components with Hooks are the standard for new code; class components still work but are legacy. The one thing classes can still do that functions cannot is be an error boundary.
 
 | Feature | Class Components | Function Components |
 |---|---|---|
@@ -276,7 +276,7 @@ This comparison reveals whether you are up to date with modern React. Function c
 
 ### 2.2 useState vs useReducer
 
-This tests whether you can choose the right state management primitive based on complexity.
+Both hold component state. `useState` sets a value directly; `useReducer` routes every change through one pure function (`(state, action) => newState`), which pays off once several pieces of state must change together according to rules.
 
 | Feature | `useState` | `useReducer` |
 |---|---|---|
@@ -286,7 +286,7 @@ This tests whether you can choose the right state management primitive based on 
 | **Complex transitions** | Awkward — multiple `setState` calls | Clean — single dispatch triggers coordinated update |
 | **Debugging** | Harder to trace updates | Easy — log dispatched actions |
 | **Testing** | Test the component | Reducer is pure function — test independently |
-| **Performance** | Re-renders on every set call | Can batch related state updates naturally |
+| **Performance** | Same — React batches updates in both cases | Same — the difference is that one `dispatch` can update several fields in one step |
 | **When state depends on previous state** | Updater function: `setCount(c => c + 1)` | Natural: `case 'increment': return { count: state.count + 1 }` |
 | **TypeScript experience** | Simpler types | Better type safety for actions and state shape |
 
@@ -296,7 +296,7 @@ This tests whether you can choose the right state management primitive based on 
 
 ### 2.3 useMemo vs useCallback
 
-Interviewers love this to test your understanding of memoization and React's rendering model.
+Both cache something between renders and only recompute when a dependency changes. `useMemo` caches the *result* of calling a function; `useCallback` caches the *function itself*, so its identity stays the same and a memoized child does not see a "new" prop.
 
 | Feature | `useMemo` | `useCallback` |
 |---|---|---|
@@ -316,7 +316,7 @@ Interviewers love this to test your understanding of memoization and React's ren
 
 ### 2.4 useEffect vs useLayoutEffect
 
-This tests your knowledge of the browser rendering pipeline and when visual correctness requires synchronous DOM reads.
+Both run after React updates the DOM; the difference is whether the browser has painted yet. `useLayoutEffect` runs *before* paint and blocks it, so you can measure the DOM and adjust without the user seeing a flicker; `useEffect` runs after paint and does not block.
 
 | Feature | `useEffect` | `useLayoutEffect` |
 |---|---|---|
@@ -335,7 +335,7 @@ This tests your knowledge of the browser rendering pipeline and when visual corr
 
 ### 2.5 Controlled vs Uncontrolled Components
 
-A fundamental React patterns question that reveals your understanding of React's data flow philosophy.
+The question is who holds the input's current value. In a controlled input, React state does and the input just displays it; in an uncontrolled one, the DOM does and you read it through a `ref` when you need it.
 
 | Feature | Controlled Components | Uncontrolled Components |
 |---|---|---|
@@ -356,7 +356,7 @@ A fundamental React patterns question that reveals your understanding of React's
 
 ### 2.6 Context API vs Redux vs Zustand
 
-This tests whether you can choose the right state management tool based on scale, complexity, and team needs.
+Context is a way to *pass* a value down the tree, not a state manager — every consumer re-renders when the value changes. Redux Toolkit and Zustand are stores with *selectors*, so a component re-renders only when the slice it reads changes.
 
 | Feature | Context API | Redux (Toolkit) | Zustand |
 |---|---|---|---|
@@ -377,7 +377,7 @@ This tests whether you can choose the right state management tool based on scale
 
 ### 2.7 Server Components vs Client Components
 
-A modern React question (Next.js App Router / React 19+) that tests your understanding of the server-client boundary.
+Server Components render only on the server and send no JavaScript for themselves, so they can read a database directly but cannot hold state or handle clicks. Client Components (marked `"use client"`) ship their code to the browser and can be interactive. (Next.js App Router, React 19+.)
 
 | Feature | Server Components | Client Components |
 |---|---|---|
@@ -401,7 +401,7 @@ A modern React question (Next.js App Router / React 19+) that tests your underst
 
 ### 3.1 SQL vs NoSQL
 
-One of the most frequently asked backend interview questions. Your answer should demonstrate you understand the trade-offs rather than dogmatically favoring one.
+The honest answer is a trade-off, not a winner: relational databases give you a fixed schema, joins and transactions; most NoSQL stores give up some of that in exchange for flexible documents and easier horizontal scaling. Start from your queries and your consistency needs.
 
 | Feature | SQL (Relational) | NoSQL (Non-Relational) |
 |---|---|---|
@@ -422,7 +422,7 @@ One of the most frequently asked backend interview questions. Your answer should
 
 ### 3.2 REST vs GraphQL
 
-This tests your understanding of API design trade-offs and when each paradigm shines.
+REST exposes many URLs, each returning a fixed shape; GraphQL exposes one endpoint where the client says exactly which fields it wants. GraphQL removes over- and under-fetching, and gives up plain HTTP caching and status codes in return.
 
 | Feature | REST | GraphQL |
 |---|---|---|
@@ -431,7 +431,7 @@ This tests your understanding of API design trade-offs and when each paradigm sh
 | **Data fetching** | Fixed response shape — over/under-fetching common | Client specifies exact fields — no over-fetching |
 | **Versioning** | URL versioning (`/v2/users`) or headers | Schema evolution (deprecate fields) — no versioning needed |
 | **Caching** | HTTP caching built-in (ETags, Cache-Control) | Complex — needs persisted queries or CDN-level solutions |
-| **Error handling** | HTTP status codes (404, 500, etc.) | Always 200 — errors in response body |
+| **Error handling** | HTTP status codes (404, 500, etc.) | Usually 200 even when something failed — errors are listed in the response body |
 | **File uploads** | Native (multipart/form-data) | Requires special handling (multipart spec or presigned URLs) |
 | **Real-time** | Polling or SSE | Subscriptions (WebSocket-based) |
 | **Learning curve** | Low | Medium (schema, resolvers, types) |
@@ -444,7 +444,7 @@ This tests your understanding of API design trade-offs and when each paradigm sh
 
 ### 3.3 Cookie vs Session vs JWT
 
-This tests your understanding of authentication and session management — critical for any web application.
+These are not three alternatives on one axis. A cookie is a *transport* (the browser sends it automatically); a server session keeps the login data on the server and gives the browser only an ID; a JWT (JSON Web Token) puts the login data in a signed token the client carries. The trade-off that matters: sessions can be revoked instantly, JWTs cannot without extra work.
 
 | Feature | Cookie-Based Auth | Server Sessions | JWT (JSON Web Token) |
 |---|---|---|---|
@@ -465,7 +465,7 @@ This tests your understanding of authentication and session management — criti
 
 ### 3.4 Monolith vs Microservices
 
-A system design favorite. Interviewers want to know you understand operational complexity, not just theoretical benefits.
+A monolith is one deployable app; microservices split it into separately deployed services that talk over the network. Microservices buy independent deploys and scaling per team, and cost you everything a network brings: latency, partial failures, and much harder debugging.
 
 | Feature | Monolith | Microservices |
 |---|---|---|
@@ -488,12 +488,12 @@ A system design favorite. Interviewers want to know you understand operational c
 
 ### 3.5 Express vs Fastify vs Koa
 
-This tests your familiarity with the Node.js framework ecosystem and their architectural differences.
+All three are HTTP frameworks for Node.js. Express is the default with the largest ecosystem; Fastify is built for speed and ships schema validation and logging; Koa is a minimal core built around `async`/`await` middleware.
 
 | Feature | Express | Fastify | Koa |
 |---|---|---|---|
 | **Author** | TJ Holowaychuk / community | Matteo Collina, Tomas Della Vedova | TJ Holowaychuk (Express team) |
-| **Performance (req/s)** | ~15K (baseline) | ~45K+ (2-3x Express) | ~20K |
+| **Performance (req/s)** | ~60K (baseline) | ~98K (~1.6× Express) | ~79K (~1.3× Express) |
 | **Architecture** | Middleware chain | Plugin-based with encapsulation | Middleware chain (async/await) |
 | **Async support** | Callbacks + manual promise handling | Native async/await, auto error handling | Native async/await (designed for it) |
 | **Schema validation** | External (Joi, Zod, etc.) | Built-in JSON Schema validation (Ajv) | External |
@@ -504,6 +504,8 @@ This tests your familiarity with the Node.js framework ecosystem and their archi
 | **Learning curve** | Low | Medium | Low-Medium |
 | **Production readiness** | Battle-tested (10+ years) | Production-ready, used by major companies | Production-ready |
 
+The performance row is Fastify's own published "hello world" benchmark (Express 5, Fastify 5, Koa 3; single instance, September 2026). Absolute numbers depend on hardware, so compare the ratios, and remember a real handler that queries a database spends far longer there than in the framework.
+
 **When to use which:** Use Express for quick prototypes and when you need maximum ecosystem compatibility. Use Fastify for high-performance APIs and when you want built-in validation and logging. Use Koa for a minimal, modern middleware foundation.
 
 ---
@@ -512,7 +514,7 @@ This tests your familiarity with the Node.js framework ecosystem and their archi
 
 ### 4.1 HTTP vs HTTPS
 
-A baseline networking question. Interviewers want to see you understand TLS, the handshake process, and why HTTPS is non-negotiable.
+HTTPS is HTTP sent inside a TLS (Transport Layer Security) connection. TLS gives three things plain HTTP lacks: encryption (no one on the network can read it), integrity (no one can change it in transit), and a certificate proving you reached the real server.
 
 | Feature | HTTP | HTTPS |
 |---|---|---|
@@ -534,7 +536,7 @@ A baseline networking question. Interviewers want to see you understand TLS, the
 
 ### 4.2 TCP vs UDP
 
-A core networking question. Understanding this distinction is essential for system design interviews involving real-time systems.
+TCP guarantees every byte arrives, in order, by acknowledging and resending — at the cost of delay when something is lost. UDP just sends packets and does not check; that makes it the choice when a late packet is useless anyway, like a frame of a live call.
 
 | Feature | TCP | UDP |
 |---|---|---|
@@ -555,7 +557,7 @@ A core networking question. Understanding this distinction is essential for syst
 
 ### 4.3 WebSocket vs HTTP Polling vs SSE
 
-This tests your understanding of real-time communication patterns — essential for system design questions involving chat, notifications, or live data.
+Three ways for a server to get new data to a browser. Long polling keeps re-asking; SSE (Server-Sent Events) holds one HTTP response open and streams from server to client; WebSocket upgrades to a two-way connection. Pick by direction: server-to-client only → SSE; both ways → WebSocket.
 
 | Feature | WebSocket | HTTP Long Polling | Server-Sent Events (SSE) |
 |---|---|---|---|
@@ -576,7 +578,7 @@ This tests your understanding of real-time communication patterns — essential 
 
 ### 4.4 localStorage vs sessionStorage vs cookies
 
-A web fundamentals question that reveals your understanding of client-side storage trade-offs and security implications.
+The deciding difference is that cookies are sent to the server with every request and can be made unreadable to JavaScript (`HttpOnly`); `localStorage` and `sessionStorage` never leave the browser and are always readable by any script on the page — so anything injected via XSS (cross-site scripting) can read them.
 
 | Feature | `localStorage` | `sessionStorage` | Cookies |
 |---|---|---|---|
@@ -599,7 +601,7 @@ A web fundamentals question that reveals your understanding of client-side stora
 
 ### 5.1 EC2 vs Lambda vs ECS
 
-This tests your understanding of compute options and operational responsibility levels — a must-know for cloud architecture interviews.
+Three levels of how much of the server you manage. EC2 is a virtual machine — you own the OS. ECS on Fargate runs your containers — you own the image. Lambda runs a function per event — you own only the code, and in exchange accept limits like the 15-minute maximum run time.
 
 | Feature | EC2 | Lambda | ECS (Fargate) |
 |---|---|---|---|
@@ -621,7 +623,7 @@ This tests your understanding of compute options and operational responsibility 
 
 ### 5.2 S3 vs EBS vs EFS
 
-This tests your understanding of AWS storage options and when to use object storage vs. block storage vs. file storage.
+S3 stores whole files ("objects") you fetch over HTTP; EBS is a virtual hard disk attached to one EC2 instance; EFS is a shared network drive many instances can mount at once. Pick by how the data is accessed, not by size.
 
 | Feature | S3 | EBS | EFS |
 |---|---|---|---|
@@ -642,7 +644,7 @@ This tests your understanding of AWS storage options and when to use object stor
 
 ### 5.3 ALB vs NLB
 
-This tests your understanding of load balancing at different OSI layers and when each is appropriate.
+The difference is how much of the request the balancer reads. ALB works at Layer 7 (it understands HTTP, so it can route by path or host); NLB works at Layer 4 (it only sees TCP/UDP connections, so it is faster and can have a fixed IP, but cannot route on URLs).
 
 | Feature | ALB (Application Load Balancer) | NLB (Network Load Balancer) |
 |---|---|---|
@@ -666,7 +668,7 @@ This tests your understanding of load balancing at different OSI layers and when
 
 ### 5.4 SQS vs SNS vs EventBridge
 
-This tests your understanding of messaging and event-driven architecture patterns on AWS.
+SQS is a queue — one consumer takes each message, and it waits there until someone does. SNS is a broadcast — every subscriber gets a copy, immediately. EventBridge is a router — it matches events against rules and sends each to the targets whose rules fit.
 
 | Feature | SQS | SNS | EventBridge |
 |---|---|---|---|
@@ -688,7 +690,7 @@ This tests your understanding of messaging and event-driven architecture pattern
 
 ### 5.5 IAM Role vs IAM User vs IAM Group
 
-This tests your understanding of AWS identity management and the principle of least privilege.
+A user is a long-lived identity with permanent credentials; a group is just a way to attach the same policies to many users; a role has no permanent credentials — something *assumes* it and gets temporary ones. Least privilege (grant only what is needed) is easiest with roles, because there are no long-lived keys to leak.
 
 | Feature | IAM User | IAM Group | IAM Role |
 |---|---|---|---|
@@ -711,7 +713,7 @@ This tests your understanding of AWS identity management and the principle of le
 
 ### 6.1 Vertical vs Horizontal Scaling
 
-The most fundamental scaling question in system design. Your answer should include when each approach hits its limits.
+Vertical scaling means a bigger machine; horizontal means more machines. Vertical needs no code changes but hits a hardware ceiling and leaves one point of failure; horizontal has no practical ceiling but forces you to handle load balancing and shared state.
 
 | Feature | Vertical Scaling (Scale Up) | Horizontal Scaling (Scale Out) |
 |---|---|---|
@@ -732,11 +734,11 @@ The most fundamental scaling question in system design. Your answer should inclu
 
 ### 6.2 SQL vs NoSQL (System Design Depth)
 
-In a system design context, the database choice has architectural implications beyond the basic comparison. This deeper look focuses on CAP theorem trade-offs and access pattern design.
+**The system-design question is not "SQL or NoSQL?" but "how will this data be read, and how far must it scale out?"** A relational database lets you decide the queries later but is hard to spread across many machines; wide-column stores spread easily but only answer the queries you designed the table for. The table adds the CAP view (the CAP theorem: when the network between nodes splits, a system must choose between consistency and availability) and what each option costs to shard, replicate and migrate.
 
 | Feature | SQL (e.g., PostgreSQL, MySQL) | NoSQL — Document (e.g., MongoDB, DynamoDB) | NoSQL — Wide-Column (e.g., Cassandra, ScyllaDB) |
 |---|---|---|---|
-| **CAP focus** | CP (Consistency + Partition tolerance) | CP or AP (configurable) | AP (Availability + Partition tolerance) |
+| **CAP focus** | Usually treated as CP: one primary takes the writes. With asynchronous replicas, a failover can lose the last few writes | CP or AP (configurable) | AP (Availability + Partition tolerance) |
 | **Sharding** | Complex (application-level or Citus/Vitess) | Built-in (hash/range partitioning) | Built-in (consistent hashing, partition keys) |
 | **Read replicas** | Supported (async or sync replication) | Supported | Every node can serve reads and writes |
 | **Write throughput** | Single primary bottleneck | High (with sharding) | Very high (distributed writes, no single primary) |
@@ -754,15 +756,15 @@ In a system design context, the database choice has architectural implications b
 
 ### 6.3 Cache-Aside vs Write-Through vs Write-Behind
 
-Caching strategy questions appear in every system design interview. Knowing these patterns shows you understand the consistency/performance trade-off spectrum.
+The three differ in *when the cache and the database are updated*. Cache-aside fills the cache only when a read misses; write-through writes both at once; write-behind writes the cache now and the database later — fastest writes, but data is lost if the cache dies first.
 
 | Feature | Cache-Aside (Lazy Loading) | Write-Through | Write-Behind (Write-Back) |
 |---|---|---|---|
-| **Read path** | Check cache -> miss -> read DB -> populate cache | Check cache -> always hit (data written to cache first) | Check cache -> always hit |
+| **Read path** | Check cache -> miss -> read DB -> populate cache | Check cache -> hit for anything written since the cache started; a key that was never written through, or was evicted, still misses | Check cache -> hit for recent writes; same miss caveat |
 | **Write path** | Write DB -> invalidate/delete cache entry | Write cache + DB **synchronously** | Write cache -> **async** write to DB |
 | **Consistency** | Eventually consistent (stale reads possible) | Strong (cache always current) | Eventually consistent (cache ahead of DB) |
 | **Write latency** | Normal (only DB write) | Higher (two synchronous writes) | Lower (only cache write; DB is async) |
-| **Read latency (cache miss)** | Higher on first read (DB + cache write) | Low (data always in cache) | Low (data always in cache) |
+| **Read latency (cache miss)** | Higher on first read (DB + cache write) | Low for written data; misses are rarer but still possible | Low for written data; same caveat |
 | **Cache utilization** | Only requested data is cached | All written data is cached (may cache unused data) | All written data is cached |
 | **Data loss risk** | None (DB is source of truth) | None (DB write is synchronous) | **Yes** — if cache fails before async DB write |
 | **Complexity** | Simple | Moderate | High (async write queue, failure handling) |
@@ -775,7 +777,7 @@ Caching strategy questions appear in every system design interview. Knowing thes
 
 ### 6.4 Strong vs Eventual Consistency
 
-This is a CAP theorem question at heart. Interviewers want to see that you can reason about consistency trade-offs in distributed systems.
+Strong consistency means every read sees the latest write; eventual consistency means replicas may briefly disagree but converge. The CAP theorem says that when the network splits, a distributed system must choose between staying consistent and staying available — strong consistency picks consistent, eventual picks available.
 
 | Feature | Strong Consistency | Eventual Consistency |
 |---|---|---|
@@ -787,7 +789,7 @@ This is a CAP theorem question at heart. Interviewers want to see that you can r
 | **Implementation** | Synchronous replication, 2PC, Raft/Paxos consensus | Async replication, CRDTs, vector clocks, last-write-wins |
 | **Conflict resolution** | Prevented (only one writer succeeds) | Required (merge strategies, application-level resolution) |
 | **Cost** | More expensive (cross-AZ/region coordination) | Cheaper (local reads, async replication) |
-| **Examples** | PostgreSQL (single primary), DynamoDB (consistent read), Zookeeper | DynamoDB (default), Cassandra, DNS, S3 |
+| **Examples** | PostgreSQL (single primary), DynamoDB (consistent read), Zookeeper, S3 (strong read-after-write since December 2020) | DynamoDB (default), Cassandra, DNS |
 | **Use case** | Banking, inventory, booking systems, leader election | Social media feeds, analytics, caching, shopping carts |
 | **Consistency window** | 0 (immediate) | Milliseconds to seconds (tunable) |
 

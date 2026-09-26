@@ -1,0 +1,4332 @@
+import type { ChallengeProblem } from './challengeProblemIndex';
+
+// The problem statement for every playground challenge: what to build, sample
+// input with the expected output, and constraints. Loaded on demand through
+// challengeProblemIndex.ts, never eagerly.
+//
+// Every JS example's `run` snippet is executed against the reference solution
+// by challengeProblems.test.ts, so a sample output here cannot be wrong. Edit
+// an example, then run that test.
+export const challengeProblems: Record<string, ChallengeProblem> = {
+  "Two Sum": {
+    "summary": "Return the indexes of the two numbers that add up to the target.",
+    "statement": "You are given an array of integers nums and a number target. Find the two different positions in nums whose values add up to target, and return those two indexes as an array, smaller index first. Every input has exactly one answer, and you may not use the same element twice (but two equal values at different positions are fine).",
+    "examples": [
+      {
+        "input": "nums = [2, 7, 11, 15], target = 9",
+        "output": "[0,1]",
+        "explanation": "nums[0] + nums[1] = 2 + 7 = 9.",
+        "run": "console.log(JSON.stringify(twoSum([2, 7, 11, 15], 9)))"
+      },
+      {
+        "input": "nums = [3, 2, 4], target = 6",
+        "output": "[1,2]",
+        "explanation": "2 + 4 = 6 at indexes 1 and 2. Using the 3 at index 0 twice is not allowed.",
+        "run": "console.log(JSON.stringify(twoSum([3, 2, 4], 6)))"
+      },
+      {
+        "input": "nums = [3, 3], target = 6",
+        "output": "[0,1]",
+        "explanation": "Duplicate values are allowed as long as they are at different indexes.",
+        "run": "console.log(JSON.stringify(twoSum([3, 3], 6)))"
+      }
+    ],
+    "constraints": [
+      "Exactly one valid answer exists.",
+      "You may not use the same element twice.",
+      "Aim for O(n) time with a hash map instead of checking every pair."
+    ]
+  },
+  "Reverse String": {
+    "summary": "Return the string with its characters in reverse order, without calling reverse().",
+    "statement": "Write reverseString(str) that returns a new string with the characters of str in reverse order. You may not call Array.prototype.reverse(). Try to do it by treating the string as an array of characters and swapping from both ends toward the middle (the two-pointer technique).",
+    "examples": [
+      {
+        "input": "str = \"hello\"",
+        "output": "olleh",
+        "run": "console.log(reverseString(\"hello\"))"
+      },
+      {
+        "input": "str = \"racecar\"",
+        "output": "racecar",
+        "explanation": "A palindrome reads the same reversed.",
+        "run": "console.log(reverseString(\"racecar\"))"
+      },
+      {
+        "input": "str = \"\"",
+        "output": "\"\"",
+        "explanation": "An empty string reverses to an empty string.",
+        "run": "console.log(JSON.stringify(reverseString(\"\")))"
+      }
+    ],
+    "constraints": [
+      "Do not use Array.prototype.reverse().",
+      "The input may be an empty string."
+    ]
+  },
+  "Valid Palindrome": {
+    "summary": "Return true if the string reads the same both ways, ignoring case and non-alphanumeric characters.",
+    "statement": "A palindrome reads the same forwards and backwards. Write isPalindrome(s) that returns true if s is a palindrome when you look only at letters and digits (alphanumeric characters) and treat upper and lower case as the same. Spaces, commas and other punctuation are skipped entirely.",
+    "examples": [
+      {
+        "input": "s = \"A man, a plan, a canal: Panama\"",
+        "output": "true",
+        "explanation": "Keeping only letters and digits in lower case gives \"amanaplanacanalpanama\", which reads the same both ways.",
+        "run": "console.log(isPalindrome(\"A man, a plan, a canal: Panama\"))"
+      },
+      {
+        "input": "s = \"race a car\"",
+        "output": "false",
+        "explanation": "Cleaned up it is \"raceacar\", which reversed is \"racaecar\".",
+        "run": "console.log(isPalindrome(\"race a car\"))"
+      },
+      {
+        "input": "s = \"0P\"",
+        "output": "false",
+        "explanation": "Digits count too: \"0p\" is not the same as \"p0\".",
+        "run": "console.log(isPalindrome(\"0P\"))"
+      }
+    ],
+    "constraints": [
+      "Ignore every character that is not a letter or digit.",
+      "Comparison is case-insensitive.",
+      "An empty string counts as a palindrome."
+    ]
+  },
+  "FizzBuzz": {
+    "summary": "Return the strings \"1\" to \"n\", with multiples of 3 and 5 swapped for Fizz, Buzz or FizzBuzz.",
+    "statement": "Write fizzBuzz(n) that returns an array of n strings, one for each number from 1 to n. A multiple of both 3 and 5 becomes \"FizzBuzz\", a multiple of 3 only becomes \"Fizz\", a multiple of 5 only becomes \"Buzz\", and every other number becomes its own digits as a string. Return the array; do not print it.",
+    "examples": [
+      {
+        "input": "n = 5",
+        "output": "[\"1\",\"2\",\"Fizz\",\"4\",\"Buzz\"]",
+        "run": "console.log(JSON.stringify(fizzBuzz(5)))"
+      },
+      {
+        "input": "n = 15",
+        "output": "[\"1\",\"2\",\"Fizz\",\"4\",\"Buzz\",\"Fizz\",\"7\",\"8\",\"Fizz\",\"Buzz\",\"11\",\"Fizz\",\"13\",\"14\",\"FizzBuzz\"]",
+        "explanation": "15 is a multiple of both 3 and 5, so check that case first.",
+        "run": "console.log(JSON.stringify(fizzBuzz(15)))"
+      },
+      {
+        "input": "n = 1",
+        "output": "[\"1\"]",
+        "run": "console.log(JSON.stringify(fizzBuzz(1)))"
+      }
+    ],
+    "constraints": [
+      "Return an array of strings, not numbers, and do not print it.",
+      "Check the multiple-of-both case before the single cases."
+    ]
+  },
+  "Max Profit": {
+    "summary": "Return the largest profit from buying one day and selling on a later day, or 0 if none.",
+    "statement": "You are given prices, where prices[i] is a stock's price on day i. You may make one transaction: buy on one day and sell on a later day. Write maxProfit(prices) that returns the biggest profit you can make (sell price minus buy price). If no day is followed by a higher price, return 0.",
+    "examples": [
+      {
+        "input": "prices = [7, 1, 5, 3, 6, 4]",
+        "output": "5",
+        "explanation": "Buy on day 1 at 1 and sell on day 4 at 6: 6 - 1 = 5. Selling at 7 is not allowed because day 0 comes before the buy.",
+        "run": "console.log(maxProfit([7, 1, 5, 3, 6, 4]))"
+      },
+      {
+        "input": "prices = [7, 6, 4, 3, 1]",
+        "output": "0",
+        "explanation": "Prices only fall, so any trade loses money; return 0.",
+        "run": "console.log(maxProfit([7, 6, 4, 3, 1]))"
+      },
+      {
+        "input": "prices = [1, 4, 2, 7]",
+        "output": "6",
+        "explanation": "The dip to 2 is a distraction: buying at 1 and selling at 7 beats both smaller trades (3 and 5).",
+        "run": "console.log(maxProfit([1, 4, 2, 7]))"
+      }
+    ],
+    "constraints": [
+      "You must buy before you sell.",
+      "Only one transaction is allowed.",
+      "Return 0 when no profit is possible.",
+      "With a single day there is nothing to sell, so return 0."
+    ]
+  },
+  "Valid Parentheses": {
+    "summary": "Return true if every bracket in the string is closed by the same type in the right order.",
+    "statement": "The string s contains only the characters ( ) { } [ ]. Write isValid(s) that returns true if the brackets are balanced: every opening bracket is closed by a bracket of the same type, and brackets close in the reverse order they opened (the most recently opened one closes first). An empty string is valid.",
+    "examples": [
+      {
+        "input": "s = \"{[()]}\"",
+        "output": "true",
+        "explanation": "Brackets may nest: the innermost ( closes first, then [, then {.",
+        "run": "console.log(isValid(\"{[()]}\"))"
+      },
+      {
+        "input": "s = \"(]\"",
+        "output": "false",
+        "explanation": "( must be closed by ), not by ].",
+        "run": "console.log(isValid(\"(]\"))"
+      },
+      {
+        "input": "s = \"([)]\"",
+        "output": "false",
+        "explanation": "Each type has a pair, but ) arrives while [ is still the most recently opened bracket, so they close in the wrong order.",
+        "run": "console.log(isValid(\"([)]\"))"
+      }
+    ],
+    "constraints": [
+      "s contains only bracket characters.",
+      "An empty string is valid."
+    ]
+  },
+  "Merge Sorted Arrays": {
+    "summary": "Merge two already-sorted arrays into one sorted array in a single pass.",
+    "statement": "You are given two arrays, arr1 and arr2, each already sorted in ascending order. Write mergeSorted(arr1, arr2) that returns one new array containing every element of both, still in ascending order. Do not just join them and call sort(): walk both arrays at once with one pointer each, always taking the smaller front element.",
+    "examples": [
+      {
+        "input": "arr1 = [1, 3, 5], arr2 = [2, 4, 6]",
+        "output": "[1,2,3,4,5,6]",
+        "run": "console.log(JSON.stringify(mergeSorted([1, 3, 5], [2, 4, 6])))"
+      },
+      {
+        "input": "arr1 = [], arr2 = [1, 2, 3]",
+        "output": "[1,2,3]",
+        "explanation": "When one array is empty, the result is a copy of the other.",
+        "run": "console.log(JSON.stringify(mergeSorted([], [1, 2, 3])))"
+      },
+      {
+        "input": "arr1 = [1, 3, 3], arr2 = [2, 3, 4]",
+        "output": "[1,2,3,3,3,4]",
+        "explanation": "Duplicates are kept, not removed.",
+        "run": "console.log(JSON.stringify(mergeSorted([1, 3, 3], [2, 3, 4])))"
+      }
+    ],
+    "constraints": [
+      "Both inputs are sorted in ascending order.",
+      "Do not concatenate and sort.",
+      "Aim for O(n + m) time."
+    ]
+  },
+  "Flatten Array": {
+    "summary": "Turn an array nested to any depth into one flat array, without using .flat().",
+    "statement": "Write flatten(arr) that takes an array whose elements may themselves be arrays, nested to any depth, and returns a new one-level array holding every non-array value in the same left-to-right order. Empty inner arrays contribute nothing. You may not use .flat() or .flatMap(), and the original array must not be changed.",
+    "examples": [
+      {
+        "input": "arr = [5, 9, [11, 56, 76, 8], [20, 43]]",
+        "output": "[5,9,11,56,76,8,20,43]",
+        "run": "console.log(JSON.stringify(flatten([5, 9, [11, 56, 76, 8], [20, 43]])))"
+      },
+      {
+        "input": "arr = [1, [2, [3, [4]], 5]]",
+        "output": "[1,2,3,4,5]",
+        "explanation": "Nesting can go several levels deep; order is preserved.",
+        "run": "console.log(JSON.stringify(flatten([1, [2, [3, [4]], 5]])))"
+      },
+      {
+        "input": "arr = [[], [1], [], [2, []], 3]",
+        "output": "[1,2,3]",
+        "explanation": "Empty arrays disappear from the result.",
+        "run": "console.log(JSON.stringify(flatten([[], [1], [], [2, []], 3])))"
+      }
+    ],
+    "constraints": [
+      "Do not use .flat() or .flatMap().",
+      "Handle any nesting depth.",
+      "Return a new array; do not modify the input."
+    ]
+  },
+  "Debounce": {
+    "summary": "Return a wrapped function that runs fn once calls have stopped for delay milliseconds.",
+    "statement": "Write debounce(fn, delay) that returns a new function. Each time the new function is called it cancels any pending run and restarts a timer of delay milliseconds; fn runs only when that timer finishes without another call. So a burst of rapid calls runs fn once, with the arguments of the last call, delay ms after the burst ends. Calls spaced further apart than delay each run fn.",
+    "examples": [
+      {
+        "input": "d = debounce(fn, 100); d(\"a\"); d(\"b\"); d(\"c\") in quick succession",
+        "output": "calls right away: 0\nafter 150ms: 1 [\"c\"]",
+        "explanation": "Each call resets the timer, so fn runs once, 100 ms after the last call, with that call's argument.",
+        "run": "let calls = 0, last = null; const d = debounce((...a) => { calls++; last = a; }, 100); d('a'); d('b'); d('c'); console.log('calls right away:', calls); setTimeout(() => console.log('after 150ms:', calls, JSON.stringify(last)), 150);"
+      },
+      {
+        "input": "d = debounce(fn, 50); d(); then d() again 80 ms later; count calls after both settle",
+        "output": "2",
+        "explanation": "The gap is longer than the delay, so each call gets its own run.",
+        "run": "let n = 0; const d = debounce(() => n++, 50); d(); setTimeout(() => { d(); setTimeout(() => console.log(n), 80); }, 80);"
+      }
+    ],
+    "constraints": [
+      "Return a new function.",
+      "Reset the timer on every call.",
+      "Pass the latest call's arguments through to fn."
+    ]
+  },
+  "Group Anagrams": {
+    "summary": "Group words that are anagrams of each other (the same letters rearranged) into sub-arrays.",
+    "statement": "An anagram is a word made by rearranging all the letters of another, like \"eat\" and \"tea\". Write groupAnagrams(strs) that returns an array of groups, where each group is an array holding every word from strs that is an anagram of the others in it. The order of the groups, and of words inside a group, does not matter.",
+    "examples": [
+      {
+        "input": "strs = [\"eat\",\"tea\",\"tan\",\"ate\",\"nat\",\"bat\"]",
+        "output": "[[\"eat\",\"tea\",\"ate\"],[\"tan\",\"nat\"],[\"bat\"]]",
+        "explanation": "Sorting each word's letters gives a shared key: \"aet\", \"ant\" and \"abt\".",
+        "run": "console.log(JSON.stringify(groupAnagrams([\"eat\",\"tea\",\"tan\",\"ate\",\"nat\",\"bat\"])))"
+      },
+      {
+        "input": "strs = [\"\"]",
+        "output": "[[\"\"]]",
+        "explanation": "An empty string is still a word and forms its own group.",
+        "run": "console.log(JSON.stringify(groupAnagrams([\"\"])))"
+      },
+      {
+        "input": "strs = [\"abc\",\"def\",\"ghi\"]",
+        "output": "[[\"abc\"],[\"def\"],[\"ghi\"]]",
+        "explanation": "No two words share letters, so each is alone.",
+        "run": "console.log(JSON.stringify(groupAnagrams([\"abc\",\"def\",\"ghi\"])))"
+      }
+    ],
+    "constraints": [
+      "All words are lowercase letters.",
+      "Group order and order within a group do not matter."
+    ]
+  },
+  "Find Duplicates": {
+    "summary": "Return every value that appears more than once in the array, each listed once.",
+    "statement": "Given an array arr of numbers or strings, write findDuplicates(arr) that returns the values that appear more than once. A value that appears three or more times is still listed only once. The order of the result does not matter (the tests sort before comparing), and an array with no repeats returns []. Aim for one pass with a hash map or Set.",
+    "examples": [
+      {
+        "input": "arr = [1, 2, 3, 2, 4, 3, 5]",
+        "output": "[2,3]",
+        "explanation": "2 and 3 each appear twice; everything else appears once.",
+        "run": "console.log(JSON.stringify(findDuplicates([1, 2, 3, 2, 4, 3, 5]).sort()))"
+      },
+      {
+        "input": "arr = [\"a\", \"b\", \"a\", \"c\"]",
+        "output": "[\"a\"]",
+        "explanation": "Works for strings too: only \"a\" repeats.",
+        "run": "console.log(JSON.stringify(findDuplicates([\"a\", \"b\", \"a\", \"c\"]).sort()))"
+      },
+      {
+        "input": "arr = [1, 1, 1, 2, 2]",
+        "output": "[1,2]",
+        "explanation": "1 appears three times but is reported only once.",
+        "run": "console.log(JSON.stringify(findDuplicates([1, 1, 1, 2, 2]).sort()))"
+      }
+    ],
+    "constraints": [
+      "Each duplicate appears once in the result.",
+      "Result order does not matter.",
+      "Aim for O(n) time and O(n) space."
+    ]
+  },
+  "Remove Duplicates": {
+    "summary": "Return the array with repeated values removed, keeping the first-seen order, without using Set.",
+    "statement": "Given an array arr, write removeDuplicates(arr) that returns a new array holding each value once, in the order it first appeared. You may not use new Set() or filter + indexOf; track what you have already seen yourself, for example with a Map. Note that a plain object as the lookup would treat 1 and \"1\" as the same key.",
+    "examples": [
+      {
+        "input": "arr = [1, 2, 1, 3, 2, 4]",
+        "output": "[1,2,3,4]",
+        "explanation": "The second 1 and second 2 are dropped; order of first appearance is kept.",
+        "run": "console.log(JSON.stringify(removeDuplicates([1, 2, 1, 3, 2, 4])))"
+      },
+      {
+        "input": "arr = [1, \"1\", 2, 1]",
+        "output": "[1,\"1\",2]",
+        "explanation": "The number 1 and the string \"1\" are different values, so both stay. A plain-object lookup would wrongly drop \"1\".",
+        "run": "console.log(JSON.stringify(removeDuplicates([1, \"1\", 2, 1])))"
+      },
+      {
+        "input": "arr = []",
+        "output": "[]",
+        "explanation": "An empty array stays empty.",
+        "run": "console.log(JSON.stringify(removeDuplicates([])))"
+      }
+    ],
+    "constraints": [
+      "Preserve first-seen order.",
+      "Do NOT use new Set() or [...new Set(arr)], and do not use filter + indexOf.",
+      "Aim for O(n) time using a hash map."
+    ]
+  },
+  "Clean Mixed Array": {
+    "summary": "Keep only the real numbers from a mixed array, remove duplicates and sort them ascending.",
+    "statement": "Given an array arr that mixes numbers with characters and other values, write cleanNumbers(arr) that returns only the usable numbers, with duplicates removed, sorted from smallest to largest. A usable number is a finite number value: the string \"7\" is a character, and NaN, Infinity, true, false, null and undefined are not usable. Sort numerically (9 before 10), and do not change the input array.",
+    "examples": [
+      {
+        "input": "arr = [5, \"a\", 3, 5, \"b\", 1, 3]",
+        "output": "[1,3,5]",
+        "explanation": "Letters are dropped, the repeated 5 and 3 are kept once, then sorted.",
+        "run": "console.log(JSON.stringify(cleanNumbers([5, \"a\", 3, 5, \"b\", 1, 3])))"
+      },
+      {
+        "input": "arr = [10, 9, \"x\", 1, 100]",
+        "output": "[1,9,10,100]",
+        "explanation": "A default sort would compare as text and give [1, 10, 100, 9].",
+        "run": "console.log(JSON.stringify(cleanNumbers([10, 9, \"x\", 1, 100])))"
+      },
+      {
+        "input": "arr = [true, 2, null, \"7\", NaN, 1, false]",
+        "output": "[1,2]",
+        "explanation": "Booleans, null, NaN and the string \"7\" are not usable numbers.",
+        "run": "console.log(JSON.stringify(cleanNumbers([true, 2, null, \"7\", NaN, 1, false])))"
+      }
+    ],
+    "constraints": [
+      "Only finite number values count; numeric strings do not.",
+      "Sort numerically, not as text.",
+      "Do not mutate the input array.",
+      "Return [] when nothing is numeric."
+    ]
+  },
+  "Find Missing Number": {
+    "summary": "Given n distinct numbers from 0 to n, return the one number in that range that is missing.",
+    "statement": "The array nums holds n distinct numbers, where n is its length, taken from the range 0 to n inclusive. That range has n + 1 values, so exactly one is missing. Write findMissing(nums) that returns it; the numbers are not sorted. Aim for O(n) time and O(1) extra space, for example by subtracting the actual sum from the expected sum n*(n+1)/2.",
+    "examples": [
+      {
+        "input": "nums = [3, 0, 1]",
+        "output": "2",
+        "explanation": "n = 3, so the range is 0..3; 2 is absent.",
+        "run": "console.log(findMissing([3, 0, 1]))"
+      },
+      {
+        "input": "nums = [0, 1]",
+        "output": "2",
+        "explanation": "The missing value can be n itself.",
+        "run": "console.log(findMissing([0, 1]))"
+      },
+      {
+        "input": "nums = [1]",
+        "output": "0",
+        "explanation": "The missing value can be 0.",
+        "run": "console.log(findMissing([1]))"
+      }
+    ],
+    "constraints": [
+      "Numbers are distinct and lie in [0, n].",
+      "Exactly one number is missing.",
+      "Aim for O(n) time and O(1) space."
+    ]
+  },
+  "Find All Missing Numbers": {
+    "summary": "Return, in ascending order, every value from 1 to n that never appears in the array.",
+    "statement": "The array nums has n integers, each between 1 and n, where n is the array length. Some values appear twice, so others never appear at all. Write findAllMissing(nums) that returns every value in 1..n that is absent, in ascending order. A Set works; the graded answer uses O(1) extra space by using the array as its own lookup table, marking value v as seen by making index v - 1 negative.",
+    "examples": [
+      {
+        "input": "nums = [4, 3, 2, 7, 8, 2, 3, 1]",
+        "output": "[5,6]",
+        "explanation": "n = 8; 2 and 3 appear twice, which is why 5 and 6 never appear.",
+        "run": "console.log(JSON.stringify(findAllMissing([4, 3, 2, 7, 8, 2, 3, 1])))"
+      },
+      {
+        "input": "nums = [2, 2, 2, 2]",
+        "output": "[1,3,4]",
+        "run": "console.log(JSON.stringify(findAllMissing([2, 2, 2, 2])))"
+      },
+      {
+        "input": "nums = [1, 2, 3, 4]",
+        "output": "[]",
+        "explanation": "Nothing is missing.",
+        "run": "console.log(JSON.stringify(findAllMissing([1, 2, 3, 4])))"
+      }
+    ],
+    "constraints": [
+      "Every value is in [1, n], where n is the array length.",
+      "Duplicates are allowed.",
+      "Return the missing values in ascending order.",
+      "Graded answer: O(n) time, O(1) extra space."
+    ]
+  },
+  "First Missing Positive": {
+    "summary": "Return the smallest positive integer that does not appear in an unsorted array of any integers.",
+    "statement": "Given an unsorted array nums that may hold negatives, zero, duplicates and values much larger than its length, write firstMissingPositive(nums) that returns the smallest positive integer (1, 2, 3, ...) not in the array. With n slots the answer can never be more than n + 1, which is what lets you use the array itself as the lookup table. The graded answer is O(n) time and O(1) extra space, so sorting and a Set do not qualify.",
+    "examples": [
+      {
+        "input": "nums = [3, 4, -1, 1]",
+        "output": "2",
+        "explanation": "1 is present, 2 is not; the -1 is ignored. If every value 1..n were present, the answer would be n + 1.",
+        "run": "console.log(firstMissingPositive([3, 4, -1, 1]))"
+      },
+      {
+        "input": "nums = [7, 8, 9, 11]",
+        "output": "1",
+        "explanation": "Every value is too large to matter, so 1 is missing.",
+        "run": "console.log(firstMissingPositive([7, 8, 9, 11]))"
+      },
+      {
+        "input": "nums = [1, 1, 2, 2]",
+        "output": "3",
+        "explanation": "Duplicates do not fill extra slots: only 1 and 2 are present.",
+        "run": "console.log(firstMissingPositive([1, 1, 2, 2]))"
+      }
+    ],
+    "constraints": [
+      "Values can be any integers, including negatives and duplicates.",
+      "Return 1 for an empty array.",
+      "Graded answer: O(n) time and O(1) extra space; no sorting, no Set."
+    ]
+  },
+  "Missing Term in Arithmetic Sequence": {
+    "summary": "One middle term was removed from an arithmetic sequence; return the missing term.",
+    "statement": "An arithmetic sequence is one where each term differs from the previous by the same constant step (for example 2, 5, 8, 11 has step 3). Exactly one middle term has been removed; the first and last terms are always present. Given the remaining terms in order, write findMissingTerm(seq) that returns the missing term. With n terms left, the full sequence had n + 1, so the step is (last - first) / n; it may be negative.",
+    "examples": [
+      {
+        "input": "seq = [2, 5, 8, 14]",
+        "output": "11",
+        "explanation": "Step = (14 - 2) / 4 = 3, so 8 should be followed by 11.",
+        "run": "console.log(findMissingTerm([2, 5, 8, 14]))"
+      },
+      {
+        "input": "seq = [15, 12, 6, 3]",
+        "output": "9",
+        "explanation": "A descending sequence: step = (3 - 15) / 4 = -3.",
+        "run": "console.log(findMissingTerm([15, 12, 6, 3]))"
+      },
+      {
+        "input": "seq = [-4, -2, 2, 4]",
+        "output": "0",
+        "explanation": "Step 2; the sequence crosses zero and 0 is the missing term.",
+        "run": "console.log(findMissingTerm([-4, -2, 2, 4]))"
+      }
+    ],
+    "constraints": [
+      "The first and last terms are always present; only a middle term is missing.",
+      "The step may be negative.",
+      "Aim for O(log n) with binary search."
+    ]
+  },
+  "Move Zeros": {
+    "summary": "Move every zero to the end of the array while keeping the other numbers in their original order.",
+    "statement": "Given an array of numbers nums, write moveZeros(nums) that moves all zeros to the end and returns the array. The non-zero numbers must keep their original relative order. Try to do it in place with two pointers: one scans the array, the other marks where the next non-zero number should go.",
+    "examples": [
+      {
+        "input": "nums = [0, 1, 0, 3, 12]",
+        "output": "[1,3,12,0,0]",
+        "explanation": "1, 3, 12 keep their order; the two zeros go to the end.",
+        "run": "console.log(JSON.stringify(moveZeros([0, 1, 0, 3, 12])))"
+      },
+      {
+        "input": "nums = [0, 0, 0]",
+        "output": "[0,0,0]",
+        "explanation": "All zeros: nothing changes.",
+        "run": "console.log(JSON.stringify(moveZeros([0, 0, 0])))"
+      },
+      {
+        "input": "nums = [0, 0, 1, 2]",
+        "output": "[1,2,0,0]",
+        "explanation": "Leading zeros are pushed past every non-zero value.",
+        "run": "console.log(JSON.stringify(moveZeros([0, 0, 1, 2])))"
+      }
+    ],
+    "constraints": [
+      "Preserve the relative order of non-zero elements.",
+      "Return the array.",
+      "Try O(n) time and O(1) space with two pointers."
+    ]
+  },
+  "Rotate Array": {
+    "summary": "Return a new array rotated to the right by k steps, where k may exceed the length.",
+    "statement": "Given an array nums and a non-negative integer k, write rotate(nums, k) that returns a new array rotated to the right by k steps: each step moves the last element to the front. Because rotating by the array length gives back the same array, k larger than the length behaves like k % n. Do not change the input; return a new array.",
+    "examples": [
+      {
+        "input": "nums = [1, 2, 3, 4, 5], k = 2",
+        "output": "[4,5,1,2,3]",
+        "explanation": "The last two elements move to the front.",
+        "run": "console.log(JSON.stringify(rotate([1, 2, 3, 4, 5], 2)))"
+      },
+      {
+        "input": "nums = [1, 2], k = 5",
+        "output": "[2,1]",
+        "explanation": "5 % 2 = 1, so it is a rotation by 1.",
+        "run": "console.log(JSON.stringify(rotate([1, 2], 5)))"
+      },
+      {
+        "input": "nums = [1, 2, 3], k = 0",
+        "output": "[1,2,3]",
+        "explanation": "k = 0 (like any multiple of the length) leaves the order unchanged.",
+        "run": "console.log(JSON.stringify(rotate([1, 2, 3], 0)))"
+      }
+    ],
+    "constraints": [
+      "k can be 0 or larger than nums.length.",
+      "Do not mutate the input; return a new array.",
+      "Try slice + concat, or the reverse-three-times trick."
+    ]
+  },
+  "Bubble Sort": {
+    "summary": "Sort an array of numbers ascending with bubble sort, without any built-in sort.",
+    "statement": "Write bubbleSort(arr) that returns the numbers sorted from smallest to largest without calling Array.prototype.sort or any other built-in sort. Bubble sort walks the array repeatedly and swaps each adjacent pair that is out of order, so the largest remaining value 'bubbles' to the end on every pass. Sorting arr in place and returning it is fine. Stop early when a full pass makes no swaps.",
+    "examples": [
+      {
+        "input": "arr = [5, 1, 4, 2, 8]",
+        "output": "[1,2,4,5,8]",
+        "explanation": "The first pass moves 8 to the end, the next moves 5 into place, and so on.",
+        "run": "console.log(JSON.stringify(bubbleSort([5, 1, 4, 2, 8])))"
+      },
+      {
+        "input": "arr = [3, 1, 2, 3, 1]",
+        "output": "[1,1,2,3,3]",
+        "explanation": "Duplicates are kept.",
+        "run": "console.log(JSON.stringify(bubbleSort([3, 1, 2, 3, 1])))"
+      },
+      {
+        "input": "arr = []",
+        "output": "[]",
+        "explanation": "An empty array is already sorted.",
+        "run": "console.log(JSON.stringify(bubbleSort([])))"
+      }
+    ],
+    "constraints": [
+      "Do not use Array.prototype.sort or any built-in sort.",
+      "Time O(n²) worst case, O(n) best case with the early exit.",
+      "Space O(1): sort in place."
+    ]
+  },
+  "Quick Sort": {
+    "summary": "Sort an array of numbers in ascending order using the Quick Sort algorithm.",
+    "statement": "Given an array of numbers arr, write quickSort(arr) that returns the numbers sorted in ascending order. Quick Sort picks one element as the pivot, splits the rest into values smaller than the pivot and values greater than or equal to it, sorts each part recursively and joins them back together. Duplicates must all be kept. Choose the pivot from the middle (or at random) so already-sorted input does not degrade to O(n²).",
+    "examples": [
+      {
+        "input": "arr = [3, 6, 1, 4, 8, 2]",
+        "output": "[1,2,3,4,6,8]",
+        "run": "console.log(JSON.stringify(quickSort([3, 6, 1, 4, 8, 2])))"
+      },
+      {
+        "input": "arr = [3, 1, 3, 2, 1]",
+        "output": "[1,1,2,3,3]",
+        "explanation": "Duplicate values are kept, not removed.",
+        "run": "console.log(JSON.stringify(quickSort([3, 1, 3, 2, 1])))"
+      },
+      {
+        "input": "arr = [42]",
+        "output": "[42]",
+        "explanation": "An array of zero or one element is already sorted, which is the base case of the recursion.",
+        "run": "console.log(JSON.stringify(quickSort([42])))"
+      }
+    ],
+    "constraints": [
+      "Do not use the built-in Array.prototype.sort.",
+      "Average time O(n log n); worst case O(n²) with a poor pivot choice.",
+      "Duplicates must be preserved in the output."
+    ]
+  },
+  "Merge Sort": {
+    "summary": "Sort an array of numbers in ascending order using Merge Sort and a merge helper.",
+    "statement": "Write mergeSort(arr) that returns the numbers of arr in ascending order, plus a helper merge(left, right) that combines two already-sorted arrays into one sorted array. Merge Sort splits the array in half, sorts each half recursively, then merges the two sorted halves by repeatedly taking the smaller front element. It is stable, meaning equal values keep their original relative order, and it runs in O(n log n) even in the worst case.",
+    "examples": [
+      {
+        "input": "arr = [10, -5, 7, 0, 3, 7]",
+        "output": "[-5,0,3,7,7,10]",
+        "explanation": "Negative numbers and duplicates are sorted like any other value.",
+        "run": "console.log(JSON.stringify(mergeSort([10, -5, 7, 0, 3, 7])))"
+      },
+      {
+        "input": "merge([1, 4, 7], [2, 4, 10])",
+        "output": "[1,2,4,4,7,10]",
+        "explanation": "The helper walks both sorted arrays and always takes the smaller front value. On a tie (4 and 4) it takes from left first, which is what keeps the sort stable.",
+        "run": "console.log(JSON.stringify(merge([1, 4, 7], [2, 4, 10])))"
+      },
+      {
+        "input": "arr = []",
+        "output": "[]",
+        "run": "console.log(JSON.stringify(mergeSort([])))"
+      }
+    ],
+    "constraints": [
+      "Do not use the built-in Array.prototype.sort.",
+      "Time O(n log n) in every case; extra space O(n) for the merged arrays.",
+      "The sort must be stable."
+    ]
+  },
+  "Anagram Check": {
+    "summary": "Return true if two strings use exactly the same letters, ignoring case and spaces.",
+    "statement": "Write isAnagram(s1, s2) that returns true when the two strings are anagrams and false otherwise. Two strings are anagrams when they contain exactly the same letters the same number of times, just in a different order. Comparison is case-insensitive and spaces are ignored, so \"Astronomer\" and \"Moon starer\" are anagrams. Solve it in O(n) with a character-frequency map rather than sorting both strings.",
+    "examples": [
+      {
+        "input": "s1 = \"listen\", s2 = \"silent\"",
+        "output": "true",
+        "run": "console.log(isAnagram(\"listen\", \"silent\"))"
+      },
+      {
+        "input": "s1 = \"Astronomer\", s2 = \"Moon starer\"",
+        "output": "true",
+        "explanation": "After lowercasing and removing the space, both contain a×1, s×1, t×1, r×2, o×2, n×1, m×1, e×1.",
+        "run": "console.log(isAnagram(\"Astronomer\", \"Moon starer\"))"
+      },
+      {
+        "input": "s1 = \"abc\", s2 = \"abcd\"",
+        "output": "false",
+        "explanation": "Different lengths can never be anagrams.",
+        "run": "console.log(isAnagram(\"abc\", \"abcd\"))"
+      }
+    ],
+    "constraints": [
+      "Case-insensitive; spaces are ignored.",
+      "Two empty strings are anagrams (return true).",
+      "Target O(n) time using a frequency map, not sort-and-compare."
+    ]
+  },
+  "Longest Substring": {
+    "summary": "Return the length of the longest substring that has no repeated characters.",
+    "statement": "Given a string s, write lengthOfLongestSubstring(s) that returns the length of the longest substring with no repeating characters. A substring is a run of consecutive characters, so \"pwke\" in \"pwwkew\" does not count because its letters are not adjacent. Use a sliding window: grow it to the right one character at a time and move its left edge past any character that would repeat.",
+    "examples": [
+      {
+        "input": "s = \"abcabcbb\"",
+        "output": "3",
+        "explanation": "The longest repeat-free substring is \"abc\".",
+        "run": "console.log(lengthOfLongestSubstring(\"abcabcbb\"))"
+      },
+      {
+        "input": "s = \"pwwkew\"",
+        "output": "3",
+        "explanation": "The answer is \"wke\". \"pwke\" is a subsequence, not a substring.",
+        "run": "console.log(lengthOfLongestSubstring(\"pwwkew\"))"
+      },
+      {
+        "input": "s = \"\"",
+        "output": "0",
+        "run": "console.log(lengthOfLongestSubstring(\"\"))"
+      }
+    ],
+    "constraints": [
+      "Return 0 for an empty string.",
+      "Use the sliding-window pattern with a Map or Set.",
+      "O(n) time, O(min(n, charset size)) space."
+    ]
+  },
+  "First Non-Repeating Char": {
+    "summary": "Return the first character that appears only once in a string, or null if none does.",
+    "statement": "Write firstNonRepeating(s) that returns the first character of s that occurs exactly once in the whole string. \"First\" means earliest position in the string, not alphabetical order. If every character repeats, or the string is empty, return null. A common approach is two passes: count every character, then scan again and return the first one whose count is 1.",
+    "examples": [
+      {
+        "input": "s = \"loveleetcode\"",
+        "output": "v",
+        "explanation": "\"l\" and \"o\" both appear twice; \"v\" at index 2 is the first character that appears only once.",
+        "run": "console.log(firstNonRepeating(\"loveleetcode\"))"
+      },
+      {
+        "input": "s = \"leetcode\"",
+        "output": "l",
+        "run": "console.log(firstNonRepeating(\"leetcode\"))"
+      },
+      {
+        "input": "s = \"aabb\"",
+        "output": "null",
+        "explanation": "Every character repeats, so there is no answer.",
+        "run": "console.log(firstNonRepeating(\"aabb\"))"
+      }
+    ],
+    "constraints": [
+      "Return null (not undefined or an empty string) when no character is unique, including for \"\".",
+      "Target O(n) time: count then scan, or one pass with an order-preserving map."
+    ]
+  },
+  "Sum Curry": {
+    "summary": "Build sum(a)(b)(c)...() that keeps adding numbers until it is called with no argument.",
+    "statement": "Implement sum(a) so it can be chained any number of times: each call with a number adds it to a running total and returns a function that accepts the next number. Calling the returned function with no arguments, (), ends the chain and returns the total. The running total must live in a closure, so separate chains do not share state.",
+    "examples": [
+      {
+        "input": "sum(1)(2)(3)()",
+        "output": "6",
+        "run": "console.log(sum(1)(2)(3)())"
+      },
+      {
+        "input": "sum(0)(0)(5)()",
+        "output": "5",
+        "explanation": "A zero argument is still a number and must be added, not treated as the end of the chain.",
+        "run": "console.log(sum(0)(0)(5)())"
+      },
+      {
+        "input": "sum(42)()",
+        "output": "42",
+        "run": "console.log(sum(42)())"
+      }
+    ],
+    "constraints": [
+      "Must work for any number of chained calls.",
+      "An empty call () returns the accumulated sum.",
+      "Check for a missing argument (undefined), not a falsy one, so 0 is added."
+    ]
+  },
+  "Memoize": {
+    "summary": "Wrap a function so repeated calls with the same arguments return a cached result.",
+    "statement": "Write memoize(fn) that returns a new function behaving exactly like fn, except it remembers results. The first call with a given set of arguments runs fn and stores the result; later calls with the same arguments return the stored value without running fn again. The cache key must tell different argument lists apart, and JSON.stringify(args) is the simplest way to build one.",
+    "examples": [
+      {
+        "input": "fastDouble = memoize(n => n * 2); fastDouble(5); fastDouble(5); fastDouble(7)",
+        "output": "10\n10\n14\ncomputed 2 times",
+        "explanation": "The second fastDouble(5) is served from the cache, so the underlying function runs only for 5 and 7.",
+        "run": "let calls = 0; const fastDouble = memoize(n => { calls++; return n * 2; }); console.log(fastDouble(5)); console.log(fastDouble(5)); console.log(fastDouble(7)); console.log('computed ' + calls + ' times')"
+      },
+      {
+        "input": "fastAdd = memoize((a, b) => a + b); fastAdd(1, 2); fastAdd(2, 1); fastAdd(1, 2)",
+        "output": "3\n3\n3\ncomputed 2 times",
+        "explanation": "(1, 2) and (2, 1) are different argument lists, so they get different cache entries even though the sums match.",
+        "run": "let calls = 0; const fastAdd = memoize((a, b) => { calls++; return a + b; }); console.log(fastAdd(1, 2)); console.log(fastAdd(2, 1)); console.log(fastAdd(1, 2)); console.log('computed ' + calls + ' times')"
+      }
+    ],
+    "constraints": [
+      "The cache key must distinguish different argument sets, including argument order.",
+      "The original function must run only once per distinct argument set."
+    ]
+  },
+  "Deep Clone": {
+    "summary": "Copy an object or array at every level so changing the copy never changes the original.",
+    "statement": "Write deepClone(value) that returns a deep copy of value. A shallow copy (like {...obj}) duplicates only the top level, so nested objects are still shared; a deep copy recursively creates new objects and arrays all the way down. Primitives (numbers, strings, booleans, null) are returned as they are. Handling Date and RegExp is a bonus.",
+    "examples": [
+      {
+        "input": "original = { a: 1, b: { c: 2, d: [3, 4, { e: 5 }] } }; copy = deepClone(original); copy.b.d[2].e = 999",
+        "output": "{\"a\":1,\"b\":{\"c\":2,\"d\":[3,4,{\"e\":5}]}}\nfalse",
+        "explanation": "The original is unchanged after mutating a value three levels deep in the copy, and the nested arrays are different references.",
+        "run": "const original = { a: 1, b: { c: 2, d: [3, 4, { e: 5 }] } }; const copy = deepClone(original); copy.b.d[2].e = 999; console.log(JSON.stringify(original)); console.log(copy.b.d === original.b.d)"
+      },
+      {
+        "input": "deepClone([1, [2, [3]]]) and deepClone(42)",
+        "output": "[1,[2,[3]]]\n42",
+        "explanation": "Arrays stay arrays, and a primitive is returned unchanged.",
+        "run": "console.log(JSON.stringify(deepClone([1, [2, [3]]]))); console.log(deepClone(42))"
+      }
+    ],
+    "constraints": [
+      "Handle plain objects, arrays and primitives.",
+      "Do NOT use structuredClone() or JSON.parse(JSON.stringify()).",
+      "Bonus: handle Date and RegExp."
+    ]
+  },
+  "Throttle": {
+    "summary": "Return a wrapped function that runs at most once per limit milliseconds.",
+    "statement": "Write throttle(fn, limit) that returns a new function. The first call runs fn immediately; any further calls in the next limit milliseconds are ignored; the first call after that window has passed runs fn again and starts a new window. Arguments given to the throttled function are passed on to fn. This caps how often fn can run, unlike debounce, which waits until the calls stop.",
+    "examples": [
+      {
+        "input": "t = throttle(fn, 100); call t() three times at 0 ms, then once at 150 ms",
+        "output": "fn ran: 2",
+        "explanation": "The call at 0 ms fires; the two others inside the 100 ms window are dropped; the call at 150 ms is past the window and fires.",
+        "run": "let count = 0; const t = throttle(() => count++, 100); t(); t(); t(); setTimeout(() => { t(); setTimeout(() => console.log('fn ran: ' + count), 50); }, 150)"
+      },
+      {
+        "input": "t = throttle(x => console.log(x), 100); t(\"a\") at 0 ms, t(\"b\") at 50 ms, t(\"c\") at 120 ms",
+        "output": "a\nc",
+        "explanation": "\"a\" opens a 100 ms window, so \"b\" is dropped. \"c\" arrives after the window has closed, so it runs with its own argument.",
+        "run": "const t = throttle(x => console.log(x), 100); t(\"a\"); setTimeout(() => t(\"b\"), 50); setTimeout(() => t(\"c\"), 120)"
+      }
+    ],
+    "constraints": [
+      "The first call fires immediately (leading edge).",
+      "Calls inside the window are ignored, not queued.",
+      "Arguments are forwarded to fn."
+    ]
+  },
+  "EventEmitter": {
+    "summary": "Build an EventEmitter class with on, off, emit and once methods (publish/subscribe).",
+    "statement": "Implement a class EventEmitter. on(event, fn) registers a listener for an event name; off(event, fn) removes that same function; emit(event, ...args) calls every listener registered for the event, passing it the arguments; once(event, fn) registers a listener that runs at most one time and then removes itself. Emitting an event with no listeners must do nothing rather than throw.",
+    "examples": [
+      {
+        "input": "ee.on(\"evt\", handler); ee.emit(\"evt\", 1); ee.emit(\"evt\", 2); ee.off(\"evt\", handler); ee.emit(\"evt\", 3)",
+        "output": "[1,2]",
+        "explanation": "The handler receives 1 and 2; after off, the third emit reaches no one.",
+        "run": "const ee = new EventEmitter(); const calls = []; const handler = x => calls.push(x); ee.on('evt', handler); ee.emit('evt', 1); ee.emit('evt', 2); ee.off('evt', handler); ee.emit('evt', 3); console.log(JSON.stringify(calls))"
+      },
+      {
+        "input": "ee.once(\"solo\", fn); ee.emit(\"solo\") three times",
+        "output": "fired: 1",
+        "run": "const ee = new EventEmitter(); let n = 0; ee.once('solo', () => n++); ee.emit('solo'); ee.emit('solo'); ee.emit('solo'); console.log('fired: ' + n)",
+        "explanation": "The once listener removes itself after the first emit, so the next two reach no one."
+      },
+      {
+        "input": "ee.emit(\"nobody\", 1) with no listeners registered",
+        "output": "no error",
+        "explanation": "An event with no listeners is simply a no-op.",
+        "run": "const ee = new EventEmitter(); ee.emit('nobody', 1); console.log('no error')"
+      }
+    ],
+    "constraints": [
+      "off must remove the exact function reference that was passed to on.",
+      "A once listener fires at most one time.",
+      "Emitting an event with no listeners must not throw."
+    ]
+  },
+  "LRU Cache": {
+    "summary": "Build a fixed-capacity cache whose get and put run in O(1) and evict the least recently used key.",
+    "statement": "Implement a class LRUCache(capacity). get(key) returns the stored value, or -1 if the key is not present, and marks that key as the most recently used. put(key, value) inserts or updates the key; if that pushes the cache past its capacity, it first removes the least recently used key (the one that has gone longest without a get or put). Both operations should run in O(1) time.",
+    "examples": [
+      {
+        "input": "cache = new LRUCache(2); put(1, \"a\"); put(2, \"b\"); get(1); put(3, \"c\"); get(2); get(3)",
+        "output": "a\n-1\nc",
+        "explanation": "get(1) makes key 1 the most recent, so put(3) evicts key 2 instead.",
+        "run": "const cache = new LRUCache(2); cache.put(1, \"a\"); cache.put(2, \"b\"); console.log(cache.get(1)); cache.put(3, \"c\"); console.log(cache.get(2)); console.log(cache.get(3));"
+      },
+      {
+        "input": "cache = new LRUCache(2); put(1, \"a\"); put(2, \"b\"); put(1, \"z\"); put(3, \"c\"); get(1); get(2)",
+        "output": "z\n-1",
+        "explanation": "Updating key 1 also counts as a use, so key 2 becomes the least recent and is evicted.",
+        "run": "const cache = new LRUCache(2); cache.put(1, \"a\"); cache.put(2, \"b\"); cache.put(1, \"z\"); cache.put(3, \"c\"); console.log(cache.get(1)); console.log(cache.get(2));"
+      },
+      {
+        "input": "cache = new LRUCache(1); get(7)",
+        "output": "-1",
+        "explanation": "A missing key returns -1.",
+        "run": "const cache = new LRUCache(1); console.log(cache.get(7));"
+      }
+    ],
+    "constraints": [
+      "capacity ≥ 1",
+      "get and put must both be O(1).",
+      "get returns -1 for a key that is not in the cache."
+    ]
+  },
+  "Compose & Pipe": {
+    "summary": "Write compose (applies functions right to left) and pipe (applies them left to right).",
+    "statement": "Write two functions that each take any number of one-argument functions and return a new function. compose(f, g, h)(x) calls the functions right to left: f(g(h(x))). pipe(f, g, h)(x) calls them left to right: h(g(f(x))). Each function receives the previous function's return value.",
+    "examples": [
+      {
+        "input": "double = x => x * 2, addOne = x => x + 1; compose(double, addOne)(3)",
+        "output": "8",
+        "explanation": "addOne runs first: 3 + 1 = 4, then double: 4 * 2 = 8.",
+        "run": "const double = x => x * 2, addOne = x => x + 1; console.log(compose(double, addOne)(3));"
+      },
+      {
+        "input": "pipe(double, addOne)(3)",
+        "output": "7",
+        "explanation": "double runs first: 3 * 2 = 6, then addOne: 6 + 1 = 7.",
+        "run": "const double = x => x * 2, addOne = x => x + 1; console.log(pipe(double, addOne)(3));"
+      },
+      {
+        "input": "square = x => x * x; compose(square, double, addOne)(2) and pipe(square, double, addOne)(2)",
+        "output": "36\n9",
+        "explanation": "compose runs addOne, double, square: ((2 + 1) * 2)² = 36. pipe runs square, double, addOne: 2² * 2 + 1 = 9.",
+        "run": "const double = x => x * 2, addOne = x => x + 1, square = x => x * x; console.log(compose(square, double, addOne)(2)); console.log(pipe(square, double, addOne)(2));"
+      }
+    ],
+    "constraints": [
+      "Accept any number of functions (rest parameter).",
+      "Each function takes exactly one argument.",
+      "With a single function, compose(f)(x) and pipe(f)(x) both just return f(x)."
+    ]
+  },
+  "Binary Search": {
+    "summary": "Return the index of target in a sorted array, or -1, in O(log n) time.",
+    "statement": "Given an array nums sorted in ascending order and a number target, return the index where target appears, or -1 if it is not in the array. Binary search keeps a left and right boundary and checks the middle element each step, discarding the half that cannot contain the target, so it runs in O(log n) instead of scanning every element.",
+    "examples": [
+      {
+        "input": "nums = [-1, 0, 3, 5, 9, 12], target = 9",
+        "output": "4",
+        "run": "console.log(binarySearch([-1, 0, 3, 5, 9, 12], 9));"
+      },
+      {
+        "input": "nums = [-1, 0, 3, 5, 9, 12], target = 2",
+        "output": "-1",
+        "explanation": "2 would sit between 0 and 3, but it is not present.",
+        "run": "console.log(binarySearch([-1, 0, 3, 5, 9, 12], 2));"
+      },
+      {
+        "input": "nums = [], target = 5",
+        "output": "-1",
+        "run": "console.log(binarySearch([], 5));"
+      }
+    ],
+    "constraints": [
+      "nums is sorted in ascending order.",
+      "Expected time: O(log n).",
+      "Return -1 when target is not found (including an empty array)."
+    ]
+  },
+  "Roman to Integer": {
+    "summary": "Convert a Roman numeral string such as \"MCMXCIV\" into its integer value.",
+    "statement": "Given a Roman numeral string s, return its integer value. The symbols are I=1, V=5, X=10, L=50, C=100, D=500, M=1000, and values are normally added left to right. The exception: when a smaller symbol comes directly before a larger one, it is subtracted instead (IV=4, IX=9, XL=40, XC=90, CD=400, CM=900).",
+    "examples": [
+      {
+        "input": "s = \"LVIII\"",
+        "output": "58",
+        "explanation": "L + V + III = 50 + 5 + 3.",
+        "run": "console.log(romanToInt(\"LVIII\"));"
+      },
+      {
+        "input": "s = \"MCMXCIV\"",
+        "output": "1994",
+        "explanation": "M = 1000, CM = 900, XC = 90, IV = 4.",
+        "run": "console.log(romanToInt(\"MCMXCIV\"));"
+      },
+      {
+        "input": "s = \"IV\"",
+        "output": "4",
+        "explanation": "I comes before the larger V, so it is subtracted: 5 - 1.",
+        "run": "console.log(romanToInt(\"IV\"));"
+      }
+    ],
+    "constraints": [
+      "s contains only the characters I, V, X, L, C, D, M.",
+      "s is a valid Roman numeral."
+    ]
+  },
+  "Reverse Linked List": {
+    "summary": "Reverse a singly linked list in place and return the new head node.",
+    "statement": "A singly linked list is a chain of nodes shaped { val, next }, where next points to the following node and the last node's next is null. Given the head (first node), reverse the list so every next pointer points the other way, and return the new head. An empty list is passed as null and should return null.",
+    "examples": [
+      {
+        "input": "head = 1 -> 2 -> 3 -> null",
+        "output": "[3,2,1]",
+        "explanation": "The output shows the reversed list's values from its new head.",
+        "run": "const fromArray = a => a.reduceRight((next, val) => ({ val, next }), null); const toArray = h => { const o = []; while (h) { o.push(h.val); h = h.next; } return o; }; console.log(JSON.stringify(toArray(reverseList(fromArray([1, 2, 3])))));"
+      },
+      {
+        "input": "head = 42 -> null",
+        "output": "[42]",
+        "run": "const fromArray = a => a.reduceRight((next, val) => ({ val, next }), null); const toArray = h => { const o = []; while (h) { o.push(h.val); h = h.next; } return o; }; console.log(JSON.stringify(toArray(reverseList(fromArray([42])))));"
+      },
+      {
+        "input": "head = null",
+        "output": "null",
+        "explanation": "Reversing an empty list gives an empty list, so return null (the template's test turns that into [] with toArray).",
+        "run": "console.log(reverseList(null));"
+      }
+    ],
+    "constraints": [
+      "Iterative O(n) time, O(1) extra space is the canonical answer.",
+      "A recursive solution is also accepted."
+    ]
+  },
+  "Container With Most Water": {
+    "summary": "Pick two vertical lines that, with the x-axis, hold the most water, and return that amount.",
+    "statement": "Given an array heights, where heights[i] is the height of a vertical line at position i, choose two lines to form the sides of a container. The water it holds is the distance between them times the shorter of the two heights. Return the largest such amount; with fewer than two lines the answer is 0.",
+    "examples": [
+      {
+        "input": "heights = [1, 8, 6, 2, 5, 4, 8, 3, 7]",
+        "output": "49",
+        "explanation": "Lines at index 1 (height 8) and index 8 (height 7): width 7 × min(8, 7) = 49.",
+        "run": "console.log(maxArea([1, 8, 6, 2, 5, 4, 8, 3, 7]));"
+      },
+      {
+        "input": "heights = [4, 4, 4, 4]",
+        "output": "12",
+        "explanation": "The two outermost lines: width 3 × height 4.",
+        "run": "console.log(maxArea([4, 4, 4, 4]));"
+      },
+      {
+        "input": "heights = [5]",
+        "output": "0",
+        "explanation": "One line cannot form a container.",
+        "run": "console.log(maxArea([5]));"
+      }
+    ],
+    "constraints": [
+      "Expected O(n) time and O(1) space using two pointers.",
+      "Return 0 when there are fewer than two lines."
+    ]
+  },
+  "Climbing Stairs": {
+    "summary": "Count the distinct ways to climb n steps when each move is 1 or 2 steps.",
+    "statement": "You are climbing a staircase with n steps, and each move climbs either 1 or 2 steps. Return how many distinct sequences of moves reach the top exactly. Order matters, so 1+2 and 2+1 count as different ways. The answer follows the Fibonacci pattern: ways(n) = ways(n-1) + ways(n-2).",
+    "examples": [
+      {
+        "input": "n = 3",
+        "output": "3",
+        "explanation": "1+1+1, 1+2, 2+1.",
+        "run": "console.log(climbStairs(3));"
+      },
+      {
+        "input": "n = 1",
+        "output": "1",
+        "run": "console.log(climbStairs(1));"
+      },
+      {
+        "input": "n = 4",
+        "output": "5",
+        "explanation": "ways(4) = ways(3) + ways(2) = 3 + 2: the last move is either a 1-step (from step 3) or a 2-step (from step 2).",
+        "run": "console.log(climbStairs(4));"
+      }
+    ],
+    "constraints": [
+      "n ≥ 1",
+      "Expected O(n) time and O(1) space: track only the last two values."
+    ]
+  },
+  "Balanced Brackets (Count)": {
+    "summary": "Return true if every bracket type has as many closing brackets as opening ones (order ignored).",
+    "statement": "Given a string that may contain (), [] and {} along with other characters, return true if, for each of the three bracket types, the number of opening brackets equals the number of closing brackets. This is count-based only: nesting order is NOT checked, so \"([)]\" and even \")(\" count as balanced. Letters, digits and spaces are ignored. (For order-aware checking, see the Valid Parentheses challenge.)",
+    "examples": [
+      {
+        "input": "str = \"a(b[c]d)e\"",
+        "output": "true",
+        "explanation": "One ( and one ), one [ and one ]; the letters are ignored.",
+        "run": "console.log(isBalancedByCount(\"a(b[c]d)e\"));"
+      },
+      {
+        "input": "str = \"[[(]\"",
+        "output": "false",
+        "explanation": "Two [ but only one ], and a ( with no ).",
+        "run": "console.log(isBalancedByCount(\"[[(]\"));"
+      },
+      {
+        "input": "str = \")(\"",
+        "output": "true",
+        "explanation": "Out of order, but the counts match, and only counts are checked.",
+        "run": "console.log(isBalancedByCount(\")(\"));"
+      }
+    ],
+    "constraints": [
+      "Only counts per bracket type matter, not order.",
+      "Non-bracket characters are ignored.",
+      "An empty string is balanced (true)."
+    ]
+  },
+  "Second Largest Number": {
+    "summary": "Return the second largest distinct value in an array without sorting, or null if there is none.",
+    "statement": "Given an array of numbers, return the second largest UNIQUE value: duplicates of the largest do not count as a second value. If no such value exists (an empty array, a single element, or all elements equal), return null. Do not use sort(); track the top two values in a single pass.",
+    "examples": [
+      {
+        "input": "nums = [3, 1, 4, 1, 5, 9, 2, 6]",
+        "output": "6",
+        "run": "console.log(secondLargest([3, 1, 4, 1, 5, 9, 2, 6]));"
+      },
+      {
+        "input": "nums = [7, 7, 3]",
+        "output": "3",
+        "explanation": "The two 7s are the same value, so the second largest distinct value is 3.",
+        "run": "console.log(secondLargest([7, 7, 3]));"
+      },
+      {
+        "input": "nums = [5, 5, 5]",
+        "output": "null",
+        "explanation": "Every element is equal, so there is no second distinct value.",
+        "run": "console.log(secondLargest([5, 5, 5]));"
+      }
+    ],
+    "constraints": [
+      "Do NOT use sort().",
+      "Aim for O(n) time and O(1) space.",
+      "Return null when no second largest distinct value exists.",
+      "Negative numbers and zero are allowed."
+    ]
+  },
+  "Maximum Subarray": {
+    "summary": "Find the contiguous subarray with the largest sum and return that sum.",
+    "statement": "Given an integer array nums, find the contiguous subarray (a run of adjacent elements, at least one long) with the largest sum, and return that sum. The array may contain negative numbers; if every number is negative, the answer is the largest single element. Kadane's idea: the best subarray ending at index i is either nums[i] alone or nums[i] plus the best subarray ending at i - 1.",
+    "examples": [
+      {
+        "input": "nums = [-2, 1, -3, 4, -1, 2, 1, -5, 4]",
+        "output": "6",
+        "explanation": "The subarray [4, -1, 2, 1] sums to 6.",
+        "run": "console.log(maxSubArray([-2, 1, -3, 4, -1, 2, 1, -5, 4]));"
+      },
+      {
+        "input": "nums = [-3, -1, -2]",
+        "output": "-1",
+        "explanation": "All negative: the best subarray is the single element -1.",
+        "run": "console.log(maxSubArray([-3, -1, -2]));"
+      },
+      {
+        "input": "nums = [1, 2, 3, 4]",
+        "output": "10",
+        "run": "console.log(maxSubArray([1, 2, 3, 4]));"
+      }
+    ],
+    "constraints": [
+      "nums.length ≥ 1",
+      "The subarray must contain at least one element.",
+      "Expected O(n) time."
+    ]
+  },
+  "Trapping Rain Water": {
+    "summary": "Return how many units of rainwater a row of bars can trap after it rains.",
+    "statement": "You are given an array height of non-negative integers, where each value is the height of a bar that is 1 unit wide. After rain, water collects in the dips between taller bars. Return the total units of water trapped. The water above any bar is min(tallest bar to its left, tallest bar to its right) minus its own height, and never less than 0.",
+    "examples": [
+      {
+        "input": "height = [0,1,0,2,1,0,1,3,2,1,2,1]",
+        "output": "6",
+        "explanation": "Water sits above indexes 2 (1), 4 (1), 5 (2), 6 (1) and 9 (1): 1 + 1 + 2 + 1 + 1 = 6.",
+        "run": "console.log(trap([0,1,0,2,1,0,1,3,2,1,2,1]))"
+      },
+      {
+        "input": "height = [4,2,0,3,2,5]",
+        "output": "9",
+        "explanation": "The walls are 4 on the left and 5 on the right, so the level is 4: 2 + 4 + 1 + 2 = 9.",
+        "run": "console.log(trap([4,2,0,3,2,5]))"
+      },
+      {
+        "input": "height = [2,2,2]",
+        "output": "0",
+        "explanation": "A flat surface has no dip, so nothing is trapped.",
+        "run": "console.log(trap([2,2,2]))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ height[i]",
+      "Bars at the two ends can never hold water above them.",
+      "Aim for O(n) time and O(1) extra space (two pointers)."
+    ]
+  },
+  "3Sum": {
+    "summary": "Return every unique triplet of numbers in the array that adds up to zero.",
+    "statement": "Given an integer array nums, return all triplets [a, b, c] taken from three different positions such that a + b + c === 0. Each triplet must be listed in ascending order, and the same triplet must not appear twice even if the array contains repeated values. The order of the triplets in the result does not matter. Return an empty array when no triplet sums to zero.",
+    "examples": [
+      {
+        "input": "nums = [-1,0,1,2,-1,-4]",
+        "output": "[[-1,-1,2],[-1,0,1]]",
+        "explanation": "-1 appears twice, but [-1,0,1] is reported only once.",
+        "run": "console.log(JSON.stringify(threeSum([-1,0,1,2,-1,-4])))"
+      },
+      {
+        "input": "nums = [-2,0,1,1,2]",
+        "output": "[[-2,0,2],[-2,1,1]]",
+        "explanation": "The two 1s can be used together in one triplet, but [-2,1,1] is still listed once.",
+        "run": "console.log(JSON.stringify(threeSum([-2,0,1,1,2])))"
+      },
+      {
+        "input": "nums = [1,2,3]",
+        "output": "[]",
+        "explanation": "All numbers are positive, so no three can sum to 0.",
+        "run": "console.log(JSON.stringify(threeSum([1,2,3])))"
+      }
+    ],
+    "constraints": [
+      "[0,0,0,0] returns [[0,0,0]]: many index choices, one distinct triplet.",
+      "No duplicate triplets in the result.",
+      "Each triplet in ascending order.",
+      "Aim for O(n²) time: sort, then a two-pointer scan for each fixed element."
+    ]
+  },
+  "Generate Parentheses": {
+    "summary": "Return every well-formed string made of n pairs of parentheses.",
+    "statement": "Given an integer n, return all strings made of exactly n '(' and n ')' characters that are well-formed. Well-formed means every '(' is closed by a later ')', and reading left to right the number of ')' never exceeds the number of '('. The order of the strings does not matter. For n = 0 the only answer is the empty string.",
+    "examples": [
+      {
+        "input": "n = 3",
+        "output": "[\"((()))\",\"(()())\",\"(())()\",\"()(())\",\"()()()\"]",
+        "run": "console.log(JSON.stringify(generate(3)))"
+      },
+      {
+        "input": "n = 1",
+        "output": "[\"()\"]",
+        "run": "console.log(JSON.stringify(generate(1)))"
+      },
+      {
+        "input": "n = 0",
+        "output": "[\"\"]",
+        "explanation": "Zero pairs gives exactly one string: the empty one.",
+        "run": "console.log(JSON.stringify(generate(0)))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ n",
+      "The number of results grows as the Catalan numbers (1, 1, 2, 5, 14, …).",
+      "Build strings with backtracking rather than generating all 2²ⁿ strings and filtering."
+    ]
+  },
+  "Subsets": {
+    "summary": "Return every subset (the power set) of an array of distinct integers.",
+    "statement": "Given an array nums of distinct integers, return all of its subsets, including the empty subset and the whole array. A subset keeps its elements in the same order they appear in nums. The order of the subsets in the result does not matter, and no subset may appear twice. An array of n elements has 2ⁿ subsets.",
+    "examples": [
+      {
+        "input": "nums = [1,2,3]",
+        "output": "[[],[1],[1,2],[1,2,3],[1,3],[2],[2,3],[3]]",
+        "explanation": "3 elements give 2³ = 8 subsets.",
+        "run": "console.log(JSON.stringify(subsets([1,2,3])))"
+      },
+      {
+        "input": "nums = [0]",
+        "output": "[[],[0]]",
+        "run": "console.log(JSON.stringify(subsets([0])))"
+      },
+      {
+        "input": "nums = []",
+        "output": "[[]]",
+        "explanation": "The empty array still has one subset: the empty one.",
+        "run": "console.log(JSON.stringify(subsets([])))"
+      }
+    ],
+    "constraints": [
+      "All values in nums are distinct.",
+      "Each subset keeps input order.",
+      "Any order of subsets is accepted."
+    ]
+  },
+  "Permutations": {
+    "summary": "Return every ordering (permutation) of an array of distinct integers.",
+    "statement": "Given an array nums of distinct integers, return all possible permutations. A permutation is the same numbers rearranged into a different order, using each number exactly once. An array of n elements has n! permutations (n × (n−1) × … × 1). The order of the permutations in the result does not matter.",
+    "examples": [
+      {
+        "input": "nums = [1,2,3]",
+        "output": "[[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]",
+        "explanation": "3! = 6 orderings.",
+        "run": "console.log(JSON.stringify(permute([1,2,3])))"
+      },
+      {
+        "input": "nums = [0,1]",
+        "output": "[[0,1],[1,0]]",
+        "run": "console.log(JSON.stringify(permute([0,1])))"
+      },
+      {
+        "input": "nums = [1]",
+        "output": "[[1]]",
+        "run": "console.log(JSON.stringify(permute([1])))"
+      }
+    ],
+    "constraints": [
+      "All values in nums are distinct.",
+      "Each number is used exactly once per permutation.",
+      "Any order of permutations is accepted."
+    ]
+  },
+  "Min Stack": {
+    "summary": "Build a stack class whose push, pop, top and getMin all run in O(1) time.",
+    "statement": "Implement the class MinStack with four methods: push(x) adds x on top, pop() removes the top element, top() returns the top element without removing it, and getMin() returns the smallest element currently in the stack. Every method must run in constant time, O(1), so getMin cannot scan the stack. Duplicate values are allowed, and popping one copy of the minimum must leave the other copy as the minimum.",
+    "examples": [
+      {
+        "input": "push(-2), push(0), push(-3), getMin(), pop(), top(), getMin()",
+        "output": "-3\n0\n-2",
+        "explanation": "The minimum is -3 until it is popped; then the top is 0 and the minimum returns to -2.",
+        "run": "const s = new MinStack();\ns.push(-2); s.push(0); s.push(-3);\nconsole.log(s.getMin());\ns.pop();\nconsole.log(s.top());\nconsole.log(s.getMin());"
+      },
+      {
+        "input": "push(-2), push(-5), push(-5), getMin(), pop(), getMin()",
+        "output": "-5\n-5",
+        "explanation": "Two copies of -5: removing one still leaves -5 as the minimum.",
+        "run": "const s = new MinStack();\ns.push(-2); s.push(-5); s.push(-5);\nconsole.log(s.getMin());\ns.pop();\nconsole.log(s.getMin());"
+      }
+    ],
+    "constraints": [
+      "All four operations in O(1) time.",
+      "pop, top and getMin are only called on a non-empty stack.",
+      "Duplicate minimums must be handled correctly."
+    ]
+  },
+  "Daily Temperatures": {
+    "summary": "For each day, return how many days you wait until a warmer temperature, or 0.",
+    "statement": "Given an array t of daily temperatures, return an array answer of the same length where answer[i] is the number of days after day i until a strictly warmer temperature. If no later day is warmer, answer[i] is 0. The naive approach checks every later day for each day, which is O(n²); a stack of indexes still waiting for a warmer day solves it in one pass.",
+    "examples": [
+      {
+        "input": "t = [73,74,75,71,69,72,76,73]",
+        "output": "[1,1,4,2,1,1,0,0]",
+        "explanation": "Day 2 (75) waits until day 6 (76): 4 days. Days 6 and 7 never see a warmer day.",
+        "run": "console.log(JSON.stringify(dailyTemperatures([73,74,75,71,69,72,76,73])))"
+      },
+      {
+        "input": "t = [30,40,50,60]",
+        "output": "[1,1,1,0]",
+        "run": "console.log(JSON.stringify(dailyTemperatures([30,40,50,60])))"
+      },
+      {
+        "input": "t = [90,80,70]",
+        "output": "[0,0,0]",
+        "explanation": "Temperatures only fall, so no day ever gets a warmer one.",
+        "run": "console.log(JSON.stringify(dailyTemperatures([90,80,70])))"
+      }
+    ],
+    "constraints": [
+      "Warmer means strictly greater; an equal temperature does not count.",
+      "Return 0 for a day with no warmer day after it.",
+      "Aim for O(n) time with a monotonic stack."
+    ]
+  },
+  "Coin Change": {
+    "summary": "Return the fewest coins that add up to the amount, or -1 if it cannot be made.",
+    "statement": "Given an array coins of coin values and an integer amount, return the smallest number of coins whose values add up to exactly amount. You have an unlimited supply of every coin. Return -1 if no combination makes the amount, and 0 when amount is 0. Picking the largest coin first (greedy) does not always give the fewest coins, which is why this needs dynamic programming.",
+    "examples": [
+      {
+        "input": "coins = [1,2,5], amount = 11",
+        "output": "3",
+        "explanation": "5 + 5 + 1 = 11.",
+        "run": "console.log(coinChange([1,2,5], 11))"
+      },
+      {
+        "input": "coins = [2], amount = 3",
+        "output": "-1",
+        "explanation": "Only even totals can be made from 2s.",
+        "run": "console.log(coinChange([2], 3))"
+      },
+      {
+        "input": "coins = [1,3,4], amount = 6",
+        "output": "2",
+        "explanation": "3 + 3 = 6. Taking the largest coin first gives 4 + 1 + 1, which is 3 coins, so greedy is wrong here.",
+        "run": "console.log(coinChange([1,3,4], 6))"
+      }
+    ],
+    "constraints": [
+      "Unlimited supply of each coin.",
+      "Return 0 when amount is 0, and -1 when the amount cannot be made.",
+      "O(amount × coins.length) time with a 1D DP table."
+    ]
+  },
+  "House Robber": {
+    "summary": "Return the most money you can take from a row of houses without robbing two adjacent ones.",
+    "statement": "Given an array nums where nums[i] is the money in house i, return the maximum total you can collect. You may not take from two houses that are next to each other, because their alarms are connected. An empty street yields 0. At each house the choice is: skip it and keep the best total so far, or take it plus the best total from two houses back.",
+    "examples": [
+      {
+        "input": "nums = [1,2,3,1]",
+        "output": "4",
+        "explanation": "Rob houses 0 and 2: 1 + 3 = 4.",
+        "run": "console.log(rob([1,2,3,1]))"
+      },
+      {
+        "input": "nums = [2,7,9,3,1]",
+        "output": "12",
+        "explanation": "Rob houses 0, 2 and 4: 2 + 9 + 1 = 12.",
+        "run": "console.log(rob([2,7,9,3,1]))"
+      },
+      {
+        "input": "nums = []",
+        "output": "0",
+        "explanation": "No houses, no money.",
+        "run": "console.log(rob([]))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ nums[i]",
+      "No two adjacent houses may both be robbed.",
+      "O(n) time; O(1) extra space is possible with two running values."
+    ]
+  },
+  "Jump Game": {
+    "summary": "Return true if you can reach the last index, where each value is your maximum jump from there.",
+    "statement": "Given an array nums, you start at index 0. From index i you may jump forward by any number of steps from 0 up to nums[i]. Return true if you can reach the last index, otherwise false. A 0 is a trap only if nothing before it can jump past it; track the farthest index reachable so far.",
+    "examples": [
+      {
+        "input": "nums = [2,3,1,1,4]",
+        "output": "true",
+        "explanation": "Jump 1 step to index 1, then 3 steps to the last index.",
+        "run": "console.log(canJump([2,3,1,1,4]))"
+      },
+      {
+        "input": "nums = [3,2,1,0,4]",
+        "output": "false",
+        "explanation": "Every path lands on index 3, whose jump length is 0.",
+        "run": "console.log(canJump([3,2,1,0,4]))"
+      },
+      {
+        "input": "nums = [0,1]",
+        "output": "false",
+        "explanation": "You start on a 0, so you can never leave index 0.",
+        "run": "console.log(canJump([0,1]))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ nums[i]",
+      "Jumps only move forward.",
+      "A one-element array is already at the last index, so the answer is true.",
+      "Aim for O(n) time with a greedy farthest-reach scan."
+    ]
+  },
+  "Detect Cycle in Linked List": {
+    "summary": "Return true if a singly linked list loops back on itself, otherwise false.",
+    "statement": "You are given head, the first node of a singly linked list (each node has a val and a next pointer). A cycle exists when following next pointers eventually brings you back to a node you have already visited, so the walk never reaches null. Write hasCycle(head) that returns true if the list has a cycle and false otherwise. Aim for O(1) extra space: two pointers moving at different speeds (Floyd's tortoise and hare) will meet only if there is a loop.",
+    "examples": [
+      {
+        "input": "head = 3 → 2 → 0 → -4, and -4 points back to the node 2",
+        "output": "true",
+        "explanation": "After -4 the walk returns to 2, so it loops forever.",
+        "run": "console.log(hasCycle(fromArray([3, 2, 0, -4], 1)))"
+      },
+      {
+        "input": "head = 1 → 2 → 3 → 4 → null",
+        "output": "false",
+        "explanation": "The walk reaches null after 4, so there is no loop.",
+        "run": "console.log(hasCycle(fromArray([1, 2, 3, 4])))"
+      },
+      {
+        "input": "head = 1, and the node points to itself",
+        "output": "true",
+        "explanation": "A single node whose next is itself is the smallest possible cycle.",
+        "run": "console.log(hasCycle(fromArray([1], 0)))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ number of nodes ≤ 10⁴ (head may be null for an empty list, which has no cycle).",
+      "A node may point back to itself (a self loop counts as a cycle).",
+      "Target: O(n) time, O(1) extra space."
+    ]
+  },
+  "Sort Colors": {
+    "summary": "Sort an array of 0s, 1s and 2s in place, in one pass, without a sort built-in.",
+    "statement": "You are given an array nums containing only the values 0, 1 and 2 (think red, white, blue). Write sortColors(nums) that rearranges it so all 0s come first, then all 1s, then all 2s. Change the array in place and return nothing; do not call Array.prototype.sort. The classic approach is the Dutch National Flag algorithm: three pointers mark the next slot for a 0, the current element, and the next slot for a 2.",
+    "examples": [
+      {
+        "input": "nums = [2, 0, 2, 1, 1, 0]",
+        "output": "[0,0,1,1,2,2]",
+        "run": "const nums = [2, 0, 2, 1, 1, 0]; sortColors(nums); console.log(JSON.stringify(nums))"
+      },
+      {
+        "input": "nums = [2, 0, 1]",
+        "output": "[0,1,2]",
+        "run": "const nums = [2, 0, 1]; sortColors(nums); console.log(JSON.stringify(nums))"
+      },
+      {
+        "input": "nums = [1, 1, 1]",
+        "output": "[1,1,1]",
+        "explanation": "All values are the same, so nothing moves.",
+        "run": "const nums = [1, 1, 1]; sortColors(nums); console.log(JSON.stringify(nums))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ nums.length ≤ 300",
+      "Every nums[i] is 0, 1 or 2.",
+      "Mutate nums in place; no return value needed.",
+      "Do not use a sort built-in; one pass is the goal."
+    ]
+  },
+  "Top K Frequent Elements": {
+    "summary": "Return the k values that appear most often in the array, in any order.",
+    "statement": "You are given an integer array nums and an integer k. Write topK(nums, k) that returns an array of the k distinct values that occur most often in nums. Each value appears once in the result, however many copies it has, and the order of the result does not matter. Counting with a Map is the first step; bucket sort by frequency gets you to O(n) time.",
+    "examples": [
+      {
+        "input": "nums = [1, 1, 1, 2, 2, 3], k = 2",
+        "output": "[1,2]",
+        "explanation": "1 appears 3 times and 2 appears twice; 3 appears only once.",
+        "run": "console.log(JSON.stringify(topK([1, 1, 1, 2, 2, 3], 2).sort((a, b) => a - b)))"
+      },
+      {
+        "input": "nums = [3, 3, 1, 1, 1, 2, 2, 2, 2], k = 2",
+        "output": "[1,2]",
+        "explanation": "2 appears 4 times and 1 appears 3 times; 3 appears only twice. Output is sorted here only for display.",
+        "run": "console.log(JSON.stringify(topK([3, 3, 1, 1, 1, 2, 2, 2, 2], 2).sort((a, b) => a - b)))"
+      },
+      {
+        "input": "nums = [7, 7, 7], k = 1",
+        "output": "[7]",
+        "explanation": "Duplicates count toward one value; the answer is the value, not every copy.",
+        "run": "console.log(JSON.stringify(topK([7, 7, 7], 1)))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ k ≤ number of distinct values in nums",
+      "The answer is unique: there is never a tie for the k-th place.",
+      "Order of the returned elements does not matter.",
+      "Better than O(n log n) is possible (bucket sort is O(n))."
+    ]
+  },
+  "Merge Two Sorted Lists": {
+    "summary": "Splice two sorted linked lists into one sorted list and return its head.",
+    "statement": "You are given l1 and l2, the heads of two singly linked lists, each already sorted in ascending order (either may be null, meaning empty). Write mergeTwoLists(l1, l2) that joins their nodes into a single sorted list and returns its head. Reuse the existing nodes by relinking their next pointers rather than copying values. A dummy head node plus a tail pointer avoids special-casing the first node.",
+    "examples": [
+      {
+        "input": "l1 = 1 → 2 → 4, l2 = 1 → 3 → 4",
+        "output": "[1,1,2,3,4,4]",
+        "run": "console.log(JSON.stringify(toArray(mergeTwoLists(fromArray([1, 2, 4]), fromArray([1, 3, 4])))))"
+      },
+      {
+        "input": "l1 = null, l2 = 0",
+        "output": "[0]",
+        "explanation": "When one list is empty, the answer is the other list.",
+        "run": "console.log(JSON.stringify(toArray(mergeTwoLists(null, fromArray([0])))))"
+      },
+      {
+        "input": "l1 = null, l2 = null",
+        "output": "[]",
+        "run": "console.log(JSON.stringify(toArray(mergeTwoLists(null, null))))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ nodes in each list ≤ 50",
+      "Both lists are sorted in non-decreasing order.",
+      "Output shown as an array of the merged list's values."
+    ]
+  },
+  "Rotate Array Left": {
+    "summary": "Shift every element k positions to the left in place, wrapping the front to the back.",
+    "statement": "You are given an array nums and a non-negative integer k. Write rotateLeft(nums, k) that rotates the array to the LEFT by k positions: the first k elements move to the end, in order. Change the array in place and return nums. k can be larger than the array length, so only k % n rotations matter. The three-reversal trick (reverse the first k, reverse the rest, reverse the whole) does it in O(1) extra space.",
+    "examples": [
+      {
+        "input": "nums = [1, 2, 3, 4, 5, 6, 7], k = 3",
+        "output": "[4,5,6,7,1,2,3]",
+        "run": "console.log(JSON.stringify(rotateLeft([1, 2, 3, 4, 5, 6, 7], 3)))"
+      },
+      {
+        "input": "nums = [1, 2, 3], k = 5",
+        "output": "[3,1,2]",
+        "explanation": "5 % 3 = 2, so this is the same as rotating left by 2.",
+        "run": "console.log(JSON.stringify(rotateLeft([1, 2, 3], 5)))"
+      },
+      {
+        "input": "nums = [], k = 3",
+        "output": "[]",
+        "run": "console.log(JSON.stringify(rotateLeft([], 3)))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ nums.length ≤ 10⁵",
+      "k ≥ 0 and may exceed nums.length.",
+      "Mutate nums in place and return it.",
+      "Target: O(n) time, O(1) extra space."
+    ]
+  },
+  "Reverse Words in a String": {
+    "summary": "Reverse the order of words in a string, with single spaces and no leading or trailing spaces.",
+    "statement": "You are given a string s made of words separated by one or more spaces. Write reverseWords(s) that returns the words in reverse order, joined by exactly one space. Leading and trailing spaces are dropped and runs of spaces between words collapse to one. The letters inside each word stay in their original order; only the word order flips.",
+    "examples": [
+      {
+        "input": "s = \"the sky is blue\"",
+        "output": "blue is sky the",
+        "run": "console.log(reverseWords(\"the sky is blue\"))"
+      },
+      {
+        "input": "s = \"  hello   world  \"",
+        "output": "world hello",
+        "explanation": "Extra spaces at the ends and between the words are removed.",
+        "run": "console.log(reverseWords(\"  hello   world  \"))"
+      },
+      {
+        "input": "s = \"    \"",
+        "output": "\"\"",
+        "explanation": "A string of only spaces has no words, so the result is the empty string.",
+        "run": "console.log(JSON.stringify(reverseWords(\"    \")))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ s.length ≤ 10⁴",
+      "A word is a run of non-space characters.",
+      "Return \"\" when there are no words."
+    ]
+  },
+  "Longest Common Prefix": {
+    "summary": "Return the longest starting substring shared by every string in the array, or \"\" if none.",
+    "statement": "You are given an array of strings strs. Write longestCommonPrefix(strs) that returns the longest string that every element starts with. A prefix is a run of characters at the very start of a string. If the strings share no first character, or the array is empty, return the empty string \"\".",
+    "examples": [
+      {
+        "input": "strs = [\"flower\", \"flow\", \"flight\"]",
+        "output": "fl",
+        "run": "console.log(longestCommonPrefix([\"flower\", \"flow\", \"flight\"]))"
+      },
+      {
+        "input": "strs = [\"dog\", \"racecar\", \"car\"]",
+        "output": "\"\"",
+        "explanation": "The first characters d, r and c already differ.",
+        "run": "console.log(JSON.stringify(longestCommonPrefix([\"dog\", \"racecar\", \"car\"])))"
+      },
+      {
+        "input": "strs = [\"alone\"]",
+        "output": "alone",
+        "explanation": "With one string, the whole string is the common prefix.",
+        "run": "console.log(longestCommonPrefix([\"alone\"]))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ strs.length ≤ 200",
+      "Return \"\" for an empty array or when any string is empty."
+    ]
+  },
+  "Longest Palindromic Substring": {
+    "summary": "Return the longest contiguous piece of the string that reads the same forwards and backwards.",
+    "statement": "You are given a string s. Write longestPalindrome(s) that returns its longest palindromic substring. A substring is a contiguous run of characters, and a palindrome reads the same in both directions (\"aba\", \"bb\"). If several palindromes tie for the longest, returning any one of them is accepted. Expanding outward from every center works, but remember even-length palindromes have a center between two characters.",
+    "examples": [
+      {
+        "input": "s = \"babad\"",
+        "output": "bab or aba",
+        "explanation": "Both \"bab\" and \"aba\" have length 3 and either one is accepted.",
+        "run": "const r = longestPalindrome(\"babad\"); console.log(r === \"bab\" || r === \"aba\" ? \"bab or aba\" : r)"
+      },
+      {
+        "input": "s = \"cbbd\"",
+        "output": "bb",
+        "explanation": "An even-length palindrome, centered between the two b's.",
+        "run": "console.log(longestPalindrome(\"cbbd\"))"
+      },
+      {
+        "input": "s = \"aaaa\"",
+        "output": "aaaa",
+        "run": "console.log(longestPalindrome(\"aaaa\"))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ s.length ≤ 1000",
+      "Any one of the tied longest palindromes is accepted.",
+      "Expand-around-center runs in O(n²) time and O(1) space."
+    ]
+  },
+  "Reverse Vowels of a String": {
+    "summary": "Reverse only the vowels in a string, leaving every other character where it is.",
+    "statement": "You are given a string s. Write reverseVowels(s) that returns a new string where the vowels (a, e, i, o, u, in both lowercase and uppercase) appear in reverse order, and every non-vowel stays at its original position. Two pointers work well: move one from the left and one from the right until each sits on a vowel, swap them, and step inward.",
+    "examples": [
+      {
+        "input": "s = \"hello\"",
+        "output": "holle",
+        "explanation": "The vowels are e and o; swapping them gives h-o-l-l-e.",
+        "run": "console.log(reverseVowels(\"hello\"))"
+      },
+      {
+        "input": "s = \"aA\"",
+        "output": "Aa",
+        "explanation": "Uppercase vowels count too.",
+        "run": "console.log(reverseVowels(\"aA\"))"
+      },
+      {
+        "input": "s = \"bcdfg\"",
+        "output": "bcdfg",
+        "explanation": "No vowels, so nothing changes.",
+        "run": "console.log(reverseVowels(\"bcdfg\"))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ s.length ≤ 3 × 10⁵",
+      "Vowels are a, e, i, o, u in either case; y is not a vowel here."
+    ]
+  },
+  "String to Integer (atoi)": {
+    "summary": "Parse a string into a 32-bit signed integer following atoi's whitespace, sign and overflow rules.",
+    "statement": "Write myAtoi(s) that converts a string to a 32-bit signed integer. Skip leading whitespace, then read an optional '+' or '-' sign, then read digits until a non-digit character or the end of the string; anything after that is ignored. If no digits were read, return 0. If the number falls outside [-2³¹, 2³¹ − 1], clamp it to the nearest bound.",
+    "examples": [
+      {
+        "input": "s = \"   -4193 with words\"",
+        "output": "-4193",
+        "explanation": "Leading spaces are skipped, the minus sign is kept, and reading stops at the space after the digits.",
+        "run": "console.log(myAtoi(\"   -4193 with words\"))"
+      },
+      {
+        "input": "s = \"words 987\"",
+        "output": "0",
+        "explanation": "The first non-space character is a letter, so no digits are read.",
+        "run": "console.log(myAtoi(\"words 987\"))"
+      },
+      {
+        "input": "s = \"91283472332\"",
+        "output": "2147483647",
+        "explanation": "Too large for 32 bits, so it clamps to 2³¹ − 1.",
+        "run": "console.log(myAtoi(\"91283472332\"))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ s.length ≤ 200",
+      "Result is clamped to [-2147483648, 2147483647].",
+      "Return 0 when no digits are read (e.g. \"\", \"-\")."
+    ]
+  },
+  "Letter Combinations of Phone Number": {
+    "summary": "Return every letter string a sequence of phone-keypad digits (2–9) could spell.",
+    "statement": "On a classic phone keypad each digit from 2 to 9 stands for 3 or 4 letters: 2 → abc, 3 → def, 4 → ghi, 5 → jkl, 6 → mno, 7 → pqrs, 8 → tuv, 9 → wxyz. Given a string digits, letterCombinations(digits) returns every string you get by picking one letter for each digit, in digit order. An empty input has no combinations, so return an empty array. The order of the combinations does not matter.",
+    "examples": [
+      {
+        "input": "digits = \"23\"",
+        "output": "[\"ad\",\"ae\",\"af\",\"bd\",\"be\",\"bf\",\"cd\",\"ce\",\"cf\"]",
+        "explanation": "3 letters for '2' times 3 letters for '3' gives 9 combinations.",
+        "run": "console.log(JSON.stringify(letterCombinations(\"23\")))"
+      },
+      {
+        "input": "digits = \"2\"",
+        "output": "[\"a\",\"b\",\"c\"]",
+        "run": "console.log(JSON.stringify(letterCombinations(\"2\")))"
+      },
+      {
+        "input": "digits = \"\"",
+        "output": "[]",
+        "explanation": "No digits means no combinations, not a list holding one empty string.",
+        "run": "console.log(JSON.stringify(letterCombinations(\"\")))"
+      }
+    ],
+    "constraints": [
+      "digits contains only the characters '2' to '9'.",
+      "0 ≤ digits.length ≤ 4",
+      "Return [] for an empty string.",
+      "Any order of results is accepted."
+    ]
+  },
+  "Single Number": {
+    "summary": "Every number appears twice except one; return the one that appears only once.",
+    "statement": "You are given an array nums in which every value appears exactly twice, except for one value that appears exactly once. singleNumber(nums) returns that lone value. The challenge is to do it in one pass using no extra memory (O(1) space), so no Map or Set of counts.",
+    "examples": [
+      {
+        "input": "nums = [1]",
+        "output": "1",
+        "explanation": "A single element is the lone value.",
+        "run": "console.log(singleNumber([1]))"
+      },
+      {
+        "input": "nums = [4, 1, 2, 1, 2]",
+        "output": "4",
+        "explanation": "1 and 2 each appear twice; 4 appears once.",
+        "run": "console.log(singleNumber([4, 1, 2, 1, 2]))"
+      },
+      {
+        "input": "nums = [-1, -1, -2]",
+        "output": "-2",
+        "explanation": "Negative numbers work the same way.",
+        "run": "console.log(singleNumber([-1, -1, -2]))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ nums.length, and nums.length is odd.",
+      "Exactly one value appears once; every other value appears exactly twice.",
+      "O(n) time and O(1) extra space."
+    ]
+  },
+  "Single Number II": {
+    "summary": "Every number appears three times except one; return the one that appears only once.",
+    "statement": "You are given an array nums in which every value appears exactly three times, except for one value that appears exactly once. singleNumberII(nums) returns that lone value, in O(n) time and O(1) extra space. The XOR trick from Single Number does not work here, because XOR cancels pairs, not triples. The result must also be correct for negative numbers.",
+    "examples": [
+      {
+        "input": "nums = [2, 2, 3, 2]",
+        "output": "3",
+        "run": "console.log(singleNumberII([2, 2, 3, 2]))"
+      },
+      {
+        "input": "nums = [0, 1, 0, 1, 0, 1, 99]",
+        "output": "99",
+        "run": "console.log(singleNumberII([0, 1, 0, 1, 0, 1, 99]))"
+      },
+      {
+        "input": "nums = [-2, -2, 1, 1, -3, 1, -3, -3, -4, -2]",
+        "output": "-4",
+        "explanation": "Negative numbers must come out negative, so the sign bit has to be handled too.",
+        "run": "console.log(singleNumberII([-2, -2, 1, 1, -3, 1, -3, -3, -4, -2]))"
+      }
+    ],
+    "constraints": [
+      "Every value fits in a 32-bit signed integer.",
+      "Exactly one value appears once; every other value appears exactly three times.",
+      "O(n) time and O(1) extra space."
+    ]
+  },
+  "Majority Element": {
+    "summary": "Return the value that appears in more than half of the array's positions.",
+    "statement": "Given an array nums of length n, majorityElement(nums) returns the majority element: the value that appears more than ⌊n/2⌋ times (strictly more than half, rounding n/2 down). You may assume the majority element always exists. Aim for O(n) time and O(1) extra space; the Boyer–Moore voting algorithm does this by keeping one candidate and a running count.",
+    "examples": [
+      {
+        "input": "nums = [3, 2, 3]",
+        "output": "3",
+        "explanation": "3 appears 2 times, which is more than ⌊3/2⌋ = 1.",
+        "run": "console.log(majorityElement([3, 2, 3]))"
+      },
+      {
+        "input": "nums = [2, 2, 1, 1, 1, 2, 2]",
+        "output": "2",
+        "explanation": "2 appears 4 times out of 7; 1 appears only 3 times.",
+        "run": "console.log(majorityElement([2, 2, 1, 1, 1, 2, 2]))"
+      },
+      {
+        "input": "nums = [42]",
+        "output": "42",
+        "run": "console.log(majorityElement([42]))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ nums.length",
+      "A majority element is guaranteed to exist.",
+      "Target O(n) time and O(1) extra space."
+    ]
+  },
+  "Product of Array Except Self": {
+    "summary": "For each index, return the product of every other element, without using division.",
+    "statement": "Given an array nums, productExceptSelf(nums) returns a new array where output[i] is the product of all elements of nums except nums[i]. You may not use division, which also rules out the \"total product ÷ nums[i]\" shortcut that breaks on zeros. Aim for O(n) time and O(1) extra space, not counting the output array: fill it with the product of everything to the left, then multiply in the product of everything to the right.",
+    "examples": [
+      {
+        "input": "nums = [1, 2, 3, 4]",
+        "output": "[24,12,8,6]",
+        "explanation": "output[0] = 2·3·4 = 24, output[1] = 1·3·4 = 12, and so on.",
+        "run": "console.log(JSON.stringify(productExceptSelf([1, 2, 3, 4])))"
+      },
+      {
+        "input": "nums = [-1, 1, 0, -3, 3]",
+        "output": "[0,0,9,0,0]",
+        "explanation": "Every product that includes the 0 is 0; only index 2 skips it: -1·1·-3·3 = 9.",
+        "run": "console.log(JSON.stringify(productExceptSelf([-1, 1, 0, -3, 3])))"
+      },
+      {
+        "input": "nums = [0, 0, 1, 2]",
+        "output": "[0,0,0,0]",
+        "explanation": "With two zeros, every product still includes at least one zero.",
+        "run": "console.log(JSON.stringify(productExceptSelf([0, 0, 1, 2])))"
+      }
+    ],
+    "constraints": [
+      "2 ≤ nums.length",
+      "Do not use division.",
+      "O(n) time; O(1) extra space besides the output array."
+    ]
+  },
+  "Plus One": {
+    "summary": "Add one to a number stored as an array of digits and return the new digit array.",
+    "statement": "A non-negative integer is stored as an array of its digits, most significant digit first, so 123 is [1, 2, 3]. plusOne(digits) adds one to that number and returns the result in the same form. The tricky part is the carry: a 9 becomes 0 and pushes 1 into the digit to its left, and if every digit is 9 the result needs one more digit at the front.",
+    "examples": [
+      {
+        "input": "digits = [1, 2, 3]",
+        "output": "[1,2,4]",
+        "run": "console.log(JSON.stringify(plusOne([1, 2, 3])))"
+      },
+      {
+        "input": "digits = [1, 2, 9]",
+        "output": "[1,3,0]",
+        "explanation": "129 + 1 = 130: the 9 becomes 0 and carries into the 2.",
+        "run": "console.log(JSON.stringify(plusOne([1, 2, 9])))"
+      },
+      {
+        "input": "digits = [9, 9, 9]",
+        "output": "[1,0,0,0]",
+        "explanation": "999 + 1 = 1000, so the result is one digit longer.",
+        "run": "console.log(JSON.stringify(plusOne([9, 9, 9])))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ digits.length",
+      "Each element is a digit from 0 to 9.",
+      "No leading zeros, except the number 0 itself ([0])."
+    ]
+  },
+  "Subarray Sum Equals K": {
+    "summary": "Count the contiguous subarrays whose elements add up to exactly k.",
+    "statement": "Given an integer array nums and an integer k, subarraySum(nums, k) returns how many contiguous subarrays (unbroken runs of neighbouring elements) have a sum of exactly k. The array can contain negatives and zeros, so a sliding window does not work: a sum can go down as the window grows. Instead track running (prefix) sums in a Map: a subarray ending here sums to k whenever an earlier prefix sum equals the current sum minus k.",
+    "examples": [
+      {
+        "input": "nums = [1, 1, 1], k = 2",
+        "output": "2",
+        "explanation": "[1,1] at indexes 0–1 and [1,1] at indexes 1–2.",
+        "run": "console.log(subarraySum([1, 1, 1], 2))"
+      },
+      {
+        "input": "nums = [1, -1, 0], k = 0",
+        "output": "3",
+        "explanation": "[1,-1], [0] and [1,-1,0] all sum to 0.",
+        "run": "console.log(subarraySum([1, -1, 0], 0))"
+      },
+      {
+        "input": "nums = [1, 2, 3], k = 7",
+        "output": "0",
+        "explanation": "No run adds up to 7, so the count is 0.",
+        "run": "console.log(subarraySum([1, 2, 3], 7))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ nums.length",
+      "nums may contain negative numbers and zeros.",
+      "Return 0 when no subarray matches.",
+      "Target O(n) time using a hash map."
+    ]
+  },
+  "Search in Rotated Sorted Array": {
+    "summary": "Find a target's index in a sorted array that has been rotated, in O(log n) time.",
+    "statement": "A rotated sorted array is a sorted array of distinct integers whose front part has been moved to the back, for example [0,1,2,4,5,6,7] rotated into [4,5,6,7,0,1,2]. searchRotated(nums, target) returns the index of target in nums, or -1 if it is not there. It must run in O(log n), so a linear scan is not allowed: use a modified binary search, relying on the fact that at least one half around the middle is always sorted.",
+    "examples": [
+      {
+        "input": "nums = [4, 5, 6, 7, 0, 1, 2], target = 0",
+        "output": "4",
+        "run": "console.log(searchRotated([4, 5, 6, 7, 0, 1, 2], 0))"
+      },
+      {
+        "input": "nums = [4, 5, 6, 7, 0, 1, 2], target = 3",
+        "output": "-1",
+        "explanation": "3 is not in the array.",
+        "run": "console.log(searchRotated([4, 5, 6, 7, 0, 1, 2], 3))"
+      },
+      {
+        "input": "nums = [], target = 1",
+        "output": "-1",
+        "explanation": "An empty array contains nothing.",
+        "run": "console.log(searchRotated([], 1))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ nums.length",
+      "All values are distinct.",
+      "The array may also be not rotated at all.",
+      "Must run in O(log n) time.",
+      "Return -1 when target is absent."
+    ]
+  },
+  "Spiral Matrix": {
+    "summary": "Return every element of a 2D matrix in clockwise spiral order, starting top-left.",
+    "statement": "Given an m × n matrix (an array of rows), spiralOrder(matrix) returns all its elements in spiral order: right along the top row, down the right column, left along the bottom row, up the left column, then repeat on the next ring inward. The traps are single rows, single columns and non-square matrices, where a naive loop visits some cells twice. An empty matrix returns [].",
+    "examples": [
+      {
+        "input": "matrix = [[1,2,3],[4,5,6],[7,8,9]]",
+        "output": "[1,2,3,6,9,8,7,4,5]",
+        "run": "console.log(JSON.stringify(spiralOrder([[1,2,3],[4,5,6],[7,8,9]])))"
+      },
+      {
+        "input": "matrix = [[1,2,3,4],[5,6,7,8],[9,10,11,12]]",
+        "output": "[1,2,3,4,8,12,11,10,9,5,6,7]",
+        "explanation": "A 3 × 4 matrix: after the outer ring, only the middle row 6, 7 remains.",
+        "run": "console.log(JSON.stringify(spiralOrder([[1,2,3,4],[5,6,7,8],[9,10,11,12]])))"
+      },
+      {
+        "input": "matrix = [[1],[2],[3]]",
+        "output": "[1,2,3]",
+        "explanation": "A single column is read top to bottom once, with no cell repeated.",
+        "run": "console.log(JSON.stringify(spiralOrder([[1],[2],[3]])))"
+      }
+    ],
+    "constraints": [
+      "The matrix may be empty ([]); return [] then.",
+      "Every row has the same length.",
+      "Each element appears exactly once in the output."
+    ]
+  },
+  "Find Maximum in Array": {
+    "summary": "Return the largest number in the array, or null if the array is empty.",
+    "statement": "Given an array of numbers nums, findMax(nums) returns the largest value in it. Do it in a single pass, keeping the biggest value seen so far. If the array is empty there is no maximum, so return null. Be careful with all-negative arrays: starting the running maximum at 0 would wrongly return 0.",
+    "examples": [
+      {
+        "input": "nums = [3, 7, 1, 9, 4]",
+        "output": "9",
+        "run": "console.log(findMax([3, 7, 1, 9, 4]))"
+      },
+      {
+        "input": "nums = [-5, -2, -8, -1]",
+        "output": "-1",
+        "explanation": "All values are negative; the largest is -1, not 0.",
+        "run": "console.log(findMax([-5, -2, -8, -1]))"
+      },
+      {
+        "input": "nums = []",
+        "output": "null",
+        "run": "console.log(findMax([]))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ nums.length",
+      "Return null for an empty array.",
+      "Target O(n) time, O(1) space."
+    ]
+  },
+  "Max Consecutive Ones": {
+    "summary": "Return the length of the longest unbroken run of 1s in an array of 0s and 1s.",
+    "statement": "You are given an array nums that contains only 0s and 1s. Write maxConsecutiveOnes(nums) that returns the length of the longest run of 1s that sit next to each other with no 0 in between. This is the longest run, not the total count of 1s: a 0 breaks the run and the count starts again. Return 0 when there are no 1s at all, including for an empty array.",
+    "examples": [
+      {
+        "input": "nums = [1,1,0,1,1,1]",
+        "output": "3",
+        "explanation": "There are five 1s in total, but the runs are [1,1] and [1,1,1]. The longest run is 3.",
+        "run": "console.log(maxConsecutiveOnes([1,1,0,1,1,1]))"
+      },
+      {
+        "input": "nums = [0,0,1,1,1]",
+        "output": "3",
+        "explanation": "The longest run is at the very end, so it must be counted after the loop finishes.",
+        "run": "console.log(maxConsecutiveOnes([0,0,1,1,1]))"
+      },
+      {
+        "input": "nums = []",
+        "output": "0",
+        "run": "console.log(maxConsecutiveOnes([]))"
+      }
+    ],
+    "constraints": [
+      "Every element is 0 or 1.",
+      "Aim for one pass: O(n) time, O(1) extra space."
+    ]
+  },
+  "Find Min and Max": {
+    "summary": "Return the smallest and largest numbers of an array as { min, max } in a single pass.",
+    "statement": "Write findMinMax(nums) that returns an object { min, max } holding the smallest and the largest number in nums. Find both in one walk over the array rather than sorting it or scanning it twice. If the array is empty there is no smallest or largest, so return { min: null, max: null }.",
+    "examples": [
+      {
+        "input": "nums = [3, 7, 1, 9, 4]",
+        "output": "{\"min\":1,\"max\":9}",
+        "run": "console.log(JSON.stringify(findMinMax([3, 7, 1, 9, 4])))"
+      },
+      {
+        "input": "nums = [-5, -2, -8, -1]",
+        "output": "{\"min\":-8,\"max\":-1}",
+        "explanation": "With all-negative numbers, starting max at 0 would be wrong; start from -Infinity or from the first element.",
+        "run": "console.log(JSON.stringify(findMinMax([-5, -2, -8, -1])))"
+      },
+      {
+        "input": "nums = []",
+        "output": "{\"min\":null,\"max\":null}",
+        "run": "console.log(JSON.stringify(findMinMax([])))"
+      }
+    ],
+    "constraints": [
+      "One pass, O(n) time and O(1) extra space.",
+      "An empty array returns { min: null, max: null }.",
+      "A single element is both the min and the max."
+    ]
+  },
+  "Third Largest Number": {
+    "summary": "Return the third largest distinct number, or the maximum if there are fewer than three distinct values.",
+    "statement": "Write thirdLargest(nums) that returns the third largest DISTINCT number in the array. Distinct means repeated values count once: in [2, 2, 3, 1] the distinct values are 3, 2 and 1. If the array has fewer than three distinct values, return the largest value instead.",
+    "examples": [
+      {
+        "input": "nums = [3, 2, 1]",
+        "output": "1",
+        "run": "console.log(thirdLargest([3, 2, 1]))"
+      },
+      {
+        "input": "nums = [1, 2, 2, 5, 3, 5]",
+        "output": "2",
+        "explanation": "The distinct values in descending order are 5, 3, 2, so the third largest is 2. The duplicate 5 does not count twice.",
+        "run": "console.log(thirdLargest([1, 2, 2, 5, 3, 5]))"
+      },
+      {
+        "input": "nums = [1, 2]",
+        "output": "2",
+        "explanation": "Only two distinct values exist, so the maximum is returned.",
+        "run": "console.log(thirdLargest([1, 2]))"
+      }
+    ],
+    "constraints": [
+      "nums has at least one element.",
+      "Duplicates count once.",
+      "Aim for O(n) time with three running variables rather than sorting."
+    ]
+  },
+  "Kth Largest Element": {
+    "summary": "Return the k-th largest element of the array, where k = 1 is the largest and duplicates count.",
+    "statement": "Write kthLargest(nums, k) that returns the k-th largest element in nums. k is 1-indexed: k = 1 means the largest, k = 2 the second largest, and so on. Duplicates count as separate elements, so the answer is the value that would sit at index n - k if the array were sorted in ascending order.",
+    "examples": [
+      {
+        "input": "nums = [3,2,1,5,6,4], k = 2",
+        "output": "5",
+        "explanation": "Sorted ascending: [1,2,3,4,5,6]. The 2nd largest is at index 6 - 2 = 4, which is 5.",
+        "run": "console.log(kthLargest([3,2,1,5,6,4], 2))"
+      },
+      {
+        "input": "nums = [3,2,3,1,2,4,5,5,6], k = 4",
+        "output": "4",
+        "explanation": "Sorted descending: 6, 5, 5, 4, ... The two 5s count separately, so the 4th largest is 4.",
+        "run": "console.log(kthLargest([3,2,3,1,2,4,5,5,6], 4))"
+      },
+      {
+        "input": "nums = [-1, -2, -3], k = 2",
+        "output": "-2",
+        "run": "console.log(kthLargest([-1, -2, -3], 2))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ k ≤ nums.length.",
+      "Duplicates count (this is not the k-th distinct value).",
+      "Sort + index is O(n log n); a size-k heap is O(n log k); quickselect is O(n) on average."
+    ]
+  },
+  "Find Peak Element": {
+    "summary": "Return the index of any element that is strictly greater than both of its neighbours.",
+    "statement": "A peak is an element strictly greater than the neighbours on each side. Treat the positions just outside the array, nums[-1] and nums[n], as -Infinity, so the first or last element can be a peak. Write findPeak(nums) that returns the INDEX of any peak; when there are several, any one of them is accepted. Adjacent elements are never equal.",
+    "examples": [
+      {
+        "input": "nums = [1, 2, 3, 1]",
+        "output": "2",
+        "explanation": "nums[2] = 3 is greater than 2 on its left and 1 on its right.",
+        "run": "console.log(findPeak([1, 2, 3, 1]))"
+      },
+      {
+        "input": "nums = [5, 4, 3, 2, 1]",
+        "output": "0",
+        "explanation": "The array only falls, so the first element is the peak: its left neighbour counts as -Infinity.",
+        "run": "console.log(findPeak([5, 4, 3, 2, 1]))"
+      },
+      {
+        "input": "nums = [1, 2, 1, 3, 5, 6, 4]",
+        "output": "5",
+        "explanation": "Index 1 (value 2) and index 5 (value 6) are both peaks; returning either is correct. This binary-search solution happens to land on 5.",
+        "run": "console.log(findPeak([1, 2, 1, 3, 5, 6, 4]))"
+      }
+    ],
+    "constraints": [
+      "nums.length ≥ 1 and nums[i] !== nums[i + 1].",
+      "Any valid peak index is accepted.",
+      "Target O(log n) time with binary search."
+    ]
+  },
+  "Auto-Retry for Promises": {
+    "summary": "Wrap an async function so it retries on failure with exponential backoff, then throws the last error.",
+    "statement": "Write autoRetry(fn, retries = 3, delay = 100) that returns a new async function; calling it calls fn with the same arguments. If fn's promise rejects, wait and try again, up to retries more times, so there are at most retries + 1 attempts in total. The wait doubles each time (delay, delay * 2, delay * 4, ...), which is called exponential backoff. As soon as an attempt succeeds, resolve with its value; if every attempt fails, reject with the error from the last attempt.",
+    "examples": [
+      {
+        "input": "fn fails on its 1st call and succeeds on its 2nd; retries = 3, delay = 5",
+        "output": "{\"value\":\"OK\",\"attempts\":2}",
+        "explanation": "The first call rejects, autoRetry waits 5 ms, and the second call resolves.",
+        "run": "let calls = 0;\nconst flaky = async () => { calls++; if (calls <= 1) throw new Error('fail ' + calls); return { value: 'OK', attempts: calls }; };\nautoRetry(flaky, 3, 5)().then(r => console.log(JSON.stringify(r)));"
+      },
+      {
+        "input": "fn always fails; retries = 2, delay = 5",
+        "output": "attempts: 3\nerror: fail 3",
+        "explanation": "One initial attempt plus 2 retries is 3 calls. The rejection carries the LAST error, not a generic message.",
+        "run": "let calls = 0;\nconst broken = async () => { calls++; throw new Error('fail ' + calls); };\nautoRetry(broken, 2, 5)().catch(e => { console.log('attempts: ' + calls); console.log('error: ' + e.message); });"
+      }
+    ],
+    "constraints": [
+      "The returned function passes its arguments through to fn.",
+      "At most retries + 1 calls to fn.",
+      "Wait delay * 2^attempt between attempts; no wait after the final failure.",
+      "When all attempts fail, reject with the last error fn threw."
+    ]
+  },
+  "Batch Promises by Concurrency": {
+    "summary": "Run async tasks with at most N in flight at once, and return their results in the original order.",
+    "statement": "You are given tasks, an array of functions that each return a promise, and a number concurrency. Write batchPromises(tasks, concurrency) that runs the tasks so that no more than concurrency of them are running at the same moment, and resolves to an array of their results in the same order as tasks. Start the next task as soon as any running one finishes (an always-N-in-flight pool), rather than waiting for a whole fixed batch to finish. An empty task list resolves to [].",
+    "examples": [
+      {
+        "input": "tasks = five tasks returning 1..5 after 10 ms each, concurrency = 2",
+        "output": "[1,2,3,4,5]\nmax in flight: 2",
+        "explanation": "Results keep the order of tasks, and at no point are more than 2 tasks running.",
+        "run": "let active = 0, peak = 0;\nconst tasks = [1, 2, 3, 4, 5].map(n => async () => { active++; peak = Math.max(peak, active); await new Promise(r => setTimeout(r, 10)); active--; return n; });\nbatchPromises(tasks, 2).then(res => { console.log(JSON.stringify(res)); console.log('max in flight: ' + peak); });"
+      },
+      {
+        "input": "tasks = three tasks where the first is slowest (30, 10, 20 ms), concurrency = 10",
+        "output": "[\"slow\",\"fast\",\"mid\"]",
+        "explanation": "The tasks finish in the order fast, mid, slow, but results are placed by task index, not by finishing time.",
+        "run": "const later = (v, ms) => async () => { await new Promise(r => setTimeout(r, ms)); return v; };\nbatchPromises([later('slow', 30), later('fast', 10), later('mid', 20)], 10).then(res => console.log(JSON.stringify(res)));"
+      },
+      {
+        "input": "tasks = [], concurrency = 3",
+        "output": "[]",
+        "run": "batchPromises([], 3).then(res => console.log(JSON.stringify(res)));"
+      }
+    ],
+    "constraints": [
+      "Never more than concurrency tasks running at once.",
+      "Results are in the order of tasks, regardless of finishing order.",
+      "When concurrency ≥ tasks.length it behaves like Promise.all."
+    ]
+  },
+  "Async Tasks in Series": {
+    "summary": "Run async tasks one at a time, each starting only after the previous finishes, and return results in order.",
+    "statement": "You are given tasks, an array of functions that each return a promise. Write runInSeries(tasks) that runs them strictly one after another: task 2 must not start until task 1 has finished, and so on. It resolves to an array of the results in the same order. This is the opposite of Promise.all, which starts everything at once; note that an await inside forEach does not wait either.",
+    "examples": [
+      {
+        "input": "tasks = three tasks returning 10, 20, 30 after 5 ms each",
+        "output": "[10,20,30]\nstart 1,end 1,start 2,end 2,start 3,end 3",
+        "explanation": "Each task ends before the next one starts; running them in parallel would log start 1, start 2, start 3 first.",
+        "run": "const log = [];\nconst tasks = [1, 2, 3].map(n => async () => { log.push('start ' + n); await new Promise(r => setTimeout(r, 5)); log.push('end ' + n); return n * 10; });\nrunInSeries(tasks).then(res => { console.log(JSON.stringify(res)); console.log(log.join(',')); });"
+      },
+      {
+        "input": "tasks = []",
+        "output": "[]",
+        "run": "runInSeries([]).then(res => console.log(JSON.stringify(res)));"
+      }
+    ],
+    "constraints": [
+      "Exactly one task running at a time.",
+      "Do not use Promise.all (it runs tasks in parallel).",
+      "An empty list resolves to []."
+    ]
+  },
+  "Implement useState (Basic)": {
+    "summary": "Build createState(initial, render) returning a getter and a setter that updates the value and re-renders.",
+    "statement": "Write a tiny version of React's useState. createState(initial, render) returns a pair [getValue, setValue]. getValue() returns the current value. setValue(next) stores the new value and then calls render with it; if next is a function, it is a functional update, so call it with the current value and store what it returns (setValue(c => c + 1)). Each createState call keeps its own separate value.",
+    "examples": [
+      {
+        "input": "createState(0, render); setCount(5); setCount(c => c + 1); setCount(c => c * 2)",
+        "output": "12\n[5,6,12]",
+        "explanation": "5, then 5 + 1 = 6, then 6 * 2 = 12. render is called once per set with the new value.",
+        "run": "const renders = [];\nconst [getCount, setCount] = createState(0, v => renders.push(v));\nsetCount(5);\nsetCount(c => c + 1);\nsetCount(c => c * 2);\nconsole.log(getCount());\nconsole.log(JSON.stringify(renders));"
+      },
+      {
+        "input": "createState(0, …) and createState(\"Alice\", …); setName(\"Bob\")",
+        "output": "Bob 0",
+        "explanation": "The two states live in separate closures, so setting the name leaves the count untouched.",
+        "run": "const [getCount, setCount] = createState(0, () => {});\nconst [getName, setName] = createState('Alice', () => {});\nsetName('Bob');\nconsole.log(getName(), getCount());"
+      },
+      {
+        "input": "createState(0, render); getValue() before any set",
+        "output": "0\n[]",
+        "explanation": "Creating the state does not call render; only a set does.",
+        "run": "const renders = [];\nconst [getCount] = createState(0, v => renders.push(v));\nconsole.log(getCount());\nconsole.log(JSON.stringify(renders));"
+      }
+    ],
+    "constraints": [
+      "Return a getter, not the raw value, so later updates are visible.",
+      "If the argument to setValue is a function, call it with the current value.",
+      "Every setValue call invokes render(newValue)."
+    ]
+  },
+  "JSON Prettifier": {
+    "summary": "Pretty-print a JavaScript value as JSON with the given indent, matching JSON.stringify(value, null, indent).",
+    "statement": "Write prettify(value, indent = 2) that returns the same string JSON.stringify(value, null, indent) would. Numbers, booleans and null print as themselves; strings are wrapped in double quotes with special characters escaped. Each array item and object property goes on its own line, indented by indent spaces per level of nesting, and an empty object or array prints as {} or [].",
+    "examples": [
+      {
+        "input": "value = {a: 1, b: [2, 3]}, indent = 2",
+        "output": "{\n  \"a\": 1,\n  \"b\": [\n    2,\n    3\n  ]\n}",
+        "explanation": "The nested array's items are indented two levels (4 spaces); its closing bracket goes back to one level.",
+        "run": "console.log(prettify({a: 1, b: [2, 3]}, 2))"
+      },
+      {
+        "input": "value = {x: 1}, indent = 4",
+        "output": "{\n    \"x\": 1\n}",
+        "run": "console.log(prettify({x: 1}, 4))"
+      },
+      {
+        "input": "value = {} and value = \"hi\"",
+        "output": "{}\n\"hi\"",
+        "explanation": "Empty containers stay on one line; a string gets its double quotes.",
+        "run": "console.log(prettify({}));\nconsole.log(prettify(\"hi\"));"
+      }
+    ],
+    "constraints": [
+      "Output must equal JSON.stringify(value, null, indent) exactly.",
+      "Handle null, booleans, numbers, strings, arrays and objects, nested to any depth.",
+      "Object keys print in double quotes followed by \": \"."
+    ]
+  },
+  "Task Runner with Concurrency Control": {
+    "summary": "Build a TaskRunner class that runs async tasks with at most N in flight at once.",
+    "statement": "Implement a class TaskRunner whose constructor takes a concurrency limit N. Its add(taskFn) method takes a function that returns a promise, and itself returns a promise that settles with that task's result. At most N tasks may be running at the same moment: extra tasks wait in a queue and start, in the order they were added, as soon as a running task finishes. Tasks can be added at any time, including after earlier ones have finished.",
+    "examples": [
+      {
+        "input": "runner = new TaskRunner(2); add four tasks that each wait 20 ms and return 1, 2, 3, 4",
+        "output": "[1,2,3,4]\nmax in flight: 2",
+        "explanation": "All four results come back, but only two tasks were ever running at the same time; tasks 3 and 4 waited for a free slot.",
+        "run": "if (typeof AbortController === 'undefined') globalThis.AbortController = class { constructor() { const l = []; this.signal = { aborted: false, addEventListener: (_, f) => l.push(f) }; this.abort = () => { this.signal.aborted = true; l.forEach(f => f()); }; } };\nconst wait = ms => new Promise(r => setTimeout(r, ms));\nconst runner = new TaskRunner(2);\nlet now = 0, max = 0;\nconst make = n => async () => { now++; max = Math.max(max, now); await wait(20); now--; return n; };\nPromise.all([1, 2, 3, 4].map(n => runner.add(make(n)))).then(r => { console.log(JSON.stringify(r)); console.log('max in flight: ' + max); });"
+      },
+      {
+        "input": "runner = new TaskRunner(1); add task A (30 ms, rejects with 'boom'), then task B (10 ms, returns 'B')",
+        "output": "A failed: boom\ndone B",
+        "explanation": "With a limit of 1, B waits for A even though B is shorter. A's failure rejects only A's promise and still frees the slot, so B runs afterwards.",
+        "run": "if (typeof AbortController === 'undefined') globalThis.AbortController = class { constructor() { const l = []; this.signal = { aborted: false, addEventListener: (_, f) => l.push(f) }; this.abort = () => { this.signal.aborted = true; l.forEach(f => f()); }; } };\nconst wait = ms => new Promise(r => setTimeout(r, ms));\nconst runner = new TaskRunner(1);\nrunner.add(async () => { await wait(30); throw new Error('boom'); }).catch(e => console.log('A failed: ' + e.message));\nrunner.add(async () => { await wait(10); return 'B'; }).then(v => console.log('done ' + v));"
+      },
+      {
+        "input": "runner = new TaskRunner(2); after it is idle, add(async () => 'late')",
+        "output": "late",
+        "explanation": "A task added after the runner has gone idle still starts and resolves.",
+        "run": "if (typeof AbortController === 'undefined') globalThis.AbortController = class { constructor() { const l = []; this.signal = { aborted: false, addEventListener: (_, f) => l.push(f) }; this.abort = () => { this.signal.aborted = true; l.forEach(f => f()); }; } };\nconst runner = new TaskRunner(2);\nrunner.add(async () => 'first').then(() => runner.add(async () => 'late')).then(v => console.log(v));"
+      }
+    ],
+    "constraints": [
+      "Never more than N tasks running at once.",
+      "add() returns a promise that resolves (or rejects) with the task's own outcome.",
+      "A failed task must still free its slot, or the runner eventually stalls."
+    ]
+  },
+  "Merge Intervals": {
+    "summary": "Merge every overlapping interval and return the result sorted by start.",
+    "statement": "You are given an array of intervals, each written as [start, end]. Merge all intervals that overlap and return the merged list sorted by start. Two intervals overlap when the next one starts at or before the current one ends, so touching intervals like [1,4] and [4,5] merge too. The input may be unsorted, and you must not modify it.",
+    "examples": [
+      {
+        "input": "intervals = [[1,3],[2,6],[8,10],[15,18]]",
+        "output": "[[1,6],[8,10],[15,18]]",
+        "explanation": "[1,3] and [2,6] overlap, so they become [1,6]; the others stand alone.",
+        "run": "console.log(JSON.stringify(merge([[1,3],[2,6],[8,10],[15,18]])))"
+      },
+      {
+        "input": "intervals = [[1,4],[4,5]]",
+        "output": "[[1,5]]",
+        "explanation": "Touching counts as overlapping: 4 <= 4.",
+        "run": "console.log(JSON.stringify(merge([[1,4],[4,5]])))"
+      },
+      {
+        "input": "intervals = [[5,6],[1,3],[2,4]]",
+        "output": "[[1,4],[5,6]]",
+        "explanation": "Unsorted input: sort by start first, then [1,3] and [2,4] merge.",
+        "run": "console.log(JSON.stringify(merge([[5,6],[1,3],[2,4]])))"
+      }
+    ],
+    "constraints": [
+      "Return [] for an empty input.",
+      "Do not mutate the input array.",
+      "Expected O(n log n) time (sort, then one sweep)."
+    ]
+  },
+  "Minimum Size Subarray Sum": {
+    "summary": "Return the length of the shortest contiguous subarray whose sum is at least target.",
+    "statement": "Given a positive integer target and an array nums of positive integers, return the length of the shortest contiguous subarray (a run of neighbouring elements) whose sum is greater than or equal to target. If no such subarray exists, return 0. Because every number is positive, adding an element can only grow the sum, which is what lets a sliding window solve it in one pass.",
+    "examples": [
+      {
+        "input": "target = 7, nums = [2,3,1,2,4,3]",
+        "output": "2",
+        "explanation": "[4,3] sums to 7 and no single element reaches 7.",
+        "run": "console.log(minSubArrayLen(7, [2,3,1,2,4,3]))"
+      },
+      {
+        "input": "target = 11, nums = [1,1,1,1]",
+        "output": "0",
+        "explanation": "The whole array only sums to 4, so no subarray qualifies.",
+        "run": "console.log(minSubArrayLen(11, [1,1,1,1]))"
+      },
+      {
+        "input": "target = 4, nums = [1,4,4]",
+        "output": "1",
+        "explanation": "A single element [4] already reaches the target.",
+        "run": "console.log(minSubArrayLen(4, [1,4,4]))"
+      }
+    ],
+    "constraints": [
+      "All numbers are positive.",
+      "Return 0 when no subarray reaches target (including an empty array).",
+      "Expected O(n) time and O(1) extra space."
+    ]
+  },
+  "Sliding Window Maximum": {
+    "summary": "Return the maximum of every contiguous window of size k as the window slides right.",
+    "statement": "Given an array nums and a window size k, slide a window of k consecutive elements from the left end to the right end one step at a time. Return an array holding the largest value inside the window at each position. Re-scanning every window costs O(n·k); aim for O(n) by keeping a deque (a list you can add to and remove from at both ends) of indexes whose values are in decreasing order.",
+    "examples": [
+      {
+        "input": "nums = [1,3,-1,-3,5,3,6,7], k = 3",
+        "output": "[3,3,5,5,6,7]",
+        "explanation": "Windows: [1,3,-1]→3, [3,-1,-3]→3, [-1,-3,5]→5, [-3,5,3]→5, [5,3,6]→6, [3,6,7]→7.",
+        "run": "console.log(JSON.stringify(maxSlidingWindow([1,3,-1,-3,5,3,6,7], 3)))"
+      },
+      {
+        "input": "nums = [5,4,3,2,1], k = 2",
+        "output": "[5,4,3,2]",
+        "explanation": "In a decreasing array the maximum is always the left edge of the window.",
+        "run": "console.log(JSON.stringify(maxSlidingWindow([5,4,3,2,1], 2)))"
+      },
+      {
+        "input": "nums = [], k = 3",
+        "output": "[]",
+        "run": "console.log(JSON.stringify(maxSlidingWindow([], 3)))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ k ≤ nums.length when nums is not empty.",
+      "The result has nums.length - k + 1 entries.",
+      "Return [] for an empty array.",
+      "Expected O(n) time."
+    ]
+  },
+  "Longest Consecutive Sequence": {
+    "summary": "Return the length of the longest run of consecutive integers in an unsorted array.",
+    "statement": "Given an unsorted array of integers, return the length of the longest sequence of consecutive values (like 1, 2, 3, 4) that can be formed from its elements. The values do not need to be next to each other in the array, and duplicates count only once. Sorting gives O(n log n); aim for O(n) with a Set, starting a count only from a number whose predecessor (n - 1) is absent.",
+    "examples": [
+      {
+        "input": "nums = [100,4,200,1,3,2]",
+        "output": "4",
+        "explanation": "1, 2, 3, 4 are all present.",
+        "run": "console.log(longestConsecutive([100,4,200,1,3,2]))"
+      },
+      {
+        "input": "nums = [1,2,2,3]",
+        "output": "3",
+        "explanation": "The duplicate 2 does not lengthen the run 1, 2, 3.",
+        "run": "console.log(longestConsecutive([1,2,2,3]))"
+      },
+      {
+        "input": "nums = []",
+        "output": "0",
+        "run": "console.log(longestConsecutive([]))"
+      }
+    ],
+    "constraints": [
+      "Values may be negative, and may repeat.",
+      "Return 0 for an empty array.",
+      "Expected O(n) time."
+    ]
+  },
+  "Next Permutation": {
+    "summary": "Rearrange the array into the next larger ordering, wrapping to ascending if none exists.",
+    "statement": "A permutation is one ordering of the array's numbers; ordering them like dictionary words, the next permutation is the smallest ordering that is still larger than the current one. Rearrange nums in place into its next permutation and return it. If nums is already the largest ordering (fully descending), return the smallest one instead, sorted ascending.",
+    "examples": [
+      {
+        "input": "nums = [1,2,3]",
+        "output": "[1,3,2]",
+        "run": "console.log(JSON.stringify(nextPermutation([1,2,3])))"
+      },
+      {
+        "input": "nums = [3,2,1]",
+        "output": "[1,2,3]",
+        "explanation": "[3,2,1] is the largest ordering, so it wraps around to the smallest.",
+        "run": "console.log(JSON.stringify(nextPermutation([3,2,1])))"
+      },
+      {
+        "input": "nums = [1,3,2]",
+        "output": "[2,1,3]",
+        "explanation": "The pivot is 1 (the first value from the right that is smaller than its neighbour); swap it with 2, then reverse the suffix [3,1] to [1,3].",
+        "run": "console.log(JSON.stringify(nextPermutation([1,3,2])))"
+      }
+    ],
+    "constraints": [
+      "Modify nums in place with O(1) extra space.",
+      "Expected O(n) time.",
+      "Duplicates are allowed: [1,1,5] → [1,5,1]."
+    ]
+  },
+  "Rotate Matrix 90°": {
+    "summary": "Rotate an n × n matrix 90 degrees clockwise in place.",
+    "statement": "Given a square matrix (an array of n rows, each with n numbers), rotate it 90 degrees clockwise and return it. Do it in place: change the given matrix rather than building a new one. After rotating, the first column read from bottom to top becomes the first row. A neat approach is to transpose (swap matrix[i][j] with matrix[j][i]) and then reverse each row.",
+    "examples": [
+      {
+        "input": "matrix = [[1,2,3],[4,5,6],[7,8,9]]",
+        "output": "[[7,4,1],[8,5,2],[9,6,3]]",
+        "run": "console.log(JSON.stringify(rotate([[1,2,3],[4,5,6],[7,8,9]])))"
+      },
+      {
+        "input": "matrix = [[1,2],[3,4]]",
+        "output": "[[3,1],[4,2]]",
+        "run": "console.log(JSON.stringify(rotate([[1,2],[3,4]])))"
+      },
+      {
+        "input": "matrix = [[1]]",
+        "output": "[[1]]",
+        "explanation": "A 1 × 1 matrix is unchanged by rotation.",
+        "run": "console.log(JSON.stringify(rotate([[1]])))"
+      }
+    ],
+    "constraints": [
+      "The matrix is always square (n × n).",
+      "O(1) extra space: no second matrix."
+    ]
+  },
+  "Shuffle Array (Fisher-Yates)": {
+    "summary": "Shuffle an array so that every possible ordering is equally likely.",
+    "statement": "Implement shuffle(arr), which rearranges arr into a random order and returns it. The shuffle must be uniform: every one of the possible orderings has the same chance of appearing. The popular arr.sort(() => Math.random() - 0.5) is not uniform, so do not use it. Walk from the last index down, and for each i swap arr[i] with a random j chosen from 0 to i inclusive.",
+    "examples": [
+      {
+        "input": "arr = [1,2,3,4,5]",
+        "output": "5\n[1,2,3,4,5]",
+        "explanation": "The order is random, so this prints the length and the sorted result: the same five values, none lost or duplicated.",
+        "run": "const out = shuffle([1,2,3,4,5]);\nconsole.log(out.length);\nconsole.log(JSON.stringify([...out].sort((a, b) => a - b)));"
+      },
+      {
+        "input": "arr = [7]",
+        "output": "[7]",
+        "run": "console.log(JSON.stringify(shuffle([7])))"
+      },
+      {
+        "input": "arr = []",
+        "output": "[]",
+        "run": "console.log(JSON.stringify(shuffle([])))"
+      }
+    ],
+    "constraints": [
+      "Every ordering must be equally likely: every value must be able to land in every position.",
+      "O(n) time, O(1) extra space when shuffling in place.",
+      "Picking j from 0 to i - 1 (excluding i) is a classic off-by-one that breaks uniformity."
+    ]
+  },
+  "Array Intersection & Union": {
+    "summary": "Write intersection, union and difference for arrays, deduplicated and in first-seen order.",
+    "statement": "Implement three functions on arrays: intersection(a, b) returns the values in both arrays, union(a, b) returns every value that appears in either, and difference(a, b) returns the values in a that are not in b. Each result must contain no duplicates and keep the order in which values first appear (a before b). Do not use the new built-in Set methods (.intersection, .union, .difference); build them yourself.",
+    "examples": [
+      {
+        "input": "intersection([1,2,2,3], [2,2,4])",
+        "output": "[2]",
+        "explanation": "2 is in both arrays; it appears once in the result even though both inputs repeat it.",
+        "run": "console.log(JSON.stringify(intersection([1,2,2,3], [2,2,4])))"
+      },
+      {
+        "input": "union([1,1,2], [2,3,3])",
+        "output": "[1,2,3]",
+        "explanation": "Duplicates inside each array and across the two are removed.",
+        "run": "console.log(JSON.stringify(union([1,1,2], [2,3,3])))"
+      },
+      {
+        "input": "difference([1,2,3], [2])",
+        "output": "[1,3]",
+        "explanation": "difference is one-directional: values of a that b does not contain.",
+        "run": "console.log(JSON.stringify(difference([1,2,3], [2])))"
+      }
+    ],
+    "constraints": [
+      "Do not use Set.prototype.intersection, .union or .difference.",
+      "Results are deduplicated and keep first-seen order.",
+      "Expected O(n + m) time."
+    ]
+  },
+  "Chunk Array": {
+    "summary": "Split an array into groups of at most size elements, with the remainder in the last group.",
+    "statement": "Implement chunk(arr, size), which splits arr into consecutive groups of size elements and returns them as an array of arrays. If the length does not divide evenly, the last group holds whatever is left. Do not modify the input. If size is less than 1 or not a whole number, return [] instead of looping forever.",
+    "examples": [
+      {
+        "input": "arr = [1,2,3,4,5], size = 2",
+        "output": "[[1,2],[3,4],[5]]",
+        "run": "console.log(JSON.stringify(chunk([1,2,3,4,5], 2)))"
+      },
+      {
+        "input": "arr = [1,2,3], size = 5",
+        "output": "[[1,2,3]]",
+        "explanation": "A size larger than the array gives one group with everything.",
+        "run": "console.log(JSON.stringify(chunk([1,2,3], 5)))"
+      },
+      {
+        "input": "arr = [1,2], size = 0",
+        "output": "[]",
+        "explanation": "An invalid size returns an empty array.",
+        "run": "console.log(JSON.stringify(chunk([1,2], 0)))"
+      }
+    ],
+    "constraints": [
+      "Do not mutate the input.",
+      "size < 1 or a non-integer size returns [].",
+      "Expected O(n) time."
+    ]
+  },
+  "String Compression (RLE)": {
+    "summary": "Replace each run of a repeated character with the character and its count, if that is shorter.",
+    "statement": "Given a string str, write compress(str) that replaces every run of the same character with that character followed by the run length. A run of length 1 keeps just the character, with no count. Counts of 10 or more use every digit (\"a12\"). If the compressed string is not strictly shorter than the original, return the original string instead.",
+    "examples": [
+      {
+        "input": "str = \"aabcccccaaa\"",
+        "output": "a2bc5a3",
+        "explanation": "Runs are aa, b, ccccc, aaa → a2 + b + c5 + a3.",
+        "run": "console.log(compress(\"aabcccccaaa\"))"
+      },
+      {
+        "input": "str = \"aabb\"",
+        "output": "aabb",
+        "explanation": "\"a2b2\" is the same length as the input, so the original is returned.",
+        "run": "console.log(compress(\"aabb\"))"
+      },
+      {
+        "input": "str = \"aaaaaaaaaaaa\"",
+        "output": "a12",
+        "explanation": "Twelve a's: the count has two digits.",
+        "run": "console.log(compress(\"aaaaaaaaaaaa\"))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ str.length",
+      "An empty string returns \"\".",
+      "Return the original if compression does not make it shorter.",
+      "O(n) time, a single pass with a run counter."
+    ]
+  },
+  "Integer to Roman": {
+    "summary": "Convert an integer from 1 to 3999 into its Roman numeral.",
+    "statement": "Given an integer num between 1 and 3999, write intToRoman(num) that returns it as a Roman numeral string. The symbols are I=1, V=5, X=10, L=50, C=100, D=500, M=1000. Six values are written by subtraction instead of repetition: 4=IV, 9=IX, 40=XL, 90=XC, 400=CD, 900=CM. Put those six in your value table and repeatedly take the largest value that still fits.",
+    "examples": [
+      {
+        "input": "num = 58",
+        "output": "LVIII",
+        "explanation": "50 + 5 + 3 = L + V + III.",
+        "run": "console.log(intToRoman(58))"
+      },
+      {
+        "input": "num = 1994",
+        "output": "MCMXCIV",
+        "explanation": "1000 + 900 + 90 + 4 = M + CM + XC + IV.",
+        "run": "console.log(intToRoman(1994))"
+      },
+      {
+        "input": "num = 4",
+        "output": "IV",
+        "explanation": "4 is subtractive: one before five, not IIII.",
+        "run": "console.log(intToRoman(4))"
+      }
+    ],
+    "constraints": [
+      "1 ≤ num ≤ 3999",
+      "O(1) time: the value table has a fixed 13 entries."
+    ]
+  },
+  "Reverse Integer": {
+    "summary": "Reverse the digits of a signed integer, returning 0 if the result leaves the 32-bit range.",
+    "statement": "Given a signed integer x, write reverse(x) that returns x with its digits in reverse order, keeping the sign. Trailing zeros disappear when reversed (120 becomes 21). If the reversed number falls outside the 32-bit signed integer range [-2³¹, 2³¹ − 1], return 0. JavaScript numbers do not wrap around on overflow, so you must check the bounds yourself.",
+    "examples": [
+      {
+        "input": "x = -123",
+        "output": "-321",
+        "explanation": "The sign stays; only the digits are reversed.",
+        "run": "console.log(reverse(-123))"
+      },
+      {
+        "input": "x = 120",
+        "output": "21",
+        "explanation": "Reversed digits are 021, and the leading zero drops.",
+        "run": "console.log(reverse(120))"
+      },
+      {
+        "input": "x = 1534236469",
+        "output": "0",
+        "explanation": "9646324351 is larger than 2147483647, so the answer is 0.",
+        "run": "console.log(reverse(1534236469))"
+      }
+    ],
+    "constraints": [
+      "-2³¹ ≤ x ≤ 2³¹ − 1",
+      "Return 0 when the reversed value overflows the 32-bit signed range.",
+      "Try arithmetic (% and division) rather than string reversal."
+    ]
+  },
+  "Isomorphic Strings": {
+    "summary": "Decide whether one string can be turned into another by a consistent one-to-one character mapping.",
+    "statement": "Given two strings s and t, write isIsomorphic(s, t) that returns true if the characters of s can be replaced to produce t. The replacement must be consistent (the same character always becomes the same character) and one-to-one (no two different characters of s become the same character of t). A character may map to itself. Checking only the s → t direction is the common mistake: you must also make sure no character of t is used as a target twice.",
+    "examples": [
+      {
+        "input": "s = \"egg\", t = \"add\"",
+        "output": "true",
+        "explanation": "e → a and g → d, used consistently.",
+        "run": "console.log(isIsomorphic(\"egg\", \"add\"))"
+      },
+      {
+        "input": "s = \"foo\", t = \"bar\"",
+        "output": "false",
+        "explanation": "o would have to map to both a and r.",
+        "run": "console.log(isIsomorphic(\"foo\", \"bar\"))"
+      },
+      {
+        "input": "s = \"badc\", t = \"baba\"",
+        "output": "false",
+        "explanation": "b→b and a→a, then d→b: but b already maps to b, so two characters would share one target. A one-way check misses this.",
+        "run": "console.log(isIsomorphic(\"badc\", \"baba\"))"
+      }
+    ],
+    "constraints": [
+      "Strings of different length are never isomorphic.",
+      "Two empty strings are isomorphic.",
+      "O(n) time with two maps, or one map plus a set of used targets."
+    ]
+  },
+  "Longest Repeating Char Replacement": {
+    "summary": "Find the longest substring that can become one repeated character after at most k changes.",
+    "statement": "Given a string s and an integer k, write characterReplacement(s, k). You may change at most k characters of s to any other character. Return the length of the longest substring (a contiguous run of characters) that consists of a single repeated character after those changes. A window is fixable when its length minus the count of its most frequent character is at most k, because every other character in it must be changed.",
+    "examples": [
+      {
+        "input": "s = \"ABAB\", k = 2",
+        "output": "4",
+        "explanation": "Change both B's to A to get \"AAAA\".",
+        "run": "console.log(characterReplacement(\"ABAB\", 2))"
+      },
+      {
+        "input": "s = \"AABABBA\", k = 1",
+        "output": "4",
+        "explanation": "Change the B in \"AABA\" to get \"AAAA\".",
+        "run": "console.log(characterReplacement(\"AABABBA\", 1))"
+      },
+      {
+        "input": "s = \"ABCD\", k = 0",
+        "output": "1",
+        "explanation": "With no changes allowed, the answer is the longest run already in s, and every run here has length 1.",
+        "run": "console.log(characterReplacement(\"ABCD\", 0))"
+      }
+    ],
+    "constraints": [
+      "0 ≤ k",
+      "An empty string returns 0.",
+      "If k is at least s.length, the answer is s.length.",
+      "O(n) time with a sliding window."
+    ]
+  },
+  "Minimum Window Substring": {
+    "summary": "Return the shortest substring of s that contains every character of t, including duplicates.",
+    "statement": "Given strings s and t, write minWindow(s, t) that returns the shortest substring (contiguous slice) of s containing every character of t. Duplicates count: if t has two A's, the window needs at least two A's. Return \"\" if no such window exists, or if t is empty. Grow the window on the right until it is valid, then shrink it from the left while it stays valid, remembering the shortest one seen.",
+    "examples": [
+      {
+        "input": "s = \"ADOBECODEBANC\", t = \"ABC\"",
+        "output": "BANC",
+        "explanation": "\"BANC\" contains A, B and C, and no shorter window does.",
+        "run": "console.log(minWindow(\"ADOBECODEBANC\", \"ABC\"))"
+      },
+      {
+        "input": "s = \"a\", t = \"aa\"",
+        "output": "\"\"",
+        "explanation": "t needs two a's but s has only one.",
+        "run": "console.log(JSON.stringify(minWindow(\"a\", \"aa\")))"
+      },
+      {
+        "input": "s = \"aa\", t = \"aa\"",
+        "output": "aa",
+        "run": "console.log(minWindow(\"aa\", \"aa\"))",
+        "explanation": "t needs two a's, so the window must include both: the whole string."
+      }
+    ],
+    "constraints": [
+      "Return \"\" when no window exists or t is empty.",
+      "Character counts matter, not just presence.",
+      "O(|s| + |t|) time: track a \"missing\" counter instead of comparing whole maps each step."
+    ]
+  },
+  "Case Converter (camel/snake/kebab)": {
+    "summary": "Write toCamel, toSnake and toKebab to convert identifiers between camelCase, snake_case and kebab-case.",
+    "statement": "Write three functions. toCamel(str) turns snake_case (words joined by _) or kebab-case (words joined by -) into camelCase, where the first word is lowercase and each later word starts with a capital. toSnake(str) and toKebab(str) turn camelCase into lowercase words joined by _ and - respectively. Repeated, leading or trailing separators must not create empty words or stray capitals, and input already in the target case comes back unchanged.",
+    "examples": [
+      {
+        "input": "toCamel(\"user_first_name\"), toCamel(\"user-first-name\")",
+        "output": "userFirstName\nuserFirstName",
+        "explanation": "Both separators are accepted by toCamel.",
+        "run": "console.log(toCamel(\"user_first_name\"));\nconsole.log(toCamel(\"user-first-name\"))"
+      },
+      {
+        "input": "toSnake(\"userFirstName\"), toKebab(\"userFirstName\")",
+        "output": "user_first_name\nuser-first-name",
+        "run": "console.log(toSnake(\"userFirstName\"));\nconsole.log(toKebab(\"userFirstName\"))"
+      },
+      {
+        "input": "toCamel(\"a__b\"), toCamel(\"userFirstName\")",
+        "output": "aB\nuserFirstName",
+        "explanation": "A double separator makes no empty word; camelCase input passes through unchanged.",
+        "run": "console.log(toCamel(\"a__b\"));\nconsole.log(toCamel(\"userFirstName\"))"
+      }
+    ],
+    "constraints": [
+      "toCamel must accept both snake_case and kebab-case.",
+      "Converting input that is already in the target case returns it unchanged.",
+      "An empty string returns \"\".",
+      "Bonus: deepCamelize(obj) converts every key of a nested object or array."
+    ]
+  },
+  "First Repeating Character": {
+    "summary": "Return the first character seen a second time while scanning left to right, or null.",
+    "statement": "Given a string str, write firstRepeating(str) that scans from left to right and returns the first character that has already been seen earlier in the string. \"First\" means the earliest second occurrence, not the character whose first appearance is earliest. Return null if every character is unique. Every character counts, including spaces.",
+    "examples": [
+      {
+        "input": "str = \"success\"",
+        "output": "c",
+        "explanation": "Scanning s, u, c, c: the second c at index 3 is the first time a character is seen again. The second s only comes at index 5.",
+        "run": "console.log(firstRepeating(\"success\"))"
+      },
+      {
+        "input": "str = \"abcdef\"",
+        "output": "null",
+        "explanation": "No character appears twice.",
+        "run": "console.log(firstRepeating(\"abcdef\"))"
+      },
+      {
+        "input": "str = \"a b a\"",
+        "output": "\" \"",
+        "explanation": "Scanning a, space, b, space: the space at index 3 is seen again before the second a at index 4.",
+        "run": "console.log(JSON.stringify(firstRepeating(\"a b a\")))"
+      }
+    ],
+    "constraints": [
+      "Return null for an empty string or when all characters are unique.",
+      "O(n) time: one pass with a Set."
+    ]
+  },
+  "Sum Without Loops": {
+    "summary": "Sum an array four ways without for, while or do-while: reduce, recursion, tail recursion, nested.",
+    "statement": "Write four functions that return the sum of the numbers in an array, none of which may use a for, while or do-while loop. sumReduce(arr) uses Array.prototype.reduce, sumRecursive(arr) adds the first element to the sum of the rest, and sumTail(arr, acc = 0) is tail-recursive, carrying the running total in acc. sumNested(arr) handles arrays nested to any depth. An empty array must sum to 0, not undefined or NaN.",
+    "examples": [
+      {
+        "input": "sumReduce([1, 2, 3, 4]), sumRecursive([1, 2, 3, 4])",
+        "output": "10\n10",
+        "run": "console.log(sumReduce([1, 2, 3, 4]));\nconsole.log(sumRecursive([1, 2, 3, 4]))"
+      },
+      {
+        "input": "sumReduce([]), sumTail([1, 2, 3, 4])",
+        "output": "0\n10",
+        "explanation": "The empty array sums to 0.",
+        "run": "console.log(sumReduce([]));\nconsole.log(sumTail([1, 2, 3, 4]))"
+      },
+      {
+        "input": "sumNested([1, [2, [3, [4]]]]), sumNested([[], [[]]])",
+        "output": "10\n0",
+        "explanation": "Nested arrays are flattened as they are summed; nested empties add nothing.",
+        "run": "console.log(sumNested([1, [2, [3, [4]]]]));\nconsole.log(sumNested([[], [[]]]))"
+      }
+    ],
+    "constraints": [
+      "No for / while / do-while anywhere.",
+      "An empty array returns 0.",
+      "JS engines do not implement tail-call optimisation, so very deep recursion still overflows the stack; reduce is the production answer."
+    ]
+  },
+  "Responsive Images (srcset / AVIF)": {
+    "summary": "Mark up images that load the right size and format, never shift the layout, and load at the right priority.",
+    "statement": "Build image markup that covers the four ways to make images fast. Resolution switching: use srcset (a list of candidate files with their real pixel widths, like 400w) plus sizes (how wide the image will actually display) so each device downloads a fitting file. Format negotiation: use <picture> with <source type=\"image/avif\"> and WebP, keeping a JPEG in the <img> as the fallback. Reserve the image's space with width/height or aspect-ratio so nothing jumps when it loads (CLS, cumulative layout shift), and load below-the-fold images lazily but the main hero image (the LCP, largest contentful paint, element) eagerly.",
+    "examples": [
+      {
+        "input": "A phone 400px wide at 2x pixel density views an image with srcset \"hero-400.jpg 400w, hero-800.jpg 800w, hero-1600.jpg 1600w\" and sizes \"(max-width: 600px) 100vw, …\"",
+        "output": "The browser picks hero-800.jpg (400px shown × 2 density), not the 1600px file.",
+        "explanation": "sizes tells the browser the display width before CSS loads; without it the browser assumes 100vw and can download far more than needed."
+      },
+      {
+        "input": "A browser that supports AVIF loads a <picture> listing AVIF, then WebP, then an <img> with a .jpg",
+        "output": "It downloads the AVIF file; a browser without AVIF or WebP support falls back to the JPEG in the <img>.",
+        "explanation": "The browser takes the FIRST <source> it supports, so order them smallest format first."
+      },
+      {
+        "input": "The page loads on a slow connection before the image bytes arrive",
+        "output": "A 16:9 box is already reserved where the image will go, so text below it does not move when the image appears.",
+        "explanation": "Without width/height or aspect-ratio the image is 0px tall until it loads, and everything below it jumps."
+      }
+    ],
+    "constraints": [
+      "Give both srcset and sizes for resolution switching; srcset alone makes the browser assume 100vw.",
+      "Keep a plain <img> fallback inside <picture>.",
+      "Reserve space with width/height attributes or aspect-ratio to prevent layout shift.",
+      "Never lazy-load the LCP image: use loading=\"eager\" and fetchpriority=\"high\"; lazy-load images below the fold.",
+      "Use decoding=\"async\" to keep image decoding off the main thread.",
+      "alt text describes the image's purpose; decorative images take alt=\"\"."
+    ]
+  },
+  "Protected Route (Auth + RBAC)": {
+    "summary": "Gate a page behind login and an admin page behind a role, handling the loading state and the return trip.",
+    "statement": "Build a route gate with two checks. Authentication is WHO you are: a signed-out user who opens the dashboard is sent to login. Authorization is WHAT you may do: a signed-in user without the \"admin\" role who opens the admin page sees a 403 Forbidden message, not the login page. While the session is still being restored you are neither signed in nor signed out, so show a \"Checking session…\" state instead of redirecting. After login, return the user to the page they were trying to reach.",
+    "examples": [
+      {
+        "input": "Right after the page loads, while the 700 ms session restore is still running, the user clicks \"Dashboard (auth)\". The restore resolves to no user.",
+        "output": "\"Checking session…\" while the session is unknown, then the login screen: \"Sign in to continue to dashboard.\"",
+        "explanation": "The loading state is a third state. Treating it as signed-out would bounce every user to login on each refresh."
+      },
+      {
+        "input": "On the login screen for the dashboard, the user clicks \"as user\".",
+        "output": "The user is signed in as Ana (user) and lands on \"Dashboard — any signed-in user.\"",
+        "explanation": "The intended destination was remembered before redirecting."
+      },
+      {
+        "input": "Signed in as Ana (user), the user clicks \"Admin (role)\".",
+        "output": "\"403 — Forbidden. Signed in as Ana (user); this page needs \"admin\".\" — no redirect to login.",
+        "explanation": "Authenticated but not authorized is a 403, not a 401."
+      }
+    ],
+    "constraints": [
+      "Handle three session states: loading, authenticated, anonymous.",
+      "Signed out → redirect to login; signed in with the wrong role → a 403 page.",
+      "Remember where the user was going and return there after login.",
+      "Render the redirect as a component that navigates in an effect; never call the parent's setState during render (React warns \"Cannot update a component while rendering a different component\").",
+      "Guard the redirect so it fires only once.",
+      "Use one declarative gate component, not a role check in every page.",
+      "This is UX only: every protected API must also check authorization on the server."
+    ]
+  },
+  "Mini Redux Store": {
+    "summary": "Build a Redux-like store with getState, dispatch, subscribe, middleware and a selector hook for React.",
+    "statement": "Write createStore(reducer, initialState, middleware) returning an object with getState(), dispatch(action) and subscribe(listener), where subscribe returns an unsubscribe function. A reducer is a pure function (state, action) → newState that never mutates its input. Connect the store to React with a useSelector(selector) hook built on useSyncExternalStore, so a component re-renders only when the slice it selects changes. Middleware wraps dispatch with the signature store => next => action, and a logging middleware should print each action.",
+    "examples": [
+      {
+        "input": "Click the \"+1\" button in Counter.",
+        "output": "count goes 0 → 1 and Counter's render count increases; TodoCount's render count does not move. The console logs: dispatch increment -> {\"count\":1,\"todos\":[],\"filter\":\"all\"}",
+        "explanation": "TodoCount selects s.todos.length, which did not change, so its selector returns the same value and it skips the render."
+      },
+      {
+        "input": "Click \"add\" in TodoCount twice.",
+        "output": "todos shows 2 (items \"item 1\" and \"item 2\" were added); only TodoCount re-renders.",
+        "explanation": "This selector isolation is what React Context alone does not give you: a Context change re-renders every consumer."
+      },
+      {
+        "input": "Dispatch an action type the reducer does not know, e.g. { type: 'unknown' }.",
+        "output": "The logger still prints the action and listeners are still notified, but every selector returns the same value, so no component re-renders.",
+        "explanation": "The reducer's default branch returns the same state reference; useSyncExternalStore compares the selected snapshot and skips the render."
+      }
+    ],
+    "constraints": [
+      "The store exposes exactly getState, dispatch and subscribe; subscribe returns an unsubscribe function.",
+      "The reducer is pure: no mutation and no side effects.",
+      "Use useSyncExternalStore, not useState + useEffect, so concurrent rendering cannot tear (two components reading different versions).",
+      "Components re-render only when their selected slice changes.",
+      "Middleware wraps dispatch: store => next => action.",
+      "A selector that returns a new object every call defeats the equality check and re-renders every time."
+    ]
+  },
+  "Client Cache (stale-while-revalidate)": {
+    "summary": "Build a cache hook that shows cached data instantly, refreshes it in the background and shares requests.",
+    "statement": "Write a useCachedUser(id) hook backed by a cache Map. On a revisit, render the cached data on the very first frame instead of a loading message. If the entry is older than 5 seconds (stale), keep showing it and refetch in the background, showing \"refreshing…\" meanwhile; this pattern is called stale-while-revalidate. If two components ask for the same key at the same time, they must share ONE request (de-duplication), and a slow response for an old id must not overwrite a newer one.",
+    "examples": [
+      {
+        "input": "First visit to User 1 (two UserPanels are mounted for the same id).",
+        "output": "Both show \"Loading user 1…\", then after about 800 ms both show \"User 1 · fetched <time>\" with the SAME time.",
+        "explanation": "The inflight map makes both panels share one request, so the fetched time is identical."
+      },
+      {
+        "input": "Switch to User 2, then back to User 1 within 5 seconds.",
+        "output": "User 1 appears instantly with the same fetched time; no request is made.",
+        "explanation": "The cache entry is still fresh, so the hook returns early without fetching."
+      },
+      {
+        "input": "Switch back to User 1 after more than 5 seconds.",
+        "output": "User 1's old data appears instantly with \"refreshing…\", then updates to a new fetched time.",
+        "explanation": "The entry is stale: show it immediately and revalidate behind it."
+      }
+    ],
+    "constraints": [
+      "Initialise state from the cache, not null, so a revisit never flashes a loader.",
+      "Entries older than 5000 ms are stale and revalidate in the background.",
+      "Concurrent requests for the same key share one promise.",
+      "Cancel stale updates so an out-of-order response cannot overwrite the current id.",
+      "Expose a revalidating flag so the UI can show \"refreshing…\".",
+      "Handle and display errors."
+    ]
+  },
+  "WebSocket Live Feed": {
+    "summary": "Show a live WebSocket feed with connection status, backoff-with-jitter reconnects and a capped message list.",
+    "statement": "Write a useLiveFeed() hook that opens a socket on mount and closes it on unmount. Show the connection status (connecting, open, closed, reconnecting) with a coloured dot and text. When the connection drops unexpectedly, wait a random time between 0 and min(30 s, 500 ms × 2^(attempt − 1)) before reconnecting (exponential backoff with \"full jitter\"), and reset the attempt count once connected. Keep only the latest 8 messages, newest first. The playground uses a FakeSocket with the same API as a real WebSocket; it drops the connection after 6 messages on purpose.",
+    "examples": [
+      {
+        "input": "The component mounts.",
+        "output": "Status shows \"connecting\", then \"open\" after about 600 ms; a new price row (e.g. \"#1 — 104.37 10:02:11\") appears at the top roughly every 900 ms."
+      },
+      {
+        "input": "The server drops the connection after message #6.",
+        "output": "Status turns \"closed\", then \"reconnecting\", then \"open\" again after a random delay of up to 500 ms (first retry); the new connection's messages start again from #1 at the top of the list.",
+        "explanation": "Code 1006 is an unclean close, so the reconnect path runs with backoff and jitter."
+      },
+      {
+        "input": "The user navigates away (the component unmounts) while connected.",
+        "output": "The socket is closed and no reconnect is attempted.",
+        "explanation": "A closedByUs flag distinguishes our own close() from a real drop."
+      }
+    ],
+    "constraints": [
+      "Close the socket and clear any pending retry timer on unmount; your own close must not trigger a reconnect.",
+      "Reconnect with exponential backoff and full jitter: delay = random × min(30000, 500 × 2^(attempt − 1)) ms.",
+      "Reset the attempt counter after a successful open.",
+      "Keep at most 8 messages so memory does not grow forever.",
+      "Announce the status with aria-live so it is not conveyed by colour only.",
+      "Messages arrive as JSON strings in event.data."
+    ]
+  },
+  "Optimistic UI Updates": {
+    "summary": "Add todos that appear instantly, show as pending, and roll back with an error if the server rejects them.",
+    "statement": "Build a todo form where a new todo shows in the list immediately, before the server confirms it (an \"optimistic\" update). Show it faded with \"(saving…)\" until the request settles. The fake server rejects any text containing \"fail\" after 900 ms; in that case remove the todo again (roll back) and show the error message. Build it twice: with React 19's useOptimistic, and with a manual snapshot-and-restore version that works on React 18.",
+    "examples": [
+      {
+        "input": "Type \"Buy milk\" and press Add.",
+        "output": "\"Buy milk (saving…)\" appears faded at once; about 900 ms later it becomes a normal row \"Buy milk\".",
+        "explanation": "In the manual version the temporary entry is replaced by id, so it does not appear twice."
+      },
+      {
+        "input": "Type \"this will fail\" and press Add.",
+        "output": "\"this will fail (saving…)\" appears, then disappears, and the red message \"Server rejected: this will fail\" is shown.",
+        "explanation": "The failure path is the graded part: the list returns to exactly what it was."
+      },
+      {
+        "input": "Press Add with the input empty.",
+        "output": "Nothing is added and no request is sent."
+      }
+    ],
+    "constraints": [
+      "The new todo must appear before the server responds, marked as pending.",
+      "On failure, restore the previous list and show the error.",
+      "Manual version: replace the temporary item by id on success; appending the response creates a duplicate.",
+      "useOptimistic must be called inside a transition or form action, or React warns and drops the update.",
+      "The input is cleared and stays usable while a save is in flight.",
+      "Use optimism only for low-stakes actions; a payment should show a real pending state."
+    ]
+  },
+  "Suspense + Lazy (Code Splitting)": {
+    "summary": "Load a component on demand with React.lazy and Suspense, handle load failures, and suspend on data.",
+    "statement": "Use React.lazy to load a component only when it is needed, wrapped in <Suspense> so a fallback shows while it loads. React.lazy takes a function returning a promise of a module with a default export (in a real app, () => import('./Heavy')). Suspense only handles the waiting state, so wrap it in an error boundary with a Retry button for when loading fails. Also build a small resource whose read() throws its pending promise while loading, which is how Suspense for data works.",
+    "examples": [
+      {
+        "input": "Click \"Load panel\".",
+        "output": "\"Loading panel…\" appears, then after about 1.2 s \"Heavy panel loaded.\" The button becomes disabled."
+      },
+      {
+        "input": "The page first loads.",
+        "output": "The data section shows \"Loading user…\", then after about 1.8 s \"Ana — Engineer\".",
+        "explanation": "UserCard calls read(), which throws the pending promise; Suspense shows the fallback until it resolves."
+      },
+      {
+        "input": "The lazy chunk fails to load (for example a network error or a deploy removed the old file).",
+        "output": "\"Failed to load.\" with a Retry button, instead of a blank screen.",
+        "explanation": "Suspense does not catch errors; the error boundary does."
+      }
+    ],
+    "constraints": [
+      "React.lazy needs a module with a default export; for a named export map it: import('./x').then(m => ({ default: m.Named })).",
+      "Wrap lazy content in an error boundary with a retry, since a chunk can fail to load.",
+      "Place the Suspense boundary around the part that is loading, not so high that the whole page blanks.",
+      "Split at route boundaries first; splitting tiny components adds requests for little saving.",
+      "Use useTransition when you would rather keep the old UI visible than show the fallback."
+    ]
+  },
+  "Display Data from a JSON Prop": {
+    "summary": "Render a team directory from a JSON object passed as a prop, with headcount and an empty state.",
+    "statement": "You are given a JSON object with a team name and a members array (each member has id, name, role and location). Pass it to <TeamDirectory data={data} /> as a prop and render the team name, the headcount, and each member's name with \"role · location\" beneath it. If data or data.members is missing or empty, show \"No team members to show.\" instead of an empty list.",
+    "examples": [
+      {
+        "input": "data = { team: 'Platform', members: [Ana Silva (Engineer, Lisbon), Brij Patel (Senior Engineer, Pune), Chen Wei (Tech Lead, Singapore)] }",
+        "output": "\"Platform team\", \"3 members\", then three rows, e.g. \"Ana Silva\" over \"Engineer · Lisbon\"."
+      },
+      {
+        "input": "data = { team: 'Design', members: [] }, or data is undefined",
+        "output": "\"No team members to show.\"",
+        "explanation": "data?.members ?? [] turns a missing shape into an empty list, and the empty case is the one most candidates forget."
+      },
+      {
+        "input": "data = { team: 'Solo', members: [one member] }",
+        "output": "\"Solo team\", \"1 member\" (singular), and one row."
+      }
+    ],
+    "constraints": [
+      "Use a stable key from the data (member.id), never the array index.",
+      "Destructure props rather than writing props.data.members throughout.",
+      "Access data defensively (optional chaining and a default) since the shape may be missing.",
+      "Always render an empty state."
+    ]
+  },
+  "JSON → API → React fetch": {
+    "summary": "Fetch a job list from an Express endpoint and render loading, error, empty and success states.",
+    "statement": "On the server, an Express app reads jobs.json once at startup and serves it at GET /api/jobs (and a single job at /api/jobs/:id, returning 404 if not found). On the client, write a useJobs() hook that fetches the list on mount and returns a single status field (loading, success or error) plus the data or error. Note that fetch does not reject on a 4xx or 5xx response, so check res.ok yourself. Cancel the request with an AbortController when the component unmounts, and do not treat that cancellation as an error. The playground stubs the network with fakeFetch, which has the same contract.",
+    "examples": [
+      {
+        "input": "The component mounts and the API returns 3 jobs after about 700 ms.",
+        "output": "\"Loading jobs…\", then three rows, e.g. \"Frontend Engineer\" over \"Acme · Remote\"."
+      },
+      {
+        "input": "The API responds with status 500.",
+        "output": "\"Failed: HTTP 500\"",
+        "explanation": "fetch resolved with ok === false; the hook throws on !res.ok so the error state is shown instead of garbage."
+      },
+      {
+        "input": "The API returns an empty array [].",
+        "output": "\"No jobs found.\""
+      }
+    ],
+    "constraints": [
+      "Render four outcomes: loading, error, empty and success.",
+      "Use one status field instead of separate isLoading/isError booleans that can contradict each other.",
+      "Throw when !res.ok, because fetch only rejects on network failure.",
+      "Abort the request in the effect cleanup and ignore AbortError.",
+      "Server: read the JSON file once at startup and return 404 JSON for an unknown id.",
+      "In production this belongs in TanStack Query (caching, retries, de-duplication)."
+    ]
+  },
+  "Fetch Users from an API": {
+    "summary": "Fetch users from a real API and render loading, error-with-retry, empty and success states.",
+    "statement": "Fetch https://jsonplaceholder.typicode.com/users when the component mounts and list each user's name, @username, email and company name, with a total count at the top. Track one status field (loading, error, done). fetch does not reject on 404 or 500, so check res.ok and throw. On failure show the error and a \"Try again\" button that refetches; cancel an in-flight request with an AbortController on unmount or before a retry, without showing that cancellation as an error.",
+    "examples": [
+      {
+        "input": "Press Run with a working network.",
+        "output": "\"Loading users…\", then \"10 users\" followed by rows such as \"Leanne Graham @Bret\", \"Sincere@april.biz\", \"Romaguera-Crona\"."
+      },
+      {
+        "input": "The request fails (offline, or the server returns 500).",
+        "output": "\"Could not load users — HTTP 500\" (or the network error message) with a \"Try again\" button; clicking it shows \"Loading users…\" and refetches."
+      },
+      {
+        "input": "The API returns an empty array.",
+        "output": "\"No users found.\"",
+        "explanation": "Empty is a separate outcome; an empty list with no message looks like a broken component."
+      }
+    ],
+    "constraints": [
+      "Handle four states: loading, error, empty and success.",
+      "Use one status field, not isLoading + isError booleans.",
+      "Throw on !res.ok, because fetch resolves on HTTP errors.",
+      "Abort in the effect cleanup and ignore AbortError.",
+      "Use u.id as the key, never the index.",
+      "Provide a retry after failure."
+    ]
+  },
+  "Pagination": {
+    "summary": "Build a paginated list with Prev/Next, page-number buttons, a loading state and the active page highlighted.",
+    "statement": "A simulated API holds 50 items and returns 5 per page along with the total count, after a 300 ms delay. Build a Pagination component that fetches the current page whenever it changes, shows \"Loading...\" while waiting, and lists the items (title and description). Below the list show Prev, one button per page number, and Next, with the current page highlighted, plus a line \"Page X of Y (50 items)\". Prev is disabled on page 1 and Next on the last page.",
+    "examples": [
+      {
+        "input": "The component mounts.",
+        "output": "\"Loading...\", then Item #1 to Item #5; page button 1 is highlighted and Prev is disabled; \"Page 1 of 10 (50 items)\"."
+      },
+      {
+        "input": "Click page button 4.",
+        "output": "\"Loading...\", then Item #16 to Item #20; button 4 is highlighted; \"Page 4 of 10 (50 items)\"."
+      },
+      {
+        "input": "On page 10, look at the Next button.",
+        "output": "Next is disabled; the list shows Item #46 to Item #50.",
+        "explanation": "totalPages = ceil(50 / 5) = 10."
+      }
+    ],
+    "constraints": [
+      "5 items per page; total pages = ceil(total / perPage).",
+      "Refetch whenever the page changes and show a loading state.",
+      "Disable Prev on the first page and Next on the last.",
+      "Highlight the active page button.",
+      "Use item.id as the list key."
+    ]
+  },
+  "Search Filter": {
+    "summary": "Filter a product list as the user types, by name or category, with a match count and empty state.",
+    "statement": "Given 12 products (name, category, price), filter them as the user types. Matching is case-insensitive, ignores surrounding spaces, and checks both the name and the category. Show \"Showing X of 12 products\" and, when nothing matches, a message like No products match \"xyz\". Compute the filtered list during render rather than storing it in state. Then do the usual follow-up: add a debounced version (useDebouncedValue) that delays the value, not the input, and explain why a 12-item local list does not need debouncing.",
+    "examples": [
+      {
+        "input": "Type \"phones\"",
+        "output": "\"Showing 3 of 12 products\": iPhone 15, Samsung Galaxy S24, Google Pixel 8.",
+        "explanation": "\"phones\" matches the Phones category even though no product name contains it."
+      },
+      {
+        "input": "Type \"  PRO \"",
+        "output": "\"Showing 2 of 12 products\": MacBook Pro and AirPods Pro.",
+        "explanation": "The query is trimmed and lowercased before matching."
+      },
+      {
+        "input": "Type \"xyz\"",
+        "output": "\"Showing 0 of 12 products\" and the message: No products match \"xyz\""
+      }
+    ],
+    "constraints": [
+      "Case-insensitive match across name AND category; an empty query shows all products.",
+      "Derive the filtered list during render (useMemo is fine); do not keep it in state.",
+      "Show a match count and a real empty state.",
+      "When debouncing, debounce the value that drives the work; the input stays controlled and instant.",
+      "The effect cleanup (clearTimeout) is what implements the debounce.",
+      "Show that the list is stale while the debounced value lags behind the query.",
+      "For expensive local work prefer useDeferredValue; debounce belongs where a keystroke triggers something costly like a network request."
+    ]
+  },
+  "Chat App": {
+    "summary": "Build a live chat that loads history, sends with sending/sent/failed status, and shows who is typing.",
+    "statement": "Build a one-to-one chat window over a WebSocket. The template provides FakeSocket, which behaves like a server: it confirms your messages and a user called Alex types and replies. Load the message history first, show each message you send immediately as \"sending\", mark it \"sent\" when the server confirms it (matched by a clientId you generate) or \"failed\" with a Retry button. Messages pushed by the server must never appear twice, and the typing indicator must be throttled when you send it and must expire on its own when you receive it.",
+    "examples": [
+      {
+        "input": "The chat mounts",
+        "output": "\"Loading messages…\" shows, then the two history messages appear (Alex: \"Morning! Did the deploy go out?\", You: \"Yes, about ten minutes ago.\").",
+        "explanation": "History arrives from fetchHistory() after about 600 ms. It is merged by id, not replaced, in case a pushed message arrived first."
+      },
+      {
+        "input": "Type \"hello\" and press Send",
+        "output": "\"hello\" appears at once marked sending, becomes sent about 400 ms later, then \"Alex is typing…\" shows and Alex replies \"Got it: hello\".",
+        "explanation": "The server's ack carries the clientId back, so the optimistic bubble is updated in place rather than duplicated."
+      },
+      {
+        "input": "Click \"Make the next message fail\", then send \"test\"",
+        "output": "\"test\" is marked failed with a Retry button; clicking Retry resends the same message and it becomes sent, with no second copy.",
+        "explanation": "The retry reuses the original clientId, which is what keeps it from showing twice."
+      }
+    ],
+    "constraints": [
+      "Show a loading state while history is being fetched (messages === null).",
+      "Our own messages are keyed by clientId, so the bubble keeps its identity when the server id arrives.",
+      "Incoming messages whose id is already in the list are skipped.",
+      "Send your own typing event at most once every 2 s; hide the other user's indicator if no update arrives for 3 s.",
+      "Scroll to the newest message; the message list uses role=\"log\" with aria-live=\"polite\".",
+      "An empty or whitespace-only draft is not sent, and the input is disabled until the history has loaded."
+    ]
+  },
+  "Modal Component": {
+    "summary": "Build one reusable Modal that different buttons open with different content.",
+    "statement": "Build a Modal component with the props isOpen, onClose, title and children, then use it three times: an info message, a small contact form, and a delete confirmation. The modal renders nothing when isOpen is false. It closes on the x button, on a click on the dark backdrop, and on the Escape key, but a click inside the dialog box must not close it. It animates in with a fade and a slide.",
+    "examples": [
+      {
+        "input": "Click \"Confirm Modal\"",
+        "output": "A dialog titled \"Are you sure?\" fades in over a dimmed backdrop with Cancel and Delete buttons."
+      },
+      {
+        "input": "Click inside the dialog's text, then press Escape",
+        "output": "The click does nothing; Escape closes the modal.",
+        "explanation": "The inner box calls e.stopPropagation(), so the click never reaches the backdrop's onClick."
+      },
+      {
+        "input": "Open \"Form Modal\", type a name and email, click Submit",
+        "output": "The console logs Submitted: { name, email } and the modal closes."
+      }
+    ],
+    "constraints": [
+      "One Modal component, reused for all three content types via children.",
+      "Escape closes it; the keydown listener is added only while open and removed on close or unmount.",
+      "Backdrop click closes it; clicks inside the dialog do not.",
+      "Content taller than the screen scrolls inside the dialog (max-height 80vh)."
+    ]
+  },
+  "Image Gallery + Lazy Load": {
+    "summary": "Build a responsive image grid that loads each image only when it scrolls into view.",
+    "statement": "Build a gallery of 24 images in a responsive grid inside a scrollable box about 400 px tall. An image must not start downloading until its tile scrolls into view, which you detect with IntersectionObserver rather than a scroll listener. Until the image has finished loading, its tile shows a grey placeholder with \"Loading...\", then the image fades in.",
+    "examples": [
+      {
+        "input": "The gallery mounts",
+        "output": "Only the tiles visible in the gallery box request their images; tiles further down stay as grey \"Loading...\" placeholders."
+      },
+      {
+        "input": "Scroll down inside the gallery box",
+        "output": "Each tile starts loading as about 10% of it becomes visible, and its image fades in once loaded.",
+        "explanation": "The observer uses threshold 0.1 and disconnects after the first intersection, so an image is requested once."
+      },
+      {
+        "input": "Scroll back up to images already loaded",
+        "output": "They stay loaded; nothing is fetched again.",
+        "explanation": "Each tile's observer was disconnected after its first intersection, so the <img> stays mounted."
+      }
+    ],
+    "constraints": [
+      "Use IntersectionObserver, not a scroll event listener.",
+      "Render the <img> only once the tile is in view (no src before then).",
+      "Show a placeholder until the image's onLoad fires.",
+      "Disconnect each observer on intersection and on unmount.",
+      "The grid is responsive to the container width."
+    ]
+  },
+  "Drag and Drop": {
+    "summary": "Build two lists, To Do and Done, where items can be dragged from one list to the other.",
+    "statement": "Build two lists, \"To Do\" (four items) and \"Done\" (two items), using the native HTML drag-and-drop API. Dragging an item and dropping it on the other list removes it from its source list and adds it to the end of the target list. The list under the cursor is highlighted while you drag, each list heading shows its item count, and an empty list shows \"Drop items here\".",
+    "examples": [
+      {
+        "input": "Drag \"Learn React hooks\" from To Do and drop it on Done",
+        "output": "To Do shows 3 items, Done shows 3 items with \"Learn React hooks\" at the bottom."
+      },
+      {
+        "input": "Drag both Done items into To Do",
+        "output": "Done is empty and shows \"Drop items here\"; its count reads 0."
+      },
+      {
+        "input": "Start dragging an item, then release it outside both lists",
+        "output": "Nothing moves and the highlight is cleared.",
+        "explanation": "onDragEnd resets the drag state even when no drop happened."
+      }
+    ],
+    "constraints": [
+      "Use the native draggable / onDragStart / onDragOver / onDrop events; onDragOver must call preventDefault() or the drop never fires.",
+      "An item exists in exactly one list after a drop; ids stay stable.",
+      "Give visual feedback on the list being dragged over.",
+      "Show an empty-state drop target so an empty list can still receive items.",
+      "Dropping an item on the list it came from just moves it to the end of that list; the basic version has no position-based reordering."
+    ]
+  },
+  "Product List Sort & Filter": {
+    "summary": "Build a product list that filters by category and maximum price and sorts by name, price or rating.",
+    "statement": "Show 12 products (name, category, price, rating). The user can filter by category with a dropdown and by a maximum price with a slider from $0 to $200, and sort by Name, Price or Rating. Clicking the active sort button again flips the direction between ascending and descending; clicking a different one sorts by it ascending. A Clear button resets every filter and the sort, and the list shows how many products match.",
+    "examples": [
+      {
+        "input": "Choose category \"Audio\", then click Price",
+        "output": "Bluetooth Speaker $49, Wireless Headphones $79, Noise Cancelling Earbuds $149, Studio Mic $199; \"4 products shown\"."
+      },
+      {
+        "input": "Click Price again",
+        "output": "The same four in reverse: Studio Mic $199 first, Bluetooth Speaker $49 last, and the Price button shows a down arrow."
+      },
+      {
+        "input": "Drag the max price slider to $20",
+        "output": "\"No products match your filters\" and \"0 products shown\".",
+        "explanation": "The cheapest product, Desk Pad, costs $25."
+      }
+    ],
+    "constraints": [
+      "Derive the visible list from the filters during render (useMemo), rather than storing a filtered copy in state.",
+      "Filters combine: category AND price ≤ max.",
+      "Strings sort with localeCompare, numbers numerically.",
+      "Show an empty state when nothing matches, and a Clear button that restores the defaults (all categories, $200, name ascending)."
+    ]
+  },
+  "Responsive Navbar": {
+    "summary": "Build a navbar that shows all links on wide screens and a hamburger menu on narrow ones.",
+    "statement": "Build a navbar with a logo and six links (Home, About, Services, Portfolio, Blog, Contact). A slider simulates the viewport width from 280 to 700 px, starting at 400 px. At 500 px or wider all links show in a row; below 500 px they are replaced by a hamburger button that slides a vertical menu open and closed. The link for the current page is highlighted, and the page area below shows that page's name.",
+    "examples": [
+      {
+        "input": "Set the width to 600 px and click \"Blog\"",
+        "output": "All six links are visible in a row, Blog is highlighted, and the page heading reads \"Blog\"."
+      },
+      {
+        "input": "Set the width to 400 px and click the hamburger (☰)",
+        "output": "The links are hidden from the bar; a vertical menu slides open and the button turns into ✕."
+      },
+      {
+        "input": "With the mobile menu open, click \"Contact\"",
+        "output": "Contact becomes active, the heading reads \"Contact\", and the menu closes."
+      }
+    ],
+    "constraints": [
+      "Breakpoint: below 500 px is mobile.",
+      "Choosing a link in the mobile menu closes the menu.",
+      "Changing the width closes the mobile menu, so it never stays open at desktop size.",
+      "The mobile menu opens and closes with a smooth slide."
+    ]
+  },
+  "Infinite Scroll": {
+    "summary": "Build a feed that loads the next page when you scroll to the bottom, with loading, error and end states.",
+    "statement": "Build a scrolling feed that loads 10 items per page from fakeAPI(page), 8 pages in total. Put an invisible sentinel element after the last item and watch it with IntersectionObserver; when it becomes visible, load the next page. Show \"Loading more...\" while a request is in flight and \"You've reached the end!\" when there is no more data. The fake API fails page 3 once on purpose: show the error with a Retry button, and do not keep requesting while the error is showing.",
+    "examples": [
+      {
+        "input": "The feed mounts",
+        "output": "Page 1 loads: \"10 items loaded. Scroll down for more.\""
+      },
+      {
+        "input": "Scroll down until page 3 is requested",
+        "output": "An alert shows \"⚠ Network error loading page 3\" with a Retry button, and no further requests are made.",
+        "explanation": "The sentinel is not rendered while an error shows, so the observer cannot keep firing at the failing endpoint."
+      },
+      {
+        "input": "Click Retry, then keep scrolling to the bottom",
+        "output": "Page 3 loads, then the rest; after 80 items the feed shows \"All items loaded!\" and \"You've reached the end!\"."
+      }
+    ],
+    "constraints": [
+      "Use IntersectionObserver on a sentinel, not a scroll event listener.",
+      "Never start a second request while one is loading, after hasMore is false, or while an error is showing.",
+      "A failure must be visible with a retry; it must not look like the end of the data.",
+      "Announce loading to screen readers with aria-live=\"polite\"; the error uses role=\"alert\"."
+    ]
+  },
+  "Notifications": {
+    "summary": "Build a toast notification system with four types, auto-dismiss after 3 seconds and manual close.",
+    "statement": "Build a useNotifications hook that returns notifications, add(message, type, duration) and dismiss(id), and render the notifications as a stack of toasts. There are four types (success, error, warning, info), each with its own colour and icon. A toast disappears on its own after duration milliseconds (3000 by default), a duration of 0 means it stays until closed, and every toast has an x button. The demo also pushes three notifications on its own, one every 4 seconds, to simulate real-time events.",
+    "examples": [
+      {
+        "input": "Click \"Success\"",
+        "output": "A green toast \"Operation completed!\" slides in and disappears after 3 seconds."
+      },
+      {
+        "input": "Click \"Error\" then \"Warning\" quickly",
+        "output": "Two toasts stack in the order they were added, each disappearing 3 seconds after its own creation."
+      },
+      {
+        "input": "Click \"Persistent\", wait 5 seconds, then click its x",
+        "output": "The toast \"This one stays! Click x to dismiss.\" is still there after 5 seconds and is removed when x is clicked.",
+        "explanation": "duration = 0 skips the auto-dismiss timer."
+      }
+    ],
+    "constraints": [
+      "Every notification has a unique id, so dismissing one never removes another.",
+      "Remove by id with a functional state update, so timers that fire later do not use stale state.",
+      "Unknown types fall back to the info style.",
+      "Show an empty state when there are no notifications."
+    ]
+  },
+  "Star Rating": {
+    "summary": "Build a 5-star rating control where hovering previews a rating and clicking sets it.",
+    "statement": "Build a StarRating component with the props totalStars (default 5), initialRating (default 0) and onChange. Hovering over a star fills it and every star before it as a preview; moving the mouse away shows the saved rating again. Clicking a star saves that rating and calls onChange with the new value. The basic version uses whole stars only.",
+    "examples": [
+      {
+        "input": "Hover over the 4th star (no rating saved yet)",
+        "output": "Stars 1 to 4 fill; the text still reads \"Current rating: 0/5\".",
+        "explanation": "A star is filled when its value <= (hover || rating), so the hover value wins while it is non-zero."
+      },
+      {
+        "input": "Click the 3rd star, then move the mouse away",
+        "output": "Stars 1 to 3 stay filled and the text reads \"Current rating: 3/5\"."
+      },
+      {
+        "input": "With a rating of 3, click the 3rd star again",
+        "output": "The rating stays at 3/5; clicking the current star does not clear it.",
+        "explanation": "handleSelect always sets the clicked value. Clearing a rating would be a separate feature."
+      }
+    ],
+    "constraints": [
+      "Each star is a <button> with an aria-label such as \"Rate 3 of 5\", so it works with a keyboard and a screen reader.",
+      "onChange is optional (call it with ?.).",
+      "The number of stars comes from totalStars, not a hard-coded 5."
+    ]
+  },
+  "Tabs": {
+    "summary": "Build accessible, data-driven tabs with arrow-key navigation and a sliding underline.",
+    "statement": "Build a Tabs component that takes tabs (an array of { id, label, content }), activeId and onChange, so tabs can be added and removed while the app runs. Use the ARIA roles tablist, tab and tabpanel so screen readers announce it correctly. Left and Right arrows move to the previous or next tab (wrapping around), Home and End jump to the first and last, and focus follows the selection. An underline slides to the active tab and the panel fades in, with no motion for users who prefer reduced motion.",
+    "examples": [
+      {
+        "input": "Focus the \"Profile\" tab and press ArrowRight",
+        "output": "\"Security\" becomes active and focused, the underline slides under it, and the panel shows \"Password, two-factor login and active sessions.\""
+      },
+      {
+        "input": "On \"Profile\" (the first tab), press ArrowLeft",
+        "output": "\"Billing\", the last tab, becomes active.",
+        "explanation": "Arrow navigation wraps around both ends."
+      },
+      {
+        "input": "Click \"Add tab\", then \"Remove active tab\"",
+        "output": "\"Tab 4\" is added and selected; removing it falls back to the first tab, \"Profile\"."
+      }
+    ],
+    "constraints": [
+      "Only the active tab has tabIndex 0 (one Tab stop for the whole list); the others have -1.",
+      "Each tab has aria-selected and aria-controls; the panel has aria-labelledby. Ids come from useId so two Tabs on a page do not collide.",
+      "Measure the underline in useLayoutEffect so it never paints in the old position, and animate it with transform.",
+      "If the active tab is removed, fall back to the first tab by deriving it during render, not in an effect.",
+      "Respect prefers-reduced-motion.",
+      "\"Remove active tab\" is disabled when only one tab is left, so the list is never empty."
+    ]
+  },
+  "Accordion": {
+    "summary": "Build an accordion that supports single-open and multi-open modes with smooth, accessible expand/collapse.",
+    "statement": "Build an Accordion component with the props items (each { id, title, content }), allowMultiple (default false) and defaultOpenIds. Clicking a section header opens or closes it. With allowMultiple false, opening one section closes any other; with allowMultiple true, any number can be open at once. Opening and closing animates the height, a closed section's content cannot be reached with the Tab key, and Up/Down/Home/End move focus between the headers.",
+    "examples": [
+      {
+        "input": "Single-open accordion (\"What is React?\" open by default): click \"What are hooks?\"",
+        "output": "\"What are hooks?\" expands and \"What is React?\" collapses."
+      },
+      {
+        "input": "Multi-open accordion: click \"What are hooks?\" then \"What is reconciliation?\"",
+        "output": "Both sections are open at the same time."
+      },
+      {
+        "input": "Focus the last header and press ArrowDown",
+        "output": "Focus wraps to the first header.",
+        "explanation": "Arrow keys move focus between headers only; Tab still leaves the accordion normally."
+      }
+    ],
+    "constraints": [
+      "Store open ids in a Set so both modes share one code path; single-open clears the set before adding.",
+      "Each header is a <button> inside a heading, with aria-expanded and aria-controls; each panel has role=\"region\" and aria-labelledby.",
+      "Closed panels stay mounted (so they can animate) but use visibility: hidden, which removes them from the Tab order and the accessibility tree.",
+      "Animate height without measuring (grid rows 0fr → 1fr), and turn the animation off for prefers-reduced-motion.",
+      "Clicking an open header closes it, so in single-open mode every section can end up closed."
+    ]
+  },
+  "OTP Input": {
+    "summary": "Build a 6-box one-time-password input that auto-advances, handles Backspace and accepts a pasted code.",
+    "statement": "Build an OTPInput component with the props length (default 6) and onComplete. An OTP (one-time password) is the short numeric code a site sends you by SMS or email. Each box holds one digit and ignores anything that is not a digit. Typing a digit moves focus to the next box, Backspace in an empty box moves focus to the previous box, and pasting a code fills the boxes from the first. When every box is filled, call onComplete with the joined code.",
+    "examples": [
+      {
+        "input": "Type 1, 2, 3, 4, 5, 6",
+        "output": "Each digit lands in its own box, focus moves right after each one, and \"✓ Submitted: 123456\" appears."
+      },
+      {
+        "input": "Type the letter \"a\" in the first box",
+        "output": "Nothing is entered and focus stays in the first box."
+      },
+      {
+        "input": "Paste \"12-34 56\" into any box",
+        "output": "The boxes show 1 2 3 4 5 6 and \"✓ Submitted: 123456\" appears.",
+        "explanation": "Non-digits are stripped from the pasted text and it is cut to length before being spread across the boxes."
+      }
+    ],
+    "constraints": [
+      "Digits only, one per box (inputMode=\"numeric\", maxLength 1).",
+      "Backspace on an empty box moves focus back; on a filled box it just clears it.",
+      "Paste strips non-digits, truncates to length, fills from the first box and focuses the next empty box (or the last).",
+      "The number of boxes comes from length, not a hard-coded 6."
+    ]
+  },
+  "Tic-Tac-Toe": {
+    "summary": "Build a 3×3 Tic-Tac-Toe game for two players with winner and draw detection and a Reset button.",
+    "statement": "Render a 3×3 board of 9 squares. Two players, X and O, take turns clicking empty squares, and X always goes first. After every move, check the 8 winning lines (3 rows, 3 columns, 2 diagonals): if one player owns all three squares of a line, show them as the winner and highlight that line. If all 9 squares are filled and nobody won, it is a draw. A Reset button clears the board and gives the first turn back to X.",
+    "examples": [
+      {
+        "input": "X clicks square 0, O clicks 3, X clicks 1, O clicks 4, X clicks 2",
+        "output": "The status reads \"Winner: X\" and squares 0, 1, 2 (the top row) are highlighted. Clicking any empty square now does nothing.",
+        "explanation": "X owns the whole top row, which is one of the 8 winning lines. Once there is a winner the game is over."
+      },
+      {
+        "input": "Nine moves that fill the board with no three-in-a-row, e.g. X:0, O:1, X:2, O:4, X:3, O:5, X:7, O:6, X:8",
+        "output": "The status reads \"Draw\".",
+        "explanation": "Every square is filled and no line has three matching marks."
+      },
+      {
+        "input": "X clicks square 4, then O clicks square 4 again",
+        "output": "Square 4 still shows X and the status still reads \"Turn: O\".",
+        "explanation": "Clicking a square that is already taken is ignored, and it does not use up O's turn."
+      }
+    ],
+    "constraints": [
+      "Store the board as one array of 9 values (null, \"X\" or \"O\"); derive the winner and the draw from it during render instead of storing them in state.",
+      "Never mutate the board array; copy it before writing a move.",
+      "Ignore clicks on filled squares and all clicks after the game has been won.",
+      "The status line always shows whose turn it is, the winner, or the draw."
+    ]
+  },
+  "Stopwatch": {
+    "summary": "Build a stopwatch with Start, Pause, Resume and Reset that shows time as HH:MM:SS.cc.",
+    "statement": "Build a stopwatch that shows elapsed time as HH:MM:SS.cc, where cc is hundredths of a second (for example 00:01:05.42). Start begins counting, Pause freezes the display, and Resume continues from the paused value rather than from zero. Reset stops the watch and returns it to 00:00:00.00. Compute the time from real timestamps (Date.now()) instead of adding a fixed amount on every tick, so the display stays accurate even when frames or timers run late.",
+    "examples": [
+      {
+        "input": "Click Start, wait about 2.5 seconds, click Pause",
+        "output": "The display freezes at about 00:00:02.50, and the Start button now reads \"Resume\".",
+        "explanation": "While running, the display updates smoothly on every animation frame."
+      },
+      {
+        "input": "From 00:00:02.50 (paused), click Resume and wait 1 more second",
+        "output": "The display reads about 00:00:03.50.",
+        "explanation": "The time already counted is kept and the new running time is added to it; it does not restart from zero."
+      },
+      {
+        "input": "Click Reset while the stopwatch is running",
+        "output": "The display shows 00:00:00.00, counting stops, and the button reads \"Start\" again."
+      }
+    ],
+    "constraints": [
+      "Use requestAnimationFrame for smooth updates and cancel it in the effect cleanup when paused, reset or unmounted.",
+      "Keep the start timestamp and the time accumulated before a pause in refs, not in state, so they survive re-renders without causing them.",
+      "Only one of Start/Resume or Pause is shown at a time.",
+      "Pad every part with leading zeros (5 seconds shows as 05)."
+    ]
+  },
+  "Calculator": {
+    "summary": "Build a 4-function calculator with digits, a decimal point, + − × ÷, equals and clear.",
+    "statement": "Build a calculator with a display, the digits 0–9, a decimal point, the four operators (+, -, *, /), = and C (clear). Typing digits builds up the number on the display; a leading 0 is replaced by the first digit, and a number can contain only one decimal point. Pressing an operator remembers the current number; pressing another operator before = evaluates the pending operation first, so operations are applied strictly left to right (there is no operator precedence). = shows the result, and the next digit typed starts a new number instead of appending to the result.",
+    "examples": [
+      {
+        "input": "Press 2, +, 3, *, 4, =",
+        "output": "The display shows 5 after the *, then 20 after =.",
+        "explanation": "Pressing * first evaluates the pending 2 + 3, so the calculation is (2 + 3) * 4, not 2 + (3 * 4)."
+      },
+      {
+        "input": "Press 8, /, 0, =",
+        "output": "The display shows 0.",
+        "explanation": "Division by zero is guarded in this calculator and gives 0 instead of Infinity."
+      },
+      {
+        "input": "Press ., 5, then . again",
+        "output": "The display shows 0.5; the second . is ignored."
+      }
+    ],
+    "constraints": [
+      "C resets the display to 0 and forgets the stored number and operator.",
+      "Pressing = with no pending operator does nothing.",
+      "After an operator or =, the next digit replaces the display rather than appending to it."
+    ]
+  },
+  "Auto-Complete (ARIA combobox)": {
+    "summary": "Build a debounced, cancellable city autocomplete with full keyboard support and the ARIA combobox pattern.",
+    "statement": "Build a text input that suggests city names as the user types. Wait until typing pauses (debounce, about 250 ms) before searching, and cancel the previous search with an AbortController when a new one starts, so a slow, old response can never overwrite newer results. The list must be usable from the keyboard: ArrowDown/ArrowUp move a highlight through the options (wrapping around), Home/End jump to the first/last, Enter picks the highlighted option, and Escape closes the list. Follow the ARIA combobox pattern: keyboard focus stays in the input while aria-activedescendant points at the highlighted option, so the user can keep typing.",
+    "examples": [
+      {
+        "input": "Type \"la\" and stop typing",
+        "output": "After a short pause the list opens with Lagos and Lahore, and a hidden live region announces \"2 suggestions available\".",
+        "explanation": "Only one search runs, for the final value \"la\", not one per keystroke."
+      },
+      {
+        "input": "With Lagos and Lahore listed, press ArrowDown twice, then Enter",
+        "output": "Lahore is highlighted, then chosen: the input shows \"Lahore\", the list closes, and \"Selected: Lahore\" appears below.",
+        "explanation": "The first ArrowDown highlights Lagos, the second moves to Lahore. Focus never leaves the input; only aria-activedescendant changes."
+      },
+      {
+        "input": "Type \"err\"",
+        "output": "The list shows the error message \"Suggestion service failed\" with role=\"alert\".",
+        "explanation": "A real failure is shown to the user; a cancelled (aborted) request is silently ignored."
+      }
+    ],
+    "constraints": [
+      "Handle five states: idle, loading, success, empty and error.",
+      "When nothing matches, show \"No matches for “<query>”.\" and announce \"No suggestions\".",
+      "Input has role=\"combobox\", aria-expanded, aria-controls and aria-autocomplete=\"list\"; the list has role=\"listbox\" and each item role=\"option\" with aria-selected.",
+      "Do not move real DOM focus onto the options; use aria-activedescendant.",
+      "Call preventDefault on ArrowUp/ArrowDown so the caret does not jump.",
+      "Select options with onMouseDown, not onClick, because the input's blur closes the list before a click fires.",
+      "Clearing the input empties and closes the list; ArrowDown on a closed list with results reopens it."
+    ]
+  },
+  "Toast / Snackbar": {
+    "summary": "Build a toast system callable from anywhere: max 3 on screen, a queue, auto-dismiss, hover-pause.",
+    "statement": "Build a notification (toast) system with a toast.info / toast.success / toast.error API that works from any component and also from plain code outside React, such as an API helper. At most 3 toasts are visible at once; extra ones wait in a queue, in order, and appear as visible ones close. Each toast closes by itself after its duration (3 s for info and success, 6 s for errors), and hovering a toast pauses its countdown without losing the time already used. Adding a toast whose message and type match one that is already showing or queued does nothing. New toasts must be announced to screen readers.",
+    "examples": [
+      {
+        "input": "Click \"Burst of 5\" (five info toasts at once)",
+        "output": "Toasts 1, 2 and 3 appear, with \"+2 waiting\" below them. As each one closes, the next queued toast appears.",
+        "explanation": "A queued toast's timer only starts once it is on screen, so it never expires unseen."
+      },
+      {
+        "input": "Click \"Duplicate test\" twice quickly",
+        "output": "Only one \"Same message twice\" toast is shown. Once it closes, the same message can appear again.",
+        "explanation": "A toast is skipped when one with the same message and type is already showing or queued."
+      },
+      {
+        "input": "Click \"Save (fails)\", then hover the red toast for 10 seconds, then move the mouse away",
+        "output": "The error toast stays while hovered, then closes after the rest of its 6-second time runs out."
+      }
+    ],
+    "constraints": [
+      "Keep toasts in a small store outside React (subscribe + getSnapshot) read with useSyncExternalStore, so only the <Toaster> re-renders.",
+      "The live region (role=\"status\", aria-live=\"polite\") is always mounted, even when empty.",
+      "Every toast has a dismiss button with an aria-label, and no timer outlives its toast.",
+      "Respect prefers-reduced-motion for the entry animation."
+    ]
+  },
+  "Carousel / Slider": {
+    "summary": "Build an image carousel with prev/next arrows, dot navigation, keyboard control and pausable auto-play.",
+    "statement": "Build a carousel that shows one slide at a time out of 5. The ‹ and › buttons move to the previous and next slide and wrap around at the ends. A row of dots, one per slide, jumps straight to that slide. The carousel auto-advances every 3 seconds; a Pause/Play button (and the Space key) toggles this, and the Left/Right arrow keys also move between slides.",
+    "examples": [
+      {
+        "input": "On slide 5, click ›",
+        "output": "The carousel slides to slide 1.",
+        "explanation": "Navigation wraps: the index is computed with modulo."
+      },
+      {
+        "input": "On slide 1, press the Left arrow key",
+        "output": "The carousel shows slide 5."
+      },
+      {
+        "input": "Click the third dot, then press Space",
+        "output": "Slide 3 is shown and auto-play pauses; the button now reads \"Play (Space)\"."
+      }
+    ],
+    "constraints": [
+      "Clear the auto-play interval and the keydown listener in effect cleanups so they never stack up.",
+      "Use functional state updates for next/prev so the callbacks stay stable and never read a stale index.",
+      "Animate the move with a CSS transform on a track, not by re-mounting slides."
+    ]
+  },
+  "Todo List (localStorage + memo)": {
+    "summary": "Build a todo list that persists to localStorage and re-renders only the rows that actually change.",
+    "statement": "Build a todo list where the user can add, toggle and delete items and filter them by all, active or done, with a count of items left. The list is saved to localStorage and restored on reload. Reading storage can throw (private mode, blocked site data) or return data in an old shape, so validate what you load, fall back to a default list, and show a warning when saving fails. Optimise re-renders: typing in the input must not re-render any list row, and toggling one item must re-render only that row.",
+    "examples": [
+      {
+        "input": "Type \"Buy milk\" and press Add",
+        "output": "\"Buy milk\" appears at the bottom of the list, the input clears, and \"left\" goes up by one. The existing rows' render counters do not change."
+      },
+      {
+        "input": "Tick the checkbox on one item, then click the \"done\" filter",
+        "output": "That item is struck through and only that row's render counter increases; the done filter then lists only completed items."
+      },
+      {
+        "input": "Submit the input with only spaces in it",
+        "output": "Nothing is added.",
+        "explanation": "The text is trimmed before adding, and an empty result is ignored."
+      }
+    ],
+    "constraints": [
+      "Keep the draft text in its own input component so keystrokes do not re-render the list.",
+      "Wrap rows in React.memo, and give them stable callbacks from useCallback with empty deps, made possible by functional setState updates.",
+      "Load with a lazy initialiser (useState(loadTodos), not useState(loadTodos())) and wrap every storage read and write in try/catch.",
+      "Derive the filtered list and the remaining count during render; do not store them in state.",
+      "Key rows by a stable id, never the array index."
+    ]
+  },
+  "Counter (optimized re-renders)": {
+    "summary": "Build a bounded counter whose memoized controls skip re-renders, plus a stale-closure-safe interval.",
+    "statement": "Build a Counter component that takes initial, step, min and max props (the demo uses 0, 1, -10 and 10). + and − change the count by step without going past max or min, and each button is disabled when the next step would cross its bound; Reset returns to initial. The buttons live in a separate child component wrapped in React.memo, and it must not re-render every time the count changes. Also add an auto-counter that increments every 500 ms while running, without the stale-closure bug where it gets stuck at 1.",
+    "examples": [
+      {
+        "input": "Click + three times",
+        "output": "The count shows 3. The parent's render counter rises with each click, but the controls' render counter stays the same.",
+        "explanation": "The callbacks use functional updates (setCount(c => c + step)), so they have stable identity and memo can skip the child."
+      },
+      {
+        "input": "Keep clicking + until the count reaches 10",
+        "output": "The count stops at 10 and the + button becomes disabled."
+      },
+      {
+        "input": "Click Start on the auto-counter and wait 2 seconds",
+        "output": "\"Auto\" counts up to about 4 and keeps going until Stop is clicked."
+      }
+    ],
+    "constraints": [
+      "Use functional updates so increment, decrement and reset can be wrapped in useCallback without count in their deps.",
+      "Clamp with Math.min/Math.max so the count never leaves the min…max range.",
+      "The interval is created once per Start and cleared in the effect cleanup.",
+      "Announce the count with aria-live=\"polite\"."
+    ]
+  },
+  "Search with Debounce + Cancel": {
+    "summary": "Build a search box that waits for typing to pause and cancels stale requests so old results never win.",
+    "statement": "Build a search input over a fake API whose responses take a random 200–800 ms. Debounce the typed value (300 ms) with a useDebouncedValue hook so a request fires only after the user pauses, not on every keystroke. When a new request starts, abort the previous one with an AbortController; otherwise a slow response for an older query could arrive last and overwrite the newer results. Show five states: idle (empty input), loading, success, empty (no matches) and error, and ignore aborted requests instead of showing them as errors.",
+    "examples": [
+      {
+        "input": "Type \"redux\" quickly, then stop",
+        "output": "\"API calls\" goes up by 1, not 5, and the results show redux and redux saga.",
+        "explanation": "Each keystroke cancels the pending timer, so only the final value is searched."
+      },
+      {
+        "input": "Type \"zzz\"",
+        "output": "The panel shows: No results for “zzz”."
+      },
+      {
+        "input": "Type \"fail\"",
+        "output": "The panel shows \"Search service unavailable\" as an alert."
+      }
+    ],
+    "constraints": [
+      "Debounce the VALUE with a hook and react to it in an effect, rather than debouncing a callback.",
+      "The effect cleanup aborts the in-flight request whenever the query changes or the component unmounts.",
+      "An AbortError must never be shown to the user.",
+      "Put results in an aria-live=\"polite\" region so screen readers hear the change."
+    ]
+  },
+  "Modal (Portal + Focus Trap)": {
+    "summary": "Build an accessible modal rendered in a portal, with focus trap, focus return, Escape and scroll lock.",
+    "statement": "Build a reusable Modal({ isOpen, onClose, title, children }) that renders into document.body with ReactDOM.createPortal, so an ancestor with transform or overflow: hidden cannot clip it. On open, move focus into the dialog; while open, trap Tab and Shift+Tab inside it so focus wraps from the last control to the first and back; on close, return focus to the element that opened it. Escape and a click on the dark backdrop close it, but a click inside the panel must not. Lock the page scroll while it is open, and return null when closed.",
+    "examples": [
+      {
+        "input": "Click \"Open portal modal\" (the button sits inside a box with transform and overflow: hidden)",
+        "output": "The \"Delete project?\" dialog covers the whole page, not just the box, and the dialog panel has focus."
+      },
+      {
+        "input": "With the modal open, press Tab repeatedly",
+        "output": "Focus cycles input → Confirm → Cancel → back to the input, and never reaches the page behind."
+      },
+      {
+        "input": "Press Escape (or click the backdrop)",
+        "output": "The modal closes and focus returns to the \"Open portal modal\" button.",
+        "explanation": "Clicking inside the panel does not close it, because the panel stops the click from bubbling to the backdrop."
+      }
+    ],
+    "constraints": [
+      "The panel has role=\"dialog\", aria-modal=\"true\" and aria-labelledby pointing at the title.",
+      "Recompute the list of focusable elements on each Tab, since it can change while open.",
+      "Restore focus and body overflow in effect cleanups so they also run on unmount.",
+      "Also show the native <dialog> with showModal() as the production alternative."
+    ]
+  },
+  "Form with Validation": {
+    "summary": "Build an accessible sign-up form that validates on blur, then live, and focuses the first error on submit.",
+    "statement": "Build a sign-up form with Full name, Email, Password and Confirm password. The rules: name is required and at least 2 characters; email must look like name@example.com; password needs at least 8 characters including a number; confirm must match the password. Do not show an error while the user is still typing a field for the first time: show it once the field loses focus (blur), and from then on update it live as they type. On submit with errors, show every error at once and move focus to the first invalid field; on success, show \"Account created for <email>\".",
+    "examples": [
+      {
+        "input": "Type \"a\" into Email, then Tab out of the field",
+        "output": "Nothing is shown while typing. On blur, \"Enter an email like name@example.com\" appears under the field and it gets aria-invalid.",
+        "explanation": "From then on the error updates live: finishing the address as \"a@b.co\" makes it disappear without another blur."
+      },
+      {
+        "input": "Click \"Create account\" on an empty form",
+        "output": "Name, Email and Password show errors, \"3 fields need attention.\" appears at the top, and focus moves to Full name.",
+        "explanation": "Confirm password has no error yet, because an empty confirm matches an empty password."
+      },
+      {
+        "input": "Type \"abcdefgh\" into Password, then Tab out",
+        "output": "\"Include at least one number\" is shown."
+      }
+    ],
+    "constraints": [
+      "Derive errors from the values during render (useMemo); never store them in state.",
+      "Every input has a real <label htmlFor>, and errors are linked with aria-describedby and announced with role=\"alert\".",
+      "Keep the submit button focusable while submitting (aria-disabled, not disabled).",
+      "Use noValidate on the form so your messages are shown instead of the browser's."
+    ]
+  },
+  "Form with Dynamic Fields": {
+    "summary": "Build a form where users add and remove name/email rows, with per-row validation and rows keyed by id.",
+    "statement": "Build a \"Team members\" form holding a list of rows, each with a Name and an Email input. \"+ Add member\" appends an empty row and each row's Remove button deletes that row, but the last remaining row cannot be removed. Each row is validated on its own: name is required and email must be present and valid; a row's error shows once that field has been blurred. The Submit button (labelled \"Submit N members\") stays disabled until every row is valid, and submitting shows the rows as JSON.",
+    "examples": [
+      {
+        "input": "Start with Ada Lovelace (valid) and an empty second row; click into the second row's Name and tab away",
+        "output": "\"Name is required\" appears under that field, and Submit stays disabled."
+      },
+      {
+        "input": "Fill the second row with \"Alan\" and \"alan@example.com\", then click \"Submit 2 members\"",
+        "output": "The button is enabled, and the two rows are shown below the form as JSON."
+      },
+      {
+        "input": "Type text into row 2, then remove row 1",
+        "output": "Row 1 disappears and row 2 keeps exactly the text you typed.",
+        "explanation": "Rows are keyed by a stable id. With key={index}, React would reuse the wrong row's DOM and the wrong row would appear deleted."
+      }
+    ],
+    "constraints": [
+      "Keep the whole form as one array of row objects, each with a stable id; update and remove rows by id, never by index.",
+      "Derive each row's errors during render; do not store them in state.",
+      "Give every input an aria-label naming its row and set aria-invalid when its error is shown.",
+      "Add/Remove buttons use type=\"button\" so they never submit the form.",
+      "The last remaining row's Remove button is disabled."
+    ]
+  },
+  "Multi-Step Form (Wizard)": {
+    "summary": "Build a 3-step form (Account, Profile, Review) that validates each step and keeps data on Back.",
+    "statement": "Build a <Wizard> with three steps: Account (email, password), Profile (full name, country) and Review. Every step reads and writes ONE shared data object owned by the parent, because the step components unmount as you move between them. Next is blocked until the current step is valid; Back never validates and must keep everything already typed. The Review step shows the whole payload, and Submit finishes the flow.",
+    "examples": [
+      {
+        "input": "On step 1, type email \"a@b\" and password \"123\", then click Next.",
+        "output": "You stay on step 1. \"Enter a valid email\" and \"At least 8 characters\" appear under the fields, plus the alert \"Fix the fields above to continue.\""
+      },
+      {
+        "input": "Fill step 1 correctly (a@b.com, password12), click Next, type a name on step 2, then click Back.",
+        "output": "Step 1 shows a@b.com and the password still filled in. Clicking Next again returns to step 2 with the name still there."
+      },
+      {
+        "input": "Complete steps 1 and 2 (country = India), reach Review, click Submit.",
+        "output": "Review lists { email, password, fullName, country: \"in\" } as JSON; after Submit the screen shows \"Submitted\"."
+      }
+    ],
+    "constraints": [
+      "Email must match a basic x@y.z pattern; password must be at least 8 characters.",
+      "Full name must not be blank (whitespace only counts as blank); a country must be chosen.",
+      "State lives in the parent, never inside a step component, or it is lost on Back.",
+      "Errors show only after an attempted Next; Back is disabled on the first step.",
+      "The step indicator marks the current step with aria-current=\"step\"; field errors use role=\"alert\" and aria-invalid."
+    ]
+  },
+  "Theme Switcher (dark/light)": {
+    "summary": "Build a light / system / dark theme switcher that persists and follows the OS in system mode.",
+    "statement": "Build a ThemeProvider with a three-way control: light, dark and system. \"system\" means follow the operating system's prefers-color-scheme setting and keep following it if the OS changes while the page is open, which a single isDark boolean cannot express. Apply the theme by setting data-theme on the <html> element and let CSS variables style the page. Save the user's choice in localStorage so it survives a reload, and explain how to avoid the flash of the wrong theme on first paint (a blocking inline script in <head>).",
+    "examples": [
+      {
+        "input": "First visit, nothing saved, OS set to dark mode.",
+        "output": "\"system\" is selected and the page renders the dark palette (\"Currently rendering the dark palette\")."
+      },
+      {
+        "input": "Click \"light\", then reload the page.",
+        "output": "The page is light, \"light\" is still selected, and localStorage[\"theme-preference\"] is \"light\"."
+      },
+      {
+        "input": "With \"system\" selected, switch the OS from light to dark.",
+        "output": "The page switches to dark immediately, without a reload or a click."
+      }
+    ],
+    "constraints": [
+      "Three states: 'light', 'dark', 'system' (the default when nothing valid is stored).",
+      "localStorage can throw (private mode, blocked storage): wrap every read and write in try/catch and fall back to 'system'.",
+      "Read storage once with a lazy useState initialiser, not on every render.",
+      "Listen to the prefers-color-scheme media query and remove the listener on unmount.",
+      "The control is a radiogroup with aria-checked on the chosen option; useTheme() outside the provider throws a clear error.",
+      "Also set color-scheme so native scrollbars and form controls match."
+    ]
+  },
+  "Button (variants + sizes)": {
+    "summary": "Design a reusable Button with variants, sizes, loading, ref forwarding and an \"as\" link mode.",
+    "statement": "Build a <Button> whose real test is its prop API. variant (primary, secondary, ghost, danger) and size (sm, md, lg) are closed sets resolved by a lookup table, not if-chains. It must pass through ref and any other prop so it can replace a native <button>, and default to type=\"button\" so it does not submit forms by accident. loading is a separate state from disabled: both block clicks, but only loading sets aria-busy and shows a spinner. An as prop lets the same styles render a real link (<a href>).",
+    "examples": [
+      {
+        "input": "<Button variant=\"danger\" size=\"lg\">Delete</Button>",
+        "output": "A large red button labelled Delete, rendered as <button type=\"button\">."
+      },
+      {
+        "input": "<Button disabled onClick={log}>Disabled</Button>, then click it; or <Button loading>Pay</Button>",
+        "output": "The disabled button does nothing when clicked (onClick never fires). The loading button shows a spinner, is not clickable, and has aria-busy=\"true\"."
+      },
+      {
+        "input": "<Button as=\"a\" href=\"#demo\" variant=\"ghost\">Link</Button>; and <Button iconOnly aria-label=\"Add item\">+</Button>",
+        "output": "The first renders an <a href=\"#demo\"> with button styling and no type attribute. The second is a square button a screen reader announces as \"Add item\"."
+      }
+    ],
+    "constraints": [
+      "An unknown variant or size falls back to primary / md.",
+      "Spread ...rest before the guarded onClick so a consumer's onClick cannot bypass disabled/loading.",
+      "A native <button> gets the disabled attribute; any other element gets aria-disabled plus a handler that ignores clicks.",
+      "Icon-only buttons must carry an aria-label.",
+      "ref must reach the DOM node (for example, so a parent can call .focus())."
+    ]
+  },
+  "Nested Comments (recursive replies)": {
+    "summary": "Render a comment thread of any depth with one recursive Comment component, with reply and collapse.",
+    "statement": "The server sends comments as a flat list where each has a parentId (null for top-level). Render them as a thread with ONE recursive <Comment> component that renders its own replies as Comments. Any comment can be replied to, and the reply appears under it; any branch with replies can be collapsed and expanded. Store the comments flat, keyed by id (\"normalised\"), so adding a reply changes only the new comment and its parent, and replying in one branch does not re-render the rest of the thread.",
+    "examples": [
+      {
+        "input": "The seed data: c1 (Asha, top-level) → c2 (Ravi) → c3 (Meera); c4 (Sam) also replies to c1; c5 (Lena, top-level).",
+        "output": "Two top-level comments, Asha and Lena. Under Asha: Ravi (with Meera indented under him) and Sam."
+      },
+      {
+        "input": "Click Reply on Meera's comment, type \"Agreed\", click Post.",
+        "output": "The new reply appears indented under Meera. Posting logs \"rendered c3\" (Meera, whose child list changed) and \"rendered c100\" (the new reply) only; Asha, Ravi, Sam and Lena do not re-render."
+      },
+      {
+        "input": "Click the collapse toggle on Asha's comment.",
+        "output": "Ravi, Meera and Sam are hidden, the toggle text changes from \"Hide replies\" to \"Show 2 replies\", and its aria-expanded becomes false. Clicking it again shows them."
+      }
+    ],
+    "constraints": [
+      "Use the comment id as the React key, never the array index.",
+      "Each Comment is wrapped in memo and subscribes to its own entry by id (useSyncExternalStore), so only comments whose entry changed re-render.",
+      "Indentation stops growing past depth 4 so deep replies stay readable.",
+      "The reply input has an accessible label (\"Reply to <author>\").",
+      "A cycle in parentIds would recurse forever: validate the data when normalising."
+    ]
+  },
+  "Sidebar Navigation (responsive + submenus)": {
+    "summary": "Build a sidebar that is fixed on desktop, a drawer on mobile, with animated submenus and an active link.",
+    "statement": "Build a sidebar from a NAV config where some items (Projects, Team) have child links. On wide screens (768px and up) the sidebar is always visible beside the content; on narrow screens it is hidden and a menu button opens it as a drawer over the page. Sections with children open and close a submenu with an animation, and the section that contains the current page starts open. Clicking a link navigates, highlights it, opens its section, and closes the mobile drawer; Escape or a click on the backdrop also closes the drawer.",
+    "examples": [
+      {
+        "input": "Load the page with the current path /team/roles on a desktop-width screen.",
+        "output": "The sidebar is visible, the Team section is already open, and Roles is highlighted with aria-current=\"page\". The content says \"You are on /team/roles\"."
+      },
+      {
+        "input": "Mobile layout: tap \"Open menu\", open Projects, tap Archived.",
+        "output": "The drawer slides in over a backdrop; after tapping Archived the path becomes /projects/archived, Archived is highlighted, and the drawer closes."
+      },
+      {
+        "input": "Mobile layout: open the drawer, then press Escape (or click the backdrop).",
+        "output": "The drawer closes."
+      }
+    ],
+    "constraints": [
+      "Layout (widths, hiding) belongs in CSS; use a JS media query only for behaviour that differs (drawer state, backdrop, Escape).",
+      "Guard matchMedia so it does not crash where it is missing (server rendering, tests); default to the desktop version.",
+      "Submenu toggles are buttons with aria-expanded and aria-controls; the nav has aria-label=\"Main\".",
+      "Open the new page's section in the click handler, not in an effect that watches the path.",
+      "The Escape key listener exists only while the drawer is open."
+    ]
+  },
+  "Data Table (sort + filter + paginate)": {
+    "summary": "Build a table with 3-state column sorting, text and status filters, and pagination with a page-size picker.",
+    "statement": "Render 60 user rows (name, team, status, open tickets) in a table. Clicking a column header cycles its sort: ascending, then descending, then off. A search box filters by name or team (case-insensitive) and a dropdown filters by status. Rows are paginated with Previous/Next and a page-size picker (5, 10, 20). Keep all table state in one reducer so that changing the search, the status or the page size always resets to page 1; the pipeline is filter, then sort, then slice one page.",
+    "examples": [
+      {
+        "input": "Initial load shows \"Page 1 of 6 (60 rows)\". Go to page 3, then choose status \"active\".",
+        "output": "The table jumps back to page 1 and shows only active rows: \"Page 1 of 2 (20 rows)\". Previous is disabled.",
+        "explanation": "Status is assigned in a repeating pattern, so each of the 3 statuses has exactly 20 of the 60 rows. Changing a filter resets the page as part of the same reducer action."
+      },
+      {
+        "input": "Click the \"Open tickets\" header once, twice, three times.",
+        "output": "First click: sorted low to high (▲, aria-sort=\"ascending\"). Second: high to low (▼). Third: sort is off and rows return to their original order (↕)."
+      },
+      {
+        "input": "Type \"PAY\" in the search box; then change it to \"zzz\".",
+        "output": "\"PAY\" matches the Payments team case-insensitively: \"Page 1 of 2 (15 rows)\". \"zzz\" shows \"No rows match these filters.\" with \"Page 1 of 1 (0 rows)\" and both Previous and Next disabled."
+      }
+    ],
+    "constraints": [
+      "Numeric columns sort numerically; text columns use localeCompare.",
+      "Copy the array before sorting, since sort() mutates in place.",
+      "Header, rows and pagination are separate components that only receive props and emit events.",
+      "Sorted header cells set aria-sort (ascending/descending); the page label is aria-live=\"polite\".",
+      "Previous is disabled on page 1 and Next on the last page; rows are keyed by id, not index.",
+      "Server-side variant: the same state becomes query params (?q=&status=&sort=&dir=&page=&size=)."
+    ]
+  },
+  "Like Button (optimistic + rollback)": {
+    "summary": "Build a like button that updates instantly, rolls back on failure, and survives rapid clicks.",
+    "statement": "Build a like button (heart plus count, starting at 41, not liked). The heart and count change the instant you click, before the fake 600 ms server answers; this is called an optimistic update. If the request fails, put back the last state the server confirmed and show an error. The trap is rapid clicking: keep at most ONE request in flight, let extra clicks only change what the user wants, and when a request finishes send one more only if the server still differs from that wish.",
+    "examples": [
+      {
+        "input": "Click the heart once.",
+        "output": "The heart fills and the count shows 42 immediately; about 600 ms later the server confirms and it stays at 42. \"Requests sent: 1\"."
+      },
+      {
+        "input": "Click \"Make the next request fail\", then click the heart.",
+        "output": "It briefly shows liked / 42, then reverts to unliked / 41 and shows \"Could not save your like, so it was undone. Please try again.\""
+      },
+      {
+        "input": "Click the heart three times very quickly (like, unlike, like) while the first request is still in flight.",
+        "output": "The heart follows every click and ends liked at 42. \"Requests sent: 1\".",
+        "explanation": "The first click sends liked: true. The next two clicks only change what the user wants, and by the time the request returns the wish is liked again, which matches the server, so no second request is sent. Two quick clicks (like, unlike) would instead send a second request with liked: false and end at 41 with \"Requests sent: 2\"."
+      }
+    ],
+    "constraints": [
+      "Send the desired state (liked: true/false), never a \"toggle\" action, so repeats are harmless.",
+      "Track the in-flight flag, the wanted state and the confirmed state in refs, since an async loop must read the latest values.",
+      "After success, show the server's count (it includes other people's likes).",
+      "The button uses aria-pressed for liked state with a stable label \"Like\"; the error uses role=\"alert\"."
+    ]
+  },
+  "Rate-Limited Button (throttle vs lock)": {
+    "summary": "Stop rapid clicks from spamming an API: compare no guard, a 1 s throttle and an in-flight lock.",
+    "statement": "Three buttons call a fake API that takes 800 ms and counts every call. \"Save (no guard)\" calls it on every click. \"Refresh (throttle 1 s)\" runs on the first click and ignores clicks for the next second. \"Pay (in-flight lock)\" runs on the first click and ignores every click until that request finishes, which is the only guard that means \"exactly once\". Explain why debounce is the wrong tool for a button: the first click appears to do nothing.",
+    "examples": [
+      {
+        "input": "Click \"Save (no guard)\" five times quickly.",
+        "output": "The No guard counter shows 5 API calls."
+      },
+      {
+        "input": "Click \"Refresh (throttle 1 s)\" five times within one second.",
+        "output": "The Throttled counter shows 1 API call; clicking again after the second has passed adds one more."
+      },
+      {
+        "input": "Click \"Pay (in-flight lock)\" five times quickly.",
+        "output": "The label changes to \"Saving…\" for about 800 ms and the Locked counter shows 1 API call. Clicking again after \"Saving…\" ends makes it 2."
+      }
+    ],
+    "constraints": [
+      "Create the throttled function once (useCallback/useMemo/useRef), or every render gets a fresh timer and nothing is throttled.",
+      "The lock must use a ref, not state: two clicks can land before React re-renders.",
+      "Use aria-disabled and aria-busy while locked rather than disabled, so keyboard focus is not lost.",
+      "Release the lock whether the request succeeds or fails.",
+      "A frontend guard is not a guarantee across tabs or retries: real payments also need an idempotency key."
+    ]
+  },
+  "Shopping Cart (reducer + derived totals)": {
+    "summary": "Build a cart with a reducer, stock limits, a discount code, and totals computed in cents.",
+    "statement": "Build a shop of three products and a cart. Adding a product that is already in the cart increases its quantity; quantities stay between 1 and the product's stock, and items can be removed. Store only { productId, quantity } plus the applied code, and COMPUTE subtotal, discount, 8% tax and total from the catalogue in whole cents, so money never drifts. One reducer owns every change, the header badge and cart share the same cart through context, and the cart is saved to localStorage so it survives a refresh.",
+    "examples": [
+      {
+        "input": "Add Wireless Mouse ($19.99) twice.",
+        "output": "One line with quantity 2. Subtotal $39.98, Tax (8%) $3.20, Total $43.18. The header badge shows 2."
+      },
+      {
+        "input": "Then apply the code SAVE10.",
+        "output": "Discount (SAVE10) −$4.00, Tax $2.88 (charged on the discounted amount), Total $38.86."
+      },
+      {
+        "input": "Add Mechanical Keyboard (stock 2) three times; then, with SAVE10 applied, apply the code \"BOGUS\".",
+        "output": "The keyboard quantity stops at 2 and its button changes to \"Max in cart\" and is disabled. Applying BOGUS clears the code, so the discount line disappears and the totals go back to no discount.",
+        "explanation": "applyCode stores the code only if it exists in DISCOUNT_CODES; otherwise it sets the code to null, replacing any code applied before."
+      }
+    ],
+    "constraints": [
+      "Never store prices or totals; derive them on every render from the catalogue.",
+      "Work in integer cents: discount = round(subtotal × percent / 100), tax = round((subtotal − discount) × 0.08).",
+      "Quantity is clamped to 1…stock; the − button never drops it to 0 (use remove instead).",
+      "Validate the saved cart's shape on load; if storage is blocked or the JSON is corrupt, start with an empty cart.",
+      "Quantity and remove buttons carry aria-labels such as \"Increase Wireless Mouse\".",
+      "The code is trimmed and upper-cased before applying, so \"save10\" works."
+    ]
+  },
+  "File Upload (progress + cancel)": {
+    "summary": "Upload several files with validation, per-file progress, cancel and retry.",
+    "statement": "Let the user pick one or more files. Check each file's type (PNG, JPEG or PDF) and size (5 MB at most) BEFORE uploading, and reject the rest with a reason. Upload valid files with XMLHttpRequest, because fetch has no upload progress events, and show a percentage and progress bar per file. Each upload can be cancelled while it runs, and a failed or cancelled upload can be retried. The playground uses a FakeXHR that fails any file with \"fail\" in its name.",
+    "examples": [
+      {
+        "input": "Click \"Sample image\" (photo.png).",
+        "output": "A row for photo.png counts up in percent, then shows \"done\" with a full green bar."
+      },
+      {
+        "input": "Click \"Wrong file type\" (notes.txt); click \"File the server rejects\" (will-fail.pdf).",
+        "output": "notes.txt is rejected immediately with \"Only PNG, JPEG or PDF files\" and never uploads. will-fail.pdf uploads, then shows \"failed\" with \"Upload failed (500)\" and a Retry button."
+      },
+      {
+        "input": "Start an upload and click Cancel while it is in progress.",
+        "output": "The upload stops, the row shows \"cancelled\", and a Retry button appears."
+      }
+    ],
+    "constraints": [
+      "Validate type (PNG, JPEG, PDF) and size on the client before any bytes are sent; a file over 5 MB is rejected with \"Larger than 5 MB\", matching the server limit.",
+      "Cancel through an AbortController, the same pattern as fetch.",
+      "Do not set Content-Type yourself; the browser adds the multipart boundary.",
+      "Each progress bar has role=\"progressbar\" with aria-valuemin/max/now and a label.",
+      "Leaving the page cancels uploads still in progress; handle 413 Payload Too Large with a clear message."
+    ]
+  },
+  "DOM Tree Height": {
+    "summary": "Return the height of a node tree: how many nodes lie on its longest root-to-leaf path.",
+    "statement": "Write treeHeight(node). Each node is shaped { tag, children }, where children is an array (empty for a leaf). The height is the number of nodes on the longest path from the root down to a leaf, so a single node has height 1 and an empty tree (null) has height 0. The tree is made of plain objects standing in for DOM nodes, because the playground runs your code in a Web Worker, which has no DOM. The problem has exactly the same shape as it would on real elements.",
+    "examples": [
+      {
+        "input": "html > [head > title, body > main > p]",
+        "output": "4",
+        "explanation": "The longest path is html → body → main → p, four nodes.",
+        "run": "const el = (tag, ...children) => ({ tag, children }); console.log(treeHeight(el(\"html\", el(\"head\", el(\"title\")), el(\"body\", el(\"main\", el(\"p\"))))));"
+      },
+      {
+        "input": "ul > [li, li, li]",
+        "output": "2",
+        "explanation": "Wide does not mean tall: ul and one li.",
+        "run": "const el = (tag, ...children) => ({ tag, children }); console.log(treeHeight(el(\"ul\", el(\"li\"), el(\"li\"), el(\"li\"))));"
+      },
+      {
+        "input": "null",
+        "output": "0",
+        "run": "console.log(treeHeight(null));"
+      }
+    ],
+    "constraints": [
+      "Every node has a children array; a leaf's is empty.",
+      "Visit each node once: O(n) time.",
+      "Be ready to do it without recursion (a queue, one level at a time)."
+    ]
+  },
+  "Invert Binary Tree": {
+    "summary": "Mirror a binary tree in place, swapping every node's left and right child, and return the root.",
+    "statement": "Write invertTree(root). Each node is shaped { val, left, right }, where left and right are nodes or null. Mirror the tree: for every node, what was its left subtree becomes its right subtree and the other way round. Change the nodes in place and return the same root; an empty tree (null) returns null. The examples show a tree as nested [val, left, right] arrays.",
+    "examples": [
+      {
+        "input": "4 with children 2 (1, 3) and 7 (6, 9)",
+        "output": "[4,[7,[9,null,null],[6,null,null]],[2,[3,null,null],[1,null,null]]]",
+        "explanation": "Every left/right pair is swapped, at every level.",
+        "run": "const node = (val, left = null, right = null) => ({ val, left, right }); const shape = (n) => (n ? [n.val, shape(n.left), shape(n.right)] : null); console.log(JSON.stringify(shape(invertTree(node(4, node(2, node(1), node(3)), node(7, node(6), node(9)))))));"
+      },
+      {
+        "input": "1 with left child 2, whose left child is 3",
+        "output": "[1,null,[2,null,[3,null,null]]]",
+        "explanation": "A chain leaning left becomes a chain leaning right.",
+        "run": "const node = (val, left = null, right = null) => ({ val, left, right }); const shape = (n) => (n ? [n.val, shape(n.left), shape(n.right)] : null); console.log(JSON.stringify(shape(invertTree(node(1, node(2, node(3)))))));"
+      },
+      {
+        "input": "null",
+        "output": "null",
+        "run": "console.log(JSON.stringify(invertTree(null)));"
+      }
+    ],
+    "constraints": [
+      "Mutate the existing nodes and return the same root object.",
+      "O(n) time; every node is visited once."
+    ]
+  },
+  "Level-Order Traversal": {
+    "summary": "Return a node tree's tags grouped by depth: one array per level, top to bottom, left to right.",
+    "statement": "Write levelOrder(root). Each node is shaped { tag, children }. Return an array with one entry per level of the tree: the first holds the root's tag, the second the tags of its children, and so on. Within a level, tags appear left to right, even when they come from different parents. An empty tree (null) returns []. The tree is made of plain objects standing in for DOM nodes, because the playground runs your code in a Web Worker, which has no DOM. The problem has exactly the same shape as it would on real elements.",
+    "examples": [
+      {
+        "input": "body > [header > [h1, nav], main > article, footer]",
+        "output": "[[\"body\"],[\"header\",\"main\",\"footer\"],[\"h1\",\"nav\",\"article\"]]",
+        "run": "const el = (tag, ...children) => ({ tag, children }); console.log(JSON.stringify(levelOrder(el(\"body\", el(\"header\", el(\"h1\"), el(\"nav\")), el(\"main\", el(\"article\")), el(\"footer\")))));"
+      },
+      {
+        "input": "a > b > c",
+        "output": "[[\"a\"],[\"b\"],[\"c\"]]",
+        "run": "const el = (tag, ...children) => ({ tag, children }); console.log(JSON.stringify(levelOrder(el(\"a\", el(\"b\", el(\"c\"))))));"
+      },
+      {
+        "input": "null",
+        "output": "[]",
+        "run": "console.log(JSON.stringify(levelOrder(null)));"
+      }
+    ],
+    "constraints": [
+      "Each level is left to right across the whole level, not per parent.",
+      "O(n) time. If you use a queue, avoid queue.shift(), which is O(n) per call."
+    ]
+  },
+  "getElementsByClassName from Scratch": {
+    "summary": "Re-implement element.getElementsByClassName: every descendant carrying all the given classes, in document order.",
+    "statement": "Write getElementsByClassName(root, classNames). Each node is shaped { tag, id, className, children }, where className is a space-separated list such as \"card big\". classNames is also a space-separated list. Return an array of every DESCENDANT of root (not root itself) whose class list contains every requested class, in any order, in document order (a node before its children, its children before its next sibling). Class names match whole, never as substrings: \"car\" does not match \"card\". Extra whitespace is ignored, and an empty query matches nothing. The tree is made of plain objects standing in for DOM nodes, because the playground runs your code in a Web Worker, which has no DOM. The problem has exactly the same shape as it would on real elements.",
+    "examples": [
+      {
+        "input": "root > [a (\"card big\") > [a1 (\"card\")], b (\"cardboard\")], classNames = \"card\"",
+        "output": "[\"a\",\"a1\"]",
+        "explanation": "The output shows each match's id. b is skipped: \"cardboard\" is a different class.",
+        "run": "const el = (id, className, ...children) => ({ tag: \"div\", id, className, children }); const root = el(\"root\", \"\", el(\"a\", \"card big\", el(\"a1\", \"card\")), el(\"b\", \"cardboard\")); console.log(JSON.stringify(getElementsByClassName(root, \"card\").map((n) => n.id)));"
+      },
+      {
+        "input": "same tree, classNames = \"big card\"",
+        "output": "[\"a\"]",
+        "explanation": "Both classes are required; a1 has only card.",
+        "run": "const el = (id, className, ...children) => ({ tag: \"div\", id, className, children }); const root = el(\"root\", \"\", el(\"a\", \"card big\", el(\"a1\", \"card\")), el(\"b\", \"cardboard\")); console.log(JSON.stringify(getElementsByClassName(root, \"big card\").map((n) => n.id)));"
+      },
+      {
+        "input": "root (\"app\") > [x (\"app\")], classNames = \"app\"",
+        "output": "[\"x\"]",
+        "explanation": "Only descendants are searched, so the root is not included even though it matches.",
+        "run": "const el = (id, className, ...children) => ({ tag: \"div\", id, className, children }); const root = el(\"root\", \"app\", el(\"x\", \"app\")); console.log(JSON.stringify(getElementsByClassName(root, \"app\").map((n) => n.id)));"
+      }
+    ],
+    "constraints": [
+      "Do not use any DOM API; walk the children arrays yourself.",
+      "Match whole class names, and require every requested class.",
+      "Return matches in document order (pre-order depth-first)."
+    ]
+  },
+  "Find Matching Node in Identical Tree": {
+    "summary": "Given two identical trees and a node in the first, return the node at the same position in the second.",
+    "statement": "Write findCorrespondingNode(rootA, rootB, target). Trees A and B have exactly the same shape. Each node is shaped { tag, parent, children }, where parent points to the node above (null at the root), like the DOM's parentNode. target is a node somewhere in A; return the node at the same position in B. Return null if target is not in tree A. Position is what counts: siblings can have the same tag, so comparing tags is not enough. The examples print whether the returned node is the expected node in B. The tree is made of plain objects standing in for DOM nodes, because the playground runs your code in a Web Worker, which has no DOM. The problem has exactly the same shape as it would on real elements.",
+    "examples": [
+      {
+        "input": "div > [p, p > [span, span], p], target = A.children[1].children[1]",
+        "output": "true",
+        "explanation": "The second span under the second p in A maps to the second span under the second p in B.",
+        "run": "const el = (tag, ...children) => ({ tag, parent: null, children }); const withParents = (n, p = null) => { n.parent = p; n.children.forEach((c) => withParents(c, n)); return n; }; const make = () => withParents(el(\"div\", el(\"p\"), el(\"p\", el(\"span\"), el(\"span\")), el(\"p\"))); const A = make(), B = make(); console.log(findCorrespondingNode(A, B, A.children[1].children[1]) === B.children[1].children[1]);"
+      },
+      {
+        "input": "same trees, target = rootA",
+        "output": "true",
+        "explanation": "The root of A corresponds to the root of B.",
+        "run": "const el = (tag, ...children) => ({ tag, parent: null, children }); const withParents = (n, p = null) => { n.parent = p; n.children.forEach((c) => withParents(c, n)); return n; }; const make = () => withParents(el(\"div\", el(\"p\"), el(\"p\", el(\"span\"), el(\"span\")), el(\"p\"))); const A = make(), B = make(); console.log(findCorrespondingNode(A, B, A) === B);"
+      },
+      {
+        "input": "target is a node from some third tree",
+        "output": "null",
+        "run": "const el = (tag, ...children) => ({ tag, parent: null, children }); const withParents = (n, p = null) => { n.parent = p; n.children.forEach((c) => withParents(c, n)); return n; }; const make = () => withParents(el(\"div\", el(\"p\"), el(\"p\"))); const A = make(), B = make(); console.log(JSON.stringify(findCorrespondingNode(A, B, make().children[0])));"
+      }
+    ],
+    "constraints": [
+      "Do not compare tags or contents; siblings may be identical.",
+      "Aim for work proportional to target's depth, not the size of the tree."
+    ]
+  },
+  "Lowest Common Ancestor of Two Nodes": {
+    "summary": "Given two nodes with parent pointers, return the deepest node that is an ancestor of both.",
+    "statement": "Write lowestCommonAncestor(a, b). Each node is shaped { id, parent, children }, where parent points to the node above (null at the root), like the DOM's parentNode. Return the lowest (deepest) node that is an ancestor of both a and b. A node counts as its own ancestor, so if a is above b the answer is a, and for the same node twice the answer is that node. If a and b are in different trees, return null. The examples print the id of the returned node. The tree is made of plain objects standing in for DOM nodes, because the playground runs your code in a Web Worker, which has no DOM. The problem has exactly the same shape as it would on real elements.",
+    "examples": [
+      {
+        "input": "root > [a > [a1 > a1x, a2], b > b1], a = a1x, b = a2",
+        "output": "a",
+        "explanation": "a1x climbs a1 → a; a2's parent is a. They first meet at a.",
+        "run": "const el = (id, ...children) => ({ id, parent: null, children }); const withParents = (n, p = null) => { n.parent = p; n.children.forEach((c) => withParents(c, n)); return n; }; const root = withParents(el(\"root\", el(\"a\", el(\"a1\", el(\"a1x\")), el(\"a2\")), el(\"b\", el(\"b1\")))); const [a, b] = root.children; console.log(lowestCommonAncestor(a.children[0].children[0], a.children[1]).id);"
+      },
+      {
+        "input": "same tree, a = a1x, b = b1",
+        "output": "root",
+        "explanation": "They are in different subtrees of root.",
+        "run": "const el = (id, ...children) => ({ id, parent: null, children }); const withParents = (n, p = null) => { n.parent = p; n.children.forEach((c) => withParents(c, n)); return n; }; const root = withParents(el(\"root\", el(\"a\", el(\"a1\", el(\"a1x\")), el(\"a2\")), el(\"b\", el(\"b1\")))); const [a, b] = root.children; console.log(lowestCommonAncestor(a.children[0].children[0], b.children[0]).id);"
+      },
+      {
+        "input": "same tree, a = a, b = a1x",
+        "output": "a",
+        "explanation": "a is itself an ancestor of a1x.",
+        "run": "const el = (id, ...children) => ({ id, parent: null, children }); const withParents = (n, p = null) => { n.parent = p; n.children.forEach((c) => withParents(c, n)); return n; }; const root = withParents(el(\"root\", el(\"a\", el(\"a1\", el(\"a1x\")), el(\"a2\")), el(\"b\", el(\"b1\")))); const [a] = root.children; console.log(lowestCommonAncestor(a, a.children[0].children[0]).id);"
+      }
+    ],
+    "constraints": [
+      "Use the parent pointers; you are not given the root.",
+      "O(h) time, where h is the tree height. O(1) extra space is a common follow-up."
+    ]
+  },
+  "MyPick and MyOmit": {
+    "summary": "Write your own Pick and Omit with mapped types, then type pick() and omit() with them.",
+    "statement": "TypeScript ships Pick<T, K> and Omit<T, K>; write them yourself as MyPick and MyOmit. MyPick<T, K> keeps only the keys K of T; MyOmit<T, K> keeps every key except K. Both must reject a key that T does not have (MyPick<Todo, \"nope\"> is a compile error), and both must keep each property's readonly and optional (?) modifiers. Then implement pick(obj, keys) and omit(obj, keys), whose return types are already written in terms of your types. When you press Run, the type tests are checked by the real TypeScript compiler, so an unfinished type shows up as a type error.",
+    "examples": [
+      {
+        "input": "MyPick<Todo, \"title\" | \"completed\">",
+        "output": "{ title: string; completed: boolean }",
+        "explanation": "Only the chosen keys remain, each with its original type."
+      },
+      {
+        "input": "MyOmit<Todo, \"id\" | \"title\">",
+        "output": "{ description?: string; completed: boolean }",
+        "explanation": "description stays optional: dropping keys must not change the modifiers of the keys that remain."
+      },
+      {
+        "input": "pick({ id: 1, title: \"Write tests\", completed: false }, [\"title\"])",
+        "output": "{\"title\":\"Write tests\"}",
+        "run": "console.log(JSON.stringify(pick({ id: 1, title: \"Write tests\", completed: false }, [\"title\"])))"
+      },
+      {
+        "input": "omit({ id: 1, title: \"Write tests\", completed: false }, [\"id\"])",
+        "output": "{\"title\":\"Write tests\",\"completed\":false}",
+        "run": "console.log(JSON.stringify(omit({ id: 1, title: \"Write tests\", completed: false }, [\"id\"])))"
+      }
+    ],
+    "constraints": [
+      "Do not use the built-in Pick or Omit.",
+      "MyPick<Todo, \"nope\"> and MyOmit<Todo, \"nope\"> must be compile errors.",
+      "readonly and optional modifiers must survive in both types.",
+      "omit must not change the object it is given."
+    ]
+  },
+  "Model an API Response": {
+    "summary": "Model loading / success / error as a discriminated union, and handle every state with an exhaustive switch.",
+    "statement": "A request is in exactly one of three states: loading (no data yet), success (with the data), or error (with a message). Write the generic type RequestState<T> so that only those three shapes can be written: a success with no data, a loading state carrying data, an error with no message and an unknown status must all be compile errors. Then write describeState(state) for RequestState<User>, returning \"Loading...\", \"Hello, <name>\" or \"Failed: <message>\". Use a switch on the status field and end it with a never check, so that adding a fourth state later becomes a compile error until it is handled.",
+    "examples": [
+      {
+        "input": "RequestState<User>[\"status\"]",
+        "output": "\"loading\" | \"success\" | \"error\"",
+        "explanation": "status is the discriminant: a literal type that tells the members apart."
+      },
+      {
+        "input": "const s: RequestState<User> = { status: \"success\" }",
+        "output": "compile error: property data is missing",
+        "explanation": "The success member requires data, so the impossible state cannot be written."
+      },
+      {
+        "input": "describeState({ status: \"success\", data: { id: 1, name: \"Ada\" } })",
+        "output": "Hello, Ada",
+        "run": "console.log(describeState({ status: \"success\", data: { id: 1, name: \"Ada\" } }))"
+      },
+      {
+        "input": "describeState({ status: \"error\", error: \"Network timeout\" })",
+        "output": "Failed: Network timeout",
+        "run": "console.log(describeState({ status: \"error\", error: \"Network timeout\" }))"
+      }
+    ],
+    "constraints": [
+      "No optional fields: each state carries exactly the fields it has.",
+      "The switch must end in a check that only compiles when every status has been handled.",
+      "RequestState must be generic in the data type T."
+    ]
+  },
+  "DeepReadonly<T>": {
+    "summary": "Make every property readonly at every depth, keep functions callable, and turn arrays into readonly arrays.",
+    "statement": "The built-in Readonly<T> only protects the top level: cfg.name = \"x\" is an error, but cfg.server.port = 1 still compiles. Write DeepReadonly<T>, which makes every property readonly at every level of nesting. Arrays must become readonly arrays (so push is an error), functions must be left exactly as they are (still callable), and primitives pass through unchanged. Types are erased at runtime, so also write deepFreeze(value), which freezes an object and everything inside it and returns it typed as DeepReadonly.",
+    "examples": [
+      {
+        "input": "DeepReadonly<{ server: { port: number }; tags: string[] }>",
+        "output": "{ readonly server: { readonly port: number }; readonly tags: readonly string[] }"
+      },
+      {
+        "input": "DeepReadonly<(x: number) => string>",
+        "output": "(x: number) => string",
+        "explanation": "Functions are objects too, so they must be checked for first, or they turn into {}."
+      },
+      {
+        "input": "Object.isFrozen(deepFreeze({ server: { port: 1 } }).server)",
+        "output": "true",
+        "run": "console.log(Object.isFrozen(deepFreeze({ server: { port: 1 } }).server))"
+      },
+      {
+        "input": "deepFreeze(42)",
+        "output": "42",
+        "explanation": "Primitives are returned as they are.",
+        "run": "console.log(deepFreeze(42))"
+      }
+    ],
+    "constraints": [
+      "No built-in Readonly<T>: write the mapped type yourself.",
+      "Functions must stay callable.",
+      "deepFreeze returns the same object it was given."
+    ]
+  },
+  "Type-safe groupBy": {
+    "summary": "Write a generic groupBy whose result type has exactly the keys your callback can return.",
+    "statement": "Write groupBy(items, key), which groups items into an object by the value key(item) returns, keeping input order inside each group. The typing is the point: give it two type parameters, the item type T and the key type K, so that groupBy(users, u => u.role) is typed Record<\"admin\" | \"editor\" | \"viewer\", User[]>, not a loose object of strings. A callback that returns something that cannot be a property key (an object) must be a compile error, and so must reading a group that cannot exist. The stub uses any everywhere: replace it with generics. Watch out for a key named \"__proto__\".",
+    "examples": [
+      {
+        "input": "groupBy([1, 2, 3, 4, 5], n => n % 2 === 0 ? \"even\" : \"odd\")",
+        "output": "{\"odd\":[1,3,5],\"even\":[2,4]}",
+        "explanation": "Typed Record<\"even\" | \"odd\", number[]>.",
+        "run": "console.log(JSON.stringify(groupBy([1, 2, 3, 4, 5], (n) => (n % 2 === 0 ? \"even\" : \"odd\"))))"
+      },
+      {
+        "input": "groupBy([\"ant\", \"bee\", \"cow\", \"ape\"], s => s[0])",
+        "output": "{\"a\":[\"ant\",\"ape\"],\"b\":[\"bee\"],\"c\":[\"cow\"]}",
+        "run": "console.log(JSON.stringify(groupBy([\"ant\", \"bee\", \"cow\", \"ape\"], (s) => s[0])))"
+      },
+      {
+        "input": "groupBy(users, u => ({ role: u.role }))",
+        "output": "compile error: an object is not a PropertyKey"
+      }
+    ],
+    "constraints": [
+      "Signature: groupBy<T, K extends PropertyKey>(items: T[], key: (item: T) => K): Record<K, T[]>.",
+      "O(n) time: one pass over the items.",
+      "Items keep their input order inside each group.",
+      "A key such as \"__proto__\" must behave like any other key."
+    ]
+  },
+  "Typed EventEmitter": {
+    "summary": "Build on / off / emit keyed by an event map, so a wrong event name or payload is a compile error.",
+    "statement": "Implement a TypedEmitter<Events> class, where Events is a map from event name to payload type, for example { login: { user: string }; logout: { reason: string } }. on(event, listener) registers a listener, off(event, listener) removes that same listener, and emit(event, payload) calls every listener for that event in the order they were added. The types must come from the map: emit(\"logni\", ...) and emit(\"login\", { name: \"ada\" }) are compile errors, and on(\"message\", m => ...) gives m the message payload type without any annotation. The stub's methods take any; make them generic in the event name.",
+    "examples": [
+      {
+        "input": "e.on(\"login\", p => log.push(p.user)); e.emit(\"login\", { user: \"ada\" })",
+        "output": "[\"ada\"]",
+        "run": "const e = new TypedEmitter(); const log = []; e.on(\"login\", (p) => log.push(p.user)); e.emit(\"login\", { user: \"ada\" }); console.log(JSON.stringify(log))"
+      },
+      {
+        "input": "const f = p => log.push(p.user); e.on(\"login\", f); e.off(\"login\", f); e.emit(\"login\", { user: \"ada\" })",
+        "output": "[]",
+        "explanation": "off removes the listener, so nothing runs.",
+        "run": "const e = new TypedEmitter(); const log = []; const f = (p) => log.push(p.user); e.on(\"login\", f); e.off(\"login\", f); e.emit(\"login\", { user: \"ada\" }); console.log(JSON.stringify(log))"
+      },
+      {
+        "input": "emitter.emit(\"login\", { name: \"ada\" })",
+        "output": "compile error: name does not exist in { user: string }"
+      }
+    ],
+    "constraints": [
+      "Event names and payloads are checked against the Events map.",
+      "Listeners for one event run in registration order.",
+      "emit with no listeners does nothing.",
+      "off removes only the listener passed to it."
+    ]
+  },
+  "Paths<T> (dotted keys)": {
+    "summary": "Turn a nested object type into the union of its dotted paths, and type get(obj, path) with it.",
+    "statement": "Write Paths<T>, which produces every dotted path into an object type: Paths<{ a: { b: { c: number } } }> is \"a\" | \"a.b\" | \"a.b.c\". Arrays and functions are leaves: the path stops at them. Write PathValue<T, P>, the type found at path P. Then type get(obj, path) so the path must be one of Paths<T>, a typo is a compile error, and the return type is the value's type (get(settings, \"server.port\") is number, not unknown). This is how form libraries type register(\"address.city\").",
+    "examples": [
+      {
+        "input": "Paths<{ a: { b: { c: number } } }>",
+        "output": "\"a\" | \"a.b\" | \"a.b.c\""
+      },
+      {
+        "input": "PathValue<Settings, \"server.tls\">",
+        "output": "{ enabled: boolean }"
+      },
+      {
+        "input": "get({ server: { port: 8080 } }, \"server.port\")",
+        "output": "8080",
+        "run": "console.log(get({ server: { port: 8080 } }, \"server.port\"))"
+      },
+      {
+        "input": "get({ server: { tls: { enabled: true } } }, \"server.tls\")",
+        "output": "{\"enabled\":true}",
+        "run": "console.log(JSON.stringify(get({ server: { tls: { enabled: true } } }, \"server.tls\")))"
+      }
+    ],
+    "constraints": [
+      "Use template literal types; no hand-written list of paths.",
+      "Arrays and functions are leaves.",
+      "A path that does not exist, or ends in a dot, is a compile error.",
+      "get must return the type at the path."
+    ]
+  }
+};

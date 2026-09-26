@@ -47,7 +47,7 @@ Note the query cache was **removed in MySQL 8.0**; it was a global-mutex bottlen
 
 ## 2. The Clustered Index
 
-**In InnoDB, the table *is* its primary-key index.** Rows are stored in the leaf pages of a B+ tree ordered by primary key — there is no separate heap. Consequences that drive most MySQL design decisions:
+**In InnoDB, the table *is* its primary-key index.** Rows are stored in the leaf pages of a B+ tree (a balanced search tree whose bottom-level "leaf" pages hold the data, sorted, and are linked to each other so range scans can walk them in order), ordered by primary key — there is no separate heap (an unordered pile of rows that indexes point into, which is how Postgres stores tables). Think of a phone book: the entries *are* the index, sorted by name, rather than an index at the back pointing into pages. Consequences that drive most MySQL design decisions:
 
 **1. Primary-key lookups are the fastest possible access.** You reach the row in one tree traversal, because the row lives in the leaf.
 
@@ -74,17 +74,22 @@ A random UUID primary key is the classic MySQL performance mistake. It causes pa
 
 The **buffer pool** (`innodb_buffer_pool_size`) caches data and index pages. It is the single most important setting — target roughly 70–80% of RAM on a dedicated server. It uses a modified LRU with a young/old sublist so a large table scan cannot evict the entire working set.
 
-Writes go through the **redo log** (`ib_logfile*`) — InnoDB's write-ahead log — using a mechanism called write-ahead logging exactly as Postgres does: commit makes the redo record durable, and dirty pages are flushed later by background threads. `innodb_flush_log_at_trx_commit` controls the trade: `1` (default) flushes on every commit and is ACID-durable; `2` writes to the OS but doesn't fsync, losing data only if the OS crashes; `0` flushes once a second and can lose a second of commits. Anything but `1` sacrifices durability for throughput.
+Writes go through the **redo log** (`ib_logfile*`) — InnoDB's write-ahead log, the same idea as Postgres's WAL. A write-ahead log means the change is first appended to a sequential log file, and only later written into the actual data pages. Commit makes the redo record durable on disk, and the modified in-memory ("dirty") pages are flushed later by background threads. Why bother: appending to one log file is far cheaper than rewriting scattered data pages on every commit, and after a crash InnoDB replays the log to recover any change that had not reached the data pages yet. `innodb_flush_log_at_trx_commit` controls the trade: `1` (default) flushes on every commit and is ACID-durable; `2` writes to the OS but doesn't fsync, losing data only if the OS crashes; `0` flushes once a second and can lose a second of commits. Anything but `1` sacrifices durability for throughput.
 
-The **undo log** stores previous row versions, and this is how InnoDB implements MVCC — the important structural contrast with Postgres, which keeps old versions in the table itself. Because old versions live in undo rather than in the table, InnoDB does not accumulate dead tuples in the data pages and **does not need `VACUUM`**; a background **purge** thread discards undo records once no transaction can see them. The equivalent failure mode does exist though: a long-running transaction prevents purge, the **undo log (history list) grows without bound**, and reads get slower because they walk longer version chains.
+The **undo log** stores previous row versions, and this is how InnoDB implements MVCC (multi-version concurrency control: readers see an older, consistent version of a row instead of waiting for a writer's lock) — the important structural contrast with Postgres, which keeps old versions in the table itself. Because old versions live in undo rather than in the table, InnoDB does not accumulate dead tuples in the data pages and **does not need `VACUUM`**; a background **purge** thread discards undo records once no transaction can see them. The equivalent failure mode does exist though: a long-running transaction prevents purge, the **undo log (history list) grows without bound**, and reads get slower because they walk longer version chains.
 
-Also present: the **doublewrite buffer** (protects against torn pages) and the **change buffer** (defers secondary-index maintenance for non-unique indexes).
+Two more structures you will hear named:
+
+- The **doublewrite buffer** protects against **torn pages**. An InnoDB page (16 KB) is larger than what the disk writes atomically, so a crash mid-write can leave a page half old and half new — and the redo log cannot repair a page that is itself corrupt. InnoDB therefore writes each page to a separate doublewrite area first, then to its real location; after a crash, an intact copy always exists in one of the two places.
+- The **change buffer** defers secondary-index updates for **non-unique** indexes. If the index page an insert would touch is not in memory, InnoDB records the change and merges it later, when the page is read anyway — saving a random disk read per insert. It cannot do this for unique indexes, because checking uniqueness requires reading the page immediately.
 
 ---
 
 ## 4. Transactions and Isolation
 
 **MySQL's default isolation level is `REPEATABLE READ`** — different from Postgres's `READ COMMITTED`, and a common source of cross-database confusion.
+
+The three anomalies in the table, in one line each: a **dirty read** sees another transaction's uncommitted change; a **non-repeatable read** reads the same row twice and gets different values because someone committed in between; a **phantom** runs the same range query twice (`WHERE age > 30`) and gets a new row the second time because someone inserted one.
 
 | Level | Dirty read | Non-repeatable read | Phantom |
 |---|---|---|---|
@@ -109,7 +114,7 @@ SELECT balance FROM accounts WHERE id = 1;   -- 510, not 110
 
 The `UPDATE` is a **locking read** that sees the *latest committed* row, not the snapshot. So a write inside a Repeatable Read transaction can be based on data your `SELECT`s never showed you. This mix of snapshot reads and current-version writes is InnoDB-specific and is why read-modify-write logic must use `SELECT … FOR UPDATE` rather than a plain `SELECT`.
 
-MySQL's `REPEATABLE READ` prevents phantoms not through snapshot isolation but through **gap locking** (§5), which is a materially different mechanism with different deadlock behaviour. Many high-throughput shops deliberately run `READ COMMITTED` to avoid gap locks — it is also what row-based replication makes safe.
+MySQL's `REPEATABLE READ` prevents phantoms for locking reads and writes not through snapshot isolation but through **gap locking** (§5): it locks the empty space in the index where a matching row *could* be inserted, so nobody can insert one. That is a materially different mechanism with different deadlock behaviour. Many high-throughput shops deliberately run `READ COMMITTED` to avoid gap locks. The catch is replication: with statement-based logging (§8) a replica re-runs your SQL, and without gap locks the replica could see a different set of rows than the primary did — so `READ COMMITTED` requires the `ROW` binlog format, which logs the changed rows themselves.
 
 ---
 
@@ -151,7 +156,7 @@ CREATE INDEX idx_url ON pages (url(64));
 
 Cheaper, but it **cannot be used for a covering index** or for `ORDER BY`, and choosing the length is a selectivity trade-off.
 
-**Index Condition Pushdown (ICP)** lets the storage engine evaluate `WHERE` conditions on indexed columns before fetching the row, reducing clustered-index lookups. `EXPLAIN` shows `Using index condition`.
+**Index Condition Pushdown (ICP)** lets the storage engine evaluate `WHERE` conditions on indexed columns before fetching the row, reducing clustered-index lookups. Example: with an index on `(zip, last_name)` and `WHERE zip = '10001' AND last_name LIKE '%son'`, the leading wildcard means only `zip` can be used to *search* the index — but `last_name` is sitting right there in each index entry, so ICP checks it there and skips the full-row fetch for every entry that fails. `EXPLAIN` shows `Using index condition`.
 
 **Invisible indexes** (8.0) let you mark an index unused by the optimizer without dropping it — the right way to test whether an index is needed before deleting it:
 
@@ -197,7 +202,7 @@ MySQL replication is **logical**, based on the **binary log** (binlog) of change
 | **`ROW`** (default in 8.0) | the actual row changes | safe and deterministic; larger logs |
 | `MIXED` | statement, switching to row when unsafe | compromise |
 
-Use `ROW`. It is also what makes `READ COMMITTED` safe and what CDC tools (Debezium) consume.
+Use `ROW`. It is also what makes `READ COMMITTED` safe (§4) and what CDC (change data capture — streaming every row change out of the database into Kafka, a search index or a warehouse) tools such as Debezium consume.
 
 **GTIDs** (Global Transaction Identifiers) give every transaction a cluster-unique ID, which makes failover far simpler — a replica can be repointed at a new primary without hand-computing binlog file and position. Enable them.
 
@@ -300,43 +305,123 @@ Choose **MySQL** for high-throughput primary-key-centric OLTP, cheap connection 
 
 **Q1: What does it mean that InnoDB uses a clustered index, and why does it matter?**
 
-The table **is** the primary-key B+ tree — rows live in its leaf pages, ordered by primary key, with no separate heap. Four consequences. Primary-key lookups are the fastest possible access, since one traversal reaches the row. **Secondary indexes store the primary key**, not a row pointer, so a secondary lookup costs two traversals — which is why covering indexes matter more in MySQL than elsewhere. Every secondary index contains a copy of the PK, so a wide primary key inflates every index on the table. And because rows are physically ordered by PK, **insert order matters**: a monotonically increasing key appends to the rightmost page, while a random key scatters inserts, causing page splits, fragmentation and a working set that won't stay in the buffer pool. That is why a random UUID primary key is the classic MySQL performance mistake, and why the fix is an `AUTO_INCREMENT` PK with the UUID as a `UNIQUE BINARY(16)`, or a time-ordered UUIDv7.
+Short answer: in InnoDB the table **is** the primary-key B+ tree (a balanced tree whose leaf pages hold the data). Rows live in its leaf pages, ordered by primary key, with no separate heap. That one design choice has four consequences:
+
+- **Primary-key lookups are as fast as access gets** — one traversal of the tree reaches the row.
+- **Secondary indexes store the primary key, not a row pointer.** A lookup through a secondary index therefore costs two traversals (secondary index, then the primary key tree), which is why covering indexes — indexes that hold every column the query needs — matter more in MySQL than elsewhere.
+- **A wide primary key inflates every index**, because every secondary index carries a copy of it.
+- **Insert order matters.** A monotonically increasing key appends to the rightmost page. A random key scatters inserts across the tree, causing page splits, fragmentation and a working set that won't stay in the buffer pool (InnoDB's in-memory page cache).
+
+That last point is why a random UUID primary key is the classic MySQL performance mistake, and why the fix is an `AUTO_INCREMENT` primary key with the UUID stored as a `UNIQUE BINARY(16)`, or a time-ordered UUIDv7.
 
 **Q2: What is MySQL's default isolation level, and what surprising behaviour does it produce?**
 
-**`REPEATABLE READ`** — unlike Postgres, which defaults to Read Committed. Plain `SELECT`s are **consistent reads** from a snapshot taken at the transaction's first read, so they are repeatable. The surprise is that a **locking read or a write sees the latest committed row, not the snapshot**: you can `SELECT` a balance of 100, have another session commit 500, `SELECT` again and still see 100, then `UPDATE balance = balance + 10` and end up with 510 rather than 110. So a write inside a Repeatable Read transaction can be based on data your reads never showed you, which is exactly why read-modify-write logic must use `SELECT … FOR UPDATE` rather than a plain `SELECT`. MySQL also prevents phantoms here not via snapshot isolation but via **gap locking**, a different mechanism with a different deadlock profile — which is why many high-throughput deployments deliberately run `READ COMMITTED`.
+Short answer: **`REPEATABLE READ`** — unlike Postgres, which defaults to Read Committed. The surprise is that reads and writes inside the same transaction can see different data.
+
+- **Plain `SELECT`s are consistent reads**: they read from a snapshot taken at the transaction's first read, so repeating them returns the same answer.
+- **A locking read or a write sees the latest committed row, not the snapshot.** You can `SELECT` a balance of 100, have another session commit 500, `SELECT` again and still see 100, then run `UPDATE balance = balance + 10` and end up with 510 rather than 110.
+
+So a write inside a Repeatable Read transaction can be based on data your reads never showed you. That is exactly why read-modify-write logic must use `SELECT … FOR UPDATE` (which locks the row and reads its latest version) rather than a plain `SELECT`.
+
+MySQL also prevents phantoms (new rows appearing in a repeated range query) not through the snapshot but through **gap locking**, a different mechanism with a different deadlock profile — which is why many high-throughput deployments deliberately run `READ COMMITTED`.
 
 **Q3: Explain InnoDB's locking model and why a missing index is a concurrency problem.**
 
-InnoDB locks **index records**, not rows in the abstract. It has record locks (on an index entry), gap locks (on the space between entries, preventing inserts), next-key locks (a record lock plus the preceding gap — the default under Repeatable Read, and how phantoms are prevented), and insert intention locks. The critical consequence: if a statement has **no usable index**, InnoDB must scan and it **locks every row it examines**, which for `UPDATE t SET x=1 WHERE unindexed_col=5` is effectively the whole table. So a missing index doesn't just make a query slow, it serialises your writes. Deadlocks are normal and InnoDB rolls back the cheaper transaction with error 1213, so applications must retry; the usual causes are inconsistent lock ordering across transactions, gap-lock conflicts between inserts under Repeatable Read, unindexed predicates widening the footprint, and long transactions. Diagnose from `SHOW ENGINE INNODB STATUS`.
+Short answer: InnoDB locks **index records**, not rows in the abstract — so a statement with no usable index has to lock everything it scans, which serialises your writes.
+
+The lock types:
+
+- **Record locks** — on one index entry.
+- **Gap locks** — on the space between entries, preventing inserts into it.
+- **Next-key locks** — a record lock plus the gap before it. This is the default under Repeatable Read, and it is how phantoms are prevented.
+- **Insert intention locks** — taken by an `INSERT` before it writes into a gap.
+
+The critical consequence: with **no usable index**, InnoDB must scan, and it **locks every row it examines**. For `UPDATE t SET x=1 WHERE unindexed_col=5` that is effectively the whole table. A missing index doesn't just make a query slow; it stops other writers.
+
+Deadlocks are normal. InnoDB detects them, rolls back the cheaper transaction with error 1213, and the application must retry. The usual causes are inconsistent lock ordering across transactions, gap-lock conflicts between inserts under Repeatable Read, unindexed predicates widening the lock footprint, and long transactions. Diagnose them from `SHOW ENGINE INNODB STATUS`, which prints the latest deadlock.
 
 **Q4: How does InnoDB implement MVCC, and why doesn't MySQL need `VACUUM`?**
 
-Old row versions go to the **undo log**, not into the table's data pages, and a read reconstructs the version visible to its snapshot by walking the undo chain. Because the data pages themselves are not littered with dead versions, InnoDB does not accumulate dead tuples the way Postgres does, so there is nothing for a `VACUUM` to reclaim — a background **purge** thread simply discards undo records once no transaction can see them. But the equivalent failure mode absolutely exists: a **long-running transaction prevents purge**, the undo log's history list grows without bound, disk fills, and reads get progressively slower because they traverse longer version chains. So the operational discipline — keep transactions short, don't leave sessions idle inside a transaction — is the same as in Postgres even though the mechanism differs.
+Short answer: MVCC (multi-version concurrency control — keeping old row versions so readers never block writers) in InnoDB keeps old versions in the **undo log**, not in the table's data pages. So there are no dead rows in the table for a `VACUUM` to clean up.
+
+- **How reads work:** a read reconstructs the version visible to its snapshot by walking back through the undo chain.
+- **How cleanup works:** the data pages are never littered with dead versions the way Postgres's are, so a background **purge** thread simply discards undo records once no transaction can still see them.
+
+The equivalent failure mode still exists, though. A **long-running transaction prevents purge**: the undo log's history list grows without bound, disk fills, and reads get slower because they walk longer version chains. So the operational discipline — keep transactions short, never leave a session idle inside a transaction — is the same as in Postgres, even though the mechanism differs.
 
 **Q5: What do you look at in MySQL's `EXPLAIN` output?**
 
-Start with **`type`**, the access method, ranked `const` → `eq_ref` → `ref` → `range` → `index` → `ALL`; `ALL` is a full table scan, and note `index` is also a full scan of the index, so it isn't the win the name suggests. Then **`key`**, the index actually chosen — `NULL` with a large `rows` is the red flag. Compare **`rows`** examined against rows returned, and check **`filtered`**, the percentage surviving the `WHERE`, since a low value means the index isn't selective. The most informative column is **`Extra`**: `Using index` means a covering index (good), `Using filesort` a sort that couldn't use an index, and `Using temporary` an internal temp table — those last two together on a large result set are the classic slow-query signature. Prefer `EXPLAIN ANALYZE` (8.0.18+) for actual timings, and `FORMAT=JSON` when you need the cost model. To find *what* to optimise, use the slow query log and `performance_schema` statement digests.
+Short answer: read `type`, `key`, `rows`/`filtered` and `Extra`, in that order — they tell you how the table is accessed, which index was chosen, how much work it does, and what extra work (sorting, temp tables) was needed.
+
+- **`type`** is the access method, ranked best to worst: `const` → `eq_ref` → `ref` → `range` → `index` → `ALL`. `ALL` is a full table scan. Note that `index` is a full scan of the *index*, so it isn't the win the name suggests.
+- **`key`** is the index actually chosen. `NULL` together with a large `rows` is the red flag.
+- **`rows`** is the estimated rows examined; compare it with the rows returned. **`filtered`** is the percentage that survives the `WHERE` — a low value means the index isn't selective.
+- **`Extra`** is the most informative column. `Using index` means a covering index (good). `Using filesort` means a sort that couldn't use an index, and `Using temporary` means an internal temp table — those two together on a large result set are the classic slow-query signature.
+
+Prefer `EXPLAIN ANALYZE` (8.0.18+) when you want actual timings rather than estimates, and `FORMAT=JSON` when you need the cost model. To find *which* queries to optimise in the first place, use the slow query log and `performance_schema` statement digests.
 
 **Q6: How does MySQL replication work, and what are the binlog formats?**
 
-Replication is **logical**, driven by the **binary log** of committed changes, which a replica fetches and applies — structurally different from Postgres's byte-level WAL shipping, and why MySQL replicas can differ in version or even schema. The formats are `STATEMENT` (logs SQL text; compact but **non-deterministic statements like `NOW()`, `UUID()` or an unordered `LIMIT` corrupt replicas**), **`ROW`** (logs actual row changes — the 8.0 default, deterministic, larger, and what CDC tools like Debezium consume), and `MIXED`. Use `ROW`. Enable **GTIDs** so every transaction has a cluster-unique ID and failover doesn't require hand-computing binlog positions. Durability is asynchronous by default (can lose transactions on failover), **semi-synchronous** waits for a replica to acknowledge receipt but not apply, and **Group Replication / InnoDB Cluster** gives consensus-based HA with automatic primary election — MySQL's built-in answer where Postgres needs external tooling. The classic pain is replication lag from a single-threaded applier, largely fixed by multi-threaded appliers with `WRITESET`.
+Short answer: replication is **logical**. The primary writes committed changes to the **binary log** (binlog), and each replica fetches and applies them. That is structurally different from Postgres's byte-level WAL shipping, and it is why MySQL replicas can run a different version, or even a different schema.
+
+The binlog formats:
+
+- **`STATEMENT`** logs the SQL text. Compact, but **non-deterministic statements like `NOW()`, `UUID()` or an unordered `LIMIT` produce different results on the replica and corrupt it.**
+- **`ROW`** logs the actual row changes. Deterministic but larger; it is the 8.0 default and what CDC (change data capture) tools like Debezium consume. Use this one.
+- **`MIXED`** switches between the two per statement.
+
+Enable **GTIDs** (global transaction IDs), so every transaction has a cluster-unique ID and failover doesn't require hand-computing binlog positions.
+
+Durability options, weakest first: **asynchronous** (the default — a failover can lose transactions), **semi-synchronous** (waits until a replica acknowledges *receiving* the change, not applying it), and **Group Replication / InnoDB Cluster** (consensus-based high availability with automatic primary election — MySQL's built-in answer where Postgres needs external tooling).
+
+The classic pain is replication lag from a single-threaded applier, largely fixed by multi-threaded appliers with `WRITESET` dependency tracking.
 
 **Q7: How do you change the schema of a large table without downtime?**
 
-First try **`ALGORITHM=INSTANT`**, which covers adding a trailing column, renaming a column, and default changes as metadata-only operations. **Always name the algorithm explicitly** — if you omit it MySQL silently falls back to whatever it can, and if that is `ALGORITHM=COPY` you have blocked writes and taken an outage; naming it makes the statement fail loudly instead. `INPLACE` rebuilds but usually allows concurrent DML. For anything else on a large table, use an external tool: **`gh-ost`**, which builds a ghost table and replays changes from the **binlog**, adding no triggers and being pausable and throttleable, or `pt-online-schema-change`, which uses triggers and is older and heavier. Both copy into a new table and swap, so plan for the disk space and duration. Remember DDL in MySQL 8 is **atomic but not transactional** — you cannot roll it back inside a transaction as you can in Postgres.
+Short answer: try a metadata-only `ALGORITHM=INSTANT` change first, name the algorithm explicitly so MySQL can't silently pick a blocking one, and use an online migration tool such as `gh-ost` for everything else.
+
+- **`ALGORITHM=INSTANT`** covers adding a trailing column, renaming a column, and default changes, as metadata-only operations.
+- **Always name the algorithm.** If you omit it, MySQL silently falls back to whatever it can. If that turns out to be `ALGORITHM=COPY`, you have blocked writes and taken an outage; naming it makes the statement fail loudly instead.
+- **`INPLACE`** rebuilds the table but usually allows concurrent reads and writes (DML).
+- **For anything else on a large table, use an external tool.** **`gh-ost`** builds a "ghost" copy of the table and replays changes from the **binlog** — no triggers, and it can be paused and throttled. `pt-online-schema-change` does the same job with triggers and is older and heavier. Both copy into a new table and swap, so plan for the disk space and the duration.
+
+Remember DDL in MySQL 8 is **atomic but not transactional**: a single statement either fully applies or doesn't, but you cannot roll it back inside a transaction as you can in Postgres.
 
 **Q8: What is the `utf8` versus `utf8mb4` problem?**
 
-MySQL's `utf8` is **not** UTF-8: it was an alias for `utf8mb3`, storing at most **three** bytes per character, so it cannot represent anything outside the Basic Multilingual Plane — emoji and various CJK extension characters get rejected or mangled. Real UTF-8 is **`utf8mb4`**, which is finally the default in MySQL 8.0. Two related traps. **Collation** decides comparison and sorting, and the default `utf8mb4_0900_ai_ci` is accent- and case-**insensitive**, so string comparisons behave differently from Postgres where they are case-sensitive. And **a join between columns with different collations cannot use an index**, because one side gets converted — a silent, hard-to-diagnose performance cliff, so keep charset and collation uniform across server, database, table and column. Also watch index length: at 4 bytes per character a `VARCHAR(255)` unique index can exceed the older 767-byte prefix limit, which the `DYNAMIC` row format's 3072 bytes resolves.
+Short answer: MySQL's `utf8` is **not** real UTF-8. It was an alias for `utf8mb3`, which stores at most **three** bytes per character, so it cannot represent anything outside the Basic Multilingual Plane — emoji and various CJK extension characters get rejected or mangled. Real UTF-8 is **`utf8mb4`**, which is finally the default in MySQL 8.0.
+
+Three related traps:
+
+- **Collation** decides how strings compare and sort. The default `utf8mb4_0900_ai_ci` is accent- and case-**insensitive** (`ai`, `ci`), so string comparisons behave differently from Postgres, where they are case-sensitive.
+- **A join between columns with different collations cannot use an index**, because one side has to be converted. It is a silent, hard-to-diagnose performance cliff, so keep charset and collation uniform across server, database, table and column.
+- **Index length.** At 4 bytes per character a `VARCHAR(255)` unique index can exceed the older 767-byte index prefix limit; the `DYNAMIC` row format's 3072-byte limit resolves it.
 
 **Q9: Why is a random UUID a bad primary key in InnoDB, and what do you do instead?**
 
-Because the table is physically ordered by primary key, so a **random** key makes every insert land in an arbitrary page. That causes page splits, fragments the clustered index, and destroys buffer-pool locality — instead of repeatedly touching one hot rightmost page, inserts dirty pages scattered across the whole tree, so the working set stops fitting in memory and write throughput collapses as the table grows. Stored as `CHAR(36)` it is also 36 bytes rather than 16, and **every secondary index carries a copy of the primary key**, so it inflates every index on the table. The fixes: keep an `AUTO_INCREMENT BIGINT` as the primary key and put the UUID in a `UNIQUE BINARY(16)` secondary index, or use a **time-ordered** UUID — UUIDv7, or v1 rearranged with `UUID_TO_BIN(uuid, 1)`, which moves the timestamp bytes to the front so inserts are sequential again. The general principle: in InnoDB, primary keys should be small and monotonically increasing.
+Short answer: the table is physically ordered by primary key, so a **random** key makes every insert land in an arbitrary page. Use a small, increasing key instead.
+
+Why random hurts:
+
+- **Page splits and fragmentation** — inserts land in the middle of full pages, which split, leaving the clustered index fragmented.
+- **Lost buffer-pool locality** — instead of repeatedly touching one hot rightmost page, inserts dirty pages scattered across the whole tree. The working set stops fitting in memory and write throughput collapses as the table grows.
+- **Size** — stored as `CHAR(36)` it is 36 bytes rather than 16, and **every secondary index carries a copy of the primary key**, so it inflates every index on the table.
+
+The fixes: keep an `AUTO_INCREMENT BIGINT` as the primary key and put the UUID in a `UNIQUE BINARY(16)` secondary index, or use a **time-ordered** UUID — UUIDv7, or v1 rearranged with `UUID_TO_BIN(uuid, 1)`, which moves the timestamp bytes to the front so inserts are sequential again. The general principle: in InnoDB, primary keys should be small and monotonically increasing.
 
 **Q10: When would you choose MySQL over PostgreSQL?**
 
-For **high-throughput OLTP dominated by primary-key access**, where the clustered index makes point lookups optimal; when you need **very high connection counts** without a pooler, since threads are far cheaper than Postgres's per-connection processes; and when you want **mature built-in replication and HA** — Group Replication and InnoDB Cluster provide automatic primary election, where Postgres needs Patroni or a managed service. Its replication being logical and binlog-based also makes cross-version upgrades and CDC pipelines straightforward. I would choose Postgres instead for complex analytical queries, a rich type system with real constraints, transactional DDL, and the extension ecosystem — `pgvector` for embeddings or PostGIS for geospatial are often decisive on their own. Both are excellent; the differences that genuinely change a design are the clustered index, the connection model, and the default isolation level.
+Short answer: choose MySQL for high-throughput, primary-key-heavy OLTP (many small transactional reads and writes), very high connection counts, and built-in replication and failover. Choose Postgres for complex queries, a richer type system and its extensions.
+
+MySQL's strengths:
+
+- **Primary-key access** — the clustered index makes point lookups optimal.
+- **Connections** — very high connection counts work without a pooler, because MySQL's per-connection threads are far cheaper than Postgres's per-connection processes.
+- **Replication and HA** — Group Replication and InnoDB Cluster provide automatic primary election, where Postgres needs Patroni or a managed service. Logical, binlog-based replication also makes cross-version upgrades and CDC pipelines straightforward.
+
+I would choose Postgres instead for complex analytical queries, a rich type system with real constraints, transactional DDL, and the extension ecosystem — `pgvector` for embeddings or PostGIS for geospatial are often decisive on their own.
+
+Both are excellent. The differences that genuinely change a design are the clustered index, the connection model, and the default isolation level.
 
 ---
 

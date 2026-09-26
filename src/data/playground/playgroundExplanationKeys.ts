@@ -76,6 +76,7 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'Spiral Matrix',
   'Search in Rotated Sorted Array',
   'Find Maximum in Array',
+  'Max Consecutive Ones',
   'Find Min and Max',
   'Third Largest Number',
   'Kth Largest Element',
@@ -162,6 +163,13 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'Minimum Window Substring',
   'Case Converter (camel/snake/kebab)',
   'Sum Without Loops',
+  // ===== Trees and DOM traversal =====
+  'DOM Tree Height',
+  'Invert Binary Tree',
+  'Level-Order Traversal',
+  'getElementsByClassName from Scratch',
+  'Find Matching Node in Identical Tree',
+  'Lowest Common Ancestor of Two Nodes',
 
   // ===== React Machine Coding (36) — build-order walkthroughs =====
   'Responsive Images (srcset / AVIF)',
@@ -203,4 +211,11 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'Multi-Step Form (Wizard)',
   'Theme Switcher (dark/light)',
   'Button (variants + sizes)',
+  'Nested Comments (recursive replies)',
+  'Sidebar Navigation (responsive + submenus)',
+  'Data Table (sort + filter + paginate)',
+  'Like Button (optimistic + rollback)',
+  'Rate-Limited Button (throttle vs lock)',
+  'Shopping Cart (reducer + derived totals)',
+  'File Upload (progress + cancel)',
 ]);

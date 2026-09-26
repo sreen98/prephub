@@ -34,7 +34,7 @@ Complements the [Microservices guide](/backend/microservices) (distributed traci
 
 The practical test: when a customer reports that checkout is slow **only for users on Android in Brazil paying with one particular provider**, can you answer it? A dashboard of averages cannot. Data with enough dimensions to filter on can.
 
-The **three pillars** framing — metrics, logs, traces — is the standard answer, and worth also knowing its limitation: they're three storage shapes, not three purposes, and treating them as separate silos is why teams end up pivoting between four tools during an incident. What matters is being able to move from *a metric showing a spike* to *the traces in that window* to *the logs for those requests*, which is why **correlation IDs and exemplars** matter more than any individual pillar.
+The **three pillars** framing — metrics, logs, traces — is the standard answer, and worth also knowing its limitation: they're three storage shapes, not three purposes, and treating them as separate silos is why teams end up pivoting between four tools during an incident. What matters is being able to move from *a metric showing a spike* to *the traces in that window* to *the logs for those requests*, which is why **correlation IDs** (one ID, such as a trace ID, stamped on every log line and span a request produces) and **exemplars** (a sample trace ID attached to a metric data point) matter more than any individual pillar. In the table below, *cardinality* means how many distinct values a field can take: a `user_id` has millions, a `status` field a handful.
 
 | Aspect | Metrics | Logs | Traces |
 |---|---|---|---|
@@ -74,6 +74,8 @@ http_request_duration_seconds_sum 187.4
 http_request_duration_seconds_count 1000
 ```
 
+Reading the histogram above: `le` means "less than or equal", and buckets are **cumulative** — 240 requests took ≤ 0.1 s, 900 took ≤ 0.5 s (including those 240), and all 1,000 are ≤ `+Inf`. A percentile such as **p99** is the value 99% of requests come in under; `histogram_quantile()` estimates it from these bucket counts.
+
 **Histogram over summary, almost always.** A summary computes quantiles inside each instance, and **you cannot average percentiles** — the p99 of ten instances' p99s is a meaningless number. A histogram ships bucket counts, which *are* additive, so `histogram_quantile()` can compute a correct global percentile across every instance. The cost is choosing buckets up front; native (exponential) histograms in newer Prometheus remove that constraint.
 
 **Counters, not gauges, for things that only increase** — a counter's reset is detectable, so `rate()` handles restarts correctly, whereas a gauge you increment yourself loses data silently on restart.
@@ -81,6 +83,8 @@ http_request_duration_seconds_count 1000
 ---
 
 ## 3. PromQL
+
+PromQL is Prometheus's query language: you select series by name and labels, then turn raw counter values into rates, ratios and percentiles. The queries below are the ones you will actually write.
 
 ```promql
 # request rate per second, averaged over 5 minutes
@@ -133,7 +137,7 @@ scrape_configs:
         regex: "true"
 ```
 
-**Pull vs push** is a standard question. Pull gives you a free liveness signal (`up`), target discovery is centralised and auditable, there is no way for a rogue client to flood you, and you can scrape a target manually with `curl` to debug. It struggles with short-lived jobs and targets you cannot reach — for those, the **Pushgateway** exists for batch jobs (and only batch jobs; using it for service metrics loses the `up` signal and creates stale series). **OpenTelemetry** and the newer remote-write protocols have made push more common, and managed backends (Grafana Cloud, Mimir, Thanos) generally ingest via remote write.
+**Pull vs push** is a standard question. Pull gives you a free liveness signal (`up`), target discovery is centralised and auditable, there is no way for a rogue client to flood you, and you can scrape a target manually with `curl` to debug. It struggles with short-lived jobs and targets you cannot reach — for those, the **Pushgateway** exists for batch jobs (and only batch jobs; using it for service metrics loses the `up` signal and creates stale series). **OpenTelemetry** and the newer remote-write protocols have made push more common, and managed backends (Grafana Cloud, Mimir, Thanos) generally ingest via **remote write** (a protocol where a Prometheus server or agent forwards the samples it collected to another storage system).
 
 **Exporters** translate something that doesn't speak Prometheus: `node_exporter` (host CPU/memory/disk), `cAdvisor`/kube-state-metrics (containers and cluster objects), `blackbox_exporter` (probe a URL from outside), plus per-database exporters. Instrument your own application **directly** with a client library rather than parsing logs into metrics.
 
@@ -263,7 +267,7 @@ http_requests_total{user_id="u_123"}
 # also bad: request_id, session_id, full URL with IDs, email, raw error message
 ```
 
-Every unique label-value combination is a separate time series held in memory and on disk. Ten thousand users × five routes × three statuses is **150,000 series from one metric** — and unbounded labels grow without limit, which is how a Prometheus instance OOMs and takes your visibility down during the incident it was meant to explain.
+Every unique label-value combination is a separate time series held in memory and on disk. Ten thousand users × five routes × three statuses is **150,000 series from one metric** — and unbounded labels grow without limit, which is how a Prometheus instance runs out of memory (OOM, killed by the operating system) and takes your visibility down during the incident it was meant to explain.
 
 The discipline:
 
@@ -280,9 +284,9 @@ The general shape of observability cost control: metrics cheap and bounded, trac
 
 The SRE framework, and the part interviews probe hardest because it is as much organisational as technical.
 
-- **SLI** — a *measured* indicator of user-visible behaviour. "Ratio of requests served in under 300 ms."
-- **SLO** — the target. "99.9% of requests under 300 ms over 28 days."
-- **SLA** — a contract with consequences. Always looser than the SLO, so you breach the SLO first and have time to react.
+- **SLI** (service level indicator) — a *measured* indicator of user-visible behaviour. "Ratio of requests served in under 300 ms."
+- **SLO** (service level objective) — the target. "99.9% of requests under 300 ms over 28 days."
+- **SLA** (service level agreement) — a contract with consequences. Always looser than the SLO, so you breach the SLO first and have time to react.
 - **Error budget** — `100% − SLO`. At 99.9% over 28 days that's **~40 minutes** of allowed failure.
 
 ```
@@ -299,7 +303,7 @@ Getting SLOs right:
 - Measure what the **user experiences** — success rate and latency at the edge, not CPU utilisation.
 - **Don't chase 100%.** Each extra nine costs exponentially more, and the user's network is less reliable than your service anyway. An SLO tighter than the surrounding reality is wasted money.
 - Choose the **quantile deliberately**: a p99 target protects the tail; a p50 target protects nobody.
-- **Burn-rate alerting** beats threshold alerting: page when the budget is being consumed fast enough to exhaust it (e.g. 14.4× for 1 hour = 2% of a 28-day budget), with a slower multi-window rule for gradual burn. This is how you page on "we will breach" rather than "a graph crossed a line".
+- **Burn-rate alerting** beats threshold alerting. The *burn rate* is how fast you are spending the budget relative to an even pace: 1× spends exactly the whole budget over the SLO window, 14.4× spends it 14.4 times faster. Page when the budget is being consumed fast enough to exhaust it (e.g. 14.4× sustained for 1 hour spends roughly 2% of a 28-day budget in that single hour), with a slower multi-window rule for gradual burn. This is how you page on "we will breach" rather than "a graph crossed a line".
 
 ---
 
@@ -342,7 +346,7 @@ Then split severities: **page** (wake a human), **ticket** (business hours), **d
 
 Severity levels should be defined in advance (SEV1 total/critical, SEV2 major degradation, SEV3 minor) with each mapping to an escalation path and comms expectation, so nobody is negotiating urgency mid-incident.
 
-Healthy on-call: a rotation large enough that no one burns out, an escalation path that actually answers, a **runbook per alert**, handover notes, and time compensated. Track **MTTD/MTTR**, page volume and — the most telling metric — **pages per shift outside business hours**.
+Healthy on-call: a rotation large enough that no one burns out, an escalation path that actually answers, a **runbook per alert**, handover notes, and time compensated. Track **MTTD/MTTR** (mean time to detect, mean time to recover), page volume and — the most telling metric — **pages per shift outside business hours**.
 
 ---
 
@@ -394,43 +398,81 @@ The defensible default for a self-hosted stack is **Prometheus + Grafana + Loki 
 
 **Q1: What's the difference between monitoring and observability?**
 
-**Monitoring** checks predefined signals against thresholds — you decided in advance what could go wrong, so it tells you *whether* something is broken. **Observability** is a property of the system: can you answer **new** questions about its behaviour from data it already emits, without shipping code? The test I'd use is a customer reporting that checkout is slow only for Android users in Brazil on one payment provider — a dashboard of averages cannot answer that, and data with enough dimensions to filter on can. The standard framing is the **three pillars** (metrics, logs, traces), and the useful caveat is that those are three *storage shapes*, not three purposes: treating them as separate silos is why teams pivot between four tools mid-incident. What actually delivers observability is the ability to move from a metric spike to the traces in that window to the logs for those requests — which makes **correlation IDs and exemplars** more important than any single pillar.
+**Monitoring** checks predefined signals against thresholds — you decided in advance what could go wrong, so it tells you *whether* something is broken. **Observability** is a property of the system: can you answer **new** questions about its behaviour from data it already emits, without shipping code? The test I'd use is a customer reporting that checkout is slow only for Android users in Brazil on one payment provider — a dashboard of averages cannot answer that, and data with enough dimensions to filter on can.
+
+The standard framing is the **three pillars** (metrics, logs, traces), and the useful caveat is that those are three *storage shapes*, not three purposes: treating them as separate silos is why teams pivot between four tools mid-incident. What actually delivers observability is the ability to move from a metric spike to the traces in that window to the logs for those requests — which makes **correlation IDs and exemplars** more important than any single pillar.
 
 **Q2: Explain the Prometheus metric types and when you'd use each.**
 
-**Counter** — monotonically increasing, resets to zero on restart; for requests, errors, bytes. Always query it with `rate()`, which detects resets correctly. **Gauge** — goes up and down; for queue depth, memory, connections. **Histogram** — pre-defined buckets exposing `_bucket`, `_sum` and `_count`; for latency and sizes. **Summary** — quantiles computed inside the client. The decision that matters is **histogram over summary**, because a summary's quantiles are per-instance and **you cannot average percentiles** — the p99 of ten instances' p99 values is meaningless. A histogram ships bucket counts, which *are* additive, so `histogram_quantile()` computes a correct global percentile across every instance; the price is choosing buckets up front, which native exponential histograms now remove. The other rule: use a counter, not a self-incremented gauge, for anything monotonic, because a gauge loses data silently across restarts while a counter reset is detectable.
+**Counter** — monotonically increasing, resets to zero on restart; for requests, errors, bytes. Always query it with `rate()`, which detects resets correctly. **Gauge** — goes up and down; for queue depth, memory, connections. **Histogram** — pre-defined buckets exposing `_bucket`, `_sum` and `_count`; for latency and sizes. **Summary** — quantiles computed inside the client.
+
+The decision that matters is **histogram over summary**, because a summary's quantiles are per-instance and **you cannot average percentiles** — the p99 of ten instances' p99 values is meaningless. A histogram ships bucket counts, which *are* additive, so `histogram_quantile()` computes a correct global percentile across every instance; the price is choosing buckets up front, which native exponential histograms now remove.
+
+The other rule: use a counter, not a self-incremented gauge, for anything monotonic, because a gauge loses data silently across restarts while a counter reset is detectable.
 
 **Q3: Why is Prometheus pull-based, and when does that not work?**
 
-Pulling gives you several things for free. You get a **liveness signal** (`up`) as a side effect of scraping, so target down is detected without the target doing anything. Target discovery is **centralised and auditable** rather than depending on every service being configured correctly. No misbehaving client can flood the server, because the server controls the rate. And you can **debug by hand** — `curl` the `/metrics` endpoint and see exactly what Prometheus sees. Where it breaks down is short-lived work: a batch job may finish before any scrape, which is what the **Pushgateway** exists for — and only for batch jobs, since using it for service metrics loses the `up` signal and leaves stale series behind. It also struggles with targets you can't reach on a network path, and with serverless. That's why OpenTelemetry and **remote write** have made push common: managed backends like Grafana Cloud, Mimir and Thanos ingest via remote write, so most real setups are now hybrid.
+Pulling gives you several things for free. You get a **liveness signal** (`up`) as a side effect of scraping, so target down is detected without the target doing anything. Target discovery is **centralised and auditable** rather than depending on every service being configured correctly. No misbehaving client can flood the server, because the server controls the rate. And you can **debug by hand** — `curl` the `/metrics` endpoint and see exactly what Prometheus sees.
+
+Where it breaks down is short-lived work: a batch job may finish before any scrape, which is what the **Pushgateway** exists for — and only for batch jobs, since using it for service metrics loses the `up` signal and leaves stale series behind. It also struggles with targets you can't reach on a network path, and with serverless.
+
+That's why OpenTelemetry and **remote write** have made push common: managed backends like Grafana Cloud, Mimir and Thanos ingest via remote write, so most real setups are now hybrid.
 
 **Q4: What is cardinality and why does it matter?**
 
-Cardinality is the number of distinct time series, and in Prometheus **every unique combination of label values is a separate series** held in memory and on disk. So a label like `user_id` or `request_id` is catastrophic — ten thousand users across five routes and three status classes is 150,000 series from one metric, and an unbounded label grows without limit until the Prometheus instance OOMs, taking your visibility down during the very incident it was supposed to explain. The discipline is that **metric labels must be bounded and low-cardinality**: service, method, status class, region, and the route **template** (`/users/:id`, never `/users/12345`). High-cardinality identifiers belong in **logs and traces**, which are built for exactly that. Practically, watch `prometheus_tsdb_head_series`, set `sample_limit` and `label_limit` per target, and know that on managed platforms cardinality *is* the bill — usually a larger line item than raw volume.
+Cardinality is the number of distinct time series, and in Prometheus **every unique combination of label values is a separate series** held in memory and on disk. So a label like `user_id` or `request_id` is catastrophic — ten thousand users across five routes and three status classes is 150,000 series from one metric, and an unbounded label grows without limit until the Prometheus instance OOMs, taking your visibility down during the very incident it was supposed to explain.
+
+The discipline is that **metric labels must be bounded and low-cardinality**: service, method, status class, region, and the route **template** (`/users/:id`, never `/users/12345`). High-cardinality identifiers belong in **logs and traces**, which are built for exactly that.
+
+Practically, watch `prometheus_tsdb_head_series`, set `sample_limit` and `label_limit` per target, and know that on managed platforms cardinality *is* the bill — usually a larger line item than raw volume.
 
 **Q5: Define SLI, SLO, SLA and error budget.**
 
-An **SLI** is a measured indicator of user-visible behaviour — "the ratio of requests served in under 300 ms". An **SLO** is the target for it — "99.9% under 300 ms over 28 days". An **SLA** is a contract with financial or legal consequences, and it should always be **looser** than your SLO so you breach the internal target first and have time to react. The **error budget** is `100% − SLO`, which at 99.9% over 28 days is about **40 minutes** of allowed failure. The budget is the whole point: it turns reliability from a recurring opinion fight into arithmetic. Budget remaining means the team can ship risky changes; budget exhausted triggers a pre-agreed policy where feature work pauses in favour of reliability work. That policy has to be agreed **with product in advance**, which is the organisational half of the answer, and it's why SLOs are as much a management tool as a technical one.
+An **SLI** is a measured indicator of user-visible behaviour — "the ratio of requests served in under 300 ms". An **SLO** is the target for it — "99.9% under 300 ms over 28 days". An **SLA** is a contract with financial or legal consequences, and it should always be **looser** than your SLO so you breach the internal target first and have time to react.
+
+The **error budget** is `100% − SLO`, which at 99.9% over 28 days is about **40 minutes** of allowed failure. The budget is the whole point: it turns reliability from a recurring opinion fight into arithmetic. Budget remaining means the team can ship risky changes; budget exhausted triggers a pre-agreed policy where feature work pauses in favour of reliability work.
+
+That policy has to be agreed **with product in advance**, which is the organisational half of the answer, and it's why SLOs are as much a management tool as a technical one.
 
 **Q6: Should you alert on CPU utilisation?**
 
-Generally no — that's a **cause**, and you should **alert on symptoms**. High CPU is routine during a batch job or a cache warm and pages someone for nothing; meanwhile a failure whose cause you didn't anticipate produces no alert at all. Alert instead on what the user experiences: error ratio, latency at the edge, and success rate — the **four golden signals** (latency, traffic, errors, saturation) for a service, or **USE** for a resource. CPU still belongs on a **dashboard**, because it's exactly what you look at once a symptom alert has fired and you're diagnosing. There is a narrow exception: saturation of a resource with a hard, imminent limit — a disk that `predict_linear` says exhausts in four hours — is worth paging on, because by the time it's a symptom it's already an outage. The test for any paging alert is that it's user-visible or imminently will be, actionable with a runbook, and urgent enough to justify waking someone.
+Generally no — that's a **cause**, and you should **alert on symptoms**. High CPU is routine during a batch job or a cache warm and pages someone for nothing; meanwhile a failure whose cause you didn't anticipate produces no alert at all.
+
+Alert instead on what the user experiences: error ratio, latency at the edge, and success rate — the **four golden signals** (latency, traffic, errors, saturation) for a service, or **USE** for a resource. CPU still belongs on a **dashboard**, because it's exactly what you look at once a symptom alert has fired and you're diagnosing.
+
+There is a narrow exception: saturation of a resource with a hard, imminent limit — a disk that `predict_linear` says exhausts in four hours — is worth paging on, because by the time it's a symptom it's already an outage. The test for any paging alert is that it's user-visible or imminently will be, actionable with a runbook, and urgent enough to justify waking someone.
 
 **Q7: How would you design alerting for an SLO?**
 
-With **burn-rate alerting** rather than static thresholds. A threshold like "error ratio > 1%" either fires constantly during small blips or misses a slow bleed that quietly consumes the whole budget. Instead you alert on the **rate at which the error budget is being consumed**: a fast-burn rule pages when consumption is high enough to exhaust the budget imminently — the standard example being **14.4× over one hour**, which burns 2% of a 28-day budget — and a slow-burn rule with a longer window catches gradual degradation as a ticket rather than a page. Using **multiple windows** (a short one for sensitivity and a longer one to confirm) suppresses false pages from brief spikes. The advantage is that you page on "we are going to breach the SLO", which is inherently user-relevant and inherently actionable, instead of "a graph crossed a line". Each alert still needs a `runbook_url`, appropriate severity routing, and Alertmanager grouping so fifty failing pods produce one notification.
+With **burn-rate alerting** rather than static thresholds. A threshold like "error ratio > 1%" either fires constantly during small blips or misses a slow bleed that quietly consumes the whole budget.
+
+Instead you alert on the **burn rate** — how fast the error budget is being consumed compared with an even pace, where 1× would use up exactly the budget by the end of the SLO window. A fast-burn rule pages when consumption is high enough to exhaust the budget imminently — the standard example being **14.4× over one hour**, which burns roughly 2% of a 28-day budget — and a slow-burn rule with a longer window catches gradual degradation as a ticket rather than a page. Using **multiple windows** (a short one for sensitivity and a longer one to confirm) suppresses false pages from brief spikes.
+
+The advantage is that you page on "we are going to breach the SLO", which is inherently user-relevant and inherently actionable, instead of "a graph crossed a line". Each alert still needs a `runbook_url`, appropriate severity routing, and Alertmanager grouping so fifty failing pods produce one notification.
 
 **Q8: What happens in the first ten minutes of a serious incident?**
 
-**Mitigate before diagnosing.** Roll back, fail over, disable the feature flag, or shed load — restore the user experience first and find the root cause afterwards from logs and traces, which are still there. Teams that insist on understanding the failure before acting have measurably longer outages. Alongside that, establish roles: an **Incident Commander** who coordinates and explicitly does *not* debug (the classic failure is the IC diving into logs while nobody runs the incident), a responder making changes, someone on **communications** so responders aren't fielding "any update?", and a **scribe** timestamping actions — which is what makes a real postmortem possible. Declare a severity from pre-agreed definitions so nobody negotiates urgency mid-incident, and get a status page update out early; customers tolerate outages far better than silence. Then check the obvious correlation first: **what deployed recently**, which is why deploy annotations on dashboards resolve a large share of incidents in seconds.
+**Mitigate before diagnosing.** Roll back, fail over, disable the feature flag, or shed load — restore the user experience first and find the root cause afterwards from logs and traces, which are still there. Teams that insist on understanding the failure before acting have measurably longer outages.
+
+Alongside that, establish roles: an **Incident Commander** who coordinates and explicitly does *not* debug (the classic failure is the IC diving into logs while nobody runs the incident), a responder making changes, someone on **communications** so responders aren't fielding "any update?", and a **scribe** timestamping actions — which is what makes a real postmortem possible. Declare a severity from pre-agreed definitions so nobody negotiates urgency mid-incident, and get a status page update out early; customers tolerate outages far better than silence.
+
+Then check the obvious correlation first: **what deployed recently**, which is why deploy annotations on dashboards resolve a large share of incidents in seconds.
 
 **Q9: What makes a postmortem useful?**
 
-Being **blameless**, which is a practical stance rather than a kind one — if people fear consequences they withhold the detail you need, so you lose the information that prevents recurrence. The framing is that a reasonable person acting in a system that allowed a catastrophic outcome is a **system** problem. Content-wise: **impact in user terms**, a **timeline** with detection, escalation, mitigation and resolution timestamps, **contributing factors in the plural** — complex failures never have one root cause, and "human error" is where analysis stops rather than starts — what **went well** including luck named as luck, and **action items each with an owner and a date**, tracked in the normal backlog. The two questions that add most value are "why did **detection** take as long as it did", since missing observability is often the highest-value action item, and "what would have made this a non-event". A postmortem whose actions are never completed is theatre.
+Being **blameless**, which is a practical stance rather than a kind one — if people fear consequences they withhold the detail you need, so you lose the information that prevents recurrence. The framing is that a reasonable person acting in a system that allowed a catastrophic outcome is a **system** problem.
+
+Content-wise: **impact in user terms**, a **timeline** with detection, escalation, mitigation and resolution timestamps, **contributing factors in the plural** — complex failures never have one root cause, and "human error" is where analysis stops rather than starts — what **went well** including luck named as luck, and **action items each with an owner and a date**, tracked in the normal backlog.
+
+The two questions that add most value are "why did **detection** take as long as it did", since missing observability is often the highest-value action item, and "what would have made this a non-event". A postmortem whose actions are never completed is theatre.
 
 **Q10: What is toil, and why does SRE cap it?**
 
-**Toil** is manual, repetitive, automatable work that scales linearly with the service and produces no lasting value — nightly service restarts, hand-run reports, clicking through deploys, manually provisioning accounts. It's distinct from overhead like meetings, and distinct from genuine engineering. Google's guidance caps it at roughly **50%** of an SRE's time, and the reason is structural: if toil grows with the service and consumes all available time, the team can never do the engineering that would reduce it, so reliability degrades as you scale and the team burns out. Reducing it means automating the repetitive path, **removing the need** rather than scripting around it (fix the memory leak instead of automating the restart), and making the platform self-service so other teams don't queue on you. The related practices are capacity planning from real trends, load testing to find the true saturation point, **chaos engineering** to verify resilience assumptions *and* that alerts actually fire, and game days that reliably reveal a stale runbook and missing access.
+**Toil** is manual, repetitive, automatable work that scales linearly with the service and produces no lasting value — nightly service restarts, hand-run reports, clicking through deploys, manually provisioning accounts. It's distinct from overhead like meetings, and distinct from genuine engineering.
+
+Google's guidance caps it at roughly **50%** of an SRE's time, and the reason is structural: if toil grows with the service and consumes all available time, the team can never do the engineering that would reduce it, so reliability degrades as you scale and the team burns out.
+
+Reducing it means automating the repetitive path, **removing the need** rather than scripting around it (fix the memory leak instead of automating the restart), and making the platform self-service so other teams don't queue on you. The related practices are capacity planning from real trends, load testing to find the true saturation point, **chaos engineering** to verify resilience assumptions *and* that alerts actually fire, and game days that reliably reveal a stale runbook and missing access.
 
 ---
 
@@ -442,7 +484,7 @@ Being **blameless**, which is a practical stance rather than a kind one — if p
 
 **Q2: You add `user_id` as a Prometheus label to debug a customer issue. A week later Prometheus OOMs. Explain the chain.**
 
-**Every distinct label value creates a new time series, so `user_id` multiplied your series count by the number of users.** Prometheus holds an in-memory index of active series in the TSDB head block, so one metric with 10,000 users, 5 routes and 3 status classes becomes 150,000 series — and it doesn't stop, because the label is **unbounded**: every new user adds series permanently, and churn (users appearing and disappearing) makes it worse by leaving series that must still be indexed for the retention window. Memory grows until the process is OOM-killed, which takes down monitoring **precisely when you most need it**. The correct place for a per-user question is **logs or traces**, which are designed for high cardinality; metrics answer "how much and is it broken", and you pivot to traces for "which user". Prevention: `sample_limit` and `label_limit` per scrape target, alerting on `prometheus_tsdb_head_series` growth, and a review habit that treats a new label as a cost decision.
+**Every distinct label value creates a new time series, so `user_id` multiplied your series count by the number of users.** Prometheus holds an in-memory index of active series in the TSDB (time-series database) **head block** — the in-memory section holding the most recent data — so one metric with 10,000 users, 5 routes and 3 status classes becomes 150,000 series — and it doesn't stop, because the label is **unbounded**: every new user adds series permanently, and churn (users appearing and disappearing) makes it worse by leaving series that must still be indexed for the retention window. Memory grows until the process is OOM-killed, which takes down monitoring **precisely when you most need it**. The correct place for a per-user question is **logs or traces**, which are designed for high cardinality; metrics answer "how much and is it broken", and you pivot to traces for "which user". Prevention: `sample_limit` and `label_limit` per scrape target, alerting on `prometheus_tsdb_head_series` growth, and a review habit that treats a new label as a cost decision.
 
 **Q3: An alert fires "DiskSpaceLow: 85% full" every week. On-call acknowledges and does nothing. What's the actual problem?**
 

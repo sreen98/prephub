@@ -23,7 +23,9 @@
 
 ## 1. What is Express.js?
 
-Express.js is a **minimal, unopinionated web framework** for Node.js. It provides a thin layer of features for building web applications and REST APIs without hiding Node.js functionality.
+Express.js is a **minimal, unopinionated web framework** for Node.js: a thin layer over Node's built-in `http` module that adds routing and a middleware pipeline, and little else. "Unopinionated" means it does not choose your folder structure, database or auth library for you.
+
+Why use it instead of plain `http`? With plain `http` you get one callback for every request and must parse the URL, pick a handler, read the body and set headers yourself. Express does that plumbing, and the `req`/`res` objects are still Node's own, extended with helpers such as `res.json()`, so anything that works with Node works with Express.
 
 Key features:
 - **Routing** — map URLs to handler functions
@@ -106,14 +108,17 @@ app.get('/users/:userId', (req, res) => {
   console.log(req.params.userId);          // 'abc123'
 });
 
-// Optional params (use ? in route or query string)
-app.get('/users/:userId/posts/:postId?', (req, res) => {
+// Optional params — Express 5 wraps the optional part in braces.
+// (Express 4 wrote this as '/users/:userId/posts/:postId?'; Express 5 throws on the '?'.)
+app.get('/users/:userId/posts{/:postId}', (req, res) => {
   console.log(req.params.postId);          // undefined if not provided
 });
 
-// Pattern matching
-app.get('/files/*', (req, res) => {
-  console.log(req.params[0]);             // everything after /files/
+// Wildcard — Express 5 requires the wildcard to have a name.
+// (Express 4 wrote '/files/*' and read req.params[0]; Express 5 throws on a bare '*'.)
+app.get('/files/*filePath', (req, res) => {
+  console.log(req.params.filePath);        // ['docs', 'a.txt'] for /files/docs/a.txt
+  console.log(req.params.filePath.join('/')); // 'docs/a.txt'
 });
 ```
 
@@ -445,7 +450,9 @@ See the [CORS guide](/backend/cors) for why a wildcard plus credentials is rejec
 
 ### 6.1 Error-Handling Middleware
 
-Error middleware has **4 parameters** (err, req, res, next). Express recognizes it by the arity.
+Error middleware has **4 parameters** (err, req, res, next). Express tells it apart from ordinary middleware by its **arity**, meaning the number of parameters the function declares (`fn.length`). That is why you must write all four even if you never use `next`: drop one and Express treats the function as regular middleware, and it never receives errors.
+
+Two things route an error here: a synchronous `throw` inside a handler (Express catches it for you), or an explicit `next(err)`. Errors from `async` code are the exception, covered in §6.2.
 
 ```js
 // Route that throws
@@ -478,6 +485,8 @@ app.use((err, req, res, next) => {
 ```
 
 ### 6.2 Async Error Wrapper (Express 4)
+
+An `async` function never throws to its caller; it returns a promise that rejects. Express 4 ignores the promise your handler returns, so nothing catches the rejection and the request hangs. This wrapper attaches `.catch(next)` to that promise, which forwards the error to your error middleware. Express 5 does the same thing internally, so you only need this on Express 4.
 
 ```js
 // Wrapper that catches async errors
@@ -571,7 +580,9 @@ app.get('/profile', (req, res) => {
 </html>
 ```
 
-Popular engines: **EJS**, **Pug** (formerly Jade), **Handlebars**, **Nunjucks**.
+`res.render('profile', data)` finds `views/profile.ejs`, fills it in with `data`, and sends the resulting HTML. In EJS, `<%= %>` prints a value with HTML escaping (so `<script>` in a user's name is shown as text, not run), while `<% %>` runs JavaScript without printing, used for `if` and loops. The unescaped form `<%- %>` prints raw HTML and is an XSS (cross-site scripting) hole if the value came from a user.
+
+Popular engines: **EJS**, **Pug** (formerly Jade), **Handlebars**, **Nunjucks**. Most Express apps today are JSON APIs behind a React or other front end, so a template engine matters mainly for server-rendered pages such as emails, admin screens or simple sites.
 
 ---
 
@@ -957,6 +968,8 @@ describe('POST /api/users', () => {
 
 ### 13.2 Separate App from Server
 
+Export the configured `app` from one file and call `listen()` in another. Supertest takes the `app` object and starts it on a random free port for each test, so tests never fight over port 3000 and never leave a server running after the suite ends.
+
 ```js
 // app.js - export app (for testing)
 const app = express();
@@ -1070,15 +1083,17 @@ app.use('/api', middleware);    // matches GET /api/users, POST /api/data, etc.
 app.get('/api', handler);      // matches only GET /api (exact)
 ```
 
-`app.use()` is for middleware; `app.get()` (and `.post()`, `.put()`, etc.) is for route handlers.
+That difference decides what each is for. `app.use()` suits middleware, which should run for a whole family of URLs regardless of method (logging, auth, body parsing). `app.get()` (and `.post()`, `.put()`, etc.) suits route handlers, which answer one specific method on one specific path.
 
 ---
 
 **Q4: How do you handle errors in Express?**
 
-1. Synchronous errors in route handlers are caught automatically (Express 5) or need try/catch (Express 4)
-2. Async errors must be passed to `next(err)`
-3. Define an error-handling middleware with 4 parameters `(err, req, res, next)` as the LAST middleware
+Short answer: every error should end up in one error-handling middleware, registered last, which turns it into a response. The only question is how the error gets there.
+
+1. **Synchronous errors** — a plain `throw` inside a handler. Express wraps each handler in a `try/catch`, so these reach the error middleware automatically in both Express 4 and 5 (tricky Q4 below shows this).
+2. **Async errors** — a rejected promise or a failed `await`. Express 4 does not see these, so you must catch them and call `next(err)` yourself, or use an `asyncHandler` wrapper (§6.2). Express 5 forwards them automatically.
+3. **The error middleware** has exactly 4 parameters `(err, req, res, next)`, because Express identifies it by parameter count, and it goes after all routes so every route can reach it.
 
 ```js
 // Error handler
@@ -1110,7 +1125,7 @@ req.body;     // { name: 'Alice' }    — from request body (needs parser middle
 
 **Q6: Explain the middleware execution order in Express.**
 
-Middleware executes in the order it's registered:
+Short answer: Express keeps one list of middleware and routes, in the order you registered them, and walks it top to bottom for every request. Each function either sends a response (the walk stops) or calls `next()` (the walk moves on to the next matching entry). That is why registration order is behaviour, not style:
 
 ```js
 app.use(cors());           // 1st
@@ -1128,11 +1143,13 @@ Key rules:
 - Error handlers (4 params) only run when `next(err)` is called
 - Route-specific middleware runs only when the route matches
 
+The practical consequence: parsers like `express.json()` must come before the routes that read `req.body`, the 404 handler must come after every route (it matches anything that got that far), and the error handler goes last so it can receive errors from everything above it.
+
 ---
 
 **Q7: How would you structure a large Express.js application?**
 
-Feature-based structure with separation of concerns:
+Short answer: group code by feature (users, auth, orders), and inside each feature split it into layers so that only the outer layer knows about HTTP. Express does not impose a structure, so in a large app this is the decision that keeps it maintainable. The layers:
 
 1. **Routes** — define URL-to-controller mapping
 2. **Controllers** — handle HTTP (parse req, send res)
@@ -1172,7 +1189,7 @@ app.use(cors({
 }));
 ```
 
-Without CORS, browsers block cross-origin requests. The `cors` middleware sets the `Access-Control-Allow-*` headers that browsers check.
+Two details make this answer precise. First, CORS is enforced by the **browser**, not by your server: the request usually still reaches Express, but unless the response carries the right `Access-Control-Allow-*` headers, the browser refuses to let the page's JavaScript read it. The `cors` middleware's job is to add those headers (and to answer the `OPTIONS` preflight request the browser sends first for non-simple requests). Second, `cors()` with no options allows every origin, which is fine for a public read-only API but wrong for anything using cookies: list the origins you trust instead. Tools like curl or Postman ignore CORS entirely, which is why an API can "work in Postman" and fail in the browser. See the [CORS guide](/backend/cors) for the full mechanism.
 
 ---
 
@@ -1211,7 +1228,7 @@ Two main approaches:
    req.session.userId;            // check on each request
    ```
 
-JWT is better for APIs and microservices (no shared state). Sessions are better for traditional web apps (easier to revoke).
+The trade-off is about where the truth lives. A JWT (JSON Web Token, a signed blob containing the user's id and claims) carries everything the server needs, so any instance can verify it without a database lookup, which suits APIs and microservices. The cost is revocation: a stolen or logged-out token stays valid until it expires, because nothing on the server records that it was cancelled. A session keeps the state on the server and gives the client only an opaque id, so logging someone out is deleting one row, at the price of a store (Redis, a database) that every instance must share. That is why sessions remain the default for traditional web apps, and why JWT setups use short expiry times plus refresh tokens.
 
 ---
 
@@ -1251,6 +1268,8 @@ For Express 4, use an `asyncHandler` wrapper to avoid repetitive try/catch.
 
 **Q12: How would you implement rate limiting with different tiers?**
 
+Short answer: use a rate-limiting middleware keyed by the user (not the IP) whose limit depends on the user's tier, and back it with a shared store like Redis so every server instance counts the same requests.
+
 ```js
 const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
@@ -1278,11 +1297,23 @@ function dynamicLimit(req, res, next) {
 }
 ```
 
-For distributed systems, use Redis-backed stores so rate limits are shared across instances.
+Why each piece matters:
+- **Shared store.** The default store keeps counts in the process's memory. With three instances behind a load balancer, each one counts separately, so a user effectively gets three times the limit. A Redis store makes all instances read and write the same counters.
+- **Key by user for tiers.** `keyGenerator: (req) => req.user.id` counts per account, which is what a paid tier is sold on. Keying by IP instead would lump together everyone behind one office network.
+- **A stricter limit on login** slows password-guessing, which is a different threat from general overuse.
+
+One flaw to volunteer in `dynamicLimit` as written: it calls `rateLimit(...)` inside the request handler, which builds a brand-new limiter, with its own fresh in-memory counter, on every request, so the count never accumulates. Create the limiter once at startup; `express-rate-limit` accepts a function for `max`, so the per-tier lookup can live inside that one limiter.
 
 ---
 
 **Q13: How do you handle file uploads in Express?**
+
+Short answer: `express.json()` cannot read file uploads, because browsers send files as `multipart/form-data` (a body split into parts, one per field or file). Use the `multer` middleware, which parses that format and puts files on `req.file` / `req.files` and the text fields on `req.body`.
+
+The decisions worth explaining:
+- **Memory vs disk storage.** Memory storage gives you a `Buffer`, which is convenient when you immediately forward the file to S3, but every in-flight upload sits in RAM. Disk storage writes to a folder first, which is safer for large files.
+- **Always set `limits.fileSize`.** Without it, one client can send a multi-gigabyte body and exhaust memory or disk.
+- **`fileFilter` is a convenience, not a security check.** `file.mimetype` comes from the client's own header, so a renamed executable passes it. If the type matters, inspect the file's contents after upload.
 
 ```js
 const multer = require('multer');
@@ -1346,7 +1377,7 @@ app.use('/api/users', (req, res, next) => {
 });
 ```
 
-URL prefix is simplest and most widely used. It's clear, cacheable, and easy to deprecate.
+URL prefix is the usual choice, for concrete reasons: the version is visible in every log line and browser address bar, CDNs and caches treat `/v1/users` and `/v2/users` as different resources with no extra configuration, and retiring v1 is deleting one `app.use` line. Header-based versioning keeps URLs clean, but a cache that ignores the header can serve a v1 response to a v2 client unless the response sets `Vary` on that header, and you cannot test it by pasting a URL.
 
 ---
 
@@ -1355,7 +1386,7 @@ URL prefix is simplest and most widely used. It's clear, cacheable, and easy to 
 | Feature | Express | Fastify | Koa | NestJS |
 |---------|---------|---------|-----|--------|
 | Philosophy | Minimal, unopinionated | Performance-focused | Minimal, modern | Full-featured, opinionated |
-| Performance | Good | Best (2-3x Express) | Good | Good (uses Express/Fastify under the hood) |
+| Performance | Good | Fastest of the four (about 1.6x Express 5 in Fastify's own hello-world benchmark) | Good | Good (uses Express/Fastify under the hood) |
 | Middleware | Callback-based | Plugin system | async/await native | Decorators, dependency injection |
 | Validation | Third-party (express-validator) | Built-in (JSON schema) | Third-party | Built-in (class-validator) |
 | TypeScript | Community types | First-class | Community types | First-class |
@@ -1363,11 +1394,19 @@ URL prefix is simplest and most widely used. It's clear, cacheable, and easy to 
 | Ecosystem | Largest | Growing | Small | Growing |
 | Use case | Most projects | High-performance APIs | Modern, lightweight | Enterprise, large teams |
 
-Express is the most popular and has the largest ecosystem. Choose others when you need specific advantages (performance, TypeScript, structure).
+Short answer: Express is the default because it has the largest ecosystem and nearly every Node developer already knows it; pick another framework when you have a specific need it does not meet.
+
+- **Fastify** when raw throughput or built-in schema validation matters. Its validation uses JSON Schema (a standard format for describing the shape of JSON), and the same schema also speeds up serialising responses. Treat the performance figure above as a ratio from one hello-world benchmark published by the Fastify project itself: in a real API the database and network usually cost far more than the framework, so switching frameworks rarely changes response times as much as the benchmark suggests.
+- **Koa** when you want Express's minimalism with `async`/`await` built into the middleware model. It comes from the team that originally built Express, and it ships with almost nothing, so you add routing and body parsing yourself.
+- **NestJS** when a large team needs one enforced structure — modules, controllers and dependency injection (the framework creates and passes in the objects a class needs, instead of the class building them). It runs on top of Express or Fastify, so it is a layer of structure, not a faster engine, and it costs a steeper learning curve.
 
 ---
 
 **Q16: How do you implement graceful shutdown with Express?**
+
+Short answer: when the process is told to stop (a `SIGTERM` signal, which is what Docker, Kubernetes and most hosts send before killing a container), stop accepting new connections, let the requests already in progress finish, close database and cache connections, then exit. A hard-coded timeout forces the exit if something never finishes.
+
+Without this, a deploy kills the process mid-request: users get dropped connections, and half-finished writes can be left behind. `server.close()` only stops *new* connections and waits for open ones, which is why its callback is where you close the database; closing it earlier would break the requests still running. The 30-second timer exists because a keep-alive or stuck connection can hold `server.close()` open indefinitely, and the orchestrator will kill the process anyway after its own grace period.
 
 ```js
 const server = app.listen(3000);
@@ -1402,6 +1441,8 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 **Q17: How do you handle multipart/form-data vs application/json in the same route?**
 
+Short answer: each body parser understands only one format, so put a small middleware in front of the route that checks the request's `Content-Type` header and hands the request to the matching parser. Multipart requests go to `multer` (which fills `req.body` and `req.files`); everything else goes to `express.json()`. The handler after it then reads `req.body` the same way regardless of how the client sent it, with `req.files` present only for multipart.
+
 ```js
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
@@ -1429,28 +1470,33 @@ app.post('/roles',
 
 **Q18: How would you implement request validation middleware?**
 
+Short answer: write a factory, `validate(schema)`, that returns a middleware. The middleware checks `req.body`, `req.query` and `req.params` against a schema before the handler runs, responds `400` with the list of problems if they fail, and otherwise calls `next()`. The handler can then trust its input instead of re-checking it.
+
+The example uses Zod, a schema library where `schema.safeParse(value)` returns either `{ success: true, data }` (the value typed and cleaned up) or `{ success: false, error }`, whose `error.issues` lists every failed rule. Two details to volunteer: the handler should read the **parsed** values, so defaults and type conversions from the schema reach it; and validating `query` and `params` matters as much as `body`, because they arrive as strings from the URL.
+
+One Express 5 trap: `req.query` is now a getter, so `req.query = parsed.query` is silently ignored and the handler keeps seeing the raw strings. That is why the middleware stores the parsed result on its own property, `req.validated`, instead of writing it back onto `req.query`.
+
 ```js
 const { z } = require('zod');
 
 function validate(schema) {
   return (req, res, next) => {
-    try {
-      const validated = schema.parse({
-        body: req.body,
-        query: req.query,
-        params: req.params,
-      });
-      req.body = validated.body;
-      req.query = validated.query;
-      req.params = validated.params;
-      next();
-    } catch (err) {
-      res.status(400).json({
+    const result = schema.safeParse({
+      body: req.body,
+      query: req.query,
+      params: req.params,
+    });
+    if (!result.success) {
+      return res.status(400).json({
         status: 'error',
         message: 'Validation failed',
-        errors: err.errors,
+        errors: result.error.issues,
       });
     }
+    // Express 5: req.query is a getter, so assigning to it does nothing.
+    // Keep the parsed values on their own property; handlers read req.validated.
+    req.validated = result.data;
+    next();
   };
 }
 
@@ -1465,7 +1511,10 @@ const createUserSchema = z.object({
   params: z.object({}),
 });
 
-app.post('/users', validate(createUserSchema), handler);
+app.post('/users', validate(createUserSchema), (req, res) => {
+  const { name, email } = req.validated.body;   // parsed, not raw
+  res.status(201).json({ name, email });
+});
 ```
 
 ---
@@ -1481,6 +1530,9 @@ Practice questions testing your understanding of Express middleware execution or
 **Q1: In what exact order will the five log statements fire for `GET /` given three middleware layers where code runs both before and after `next()`?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.use((req, res, next) => {
   console.log("A");
   next();
@@ -1523,6 +1575,9 @@ This "post-next()" window is the idiomatic place to put response-timing, logging
 **Q2: If one middleware in the chain sends a response but never calls `next()`, what do the logs show for `GET /` and why do the later handlers never fire?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.use((req, res, next) => {
   console.log("A");
   next();
@@ -1566,6 +1621,9 @@ This short-circuit behaviour is exactly how authentication, authorization, rate 
 **Q3: Given one global `app.use` and two `app.get("/api", …)` handlers registered separately, what prints for `GET /api` versus `GET /other`, and why does `app.use` run for both paths?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.use((req, res, next) => {
   console.log("global");
   next();
@@ -1613,6 +1671,9 @@ For `GET /other`, only the `app.use` matches. After `next()` there are no more m
 **Q4: When a route handler throws synchronously, does the next regular `app.use` run, or does Express skip straight to the 4-arg error middleware?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.get("/", (req, res, next) => {
   console.log("A");
   throw new Error("boom");
@@ -1650,6 +1711,9 @@ Equivalently, calling `next(err)` explicitly from any middleware produces the sa
 **Q5: An `async` route handler throws after logging `A`. In Express 4 vs Express 5, does the 4-arg error middleware fire, and why does the behaviour differ?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.get("/", async (req, res) => {
   console.log("A");
   throw new Error("async boom");
@@ -1664,7 +1728,7 @@ app.use((err, req, res, next) => {
 **Output (Express 4):**
 ```
 A
-(UnhandledPromiseRejection: "async boom" — request hangs, no "caught" log)
+Error: async boom   ← unhandled rejection: Node 15+ exits the process, no "caught" log
 ```
 
 **Output (Express 5):**
@@ -1677,7 +1741,7 @@ caught: async boom
 
 Express's error-forwarding is built on a plain synchronous `try/catch` wrapped around each handler invocation. That works for `throw` statements in sync code, because the throw propagates up through the call frame and is caught. But when you mark a handler `async`, the function implicitly returns a `Promise`. A `throw` inside an async function does NOT propagate synchronously — it turns into a **rejected promise** that surfaces on the microtask queue.
 
-In Express 4 the router ignores the returned value of your handler, so the rejected promise has no handler attached and becomes an `UnhandledPromiseRejection`. The error-handling middleware never fires, no response is sent, and the client hangs until timeout. The standard fix is an async wrapper — `const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);` — which explicitly forwards rejections to `next(err)`.
+In Express 4 the router ignores the returned value of your handler, so the rejected promise has no handler attached and becomes an unhandled rejection. The error-handling middleware never fires and no response is sent. What happens next depends on Node: since Node 15 the default `--unhandled-rejections=throw` mode turns it into an uncaught exception, so the **whole server process exits** and every in-flight request is dropped (verified on Express 4.22 / Node 24). On older Node, or if the app registers a `process.on("unhandledRejection")` listener, the process survives but this request hangs until the client times out. The standard fix is an async wrapper — `const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);` — which explicitly forwards rejections to `next(err)`.
 
 Express 5 fixes this at the framework level: the router awaits the handler's return value and automatically calls `next(err)` on rejection. So with Express 5 the code above logs `A`, the promise rejects, the router catches it, and the 4-arg error middleware logs `caught: async boom` and responds with 500 — no wrapper needed.
 
@@ -1688,6 +1752,9 @@ Express 5 fixes this at the framework level: the router awaits the handler's ret
 **Q6: Inside a chain of route handlers the first one calls `next("route")`. Which handlers run, and why is the 4-arg error middleware NOT triggered even though a string was passed to `next`?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.get("/",
   (req, res, next) => {
     console.log("handler 1");
@@ -1722,7 +1789,7 @@ handler 3
 
 The first `app.get("/", …)` registers TWO sub-handlers as a single route: handler 1 and handler 2. When handler 1 logs and calls `next("route")`, Express aborts the sub-handler chain for this route, so handler 2 is skipped. The dispatcher then resumes with the next layer on the app stack that matches `GET /`, which is the separate `app.get("/", …)` containing handler 3. Handler 3 runs, logs, and sends the response. Because this is NOT an error dispatch, the 4-arg error middleware is never entered.
 
-Note the scope limitation: `next("route")` only works inside handlers registered via `app.METHOD()` or `router.METHOD()` (i.e. real routes). Calling it from within a plain `app.use` middleware throws, because there is no "current route" to skip out of.
+Note the scope limitation: `next("route")` only works inside handlers registered via `app.METHOD()` or `router.METHOD()` (i.e. real routes). Called from a plain `app.use` middleware it does not throw; there is no current route to skip out of, so Express treats it exactly like `next()` and moves on to the next layer (verified on Express 4.22 and 5.2).
 
 **Takeaway:** `next("route")` skips the remaining sub-handlers of the current route and resumes at the next matching route — it is NOT an error and does not trigger error middleware.
 
@@ -1735,6 +1802,9 @@ Note the scope limitation: `next("route")` only works inside handlers registered
 **Q7: A handler calls `res.send()` twice with logs in between. What does the client see, what prints to the console, and what error is thrown on the second send?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.get("/", (req, res) => {
   res.send("first");
   console.log("A");
@@ -1755,7 +1825,7 @@ Error [ERR_HTTP_HEADERS_SENT]: Cannot set headers after they are sent to the cli
 
 So the trace is: `res.send("first")` serializes the payload, writes `Content-Type` and `Content-Length` headers, and ends the response — the client now has `"first"`. Next, `console.log("A")` runs and prints `A`. Then `res.send("second")` tries to set headers again on an already-finished response. Node throws `Error [ERR_HTTP_HEADERS_SENT]: Cannot set headers after they are sent to the client`, which aborts the handler so `console.log("B")` never runs.
 
-If the error isn't caught by a global error handler or `uncaughtException`, it crashes the process on older Node versions or just logs with a broken response on newer ones. The canonical fixes are: (a) `return res.send(...)` to stop execution after a response, (b) branch with `if/else` so only one path sends, or (c) use `res.headersSent` as a guard before subsequent `res.*` calls.
+Because this is a synchronous throw inside a route handler, Express's own `try/catch` catches it and passes it to the error middleware, just like tricky Q4. The client is unaffected, since it already has `"first"`; the error only shows up in your logs, but if your own error handler then tries to send a 500 it hits the same error again. That is why a well-written error handler checks `res.headersSent` first and, if a response has already gone out, just calls `next(err)` so Express's default handler can close the connection. The canonical fixes are: (a) `return res.send(...)` to stop execution after a response, (b) branch with `if/else` so only one path sends, or (c) use `res.headersSent` as a guard before subsequent `res.*` calls.
 
 **Takeaway:** `res.send()` completes the response but does not return from the function — always `return res.send(...)` or guard with `if (!res.headersSent)` to avoid `ERR_HTTP_HEADERS_SENT`.
 
@@ -1764,6 +1834,9 @@ If the error isn't caught by a global error handler or `uncaughtException`, it c
 **Q8: For the same plain object, what `Content-Type` does `res.send(data)` set versus `res.json(data)`, and where do the two methods actually diverge in behaviour?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.get("/", (req, res) => {
   const data = { status: "ok", count: 0 };
 
@@ -1781,7 +1854,7 @@ app.get("/", (req, res) => {
 
 Internally, `res.send()` is a generic responder that branches on the type of its argument: a `Buffer` becomes `application/octet-stream`, a string becomes `text/html` (unless already set), and an **object or array is JSON-stringified and delegated to `res.json()`**. So for a plain object the two calls converge on the same code path and produce identical wire output.
 
-The real differences show up at the edges. `res.json()` always runs the value through `JSON.stringify` (respecting `app.get('json spaces')`, `json replacer`, `json escape`), which means `res.json(null)` writes the literal four-character body `null`, while `res.send(null)` sends a `204`-like empty body with `Content-Length: 0`. Likewise `res.json("hi")` sends the JSON string `"hi"` (with quotes) as `application/json`, whereas `res.send("hi")` sends `hi` as `text/html`. For primitives like numbers — `res.send(404)` is historically interpreted as "set status 404" (deprecated pitfall) while `res.json(404)` sends the body `404`.
+The real differences show up at the edges. `res.json()` always runs the value through `JSON.stringify` (respecting `app.get('json spaces')`, `json replacer`, `json escape`), which means `res.json(null)` writes the literal four-character body `null`, while `res.send(null)` sends an empty body (still status 200, `Content-Length: 0`). Likewise `res.json("hi")` sends the JSON string `"hi"` (with quotes) as `application/json`, whereas `res.send("hi")` sends `hi` as `text/html`. Numbers are the sharpest edge: in Express 4 `res.send(404)` is a deprecated "set status 404" call that answers `404 Not Found`, while in Express 5 it sends the JSON body `404` with status 200; `res.json(404)` sends the body `404` in both.
 
 For REST APIs the recommendation is to use `res.json()` explicitly. It documents intent, avoids the type-dispatch surprises of `res.send()`, and guarantees correct JSON semantics for `null`, arrays, and numbers.
 
@@ -1792,6 +1865,9 @@ For REST APIs the recommendation is to use `res.json()` explicitly. It documents
 **Q9: An `app.param("id", ...)` handler is registered once. How often does it fire for `GET /users/42` vs `GET /posts/7`, and at what point in the dispatch does it run?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.param("id", (req, res, next, id) => {
   console.log("param:", id);
   next();
@@ -1835,6 +1911,9 @@ This makes `app.param` the idiomatic place for concerns like "look up a user by 
 **Q10: Two versions of the same app differ only in whether `app.use(express.json())` is registered before or after the `POST /api` route. For a request with body `{"name":"John"}`, why is `req.body` parsed in one and `undefined` in the other?**
 
 ```js
+const express = require("express");
+const app = express();
+
 app.use(express.json());
 
 app.post("/api", (req, res) => {

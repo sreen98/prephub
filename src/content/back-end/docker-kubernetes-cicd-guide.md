@@ -213,7 +213,7 @@ If your process spawns children (a shell script wrapper, a worker pool), add an 
 
 The Alpine caveat is the one to know: Alpine uses **musl** rather than glibc, so packages with prebuilt native binaries may fail or fall back to slow compilation, and some (notably certain image and crypto libraries) have subtle behavioural differences. `-slim` is the safer default; Alpine is fine once you've verified your native dependencies.
 
-**Distroless is the security answer.** No shell means an attacker who achieves RCE has no `sh`, no `curl`, no package manager to pivot with. The trade-off is that you can't `kubectl exec` into it to debug — which is what **ephemeral debug containers** (`kubectl debug`) exist for.
+**Distroless is the security answer.** No shell means an attacker who achieves RCE (remote code execution — getting your process to run their code) has no `sh`, no `curl`, no package manager to pivot with. The trade-off is that you can't `kubectl exec` into it to debug — which is what **ephemeral debug containers** (`kubectl debug`) exist for.
 
 ### 4.2 The Rest of the Checklist
 
@@ -302,9 +302,9 @@ You don't need to run a cluster to answer these; you need the object model and t
 | **StatefulSet** | for stateful workloads — stable identities and per-pod storage |
 | **DaemonSet** | one pod per node (log shippers, agents) |
 | **Job** / **CronJob** | run-to-completion and scheduled work |
-| **HPA** | scales replicas on metrics |
-| **PVC** | a request for persistent storage |
-| **Namespace** | a scoping boundary for names, quotas and RBAC |
+| **HPA** (HorizontalPodAutoscaler) | scales the number of replicas up and down on metrics such as CPU |
+| **PVC** (PersistentVolumeClaim) | a pod's request for persistent storage, which the cluster satisfies with a real disk |
+| **Namespace** | a scoping boundary for names, quotas and RBAC (role-based access control — who may do what to which objects) |
 
 ```yaml
 apiVersion: apps/v1
@@ -394,10 +394,10 @@ resources:
 
 The two behave **completely differently on exceeding the limit**, and this is a favourite follow-up:
 
-- **CPU is compressible** — exceeding the CPU limit **throttles** the container (via cgroup CFS quota). Your app gets slow, not killed. A too-low CPU limit is a classic cause of mysterious latency: p99 spikes with no error, because the process is being paused mid-request.
+- **CPU is compressible** — exceeding the CPU limit **throttles** the container: the Linux scheduler (CFS, the Completely Fair Scheduler) gives it a fixed slice of CPU time per 100 ms period and pauses it for the rest of the period once the slice is used. Your app gets slow, not killed. A too-low CPU limit is a classic cause of mysterious latency: p99 (the slowest 1% of requests) spikes with no error, because the process is being paused mid-request.
 - **Memory is not compressible** — exceeding the memory limit **kills the container** with `OOMKilled` (exit 137). Kubernetes then restarts it. A container that's `OOMKilled` in a loop is `CrashLoopBackOff`.
 
-Requests also determine **QoS class**, which decides eviction order under node pressure: `Guaranteed` (requests == limits) is evicted last, `BestEffort` (nothing set) first. Setting requests but no limits is common and reasonable for CPU; **always set a memory limit**, or one leaking pod can take down a whole node.
+Requests also determine the pod's **QoS (quality of service) class**, which decides eviction order under node pressure: `Guaranteed` (requests == limits) is evicted last, `BestEffort` (nothing set) first. Setting requests but no limits is common and reasonable for CPU; **always set a memory limit**, or one leaking pod can take down a whole node.
 
 And the Node-specific gotcha: **the JVM and Node.js historically didn't see cgroup limits**, so they'd size their heap against the *node's* memory and get OOMKilled long before hitting their own limit. Modern versions are container-aware, but you should still set `--max-old-space-size` (Node) below the container's memory limit.
 
@@ -417,7 +417,7 @@ spec:
 
 The HPA scales on CPU, memory, or custom/external metrics (queue depth is often the right signal for a worker). Two things to name: **CPU utilisation is measured against the *request***, not the limit — so a wrong request breaks autoscaling entirely. And **HPA is useless without correct requests**, which is the most common misconfiguration.
 
-Also worth knowing: **VPA** adjusts requests/limits rather than replica count (and conflicts with HPA on the same resource), **Cluster Autoscaler / Karpenter** adds *nodes* when pods can't be scheduled, and **PodDisruptionBudget** stops voluntary disruptions (a node drain, a cluster upgrade) from taking too many replicas down at once — the thing people forget until a routine cluster upgrade causes an outage.
+Also worth knowing: **VPA** (VerticalPodAutoscaler) adjusts requests/limits rather than replica count (and conflicts with HPA on the same resource), **Cluster Autoscaler / Karpenter** adds *nodes* when pods can't be scheduled, and **PodDisruptionBudget** stops voluntary disruptions (a node drain, a cluster upgrade) from taking too many replicas down at once — the thing people forget until a routine cluster upgrade causes an outage.
 
 ### 7.4 Configuration and Secrets
 
@@ -427,14 +427,14 @@ envFrom:
   - secretRef:    { name: api-secrets }
 ```
 
-**Kubernetes Secrets are base64-encoded, not encrypted**, and that's the single most important fact about them. Anyone with `get secret` RBAC, or read access to etcd, can read them. Mitigations, in ascending order of robustness:
+**Kubernetes Secrets are base64-encoded, not encrypted**, and that's the single most important fact about them. Base64 is a reversible text encoding, not a cipher — `base64 -d` recovers the value with no key. Anyone with `get secret` RBAC permission, or read access to etcd (the key-value database where Kubernetes stores every object), can read them. Mitigations, in ascending order of robustness:
 
 1. **Enable encryption at rest** for etcd (`EncryptionConfiguration`) — table stakes, and off by default in some distributions.
 2. **Tight RBAC** on secret access, per namespace.
 3. **External secret stores** — Vault, AWS Secrets Manager, or an operator like External Secrets, so the source of truth is outside the cluster with rotation and audit.
-4. **Workload identity / IRSA** — the strongest option: no long-lived secret at all. The pod assumes a cloud IAM role via a projected service-account token, so there's nothing to leak.
+4. **Workload identity / IRSA** (IAM Roles for Service Accounts, AWS's version) — the strongest option: no long-lived secret at all. The pod assumes a cloud IAM role via a projected service-account token, so there's nothing to leak.
 
-Never commit secrets to Git — including in a Helm `values.yaml`. If you're doing GitOps, use Sealed Secrets or SOPS so what's committed is encrypted.
+Never commit secrets to Git — including in a Helm `values.yaml`. If you're doing GitOps (the cluster continuously syncs itself to what is in a Git repo), use Sealed Secrets or SOPS, tools that encrypt the secret before commit so only the cluster can decrypt it.
 
 ---
 
@@ -510,7 +510,7 @@ The details that matter and are frequently missing:
 
 - **`concurrency` with `cancel-in-progress`** — stops five queued runs on the same branch burning CI minutes.
 - **Explicit `permissions`** — the default token scope is often far wider than the job needs. A compromised action with `contents: write` can push to your repo.
-- **`id-token: write` + OIDC** — federate into AWS/GCP for a short-lived credential instead of storing long-lived access keys as secrets. This is the single biggest CI security improvement available, and it directly addresses the supply-chain scenario from the Web Security guide.
+- **`id-token: write` + OIDC** (OpenID Connect) — the job asks GitHub for a signed token saying "I am workflow X in repo Y", and the cloud provider, configured to trust GitHub, swaps it for a short-lived credential — so there are no long-lived access keys stored as secrets to steal. This is the single biggest CI security improvement available, and it directly addresses the supply-chain scenario from the Web Security guide.
 - **Pin actions.** `@v5` is a mutable tag; a compromised action version runs in your pipeline with your secrets. Pinning to a full commit SHA is the hardened form.
 - **`cache-from`/`cache-to type=gha`** — Docker layer cache across runs, otherwise every CI build starts cold.
 - **`npx tsc --noEmit`** as its own step, because bundlers and Node's type stripping don't type-check (see the TypeScript and Node guides).
@@ -779,9 +779,9 @@ I'd group them, because "works on my machine" has a few distinct shapes:
 
 **2. Configuration.** Local `.env` files aren't in the image (correctly — `.dockerignore`), so a variable that exists on your machine is absent in the cluster. Symptom: exit 1 at startup. Fix: validate required config at boot and fail with a clear message naming the missing key, rather than a stack trace from a downstream `undefined`.
 
-**3. Networking.** `localhost` inside a container is the *container*, not the host or another service. Locally Compose gives you service-name DNS; in Kubernetes it's the Service name, and cross-namespace needs the FQDN. Plus egress: NetworkPolicies, security groups or a proxy may block calls that work from your laptop.
+**3. Networking.** `localhost` inside a container is the *container*, not the host or another service. Locally Compose gives you service-name DNS; in Kubernetes it's the Service name, and cross-namespace needs the FQDN (fully qualified domain name, e.g. `api.payments.svc.cluster.local`). Plus egress: NetworkPolicies, security groups or a proxy may block calls that work from your laptop.
 
-**4. Filesystem and permissions.** Locally you're root and the filesystem is writable. In production you're a non-root `USER` (correctly) and possibly `readOnlyRootFilesystem`, so anything writing to disk fails. Fix: write only to a mounted `emptyDir` or `/tmp`, and make sure `--chown` is right on copied files.
+**4. Filesystem and permissions.** Locally you're root and the filesystem is writable. In production you're a non-root `USER` (correctly) and possibly `readOnlyRootFilesystem`, so anything writing to disk fails. Fix: write only to a mounted `emptyDir` (a scratch volume that lives as long as the pod) or `/tmp`, and make sure `--chown` is right on copied files.
 
 **5. Resources.** Your laptop has 32 GB; the container has a 512 Mi limit. Symptom: `OOMKilled`. Also the runtime-not-seeing-cgroups issue.
 

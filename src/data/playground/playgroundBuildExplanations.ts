@@ -165,7 +165,7 @@ const clientCache: BuildExplanation = {
   buildOrder: [
     {
       title: 'Keep two maps — the data, and the requests in flight',
-      excerpt: { from: "const cached = cache.get(key);", lines: 3 },
+      excerpt: { from: "const cached = queryCache.get(key);", lines: 3 },
       detail:
         'The second map is the one people forget. Without it, two components mounting at the same time with the same key each start their own request, and N consumers means N identical network calls.',
       pitfall: 'Delete the inflight entry when the promise settles, or a failed request is cached as permanently pending and the key can never be refetched.',
@@ -447,18 +447,56 @@ const chatApp: BuildExplanation = {
   kind: 'build',
   problem: 'Chat App',
   problemStatement:
-    'Send messages, switch between users, and keep the newest message in view. The list-management is routine; the scroll behaviour and the message identity are where this is won or lost.',
+    'A live chat with message history, messages that go from "sending" to "sent" or "failed", incoming messages without duplicates, and a typing indicator in both directions. The question asks WebSocket or polling, and how to manage message state, loading and typing status.',
   buildOrder: [
-    { title: 'Give every message an id at creation, not at render', excerpt: { from: "setMessages(prev => [...prev, {", lines: 3 }, detail: 'The id is the React key and, later, the thing you reconcile a server response against. Generating it when the message is created means the optimistic row and the confirmed row are the same row.', pitfall: 'Keying by index means every insertion reorders the keys, so React reuses the wrong DOM nodes and a half-typed edit jumps to a different message.' },
-    { title: 'Append with a functional update', excerpt: { from: "setMessages(prev => [...prev, {", lines: 3 }, detail: 'A bot reply arriving from a setTimeout closes over the messages array as it was when the timer was scheduled. The functional form always reads current state, so two replies landing close together cannot overwrite each other.', pitfall: 'This is the stale-closure bug in its most common disguise — it only shows up when two async appends overlap.' },
-    { title: 'Scroll to the bottom in a layout effect', excerpt: { from: "}, [messages]);", lines: 3 }, detail: 'useLayoutEffect runs after the DOM is updated but before the browser paints, so the user never sees the pre-scroll frame. In a plain useEffect the list visibly jumps.', pitfall: 'Auto-scrolling unconditionally yanks the view away from someone reading history. Check whether they were already near the bottom first.' },
-    { title: 'Reset per-conversation state with key',  detail: 'Switching users must not carry the draft, scroll position or message list across. A key makes React discard and rebuild the subtree, which is far more reliable than an effect trying to clear each piece of state.' },
+    {
+      title: 'Choose the transport',
+      detail:
+        'Polling asks the server "anything new?" every few seconds: simple and proxy-friendly, but messages arrive late and most requests come back empty. A WebSocket keeps one connection open in both directions, so the server pushes messages and typing events as they happen, and the client can send typing events cheaply. Chat sends often in both directions, which is exactly what WebSockets are for; polling stays as a fallback. The template uses a FakeSocket with the same send/onmessage shape, so swapping in new WebSocket(url) changes nothing else.',
+    },
+    {
+      title: 'Treat "still loading" as its own state',
+      excerpt: { from: 'const [messages, setMessages] = React.useState(null);   // null = still loading', lines: 1 },
+      detail:
+        'null means the history has not arrived yet, which is different from an empty conversation. The list shows "Loading messages…", and the input is disabled until there is a list to add to.',
+    },
+    {
+      title: 'Merge incoming messages by id',
+      excerpt: { from: 'function mergeById(existing, incoming) {', lines: 4 },
+      detail:
+        'A pushed message can arrive before the history request finishes, and a reconnect can replay messages you already have. Merging by id and sorting by time handles both, so nothing is shown twice and nothing is lost.',
+      pitfall: 'setMessages(history) when the history arrives would wipe out any message pushed while it was loading.',
+    },
+    {
+      title: 'Give each sent message a client id and a status',
+      excerpt: { from: 'const message = { clientId, id: clientId, user: "You", text, at: Date.now(), status: "sending" };', lines: 1 },
+      detail:
+        'The message appears immediately as "sending", identified by a clientId made on this device. When the server confirms, it echoes the clientId back with its own id, and the message becomes "sent". The same clientId is reused on retry, so retrying replaces the failed bubble instead of adding a second one.',
+    },
+    {
+      title: 'Match the acknowledgement by client id',
+      excerpt: { from: 'm.clientId === data.clientId ? { ...m, id: data.id, status: "sent" } : m));', lines: 1 },
+      detail:
+        'The server id did not exist when the message was sent, so the clientId is the only thing that links the confirmation to the bubble. The React key stays the clientId too, so the bubble keeps its identity when the server id arrives.',
+    },
+    {
+      title: 'Throttle outgoing typing events',
+      excerpt: { from: 'if (now - lastTypingSent.current < TYPING_SEND_EVERY) return;   // throttle', lines: 1 },
+      detail:
+        'Sending a typing event on every keystroke floods the connection for no benefit. At most one every two seconds keeps the other person\'s indicator alive while you type.',
+    },
+    {
+      title: 'Let the typing indicator expire on its own',
+      excerpt: { from: 'typingTimer.current = setTimeout(() => setTypingUser(null), TYPING_EXPIRES);', lines: 1 },
+      detail:
+        'If a "stopped typing" event is lost, or the other person closes their laptop mid-sentence, the indicator would otherwise say "Alex is typing…" forever. Each typing event restarts a three-second timer, and a real message clears it at once.',
+    },
   ],
   graded: [
-    { point: 'Messages have stable ids generated at creation', why: 'It is what makes keys correct, optimistic sending possible, and edits or deletes addressable. Index keys work only for an append-only list that is never filtered.' },
-    { point: 'Functional updates for anything async', why: 'Any append scheduled from a timer, socket or fetch has a stale closure over state. This is the single most common React bug in real-time UI.' },
-    { point: 'Auto-scroll respects the user', why: 'Always scrolling makes reading history impossible; never scrolling means new messages are missed. The near-bottom check is what every real chat client implements.' },
-    { point: 'You reach for key to reset state on switch', why: 'The alternative is an effect that clears four pieces of state and forgets the fifth. Resetting by key is idiomatic and cannot go stale.' },
+    { point: 'You justify WebSocket over polling for this case', why: 'The question asks directly. The graded part is the reason: frequent traffic in both directions, plus keeping polling as a fallback, rather than "WebSockets are real-time".' },
+    { point: 'Messages have a lifecycle: sending, sent, failed', why: 'Message state management is the core of the question. A client id, a status and a retry that reuses the bubble show you have handled real network failure.' },
+    { point: 'Nothing is shown twice', why: 'Merging by id handles the race between history and pushed messages and makes reconnect replays safe. It is a detail interviewers probe with "what if the history loads after a new message arrives?".' },
+    { point: 'Typing status is throttled out and expires in', why: 'Both halves are small and both are usually missed. Together they show you think about bandwidth and about events that never arrive.' },
   ],
 };
 
@@ -618,18 +656,56 @@ const tabs: BuildExplanation = {
   kind: 'build',
   problem: 'Tabs',
   problemStatement:
-    'Tabs built as compound components — <Tabs>, <Tabs.Tab>, <Tabs.Panel> — sharing state through context so the consumer composes the markup and the library wires up the behaviour.',
+    'Tabs rendered from data, with the keyboard behaviour and roles a screen reader expects, an underline that slides to the active tab and a panel that fades in. The question also asks which animation tool you would use, and the answer is a trade-off, not a favourite.',
   buildOrder: [
-    { title: 'Put the shared state in a context owned by the parent', excerpt: { from: "const [active, setActive] = React.useState(defaultIndex);", lines: 6 }, detail: 'Context is what lets the children be arbitrarily nested inside the consumer\'s own markup. The alternative — a tabs={[...]} array prop — means every layout variation becomes a new prop on your component.', pitfall: 'Without useMemo the value object is new every render, so every tab and panel re-renders on any parent update.' },
-    { title: 'Every part must RETURN its JSX', excerpt: { from: "Tabs.Tab = function Tab({ index, children }) {", lines: 4 }, detail: 'React 19 allows a component to return undefined, and renders nothing — silently. React 18 threw "Nothing was returned from render" and named the component. A missing return is now an invisible empty subtree rather than an error.', pitfall: 'Destructuring setActive and never wiring onClick is the other half of the same slip: the tab renders but does nothing.' },
-    { title: 'Wire the ARIA relationships',  detail: 'The ids connect a tab to the panel it controls in both directions. aria-selected is the state; the styling is a consequence of it, not a substitute.', pitfall: 'This template does not generate ids at all, which is the gap to name: real tabs need `useId` so two instances on one page do not share ids and point at the wrong panel.' },
-    { title: 'Implement roving tabindex for the keyboard',  detail: 'The expected behaviour is one Tab stop for the whole tablist, with arrows moving between tabs. That is what tabIndex={-1} on the inactive tabs buys you, and why the pattern is called roving tabindex.', pitfall: 'Leaving every tab tabbable means a ten-tab bar costs ten Tab presses to get past — technically operable, practically not.' },
+    {
+      title: 'Drive the tabs from an array',
+      excerpt: { from: 'const INITIAL_TABS = [', lines: 5 },
+      detail:
+        'Each tab is { id, label, content }. Tabs can then be added and removed at runtime, which the template does, and every id-based lookup keeps working. Keying by id rather than position is what makes removal safe.',
+    },
+    {
+      title: 'Fall back when the active tab disappears',
+      excerpt: { from: 'const safeActiveId = tabs.some((t) => t.id === activeId) ? activeId : tabs[0] && tabs[0].id;', lines: 1 },
+      detail:
+        'Removing the active tab would otherwise leave nothing selected. This is derived during render, so the fallback is correct on the very first frame, rather than fixed up afterwards in an effect.',
+    },
+    {
+      title: 'Give it the tab roles and a single Tab stop',
+      excerpt: { from: 'tabIndex={selected ? 0 : -1}', lines: 1 },
+      detail:
+        'role="tablist", role="tab" with aria-selected and aria-controls, and role="tabpanel" with aria-labelledby. Only the selected tab is in the Tab order (roving tabindex): Tab enters the list once, and the arrow keys move inside it.',
+      pitfall: 'Plain buttons pass an automated audit and are still wrong: a keyboard user has to Tab through every tab, and a screen reader never hears "tab, 2 of 3".',
+    },
+    {
+      title: 'Handle Left, Right, Home and End',
+      excerpt: { from: 'const onKeyDown = (e) => {', lines: 12 },
+      detail:
+        'The arrows wrap around, Home and End jump to the ends, and focus follows the selection so the user can see where they are. preventDefault stops Home and End from scrolling the page.',
+    },
+    {
+      title: 'Measure the active tab before paint, then slide the underline',
+      excerpt: { from: 'React.useLayoutEffect(() => {', lines: 4 },
+      detail:
+        'A sliding underline needs the active tab\'s position and width. useLayoutEffect runs after the DOM updates but before the browser paints, so the underline never flashes in its old spot. It then moves with transform, which the GPU can animate smoothly, rather than left, which forces layout on every frame.',
+    },
+    {
+      title: 'Replay the panel fade with a key',
+      excerpt: { from: 'key={active.id}', lines: 1 },
+      detail:
+        'A CSS keyframe plays when an element is created. Keying the panel by tab id makes React create a new panel on every switch, so the fade plays each time. Without it React reuses the same div and the animation only ever runs once.',
+    },
+    {
+      title: 'Choose the animation tool, and switch it off for reduced motion',
+      detail:
+        'CSS transitions and keyframes cover a slide and a fade at zero JavaScript cost, so they are used here. Framer Motion (now Motion) earns its size when you need exit animations, so the old panel can fade out before it unmounts, or layout animation with layoutId. react-transition-group\'s CSSTransition is the older way to animate an unmounting element with plain CSS. Whatever you pick, the prefers-reduced-motion query in the style tag turns it off for people who asked for less motion.',
+    },
   ],
   graded: [
-    { point: 'Compound components with context, not a config array', why: 'It is the whole point of the question. The array version cannot express "a tab with an icon and a badge" without growing a prop for each, which is the flexibility problem the pattern solves.' },
-    { point: 'The context value is memoised', why: 'Otherwise every consumer re-renders whenever the provider does, which is the standard Context performance trap and the thing this pattern is accused of.' },
-    { point: 'Roving tabindex, with arrow keys and Home/End', why: 'It is the documented ARIA tabs pattern and the difference between "has role attributes" and "actually works from the keyboard".' },
-    { point: 'ids come from useId', why: 'Hard-coded or counter-based ids collide when the component is used twice on a page, and the mis-association is invisible until someone uses a screen reader.' },
+    { point: 'The tabs follow the ARIA tabs pattern, keyboard included', why: 'Roving tabindex, arrow keys and the three roles are exactly what an accessibility-aware interviewer checks, and exactly what a quick implementation leaves out.' },
+    { point: 'The animation choice is a trade-off', why: 'The question names three tools. Choosing CSS by default and explaining what would make you pick Motion (exit and layout animations) shows judgement rather than habit.' },
+    { point: 'The underline is measured before paint and moved with transform', why: 'It shows you know why useLayoutEffect exists and which CSS properties are cheap to animate, which is more interesting than the animation itself.' },
+    { point: 'Tabs are data, keyed by id', why: 'Dynamic tab rendering is part of the question. Being able to add and remove tabs, with a correct fallback, is the proof.' },
   ],
 };
 
@@ -637,18 +713,51 @@ const accordion: BuildExplanation = {
   kind: 'build',
   problem: 'Accordion',
   problemStatement:
-    'Expand and collapse panels, supporting both a single-open mode that behaves like radio buttons and a multi-open mode. One prop changes the state model, which is the design decision worth getting right.',
+    'Sections that expand and collapse, in single-open or multi-open mode, with a smooth height transition, correct screen-reader state and keyboard movement between headers. The question asks how you manage the active sections and whether to allow several open.',
   buildOrder: [
-    { title: 'Pick a state shape that covers both modes', excerpt: { from: "const next = new Set(prev);", lines: 8 }, detail: 'A Set handles both cases without a second state shape — single-open is simply a Set that never holds more than one. Branching between a number and an array instead means two code paths through every render.', pitfall: 'Always return a new Set. Mutating and returning the same reference means React sees no change and skips the re-render.' },
-    { title: 'Consider whether the platform already does this',  detail: '<details> and <summary> give you the disclosure behaviour, the keyboard support and the correct semantics with no JavaScript. Reach for a custom build when you need single-open coordination, animation, or controlled state — and say that is why.' },
-    { title: 'Use a button, and connect it to its region',  detail: 'The heading provides document structure so users can navigate by heading; the button inside it is what is focusable and announces the expanded state. The panel points back at its header so its purpose is announced when entered.', pitfall: 'A div with onClick is not focusable and does not respond to Enter or Space. Using a real button removes three problems at once.' },
-    { title: 'Unmount closed content, unless you are animating it',  detail: 'Content hidden with CSS alone remains focusable and readable by screen readers — a closed panel whose links are still in the tab order is a common bug.', pitfall: 'If you animate height you have to keep it mounted; then use inert or toggle hidden after the transition so it is not reachable while closed.' },
+    {
+      title: 'Store the open sections as a Set of ids',
+      excerpt: { from: 'const [openIds, setOpenIds] = React.useState(() => new Set(defaultOpenIds));', lines: 1 },
+      detail:
+        'A Set of ids handles both modes with the same code: single-open is just a Set that never holds more than one. Ids rather than indexes mean items can be reordered or filtered without the wrong section opening.',
+    },
+    {
+      title: 'Make single-open a one-line difference',
+      excerpt: { from: 'if (!allowMultiple) next.clear();     // the ONLY line that differs between the modes', lines: 1 },
+      detail:
+        'Before adding the clicked section, single-open mode clears the rest. Choosing between the modes is a product question: single-open keeps an FAQ short and focused, multi-open suits settings or filters where people compare sections. One prop supports both.',
+    },
+    {
+      title: 'Put the button inside a heading and wire up the ARIA',
+      excerpt: { from: 'aria-expanded={isOpen}', lines: 2 },
+      detail:
+        'The header is a real button, inside an h3 so heading navigation still finds each section. aria-expanded announces expanded or collapsed, aria-controls points at the panel, and the panel is a region labelled by its header.',
+    },
+    {
+      title: 'Animate the height without measuring',
+      excerpt: { from: 'display: "grid", gridTemplateRows: isOpen ? "1fr" : "0fr",', lines: 3 },
+      detail:
+        'height: auto cannot be transitioned. A one-row grid going from 0fr to 1fr can, with an overflow: hidden child, so the panel animates to exactly its content height with no JavaScript measurement. The panel stays mounted so it has something to animate when closing.',
+      pitfall: 'Unmounting the panel on close (isOpen && …) makes a closing animation impossible, because the element is gone before it can shrink.',
+    },
+    {
+      title: 'Hide closed panels from the keyboard',
+      excerpt: { from: 'visibility: isOpen ? "visible" : "hidden",', lines: 1 },
+      detail:
+        'The grid trick makes a closed panel look empty, but its links are still in the Tab order, so focus disappears into invisible content. visibility: hidden removes them from Tab and from the accessibility tree, and because visibility switches at the end of the transition, the close animation still plays.',
+    },
+    {
+      title: 'Move between headers with the arrow keys',
+      excerpt: { from: 'const onHeaderKeyDown = (e, index) => {', lines: 8 },
+      detail:
+        'Up and Down move between headers and wrap at the ends; Home and End jump to the first and last. Tab still moves out of the accordion normally, so keyboard users are never trapped.',
+    },
   ],
   graded: [
-    { point: 'One state shape serves both modes', why: 'The naive version keeps an index for single mode and an array for multiple, and the toggle logic forks. A Set collapses that into one path and makes allowMultiple genuinely a prop.' },
-    { point: 'The trigger is a button with aria-expanded', why: 'Focusability, Enter and Space, and the announced state all come from using the right element. It is also the answer to "why not a div?", which is the usual follow-up.' },
-    { point: 'Closed content is genuinely hidden', why: 'Hiding with opacity or height leaves links tabbable inside a collapsed panel, so keyboard focus disappears into invisible content.' },
-    { point: 'You mention <details>', why: 'Knowing when the platform already solves the problem is part of the judgement being tested, and it reframes the custom build as a deliberate choice rather than a default.' },
+    { point: 'One state shape serves both modes', why: 'The question asks how you manage active sections. A Set of ids, with single-open as a one-line rule, is clean and extensible, and shows you designed it rather than branched it.' },
+    { point: 'The height animates without measuring', why: 'Transition effects are part of the question. Knowing why height: auto cannot animate, and the grid-rows technique that avoids it, is a strong answer.' },
+    { point: 'Closed panels are out of the Tab order', why: 'This is the accessibility bug the Accessibility guide\'s tricky Q2 is about, and the most common failure of animated accordions.' },
+    { point: 'You mention <details> as the native alternative', why: 'It gives open and close, keyboard support and screen-reader state for free. Knowing when not to build the component is a senior signal.' },
   ],
 };
 
@@ -751,18 +860,58 @@ const toastSnackbar: BuildExplanation = {
   kind: 'build',
   problem: 'Toast / Snackbar',
   problemStatement:
-    'A queue of transient messages triggered by calling a function from anywhere, stacking, auto-dismissing, and individually closeable. The API shape is the design question; the timers are the correctness one.',
+    'Build a toast system any part of the app can call: a queue so toasts never overlap, a timeout per toast that pauses on hover, and announcements for screen readers. The graded decision is where the state lives, because it decides who can call toast() and what re-renders.',
   buildOrder: [
-    { title: 'Expose it as a hook, not a component you render', excerpt: { from: "const { toasts, show, dismiss } = useToast();", lines: 3 }, detail: 'Toasts fire from event handlers deep in the tree — a save button, a failed request. Anything that requires rendering a component locally and threading an open prop upward defeats the purpose.', pitfall: 'Export the hook rather than the raw context so you can throw a clear "useToast must be used inside ToastProvider" instead of a null dereference.' },
-    { title: 'Key each toast by a generated id', excerpt: { from: "setToasts((prev) => [...prev, { id, message, type }]);", lines: 5 }, detail: 'The id is the React key and the dismissal handle. Returning it lets a caller replace a "Saving…" toast with "Saved" rather than stacking a second one.', pitfall: 'Index keys break the exit animation: dismissing the middle toast renumbers the rest and React animates the wrong elements out.' },
-    { title: 'Own the timer inside the toast component', excerpt: { from: "setTimeout(() => {", lines: 5 }, detail: 'Colocating the timer with the toast means mount starts it and unmount clears it, so a manual dismiss can never leave a timer that fires later against an id that is gone.', pitfall: 'Pause on hover, or a message the user is reading disappears mid-sentence.' },
-    { title: 'Give the container a live region and a stable position', excerpt: { from: "{toasts.map((t) => {", lines: 6 }, detail: 'A column with gap means stacking needs no positional maths — each toast is a flex child. The role on each toast is what gets it announced; role=alert interrupts, which is right only for errors.' },
+    {
+      title: 'Put the toasts in a tiny store outside React',
+      excerpt: { from: 'function createToastStore() {', lines: 12 },
+      detail:
+        'The list lives in a plain object with subscribe and getSnapshot. That answers "Context, Redux or an event system?" directly: it is the event system, and it means an API helper or an axios interceptor can raise a toast without being a component. getSnapshot returns the same array until something changes, which is what lets React skip re-rendering when nothing happened.',
+      pitfall: 'With Context, toast() only works inside the tree, and every component that reads the context re-renders on every toast.',
+    },
+    {
+      title: 'Expose plain functions as the public API',
+      excerpt: { from: 'const toast = {', lines: 6 },
+      detail:
+        'Callers never touch the store: they call toast.success or toast.error, and each type sets its own sensible duration. Errors stay on screen twice as long, because people read them more carefully and may need to act.',
+    },
+    {
+      title: 'Refuse duplicates when adding',
+      excerpt: { from: 'if (toasts.some((t) => t.message === message && t.type === type)) return null;', lines: 1 },
+      detail:
+        'A failing request that retries three times should not stack three identical toasts. Checking both showing and queued toasts keeps the screen honest: one problem, one message.',
+    },
+    {
+      title: 'Read the store with useSyncExternalStore',
+      excerpt: { from: 'return React.useSyncExternalStore(toastStore.subscribe, toastStore.getSnapshot);', lines: 1 },
+      detail:
+        'This is the hook React provides for subscribing to state that lives outside it. It re-renders only the component that reads it, the Toaster, and it cannot show a half-updated value during concurrent rendering, which a hand-written useEffect subscription can.',
+    },
+    {
+      title: 'Show at most three; the rest wait in order',
+      excerpt: { from: 'const visible = toasts.slice(0, MAX_VISIBLE);', lines: 2 },
+      detail:
+        'The queue is what stops overlap, not CSS. Only the first three are rendered, and a "+2 waiting" line tells the user more are coming. When one is dismissed, the next one in line moves up by itself because the slice is recomputed.',
+    },
+    {
+      title: 'Start each countdown only once the toast is visible, and pause on hover',
+      excerpt: { from: 'React.useEffect(() => {', lines: 9 },
+      detail:
+        'The timer lives in the ToastItem, and only visible toasts are mounted, so a queued toast cannot expire before anyone saw it. On hover the effect cleans up, clears the timer and records how much time was left in a ref; on leave it starts again with only the remainder.',
+      pitfall: 'A setTimeout started when the toast is ADDED (the usual first version) runs down while the toast is still queued, and is never cleared if the component unmounts.',
+    },
+    {
+      title: 'Keep the live region mounted even when it is empty',
+      excerpt: { from: 'role="status"', lines: 2 },
+      detail:
+        'Screen readers watch an aria-live region for changes. If the region itself appears at the same moment as its text, most of them announce nothing. Rendering the Toaster permanently, empty or not, is what makes the announcements work.',
+    },
   ],
   graded: [
-    { point: 'The trigger is a function, callable from anywhere', why: 'It is the difference between a toast system and a component. Interviewers phrase it as "trigger it from a button three levels down" for exactly this reason.' },
-    { point: 'Timers are per-toast and cleaned up', why: 'A single shared timer has to be rescheduled on every queue change, and that is where toasts that dismiss early, twice, or never come from.' },
-    { point: 'Stable ids, not indexes', why: 'Dismissal and exit animation both depend on React tracking the right element. With index keys, removing one toast animates out its neighbour.' },
-    { point: 'Announced, and pausable', why: 'A purely visual toast does not exist for a screen-reader user, and a four-second auto-dismiss is not enough time to read a sentence — pause on hover is the standard fix.' },
+    { point: 'You can justify the store over Context or Redux', why: 'The question asks it outright. The strong answer names the two costs of Context (callable only in the tree, re-renders every consumer) and the smell of Redux (timers and throwaway UI in global state), then picks an external store.' },
+    { point: 'The queue, not CSS, prevents overlap', why: 'Stacking toasts with position rules still lets twenty cover the page. Capping the visible count and queueing the rest is the actual answer to "how do you avoid overlapping".' },
+    { point: 'Timers are owned by the visible toast and cleaned up', why: 'It shows you think about the lifecycle: nothing expires unseen, hover pauses rather than resets, and no timeout fires after its toast is gone.' },
+    { point: 'The live region exists before the first toast', why: 'It is the accessibility detail that separates a component that passes review from one that is actually announced, and interviewers rarely hear it volunteered.' },
   ],
 };
 
@@ -1004,6 +1153,382 @@ const buttonVariants: BuildExplanation = {
   ],
 };
 
+const nestedComments: BuildExplanation = {
+  kind: 'build',
+  problem: 'Nested Comments (recursive replies)',
+  problemStatement:
+    'Render a comment thread where any comment can have replies to any depth, let people reply and collapse branches, and make sure a reply in one branch does not re-render the whole thread. The data shape is the decision everything else follows from.',
+  buildOrder: [
+    {
+      title: 'Store comments flat, keyed by id',
+      excerpt: { from: 'function normalise(list) {', lines: 10 },
+      detail:
+        'Servers usually send a flat list where each comment names its parent. Turning it into byId plus rootIds, with each entry holding its childIds, means any comment is found in one lookup, and adding a reply changes exactly two entries: the new comment and its parent.',
+      pitfall: 'A nested tree (replies inside replies) looks natural, but adding a reply then means copying every object on the path from the root, and finding a comment means searching the whole tree.',
+    },
+    {
+      title: 'Add a reply by replacing only two entries',
+      excerpt: { from: '[parentId]: { ...parent, childIds: [...parent.childIds, id] },', lines: 1 },
+      detail:
+        'Only the parent gets a new object. Every other entry keeps its old reference, and that unchanged reference is what lets React skip the comments that did not change.',
+    },
+    {
+      title: 'Let each comment subscribe to its own entry',
+      excerpt: { from: 'return React.useSyncExternalStore(store.subscribe, () => store.getComment(id));', lines: 1 },
+      detail:
+        'Each Comment reads just its own entry from the store. When a reply is added, only the parent\'s entry is a new object, so only the parent re-renders. The console in the template proves it: posting a reply logs exactly two renders.',
+      pitfall: 'Passing the whole byId object down as a prop hands every comment a new prop on every change, so memo cannot skip anything and the full thread re-renders.',
+    },
+    {
+      title: 'Render recursively with one component',
+      excerpt: { from: '<Comment key={childId} id={childId} depth={depth + 1} />', lines: 1 },
+      detail:
+        'A Comment renders its children as Comments, passing depth down. memo plus a single string id prop means the only reason a comment re-renders is that its own entry, or its own local state, changed.',
+    },
+    {
+      title: 'Use the comment id as the key',
+      excerpt: { from: '// key = the comment\'s id, never the array index. With index keys,', lines: 3 },
+      detail:
+        'Each Comment holds local state: collapsed, and an open reply box with a draft. With index keys, a reply inserted above others shifts the indexes, and React hands that state to whichever comment now sits at the old position.',
+    },
+    {
+      title: 'Stop indenting at a maximum depth',
+      excerpt: { from: 'const MAX_INDENT_DEPTH = 4;', lines: 1 },
+      detail:
+        'Past a few levels, indentation squeezes the text into a narrow column, worst of all on a phone. Replies still nest in the data; they just stop moving right. Reddit goes further and shows "Continue this thread", loading that branch on its own page.',
+    },
+  ],
+  graded: [
+    { point: 'You choose a normalised shape and say why', why: 'It is the decision the question is really about. Naming the cost of the nested shape (deep copies, tree search) shows you have maintained a thread, not just rendered one.' },
+    { point: 'Only the changed branch re-renders', why: 'The question asks how you would optimise rendering. Per-comment subscriptions plus memo, and being able to prove it, is a far stronger answer than "wrap it in React.memo".' },
+    { point: 'Keys are stable ids, with the reason', why: 'The question asks about unique keys directly. The graded part is the failure: local state jumping between comments when an index shifts.' },
+    { point: 'You mention the depth and size limits', why: 'Depth caps, loading replies on demand and virtualising the top level show you have thought past the demo to a thread with thousands of comments.' },
+  ],
+};
+
+const sidebarNavigation: BuildExplanation = {
+  kind: 'build',
+  problem: 'Sidebar Navigation (responsive + submenus)',
+  problemStatement:
+    'A sidebar that sits beside the content on desktop and becomes a drawer on mobile, with sections that open submenus, the current page highlighted, and the right submenu open when you arrive. Graded: what is CSS and what is JavaScript, and whether collapsed links stay out of the keyboard\'s way.',
+  buildOrder: [
+    {
+      title: 'Describe the navigation as data',
+      excerpt: { from: 'const NAV = [', lines: 8 },
+      detail:
+        'Items with a path are links; items with children are sections. The components just walk this array, so adding a page is one line, and the same data can drive a breadcrumb or a search of the menu later.',
+    },
+    {
+      title: 'Subscribe to the screen size only where behaviour differs',
+      excerpt: { from: 'function useMediaQuery(query) {', lines: 10 },
+      detail:
+        'Widths and hiding belong in CSS media queries. This hook exists because the mobile drawer has behaviour the desktop sidebar does not: open state, a backdrop, Escape. It uses useSyncExternalStore so it follows the browser, and guards against matchMedia being missing during server rendering.',
+      pitfall: 'The server cannot know the screen width. Rendering different trees on the server and the first client render causes a hydration mismatch, so the server snapshot picks one layout and the client switches after mounting.',
+    },
+    {
+      title: 'Open the current page\'s section on arrival',
+      excerpt: { from: 'const [openSections, setOpenSections] = React.useState(() => new Set([sectionFor(currentPath)]));', lines: 1 },
+      detail:
+        'A deep link to /team/roles should show the Team submenu already open with Roles highlighted. The lazy initial state computes that once, and the open sections are a Set so several can be open at once.',
+    },
+    {
+      title: 'Open the new section in the click handler, not an effect',
+      excerpt: { from: 'const navigate = (path) => {', lines: 6 },
+      detail:
+        'When you navigate, the section containing the new page opens as part of the same event. An effect that watches the path would do the same thing one render later, which means a visible flicker and an extra render for no benefit.',
+    },
+    {
+      title: 'Animate the submenu height, and hide it from Tab when closed',
+      excerpt: { from: 'display: "grid", gridTemplateRows: open ? "1fr" : "0fr",', lines: 3 },
+      detail:
+        'height: auto cannot be animated, but a one-row grid going from 0fr to 1fr can, with no measuring. visibility: hidden is the half people forget: without it the collapsed links are still in the Tab order, and keyboard focus disappears into something invisible. Visibility changes at the END of the close animation, so the slide still shows.',
+    },
+    {
+      title: 'Mark the active link with aria-current',
+      excerpt: { from: 'aria-current={active ? "page" : undefined}', lines: 1 },
+      detail:
+        'Colour alone tells a screen-reader user nothing. aria-current="page" announces which link is the page you are on. React Router\'s NavLink adds it for you, which is a good reason to use NavLink over Link in navigation.',
+    },
+    {
+      title: 'Close the drawer on navigation, Escape and the backdrop',
+      excerpt: { from: 'if (isDesktop || !drawerOpen) return;', lines: 4 },
+      detail:
+        'The Escape listener only exists while the drawer is open, and it is removed in cleanup. Picking a page closes the drawer too, because on a phone the drawer covers the page the user just asked for.',
+    },
+  ],
+  graded: [
+    { point: 'You split CSS and JavaScript responsibilities', why: 'The question asks about responsiveness and conditional rendering. Saying layout is CSS and only the drawer behaviour needs JavaScript, and naming the hydration risk, is the senior answer.' },
+    { point: 'Collapsed and off-screen links are out of the Tab order', why: 'It is the most common accessibility bug in animated menus, and the fix is one property. Volunteering it shows you have tabbed through your own UI.' },
+    { point: 'The active route drives both the highlight and the open submenu', why: 'Route linking is part of the question. Deriving both from the current path, and opening sections in the event rather than an effect, shows you understand where state belongs.' },
+    { point: 'Animations respect reduced motion', why: 'A one-line media query, but it shows the animation was designed for everyone rather than bolted on.' },
+  ],
+};
+
+const dataTable: BuildExplanation = {
+  kind: 'build',
+  problem: 'Data Table (sort + filter + paginate)',
+  problemStatement:
+    'A table with column sorting, a search box, a status filter and pagination, split into header, rows and pagination components. The question asks how you would handle large datasets and whether to filter on the client or the server; the answer is that the same state works for both.',
+  buildOrder: [
+    {
+      title: 'Keep all table state in one reducer',
+      excerpt: { from: 'function tableReducer(state, action) {', lines: 5 },
+      detail:
+        'Query, status, sort, page and page size change together, so they live together. Every action that changes the result set also resets page to 1, as part of the same transition, so "filtered to 3 rows but still on page 5" cannot happen.',
+      pitfall: 'Five separate useState calls invite the classic bug: someone adds a filter and forgets to reset the page in that one handler.',
+    },
+    {
+      title: 'Cycle each column through ascending, descending and off',
+      excerpt: { from: 'case "sort": {', lines: 6 },
+      detail:
+        'Clicking a new column starts it ascending; clicking the same one again reverses it, then clears it. Clearing matters: without an "off" state there is no way back to the server\'s original order.',
+    },
+    {
+      title: 'Derive the page as filter, then sort, then slice',
+      excerpt: { from: 'function useTableRows(rows, state) {', lines: 1 },
+      detail:
+        'Filtering first means sorting fewer rows. Each stage is memoised on only the inputs it needs, so changing the page re-slices without re-sorting, and typing in the search box does not re-sort until the filtered list changes. The page is also clamped, so a shrinking result can never leave you past the last page.',
+      pitfall: 'sort() changes the array it is called on. Sorting the filtered array directly would mutate memoised state; the template copies it first.',
+    },
+    {
+      title: 'Make the header accessible as well as clickable',
+      excerpt: { from: '<th key={col.key} aria-sort=', lines: 1 },
+      detail:
+        'Each header holds a real button, so it is focusable and works with Enter and Space for free. aria-sort on the sorted column tells a screen reader which column is sorted and in which direction; the arrow glyph is aria-hidden because it means nothing read aloud.',
+    },
+    {
+      title: 'Split the table into components that only get props',
+      excerpt: { from: 'const TableRow = React.memo(function TableRow({ row, columns }) {', lines: 1 },
+      detail:
+        'TableHeader, TableRow and Pagination receive data and report events; none of them knows where the rows came from. That is what makes them reusable across tables, and what lets the same components serve a server-side table unchanged. Rows are keyed by row id, so sorting moves rows rather than reusing the wrong ones.',
+    },
+    {
+      title: 'Turn the same state into a server request',
+      excerpt: { from: 'function toQueryString(state) {', lines: 1 },
+      detail:
+        'Past a few thousand rows you stop sending everything to the browser. The state object does not change; it becomes query parameters, and the server returns one page and a total. The template prints the request it would send, so you can see the two modes are one design.',
+    },
+  ],
+  graded: [
+    { point: 'You state when to move filtering to the server', why: 'The question asks about large datasets. A threshold (roughly thousands of rows), plus the observation that the state shape stays the same, is the answer interviewers want.' },
+    { point: 'Changing a filter resets the page, by construction', why: 'It is the most common data-table bug. Putting the reset inside the reducer transition shows you design state so the bug cannot happen, rather than remembering to avoid it.' },
+    { point: 'The pipeline order and memoisation are deliberate', why: 'Filter before sort, memoise each stage on its own inputs, copy before sorting. Each is small, and together they show you know where the cost is.' },
+    { point: 'Header, rows and pagination are modular', why: 'The question asks for it explicitly. Props-in, events-out components that do not know the data source are what "modular" actually means.' },
+  ],
+};
+
+const likeButton: BuildExplanation = {
+  kind: 'build',
+  problem: 'Like Button (optimistic + rollback)',
+  problemStatement:
+    'A like button that updates the instant it is clicked, rolls back if the server rejects it, and stays correct when someone clicks five times in a second. The rollback is the obvious part; rapid clicking is where most implementations quietly break.',
+  buildOrder: [
+    {
+      title: 'Update the screen before the server answers',
+      excerpt: { from: 'setShown((prev) => ({ liked, count: prev.count + (liked ? 1 : -1) }));   // optimistic', lines: 1 },
+      detail:
+        'The heart and the count change on the click itself. The functional update means each click builds on the previous shown value, so several fast clicks in a row still add up correctly.',
+    },
+    {
+      title: 'Keep the async bookkeeping in refs',
+      excerpt: { from: 'const confirmed = React.useRef(initial);        // last state the server confirmed', lines: 3 },
+      detail:
+        'Three values drive the logic: what the server last confirmed, what the user wants right now, and whether a request is running. They are refs because an async loop reads them after every await, and it must see the value as it is now, not as it was in the render that started the loop.',
+      pitfall: 'State captured in the closure is a snapshot. A loop reading wanted from state would compare against a value that is already out of date.',
+    },
+    {
+      title: 'Allow only one request in flight, and catch up at the end',
+      excerpt: { from: 'while (wanted.current !== confirmed.current.liked) {', lines: 4 },
+      detail:
+        'Clicks made while a request runs only change what the user wants. When the request returns, the loop checks whether the server state still differs from that, and sends one more if so. Five fast clicks become at most two requests, and because they run one after another, a slow old response can never overwrite a newer click.',
+      pitfall: 'One request per click means responses can arrive in any order, and a failed early request can "roll back" a click the user made after it.',
+    },
+    {
+      title: 'Send the state, not the action',
+      excerpt: { from: 'confirmed.current = await api.setLiked(wanted.current);', lines: 1 },
+      detail:
+        'The request says "liked is now true", not "toggle". Repeating a state is harmless, which matters for retries; repeating a toggle flips it back. The server also returns its own count, which includes other people\'s likes, so the screen settles on the truth rather than on our arithmetic.',
+    },
+    {
+      title: 'Roll back to what you KNOW is saved',
+      excerpt: { from: 'wanted.current = confirmed.current.liked;   // roll back to what we KNOW is saved', lines: 3 },
+      detail:
+        'On failure, the button goes back to the last state the server confirmed, not to "whatever it was before this click", which may itself have been optimistic. An alert says what happened, because a like that silently un-likes itself looks like a bug.',
+    },
+    {
+      title: 'Announce the state, not a changing label',
+      excerpt: { from: 'aria-pressed={shown.liked}', lines: 1 },
+      detail:
+        'The accessible name stays "Like" and aria-pressed carries the state, so a screen reader says "Like, toggle button, pressed". Swapping the label between "Like" and "Unlike" makes it unclear whether the word describes the state or the action.',
+    },
+  ],
+  graded: [
+    { point: 'The UI changes before the response, and settles on the server\'s truth', why: 'That is the definition of optimistic UI, plus the detail that the final count comes from the server. Both halves are expected.' },
+    { point: 'Rollback targets the last confirmed state', why: 'It shows you understand that the "previous" value might itself be optimistic, which is the subtle part of the rollback question.' },
+    { point: 'Rapid clicks cannot produce the wrong final state', why: 'This is where interviewers push. Serialising requests, or at least ignoring stale responses, is what separates a demo from something you could ship.' },
+    { point: 'The request is idempotent', why: 'Sending the desired state rather than "toggle" makes retries safe, and naming idempotency here shows you connect frontend state to backend behaviour.' },
+  ],
+};
+
+const rateLimitedButton: BuildExplanation = {
+  kind: 'build',
+  problem: 'Rate-Limited Button (throttle vs lock)',
+  problemStatement:
+    'Stop rapid clicks from hitting the API repeatedly, and choose between debounce, throttle and a custom guard. The honest answer is that they solve different problems, and for a Submit or Pay button the right tool is usually neither debounce nor throttle.',
+  buildOrder: [
+    {
+      title: 'Pick the tool from what the button does',
+      detail:
+        'Debounce waits for the clicks to stop, which is right for a search box but makes a button feel broken, because the first click does nothing visible. Throttle runs the first click and ignores the rest for a fixed time, which suits Refresh or Load more. An in-flight lock runs the first click and ignores the rest until that request finishes, which suits Submit, Pay and Save, where the goal is "exactly once" and no fixed window can promise that.',
+    },
+    {
+      title: 'Make the throttled function once, not once per render',
+      excerpt: { from: 'return React.useCallback(() => {', lines: 6 },
+      detail:
+        'The throttled function is created with useCallback and depends only on ms, so every render gets the same function and the same lastRun timestamp. The latest callback is kept in a ref, so the throttle always calls current code without being recreated.',
+      pitfall: 'Calling lodash.throttle(fn, 1000) directly in the component body makes a new throttled function on every render, each with a fresh timer, which throttles nothing at all.',
+    },
+    {
+      title: 'Guard the lock with a ref, not with state',
+      excerpt: { from: 'if (busyRef.current) return;', lines: 3 },
+      detail:
+        'Two clicks can arrive before React re-renders. Both would read busy state as false and both would send. The ref changes the instant it is set, so the second click sees it. The busy state still exists, but only to show "Saving…" on screen.',
+      pitfall: 'if (busy) return looks correct and passes every slow manual test. The test suite for this template clicks twice in one tick to prove the difference.',
+    },
+    {
+      title: 'Release the lock in finally',
+      excerpt: { from: '} finally {', lines: 3 },
+      detail:
+        'Whether the request succeeds or throws, the lock is released. Releasing it only after success would leave the button permanently dead after the first network error.',
+    },
+    {
+      title: 'Show the busy state without breaking focus',
+      excerpt: { from: '<button style={{ ...btn, opacity: busy ? 0.6 : 1 }} onClick={run} aria-disabled={busy} aria-busy={busy}>', lines: 1 },
+      detail:
+        'aria-busy tells assistive technology that the action is running, and the label changes to "Saving…". aria-disabled is used instead of disabled because a disabled button can drop keyboard focus, and the lock already ignores extra clicks.',
+    },
+    {
+      title: 'Back it up on the server with an idempotency key',
+      excerpt: { from: '// THE PART THAT IS NOT A FRONTEND PROBLEM', lines: 9 },
+      detail:
+        'Every guard here lives in one tab. Two tabs, a retry after a timeout or a flaky network can still send the same request twice. An idempotency key, generated once per user action and resent on every retry, lets the server recognise the repeat and return the first result.',
+    },
+  ],
+  graded: [
+    { point: 'You match the technique to the button', why: 'The question offers throttle, debounce or custom. Explaining why debounce is wrong for buttons and why a payment needs an in-flight lock shows you understand the behaviour, not just the utilities.' },
+    { point: 'The lock uses a ref and explains why', why: 'Two clicks in one tick is the edge that breaks the obvious state-based guard, and knowing that React state updates are not immediate is the underlying concept being tested.' },
+    { point: 'Throttled functions are stable across renders', why: 'Recreating lodash.throttle on every render is one of the most common React bugs with these utilities, and naming it earns credit on the "lodash or custom" part of the question.' },
+    { point: 'The server is the real guarantee', why: 'Saying the frontend guard is for experience and the idempotency key is the guarantee shows you think about the whole system, which is what a senior answer sounds like.' },
+  ],
+};
+
+const shoppingCart: BuildExplanation = {
+  kind: 'build',
+  problem: 'Shopping Cart (reducer + derived totals)',
+  problemStatement:
+    'A cart where adding a product twice increases its quantity, quantities respect stock, a discount code applies, totals are always right, the header badge and the cart page agree, and the cart survives a refresh. What is graded is what you store, and what you calculate instead.',
+  buildOrder: [
+    {
+      title: 'Store only the product id and the quantity',
+      excerpt: { from: 'return { ...state, items: [...state.items, { productId: action.productId, quantity: 1 }] };', lines: 1 },
+      detail:
+        'A cart line is { productId, quantity } and nothing else. The price comes from the catalogue when it is needed, so a price change shows up everywhere at once, and there is no stored total that can disagree with the items it is supposed to add up.',
+      pitfall: 'Storing price and total in the cart gives you two sources of truth. The first time one is updated and the other is not, the cart shows a total that does not match its lines.',
+    },
+    {
+      title: 'Put every cart rule in one reducer',
+      excerpt: { from: 'const quantity = Math.max(1, Math.min(action.quantity, stock));   // clamp: 1 .. stock', lines: 1 },
+      detail:
+        'Adding an existing product increments it, quantities are clamped between 1 and the stock level, and removing is its own action. Because every change goes through the reducer, the "never more than stock" rule is written once, not in each of the buttons that can change a quantity.',
+    },
+    {
+      title: 'Derive the totals, and do the maths in cents',
+      excerpt: { from: 'function computeTotals(cart) {', lines: 1 },
+      detail:
+        'Subtotal, discount, tax, total and the item count are all computed from the lines, and memoised with useMemo so they are only recalculated when the cart changes. Prices are whole numbers of cents, and each percentage is rounded once, so the total never drifts by a fraction of a cent.',
+      pitfall: 'In floating point, 0.1 + 0.2 is 0.30000000000000004. Adding prices like 19.99 as decimals produces totals that are a cent out, and a cart that is a cent out loses trust instantly.',
+    },
+    {
+      title: 'Share one cart through context',
+      excerpt: { from: 'const CartContext = React.createContext(null);', lines: 1 },
+      detail:
+        'The header badge and the cart page both call useCart, so they read the same state and can never disagree. The context value is memoised, so consumers only re-render when the cart actually changes. useCart throws a clear error if someone forgets the provider, instead of failing later on a null.',
+    },
+    {
+      title: 'Load from storage once, and validate what you load',
+      excerpt: { from: 'const [cart, dispatch] = React.useReducer(cartReducer, undefined, loadCart);   // lazy: read storage once', lines: 1 },
+      detail:
+        'The third argument to useReducer is a lazy initialiser, so localStorage is read once, not on every render. loadCart checks the shape of what it finds, because saved data can be from an older version of the app, or edited by hand, and a crash on load is the worst possible cart bug.',
+      pitfall: 'localStorage can THROW (private mode, blocked site data), and here the read happens during the first render. Without the try/catch, one throw unmounts the whole app.',
+    },
+    {
+      title: 'Treat the client total as a preview',
+      excerpt: { from: '//   - Prices change while the item sits in the cart: the server recalculates', lines: 3 },
+      detail:
+        'The browser can be edited by anyone, so the price actually charged must be calculated by the server at checkout. The client total is there so the user knows roughly what to expect, and the UI should say so when the server total differs.',
+    },
+  ],
+  graded: [
+    { point: 'The cart stores ids and quantities, not prices or totals', why: 'It is the single decision that makes the rest correct. Explaining why a stored total is a bug waiting to happen shows you think in terms of a single source of truth.' },
+    { point: 'Money is handled in integer cents', why: 'Interviewers ask about floating point here on purpose. Knowing that 0.1 + 0.2 is not 0.3, and designing around it, is an expected senior detail.' },
+    { point: 'All rules live in one reducer', why: 'Stock limits, merging duplicate adds and removal become testable pure functions, and no button can bypass them. This is also why the same reducer moves to Redux unchanged.' },
+    { point: 'Persistence is safe and the server is the authority', why: 'Validated, try/catch-wrapped storage, plus the merge-at-login and recalculate-at-checkout follow-ups, show you have thought past the demo to a real store.' },
+  ],
+};
+
+const fileUpload: BuildExplanation = {
+  kind: 'build',
+  problem: 'File Upload (progress + cancel)',
+  problemStatement:
+    'Upload one or more files with a progress percentage for each, validate them first, and support cancel and retry. The question behind it is usually "how do you show upload progress?", and the answer starts with why fetch cannot.',
+  buildOrder: [
+    {
+      title: 'Use XMLHttpRequest, because fetch has no upload progress',
+      excerpt: { from: 'xhr.upload.onprogress = (event) => {', lines: 3 },
+      detail:
+        'xhr.upload fires progress events as the request body is sent, with loaded and total in bytes. lengthComputable says whether the total is known. fetch can report DOWNLOAD progress by reading the response stream, but it has no upload progress event, which is why axios uses XHR in the browser for onUploadProgress.',
+    },
+    {
+      title: 'Send the file as multipart form data',
+      excerpt: { from: 'form.append("file", file);                 // the field name Spring\'s @RequestParam expects', lines: 1 },
+      detail:
+        'FormData is what a Spring Boot controller reads with @RequestParam("file") MultipartFile, and the field name must match. The browser sets the Content-Type header itself, including the boundary string that separates the parts.',
+      pitfall: 'Setting Content-Type: multipart/form-data by hand drops the boundary, and the server cannot find the file in the request.',
+    },
+    {
+      title: 'Wrap it in a promise, and cancel it like fetch',
+      excerpt: { from: 'signal.addEventListener("abort", () => xhr.abort());', lines: 1 },
+      detail:
+        'The function takes an AbortSignal, exactly as fetch does, so the rest of the app cancels uploads and ordinary requests the same way. A cancelled upload rejects with an AbortError, which the UI shows as "cancelled", not as a failure.',
+    },
+    {
+      title: 'Validate before sending anything',
+      excerpt: { from: 'function validate(file) {', lines: 5 },
+      detail:
+        'Checking type and size first means the user finds out instantly, instead of after waiting for a 20 MB upload to be rejected. The limit matches the server\'s, and Spring Boot\'s defaults are low (1 MB per file), so agree on it with the backend.',
+      pitfall: 'Client-side checks are for the user\'s convenience only. Anyone can bypass them, so the server must validate type, size and contents again.',
+    },
+    {
+      title: 'Keep one row of state per file',
+      excerpt: { from: 'const update = (id, patch) =>', lines: 2 },
+      detail:
+        'Each file has its own id, status (queued, uploading, done, failed, cancelled, rejected), progress and error, so several uploads run independently. The AbortControllers live in a ref keyed by id, because they are not something the UI renders.',
+    },
+    {
+      title: 'Expose progress to assistive technology',
+      excerpt: { from: 'role="progressbar"', lines: 5 },
+      detail:
+        'role="progressbar" with aria-valuenow, min and max lets a screen reader report "Uploading photo.png, 60 percent". A coloured bar with no role is invisible to anyone who cannot see it.',
+    },
+  ],
+  graded: [
+    { point: 'You know fetch cannot report upload progress', why: 'It is the fact the question hinges on. Naming xhr.upload.onprogress, and that this is what axios uses under the hood, answers it directly.' },
+    { point: 'Uploads can be cancelled and retried', why: 'Using the AbortController pattern shows consistency with the rest of the data layer, and treating cancellation as its own outcome avoids a false error message.' },
+    { point: 'Validation happens first and again on the server', why: 'Instant feedback for the user plus the statement that the server is the real check is the balanced answer interviewers look for.' },
+    { point: 'You mention the backend limits and large-file strategies', why: 'Spring Boot\'s 1 MB default, 413 handling, chunked uploads and pre-signed URLs show you have shipped uploads against a real server, not just a demo.' },
+  ],
+};
+
 export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Form with Dynamic Fields': dynamicFields,
   'Multi-Step Form (Wizard)': multiStepForm,
@@ -1044,4 +1569,11 @@ export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Form with Validation': formValidation,
   'Theme Switcher (dark/light)': themeSwitcher,
   'Button (variants + sizes)': buttonVariants,
+  'Nested Comments (recursive replies)': nestedComments,
+  'Sidebar Navigation (responsive + submenus)': sidebarNavigation,
+  'Data Table (sort + filter + paginate)': dataTable,
+  'Like Button (optimistic + rollback)': likeButton,
+  'Rate-Limited Button (throttle vs lock)': rateLimitedButton,
+  'Shopping Cart (reducer + derived totals)': shoppingCart,
+  'File Upload (progress + cancel)': fileUpload,
 };

@@ -31,7 +31,7 @@ A comprehensive guide to system design concepts, patterns, and interview prepara
 
 ### What is System Design?
 
-System design is the process of defining the architecture, components, modules, interfaces, and data flow of a system to satisfy specified requirements. It bridges the gap between requirements and implementation.
+System design is deciding which pieces a system is made of (servers, databases, caches, queues), how they talk to each other, and how data moves between them, so that it meets its requirements: how many users, how fast, how reliable. In an interview there is rarely one correct answer. What is graded is whether you can name the trade-off behind each choice: why this database, why a cache here, and what breaks first when traffic grows ten times.
 
 ### Key Concepts
 
@@ -39,6 +39,8 @@ System design is the process of defining the architecture, components, modules, 
 
 - **Latency**: Time taken for a single request to complete (milliseconds)
 - **Throughput**: Number of requests a system can handle per unit time (requests/second)
+
+The two are independent: a system can handle 10,000 requests a second while each one still takes 2 seconds. Memorise the numbers below as orders of magnitude, because they explain most design choices. RAM is roughly a thousand times faster than an SSD, and one round trip across the internet costs as much as hundreds of round trips inside a datacenter. That gap is why caches and CDNs exist.
 
 ```
 Latency Examples:
@@ -52,14 +54,14 @@ Latency Examples:
 
 #### CAP Theorem
 
-A distributed system can only guarantee two of three properties:
+A distributed system can only guarantee two of three properties. The useful way to read it: a partition (the network between your nodes failing, so some of them cannot talk to the others) is not optional once data lives on more than one machine. So the real choice is what the system does *while* a partition is happening: refuse some requests so it never returns wrong data (CP), or keep answering and risk returning stale data (AP).
 
 - **Consistency**: Every read receives the most recent write
 - **Availability**: Every request receives a response (not guaranteed to be the latest)
 - **Partition Tolerance**: System continues to operate despite network partitions
 
 ```
-CP Systems: MongoDB, Redis, HBase
+CP Systems: HBase, ZooKeeper, etcd, MongoDB (majority concerns)
   - Sacrifice availability during partitions
   - Always return consistent data
 
@@ -72,7 +74,11 @@ CA Systems: Traditional RDBMS (single node)
   - Network partitions are inevitable
 ```
 
+Treat the product labels above as rough. Most databases let you tune this per operation (Cassandra's consistency level per query, MongoDB's read and write concerns), so one database can behave as CP for one query and AP for another. Redis is deliberately not listed as CP, although it often is: its replication is asynchronous, so a failover can lose writes that were already acknowledged, and a system that can lose acknowledged writes is not giving you consistency.
+
 #### ACID vs BASE
+
+These are two answers to "what does the database promise after a write?" ACID, the guarantee relational databases give, promises that a transaction happens completely or not at all, and that once committed everyone sees it. BASE, the looser model many distributed NoSQL stores use, promises that the system keeps answering and that copies *will* agree eventually, but a read straight after a write may still see the old value. You pay for ACID with coordination between nodes, which costs speed and availability. You pay for BASE in application code that has to cope with stale reads.
 
 ```
 ACID (Traditional RDBMS):
@@ -88,6 +94,8 @@ BASE (NoSQL / Distributed):
 ```
 
 ### Estimation & Back-of-the-Envelope Calculations
+
+Interviewers ask for rough numbers so that your design fits the load: 100 requests a second fits on one server, 100,000 does not. Round aggressively, because the goal is the order of magnitude, not the digit. The one habit worth having: divide daily volume by about 100,000 seconds to get average requests per second, then multiply by 2 to 3 for the peak.
 
 ```
 Powers of 2:
@@ -113,7 +121,7 @@ QPS (Queries Per Second):
 
 ### Vertical Scaling (Scale Up)
 
-Add more power to an existing machine (CPU, RAM, storage).
+Add more power to an existing machine (CPU, RAM, storage). It is the right first move more often than people admit: one bigger database server avoids every distributed-systems problem in this guide, until you reach the largest machine you can buy.
 
 ```
 Pros:
@@ -130,7 +138,7 @@ Cons:
 
 ### Horizontal Scaling (Scale Out)
 
-Add more machines to the pool.
+Add more machines to the pool. The catch is that the machines must be interchangeable, so that any server can take any request. That means nothing a user needs can live only in one server's memory: sessions move to Redis or a cookie, uploaded files move to object storage.
 
 ```
 Pros:
@@ -150,6 +158,8 @@ Cons:
 
 #### Read Replicas
 
+Most applications read far more than they write, so you send every write to one primary database and copy its data to replicas that serve reads. The trade-off is replication lag: a replica runs milliseconds to seconds behind, so a user who saves a change and immediately reloads may read the old value from a replica. The usual fix is to send that user's reads to the primary for a short while after they write.
+
 ```mermaid
 graph TD
     W["Writes"] --> P["Primary Database"]
@@ -163,6 +173,8 @@ graph TD
 ```
 
 #### Sharding (Horizontal Partitioning)
+
+Sharding splits one table across several databases, each holding a slice of the rows, so that no single machine has to store or serve all of it. The whole design hinges on the shard key, the field that decides which shard a row lives on. Hash-based spreads rows evenly, but a range query ("all users created this week") has to ask every shard. Range-based keeps ranges together, but when the key only grows (a sequential id, a date), every new row lands on the last shard. Directory-based uses a lookup table, which is flexible, but that table becomes one more thing that must be fast and must never go down.
 
 ```javascript
 // Hash-based sharding
@@ -189,7 +201,7 @@ const shardMap = {
 
 #### Consistent Hashing
 
-Used to distribute data across nodes while minimizing redistribution when nodes are added/removed.
+Consistent hashing spreads keys across servers so that adding or removing a server moves only a small fraction of the keys. With plain `hash(key) % N`, changing N changes the answer for almost every key, so every cache entry misses at once or almost every row has to migrate. On a hash ring, a key belongs to the next server clockwise, so a new server only takes over keys from its one neighbour. Virtual nodes (placing each server at many points on the ring) stop one unlucky server from owning a huge arc of it.
 
 ```
 Traditional Hashing Problem:
@@ -221,6 +233,8 @@ Consistent Hashing:
 
 ### Types of Load Balancers
 
+A load balancer spreads incoming requests across a pool of servers and stops sending traffic to the ones that fail. The main choice is how much of each request it reads. A Layer 4 balancer (the transport layer) sees only IP addresses and ports, so it is fast but cannot route by URL. A Layer 7 balancer (the application layer) reads the HTTP request, so it can send `/api` to one pool and `/images` to another, at the cost of parsing every request.
+
 ```
 Layer 4 (Transport Layer):
 - Routes based on IP and TCP/UDP port
@@ -236,6 +250,8 @@ Layer 7 (Application Layer):
 ```
 
 ### Load Balancing Algorithms
+
+Round robin is fine when requests cost roughly the same. Least connections is better when some requests are slow (uploads, reports), because it stops piling new work onto a server that is still busy. IP hash sends the same client to the same server, which you only need when servers keep per-user state in memory. Needing it is usually a sign that the state should move to a shared store.
 
 ```javascript
 // 1. Round Robin
@@ -306,6 +322,8 @@ function ipHashBalance(clientIP, servers) {
 
 ### Health Checks
 
+A health check is the load balancer calling each server on a schedule and taking it out of the pool after a few failures, so users are never routed to a dead machine. The pass and fail thresholds exist so that one slow response does not flap a server in and out. Note that the active `health_check` directive shown here is an NGINX Plus (the commercial edition) feature; open-source Nginx marks servers down passively, from failures on real traffic, using `max_fails` and `fail_timeout`.
+
 ```nginx
 # Nginx health check configuration
 upstream backend {
@@ -324,7 +342,11 @@ upstream backend {
 
 ### Caching Strategies
 
+A cache is a faster copy of data kept in front of a slower source, usually Redis in front of a database. The three strategies below differ in one thing: when the cache gets written, and therefore what happens when the cache and the database disagree.
+
 #### Cache-Aside (Lazy Loading)
+
+The application checks the cache first, and on a miss reads the database and fills the cache itself. Only data someone actually asks for gets cached, and if Redis goes down the app still works, just slower. The cost: the first read of anything is slow, and a cached value stays stale until its TTL (time to live, the expiry you set) runs out or you delete the key when the data changes.
 
 ```javascript
 async function getUser(userId) {
@@ -344,6 +366,8 @@ async function getUser(userId) {
 
 #### Write-Through
 
+Every write goes to the database and the cache together, so a read straight after a write sees the new value. The cost is slower writes, and a cache that fills up with data nobody may ever read.
+
 ```javascript
 async function updateUser(userId, data) {
   // 1. Write to DB
@@ -357,6 +381,8 @@ async function updateUser(userId, data) {
 ```
 
 #### Write-Behind (Write-Back)
+
+The write goes to the cache only, and a background worker copies it to the database later. Writes are very fast, but if the cache dies before the worker runs, those writes are gone. Use it for data you can afford to lose, such as view counters, never for orders or payments.
 
 ```javascript
 async function updateUser(userId, data) {
@@ -400,6 +426,8 @@ FIFO (First In, First Out):
 
 ### Multi-Level Caching
 
+Each layer answers what it can and passes the rest down, so the database only sees requests that missed every cache above it. The closer a layer is to the user, the faster it is and the harder it is to invalidate: you can delete a Redis key instantly, but you cannot reach into a user's browser cache.
+
 ```
 Request → Browser Cache (L1)
        → CDN Cache (L2)
@@ -410,6 +438,8 @@ Request → Browser Cache (L1)
 ```
 
 ### Cache Invalidation Patterns
+
+Invalidation is deciding when a cached copy is no longer true. A TTL is the safety net: anything cached is wrong for at most that many seconds. Deleting keys on write makes a change visible immediately, but you must remember every key that contains the data, which is why the example deletes `product-list` as well as the product itself. Tags group keys ("everything about product 42") so one call clears them all.
 
 ```javascript
 // 1. TTL-based expiration
@@ -483,6 +513,8 @@ app.get('/api/products', cacheMiddleware(600), getProducts);
 
 ### SQL vs NoSQL Decision Matrix
 
+The question is really about how you access the data. Relational databases are built for data with relationships that you query in many different ways. Document and key-value stores are built for data you usually fetch whole, by one key, at a scale where spreading it over many machines matters. The lists below are signals, not rules: one system often uses several of these side by side.
+
 ```
 Choose SQL (PostgreSQL, MySQL) when:
 - Complex queries with JOINs
@@ -514,6 +546,8 @@ Choose Graph DB (Neo4j, Amazon Neptune) when:
 
 ### Database Indexing
 
+An index is a sorted copy of one or more fields with a pointer back to each record, so the database can jump straight to matching rows instead of scanning the whole collection, like the index at the back of a book. Every index slows down writes and takes storage, so add them for the queries you actually run. "Order matters" on a compound index means `{ userId, createdAt }` helps queries that filter by `userId` (and then sort by date), but does nothing for a query that filters by `createdAt` alone.
+
 ```javascript
 // MongoDB index examples
 
@@ -540,6 +574,8 @@ db.orders.createIndex(
 ```
 
 ### Replication
+
+Replication keeps copies of the same data on several servers, for two reasons: surviving the loss of a machine, and spreading reads. With a single primary, write conflicts cannot happen, because only one node accepts writes. With several primaries, two users can change the same record on different nodes at the same moment, and you need a rule for which change wins.
 
 ```
 Primary-Replica (Master-Slave):
@@ -568,6 +604,8 @@ Primary-Primary (Multi-Master):
 
 ### Message Queue Pattern
 
+A message queue lets one part of the system hand work to another without waiting for it. The API puts a job on the queue and answers the user immediately; a worker picks the job up when it has capacity. That buys three things: slow work (sending email, resizing images) leaves the request path, a burst of traffic waits in the queue instead of overloading the workers, and a failed job can be retried without the user submitting again.
+
 ```mermaid
 graph LR
     P["Producer<br/>(API)"] --> Q["Queue<br/>(Redis / SQS / RabbitMQ)"]
@@ -595,7 +633,11 @@ graph LR
    Failed job → Dead letter queue → Retry with backoff
 ```
 
+A dead letter queue is where a job goes after failing too many times, so one broken message stops blocking the rest and someone can inspect it later.
+
 ### Bull Queue with Redis (Node.js)
+
+Bull is a Node.js job-queue library that stores its jobs in Redis. The options worth noticing: `attempts` and `backoff` retry a failing job with growing delays, and the `5` passed to `process` is how many jobs one worker runs at the same time.
 
 ```javascript
 import Queue from 'bull';
@@ -639,6 +681,8 @@ emailQueue.on('failed', (job, err) => {
 
 ### Event-Driven Architecture
 
+In an event-driven design, a service announces that something happened ("order created") instead of calling every service that cares. The order code does not know that inventory, email and analytics exist, so adding a fourth reaction means adding a subscriber, not editing the publisher. This example is an in-process sketch: Node's `EventEmitter` only reaches listeners in the same process, which is why it also saves each event to the database. Between separate services you would use a broker such as Kafka, RabbitMQ or SNS.
+
 ```javascript
 // Event bus pattern
 import { EventEmitter } from 'events';
@@ -680,6 +724,8 @@ await bus.publish('order.created', {
 ```
 
 ### Event Sourcing
+
+Event sourcing stores every change as an event ("item added", "order paid") instead of only the current state, and rebuilds the current state by replaying those events in order. You get a complete audit history, and "what did this order look like last Tuesday?" becomes easy to answer. The costs: reading the current state needs a replay (so real systems also keep periodic snapshots), and events are permanent, so a badly designed event shape is hard to change later.
 
 ```javascript
 // Instead of storing current state, store all events
@@ -724,6 +770,8 @@ class OrderAggregate {
 
 ### Monolith vs Microservices
 
+A monolith is one application with one database. Microservices split the system into separately deployed services that each own their data and talk over the network. The diagrams show the structural difference; the trade-off is covered in Q9 below.
+
 **Monolith:**
 
 ```mermaid
@@ -753,6 +801,8 @@ graph TD
 ```
 
 ### Service Communication
+
+Synchronous calls are the simplest, but the caller waits, and it fails when the service it calls is down, so a chain of five synchronous services fails whenever any one of them does, making it less available than each service on its own. Asynchronous events decouple that: the order is saved even if the email service is down, at the cost of the rest happening later. gRPC is a synchronous option that sends compact binary messages over HTTP/2, with typed client code generated from a shared `.proto` schema file.
 
 ```javascript
 // 1. Synchronous (HTTP/REST)
@@ -784,6 +834,8 @@ async function createOrder(orderData) {
 ```
 
 ### Circuit Breaker Pattern
+
+A circuit breaker stops calling a service that keeps failing, so your requests are not all stuck waiting on timeouts and the failing service gets room to recover. After a set number of failures it "opens" and fails every call instantly; after a cool-down it lets a trial call through ("half-open") and closes again if that succeeds. Q8 below walks through the three states.
 
 ```javascript
 class CircuitBreaker {
@@ -842,6 +894,8 @@ async function callExternalService() {
 
 ### Saga Pattern (Distributed Transactions)
 
+You cannot wrap one database transaction around three services that each own a separate database. A saga runs each step as its own local transaction, and if a later step fails, it runs a compensating action for every earlier step: refund the payment, release the stock. In choreography, each service reacts to the previous service's event and nothing is in charge; in orchestration, one coordinator runs the sequence (both are sketched below), which is easier to follow and debug. Compensation is not a rollback: the customer may briefly see a charge before the refund arrives.
+
 ```javascript
 // Choreography-based saga (event-driven)
 // Each service listens for events and publishes compensating events on failure
@@ -895,6 +949,8 @@ class OrderSaga {
 ## 8. API Gateway
 
 ### Responsibilities
+
+An API gateway is the single entry point in front of all your services. It exists so that work every service would otherwise repeat (checking the token, rate limiting, logging, TLS termination, i.e. decrypting HTTPS) happens once, and so that clients call one address instead of knowing where each service lives. The risk is that it becomes a bottleneck, or a place where business logic creeps in. Keep it to routing and these shared concerns.
 
 ```
 Client Request → API Gateway → Microservice
@@ -964,6 +1020,8 @@ app.use(
 
 ### BFF (Backend for Frontend)
 
+A BFF is a small server per kind of client (mobile, web, admin), usually owned by that client's team. It calls the underlying services and returns exactly the shape one screen needs, so a mobile app on a slow network makes one request instead of five and never downloads fields it does not show.
+
 ```
 Mobile App  ──→  Mobile BFF  ──→  Microservices
 Web App     ──→  Web BFF     ──→  Microservices
@@ -981,6 +1039,8 @@ Each BFF:
 ## 9. CDN (Content Delivery Network)
 
 ### How CDNs Work
+
+A CDN is a network of servers around the world that keep copies of your files. A user in Tokyo gets the file from a nearby edge server instead of from your origin server in the US, which removes most of the round-trip time. The first request for a file at each edge still goes to the origin (a cache miss); everyone after that is served locally.
 
 ```
 Without CDN:
@@ -1030,14 +1090,18 @@ const distribution = {
 // index.html          → no-cache, always revalidate
 ```
 
+Two parts of that config carry the design. Hashed filenames (`index-a1b2c3d4.js`) change whenever the content changes, so they can be cached for a year without ever serving an outdated file, while `index.html` is always revalidated so that after a deploy it points at the new hashes. The 403 → `/index.html` rule is for single-page apps: S3 answers 403 for a path such as `/settings` that has no file behind it, and returning `index.html` instead lets the app's client-side router show the right page.
+
 ### Caching Headers
+
+Careful with the names: `no-cache` does not mean "do not cache". The browser may keep the file but must check with the server before using it, which is a cheap request that returns 304 Not Modified when nothing changed. `no-store` is the one that means never keep a copy. `stale-while-revalidate` lets the cache serve the old copy instantly while it fetches a fresh one in the background.
 
 ```
 Cache-Control: public, max-age=31536000, immutable
   → Static assets with content hash (JS, CSS, images)
 
 Cache-Control: no-cache
-  → HTML files (always revalidate, may serve cached if fresh)
+  → HTML files (may be stored, but revalidated with the server before every use)
 
 Cache-Control: no-store
   → Sensitive data (never cache)
@@ -1052,7 +1116,11 @@ Cache-Control: public, max-age=3600, stale-while-revalidate=86400
 
 ### Algorithms
 
+A rate limiter caps how many requests one client can make in a period. It protects you from abuse and stops one noisy customer from starving everyone else.
+
 #### Token Bucket
+
+Picture a bucket that holds up to `capacity` tokens and refills at a steady rate. Each request takes a token, and an empty bucket means the request is rejected. The capacity decides how large a burst you allow; the refill rate decides the long-run average.
 
 ```javascript
 class TokenBucket {
@@ -1082,6 +1150,8 @@ class TokenBucket {
 ```
 
 #### Sliding Window
+
+Keep the timestamp of every recent request and count the ones inside the last window. It is exact and has no burst at window edges, but storing every timestamp costs memory for each user.
 
 ```javascript
 class SlidingWindowRateLimiter {
@@ -1114,6 +1184,8 @@ class SlidingWindowRateLimiter {
 
 ### Redis-based Rate Limiting
 
+The limiters above keep their counts in one server's memory, so with several API servers each would count separately and a client could get several times the limit. Redis gives every server one shared counter. This version is a fixed window: the counter resets when the key expires, so a client can send 100 requests at the end of one window and 100 more at the start of the next, 200 in a few seconds. That is often acceptable; when it is not, use a sliding window or a token bucket stored in Redis.
+
 ```javascript
 import Redis from 'ioredis';
 
@@ -1124,10 +1196,17 @@ async function rateLimitMiddleware(req, res, next) {
   const limit = 100;
   const window = 60; // seconds
 
-  const current = await redis.incr(key);
-  if (current === 1) {
-    await redis.expire(key, window);
-  }
+  // INCR and EXPIRE run together in one Lua script, which Redis executes
+  // atomically. As two separate calls, a crash between them would leave a
+  // key with no expiry, and that client would stay blocked forever.
+  const current = await redis.eval(
+    "local c = redis.call('INCR', KEYS[1]) " +
+      "if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end " +
+      'return c',
+    1,
+    key,
+    window,
+  );
 
   res.set({
     'X-RateLimit-Limit': limit,
@@ -1169,7 +1248,11 @@ async function rateLimitMiddleware(req, res, next) {
    - Span timing for each service hop
 ```
 
+The two acronyms are checklists for what to graph. RED (rate, errors, duration) is for services: how many requests, how many fail, how long they take. USE (utilization, saturation, errors) is for resources such as CPU, memory and disks: how busy they are, how much work is queued waiting for them, and how many errors they report. Tracing ties the pillars together across services: every request carries one trace ID, so you can see which of six services made it slow.
+
 ### Structured Logging
+
+Structured logs are JSON objects instead of free-text sentences, so a log tool can filter `orderId = 456` across millions of lines instead of you searching text. Put the trace ID on every line so one request can be followed across services. Log ids rather than personal data such as emails: logs are copied into many tools and kept for a long time, and every copy of personal data is one more place a privacy rule applies.
 
 ```javascript
 import winston from 'winston';
@@ -1189,8 +1272,7 @@ const logger = winston.createLogger({
 
 // Usage
 logger.info('User created', {
-  userId: '123',
-  email: 'user@example.com',
+  userId: '123', // log the id, not the email: keep personal data out of logs
   duration: 45,
   traceId: req.headers['x-trace-id'],
 });
@@ -1237,11 +1319,15 @@ app.get('/health', async (req, res) => {
 });
 ```
 
+Be deliberate about what this endpoint checks. Reporting unhealthy when the database is down is useful on a dashboard. But if a load balancer or orchestrator uses the same endpoint to decide which servers to remove or restart, a database outage fails every server at once, and they are all pulled even though restarting them fixes nothing. A common split is a shallow check ("the process is up") for restarts and a deeper one for "ready to take traffic".
+
 ---
 
 ## 12. Security
 
 ### Defense in Depth
+
+Defence in depth means no single control is trusted to stop an attack on its own; each layer assumes the one outside it has already failed. The firewall should block the attacker, but if it does not, the application still validates input, and if that fails too, the data is still encrypted and the access is still logged. (RBAC is role-based access control, "admins can delete"; ABAC is attribute-based, "users can edit documents in their own department".)
 
 ```
 Layer 1: Network (Firewall, VPC, Security Groups)
@@ -1254,6 +1340,8 @@ Layer 7: Monitoring (Intrusion detection, audit logs)
 ```
 
 ### Common Security Patterns
+
+Each item below stops a specific attack. Validation rejects malformed input at the door. Parameterised queries keep user input from being run as SQL (SQL injection). Sanitising HTML stops injected scripts from running in other users' browsers (XSS, cross-site scripting). CORS (cross-origin resource sharing) controls which websites may call your API from a browser. Security headers switch on browser protections, such as refusing to be shown inside another site's frame.
 
 ```javascript
 // 1. Input validation
@@ -1299,6 +1387,8 @@ app.use(helmet());
 
 ### WebSocket
 
+HTTP is request-response: the server can only answer when the client asks. A WebSocket upgrades one HTTP connection into a long-lived two-way channel, so the server can push a chat message the moment it arrives. The example keeps a set of open sockets per room and forwards each message to everyone else in that room. Those sockets live in one server's memory, so a second server would not see them; Q17 covers how to scale past one server.
+
 ```javascript
 // Server (ws library)
 import { WebSocketServer } from 'ws';
@@ -1339,6 +1429,8 @@ wss.on('connection', (ws, req) => {
 ```
 
 ### Server-Sent Events (SSE)
+
+Server-Sent Events are the simpler, one-way option. The client opens an ordinary HTTP request, the server keeps it open, and writes a `data: ...` line whenever it has something to send. The browser's `EventSource` reconnects on its own if the connection drops. Use it when only the server needs to push (notifications, live scores): it is plain HTTP, so it passes through most proxies unchanged.
 
 ```javascript
 // Server
@@ -1398,6 +1490,8 @@ Long Polling:
 
 ### Architecture
 
+Avoid streaming large files through your API servers: every upload ties up a server for its whole duration and you pay for the bandwidth twice. Instead the API gives the client permission to upload straight to object storage (S3), and only records the result.
+
 ```
 Client → API Server → Object Storage (S3)
          │
@@ -1406,6 +1500,8 @@ Client → API Server → Object Storage (S3)
 ```
 
 ### Presigned URL Upload
+
+A presigned URL is a link your server signs with its own AWS credentials that allows one specific action (upload to this key, until this time) without giving the client any credentials. The browser sends the file directly to S3 with it, and the link stops working when it expires.
 
 ```javascript
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
@@ -1447,6 +1543,8 @@ app.post('/api/upload-url', async (req, res) => {
 
 ### Chunked Upload for Large Files
 
+For large files, S3 multipart upload splits the file into parts (at least 5 MB each, except the last) that are uploaded separately and stitched together at the end. A dropped connection then costs one part instead of the whole file, and parts can be sent in parallel. The loop below uploads the parts one after another, for clarity; to parallelise, start several part uploads at once with a small concurrency limit.
+
 ```javascript
 // Client-side chunked upload
 async function uploadLargeFile(file, chunkSize = 5 * 1024 * 1024) {
@@ -1456,7 +1554,7 @@ async function uploadLargeFile(file, chunkSize = 5 * 1024 * 1024) {
     contentType: file.type,
   });
 
-  // 2. Upload chunks in parallel
+  // 2. Upload chunks one at a time (see the note above to parallelise)
   const chunks = Math.ceil(file.size / chunkSize);
   const parts = [];
 
@@ -1491,6 +1589,8 @@ async function uploadLargeFile(file, chunkSize = 5 * 1024 * 1024) {
 ## 15. Search Systems
 
 ### Full-Text Search with Elasticsearch
+
+A database `LIKE '%react%'` query scans every row and knows nothing about relevance. A search engine such as Elasticsearch builds an inverted index, a map from each word to the documents that contain it, so it can find matches quickly and rank them. In the query below, `title^3` makes a title match count three times as much as a description match, `must` clauses affect the relevance score, and `filter` clauses only include or exclude results.
 
 ```javascript
 // Index document
@@ -1538,6 +1638,8 @@ const results = await esClient.search({
 
 ### Search Architecture
 
+The search index is a copy, not the source of truth. Writes go to the database, a sync process copies each change into the index (so search can lag the database by a moment), and results are often re-read from the database so the user sees current data.
+
 ```
 Write Path:
 App → Database → Change Stream/Binlog → Sync Service → Search Index
@@ -1562,6 +1664,8 @@ Components:
 
 ### CQRS (Command Query Responsibility Segregation)
 
+CQRS separates the code, and often the storage, for changing data from the code for reading it, because the two usually want different shapes. Writes want normalised, validated data; reads want pre-joined views that answer one screen in one query. The cost is that the read side is updated after the write, so it can briefly lag. Q12 covers when that is worth it.
+
 ```
 Commands (Write):
 Client → API → Command Handler → Write DB
@@ -1573,6 +1677,8 @@ Write DB ──sync──> Read DB (denormalized, optimized for reads)
 ```
 
 ### Strangler Fig (Migrating from Monolith)
+
+Named after a vine that grows around a tree until it replaces it. Instead of a risky rewrite of everything at once, you put a proxy in front of the monolith and move one feature at a time into a new service, pointing that feature's URLs at the new code. The system works at every step, and you can stop or roll back at any point.
 
 ```
 Phase 1: Route all traffic through proxy
@@ -1590,6 +1696,8 @@ Phase 3: Complete migration
 ```
 
 ### Bulkhead Pattern
+
+Named after the watertight compartments in a ship's hull. Each dependency gets its own limited number of concurrent calls, so if the payment provider hangs, at most 10 calls are tied up in it at once, and the rest of the app keeps serving search and email instead of every worker getting stuck behind payments.
 
 ```javascript
 // Isolate different parts of the system
@@ -1628,6 +1736,8 @@ const searchBulkhead = new BulkheadExecutor('search', 50);
 
 ### Idempotency
 
+An operation is idempotent if doing it twice has the same effect as doing it once. Networks drop responses, so clients retry, and without protection a retried payment charges the card twice. The client sends a unique idempotency key with each logical operation; the server stores the result under that key and returns the stored result if the same key arrives again. This simple version has a gap: two identical requests arriving at the same moment can both miss the stored result and both charge, so real implementations claim the key atomically first (for example with Redis `SET key value NX`, which only succeeds for the first caller).
+
 ```javascript
 // Ensure operations can be safely retried
 async function processPayment(req, res) {
@@ -1655,6 +1765,8 @@ async function processPayment(req, res) {
 
 ### URL Shortener (TinyURL)
 
+Each case study follows the order you would use in an interview: requirements, a rough estimate of load, the architecture, then the few decisions that matter. "Zk" in the diagram is ZooKeeper, a coordination service used here to keep one shared counter consistent across all app servers, so two servers never generate the same short code. Q13 below explains the other decisions.
+
 ```
 Requirements:
 - Shorten long URLs → short alias
@@ -1665,7 +1777,7 @@ Requirements:
 
 Estimation (100M URLs/month):
 - Write QPS: 100M / (30 * 86400) ≈ 40/s
-- Read QPS: 10x writes = 400/s (80/20 rule)
+- Read QPS: assume 10 reads per write = 400/s
 - Storage: 100M * 500 bytes = 50 GB/month
 
 Architecture:
@@ -1683,11 +1795,13 @@ Architecture:
 Key Design:
 - Base62 encoding: [a-zA-Z0-9] → 62^7 = 3.5 trillion combinations
 - Counter-based (Zookeeper) vs hash-based ID generation
-- Read-heavy → cache popular URLs in Redis
+- Read-heavy → cache popular URLs in Redis (roughly 20% of URLs get 80% of clicks)
 - 301 (permanent) vs 302 (temporary) redirect
 ```
 
 ### Chat System
+
+Cassandra appears here because chat is write-heavy and nearly always read as "the latest messages in this conversation". Partitioning by `chat_id` and sorting by time inside each partition makes that a single, fast read.
 
 ```
 Requirements:
@@ -1725,6 +1839,8 @@ Schema (Cassandra):
 ```
 
 ### Notification System
+
+The key decision is a separate queue per channel: a slow SMS provider backs up only the SMS queue, and each worker retries its own failures without resending the email.
 
 ```
 Requirements:
@@ -1764,6 +1880,8 @@ Flow:
 
 **Q1: What is the CAP theorem? Give an example of each type.**
 
+Short answer: when the network between nodes fails, a distributed system has to choose between staying correct (refusing some requests) and staying available (answering, possibly with stale data).
+
 The CAP theorem states a distributed system can guarantee at most two of three properties: Consistency (all nodes see the same data), Availability (every request gets a response), and Partition Tolerance (system works despite network failures).
 
 - **CP**: MongoDB (primary/secondary) — during a network partition, the secondary becomes unavailable for writes to maintain consistency
@@ -1796,7 +1914,7 @@ Caching stores frequently accessed data in a faster storage layer (like Redis) t
 
 A CDN (Content Delivery Network) is a geographically distributed network of servers that caches content closer to users. Instead of every request hitting your origin server (which might be in one region), the CDN serves static assets (JS, CSS, images) from the nearest edge location.
 
-Benefits: Reduced latency (users hit nearby edge servers), lower origin server load, DDoS protection, automatic failover. For SPAs, the CDN serves the static build files while API requests go to the backend.
+Benefits: lower latency, because the edge server is physically close to the user; less load on your origin, because most requests never reach it; and resilience, because a DDoS (distributed denial-of-service) flood is spread across the CDN's many servers instead of landing on yours, and an edge can keep serving cached files if your origin is briefly down. For SPAs, the CDN serves the static build files while API requests go to the backend.
 
 ---
 
@@ -1819,6 +1937,8 @@ Layer 4 load balancers route based on IP/port (faster), while Layer 7 route base
 
 WebSockets provide a persistent, full-duplex communication channel over a single TCP connection. Unlike REST (request-response), WebSockets allow both client and server to send messages at any time.
 
+The deciding question is who starts the conversation. If the server must push updates the moment they happen, REST forces the client to poll, which either wastes requests or adds delay, so a persistent connection wins. If the client asks and the server answers, REST is simpler, cacheable and needs no long-lived connection per user.
+
 Use WebSockets for: real-time chat, live notifications, collaborative editing, gaming, live dashboards, stock tickers.
 
 Use REST for: CRUD operations, data fetching, file uploads, operations that don't need real-time updates.
@@ -1837,7 +1957,7 @@ A rate limiter controls the rate of requests a user/client can make to an API.
 
 **Sliding Window**: Track timestamps of recent requests per user. Count requests within the window. If count exceeds the limit, reject. More precise than fixed windows but uses more memory.
 
-For distributed systems, use Redis with atomic operations (INCR + EXPIRE) to implement the counter across multiple API servers. Return `429 Too Many Requests` with `Retry-After` and `X-RateLimit-*` headers.
+For distributed systems, keep the counter in Redis so every API server shares it, and run INCR and EXPIRE together in one Lua script so they are atomic (as two separate calls, a crash between them leaves a key that never expires). Return `429 Too Many Requests` with `Retry-After` and `X-RateLimit-*` headers.
 
 ---
 
@@ -1855,11 +1975,13 @@ This prevents a failing service from being overwhelmed with retries and allows i
 
 **Q9: Compare microservices vs monolith architecture.**
 
+**Short answer:** a monolith is one deployable unit and is the right starting point; microservices split it into independently deployed services, which pays off only once separate teams need to ship and scale separately, because you buy that independence with the cost of a distributed system.
+
 **Monolith**: Single deployable unit. All features share one codebase, one database, one deployment. Simpler to develop, test, debug, and deploy initially. But as it grows: longer build times, harder to scale individual features, one bug can take down everything, technology lock-in.
 
 **Microservices**: Each feature is an independent service with its own database, deployment, and potentially tech stack. Benefits: independent scaling, team autonomy, isolated failures, technology diversity. Costs: distributed system complexity (networking, data consistency, debugging), operational overhead (many services to deploy/monitor), inter-service communication latency.
 
-Start with a monolith and extract microservices when you have clear bounded contexts and team scaling needs.
+Start with a monolith and extract microservices when you have clear bounded contexts (areas of the business with their own data and vocabulary, such as billing or search) and team scaling needs.
 
 ---
 
@@ -1872,13 +1994,15 @@ Sharding is horizontal partitioning of a database across multiple servers, each 
 **Challenges**:
 - **Joins across shards** are expensive or impossible
 - **Resharding** when adding servers (consistent hashing helps)
-- **Hotspots** if sharding key isn't well-distributed
+- **Hotspots** if sharding key isn't well-distributed (shard by signup date and every new user lands on the newest shard)
 - **Referential integrity** can't be enforced across shards
 - **Increased operational complexity** (backups, schema migrations across all shards)
 
 ---
 
 **Q11: How does event-driven architecture work?**
+
+**Short answer:** a service announces that something happened and does not care who reacts; a broker delivers the event to every interested service. You gain loose coupling and easy extension, and pay with eventual consistency and harder debugging.
 
 In event-driven architecture, services communicate by producing and consuming events rather than making direct calls.
 
@@ -1893,6 +2017,8 @@ In event-driven architecture, services communicate by producing and consuming ev
 ---
 
 **Q12: What is CQRS and when would you use it?**
+
+**Short answer:** use separate models for writing and reading data, so each can be shaped and scaled for its own job. It is worth the extra moving parts only when reads and writes look very different; for ordinary CRUD it is overkill.
 
 CQRS (Command Query Responsibility Segregation) separates the write model (commands) from the read model (queries). Instead of one model for both reads and writes, you have:
 
@@ -1919,6 +2045,8 @@ The write database syncs to the read database (eventually consistent). Use CQRS 
 ---
 
 **Q14: Design a distributed message queue (like Kafka).**
+
+**Short answer:** model each topic as a set of append-only logs (partitions) stored on disk and replicated across brokers. Order holds only within a partition, so the partition key decides what stays ordered, and consumers track their own read position instead of the broker deleting messages as they are read.
 
 **Core concepts**: Topics (named channels), partitions (ordered log segments within a topic), producers (write to partitions), consumers/consumer groups (read from partitions).
 
@@ -1959,7 +2087,7 @@ In practice, most microservice systems use sagas with eventual consistency and i
 - Server applies operations, resolves conflicts, broadcasts to all clients
 - Periodic snapshots for fast document loading
 - Presence system (who's editing where) via lightweight heartbeats
-- Version vector for detecting concurrent edits
+- Version vector (a per-client counter of edits seen) for detecting concurrent edits: if neither client had seen the other's edit, the two are concurrent and need merging
 
 ---
 
@@ -1973,11 +2101,13 @@ In practice, most microservice systems use sagas with eventual consistency and i
 3. **Connection management**: Track user→server mapping in Redis. On disconnect, clean up. Heartbeats to detect stale connections.
 4. **Memory optimization**: Use binary protocols (MessagePack/protobuf) instead of JSON. Compress messages. Limit message buffer sizes.
 5. **Graceful scaling**: When adding/removing servers, drain connections gradually. Client auto-reconnect with exponential backoff.
-6. **Infrastructure**: 10 servers × 100K connections each. Use epoll (Linux) for efficient I/O multiplexing. Tune OS limits (file descriptors, TCP buffers).
+6. **Infrastructure**: 10 servers × 100K connections each. Use epoll (the Linux mechanism that lets one thread watch many thousands of sockets and wake only for the ones with data) for efficient I/O multiplexing. Tune OS limits (file descriptors, TCP buffers).
 
 ---
 
 **Q18: Explain the trade-offs between consistency and availability in your past system designs.**
+
+**Short answer:** pick per piece of data, not per system. Where a wrong answer costs money (payments, stock), choose consistency and accept brief errors during a failure; where stale data is harmless (feeds, profiles), choose availability. Then say how you softened the cost of each choice.
 
 This is an open-ended question. A strong answer discusses:
 

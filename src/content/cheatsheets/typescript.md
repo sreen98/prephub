@@ -128,4 +128,4 @@ declare module '*.svg' { const c: string; export default c; }
 - `interface` declarations merge; `type` aliases collide.
 - `enum` emits runtime code; prefer a union of literals or `as const`.
 - `Function`, `Object` and `{}` are near-useless types — be specific.
-- Arrays are covariant here, so unsound assignments compile.
+- Arrays are covariant: a `Dog[]` is assignable to `Animal[]`, so pushing a `Cat` through that alias compiles — an accepted unsoundness.

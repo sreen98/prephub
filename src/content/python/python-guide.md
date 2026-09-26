@@ -125,16 +125,19 @@ a == b      # True  — same contents
 a is b      # False — two distinct objects
 ```
 
-Use `is` **only** for singletons: `is None`, `is True`, `is False`, and sentinel objects. Never for numbers or strings, because interning makes it look like it works until it doesn't:
+Use `is` **only** for singletons: `is None`, `is True`, `is False`, and sentinel objects. Never for numbers or strings, because interning (CPython reusing one shared object for common values instead of creating a new one each time) makes it look like it works until it doesn't:
 
 ```python
 x = 256; y = 256
 x is y            # True  — small ints are cached
 x = 257; y = 257
-x is y            # False (usually) — outside the cache
+x is y            # True  — both literals compiled together, so one shared constant
+x = 257
+y = int("257")    # built at runtime, outside the cache
+x is y            # False — two distinct objects
 ```
 
-That is an implementation detail of CPython, not a language guarantee. This is the single most common "guess the output" trap in Python interviews.
+That is an implementation detail of CPython, not a language guarantee. It is not even stable within CPython: when two equal literals are compiled together (the same line, the same function, or the same script file), the compiler stores one constant and both names get it, so the one-line `257` case prints `True`. Build one of them at runtime, as `int("257")` does, or type the two assignments on separate REPL lines, and it prints `False`. This is the single most common "guess the output" trap in Python interviews.
 
 ### 1.6 `copy` vs `deepcopy`
 
@@ -321,7 +324,7 @@ Carry structured data as attributes (`retry_after`), not by parsing the message 
 
 ### 3.4 EAFP over LBYL
 
-Python idiom prefers **Easier to Ask Forgiveness than Permission**:
+Python idiom prefers **Easier to Ask Forgiveness than Permission** (EAFP: just attempt the operation and handle the exception) over **Look Before You Leap** (LBYL: check first, then act). The reason is not style: a check and the action that follows it are two separate steps, and in concurrent code the world can change between them.
 
 ```python
 # LBYL — racy: the key can vanish between the check and the read
@@ -390,7 +393,7 @@ class Child(Base):
         return f'child:{super().describe()}:{self.extra}'
 ```
 
-`super()` walks the **MRO** (method resolution order), the C3 linearisation of the class graph — inspect it with `Child.__mro__`. This matters with multiple inheritance: `super()` does not mean "my parent", it means "the next class in the MRO", which may be a sibling. That is what makes cooperative multiple inheritance work, and why every class in such a hierarchy must call `super()` and accept `**kwargs`.
+`super()` walks the **MRO** (method resolution order), the C3 linearisation of the class graph — a single ordered list of the class and all its ancestors in which every class comes before its own parents and the left-to-right order of the bases you wrote is kept. Inspect it with `Child.__mro__`. This matters with multiple inheritance: `super()` does not mean "my parent", it means "the next class in the MRO", which may be a sibling. That is what makes cooperative multiple inheritance work, and why every class in such a hierarchy must call `super()` and accept `**kwargs`.
 
 ### 4.3 `@staticmethod` vs `@classmethod` vs instance methods
 
@@ -899,7 +902,7 @@ Points interviewers probe:
 
 - **Re-raise on the last attempt** rather than returning `None` — silently returning `None` on failure is far worse than an exception.
 - **Catch narrowly.** Retrying a `ValueError` from bad input just wastes time; it will fail identically.
-- **Only retry idempotent operations.** A retried `POST /charge` can double-charge — which is what idempotency keys are for.
+- **Only retry idempotent operations** (ones that have the same effect whether they run once or three times, like a `GET`). A retried `POST /charge` can double-charge — which is what idempotency keys are for: the client sends a unique key with the request, and the server refuses to apply the same key twice.
 - **Jitter matters.** Plain exponential backoff synchronises all clients into retry waves; full jitter (`uniform(0, cap)`) spreads them.
 
 ### 10.4 `functools.lru_cache`
@@ -1042,7 +1045,7 @@ gc.freeze()              # after startup: move current objects out of gen0 scann
 
 - Immediately after building a large temporary graph, to return memory before a memory-heavy phase.
 - In tests asserting that objects are released.
-- Before `fork()`, together with `gc.freeze()`, to keep copy-on-write pages shared in pre-fork servers (a real Gunicorn/uWSGI memory win).
+- Before `fork()`, together with `gc.freeze()`, to keep copy-on-write pages shared in pre-fork servers (a real Gunicorn/uWSGI memory win). After a fork, parent and child share memory pages until one of them writes to a page, at which point the OS copies it. The collector writes bookkeeping into every object it scans, so a collection in each worker would copy pages that could otherwise have stayed shared; freezing tells it to leave the startup objects alone.
 
 And when you'd **disable** it: latency-sensitive services sometimes run `gc.disable()` to avoid unpredictable pauses, accepting that cycles leak — only viable if you don't create them.
 
@@ -1192,7 +1195,7 @@ async with asyncio.TaskGroup() as tg:         # cancels siblings on failure
 
 ### 14.3 Capping concurrency — `Semaphore`
 
-Unbounded `gather` over 10,000 items opens 10,000 connections and gets you rate-limited or OOM-killed. A semaphore bounds in-flight work:
+Unbounded `gather` over 10,000 items opens 10,000 connections and gets you rate-limited or OOM-killed (terminated by the operating system or container runtime for running out of memory). A semaphore bounds in-flight work:
 
 ```python
 async def bounded(sem: asyncio.Semaphore, i: int) -> str:
@@ -1348,7 +1351,7 @@ You cannot assert on exact model output. Three layers, and mature teams use all 
 
 1. **Mock/stub the provider** for unit tests. Deterministic, free, fast — this is where the *logic around* the call (retries, parsing, fallbacks) gets tested.
 2. **Cassette (VCR-style) tests** — record real responses once, replay from disk after. Catches contract drift in the provider's schema without per-run cost. Scrub API keys from cassettes, and re-record on a schedule or the cassettes become fiction.
-3. **Golden / eval tests** — a fixed input set with expected *properties* rather than exact strings, scored and thresholded. Assert on invariants: valid JSON, required fields present, no PII echoed, a similarity or rubric score above a bar. Run these as a nightly gate, not in the PR loop — they cost money and have variance.
+3. **Golden / eval tests** — a fixed input set with expected *properties* rather than exact strings, scored and thresholded. Assert on invariants: valid JSON, required fields present, no PII (personally identifiable information, such as names, emails or phone numbers) echoed, a similarity or rubric score above a bar. Run these as a nightly gate, not in the PR loop — they cost money and have variance.
 
 ```python
 # property-based assertions instead of exact-match
@@ -1401,7 +1404,7 @@ Read `cumtime` (function plus everything it calls) to find *where* time goes, th
 2. **cProfile** it to get the function-level breakdown. Deterministic but adds overhead and hides time inside C calls.
 3. **Line-level** (`line_profiler`, `@profile`) on the one suspicious function.
 4. **Distinguish CPU from waiting.** If `cumtime` is large but `tottime` is tiny, you are blocked on I/O — profiling the Python won't help; look at query counts and network calls. `py-spy` samples a *running* process without restarting it, which is how you profile production.
-5. **Check the algorithm before the micro-optimisations.** The usual real causes, in frequency order: an accidental O(n²) (a `list` membership test in a loop — use a `set`), N+1 queries, repeated serialisation, and re-computing something cacheable.
+5. **Check the algorithm before the micro-optimisations.** The usual real causes, in frequency order: an accidental O(n²) (a `list` membership test in a loop — use a `set`), N+1 queries (one query to fetch a list, then one more query per item in it, instead of a single query for all of them), repeated serialisation, and re-computing something cacheable.
 6. **Then** consider the mechanical wins: `set`/`dict` lookups, avoiding attribute lookups in hot loops, `__slots__`, batching I/O, and pushing numeric work into NumPy/Polars.
 
 ```python
@@ -1476,7 +1479,7 @@ def get_settings() -> Settings:
 
 Three properties this gives you: **fail fast** (a missing variable crashes at boot, not at 3am on a rare path), **typed** (`max_concurrency` is an `int`, not `"8"`), and **injectable** (override `get_settings` in tests). `repr=False` on secrets stops them leaking into an exception dump.
 
-12-factor principle: config comes from the environment, not committed files. `.env` is a local-development convenience and must be gitignored.
+This follows the 12-factor principle (from a widely used set of guidelines for building deployable web services): config comes from the environment, not committed files, so the same build can run in staging and production with different settings and secrets never enter the repository. `.env` is a local-development convenience and must be gitignored.
 
 ---
 
@@ -1534,7 +1537,7 @@ class TokenBucket:
             await asyncio.sleep(deficit)
 ```
 
-Across processes, keep the counter in **Redis** (an atomic Lua script, or `INCR` on a per-window key). Also: **respect `Retry-After`** on a 429 instead of your own backoff, and reserve headroom — aim for ~80% of the documented limit so retries have room.
+Across processes, keep the counter in **Redis** (an atomic Lua script, or `INCR` on a per-window key). It has to be atomic because two workers reading the count, both seeing room, and both writing back would each spend the same token. Also: **respect `Retry-After`** on a 429 (the HTTP "Too Many Requests" status; `Retry-After` is the header in which the provider tells you how long to wait) instead of your own backoff, and reserve headroom — aim for ~80% of the documented limit so retries have room.
 
 ### 18.3 Streaming responses
 
@@ -1565,7 +1568,7 @@ Two things bite in production: **an error after the first byte cannot change the
 
 ### 18.4 Pydantic in a high-throughput service
 
-Pydantic v2's core is compiled Rust, so validation is roughly 5–50× faster than v1 — but it is **not free**, and in a high-QPS service it can show up in profiles. Where the cost concentrates and what to do:
+Pydantic v2's core is compiled Rust, so validation is roughly 5–50× faster than v1 — but it is **not free**, and in a high-QPS (queries per second) service it can show up in profiles. Where the cost concentrates and what to do:
 
 - **Large nested payloads** cost the most; validation is proportional to the data you validate.
 - **`model_validate` on every request** is usually worth it at the trust boundary — it is your input sanitisation, and skipping it trades a known cost for unknown corruption.
@@ -1675,11 +1678,11 @@ The subtlety: **registration happens on import**, so a module nobody imports reg
 
 **Secrets on AWS Lambda.** Never in code or in the repo. Ranked:
 
-1. **Secrets Manager / SSM Parameter Store (SecureString)**, fetched at cold start and cached in a module-level variable for the container's life. Supports rotation, and access is IAM-scoped and auditable via CloudTrail. Use the **Parameters and Secrets Lambda Extension** to cache locally and avoid an API call per invocation.
-2. **Lambda environment variables encrypted with a customer-managed KMS key** — simpler, but the value is visible to anyone with `GetFunctionConfiguration` and does not rotate.
+1. **Secrets Manager / SSM Parameter Store (SecureString)**, fetched at cold start and cached in a module-level variable for the container's life. Supports rotation, and access is IAM-scoped (AWS Identity and Access Management decides who may read it) and auditable via CloudTrail, the AWS service that keeps an audit log of API calls made in the account, including who read each secret. Use the **Parameters and Secrets Lambda Extension** to cache locally and avoid an API call per invocation.
+2. **Lambda environment variables encrypted with a customer-managed KMS key** (a key you create and control in AWS Key Management Service, rather than the default AWS-owned one) — simpler, but the value is visible to anyone with `GetFunctionConfiguration` and does not rotate.
 3. **Plain environment variables** — acceptable only for non-secrets.
 
-Give the function its own execution role with least privilege, scoped to the specific secret ARN.
+Give the function its own execution role with least privilege, scoped to the specific secret ARN (Amazon Resource Name, the unique ID of that one secret), not to every secret in the account.
 
 ```python
 import boto3, functools
@@ -1693,7 +1696,7 @@ def get_secret(name: str) -> str:
 
 - **Cold start:** async stacks pull in more machinery, and an event loop plus pool must be created. Modest, but real — keep the import graph small (§5.1) since import time dominates cold start.
 - **Concurrency:** a Lambda invocation handles **one request**, so in-request async concurrency buys you nothing unless a single request makes several I/O calls. Async pays off when one handler fans out (three model calls plus a DB read); it does not turn one container into a multi-request server.
-- **Connection pooling is the real trap.** Each container holds its own pool, so N concurrent Lambdas open N pools and exhaust Postgres `max_connections`. Fix with **RDS Proxy** (or pgbouncer), pool size **1–2** per container, and a short idle timeout. Create the pool at module scope so it's reused across invocations in the same container, and never assume the container survives.
+- **Connection pooling is the real trap.** Each container holds its own pool, so N concurrent Lambdas open N pools and exhaust Postgres `max_connections`. Fix with **RDS Proxy** (a managed AWS service that sits between your functions and the database and shares a small set of real connections among them) or pgbouncer (the self-hosted equivalent), pool size **1–2** per container, and a short idle timeout. Create the pool at module scope so it's reused across invocations in the same container, and never assume the container survives.
 
 ### 18.9 Structured logging & correlation IDs
 
@@ -2059,7 +2062,7 @@ A dict comprehension builds a dict with `{k: v for ... }`; a list comprehension 
 
 **Q5: What is the difference between `is` and `==`?**
 
-`==` invokes `__eq__` and asks about **value**; `is` compares **identity** — whether two names point at the same object. Use `is` only for singletons: `is None`, `is True`, `is False`, and your own sentinel objects. Never use it for numbers or strings, because CPython caches small integers (roughly −5 to 256) and interns some strings, so `256 is 256` is `True` while `257 is 257` is usually `False`. That is an implementation detail, not a guarantee, and relying on it produces code that works in the REPL and fails in a loop. `is None` is also correct rather than merely idiomatic, since a class can define `__eq__` such that `x == None` is `True`.
+`==` invokes `__eq__` and asks about **value**; `is` compares **identity** — whether two names point at the same object. Use `is` only for singletons: `is None`, `is True`, `is False`, and your own sentinel objects. Never use it for numbers or strings, because CPython caches small integers (roughly −5 to 256) and interns (reuses one shared object for) some strings, so two separately created `256`s are always the same object while two separately created `257`s usually are not. That is an implementation detail, not a guarantee, and relying on it produces code that works in the REPL and fails in a loop. `is None` is also correct rather than merely idiomatic, since a class can define `__eq__` such that `x == None` is `True`.
 
 **Q6: How do you handle exceptions using try/except/finally?**
 
@@ -2099,7 +2102,7 @@ A `lambda` is a single-expression anonymous function, useful exactly where a tin
 
 **Q15: How does Python manage memory?**
 
-CPython's primary mechanism is **reference counting**: every object tracks how many references point at it, and it is freed immediately when that hits zero. This is why cleanup in CPython feels deterministic. Reference counting alone cannot free **reference cycles**, so CPython adds a generational cyclic garbage collector that scans container objects in three generations, promoting survivors and scanning older generations less often. Allocation itself goes through pymalloc, which manages small objects in arenas and pools rather than calling `malloc` per object. Note reference counting is a CPython implementation detail — PyPy does not use it — so never rely on prompt finalisation for correctness; use context managers.
+CPython's primary mechanism is **reference counting**: every object tracks how many references point at it, and it is freed immediately when that hits zero. This is why cleanup in CPython feels deterministic. Reference counting alone cannot free **reference cycles**, so CPython adds a generational cyclic garbage collector that scans container objects in three generations, promoting survivors and scanning older generations less often. Allocation itself goes through **pymalloc**, CPython's allocator for small objects (512 bytes or less). Instead of calling `malloc` for every object, it asks the operating system for large blocks called **arenas**, splits each arena into **pools**, and splits each pool into equal-sized slots for one object size. That makes creating and freeing small objects cheap. It also explains a common surprise: an arena can be handed back to the operating system only when every object in it is gone, so a process's memory use often stays high after you delete a lot of data. Note reference counting is a CPython implementation detail — PyPy does not use it — so never rely on prompt finalisation for correctness; use context managers.
 
 **Q16: What is the difference between `copy` and `deepcopy`?**
 
@@ -2145,7 +2148,7 @@ Duck typing means an object's suitability is determined by the methods it has, n
 
 **Q26: How do you implement inheritance and method overriding, including `super()`?**
 
-Subclass with `class Child(Base):` and override by redefining the method. Call the parent implementation with `super().method(...)` rather than `Base.method(self, ...)`. The reason matters: `super()` does not mean "my parent", it means "the **next class in the MRO**", the C3 linearisation of the class graph (`Child.__mro__`). With multiple inheritance that next class may be a sibling, which is exactly what makes cooperative multiple inheritance work — and why every class in such a hierarchy must call `super()` and accept `**kwargs`. Prefer composition to deep hierarchies; if you do inherit, respect Liskov, so a subclass must not strengthen preconditions or weaken postconditions.
+Subclass with `class Child(Base):` and override by redefining the method. Call the parent implementation with `super().method(...)` rather than `Base.method(self, ...)`. The reason matters: `super()` does not mean "my parent", it means "the **next class in the MRO**", the C3 linearisation of the class graph (`Child.__mro__`). With multiple inheritance that next class may be a sibling, which is exactly what makes cooperative multiple inheritance work — and why every class in such a hierarchy must call `super()` and accept `**kwargs`. Prefer composition to deep hierarchies; if you do inherit, respect the Liskov substitution principle (a subclass must work anywhere its parent is expected), so a subclass must not strengthen preconditions (demand more of its inputs) or weaken postconditions (promise less about its result).
 
 **Q27: What are dataclasses, and when would you use them over regular classes?**
 
@@ -2219,7 +2222,7 @@ Give each agent its **own** try/except boundary and have it return a **result ob
 
 **Q44: How do you manage secrets and API keys securely in a Python service deployed to AWS Lambda?**
 
-Never in code or the repository. Best is **Secrets Manager or SSM Parameter Store (SecureString)**, fetched at cold start and cached in a module-level variable for the container's lifetime — that supports rotation, is IAM-scoped, and is auditable through CloudTrail; the Parameters and Secrets Lambda Extension caches locally so you avoid an API call per invocation. Second best is **environment variables encrypted with a customer-managed KMS key**: simpler, but the value is readable by anyone with `GetFunctionConfiguration` and does not rotate. Plain environment variables are acceptable only for non-secrets. Give the function its own least-privilege execution role scoped to the specific secret ARN, keep secrets out of logs (mark the field `repr=False` in your settings model), and never bake them into the deployment package or a container image layer. See [§18.8](#18-python-for-llm-agent-services).
+Never in code or the repository. Best is **Secrets Manager or SSM Parameter Store (SecureString)**, fetched at cold start and cached in a module-level variable for the container's lifetime — that supports rotation, is IAM-scoped, and is auditable through CloudTrail (AWS's audit log of API calls); the Parameters and Secrets Lambda Extension caches locally so you avoid an API call per invocation. Second best is **environment variables encrypted with a customer-managed KMS key** (one you control in AWS Key Management Service): simpler, but the value is readable by anyone with `GetFunctionConfiguration` and does not rotate. Plain environment variables are acceptable only for non-secrets. Give the function its own least-privilege execution role scoped to the specific secret ARN (its unique AWS identifier), keep secrets out of logs (mark the field `repr=False` in your settings model), and never bake them into the deployment package or a container image layer. See [§18.8](#18-python-for-llm-agent-services).
 
 **Q45: What is the difference between synchronous and asynchronous database drivers, and how does that affect a serverless function's cold start and concurrency?**
 
@@ -2284,9 +2287,9 @@ c = 257; d = 257
 print(c is d)
 ```
 
-**Output:** `True` then `False` (in CPython, typically).
+**Output:** `True` then `True` when this exact code is run in CPython, either as a file or pasted as written. The answer most people expect, `True` then `False`, is what you see only when the two `257`s are created separately, for example typed on two different REPL lines.
 
-CPython pre-allocates and caches small integers from −5 to 256, so `a` and `b` name the same cached object. 257 is outside that range, so each literal creates a distinct object and `is` compares identity to `False`. This is an **implementation detail**, not a language guarantee — and it is exactly why you must never use `is` for numbers or strings. Confusingly, if both assignments are on one line or inside one function body, the compiler may fold them into a single constant and even 257 will report `True`, which makes the bug intermittent. Use `==` for values, `is` only for `None`, `True`, `False` and sentinels.
+The first line is always `True`: CPython pre-allocates and caches small integers from −5 to 256, so `a` and `b` name the same cached object. 257 is outside that range, so in principle each `257` is a new, distinct object and `is` (which compares identity, not value) would be `False`. But here both `257` literals are compiled together, on one line and in one file, and the compiler stores equal constants only once, so `c` and `d` end up naming the same object and the second line prints `True` too. Split them across REPL lines, or build them at runtime with `int('257')`, and it prints `False`. That inconsistency is the real lesson: identity of numbers is an **implementation detail**, not a language guarantee, and it changes with how the code happens to be compiled — exactly why you must never use `is` for numbers or strings. Use `==` for values, `is` only for `None`, `True`, `False` and sentinels.
 
 **Q4: What does this print?**
 

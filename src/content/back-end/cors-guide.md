@@ -51,9 +51,10 @@ Example base URL: https://example.com
 ### What SOP Blocks
 
 ```
-Without CORS, the browser BLOCKS:
-  ❌ XMLHttpRequest / fetch() to different origins
-  ❌ Reading response from cross-origin <canvas>
+Without CORS, the browser BLOCKS JavaScript from:
+  ❌ Reading the response of a cross-origin fetch() / XMLHttpRequest
+     (the request itself is usually still sent)
+  ❌ Reading pixels from a <canvas> that drew a cross-origin image
   ❌ Reading cross-origin iframe content
 
 The browser ALLOWS (even without CORS):
@@ -204,11 +205,15 @@ Requests that send Origin: null:
    Multiple sources can send null — it's not a safe value to whitelist
 ```
 
+The reason is concrete: any website can create a sandboxed `<iframe>` and run a `fetch()` from inside it, and that request arrives with `Origin: null`. So allowing `null` is not "allowing local files" — it is allowing every attacker who knows the trick.
+
 ---
 
 ## 4. Simple Requests
 
 A **simple request** is a CORS request that does NOT trigger a preflight. The browser sends it directly.
+
+The list below looks arbitrary until you see the rule behind it: **a simple request is one a plain HTML `<form>` or `<img>` tag could already send before CORS existed.** A form can `GET` or `POST` with those three content types, so every server on the internet already had to cope with receiving them from any site. Letting `fetch()` send the same thing adds no new danger, so the browser sends it and only checks the CORS headers afterwards, before handing the response to JavaScript. Anything a form could never send — a `PUT`, a JSON body, an `Authorization` header — gets a preflight instead.
 
 ### Conditions for a Simple Request
 
@@ -278,6 +283,8 @@ fetch("https://api.example.com/data", {
 ## 5. Preflight Requests
 
 When a request doesn't qualify as "simple," the browser sends a **preflight** — an `OPTIONS` request — to ask the server for permission before sending the actual request.
+
+Why ask first, instead of sending the request and checking the response as with simple requests? Because the damage could happen on arrival. A server written before CORS may assume a `DELETE` or a JSON `POST` can only come from its own pages, and act on it immediately. The preflight lets that server say "no" (or simply not understand `OPTIONS`) **before** the real request is ever sent, so old servers stay safe without being changed.
 
 ### What Triggers a Preflight
 
@@ -465,6 +472,8 @@ When credentials: true:
 This is a security measure — wildcard + credentials would allow
 any site to make authenticated requests to your API.
 ```
+
+More precisely, the danger is *reading*: with `*` plus credentials, any site could send a request carrying the user's cookies and then read the logged-in response. Forcing the server to name one exact origin makes it state, per request, which site it trusts with the user's data. With credentials, `*` in the other three headers is treated as a literal header or method name called `*`, not as "everything".
 
 ### Cookie Behavior
 
@@ -737,6 +746,8 @@ http vs https origin mismatch        Origins must exactly match
 Forgetting port in origin            localhost:3000 ≠ localhost:5000
 ```
 
+On the trailing-slash row: an origin has no path, so the browser sends `Origin: https://app.example.com` with no slash. If your allowlist or `Access-Control-Allow-Origin` value is written as `https://app.example.com/`, the strings do not match and the request fails. Origins are compared as exact strings, which is why every row above is a "looks the same, isn't" mismatch.
+
 ---
 
 ## 11. Security Best Practices
@@ -779,8 +790,10 @@ function isAllowedV2(origin) {
 ✅ Limit Access-Control-Allow-Methods to what's needed
 ✅ Limit Access-Control-Allow-Headers to what's needed
 ✅ Set a reasonable Access-Control-Max-Age (not too long)
-✅ Validate Origin on the server even if using CORS
-   (CORS is browser-enforced — attackers can use curl)
+✅ Authenticate and authorize every request on the server
+   (CORS only controls what a BROWSER lets a page read; curl or a
+   script can send any Origin header it likes, so an Origin check
+   is not access control)
 ✅ Use HTTPS for all origins
 ✅ Don't rely solely on CORS for security — use auth tokens too
 ```
@@ -972,7 +985,9 @@ const craProxyConfig = {
 
 **Q1: What is CORS and why does it exist?**
 
-CORS (Cross-Origin Resource Sharing) is a browser security mechanism that controls which web origins can access resources from a different origin. It exists because of the **Same-Origin Policy** — browsers block cross-origin HTTP requests by default to prevent malicious websites from reading sensitive data from other sites.
+Short answer: CORS is how a server tells the browser "this other website is allowed to read my responses." It is a controlled *relaxation* of a stricter default, not a protection in its own right.
+
+CORS (Cross-Origin Resource Sharing) is a browser mechanism that controls which web origins (protocol + host + port) can read responses from a different origin. It exists because of the **Same-Origin Policy** — by default, browsers stop JavaScript from reading cross-origin responses, to prevent malicious websites from reading sensitive data from other sites. Note that the request itself usually still reaches the server; it is the response that is withheld.
 
 For example, without SOP/CORS, a malicious page at `evil.com` could make a `fetch()` to `bank.com/api/account` and read your banking data if you're logged in — because the browser would send your cookies automatically. CORS lets servers explicitly opt in to sharing resources with specific origins.
 
@@ -998,7 +1013,9 @@ You **cannot** use `*` when `credentials: "include"` is set on the request (or `
 
 **Q4: Why is CORS enforced by the browser and not the server?**
 
-The server always processes the request regardless of CORS — it's the browser that decides whether to expose the response to JavaScript. This is because CORS is a **browser security feature** protecting the user, not a server-side access control mechanism.
+Short answer: because what CORS protects is the *user's* logged-in session, and the browser is the only party that knows which website is asking. The server always processes the request regardless of CORS — it's the browser that decides whether to expose the response to JavaScript.
+
+Think about who is where. The attacker's page runs inside the victim's browser, which attaches the victim's cookies to every request to `bank.com`. The browser knows the request came from `evil.com`'s script, so it can hold the response back on the user's side, without every server having to get the check right. And a non-browser client such as curl has no victim's cookies to abuse — anyone using curl is only using their own credentials. So CORS is a user-protection feature, not a server-side access control mechanism.
 
 This means:
 - Server-to-server requests (Node.js, curl, Postman) are never affected by CORS
@@ -1040,7 +1057,7 @@ Both client and server must opt in:
 - **Client:** `credentials: "include"` (fetch) or `withCredentials: true` (XHR)
 - **Server:** `Access-Control-Allow-Credentials: true` + specific origin (no wildcards)
 
-With credentials, the browser sends cookies, HTTP auth, and TLS client certs. The server must respond with the exact origin (not `*`) for Allow-Origin, Allow-Headers, Allow-Methods, and Expose-Headers.
+With credentials, the browser sends cookies, HTTP auth, and TLS client certs. The server must respond with the exact origin (not `*`) in Allow-Origin, and with explicit lists (not `*`) in Allow-Headers, Allow-Methods and Expose-Headers. The reason for the strictness: a credentialed response contains the user's private data, so the server has to name exactly which site it trusts with it.
 
 Additionally, cross-site cookies require `SameSite=None; Secure` attributes. Third-party cookie restrictions in modern browsers make this increasingly difficult — consider using tokens in headers instead.
 
@@ -1121,7 +1138,7 @@ This is essentially a CORS misconfiguration vulnerability. It's equivalent to `A
 - Service workers can intercept requests and respond from cache. The cached response must include the correct CORS headers.
 - `fetch()` from a service worker follows the same CORS rules as the page.
 - `mode: "cors"` is the default for cross-origin `fetch()` — service workers should preserve this.
-- A service worker can act as a CORS proxy by fetching in `mode: "no-cors"` (opaque response), but JS cannot read the response body — only useful for caching assets.
+- A service worker cannot get around CORS. It can fetch a cross-origin resource with `mode: "no-cors"`, but what it gets back is an *opaque response*: status, headers and body are all hidden from JavaScript (see Q15). It can store that response in the cache and hand it back to the page for an `<img>` or `<script>` to use, so this is useful for caching third-party assets, but neither the worker nor the page can ever read the data. It is not a CORS proxy; a real proxy is a server you control (§8, Pattern 5).
 
 **Key principle:** Any layer that can serve a cached response must understand that CORS responses can vary by origin, and must cache and serve them accordingly.
 
@@ -1134,7 +1151,7 @@ This is essentially a CORS misconfiguration vulnerability. It's equivalent to `A
 | **CORS** | Standard API communication | Requires server support |
 | **Proxy server** | When you can't modify the target server | Adds latency and infra |
 | **postMessage** | Window/iframe communication | Not for HTTP requests |
-| **WebSocket** | Real-time bidirectional comms | Only initial handshake has origin check |
+| **WebSocket** | Real-time bidirectional comms | Not covered by CORS at all — the browser sends `Origin` on the opening handshake and the server must check it itself |
 | **JSONP** | Legacy GET-only APIs | Security risk, no error handling, deprecated |
 | **Server-Sent Events** | Server push (one-way) | Subject to CORS for cross-origin |
 | **document.domain** | Subdomain communication | Deprecated, being removed |
@@ -1145,7 +1162,7 @@ In modern applications, **CORS** is the standard for API communication. Use a **
 
 **Q13: A user reports that CORS works in Chrome but fails in Safari. What could be wrong?**
 
-Several Safari-specific CORS behaviors:
+Start with cookies. If the request is credentialed, the most likely cause is that Safari never sent the cookie at all, so the server answered as a logged-out user; the CORS headers themselves are usually identical across browsers. Several Safari-specific behaviors to check:
 
 1. **Stricter cookie handling** — Safari's Intelligent Tracking Prevention (ITP) blocks third-party cookies more aggressively. Cross-origin cookies with `SameSite=None` may still be blocked.
 
@@ -1155,7 +1172,7 @@ Several Safari-specific CORS behaviors:
 
 4. **Redirect handling** — Safari may not follow redirects on preflight requests the same way Chrome does. Ensure your server doesn't redirect OPTIONS requests.
 
-5. **Private Relay / iCloud+** — Can change the client's IP and potentially affect origin-based decisions.
+5. **Private Relay / iCloud+** — Changes the client's IP address. That does not affect the `Origin` header, but it can break any IP-based allowlist or rate limit sitting in front of the API, which then fails in a way that looks like CORS.
 
 **Debugging steps:** Check Safari's Web Inspector for the exact error, compare the preflight responses between browsers, check for redirect chains, and test with and without ITP.
 
@@ -1183,7 +1200,7 @@ Advantages:
 - Microservices are configured to only accept requests from the gateway (not directly from browsers)
 - Use a centralized origin allowlist that the gateway reads from config/database
 
-**Avoid:** Having both the gateway AND individual services add CORS headers — this can result in duplicate headers, which browsers reject.
+**Avoid:** Having both the gateway AND individual services add CORS headers — this can result in duplicate headers, which browsers reject. `Access-Control-Allow-Origin` may hold exactly one value, so two copies (even two identical ones) produce a "contains multiple values" CORS error.
 
 ---
 
@@ -1205,6 +1222,6 @@ await res.text();          // "" (empty)
 - Fire-and-forget analytics pings
 
 **Gotchas:**
-- Opaque responses in Cache API count as ~7MB against storage quota (padded for privacy)
+- In Chrome, every opaque response stored with the Cache API counts as at least about 7 MB against the site's storage quota, whatever its real size. The browser pads the figure on purpose: if it recorded the true size, a page could learn how big a cross-origin response was, which leaks information. Caching many of them therefore fills the quota far sooner than their real size suggests.
 - You can't tell if the request succeeded or failed
 - They're essentially useless for API data — use CORS instead

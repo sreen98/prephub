@@ -54,12 +54,12 @@
 
 Amazon CloudWatch is AWS's **native monitoring and observability service**. It collects metrics, logs, and events from virtually every AWS resource. It provides a unified view of operational health, enabling you to detect anomalies, set alarms, visualize data, and take automated actions.
 
-Key characteristics:
-- **Unified monitoring** — single pane of glass for metrics, logs, alarms, and dashboards
-- **Automatic integration** — most AWS services publish metrics to CloudWatch by default
-- **Actionable** — trigger alarms, auto-scaling, Lambda functions, or SNS notifications
-- **Extensible** — publish custom metrics and logs from your own applications
-- **Pay-per-use** — free tier covers basic monitoring; detailed/custom monitoring costs extra
+What that means in practice:
+- **One place to look** — metrics, logs, alarms and dashboards live in the same service, so when something breaks you can go from "the error-rate graph spiked" to "here are the log lines from that minute" without switching tools
+- **Automatic integration** — most AWS services publish metrics to CloudWatch by default, so EC2 CPU or Lambda error counts are there without you writing any code
+- **Actionable** — an alarm can do something, not just notify: page someone through SNS (Simple Notification Service, AWS's pub/sub messaging service), add servers through Auto Scaling, or run a Lambda function
+- **Extensible** — you can publish your own metrics (orders per minute, failed logins) and logs from your applications
+- **Pay-per-use** — basic monitoring is free; finer-grained and custom monitoring costs extra (see pricing below)
 
 ### How CloudWatch Fits Into the AWS Monitoring Ecosystem
 
@@ -102,11 +102,11 @@ Dashboards:
   - Additional                   : $3.00/dashboard/month
 
 Free tier (always free):
-  - 10 custom metrics
-  - 10 alarms
+  - 10 metrics (custom + detailed monitoring, combined)
+  - 10 alarm metrics (standard resolution only)
   - 1,000,000 API requests
-  - 5 GB log ingestion
-  - 5 GB log storage
+  - 5 GB of log data (ingestion, archive storage and
+    Logs Insights scanning share this one allowance)
   - 3 dashboards (up to 50 metrics each)
 ```
 
@@ -142,7 +142,7 @@ Default Metrics (free, automatic):
 │               │ ConsumedWriteCapacity, Throttles      │
 ├───────────────┼─────────────────────────────────────┤
 │ S3            │ BucketSizeBytes, NumberOfObjects      │
-│               │ (requires enabling request metrics)   │
+│               │ (daily; request metrics are opt-in)   │
 └───────────────┴─────────────────────────────────────┘
 
 Custom Metrics (you publish):
@@ -441,15 +441,17 @@ aws cloudwatch put-metric-alarm \
 **treat-missing-data options explained:**
 
 ```
-missing       → Alarm stays in its current state (default)
+missing       → If every point in the window is missing → INSUFFICIENT_DATA (default)
 notBreaching  → Treats missing data as "within threshold" — good for low-traffic metrics
 breaching     → Treats missing data as "over threshold" — good when absence = problem
 ignore        → Current alarm state maintained until enough data returns
 ```
 
+Note the difference between `missing` and `ignore`, because both sound like "do nothing". With `ignore`, the alarm really does keep its current state. With `missing` (the default), missing points are simply not counted either way — but if **every** data point in the evaluation window is missing, the alarm moves to `INSUFFICIENT_DATA`. So a metric that stops reporting entirely will leave `ALARM` under `missing`, and stay in `ALARM` under `ignore`.
+
 ### 3.3 Composite Alarms
 
-Composite alarms combine multiple alarms using Boolean logic (AND, OR, NOT). This prevents alarm fatigue by only triggering when multiple conditions are met simultaneously.
+Composite alarms combine multiple alarms using Boolean logic (AND, OR, NOT). Their main job is to fight alarm fatigue — the state where the on-call engineer gets paged so often by harmless alerts that they start ignoring pages, including the real one. An AND rule fires only when several symptoms appear together, so a single noisy metric can no longer wake someone up on its own.
 
 ```bash
 # First create individual child alarms (see 3.2 above)
@@ -587,6 +589,8 @@ aws logs get-log-events \
   --start-time 1704067200000 \
   --end-time 1704070800000
 ```
+
+The comment on `put-log-events` above is out of date: AWS dropped the sequence-token requirement in 2023. You can still pass a token, but it is ignored, so you no longer have to track the token returned by each call.
 
 ### 4.2 Log Retention
 
@@ -870,7 +874,7 @@ Cross-Account Architecture:
 ┌──────────────────────────────────────────────┐
 │ Central Logging Account (111111111111)        │
 │  Kinesis Stream → Firehose → S3 / OpenSearch  │
-│  → Single-pane-of-glass log analysis          │
+│  → All accounts' logs searchable in one place │
 └──────────────────────────────────────────────┘
 ```
 
@@ -1315,6 +1319,8 @@ cron(0 6 ? * MON *)
 # Run every 15 minutes during business hours (9 AM - 5 PM UTC, weekdays)
 # → Not possible with a single cron; use rate(15 minutes) + Lambda logic to check time
 ```
+
+Correction to the last example: it **is** possible with one expression, because AWS cron fields accept both ranges and step values. `cron(0/15 9-16 ? * MON-FRI *)` means "minute 0, 15, 30 and 45, of hours 9 through 16, Monday to Friday", which covers 9:00 to 16:45 UTC. Reach for a `rate()` rule plus a time check in code only when the window cannot be written as ranges (a holiday calendar, for example).
 
 ---
 
@@ -1952,6 +1958,8 @@ Each node shows:
   - Color coding: Green (healthy), Yellow (errors), Red (faults)
 ```
 
+The two rate lines above have the status codes swapped. In X-Ray, an **error** is a client error (a 4xx response) and a **fault** is a server fault (a 5xx response); throttling (429) is counted separately. That is why the filter `fault = true` below finds 5xx traces, and why a red node on the map means the service itself is failing rather than rejecting bad requests.
+
 ```bash
 # Get service graph (programmatic access to service map data)
 aws xray get-service-graph \
@@ -2204,7 +2212,7 @@ Cost Optimization Strategies:
      → Structured JSON logging lets you filter more efficiently
 
   3. METRIC DIMENSIONS — don't over-dimension custom metrics
-     → 10 dimensions x 5 values each = 50 unique metrics = $15/month
+     → 3 dimensions x 5 values each = up to 125 unique metrics = $37.50/month
      → Only add dimensions you actually filter by
 
   4. SAMPLING — use X-Ray sampling rules to control trace volume
@@ -2216,13 +2224,14 @@ Cost Optimization Strategies:
   6. EMBEDDED METRIC FORMAT — publish metrics from logs (no put-metric-data cost)
      → Log structured JSON with metric data; CloudWatch extracts it automatically
 
-  7. CONTRIBUTOR INSIGHTS — disable if not using ($0.02/rule/month)
+  7. CONTRIBUTOR INSIGHTS — disable if not using ($0.50/rule/month after
+     the first, plus $0.02 per million matched log events)
 
   8. DASHBOARD CONSOLIDATION — keep under 3 dashboards when possible (free tier)
 ```
 
 ```javascript
-// Embedded Metric Format (EMF) — publish metrics via log lines (free metric ingestion)
+// Embedded Metric Format (EMF) — publish metrics via log lines (no PutMetricData calls)
 // Works in Lambda without any SDK — just log in the right format
 
 // Node.js Lambda example using EMF
@@ -2253,6 +2262,8 @@ console.log(JSON.stringify(metrics));
 // Result: zero cost for put-metric-data API calls, metric appears in CloudWatch
 ```
 
+Be precise about what EMF saves. EMF (Embedded Metric Format) removes the **per-request charge** for `PutMetricData` calls and the code that makes them. It does **not** make the metrics themselves free: every metric CloudWatch extracts is still a custom metric billed at the normal monthly rate, one per unique combination of name and dimension values. You also pay log ingestion for the JSON line. See Q17.
+
 ---
 
 ## 11. Interview Questions & Answers
@@ -2263,12 +2274,12 @@ console.log(JSON.stringify(metrics));
 
 **Q1: What is Amazon CloudWatch and what are its main components?**
 
-Amazon CloudWatch is AWS's native monitoring and observability service. Its main components are:
-1. **Metrics** — time-series data points (CPU, memory, request count, custom business metrics)
-2. **Alarms** — watch metrics and trigger actions when thresholds are breached
-3. **Logs** — centralized log ingestion, storage, and analysis
-4. **Dashboards** — visual displays of metrics and logs
-5. **Events/EventBridge** — react to AWS resource state changes and scheduled tasks
+Amazon CloudWatch is AWS's built-in monitoring service: it collects numbers and log lines from your AWS resources and lets you alert on them, graph them and react to them. Its main components, and why each one matters:
+1. **Metrics** — time-series data points (CPU, request count, custom business metrics). They are cheap to store and fast to evaluate, which is why alerting is built on them rather than on logs. EC2 memory usage is not among them unless you install the CloudWatch Agent (see Q3).
+2. **Alarms** — watch a metric and act when it crosses a threshold. This is what turns data into a page, a scale-out or an automatic reboot, so problems are caught without someone watching a graph.
+3. **Logs** — central storage and search for log lines. Metrics tell you *that* the error rate rose; logs tell you *which* requests failed and why.
+4. **Dashboards** — graphs of metrics and logs on one screen, so during an incident everyone looks at the same picture.
+5. **Events/EventBridge** — react to changes in AWS resources (an instance stopped, a deploy finished) and run jobs on a schedule. It covers what happened, where metrics cover how things are performing.
 
 CloudWatch integrates automatically with most AWS services, collecting default metrics without any configuration.
 
@@ -2315,12 +2326,12 @@ In short: CloudWatch tells you **how your resources are performing**; CloudTrail
 
 **Q6: What is CloudWatch Logs Insights?**
 
-CloudWatch Logs Insights is an interactive query service for analyzing log data stored in CloudWatch Logs. It provides a purpose-built query language that supports filtering, aggregation, sorting, and pattern matching. Key features include:
-- Auto-discovery of fields in JSON-formatted logs
-- SQL-like syntax (`fields`, `filter`, `stats`, `sort`, `limit`, `parse`)
-- Queries can span multiple log groups
-- Built-in support for Lambda REPORT lines (`@duration`, `@initDuration`, `@maxMemoryUsed`)
-- Pricing is based on the amount of data scanned ($0.005/GB)
+CloudWatch Logs Insights lets you query logs already stored in CloudWatch Logs with a small query language, instead of scrolling through log streams or exporting them to another tool. You use it during an incident to answer questions like "which endpoint threw the most errors in the last hour?" in seconds. Key features, and why they matter:
+- **Auto-discovery of fields in JSON logs** — if you log structured JSON, every key becomes a field you can filter and group by with no setup. This is the main reason to log JSON rather than free text.
+- **A pipe-style query syntax** (`fields`, `filter`, `stats`, `sort`, `limit`, `parse`) — each command feeds the next, similar in spirit to SQL. `parse` extracts fields from unstructured text lines when you cannot change the log format.
+- **Queries can span multiple log groups** — one query can search every Lambda function of a service at once, which matters because a single request often touches several.
+- **Built-in fields for Lambda REPORT lines** (`@duration`, `@initDuration`, `@maxMemoryUsed`) — you can find slow invocations, cold starts and functions close to their memory limit without writing any parsing.
+- **You pay per GB scanned** ($0.005/GB), not per result, so narrowing the time range and log groups is what keeps queries cheap.
 
 ---
 
@@ -2343,6 +2354,8 @@ Important: Metric filters are NOT retroactive — they only process logs arrivin
 ---
 
 **Q8: Explain how composite alarms reduce alert fatigue.**
+
+Short answer: alert fatigue is what happens when on-call engineers get so many noisy pages that they stop trusting them; a composite alarm pages only when several symptoms appear together, so one noisy metric can no longer page anyone on its own.
 
 Composite alarms combine multiple child alarms using Boolean logic (AND, OR, NOT). Instead of receiving separate alerts for CPU, memory, error rate, and latency — each of which might spike independently during normal operations — a composite alarm only fires when a **meaningful combination** occurs.
 
@@ -2381,7 +2394,7 @@ Implementation steps:
 3. In each source account: create subscription filters on log groups pointing to the central account's destination
 4. Central account processes logs via: Firehose to S3 (archival), OpenSearch (search), or Lambda (real-time alerts)
 
-This pattern enables: single-pane-of-glass log analysis, centralized security monitoring, compliance auditing across all accounts, and cost optimization through unified retention policies.
+Why bother: an investigation that crosses accounts (a request that fails in prod because of a change in a shared-services account) can be searched in one place instead of logging into each account; security logs live in an account that the application teams cannot edit or delete from; and one retention policy applies to everything instead of every team picking its own.
 
 ---
 
@@ -2407,6 +2420,8 @@ Rule of thumb: If you will ever need to **find traces** using this value, make i
 ---
 
 **Q12: How would you implement a comprehensive monitoring strategy for a serverless e-commerce application (API Gateway + Lambda + DynamoDB + SQS)?**
+
+Short answer: alarm on the few metrics that mean customers are hurting (errors, latency, throttling, a growing queue), log in structured JSON so you can search by order, trace requests across services with X-Ray, and put it all on one dashboard. Each layer answers a different question: alarms tell you *that* something is wrong, logs tell you *what* happened, traces tell you *where* in the chain it happened, and the dashboard gives the on-call engineer the whole picture at a glance.
 
 I would implement a four-layer monitoring strategy:
 
@@ -2462,7 +2477,7 @@ For a cost-effective strategy:
 3. **Reduce ingestion volume:**
    - Use log levels (ERROR/WARN in prod, not DEBUG)
    - Avoid logging request/response bodies in production
-   - Use EMF for custom metrics instead of `put-metric-data` API (saves API call costs)
+   - Use EMF for custom metrics instead of `put-metric-data` API (saves API request costs; the per-metric charge still applies)
 
 4. **X-Ray traces:** Retained for 30 days only. Export critical traces to S3 via `batch-get-traces` if needed for compliance.
 
@@ -2472,7 +2487,7 @@ Monthly cost estimate for a medium application:
 - 100 GB log storage (30-day): $3
 - 10 alarms: $1
 - 3 dashboards: free
-- Total: ~$69/month (vs. third-party tools at $200-500+/month)
+- Total: ~$69/month at the list prices shown in §1 (check current pricing before quoting this)
 
 ---
 
@@ -2501,7 +2516,7 @@ When to use static thresholds:
 **Q15: A production application has intermittent 504 timeout errors reported by users but your CloudWatch alarms did not fire. Walk through your debugging process.**
 
 **Step 1: Verify alarm configuration**
-- Check if the alarm exists and is evaluating the right metric. A common mistake: alarming on `HTTPCode_ELB_5XX_Count` (load balancer errors) but the 504s are coming from `HTTPCode_Target_5XX_Count` (backend errors). These are different metrics.
+- Check if the alarm exists and is evaluating the right metric. A common mistake: alarming only on `HTTPCode_Target_5XX_Count` (5xx responses your backend actually sent) when the 504s are generated by the load balancer itself because the backend never answered in time — those are counted in `HTTPCode_ELB_5XX_Count` (and `HTTPCode_ELB_504_Count`). A backend that times out sends nothing, so the target metric stays flat while users see errors.
 - Check the evaluation period. If the alarm requires 3 consecutive 5-minute periods (15 min) but the errors are intermittent bursts lasting 2 minutes, the alarm never reaches ALARM state.
 - Check `treat-missing-data` setting. If set to `notBreaching` and the metric reports zero data points (not the value 0, but no data), the alarm treats gaps as healthy.
 
@@ -2527,7 +2542,9 @@ When to use static thresholds:
 
 **Q16: How would you design a monitoring solution that works across 20 AWS accounts and 4 regions?**
 
-**Architecture: Hub-and-Spoke Model**
+Short answer: make one dedicated monitoring account the hub that can *see* every other account's metrics, logs and traces, route every alarm to one place, and deploy the same monitoring setup to all 20 accounts from code. The point is that an on-call engineer looks in one account, not twenty, and that every account is monitored the same way.
+
+**Architecture: Hub-and-Spoke Model** (one central "hub" account, with the 20 workload accounts as "spokes" that feed it)
 
 Monitoring Account (hub): A dedicated AWS account for centralized observability.
 
@@ -2559,7 +2576,7 @@ Monitoring Account (hub): A dedicated AWS account for centralized observability.
 - Standardize: log group naming, metric namespaces, alarm naming conventions, dashboard templates
 
 **6. Cost Management:**
-- Estimated: $200-500/month for 20 accounts with moderate log volume
+- Estimate from your own volumes rather than quoting a flat figure: log ingestion ($0.50/GB) usually dominates, so total GB of logs per month across all 20 accounts is the number to get first, then custom metrics and alarms on top
 - Log retention: 30 days in CloudWatch, long-term in S3 Glacier
 - Use EMF for custom metrics across all accounts (reduce API costs)
 - Centralized dashboard reduces per-account dashboard costs
@@ -2567,6 +2584,8 @@ Monitoring Account (hub): A dedicated AWS account for centralized observability.
 ---
 
 **Q17: How does the Embedded Metric Format (EMF) work and why is it more cost-effective than calling the PutMetricData API?**
+
+Short answer: EMF lets you write a metric as part of a JSON log line instead of calling an API, so you stop paying per API request and stop making network calls from your code. It does not make the metrics themselves free — each extracted metric is still billed as a custom metric.
 
 The Embedded Metric Format (EMF) allows you to publish custom CloudWatch metrics by embedding structured JSON in your log output. CloudWatch automatically extracts the metric data from the log line — no API calls needed.
 
@@ -2577,9 +2596,9 @@ How it works:
 4. The metrics appear in CloudWatch Metrics just like metrics published via `PutMetricData`
 
 Why it is more cost-effective:
-- `PutMetricData` API: Up to 1000 calls per second, but each call has API overhead and you pay for both the API call AND the metric storage
-- EMF: You are already paying for log ingestion. The metric extraction is **free** — no additional `PutMetricData` API cost
-- For high-cardinality metrics (e.g., latency per unique URL path), EMF is dramatically cheaper because you avoid thousands of `PutMetricData` calls
+- `PutMetricData`: you pay for each API request **and** the monthly charge for each custom metric. Your code also makes a network call, which adds latency and a failure path inside a Lambda invocation.
+- EMF: you are usually already paying to ingest your logs. Extraction adds no request charge, so the API-request line of the bill disappears. The per-metric monthly charge stays the same.
+- EMF does **not** rescue high-cardinality metrics (many distinct dimension values, e.g. latency per unique URL path). Every unique combination of dimension values is still a separate billed custom metric, so a dimension with thousands of values costs just as much through EMF. Keep dimensions to the handful you actually filter by, and put identifiers like `orderId` in plain log fields instead.
 - EMF also gives you the raw log data alongside the metric, which is valuable for debugging
 
 Limitations of EMF:
@@ -2588,7 +2607,7 @@ Limitations of EMF:
 - Log line must be valid JSON with the `_aws` key
 - Only works when logs go to CloudWatch Logs (not if you redirect logs elsewhere)
 
-In practice, I use EMF for all custom metrics in Lambda functions. The function already sends logs to CloudWatch, so the metrics come "for free" on top of the log ingestion cost I am already paying.
+In practice, I use EMF for all custom metrics in Lambda functions. The function already sends logs to CloudWatch, so publishing a metric costs no extra API calls and no extra code path — I still pay the normal custom-metric charge, which is why I keep dimensions few.
 
 ---
 

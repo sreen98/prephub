@@ -1,8 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import * as ReactDOM from 'react-dom/client';
 import { Link } from 'react-router-dom';
-import { Play, Trash2, ArrowLeft, Loader2, X, Search, BookOpen, PanelLeftOpen, ChevronRight, Lightbulb, Wand2, Braces, Sparkles, RotateCcw, WrapText, Shuffle, StickyNote, CheckCircle2, XCircle } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Loader2, X, PanelLeftOpen, Wand2, Braces, WrapText } from 'lucide-react';
 import Editor from 'react-simple-code-editor';
 import { highlightCode, decorateBrackets } from '../../lib/editorHighlight';
 import { formatCode } from '../../lib/playgroundFormat';
@@ -36,73 +34,34 @@ import { useTemplateCatalog } from '../../hooks/useTemplateCatalog';
 import { useEditorPrefs } from '../../hooks/useEditorPrefs';
 import ExplanationModal from './ExplanationModal';
 import TemplateModal from './TemplateModal';
-import PreviewErrorBoundary from './PreviewErrorBoundary';
+import ChallengeBrowser from './ChallengeBrowser';
+import ChallengeProblemPanel from './ChallengeProblemPanel';
+import PlaygroundActions from './PlaygroundActions';
+import ResumeBanner from './ResumeBanner';
+import NotesPanel from './NotesPanel';
+import { useChallengeTrack } from '../../hooks/useChallengeTrack';
+import { usePreviewMount } from './usePreviewMount';
+import CompareModal from './CompareModal';
+import InterviewControl from './InterviewControl';
+import { useInterviewMode, formatClock, type InterviewAttempt } from '../../hooks/useInterviewMode';
+import { useReactChallengeCheck } from '../../hooks/useReactChallengeCheck';
+import { prepareJudge, finishJudge, type RunSummary } from '../../lib/challengeJudge';
+import { checkTypes } from '../../lib/typeCheckClient';
 import Toast from '../../components/Toast';
+import { loadExplanations, loadSolutions } from './lazyPlaygroundData';
 import type { AnyExplanation } from '../../data/playground/playgroundExplanations';
 import { playgroundExplanationKeys } from '../../data/playground/playgroundExplanationKeys';
-import { getJSON, safeGet, safeRemove } from '../../lib/storage';
-
-// Explanation module shares the same lazy-cache pattern as solutions —
-// the data itself is small now but will grow as more challenges get
-// step-by-step explanations.
-let explanationsCache: Record<string, AnyExplanation> | null = null;
-async function loadExplanations(): Promise<Record<string, AnyExplanation>> {
-  if (explanationsCache) return explanationsCache;
-  const mod = await import('../../data/playground/playgroundExplanations');
-  explanationsCache = mod.playgroundExplanations;
-  return explanationsCache;
-}
-
-// Solutions module is dynamically imported on first "Show Solution" click —
-// keeps ~50 KB of solution-body strings out of the playground's initial chunk.
-// Cached after first load so subsequent toggles are instant.
-let solutionsCache: Record<string, string> | null = null;
-async function loadSolutions(): Promise<Record<string, string>> {
-  if (solutionsCache) return solutionsCache;
-  const mod = await import('../../data/playground/playgroundSolutions');
-  solutionsCache = mod.playgroundSolutions;
-  return solutionsCache;
-}
-
+import { safeRemove } from '../../lib/storage';
+import { FLAVORS, resolveInitialPlaygroundState, type PlaygroundFlavor } from '../../lib/playgroundFlavor';
+import PlaygroundFlavorSwitch from './PlaygroundFlavorSwitch';
 
 // ==================== Component ====================
 
-export default function CodePlayground() {
-  // Compute the initial state from three sources, in priority order:
-  //   1. sessionStorage "playground-code" — one-shot handoff from "Try it" links in study guides.
-  //   2. localStorage "playground-last-session" — auto-resume the last template the user
-  //      was working on, including their saved progress draft (if any).
-  //   3. Fall back to the first template ("Hello World").
-  //
-  // Code bodies are no longer bundled with the metadata (see templateIndex),
-  // so `code` may be empty on the first render and arrive a moment later. A
-  // saved draft is still resolved synchronously, because that lives in
-  // localStorage — so a returning user sees their own work immediately with no
-  // fetch at all. `needsCode` is the name whose body still has to be fetched.
-  const initialState: {
-    code: string; selectedName: string | null; lang: TemplateLang; needsCode: string | null;
-  } = (() => {
-    const handoff = safeGet('playground-code', 'session');
-    if (handoff) {
-      // Try-it bootstrap. Selected template is unknown — leave it null so the
-      // user can pick one (or just edit the handed-off code freely).
-      return { code: handoff, selectedName: null, lang: 'js', needsCode: null };
-    }
-    const lastName = safeGet('playground-last-session');
-    const tpl = lastName ? allTemplates.find(t => t.name === lastName) : undefined;
-    const target = tpl ?? allTemplates[0];
-    const lang = target.lang ?? (target.jsx ? 'jsx' : 'js');
-
-    if (tpl) {
-      const map = getJSON<Record<string, { code?: string } | undefined>>('playground-progress', {});
-      const saved = map[tpl.name]?.code;
-      if (typeof saved === 'string' && saved) {
-        return { code: saved, selectedName: tpl.name, lang, needsCode: null };
-      }
-    }
-    return { code: '', selectedName: target.name, lang, needsCode: target.name };
-  })();
-
+export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundFlavor }) {
+  // JavaScript and React are separate playgrounds over one editor: each shows
+  // only its own catalogue and resumes its own last session (lib/playgroundFlavor).
+  const flavorCfg = FLAVORS[flavor];
+  const [initialState] = useState(() => resolveInitialPlaygroundState(flavor));
   const initialNeedsCode = initialState.needsCode;
   const [code, setCode] = useState<string>(initialState.code);
   const [output, setOutput] = useState<OutputEntry[]>([]);
@@ -110,6 +69,8 @@ export default function CodePlayground() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [hasPreview, setHasPreview] = useState<boolean>(false);
   const [selectedName, setSelectedName] = useState<string | null>(initialState.selectedName);
+  // Study-track state and the Challenges browser (see features/playground/ChallengeBrowser).
+  const challengeTrack = useChallengeTrack(selectedName);
   const [showingSolution, setShowingSolution] = useState<boolean>(false);
   // All six template-modal filters live in one reducer (useTemplateFilters).
   // Changing the tag or the mode clears `pattern`/`difficulty` as part of the
@@ -118,7 +79,7 @@ export default function CodePlayground() {
   // Held as one object so it can be handed to TemplateModal intact — see the
   // note in that file on why the reducer must not be split into twelve props.
   // The aliases below are for this component's own derived memos.
-  const filters = useTemplateFilters();
+  const filters = useTemplateFilters(flavorCfg.tag.toLowerCase());
   const {
     search: drawerSearch, tag: drawerFilter,
     mode: modalMode, pattern: patternFilter, difficulty: difficultyFilter,
@@ -129,6 +90,8 @@ export default function CodePlayground() {
   const [currentLang, setCurrentLang] = useState<TemplateLang>(initialState.lang);
   const previewRef = useRef<HTMLDivElement>(null);
   const reactRootRef = useRef<{ render: (n: React.ReactNode) => void; unmount: () => void } | null>(null);
+  const preview = usePreviewMount(previewRef, reactRootRef);
+  const { makeRenderFn, setProgram } = preview;
   const drawerSearchRef = useRef<HTMLInputElement>(null);
   const logsRef = useRef<OutputEntry[]>([]);
   const flushTimerRef = useRef<number | null>(null);
@@ -141,17 +104,18 @@ export default function CodePlayground() {
   // -1 = editor not focused (no match shown).
   const [caretPos, setCaretPos] = useState<number>(-1);
   // ===== Save-progress state =====
-  const progressHook = usePlaygroundProgress();
+  const progressHook = usePlaygroundProgress(flavor);
   const { getEntry, saveEntry, markSolved, setSolved, clearEntry, setLastSession,
           progress, lastSessionName } = progressHook;
   const [notes, setNotes] = useState<string>('');
   const [notesOpen, setNotesOpen] = useState<boolean>(false);
   // Run-result summary pill: counts of ✅/❌ from last execution.
-  const [runSummary, setRunSummary] = useState<{ pass: number; fail: number } | null>(null);
+  const [runSummary, setRunSummary] = useState<RunSummary | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
   // Resume pill is dismissed only for the current page-view session.
   const [resumeDismissed, setResumeDismissed] = useState<boolean>(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const isJSX: boolean = detectJSX(code) || currentLang === 'jsx' || currentLang === 'tsx';
+  const isJSX: boolean = (currentLang !== 'ts' && detectJSX(code)) || currentLang === 'jsx' || currentLang === 'tsx';
   // Pick a highlight.js grammar based on the editor's current language.
   const hljsLang: string = (currentLang === 'ts' || currentLang === 'tsx') ? 'typescript' : 'javascript';
   // Friendly label shown in the editor's chrome.
@@ -164,7 +128,7 @@ export default function CodePlayground() {
   // Everything the picker displays — see hooks/useTemplateCatalog for why the
   // counts are scoped to the active tag rather than the whole catalogue.
   const {
-    categories: filteredCategories, tagOptions, challengeNames, referenceNames,
+    categories: filteredCategories, challengeNames, referenceNames,
     difficultyCounts, patternCounts, scopeHasPatterns, scopeHasDifficulty,
   } = useTemplateCatalog({
     search: drawerSearch, tag: drawerFilter, mode: modalMode,
@@ -325,6 +289,23 @@ export default function CodePlayground() {
     () => selectedName ? allTemplates.find(t => t.name === selectedName) ?? null : null,
     [selectedName],
   );
+  const onTimeUp = useCallback((a: InterviewAttempt) => setToastMsg(`Time's up after ${formatClock(a.elapsedMs)}. Explain and the solution are unlocked.`), []);
+  const interview = useInterviewMode(selectedName, onTimeUp);
+  const { reportSolved } = interview;
+  const onChallengeSolved = useCallback((name: string) => {
+    markSolved(name);
+    const attempt = reportSolved(name);
+    if (attempt) setToastMsg(`Solved in ${formatClock(attempt.elapsedMs)} 🎉`);
+  }, [markSolved, reportSolved]);
+  // `keep`: drop logs after that index first (the checks re-run the program, which re-logs).
+  const appendLines = useCallback((lines: string[], keep?: number) => {
+    logsRef.current = [...logsRef.current.slice(0, keep), ...lines.map((text) => ({ type: 'log' as const, text }))];
+    setOutput([...logsRef.current]);
+  }, []);
+  const reactCheck = useReactChallengeCheck({
+    previewRoot: () => previewRef.current, hasElement: preview.hasElement, remount: preview.remount,
+    onLines: appendLines, logCount: () => logsRef.current.length, onAllPassed: onChallengeSolved,
+  });
 
   const runCode = useCallback(async () => {
     setIsRunning(true);
@@ -346,9 +327,12 @@ export default function CodePlayground() {
 
     let previewMounted = false;
 
+    const judge = await prepareJudge(currentTemplate);
+    // TypeScript challenges are graded on types too; check in parallel with the run.
+    const typed = judge.typeCheck ? checkTypes(code).then((diagnostics) => ({ diagnostics }), (e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })) : Promise.resolve(null);
     try {
       let execCode: string = code;
-      const needsJSX: boolean = detectJSX(code) || currentLang === 'jsx' || currentLang === 'tsx';
+      const needsJSX: boolean = (currentLang !== 'ts' && detectJSX(code)) || currentLang === 'jsx' || currentLang === 'tsx';
 
       // Auto-append a top-level render(<Component />) when JSX is detected
       // but the user hasn't explicitly called render. Class components are
@@ -397,38 +381,16 @@ export default function CodePlayground() {
           setOutput([...logsRef.current]);
         };
 
-        const renderFn = (element: React.ReactElement) => {
-          if (previewRef.current) {
-            if (reactRootRef.current) {
-              try { reactRootRef.current.unmount(); } catch { /* ignore */ }
-            }
-            reactRootRef.current = ReactDOM.createRoot(previewRef.current, {
-              // React 19 routes errors it recovered from, and ones nothing
-              // caught, through these — including errors an error boundary
-              // already handled, which is how we log *and* show a fallback.
-              onUncaughtError: (err: unknown) => {
-                reportPreviewError(
-                  err instanceof Error ? `${err.name}: ${err.message}` : String(err),
-                );
-              },
-            });
-            reactRootRef.current.render(
-              <PreviewErrorBoundary onError={reportPreviewError}>
-                {element}
-              </PreviewErrorBoundary>,
-            );
-            setHasPreview(true);
-            previewMounted = true;
-          }
-        };
+        const renderFn = makeRenderFn(reportPreviewError, () => { setHasPreview(true); previewMounted = true; });
 
         const scope = buildReactScope(renderFn);
 
-        const scopeKeys: string[] = Object.keys(scope);
-        const scopeValues: unknown[] = Object.values(scope);
+        const [scopeKeys, scopeValues] = [Object.keys(scope), Object.values(scope)];
         // The React branch runs on the main thread because the preview needs the
         // DOM; the plain-JS branch is sandboxed in a Worker (see runInWorker).
-        runUserFunction(scopeKeys, scopeValues, execCode, reportPreviewError);
+        // Kept re-runnable: Check runs the whole program again before each behaviour check.
+        const runProgram = () => runUserFunction(scopeKeys, scopeValues, execCode, reportPreviewError);
+        runProgram(); setProgram(runProgram);
 
         if (!previewMounted) {
           logsRef.current = [...logsRef.current, {
@@ -439,7 +401,8 @@ export default function CodePlayground() {
       } else {
         // Plain JS execution \u2014 run in a Web Worker with a 3-second
         // synchronous timeout so infinite loops can't hang the tab.
-        const { logs, timedOut } = await runInWorker(execCode, 3000);
+        // Challenges also get their hidden tests appended (lib/challengeJudge).
+        const { logs, timedOut } = await runInWorker(execCode + judge.appendix, 3000, judge.waitFor);
         // Worker logs replace the main-thread console capture for this run
         // (the main-thread console patches won't fire \u2014 code is in the worker).
         logsRef.current = [...logsRef.current, ...logs];
@@ -454,23 +417,12 @@ export default function CodePlayground() {
       setIsRunning(false);
     }
 
+    // Visible ✅/❌ lines, hidden tests and (TS challenges) the type check: all must pass to count as solved.
+    const verdict = finishJudge(judge, logsRef.current, await typed);
+    logsRef.current = verdict.logs;
     setOutput([...logsRef.current]);
-
-    // Tally test pass/fail markers emitted by the test() helpers in the
-    // challenge templates. We scan the just-captured logs for ✅ and ❌ so we
-    // can show a summary pill and auto-flip status to 'solved' when all pass.
-    const passCount = logsRef.current.filter(e => e.text.includes('✅')).length;
-    const failCount = logsRef.current.filter(e => e.text.includes('❌')).length;
-    if (passCount + failCount > 0) {
-      setRunSummary({ pass: passCount, fail: failCount });
-      // Auto-solve only on JS Coding Challenges — React Machine Coding has
-      // no test() helper output to interpret as pass/fail.
-      if (failCount === 0 && selectedName && currentTemplate?.kind === 'challenge' && currentTemplate?.tag === 'JS') {
-        markSolved(selectedName);
-      }
-    } else {
-      setRunSummary(null);
-    }
+    setRunSummary(verdict.summary);
+    if (verdict.solved && selectedName && currentTemplate?.kind === 'challenge') onChallengeSolved(selectedName);
 
     // Keep flushing while a React preview is live (captures async logs from
     // intervals, effects, event handlers). Short one-shot flush for plain JS
@@ -482,7 +434,7 @@ export default function CodePlayground() {
     } else {
       window.setTimeout(() => setOutput([...logsRef.current]), 600);
     }
-  }, [code, currentLang, selectedName, markSolved, currentTemplate?.kind, currentTemplate?.tag]);
+  }, [code, currentLang, selectedName, currentTemplate, onChallengeSolved, makeRenderFn, setProgram]);
 
   // Async throws escape both error boundaries and onUncaughtError: a callback
   // passed to setTimeout/setInterval, or a rejected promise with no .catch,
@@ -832,6 +784,11 @@ export default function CodePlayground() {
     setIsDrawerOpen(false);
   }, []);
 
+  const openChallengeByName = useCallback((name: string): void => {
+    const t = allTemplates.find((x) => x.name === name);
+    if (t) handleTemplate(t);
+  }, [handleTemplate]);
+
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen relative">
       {/* Template picker — see features/playground/TemplateModal. */}
@@ -841,7 +798,7 @@ export default function CodePlayground() {
         filters={filters}
         searchRef={drawerSearchRef}
         categories={filteredCategories}
-        tagOptions={tagOptions}
+        tagOptions={[]} starters={flavorCfg.starters}
         difficultyCounts={difficultyCounts}
         patternCounts={patternCounts}
         scopeHasPatterns={scopeHasPatterns}
@@ -851,6 +808,13 @@ export default function CodePlayground() {
         onPickTemplate={handleTemplate}
         onPickBlank={handleBlankStarter}
         onToast={setToastMsg}
+      />
+      <ChallengeBrowser
+        key={challengeTrack.browserOpen ? 'open' : 'closed'}
+        open={challengeTrack.browserOpen} onClose={challengeTrack.closeBrowser}
+        selectedName={selectedName} getEntry={getEntry} onToast={setToastMsg} lockedTag={flavorCfg.tag}
+        initialTrackId={challengeTrack.active?.track.id ?? null}
+        onPick={(t, trackId) => { challengeTrack.setTrackId(trackId); challengeTrack.closeBrowser(); handleTemplate(t); }}
       />
 
       {/* Header -- always dark like an IDE */}
@@ -866,7 +830,7 @@ export default function CodePlayground() {
           <Link to="/" className="text-slate-400 hover:text-white transition-colors shrink-0" title="Back to home">
             <ArrowLeft size={18} />
           </Link>
-          <h1 className="text-lg font-bold shrink-0 text-white">Code Playground</h1>
+          <PlaygroundFlavorSwitch flavor={flavor} />
           {selectedName && (
             <span className="text-sm text-slate-500 font-normal truncate hidden sm:inline">
               — {selectedName}
@@ -879,139 +843,23 @@ export default function CodePlayground() {
           )}
           <SolvedChip challengeNames={challengeNames} referenceNames={referenceNames} progress={progress} current={currentTemplate} />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
-          <button
-            onClick={openDrawer}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white transition-colors"
-          >
-            <BookOpen size={14} /> Templates
-          </button>
-          <CompleteToggle name={selectedName} template={currentTemplate} progress={progress} onChange={setSolved} />
-
-          {hasExplanation && (
-            <button
-              onClick={openExplain}
-              disabled={isLoadingExplain}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-indigo-500/50 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 hover:text-indigo-200 transition-colors disabled:opacity-60"
-              title="Step-by-step explanation with visual walkthrough"
-            >
-              {isLoadingExplain
-                ? <Loader2 size={14} className="animate-spin" />
-                : <Sparkles size={14} />}
-              Explain
-            </button>
-          )}
-
-          {hasSolution && (
-            <button
-              onClick={toggleSolution}
-              disabled={isLoadingSolution}
-              className={
-                'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors disabled:opacity-60 ' +
-                (showingSolution
-                  ? 'border-amber-500 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-                  : 'border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white')
-              }
-              title={showingSolution ? 'Switch back to the challenge' : 'Reveal the solution'}
-            >
-              {isLoadingSolution
-                ? <Loader2 size={14} className="animate-spin" />
-                : <Lightbulb size={14} />}
-              {isLoadingSolution
-                ? 'Loading…'
-                : showingSolution ? 'Hide Solution' : 'Show Solution'}
-            </button>
-          )}
-
-          {/* Reset Code — available whenever a template is loaded, not just when a
-              saved draft exists. It used to be gated on getEntry(), so the button
-              was missing exactly when someone had mangled the code but not yet
-              triggered the debounced autosave. */}
-          {currentTemplate && (
-            <button
-              onClick={() => void handleReset()}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-[#3d444d] text-slate-400 hover:text-white hover:bg-[#2d333b] transition-colors"
-              title="Discard edits and restore this template's original code"
-            >
-              <RotateCcw size={14} />
-              Reset
-            </button>
-          )}
-
-          {/* Test pass/fail summary — derived from the last run's ✅/❌ markers */}
-          {runSummary && (runSummary.pass + runSummary.fail) > 0 && (
-            <div
-              className={
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium ' +
-                (runSummary.fail === 0
-                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40'
-                  : 'bg-red-500/15 text-red-300 border border-red-500/40')
-              }
-              title="Tests detected from console ✅/❌ markers"
-            >
-              {runSummary.fail === 0 ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-              {runSummary.fail === 0
-                ? `${runSummary.pass}/${runSummary.pass} passed`
-                : `${runSummary.pass}/${runSummary.pass + runSummary.fail} — ${runSummary.fail} failed`}
-            </div>
-          )}
-
-          <button
-            onClick={handleClear}
-            className="p-2 rounded-xl border border-[#3d444d] text-slate-400 hover:text-white hover:bg-[#2d333b] transition-colors"
-            title="Clear output"
-          >
-            <Trash2 size={16} />
-          </button>
-
-          <button
-            onClick={runCode}
-            disabled={isRunning}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
-          >
-            {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-            {isRunning ? 'Running...' : 'Run'}
-          </button>
-        </div>
+        <PlaygroundActions
+          onOpenTemplates={openDrawer} onOpenChallenges={challengeTrack.openBrowser}
+          selectedName={selectedName} currentTemplate={currentTemplate} progress={progress} onSetSolved={setSolved}
+          hasExplanation={hasExplanation} isLoadingExplain={isLoadingExplain} onExplain={() => void openExplain()}
+          hasSolution={hasSolution} isLoadingSolution={isLoadingSolution} showingSolution={showingSolution}
+          onToggleSolution={() => void toggleSolution()} onReset={() => void handleReset()}
+          runSummary={runSummary} onClear={handleClear} onRun={() => void runCode()} isRunning={isRunning} locked={interview.locked}
+          interviewSlot={<InterviewControl interview={interview} name={selectedName} isChallenge={currentTemplate?.kind === 'challenge'} onGoTo={openChallengeByName} />}
+          onCompare={currentTemplate ? () => setCompareOpen(true) : undefined}
+          onCheck={currentTemplate?.kind === 'challenge' && currentTemplate.tag === 'React' ? () => void reactCheck.check(currentTemplate.name) : undefined} isChecking={reactCheck.checking}
+        />
       </div>
 
-      {/* Continue last session pill — shown only when there's an in-progress
-          session that the user hasn't yet loaded this page-view. */}
-      {!resumeDismissed && lastSessionName && lastSessionName !== selectedName && (() => {
-        const entry = getEntry(lastSessionName);
-        if (!entry || entry.status !== 'in-progress') return null;
-        const tpl = allTemplates.find(t => t.name === lastSessionName);
-        if (!tpl) return null;
-        const ago = (() => {
-          const ms = Date.now() - new Date(entry.updatedAt).getTime();
-          const min = Math.round(ms / 60000);
-          if (min < 1) return 'just now';
-          if (min < 60) return `${min} min ago`;
-          const hr = Math.round(min / 60);
-          if (hr < 24) return `${hr} hr ago`;
-          return `${Math.round(hr / 24)} d ago`;
-        })();
-        return (
-          <div className="px-4 py-2 bg-indigo-950/40 border-b border-indigo-900/40 text-xs flex items-center gap-2 shrink-0">
-            <span className="text-indigo-300/80">▶</span>
-            <button
-              onClick={() => handleTemplate(tpl)}
-              className="text-indigo-300 hover:text-indigo-200 hover:underline font-medium"
-            >
-              Resume "{lastSessionName}"
-            </button>
-            <span className="text-slate-500">— last edited {ago}</span>
-            <button
-              onClick={() => setResumeDismissed(true)}
-              className="ml-auto text-slate-500 hover:text-slate-300"
-              aria-label="Dismiss"
-              title="Dismiss for this session"
-            >
-              <X size={12} />
-            </button>
-          </div>
-        );
-      })()}
+      <ResumeBanner
+        lastSessionName={lastSessionName} selectedName={selectedName} dismissed={resumeDismissed}
+        onDismiss={() => setResumeDismissed(true)} getEntry={getEntry} onResume={handleTemplate}
+      />
 
       {/* Editor + Output -- always dark */}
       <div ref={splitContainerRef} className="flex-1 flex flex-col md:flex-row min-h-0">
@@ -1020,6 +868,10 @@ export default function CodePlayground() {
           style={{ ['--editor-pct' as string]: `${editorPct}%` }}
           className="flex flex-col min-h-0 border-b md:border-b-0 border-[#2d333b] w-full md:w-[var(--editor-pct)] flex-1 md:flex-none"
         >
+          {currentTemplate?.kind === 'challenge' && (
+            <ChallengeProblemPanel name={currentTemplate.name} isReact={currentTemplate.tag === 'React'}
+              active={challengeTrack.active} onGo={openChallengeByName} />
+          )}
           <div className="px-4 py-2 h-10 text-xs font-medium text-slate-500 border-b border-[#2d333b] bg-[#22272e] shrink-0 flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
               {langLabel}
@@ -1096,33 +948,8 @@ export default function CodePlayground() {
             />
           </div>
 
-          {/* Notes scratchpad — collapsible, per-challenge, auto-saved alongside code */}
           {selectedName && (
-            <div className="border-t border-[#2d333b] bg-[#1a1c25] shrink-0">
-              <button
-                onClick={() => setNotesOpen(o => !o)}
-                className="w-full flex items-center justify-between px-4 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-[#22272e] transition-colors"
-                title={notesOpen ? 'Collapse notes' : 'Expand notes'}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <StickyNote size={12} />
-                  Notes
-                  {notes.length > 0 && (
-                    <span className="text-[10px] text-amber-400/80">· {notes.length} chars</span>
-                  )}
-                </span>
-                <ChevronRight size={12} className={notesOpen ? 'rotate-90 transition-transform' : 'transition-transform'} />
-              </button>
-              {notesOpen && (
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Scratchpad for thoughts on this challenge — approach, gotchas, time complexity ideas. Saved with your code."
-                  className="w-full h-32 px-4 py-2 bg-[#1e1e2e] text-slate-200 text-sm font-mono resize-none outline-none border-t border-[#2d333b]"
-                  spellCheck={false}
-                />
-              )}
-            </div>
+            <NotesPanel notes={notes} onChange={setNotes} open={notesOpen} onToggle={() => setNotesOpen((o) => !o)} />
           )}
         </div>
 
@@ -1157,6 +984,7 @@ export default function CodePlayground() {
         }}
       />
 
+      {selectedName && <CompareModal key={selectedName} open={compareOpen} onClose={() => setCompareOpen(false)} name={selectedName} mine={code} />}
       <Toast message={toastMsg} onClose={() => setToastMsg(null)} />
     </div>
   );

@@ -1,5 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { getJSON, setJSON, safeGet, safeSet, safeRemove } from '../lib/storage';
+import { FLAVORS, lastSessionFor, type PlaygroundFlavor } from '../lib/playgroundFlavor';
+import { stripChallengeHeader } from '../lib/challengeHeader';
 
 const STORAGE_KEY = 'playground-progress' as const;
 const LAST_SESSION_KEY = 'playground-last-session' as const;
@@ -121,14 +123,31 @@ export function resolveOpenCode(saved: ProgressEntry | null, stub: string): Open
   return { code: saved.code, restored: true, templateUpdated: templateMoved };
 }
 
+/**
+ * Drafts saved before the challenge headers were removed still start with the
+ * old problem-restating comment block (see lib/challengeHeader). Strip it on
+ * read, so an edited draft loses the duplicate but keeps everything the user
+ * wrote. The next autosave persists the stripped copy.
+ */
 function load(): Progress {
-  return getJSON(STORAGE_KEY, {});
+  const raw = getJSON<Progress>(STORAGE_KEY, {});
+  const out: Progress = {};
+  for (const [name, entry] of Object.entries(raw)) {
+    out[name] = entry && typeof entry.code === 'string' ? { ...entry, code: stripChallengeHeader(entry.code) } : entry;
+  }
+  return out;
 }
 
-export function usePlaygroundProgress(): UsePlaygroundProgressReturn {
+/**
+ * `flavor` picks which playground's "last open template" this reads and writes;
+ * drafts and solved state are shared, because a template belongs to one flavor
+ * anyway. Omitted, it is the original single key.
+ */
+export function usePlaygroundProgress(flavor?: PlaygroundFlavor): UsePlaygroundProgressReturn {
+  const lastSessionKey = flavor ? FLAVORS[flavor].lastSessionKey : LAST_SESSION_KEY;
   const [progress, setProgress] = useState<Progress>(load);
   const [lastSessionName, setLastSessionState] = useState<string | null>(
-    () => safeGet(LAST_SESSION_KEY)
+    () => (flavor ? lastSessionFor(flavor) : safeGet(LAST_SESSION_KEY))
   );
 
   const save = useCallback((next: Progress): void => {
@@ -198,14 +217,14 @@ export function usePlaygroundProgress(): UsePlaygroundProgressReturn {
 
   const setLastSession = useCallback((name: string): void => {
     if (!name) return;
-    safeSet(LAST_SESSION_KEY, name);
+    safeSet(lastSessionKey, name);
     setLastSessionState(name);
-  }, []);
+  }, [lastSessionKey]);
 
   const clearLastSession = useCallback((): void => {
-    safeRemove(LAST_SESSION_KEY);
+    safeRemove(lastSessionKey);
     setLastSessionState(null);
-  }, []);
+  }, [lastSessionKey]);
 
   const { solvedCount, inProgressCount } = useMemo(() => {
     let s = 0, ip = 0;

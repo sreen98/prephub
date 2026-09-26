@@ -33,15 +33,17 @@ const render = (solved: string[], opened: string[] = []) => {
       difficultyCounts={catalog.difficultyCounts} patternCounts={catalog.patternCounts}
       scopeHasPatterns={catalog.scopeHasPatterns} scopeHasDifficulty={catalog.scopeHasDifficulty}
       selectedName={null} getEntry={getEntry}
-      onPickTemplate={() => {}} onPickBlank={() => {}} onToast={() => {}}
+      onPickTemplate={() => {}} onPickBlank={() => {}} onToast={() => {}} starters={[]}
     />,
   );
 };
 
 describe('TemplateModal completion counts', () => {
-  const totalChallenges = allTemplates.filter(t => t.kind === 'challenge').length;
+  // The picker belongs to one playground (tag 'react' here), so the total is
+  // that playground's challenges, not both catalogues added together.
+  const totalChallenges = allTemplates.filter(t => t.kind === 'challenge' && t.tag === 'React').length;
 
-  it('the header reports solved out of the whole challenge set', () => {
+  it('the header reports solved out of this playground\'s challenge set', () => {
     expect(render(solvedNames)).toContain(`${solvedNames.length} of ${totalChallenges} challenges solved`);
   });
 

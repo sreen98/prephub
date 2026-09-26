@@ -18,7 +18,7 @@
 
 TanStack Query (formerly React Query) is a **server state management** library for React. It handles fetching, caching, synchronizing, and updating data that comes from a server/API.
 
-**Key insight:** It separates **server state** (data from APIs) from **client state** (UI state like modals, theme, form inputs). Most apps mix these two in Redux, leading to unnecessary boilerplate.
+**Key insight:** it treats **server state** (data from APIs) as a different kind of thing from **client state** (UI state like modals, theme, form inputs). Client state is yours: it changes only when your code changes it. Server state is a *copy* of something that lives elsewhere — other users and other tabs can change the original, so your copy can go out of date, needs refetching, and several components may want the same copy at once. Those problems (caching, staleness, deduplication, retries) are the same in every app, so TanStack Query solves them once. When apps keep server data in Redux, they end up hand-writing all of that per endpoint, which is where the boilerplate comes from.
 
 ### Installation
 
@@ -74,6 +74,8 @@ Query keys are used for:
 - **Automatic refetching** — when keys change, data is refetched
 - **Invalidation** — marking specific data as stale
 
+Why an array rather than a string: keys are matched by **prefix**. Invalidating `['jobs', jobId]` also invalidates `['jobs', jobId, 'candidates', candidateId]`, so ordering the key from general to specific lets you refresh a whole branch of related data in one call (see §5.1). Anything the query function depends on — an id, a filter — belongs in the key; otherwise two different requests share one cache entry.
+
 ### 2.2 Query Function
 
 The async function that actually fetches the data. It can be any function that returns a promise.
@@ -91,6 +93,8 @@ const fetchTodos = async (): Promise<Todo[]> => {
 |---------|--------------|---------|
 | **Stale Time** | How long data is considered "fresh". Fresh data is never refetched automatically. | 0 (immediately stale) |
 | **GC Time** (formerly cacheTime) | How long **unused** (no active subscribers) cached data stays in memory before garbage collection. | 5 minutes |
+
+The two answer different questions. `staleTime` decides **whether to refetch** cached data; `gcTime` decides **whether to keep it at all** once no component is using it. The default `staleTime` of 0 means cached data is shown instantly but refetched in the background on every mount or window focus — correct by default, chatty in practice, which is why most apps raise it for data that changes slowly.
 
 **Lifecycle of cached data:**
 ```
@@ -158,6 +162,8 @@ function TodoList() {
 ### 3.2 Query with Parameters
 
 ```tsx
+import { useQuery } from '@tanstack/react-query';
+
 function TodoDetail({ todoId }: { todoId: string }) {
   const { data } = useQuery({
     queryKey: ['todos', todoId],          // refetches when todoId changes
@@ -283,6 +289,8 @@ const { data } = useQuery({
 ```
 
 ### 3.8 Placeholder and Initial Data
+
+The difference is whether the data counts as real. `placeholderData` is shown only while the real fetch runs and is never written to the cache. `initialData` *is* written to the cache and treated like a successful fetch, so it is subject to `staleTime` — if you seed it from a list that is itself old, the detail view may not refetch.
 
 ```tsx
 // Placeholder: shown while loading, not persisted to cache
@@ -432,6 +440,8 @@ useMutation({
 
 ### 4.4 Optimistic Updates (Full Pattern)
 
+An optimistic update writes the expected result into the cache *before* the server replies, so the UI changes instantly, and keeps a snapshot to restore if the request fails. The one non-obvious step is cancelling in-flight queries first: a refetch that started before your write could land after it and overwrite your optimistic value with the old server data.
+
 ```tsx
 const updateTodoMutation = useMutation({
   mutationFn: (updated: Todo) => api.updateTodo(updated),
@@ -526,6 +536,8 @@ Strategy 4: Refetch manually
   Button click -> queryClient.refetchQueries({ queryKey: ['todos'] })
 ```
 
+How to choose: start with Strategy 1 — it costs one extra request, but the server's answer replaces whatever you had, so the cache ends up matching the server. Use Strategy 3 when the mutation response already contains the full updated object, so the extra request would fetch what you already hold. Reach for Strategy 2 only where the wait is visible to the user (likes, toggles, chat messages), because it adds rollback code you must get right. Strategy 4 is for refreshes the user asks for, like a reload button.
+
 ---
 
 ## 6. Advanced Patterns
@@ -565,8 +577,12 @@ function InfiniteList() {
 
 ### 6.2 Custom Hooks (Recommended Pattern)
 
+Wrap each query in a hook so the key, the fetch function and the options live in one place. If two components each write their own `useQuery` for the same data, one day their keys or `staleTime` will drift apart and they will stop sharing a cache entry — or an invalidation will miss one of them.
+
 ```tsx
 // hooks/use-todos.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 export function useTodos(status?: string) {
   return useQuery({
     queryKey: ['todos', { status }],
@@ -628,13 +644,15 @@ function App() {
 useQuery({
   queryKey: ['todos'],
   queryFn: ({ signal }) => {
-    // signal is an AbortSignal - passed to fetch/axios automatically
+    // signal is an AbortSignal created by TanStack Query - you must pass it on to fetch/axios yourself
     return axios.get('/api/todos', { signal });
   },
 });
 // If the component unmounts or queryKey changes before the request completes,
 // the request is automatically cancelled via AbortController.
 ```
+
+Note the cancellation is not automatic in the sense of "free": TanStack Query creates the `AbortSignal` and passes it to your query function, but the request is only aborted because this function hands `signal` on to axios. A query function that ignores `signal` lets the request run to completion.
 
 ### 6.5 Retry Configuration
 
@@ -701,7 +719,9 @@ RQ:     "Server data has its own lifecycle. Let me handle fetch, cache, sync, GC
 | **Devtools** | Redux DevTools | React Query DevTools |
 | **Boilerplate** | High (action, reducer, saga, selector) | Low (one hook call) |
 | **Learning curve** | Steep (Redux + middleware concepts) | Moderate (cache concepts) |
-| **Bundle size** | redux + toolkit + saga ~15KB | @tanstack/react-query ~13KB |
+| **Bundle size** (min+gzip, approx.) | @reduxjs/toolkit + react-redux + redux-saga ~22KB | @tanstack/react-query ~13KB |
+
+"Stale-while-revalidate" in the table means: show the cached copy immediately, refetch in the background, and swap in the new data when it arrives (Q7 walks through it). The real difference in every row is the same one: Redux is a general container that knows nothing about where the data came from, so every server-data behaviour has to be written by you; TanStack Query knows the data is a copy of something on a server, so it can provide those behaviours itself.
 
 ### 7.2 Code Comparison — Fetching a List
 
@@ -716,6 +736,8 @@ interface TodosState {
 }
 
 // 2. slice.ts
+import { createSlice } from '@reduxjs/toolkit';
+
 const todosSlice = createSlice({
   name: 'todos',
   initialState: { items: [], loading: false, error: null },
@@ -733,6 +755,8 @@ const todosSlice = createSlice({
 });
 
 // 3. saga.ts
+import { call, put, takeLatest } from 'redux-saga/effects';
+
 function* fetchTodosSaga() {
   try {
     const response = yield call(api.getTodos);
@@ -767,6 +791,8 @@ function TodoList() {
 **TanStack Query approach (1 file, ~15 lines):**
 
 ```tsx
+import { useQuery } from '@tanstack/react-query';
+
 function TodoList() {
   const { data: todos, isPending } = useQuery({
     queryKey: ['todos'],
@@ -906,7 +932,9 @@ Is the data from an API/server?
 
 **Q1: What is TanStack Query and why would you use it?**
 
-TanStack Query is a server state management library for React. It handles data fetching, caching, synchronization, and background updates. You'd use it instead of manually managing loading/error/data states with useState + useEffect, or instead of Redux for API data. It eliminates boilerplate and provides automatic caching, deduplication, background refetching, and garbage collection out of the box.
+Short answer: it is a cache for data that lives on a server, and you use it so you stop hand-writing the fetch-and-cache logic for every endpoint.
+
+Data from an API is a copy of something you don't own: it can go out of date, several components may need it at once, and requests fail. With `useState` + `useEffect` you handle each of those per component — loading and error flags, a refetch when the user comes back, avoiding two identical requests — and usually get some of it wrong (race conditions when the id changes, no cache between pages). TanStack Query does it once, keyed by a query key: components that ask for the same key share one request and one cached result (deduplication), cached data is shown instantly and refreshed in the background, failed requests are retried, and data nobody is using is eventually dropped from memory (garbage collection). That is also why it replaces Redux for API data — Redux would store the data but leave all of those behaviours to you.
 
 ---
 
@@ -917,6 +945,8 @@ TanStack Query is a server state management library for React. It handles data f
 - `isLoading`: `isPending && isFetching` — true only on the very first fetch with no cached data.
 
 Use `isPending` (or `isLoading`) for initial loading spinners. Use `isFetching` for subtle background-refresh indicators when data is already displayed.
+
+Why `isLoading` exists at all: a query with `enabled: false` and no data is `isPending` (no data yet) but not fetching. A spinner driven by `isPending` would spin forever on a disabled query; one driven by `isLoading` would not show, because nothing is actually loading.
 
 ---
 
@@ -941,12 +971,13 @@ Setting `staleTime: Infinity` means data is never considered stale (good for dat
 
 **Q5: How do you handle errors in React Query?**
 
-Multiple levels:
-1. **Per query**: Check `isError` and `error` from the hook return
-2. **Retry**: Configure `retry` option (default: 3 retries with exponential backoff)
-3. **Global error handler**: Set `onError` in the QueryClient `defaultOptions` via the `MutationCache` or `QueryCache`
-4. **Error boundaries**: Use `throwOnError: true` option with React error boundaries
-5. **Mutation callbacks**: Use `onError` callback in `useMutation`
+Short answer: retries absorb brief failures automatically, and whatever still fails is handled at one of three levels — the component, an error boundary, or a global handler — depending on who should react.
+
+1. **Retry**: Configure the `retry` option (default: 3 retries with exponential backoff, i.e. waiting longer after each failure). Many errors are a momentary network blip, so the user never sees them. Turn retries off for errors that cannot succeed on a second try, like a 404.
+2. **Per query**: Check `isError` and `error` from the hook return when the component itself can show something useful — an inline "couldn't load, try again".
+3. **Error boundaries**: Use the `throwOnError: true` option so the error is thrown during render and caught by a React error boundary. Use this when a whole section should be replaced by a fallback rather than each component handling it.
+4. **Global error handler**: Pass an `onError` to the `QueryCache` (and `MutationCache`) when you create the `QueryClient` (see Q23). This runs for every failure, which is the right place for cross-cutting reactions like a toast or redirecting to login on a 401.
+5. **Mutation callbacks**: Use the `onError` callback in `useMutation` for write-specific reactions, most importantly rolling back an optimistic update.
 
 ---
 
@@ -1035,7 +1066,7 @@ The user sees the update immediately (step 3). If the API fails, it rolls back (
 1. **Purely client-side state** — modal open/close, theme, form inputs. No server involved.
 2. **Complex async orchestration** — multi-step workflows with branching logic (e.g., poll -> wait -> branch -> retry). Redux Sagas or state machines are better.
 3. **WebSocket / real-time data** — React Query is request-response oriented. For streams, use a dedicated solution and feed updates to the cache via `setQueryData`.
-4. **State that must survive page refresh** — React Query cache lives in memory. Use localStorage/Redux Persist for offline persistence (though RQ has a persistor plugin).
+4. **State that must survive page refresh** — React Query's cache lives in memory, so a refresh empties it. You *can* add the persister plugin (`@tanstack/react-query-persist-client` with a storage persister), which saves the cache to localStorage or IndexedDB and restores it on load — but what it restores is still a cache: a copy of server data that will be refetched when stale. State whose only copy lives on the client (a draft, a user preference) belongs in localStorage or a persisted client store, not in the query cache.
 
 ---
 
@@ -1081,6 +1112,8 @@ const { data: count } = useQuery({
 
 This is similar to Redux's `useSelector` — derived data that prevents unnecessary re-renders.
 
+One catch worth volunteering: an inline arrow like the one above is a new function on every render, so `select` re-runs on every render too. That is fine for `todos.length`; for an expensive transform, define the function outside the component or wrap it in `useCallback` so it only runs when the data changes.
+
 ---
 
 **Q13: What is the `enabled` option and when would you use it?**
@@ -1111,8 +1144,10 @@ Common use cases:
 
 **Q14: How would you structure React Query in a large-scale application?**
 
-1. **Custom hooks per domain**: Encapsulate queries/mutations in hooks (`useTodos`, `useCreateTodo`). Components never call `useQuery` directly.
-2. **Query key factory**: Centralize key definitions to prevent typos and enable type safety.
+Short answer: make the query key the thing you design, because every cache hit, every invalidation and every prefetch depends on keys matching exactly. Everything below is a way of keeping keys consistent across a big team.
+
+1. **Custom hooks per domain**: Encapsulate queries/mutations in hooks (`useTodos`, `useCreateTodo`). Components never call `useQuery` directly, so the key, fetcher and `staleTime` for a piece of data are written once and cannot drift between call sites.
+2. **Query key factory**: Centralize key definitions to prevent typos and enable type safety. Because invalidation matches by prefix, building keys from general to specific lets you invalidate at any level — `todoKeys.lists()` refreshes every filtered list but leaves the detail pages alone, `todoKeys.all` refreshes everything about todos.
    ```ts
    export const todoKeys = {
      all: ['todos'] as const,
@@ -1122,9 +1157,9 @@ Common use cases:
      detail: (id: string) => [...todoKeys.details(), id] as const,
    };
    ```
-3. **Prefetching on hover/focus**: Use `queryClient.prefetchQuery` to start loading before the user navigates.
-4. **Suspense boundaries**: Group queries under `<Suspense>` boundaries for cleaner loading states.
-5. **Error boundaries**: Use `throwOnError` per-query or globally for error handling.
+3. **Prefetching on hover/focus**: Use `queryClient.prefetchQuery` to start loading before the user navigates. The gap between hover and click is a head start, often enough for the next page to open with its data already cached.
+4. **Suspense boundaries**: Group queries under `<Suspense>` boundaries so one fallback covers a region, instead of every component writing its own `isPending` branch.
+5. **Error boundaries**: Use `throwOnError` per-query or globally so failures are handled per region of the page, not re-implemented in each component.
 
 ---
 
@@ -1133,6 +1168,8 @@ Common use cases:
 If multiple components mount simultaneously and call `useQuery` with the same query key, React Query fires **only one** network request. All components subscribe to the same cache entry and re-render when data arrives.
 
 ```tsx
+import { useQuery } from '@tanstack/react-query';
+
 // Both of these fire ONE request, not two
 function Header() {
   const { data: user } = useQuery({ queryKey: ['user'], queryFn: fetchUser });
@@ -1150,6 +1187,8 @@ The deduplication window lasts while the query is fetching. After it resolves, a
 ---
 
 **Q16: Compare React Query's cache with Redux store for the same data flow.**
+
+Short answer: both hold the same data, but Redux is a plain container — every behaviour around server data is something you write — while React Query's cache knows each entry's age, who is using it and how to refetch it, so those behaviours come built in. Row by row:
 
 ```
                     Redux                          React Query
@@ -1170,7 +1209,9 @@ Devtools:           action log + state tree        query list + cache viewer
 
 **Q17: You have a page with 10 different API calls. How would you handle loading states?**
 
-Three strategies depending on UX requirements:
+Choose by asking one question: is any section useful on its own? If yes, let each section load independently, so the slowest API never holds up the fastest. If a few sections only make sense together, group those under one Suspense boundary. Wait for all 10 only when the page is meaningless until every piece is there — it makes the whole page as slow as its slowest call.
+
+The three strategies, from most to least independent:
 
 1. **Independent loading** — Each section shows its own skeleton. Best for dashboards where sections load independently.
    ```tsx
@@ -1221,7 +1262,7 @@ React Query has built-in network-aware behavior:
 2. **`networkMode` option**:
    - `'online'` (default): Queries only fire when online. Paused offline.
    - `'always'`: Always fires (useful for ServiceWorker/local-first apps)
-   - `'offlineFirst'`: Tries cache first, then network
+   - `'offlineFirst'`: Fires the request once even when offline — so a service worker or the browser's HTTP cache can answer it — and only pauses the retries if that first attempt fails
 3. **Retry on reconnect**: Paused queries automatically retry when the browser comes back online
 4. **Mutations while offline**: Mutations can be paused and resumed. Combined with the `onMutate` optimistic update pattern, users can continue working offline.
 
@@ -1232,7 +1273,7 @@ React Query has built-in network-aware behavior:
 | Aspect | `fetchQuery` | `prefetchQuery` |
 |---|---|---|
 | Returns | `Promise<TData>` — resolves with data | `Promise<void>` — never throws |
-| On error | Throws the error | Silently catches (logs to console) |
+| On error | Throws the error | Swallows it silently (`.catch(noop)` — nothing is logged) |
 | Use case | Need the data imperatively (e.g., in a route loader) | Warm the cache ahead of time (e.g., on hover) |
 | Cache behavior | Same as useQuery — respects staleTime, deduplicates | Same |
 
@@ -1278,7 +1319,9 @@ This gives you the best of both: React Query handles initial load, caching, and 
 
 **Q22: How do you test components that use React Query?**
 
-1. **Wrap in QueryClientProvider** with a fresh client per test:
+Short answer: give every test its own `QueryClient` with retries off, mock the network layer rather than the library, and wait for the data to appear.
+
+1. **Wrap in QueryClientProvider** with a fresh client per test. Fresh, because a shared client carries its cache from one test into the next, so a test can pass only because an earlier one fetched the data. `retry: false`, because otherwise a test of the error state waits through three retries with growing delays and times out before the error ever shows:
    ```tsx
    function createTestClient() {
      return new QueryClient({
@@ -1296,7 +1339,7 @@ This gives you the best of both: React Query handles initial load, caching, and 
    }
    ```
 
-2. **Mock the API layer** (not React Query itself):
+2. **Mock the API layer** (not React Query itself) — mocking `useQuery` would test your mock, while mocking the fetch function still exercises the real caching and loading behaviour:
    ```ts
    vi.mock('@/lib/api', () => ({
      fetchTodos: vi.fn().mockResolvedValue([{ id: 1, title: 'Test' }]),

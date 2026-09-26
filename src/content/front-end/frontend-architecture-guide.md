@@ -87,6 +87,115 @@ One identity provider, one session, one library. The details are in the OAuth (o
 - **Permissions resolved server-side and shipped as claims**, with the client using them only to *hide* UI. The client is a convenience layer; every API independently authorises. A hidden button is a UX (user-experience) decision, not a security control.
 - **One logout that actually logs out** — federated logout across products plus refresh-token revocation. Getting this wrong is a common audit finding.
 
+### 2.3 Backend for Frontend (BFF)
+
+**Short answer:** a BFF is a small server, owned by the frontend team, that sits between **one kind of client** (the web app, the mobile app, the TV app) and the backend services. It gives that client an API shaped for its screens: one request per screen instead of five, only the fields the screen shows, and authentication handled on the server. The pattern was named at SoundCloud and popularised by Sam Newman.
+
+#### The problem it solves
+
+Backend services are designed around *data* (users, orders, payments), and screens are designed around *tasks*. The gap between the two lands on the client:
+
+- **Chatty screens.** A home screen that needs the profile, recent orders and recommendations makes three or more requests, often in a waterfall where one waits for another. On a phone on a slow network, each round trip costs hundreds of milliseconds.
+- **Over-fetching.** Each service returns its full object, so the client downloads and parses fields it never shows, including internal ones it should never see.
+- **Different clients want different things.** Mobile wants small payloads and fewer calls; the web dashboard wants more detail. One general-purpose API serves both badly, and every change to it has to be negotiated across teams.
+- **Tokens in the browser.** A single-page app that calls APIs directly has to hold an access token in JavaScript, where an XSS bug can steal it.
+- **Coupling to the backend's layout.** If the client calls ten microservices directly, splitting or renaming a service means shipping a new frontend, and old app versions on people's phones break.
+
+#### What a BFF does
+
+```text
+Web app      ──▶  Web BFF     ──┐
+Mobile app   ──▶  Mobile BFF  ──┼──▶  user-service, order-service, catalog-service ...
+Admin panel  ──▶  Admin BFF   ──┘
+```
+
+| Responsibility | What it means |
+|---|---|
+| **Aggregation** | calls several services in parallel and returns one response per screen |
+| **Shaping** | returns only the fields the screen uses, formatted for it (prices as display strings, dates in the user's zone) |
+| **Authentication** | keeps OAuth tokens on the server and gives the browser an `HttpOnly` session cookie instead, so JavaScript never sees a token (the OAuth & SSO guide's Q6) |
+| **Translation** | turns internal protocols (gRPC, message queues, SOAP) into plain JSON for the client |
+| **Resilience** | per-service timeouts, and a partial response when an optional service is down |
+| **Caching** | caches responses that many users share, close to the client |
+
+Here is the core of a BFF endpoint: three services called at once, a timeout on each, only the fields the screen needs, and a missing optional section instead of a failed page.
+
+```js
+// Three backend "services". Recommendations is down today.
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const services = {
+  profile: (id) => delay(40).then(() => ({ id, name: 'Asha', avatar: '/a.png', internalRiskScore: 0.93 })),
+  orders: () => delay(60).then(() => [{ id: 'o1', totalCents: 4999, status: 'shipped', warehouseCode: 'BLR-7' }]),
+  recommendations: () => delay(30).then(() => { throw new Error('recommendation service down'); }),
+};
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timed out')), ms)),
+  ]);
+}
+
+// GET /bff/home-screen: one request from the app, three calls behind it, in parallel.
+async function homeScreen(userId) {
+  const [profile, orders, recs] = await Promise.allSettled([
+    withTimeout(services.profile(userId), 200),
+    withTimeout(services.orders(userId), 200),
+    withTimeout(services.recommendations(userId), 200),
+  ]);
+
+  // The profile is essential: without it there is no page to show.
+  if (profile.status === 'rejected') throw new Error('Cannot build the home screen');
+
+  return {
+    user: { name: profile.value.name, avatar: profile.value.avatar },   // internalRiskScore never leaves the server
+    recentOrders: orders.status === 'fulfilled'
+      ? orders.value.map((o) => ({ id: o.id, total: '$' + (o.totalCents / 100).toFixed(2), status: o.status }))
+      : null,
+    recommendations: recs.status === 'fulfilled' ? recs.value : null,   // optional: the page still renders
+  };
+}
+
+homeScreen('u1').then((screen) => console.log(JSON.stringify(screen)));
+```
+
+```text
+{"user":{"name":"Asha","avatar":"/a.png"},"recentOrders":[{"id":"o1","total":"$49.99","status":"shipped"}],"recommendations":null}
+```
+
+The app made one request and got back exactly what it renders. The internal fields (`internalRiskScore`, `warehouseCode`) stayed on the server, and the broken recommendation service cost one empty section, not the whole page. `Promise.allSettled` is the key choice: `Promise.all` would reject the whole response because one optional service failed.
+
+#### What a BFF must NOT do
+
+- **Own business rules.** "Is this user allowed a refund?" belongs in a backend service. If it lives in a BFF, the mobile BFF and the web BFF each get their own copy, and the two drift apart. A BFF shapes and combines; it does not decide.
+- **Become one shared BFF for every client.** A single BFF serving web, mobile and partners is a general-purpose API gateway again, with every team queueing to change it. The guideline is **one BFF per user experience**, owned by the team that builds that experience.
+- **Talk to databases directly.** It calls services. Going around them couples the BFF to another team's storage.
+
+To avoid duplicated code across BFFs, share **libraries** (an HTTP client with retries, auth middleware), not endpoints.
+
+#### BFF, API gateway or GraphQL?
+
+| Aspect | API gateway | BFF | GraphQL server |
+|---|---|---|---|
+| **Serves** | every client, generically | one kind of client | any client that writes queries |
+| **Main job** | routing, auth checks, rate limits, TLS | aggregation and shaping for specific screens | letting the client ask for exactly the fields it needs |
+| **Owned by** | a platform or backend team | the frontend team for that client | usually a shared API team |
+| **Logic inside** | almost none | screen-specific composition | resolvers that fetch and combine data |
+
+They are often used **together**: a gateway in front for routing and security, and a BFF behind it for each client. A GraphQL server is a BFF-like layer that lets the client choose its own shape, which suits many clients with varied needs. It costs a schema to maintain and needs protection against expensive queries.
+
+**Next.js is a BFF you may already have.** Server Components, Route Handlers and Server Actions run on a server owned by the frontend team, fetch from backend services, and send the client only what the page needs. Many teams' "BFF" today is their Next.js app. Remember that a Server Action is a public HTTP endpoint and must check permissions itself (Next.js guide Q9).
+
+#### What it costs
+
+- **Another service to run:** deploys, monitoring, scaling and someone on call, now owned by a frontend team that may not have done that before.
+- **Another hop.** In practice it usually *reduces* total latency, because one slow client-to-server round trip replaces several, and the fan-out happens over the fast network inside the data centre.
+- **Fan-out failure handling:** every downstream call needs a timeout, and each part of the response needs a decision: essential (fail the request) or optional (return `null`).
+- **It is on the critical path.** If the BFF is down, that client is down, however healthy the services behind it are.
+
+**When not to add one:** a single web client whose backend team already shapes the API for it, or a static site with no server at all. This app is an example: GitHub Pages cannot run a server, so there is nothing to put a BFF on.
+
+
 ---
 
 ## 3. Monorepo vs Multi-Repo
@@ -167,7 +276,7 @@ The honest test: **can your teams already deploy independently?** If your produc
 | **Web Components** | Custom elements as the boundary | Framework-agnostic; awkward props/events, styling and SSR (server-side rendering) |
 | **Server-side composition / SSI / ESI** | Server- or edge-side includes: the server or CDN (content delivery network — cache servers near the user) stitches HTML fragments together | Great performance, works without JS; needs infrastructure support |
 
-**Module Federation** is the mainstream runtime answer. Module Federation 2.0 is the pick for **greenfield** work (a new project with no legacy constraints); **single-spa** remains better for **brownfield** integration (working inside an existing legacy app). **Native Federation** is the standards-and-portability variant built on **import maps** — a browser standard that maps a bare module name like `"react"` to a URL, so sharing works without a bundler — and esbuild, notable in the Angular ecosystem. And the bundler picture moved: **Rspack** (Rust, webpack-drop-in, ~10× faster builds) became production-viable in 2026, and **Vite 8's single Rolldown graph** supports Module Federation — which removed the last strong reason micro-frontend teams stayed on webpack.
+**Module Federation** is the mainstream runtime answer. Module Federation 2.0 is the pick for **greenfield** work (a new project with no legacy constraints); **single-spa** remains better for **brownfield** integration (working inside an existing legacy app). **Native Federation** is the standards-and-portability variant built on **import maps** — a browser standard that maps a bare module name like `"react"` to a URL, so sharing works without a bundler — and esbuild, notable in the Angular ecosystem. And the bundler picture moved: **Rspack** (Rust, a webpack drop-in that its authors benchmark at up to ~10× faster builds) has been production-ready since its 1.0 release in August 2024, and **Vite 8's single Rolldown graph** supports Module Federation — which removed the last strong reason micro-frontend teams stayed on webpack.
 
 ### 4.3 What Actually Goes Wrong
 
@@ -384,7 +493,7 @@ I'd ask five questions in order, and the first one with a clear answer usually d
 
 1. **How often does a change need to span projects?** Weekly (design-system change plus consumers, shared type change) → monorepo pays for itself immediately. Twice a year → the multi-repo tax of version-bump-plus-N-PRs is affordable.
 2. **Do the projects share code, or just a company?** Shared UI, types and API clients pull hard toward a monorepo. A React app, a marketing site and an unrelated internal tool gain almost nothing from co-location.
-3. **Is release cadence coupled or independent?**
+3. **Is release cadence coupled or independent?** Products that must ship together want one repo, because one PR can change them all at once. Products on release trains months apart are happier in separate repos, where one team's release never waits on another's.
 4. **Is there a compliance or access boundary?** Per-repo permissions are far simpler than partitioning a monorepo.
 5. **Can you afford the tooling?** A monorepo without an affected-graph and remote caching becomes a 40-minute CI run on a one-line change, and then people route around CI.
 
@@ -424,7 +533,7 @@ Then the two follow-ups I'd pre-empt:
 
 **Flow:** Authorization Code + **PKCE** for every browser and mobile client. Never the implicit flow (deprecated — tokens in the URL fragment end up in browser history and server logs), and never ROPC (Resource Owner Password Credentials, the legacy flow where your app handles the user's raw password).
 
-**Token storage** is where most designs fail. `localStorage` is XSS-readable, so a single injected script exfiltrates every session. The pattern I'd default to is the **BFF (backend-for-frontend)** — a small server owned by the frontend team: the browser holds an `HttpOnly; Secure; SameSite=Lax` session cookie, and the BFF holds the actual OAuth tokens (typically JWTs — JSON Web Tokens, signed and readable by anyone holding them) and attaches them server-side. The browser never sees an access token. If a BFF isn't possible, access token in memory only and refresh token in an `HttpOnly` cookie scoped to the refresh endpoint.
+**Token storage** is where most designs fail. Any JavaScript on the page can read `localStorage`, so a single XSS (cross-site scripting — an attacker's script running inside your page) can copy the token out and reuse the session from anywhere. The pattern I'd default to is the **BFF (backend-for-frontend)** — a small server owned by the frontend team: the browser holds an `HttpOnly; Secure; SameSite=Lax` session cookie, and the BFF holds the actual OAuth tokens (typically JWTs — JSON Web Tokens, signed and readable by anyone holding them) and attaches them server-side. The browser never sees an access token. If a BFF isn't possible, access token in memory only and refresh token in an `HttpOnly` cookie scoped to the refresh endpoint.
 
 **Rotation:** short-lived access tokens (5–15 min), **refresh token rotation** — each refresh issues a new refresh token and invalidates the old one. Then the part that makes it a real answer: **reuse detection.** If an already-used refresh token is presented, that means theft, so revoke the entire token family and force re-authentication. Also handle the **concurrent-refresh race** — two tabs refreshing simultaneously must not each rotate and invalidate the other; use a single-flight lock (a shared promise, or a `BroadcastChannel`/`navigator.locks` coordination across tabs).
 
@@ -460,13 +569,13 @@ The framing that matters: all of this has to exist *before* the incident. "I wou
 
 Four different threats needing four different controls — the mistake is treating them as one "security" bucket.
 
-**XSS (cross-site scripting)** — the root fix is never injecting unsanitised HTML: no `dangerouslySetInnerHTML` with untrusted input, DOMPurify when you genuinely must render user HTML, and treat markdown and LLM (large language model) output as untrusted. Then **defence in depth with a strict CSP (Content Security Policy — a header restricting what the page may load or execute)**: `script-src 'self' 'nonce-<random>'; object-src 'none'; base-uri 'self'`, ideally strict-dynamic rather than a host allowlist. Add **Trusted Types** to make DOM-sink injection a runtime error rather than a code-review hope.
+**XSS (cross-site scripting)** — the root fix is never injecting unsanitised HTML: no `dangerouslySetInnerHTML` with untrusted input, DOMPurify when you genuinely must render user HTML, and treat markdown and LLM (large language model) output as untrusted. Then **defence in depth with a strict CSP (Content Security Policy — a header restricting what the page may load or execute)**: `script-src 'self' 'nonce-<random>'; object-src 'none'; base-uri 'self'`. A **nonce** is a random value generated per response: only `<script>` tags carrying it may run, so an injected script without it is blocked. Prefer `'strict-dynamic'` (scripts your nonced script loads are trusted too) over a list of allowed hosts, because a host allowlist almost always contains some CDN path an attacker can abuse. Add **Trusted Types**, a browser feature that makes dangerous DOM assignments such as `innerHTML = string` throw unless the value went through a sanitising policy you wrote — turning injection into a runtime error rather than a code-review hope.
 
 **CSRF (cross-site request forgery)** — `SameSite=Lax` (or `Strict`) cookies removes most of it, but not all: it doesn't protect same-site subdomains, and `Lax` still allows top-level `GET` navigation. So also require an anti-CSRF token on state-changing requests — either **double-submit** (the same random value in both a cookie and a header, which an attacker can't read to copy) or the **synchroniser pattern** (a per-session token the server stores and checks) — validate the `Origin` header, and never let a `GET` mutate state.
 
 **Token theft** — the honest statement is that *any* token JavaScript can read is XSS-exfiltratable, so the fix is architectural rather than obfuscatory: **BFF pattern**, `HttpOnly` cookies, tokens never in `localStorage`. Plus short-lived access tokens, refresh rotation with **reuse detection**, and a strict CSP restricting `connect-src`/`img-src` so exfiltration is blocked even if injection succeeds.
 
-**Supply chain** — the one candidates skip, and the one that's most current. Lockfiles committed and `npm ci` in CI; **provenance/attestation** verification; `--ignore-scripts` by default so a postinstall script can't run; Dependabot/Renovate with a review gate rather than auto-merge; **Subresource Integrity** on any third-party script you must load from a CDN; and a CSP that constrains what an injected script could reach. Structurally: minimise dependency count, prefer platform APIs, and lazy-load third-party tags through a tag manager you control rather than inline `<script>` tags added by marketing.
+**Supply chain** — the one candidates skip, and the one that's most current. Lockfiles committed and `npm ci` in CI, so CI installs exactly the versions you reviewed rather than whatever is newest today; **provenance/attestation** verification — a signed record of which source repository and build produced a package, so a package published from a stolen maintainer laptop is detectable; `--ignore-scripts` by default so a package's install-time script can't run code on your machine or CI; Dependabot/Renovate with a review gate rather than auto-merge; **Subresource Integrity** (an `integrity="sha384-…"` hash on the `<script>` tag, so the browser refuses the file if the CDN serves anything different) on any third-party script you must load from a CDN; and a CSP that constrains what an injected script could reach. Structurally: minimise dependency count, prefer platform APIs, and lazy-load third-party tags through a tag manager you control rather than inline `<script>` tags added by marketing.
 
 Cross-cutting: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options`/`frame-ancestors` for clickjacking, `Referrer-Policy`, and a `Permissions-Policy` denying what you don't use. Full treatment in the Web Security guide.
 
@@ -847,6 +956,108 @@ Tokens are the part people skip, and they are what makes theming and rebranding 
 
 ---
 
+**Q19: What is a Backend for Frontend (BFF), and when would you add one?**
+
+**Short answer:** a BFF is a small server owned by the frontend team that sits between one kind of client and the backend services, and gives that client an API shaped for its screens. Add one when clients are making many calls per screen, over-fetching, or holding tokens in the browser, and when web and mobile need different things from the same services.
+
+**What to say it does:** it calls several services in parallel and returns one response per screen, trims each response to the fields the screen shows, keeps OAuth tokens on the server and gives the browser an `HttpOnly` session cookie, and puts timeouts on every downstream call so an optional service that is down costs one empty section, not the page (§2.3 has a runnable example of exactly that).
+
+**The two rules that make it work, and that interviewers probe:**
+
+- **One BFF per user experience** (web, mobile, admin), owned by the team building it. One BFF shared by every client is just an API gateway again, with every team queueing to change it.
+- **No business rules in the BFF.** It combines and shapes data; decisions such as "can this user get a refund?" stay in the backend services. Otherwise each BFF gets its own copy of the rule, and they drift apart.
+
+**The trade-offs to volunteer:** it is another service to deploy, monitor and be on call for, and it sits on the critical path. The extra hop usually *lowers* total latency, because one round trip from the phone replaces several and the fan-out happens inside the data centre. Don't add one for a single web client whose API already fits, or for a static site with no server. And if the app is on Next.js, its Server Components and Route Handlers often already are the BFF.
+
+---
+
+**Q20: Design a reusable Data Table component that supports sorting, filtering and pagination.**
+
+**Separate the table's behaviour from its markup: a headless hook owns the state and the row pipeline, and a thin, accessible component renders whatever the hook returns.** Every team that uses the table wants different cells, toolbars and styling; almost none of them want a different sort algorithm. That split is the whole design, and it is how TanStack Table and most design-system tables are built. (The playground's `Data Table (sort + filter + paginate)` challenge is a working version.)
+
+**1. The API is column definitions plus state, not a pile of boolean props.**
+
+```ts
+type Column<Row> = {
+  id: string;
+  header: string;
+  accessor: (row: Row) => string | number | Date;   // what sorting and filtering read
+  cell?: (row: Row) => React.ReactNode;             // how it looks (defaults to the accessor)
+  sortable?: boolean;
+  filter?: 'text' | 'select' | ((row: Row, value: string) => boolean);
+};
+
+type TableState = {
+  sort: { columnId: string; direction: 'asc' | 'desc' } | null;
+  filters: Record<string, string>;
+  page: number;
+  pageSize: number;
+};
+```
+
+Generic over `Row`, so `accessor` and `cell` are type-checked against the real data. Adding a capability later is a new optional field on `Column`, not a breaking prop change.
+
+**2. The row pipeline has a fixed order: filter, then sort, then paginate.** Filtering first shrinks what gets sorted; paginating last means page 2 is page 2 of the *filtered, sorted* rows. Each step is a pure function, memoised on its inputs, so typing in a filter does not re-sort rows that did not change. **Reset `page` to 0 whenever the filters or sort change**, or a user on page 7 filters down to three rows and sees an empty page.
+
+**3. State can be controlled or uncontrolled.** By default the hook keeps its own state (an easy start); pass `state` and `onStateChange` and the parent owns it instead. Controlled mode is what lets a team put sort and filters in the URL (shareable, survives reload) or persist them per user.
+
+**4. The same API works client-side or server-side.** With `mode: 'server'` the hook stops sorting and slicing locally; the table state becomes the request (`?sort=name&dir=asc&status=open&page=2`), and the component receives one page of rows plus a total count. Designing this in from the start matters, because a table that assumed all rows are in memory has to be rewritten the day there are 200,000 of them. Debounce text filters, cancel the previous request with an `AbortController`, and keep showing the old rows (dimmed) while the next page loads.
+
+**5. Accessibility is part of the contract, not styling.**
+
+- A real `<table>` with `<th scope="col">` headers.
+- Sortable headers contain a `<button>`, and the `<th>` carries `aria-sort="ascending"`, `"descending"` or `"none"`.
+- The pagination controls are labelled ("Page 3 of 12").
+- An `aria-live="polite"` region announces "Showing 24 of 310 results" after a filter changes.
+
+**6. Scale is an option, not a rewrite.** Past a few thousand visible rows, add row virtualisation (render only what is on screen), which the headless split makes possible: the renderer changes, the hook does not.
+
+**What to volunteer:**
+
+- **Stable row keys** from the data (`row.id`), never the index, or selection and focus jump when the sort changes.
+- **Sorting is locale-aware and typed:** `Intl.Collator` for strings, numeric compare for numbers, dates by timestamp, and nulls always last.
+- **The hook is where the tests go:** the pipeline is pure functions, so sort, filter and page logic is tested without rendering anything.
+
+---
+
+**Q21: How would you design a frontend architecture that supports both web and mobile apps with maximum code reuse?**
+
+**Share everything below the UI, and share UI only where the platforms genuinely agree.** "Maximum code reuse" sounds like one codebase rendering everywhere, but the code that is cheapest to share and most valuable to keep identical is the logic: data access, validation, business rules and state. Screens are where web and mobile users expect different things.
+
+**The shape: one monorepo (a single repository holding every app and shared package), two apps, shared packages underneath.**
+
+```text
+apps/
+  web/          Next.js or Vite: routes, layouts, web-only UI
+  mobile/       React Native with Expo: navigation, native modules, mobile UI
+packages/
+  api-client/   typed API calls and data types, generated from the OpenAPI schema
+  domain/       business rules and formatting: pure TypeScript, no React
+  validation/   Zod schemas shared by forms on both platforms (and the server)
+  state/        TanStack Query hooks and client stores (Zustand), platform-free
+  tokens/       design tokens (colours, spacing, type) exported for both
+  ui/           the few components that really are the same on both (optional)
+```
+
+**The layers, from most to least shareable:**
+
+1. **Types, API client, validation, business rules:** 100% shared. Pure TypeScript with no DOM and no React Native imports, which a lint rule enforces (a test that fails if `packages/domain` imports `react-dom` or `react-native`).
+2. **Data and state hooks:** `useOrders()`, `useCart()` built on TanStack Query work unchanged on both platforms, because they return data, not markup.
+3. **Design tokens:** one source, compiled to CSS variables for web and a theme object for React Native, so a brand change lands on both.
+4. **UI components:** the honest part. React Native renders `<View>` and `<Text>`, not `<div>`, so a component is shared only through **React Native Web** (running React Native components in the browser) or a cross-platform kit such as Tamagui. That works well for design-system primitives (buttons, inputs, cards); it works badly for whole screens, because navigation, layout density, hover, keyboard shortcuts and SEO all differ.
+5. **Platform-specific files for the seams:** `storage.web.ts` and `storage.native.ts` export the same interface (localStorage on web, SecureStore on mobile); the bundler picks the right one, and shared code imports `storage`.
+
+**What to volunteer:**
+
+- **Monorepo tooling** (Turborepo or Nx) so a change to `packages/domain` rebuilds and tests both apps, and a web-only change does not build mobile.
+- **React version alignment:** React Native pins a React version, so the web app may have to wait for mobile before upgrading React, since both use the shared hooks. That is the most common hidden cost of this design.
+- **Release cadence differs:** web deploys in minutes, mobile goes through app store review, and old app versions stay in use for months. The shared API client therefore has to stay backwards compatible with the server for as long as those old versions are in circulation.
+- **Where not to share:** navigation, animations, gestures and anything touching native capabilities (camera, push notifications, biometrics) stay per platform.
+
+The answer that lands: **share nearly all of the logic and a minority of the UI, and say why the UI share is lower**. An architecture that forces one UI everywhere usually ends up serving neither platform well.
+
+---
+
 ## 11. Tricky Questions
 
 ---
@@ -924,7 +1135,7 @@ for (const make of [mutateProp, reassignPrimitive, reassignObject]) {
 }
 ```
 
-Variants 1 and 2 both work because **a closure captures the binding, not a snapshot of its value.** `getValue` re-reads whatever `obj` (or `value`) refers to *at call time*, so it sees mutations and reassignments alike. People expect variant 2 to fail — "the number was copied when the function was created" — and it doesn't.
+Variants 1 and 2 both work for the reason given above: `get` re-reads whatever `obj` (or `value`) refers to *at call time*, so it sees mutations and reassignments alike. People expect variant 2 to fail — "the number was copied when the function was created" — and it doesn't.
 
 Variant 3 is the one with a catch, and the catch is not about closures. `getValue` still returns the right answer, because it re-reads the `obj` binding and the binding now points at the new object. But **anything outside that captured the *old* object keeps pointing at the old object** and will read a stale `0` forever:
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { createPortal, flushSync } from 'react-dom';
+import { browser, createPortal, flushSync, useFormStatus } from 'react-dom';
 
 /**
  * The names a playground snippet can use without importing anything.
@@ -29,8 +29,14 @@ export function buildReactScope(renderFn: (el: React.ReactElement) => void): Rec
     scope[name] = value;
   }
 
-  // The two react-dom APIs that appear in guide snippets. The rest of react-dom
-  // is either server-only or an escape hatch no example uses.
+  // The react-dom APIs that appear in guide snippets. The rest of react-dom is
+  // either server-only or an escape hatch no example uses. `browser` (19.3) is
+  // meaningful only during server rendering, where `use(browser())` suspends;
+  // in the browser it is a no-op, so a snippet that uses it simply renders.
+  scope.browser = browser;
+  // useFormStatus is a hook, but it is exported from react-dom, not react, so
+  // the derivation above never sees it; React 19 form examples need it.
+  scope.useFormStatus = useFormStatus;
   scope.createPortal = createPortal;
   scope.flushSync = flushSync;
 
@@ -51,7 +57,7 @@ export function scopeNames(): string {
   // against the real scope so a React removal cannot leave a stale name here.
   const featured = [
     'useState', 'useEffect', 'useEffectEvent', 'Fragment', 'Suspense',
-    'Activity', 'memo', 'lazy', 'createPortal',
+    'Activity', 'ViewTransition', 'memo', 'lazy', 'createPortal',
   ].filter((n) => n in scope);
   return `React and all ${names.length - 1} of its exports (${hookCount} hooks — `
     + `${featured.join(', ')} and the rest), plus render, are already in scope.`;

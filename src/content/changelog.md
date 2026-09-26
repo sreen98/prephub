@@ -1,5 +1,248 @@
 # What's New
 
+## v1.7.4 (September 2026)
+
+**Performance: Redux Toolkit and React.** The Redux Toolkit guide has a new section, 11.4, on finding and fixing over-rendering, and a new interview question, Q20, walks through diagnosing a sluggish Redux app. They cover:
+
+- selectors that return a new array on every action;
+- what `createSelector` caches since RTK 2, and when to give it a size limit;
+- `shallowEqual` for selectors that return objects;
+- RTK Query's shared requests, `keepUnusedDataFor`, per-item tags and `selectFromResult`.
+
+The React guide gains a step-by-step profiling routine, a note on when *not* to virtualise a list (it breaks find-in-page and screen-reader row counts), and built-in `Intl` date formatting as an alternative to moment. Prompted by Anshu Raj's article on React performance, now linked from both guides; one of its tips, a selector cache that only remembers the last inputs, describes RTK 1, and the guide explains what changed.
+
+**New: CI/CD in the React guide.** Section 15.12 shows how to run lint, the type check, tests and a build on every pull request with GitHub Actions, and how to make those checks required so a failing PR cannot merge. It also covers the mistakes that bite: a path-filtered required check that never runs and blocks every PR, renaming a job, `pull_request_target`, and keeping CI fast.
+
+**New interview questions from a senior frontend loop:**
+
+- **React:** Q84 designing a CI/CD pipeline for a React app, and Q85 finding out why a bundle grew from 500 KB to 5 MB. Q12 on Fiber was rewritten to explain how it works inside (fibers, double buffering, the work loop, lanes) and to say precisely why it helps: it makes rendering interruptible, not faster.
+- **Next.js:** Q10 `revalidate` vs `cache` (and the three different things called "cache"), Q11 choosing Server or Client Components, and Q12 streaming and progressive rendering.
+- **Frontend Architecture:** Q20 designing a reusable Data Table, and Q21 sharing code between web and mobile apps.
+
+Error boundaries and async errors, Server Actions vs API routes, and `Promise.all` from scratch were already covered, so they were left as they are.
+
+**Challenges now grade you like an interview does.**
+
+- **Hidden tests.** Every JavaScript challenge has 4–6 extra tests you can't see, covering the cases interviewers probe: empty input, one element, duplicates, negatives, large inputs and each problem's own trap. Run shows both, for example "3/3 passed · 🔒 5/7 hidden", and a failing hidden test tells you which case broke and what was expected. A challenge only counts as solved when the hidden tests pass too, so hard-coding the visible answers no longer works.
+- **Interview mode.** Start a 15, 30 or 45-minute timer on any challenge. Explain, Compare and Show Solution stay hidden until you solve it, run out of time or press End, and reloading the page doesn't reset the clock. Your best time appears next to the challenge in the Challenges list.
+- **Check for React challenges.** React machine-coding challenges now have a **Check** button. It uses your running component the way a person would (clicking, typing, pressing Escape) and reports which behaviours work, for example "Escape closes the modal and focus returns to the button". It finds things by their role, label and visible text, so your own markup passes if it behaves correctly. Passing every check marks the challenge solved.
+- **Compare.** Put your code beside the reference solution, with matching lines aligned and differences highlighted, instead of Show Solution replacing your code. For challenges without a solution, it compares against the original template, so you can see what you changed.
+
+**New: Tree Traversal track (6 challenges).** DOM Tree Height, Invert Binary Tree, Level-Order Traversal, getElementsByClassName from Scratch, Find Matching Node in Identical Tree, and Lowest Common Ancestor of Two Nodes. The DOM ones use plain objects shaped like DOM nodes, because the JavaScript playground runs your code without a page.
+
+**New: TypeScript Types track (6 challenges).** They're graded by the real TypeScript compiler: when you press Run, type errors show up as failures next to the runtime tests. The challenges are MyPick and MyOmit, Model an API Response, DeepReadonly, Type-safe groupBy, Typed EventEmitter, and dotted-key Paths. The first TypeScript run downloads the compiler once (about 1 MB).
+
+**Separate JavaScript and React playgrounds.** The playground is now two: the **JavaScript Playground** and the **React Playground**, each with its own entry in the sidebar and a switch in the header. Each one shows only its own templates, challenges and blank starters, and remembers what you had open, so going back to one never drops you into the other's work. The **Try it** button on a React example opens the React playground.
+
+**Challenge code starts where you write.** The problem statement, examples and constraints used to appear twice: in the Problem panel and again as a block of comments at the top of the code. The comments are gone, so the editor opens on the function you need to write. React challenges keep their design notes (such as when to reach for the native `<details>` element), which aren't in the panel. If you had already edited a challenge, your code is kept as it was.
+
+**The Problem panel is resizable.** Drag the handle along its bottom edge to give the statement or the code more room, the same way you drag the divider between the editor and the output. The height is remembered; double-click the handle to reset it, or focus it and use the arrow keys.
+
+**Fixed:** in the Challenges list, unsolved challenges showed a thin line instead of an empty circle, and their names didn't line up with the solved ones.
+
+**The Code Playground now has separate Templates and Challenges.** Two buttons instead of one picker: **Templates** for reference code (JavaScript fundamentals, spec polyfills, utility implementations, React basics), and **Challenges** for the 145 practice problems. Before, opening the picker always landed on the Templates tab, even when you were in the middle of a challenge.
+
+**Challenges are grouped into study tracks**, so problems that use the same technique are tried together, easiest first:
+
+- **15 JavaScript tracks,** one per technique: Two Pointer, Sliding Window, Hash Map / Set, Stack, Dynamic Programming, Binary Search, Backtracking and more. Each opens with one sentence on the idea the whole track practises.
+- **7 React tracks** by theme: forms, data and lists, overlays, navigation, async actions and real-time, and state architecture.
+
+Each track shows how many you've solved and has a Start / Continue button. While you work through one, **Prev** and **Next** buttons above the editor step through it.
+
+**Every challenge now has a proper problem statement**, above the editor, with:
+
+- what you're given and what to return;
+- two or three **sample inputs with the expected output**, including an edge case;
+- the constraints.
+
+All 290 JavaScript sample outputs were checked by running the reference solution, and they're checked again on every build, so a sample can never disagree with the answer. React challenges describe what you do and what you should see. The Merge Sorted Arrays solution also now uses the same function name as the challenge.
+
+**New JavaScript questions from a real interview:** Q40 "Why do we need closures?" (the uses, not just the definition), and tricky Q52 and Q53. Those two are output puzzles where a timer, a promise and an `await` all change the same counter, so you have to track its value as well as the order of the logs.
+
+**Every "Try it" button in the guides now works.** We pressed every one, automatically. About 150 React examples either crashed or showed nothing useful, usually because they used a helper defined in a different example or needed props that were never passed.
+
+- **Fixed in the example (about 100).** They now include what they need: a small stand-in component, or a demo that passes realistic props. For example, the custom hooks in the React guide now run on their own.
+- **Button removed (about 50).** These examples can't run in a browser playground at all: React Native code, examples that need another library (Next.js, React Router, TanStack Query), and Server Components. Showing a button that is guaranteed to fail was worse than showing none.
+
+**Output claims checked by running them.** Every example that states its output was run, including the Express, MongoDB, Redux Saga and Redux Toolkit ones, which were run against the real libraries. One was wrong: in Express 4, an error thrown in an async handler crashes the whole Node process rather than leaving the request hanging. It's corrected, along with a few smaller slips in the Redux Toolkit and TypeScript answers.
+
+**Security updates** for several of the app's dependencies.
+
+**23 more "guess the output" questions for JavaScript and TypeScript**, after checking both sections for missing topics.
+
+**JavaScript (Q41 to Q51):**
+
+- a `return` inside `finally` that silently swallows an error;
+- why a subclass's field is `undefined` when the parent constructor calls a method;
+- `#private` fields and the `#x in obj` check;
+- `-0` and `NaN` equality (`includes` vs `indexOf`, `Object.is`);
+- `arguments` vs arrow functions and rest parameters;
+- array holes, `length` and `delete`;
+- when `valueOf` or `toString` gets called;
+- why a promise's executor runs straight away;
+- how far `?.` short-circuits;
+- named function expressions;
+- `Symbol` keys and `Map` keys.
+
+**TypeScript (Q20 to Q31), mostly about the gap between types and what actually runs:**
+
+- `as` doesn't convert anything;
+- `private` vs `#private` at runtime;
+- classes being matched by shape;
+- why `Object.keys` returns `string[]`;
+- array indexing and `noUncheckedIndexedAccess`;
+- `void` callbacks that return values;
+- `typeof` checks that let `null` through;
+- `keyof` on unions vs intersections;
+- `unknown` in `catch`;
+- overloads;
+- optional vs `undefined` properties;
+- narrowing inside closures.
+
+The TypeScript examples keep their compile errors as commented lines marked ✗, so **Try it** runs them and shows the real output. The 19 older TypeScript output questions now work the same way. Before this, pressing **Try it** on some of them crashed straight away, because they contained the very line that was meant to be a compile error. Every compile error was checked with the TypeScript compiler, and every output was run, on every build.
+
+**The app now runs React 19.3**, so the React 19.3 examples in the React guide (`<ViewTransition>`, Fragment Refs and `browser()`) now have working **Try it** buttons.
+
+**New topic: Backend for Frontend (BFF)**, in the Frontend Architecture guide (§2.3), with interview question Q19. It covers:
+
+- What a BFF is and the problems it solves: chatty screens, over-fetching, tokens in the browser, and apps tied to how the backend is split up.
+- What it should and shouldn't do, with a runnable example that combines three services into one response and still works when one of them is down.
+- How it differs from an API gateway and GraphQL, what it costs, and when not to add one.
+
+**New in the JavaScript guide: why JavaScript is everywhere.** Section 1.8 covers why it became the most-used language, its short history, why companies keep choosing it, and its honest downsides. Five new interview questions about the language itself:
+
+- Q35: Why is JavaScript so popular?
+- Q36: JavaScript vs ECMAScript, and how new features get added.
+- Q37: Is JavaScript compiled or interpreted?
+- Q38: Why do most teams use TypeScript?
+- Q39: JavaScript's weaknesses, and when to choose another language.
+
+**14 more "guess the output" questions in the JavaScript guide** (Q27 to Q40), covering the classic puzzles that were missing:
+
+- the `var` vs `let` loop with `setTimeout`, hoisting, and the temporal dead zone;
+- closures reading a variable rather than a copy, and `this` in methods and arrow functions;
+- `0.1 + 0.2`, `typeof` surprises, `'b' + 'a' + +'a' + 'a'`, and default `sort` with `map(parseInt)`;
+- a `.catch` that silently recovers, and `return` vs `return await` inside `try`;
+- generators and `next(value)`, default values with `null`, and the `return`-on-its-own-line trap.
+
+Every output was run and is checked on every build.
+
+**New in the React guide: what React 19.3 brings.** React 19.3 came out on 9 September 2026, and a new section (§16.11) covers it:
+
+- `<ViewTransition>`, now stable, for animating elements as they appear, disappear, change or move.
+- Fragment Refs, for focusing or observing a group of elements without adding a wrapper.
+- `browser()`, for components that should only render in the browser.
+- Support for the browser's Trusted Types XSS protection.
+- The smaller changes worth knowing.
+
+There's a matching interview question (Q83). The "where React is today" table was out of date and is corrected, and so are the Modern CSS and Next.js guides, which still said `<ViewTransition>` wasn't released.
+
+**The React Compiler section, rewritten to be easier to follow.** It now shows what the compiled code actually looks like, explains why that beats writing `useMemo` by hand (including memoizing after an early return, which hooks can't do), and covers the current setup for Vite 8. It also explains how to check that it worked (the ✨ badge in React DevTools) and how to leave one component out.
+
+**Second pass over every guide: the leftover issues are fixed.** The first reread flagged items it wasn't sure about or didn't get to. Each flagged fact was checked, by running the code or against official docs, before anything changed. The outcome:
+
+- **123 real mistakes fixed.** Many were in code examples. For example: a React example that lazy-loaded the main hero image, a `startTransition` example that didn't actually defer anything, Storybook examples updated to Storybook 9 and MSW 2, and outdated Vite, AWS and library details.
+- **20 flagged items turned out to be correct** and were left alone.
+- **About 100 long or repetitive sections rewritten** to lead with the point.
+
+**Every guide was reread for clarity, and nearly 800 explanations were rewritten.** Each guide was checked section by section against one question: can someone who doesn't already know this topic follow it? Explanations that were one-liners, lists of buzzwords with no reasons, undefined jargon, or answers that just restated the question now start with a plain short answer and explain *why*. Sections that were already clear, and the code-first cheat sheets, were left alone.
+
+The reread also caught about 110 statements that were wrong or out of date, now corrected. A few examples:
+
+- **React:** the Virtual DOM isn't "faster than the DOM"; there is no 5-second timeout on transitions; index keys move state to the wrong row rather than losing it.
+- **Python:** `257 is 257` in one file prints `True`, not `False` (checked by running it).
+- **Redux Toolkit:** two Immer answers were wrong and are fixed. Setting a value to what it already was keeps the same state object, and the "mutate and return" example now shows the form that really throws.
+- **AWS:** S3 has been strongly consistent since 2020, Lambda's scaling rules changed in 2023, the ALB metric for 504s was the wrong one, and X-Ray's errors and faults were swapped.
+- **MongoDB:** the default write concern is `majority`, not `1`.
+- **Stripe:** reusing an idempotency key with a different request body returns an error, not the original response.
+- **Git:** `ort`, not `recursive`, has been the default merge strategy since Git 2.34.
+
+No code examples, headings or question numbers changed (apart from the one Redux example above), so bookmarks, checkpoints and review progress are unaffected.
+
+**The JavaScript guide now opens with how JavaScript actually works.** Section 1 used to be five bullet points. It is now seven short sections, in the order the pieces fit together, each in plain language with examples you can run:
+
+- **1.1 The engine and the runtime:** what V8 does with your file, and why `setTimeout` isn't part of the language.
+- **1.2 Execution context and the call stack:** what happens when a function is called, and what "hoisting" really is.
+- **1.3 Function references:** functions are values, and the bugs that come from mixing up `fn` and `fn()`.
+- **1.4 Why "single-threaded"? (new):** what it means, why JavaScript was designed that way, what still runs in parallel around your code, and why one long function freezes the page.
+- **1.5 Why non-blocking? (new):** how slow work is handed off so the one thread never sits waiting, and why that doesn't help with heavy calculations.
+- **1.6 The event loop (new):** the loop in a few lines of pseudocode, its two queues, and why a promise always beats a 0 ms timer.
+- **1.7 Web Workers and worker threads:** how a second thread works, step by step, with a diagram of the messages passing between them.
+
+Interview questions 31 to 34 are now short answers that link to these sections, so they still appear in Quiz mode.
+
+**Nine more React interview questions** (Q74 to Q82), the ones that come up in almost every React interview as "why does this happen?". Each has a short answer first and an example you can run:
+
+- **Q74: Why does my effect run twice in development?** What StrictMode is checking for, why the double run is a test and not a bug, and what to do instead of switching it off.
+- **Q75: Automatic batching and `flushSync`.** Why two state updates cause one render, and the rare case where you need the DOM updated immediately.
+- **Q76: Portals.** Why a click inside a modal rendered elsewhere in the page still reaches the component that opened it, and the "click outside" bug that follows.
+- **Q77: Why `{count && <Badge />}` shows a 0.** Plus the three safe ways to write it.
+- **Q78: Forms.** Controlled inputs vs React Hook Form vs React 19 form actions, with a working sign-up form that shows pending state and errors and resets itself after success.
+- **Q79: TypeScript with React.** Typing props, children, events and generic components, all checked with the TypeScript compiler.
+- **Q80: Reusable component patterns.** Composition, compound components, render props, and supporting both controlled and uncontrolled use.
+- **Q81: Stale closures in hooks.** Why a timer stays stuck at 1, and four fixes with when to use each.
+- **Q82: "My input loses focus every time I type."** The component-defined-inside-a-component bug, why it happens, and how to check for it.
+
+**37 "real-time" React interview questions checked, and the gaps filled.** 23 were already answered well. For the rest:
+
+**Eight new React questions** (Q66 to Q73), each with a short answer first and a small example you can run:
+
+- **Q66: What is `React.memo`?** When it skips a re-render, and why an inline object quietly defeats it.
+- **Q67: Two components need the same data.** Lift it to the nearest shared parent first, and when to use context, a store or a query cache instead.
+- **Q68: Loading, success, empty and error states.** One status value instead of three booleans, and what makes each state good, not just present.
+- **Q69: The API takes 10 seconds. What does the user see?** Feedback that changes over time, from skeleton to "taking longer than usual" to Cancel, and when to make it a background job instead.
+- **Q70: The user leaves the page mid-request.** Cancel requests that load data, but let saves finish. Also why stale data landing on the wrong page is the real bug.
+- **Q71: Refreshing the token on a 401.** Refresh once, retry once, and make several requests that fail at the same moment share one refresh. Includes a demo that proves it.
+- **Q72: React talking to Spring Boot microservices.** One gateway, one API client, turning both of Spring's error formats into one, and the Spring details that trip React developers (pages start at 0, the page response shape, where CORS goes).
+- **Q73: Downloading a CSV or PDF from Spring Boot.** A plain link when you can, fetch plus a temporary link when you need a token, and the header that silently disappears (`Content-Disposition` needs to be exposed).
+
+**Three answers rewritten to go further:** React Q2 now covers state, props *and* context with one example. React Q11 on unnecessary re-renders now gives the fixes in the order to try them, with a demo of the cheapest one: passing a child in as `children` so it stops re-rendering. Redux Q1 now explains the problem Redux actually solves.
+
+**New Redux question, Q19: the Redux flow.** Component, action, reducer, store and back to the component, shown with a tiny working store that prints each step.
+
+**Two new React machine-coding templates:** a **Shopping Cart** (quantities that respect stock, a discount code, totals calculated in cents so they are never a penny out, and a cart that survives a refresh), and **File Upload with progress** (a percentage per file, cancel and retry, checking files before sending, and why `fetch` can't report upload progress).
+
+**Nine React machine-coding questions from a real interview list, now all answered in the playground.** Five are new templates and four existing ones were rebuilt, each with a step-by-step Explain walkthrough:
+
+- **New: Nested Comments.** A thread with replies to any depth, rendered by one recursive component. Shows why comments are stored flat by id, and how to make replying re-render only the comment you replied to (the console proves it).
+- **New: Sidebar Navigation.** Beside the page on desktop, a slide-in drawer on mobile, submenus that open smoothly, the current page highlighted, and the right submenu already open when you arrive. A toggle lets you preview the mobile layout.
+- **New: Data Table.** Sort by clicking a column, search, filter by status and paginate, with the header, rows and pagination as separate pieces. It also prints the request the same table would send if the filtering moved to the server.
+- **New: Like Button.** Changes the moment you click and undoes itself if saving fails. It also stays correct when you click five times in a second, sending only one or two requests instead of five.
+- **New: Rate-Limited Button.** Three buttons side by side (no guard, throttle, and a "busy" lock) with live API-call counters, so you can see why debounce is wrong for a button and why a Pay button needs a lock.
+- **Rebuilt: Toast / Snackbar.** Callable from anywhere, even outside React, with at most three on screen and the rest queued. Hovering a toast pauses it, and duplicates are skipped.
+- **Rebuilt: Tabs.** Built from data, so tabs can be added and removed. Full keyboard support, an underline that slides to the active tab, a panel that fades in, and a note on when CSS is enough and when to reach for Framer Motion.
+- **Rebuilt: Accordion.** Smooth open and close, one open or several, arrow-key movement between sections, and closed sections that the Tab key correctly skips.
+- **Rebuilt: Chat App.** Loads its history, shows each message as sending, sent or failed (with Retry), never shows a message twice, and has a typing indicator in both directions.
+
+Every template is checked on each build by clicking through the behaviour it promises.
+
+**How JavaScript works under the hood: four new interview questions** in the JavaScript guide, written in plain language with a short answer first and small examples you can run:
+
+- **Q31: What happens when the browser runs your JavaScript?** The engine (like V8) versus the browser or Node around it, and why `setTimeout` isn't actually part of the language. Then the four steps: read the code, turn it into simple instructions, speed up the parts that run often, and undo that when a guess turns out wrong. Includes a demo showing that one syntax error stops the whole file before its first line runs.
+- **Q32: What is an execution context, and how does the call stack work?** A stack of plates you can watch being added and removed, what "hoisting" really is (it's a setup step, not code moving), and what a stack overflow looks like.
+- **Q33: How do function references work, and what is the difference between `fn` and `fn()`?** A function is a value you can pass around. Covers the three bugs that come from mixing them up: `setTimeout(save(), 1000)` running straight away, `removeEventListener` silently removing nothing, and a method losing its `this` when passed on.
+- **Q34: What is a Web Worker, and when should you use one?** A second JavaScript thread for heavy work, why it can't touch the page, when it helps and when it doesn't (it won't make `fetch` faster), and the four kinds of worker people mix up, including Service Workers and Node's `worker_threads`.
+
+**The event loop answer (Q6) now starts with a simple version**: one thread, a waiting line, and a loop that asks "is anything still running?", with a three-line example, before going into the details.
+
+**Nine new "guess the output" questions about objects** in the JavaScript guide (tricky Q18 to Q26, under *Objects & References*). Each one turns on whether you are looking at a new object or another reference to an existing one:
+
+- **Objects as keys:** why two different objects used as keys overwrite each other (they both become `"[object Object]"`), and why a `Map` doesn't have the problem.
+- **Key order:** why `Object.keys` puts `"1"` and `"2"` first, and why `"-1"` and `"01"` don't count as numbers there.
+- **Spread copies one level:** changing the copy's name leaves the original alone, but changing its city or its array does not.
+- **Passing objects to functions:** why changing a property reaches the caller but reassigning the parameter doesn't.
+- **`new Array(3).fill({})`:** one object in every slot, the classic "setting one cell sets the whole column" bug.
+- **`JSON.parse(JSON.stringify(obj))`:** exactly what it silently loses (dates, `undefined`, functions, `NaN`, `Map`).
+- **`structuredClone`:** how it keeps circular references and real dates, and why it throws on functions.
+- **`Object.freeze` is shallow:** nested objects stay writable, and a blocked write only throws in strict mode.
+- **Spread and getters:** the copy gets the getter's value at that moment, not the getter itself.
+
+Every question has a line-by-line table explaining each printed line, and every output was run and is now checked on every build.
+
+**New coding challenge: Max Consecutive Ones.** Given an array of 0s and 1s, find the longest run of 1s in a row. The catch is that it asks for the longest *run*, not how many 1s there are: `[1,1,0,1,1,1]` has five 1s but the answer is 3. The tests also catch the most common slip, a run that reaches the end of the array and never gets counted. The solution and Explain walkthrough include the usual follow-up, "what if you can flip up to k zeros?", solved with a sliding window.
+
+**Clean Mixed Array: an easier no-built-ins solution.** The version that bans `sort`, `Set` and `filter` used to do everything in one loop, and that made it hard to follow. There's now a simpler answer that comes first: keep each number once, then **bubble sort** the result (swap neighbours that are out of order until nothing moves). It takes one sentence to explain, and the Explain walkthrough steps through both passes. The one-pass "sorted as you go" version is still there as the follow-up.
+
 ## v1.7.3 (September 2026)
 
 **Nine additions from another real interview debrief**, this time a Frontend Developer loop at a large IT services firm: a technical round, a managerial round and HR. Of the 25 questions asked, 11 were already covered, and these close the rest.

@@ -97,6 +97,8 @@ src/
 
 ### 2.3 Configuration (.storybook/main.ts)
 
+The examples in this guide follow Storybook 9 and later. Version 9 folded most of the old add-on packages into the main `storybook` package: controls, actions, viewport, backgrounds and the interactions panel are now built in, so `@storybook/addon-essentials` and `@storybook/addon-interactions` no longer exist, and testing helpers are imported from `storybook/test` instead of `@storybook/test`. If you see those old package names in a tutorial, it was written for Storybook 8 or earlier.
+
 ```ts
 import type { StorybookConfig } from '@storybook/react-vite';
 
@@ -106,10 +108,10 @@ const config: StorybookConfig = {
 
   // Addons
   addons: [
-    '@storybook/addon-essentials',      // controls, actions, viewport, backgrounds, docs
+    '@storybook/addon-docs',            // autodocs + MDX pages
     '@storybook/addon-themes',          // dark/light mode toggle
     '@storybook/addon-a11y',            // accessibility checks
-    '@storybook/addon-interactions',    // interaction testing panel
+    // controls, actions, viewport, backgrounds and interactions are built in
   ],
 
   // Framework
@@ -124,10 +126,7 @@ const config: StorybookConfig = {
     return config;
   },
 
-  // Enable autodocs for all stories
-  docs: {
-    autodocs: 'tag',
-  },
+  // Autodocs is switched on with the 'autodocs' tag (see preview.ts), not here
 };
 
 export default config;
@@ -136,7 +135,7 @@ export default config;
 ### 2.4 Preview Configuration (.storybook/preview.ts)
 
 ```ts
-import type { Preview } from '@storybook/react';
+import type { Preview } from '@storybook/react-vite';
 import '../src/app/globals.css';             // import your app styles
 
 const preview: Preview = {
@@ -166,9 +165,11 @@ export default preview;
 
 ### 3.1 Basic Story (CSF3 — Component Story Format)
 
+A **story** is one named state of a component — "the disabled button", "the button with a long label". A stories file is an ordinary ES module: its **default export** (called `meta`) says which component the file is about and where it appears in the sidebar, and every **named export** is one story. Most stories are just an `args` object — the props to render the component with — which is why they are so short: Storybook renders `<Button {...args} />` for you.
+
 ```tsx
 // button.stories.tsx
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Button } from './button';
 
 // Meta: component-level configuration
@@ -237,7 +238,7 @@ For composed components (Dialog, Dropdown, etc.) that need wrapper/trigger:
 
 ```tsx
 // dialog.stories.tsx
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
   Dialog,
   DialogTrigger,
@@ -419,7 +420,7 @@ const meta: Meta<typeof Button> = {
 };
 
 // Or use the fn() helper
-import { fn } from '@storybook/test';
+import { fn } from 'storybook/test';
 
 export const WithAction: Story = {
   args: {
@@ -433,7 +434,7 @@ export const WithAction: Story = {
 
 ## 5. Decorators
 
-Decorators wrap stories with additional rendering context (providers, layout, theme).
+Decorators wrap stories with additional rendering context (providers, layout, theme). You need them because a component rendered in isolation has lost everything its real parents gave it: a component that calls `useNavigate()` throws without a router above it, and one that reads a Redux store throws without a `<Provider>`. A decorator is a function that receives the story as `Story` and returns it wrapped in whatever it needs. Apply it on one story, on every story of a component (in `meta`), or on every story in the project (in `preview.ts`) — pick the narrowest level that covers the components that need it.
 
 ### 5.1 Story-Level Decorator
 
@@ -512,10 +513,10 @@ const preview: Preview = {
 
 ## 6. Play Functions (Interaction Testing)
 
-Play functions simulate user interactions directly in Storybook.
+A **play function** is an async function attached to a story that Storybook runs right after the story renders. Inside it you drive the component like a user would — type, click, select — using the same Testing Library queries (`getByRole`, `getByLabelText`) and `expect` assertions you would write in a unit test. The point is that the story becomes a test without a second copy of the setup: the same rendered state you look at in the browser is the one the assertions run against, and the test runner (§11.2) can execute every play function in CI.
 
 ```tsx
-import { expect, fn, userEvent, within } from '@storybook/test';
+import { expect, fn, userEvent, within } from 'storybook/test';
 
 export const FilledForm: Story = {
   args: {
@@ -576,14 +577,17 @@ export const Search: Story = {
 ### 7.1 Essential Addons (Included by Default)
 
 ```
-@storybook/addon-essentials includes:
-  - Controls:     edit props dynamically in the sidebar
-  - Actions:      log event handlers in the panel
-  - Viewport:     test responsive breakpoints
-  - Backgrounds:  switch background colors
-  - Docs:         auto-generated documentation
-  - Measure:      measure spacing/dimensions
-  - Outline:      show component outlines
+Built into Storybook 9+ (nothing to install):
+  - Controls:      edit props dynamically in the sidebar
+  - Actions:       log event handlers in the panel
+  - Viewport:      test responsive breakpoints
+  - Backgrounds:   switch background colors
+  - Interactions:  step through play functions
+  - Measure:       measure spacing/dimensions
+  - Outline:       show component outlines
+
+Installed separately:
+  - @storybook/addon-docs:  autodocs + MDX pages
 ```
 
 ### 7.2 Popular Addons
@@ -596,15 +600,15 @@ npm install -D @storybook/addon-a11y
 # Themes (dark mode toggle)
 npm install -D @storybook/addon-themes
 
-# Interactions (play function testing panel)
-npm install -D @storybook/addon-interactions
-
 # Design tokens
 npm install -D @storybook/addon-designs
 # Link Figma designs to stories
 
 # Storybook Test Runner (run play functions as tests)
 npm install -D @storybook/test-runner
+
+# Or the newer Vitest-based Storybook Test (runs stories as Vitest tests)
+npx storybook@latest add @storybook/addon-vitest
 ```
 
 ### 7.3 Accessibility Addon
@@ -693,7 +697,7 @@ const preview: Preview = {
 
 ```mdx
 {/* button.mdx */}
-import { Meta, Story, Canvas, Controls, ArgTypes } from '@storybook/blocks';
+import { Meta, Story, Canvas, Controls, ArgTypes } from '@storybook/addon-docs/blocks';
 import * as ButtonStories from './button.stories';
 
 <Meta of={ButtonStories} />
@@ -913,8 +917,8 @@ import '../src/app/globals.css';           // import Tailwind styles
 
 ```ts
 // .storybook/manager.ts
-import { addons } from '@storybook/manager-api';
-import { create } from '@storybook/theming/create';
+import { addons } from 'storybook/manager-api';
+import { create } from 'storybook/theming';
 
 const theme = create({
   base: 'dark',
@@ -944,6 +948,8 @@ addons.setConfig({ theme });
 
 ## 11. Visual Testing
 
+Visual testing answers a question unit tests cannot: *does it still look right?* A tool takes a screenshot of every story, compares it with the approved screenshot from before (the **baseline**), and flags any story whose pixels changed so a human can accept or reject the change. Stories make this cheap because each one is already a fixed, reproducible state of one component.
+
 ### 11.1 Chromatic (Official Visual Testing)
 
 ```bash
@@ -971,7 +977,7 @@ npx test-storybook --coverage
 // Using test-runner, stories are automatically snapshot tested
 // Or manually with a test file:
 
-import { composeStories } from '@storybook/react';
+import { composeStories } from '@storybook/react-vite';
 import { render } from '@testing-library/react';
 import * as stories from './button.stories';
 
@@ -1077,20 +1083,20 @@ For every component, cover:
 
 ### 13.4 Do's and Don'ts
 
-```
-DO:
-  - Co-locate stories with components
-  - Use args for simple props, render for composition
-  - Add autodocs tag for documentation
-  - Test interactions with play functions
-  - Keep stories focused on single states
+Most of these come down to one idea: a story should be one small, reproducible state of one component, set up the same way every time.
 
-DON'T:
-  - Don't import app-level state/API in stories
-  - Don't create stories for page-level components (too complex)
-  - Don't duplicate logic — use decorators for shared setup
-  - Don't skip edge cases (empty, error, loading)
-```
+**Do:**
+- **Co-locate stories with components** (`button.tsx` beside `button.stories.tsx`), so a change to the component and its stories lands in the same review, and a deleted component takes its stories with it.
+- **Use args for simple props, render for composition** — args are what Controls edits and autodocs lists; a `render` function is only needed when the component needs children or siblings to make sense (see Q10).
+- **Add the `autodocs` tag**, so the docs page is generated from the stories and types and cannot drift from the code.
+- **Test interactions with play functions**, so the state you look at is also the state the assertions run against (§6).
+- **Keep each story to a single state** — "Disabled", "Loading", "Empty". A story that shows several states at once gives a visual diff that points at nothing in particular.
+
+**Don't:**
+- **Don't import app-level state or the real API** into stories. A story that depends on the real store or backend breaks when they change, and shows whatever data happens to be there. Pass mock data as args, or fake the network with MSW (Q13).
+- **Don't start with page-level stories.** A page needs every provider and every API call mocked before it renders, so it is expensive to write and brittle to keep. Cover the components first; add a page story only when the page's layout itself needs review.
+- **Don't repeat setup in every story** — put shared providers in a decorator (§5) at the narrowest level that covers the components that need them.
+- **Don't skip the edge cases** (empty, error, loading, long text). They are the states the real app reaches least often in development, so they are where bugs survive.
 
 ---
 
@@ -1102,13 +1108,14 @@ DON'T:
 
 **Q1: What is Storybook and why would you use it?**
 
-Storybook is a tool for developing UI components in isolation, outside the main application. You'd use it to:
-- Develop components without running the full app (no backend needed)
-- Document all component variants visually
-- Test edge cases (empty states, errors, long content)
-- Enable designers and devs to review components together
-- Create a living component library / design system
-- Catch visual regressions with visual testing
+Short answer: Storybook is a separate dev server that renders your UI components one at a time, outside the main application, with each interesting state saved as a "story". You use it because seeing and testing one component inside the real app is slow and incomplete.
+
+What that buys you, and why:
+- **Speed** — to see a button's error state you open its story, instead of starting the backend, logging in and navigating to a page that happens to show it.
+- **Edge cases get looked at** — an empty list, an error, a 200-character name are hard to reproduce in the running app, so nobody checks them. A story makes each one a click away.
+- **Living documentation** — the component catalog is generated from the same stories developers use, so it cannot drift from the code the way a wiki page does.
+- **Designer review without an environment** — the static build is a website designers can open, with no login or database.
+- **Tests for free** — every story is a fixed state, so it can be screenshot-compared (visual regression) or driven by a play function (interaction test).
 
 ---
 
@@ -1140,13 +1147,13 @@ export const Disabled: Story = { args: { disabled: true } }; // story
 
 **Q4: What are controls in Storybook?**
 
-Controls are interactive UI widgets in the Storybook sidebar that let you dynamically change a component's props. They're auto-generated from TypeScript types / PropTypes. You can customize control types (select, radio, slider, color picker) via `argTypes`.
+Controls are form widgets in the Storybook panel that edit a story's `args` (its props) live, so you can try a new label, toggle `disabled` or switch variants without editing code. Storybook infers a sensible widget from each prop's TypeScript type or PropTypes — a boolean gets a toggle, a string union gets a dropdown — and you override the choice through `argTypes` when the guess is wrong (for example, a string prop that is really a colour should get a colour picker). They only work for args-based stories: if a story ignores `args` and hard-codes its JSX in `render`, there is nothing for the controls to change.
 
 ---
 
 **Q5: What are decorators?**
 
-Decorators are wrapper functions that provide additional context to stories — like a theme provider, Redux store, router, or layout container. They can be applied at story, component, or global level.
+Decorators are wrapper functions around a story. They exist because a component rendered on its own has lost the providers its real parents supplied — a theme, a Redux store, a router — and will often crash without them. A decorator receives the story and returns it wrapped in whatever it needs (or in a layout container, such as a fixed-height box for a sidebar). They can be applied to one story, to every story of a component, or globally.
 
 ```tsx
 decorators: [(Story) => <ThemeProvider><Story /></ThemeProvider>]
@@ -1160,7 +1167,7 @@ decorators: [(Story) => <ThemeProvider><Story /></ThemeProvider>]
 
 **Q6: How do you test interactions in Storybook?**
 
-Using **play functions** — async functions that simulate user behavior:
+Using **play functions** — async functions attached to a story that Storybook runs right after it renders, to act like a user and then assert on the result:
 
 ```tsx
 export const FilledForm: Story = {
@@ -1173,16 +1180,18 @@ export const FilledForm: Story = {
 };
 ```
 
-Play functions use the same `@testing-library` API as unit tests. The Interactions addon shows a step-by-step panel. The test runner can execute play functions as CI tests.
+Play functions use the same `@testing-library` API as unit tests, so there is nothing new to learn. The advantage over a separate test file is that the story *is* the setup: the state you look at in the browser is the one the assertions run against. The Interactions panel (built into Storybook since version 9) replays the steps one by one in the browser, which makes a failure easy to see, and the test runner executes every play function headlessly so they gate CI.
 
 ---
 
 **Q7: How do you handle components that need providers (Redux, Router, Theme)?**
 
-Use **decorators** at the appropriate level:
-- **Global** (preview.ts): For providers every component needs (theme, tooltip)
-- **Component** (meta): For providers specific to a feature
-- **Story**: For unique per-story context
+Use **decorators** — wrappers that render the story inside the providers it expects — at the narrowest level that covers the components that need them:
+- **Global** (preview.ts): For providers every component needs (theme, tooltip). Put them here once rather than repeating them in every file.
+- **Component** (meta): For providers specific to a feature, such as a store only the checkout components read.
+- **Story**: For context unique to one state — for example, a router starting at a particular URL so the "active link" styling shows.
+
+Wrapping everything globally is tempting, but it hides which components actually depend on which providers, and a real store can leak app state into stories that should be isolated. For Redux, prefer a small store built with mock state over the app's real store.
 
 ```tsx
 // Global: .storybook/preview.ts
@@ -1207,10 +1216,12 @@ Autodocs is the fastest. MDX gives full control for design system documentation.
 
 **Q9: How does Storybook fit into a CI/CD pipeline?**
 
-1. **Build check**: `npm run build-storybook` — verifies all stories compile
-2. **Test runner**: `npx test-storybook` — runs play functions as tests
-3. **Visual testing**: Chromatic captures screenshots, compares with baseline, flags visual changes
-4. **Deploy**: Build static Storybook, deploy to S3/Netlify for team access
+Short answer: every pull request builds Storybook, runs its stories as tests, and publishes it, so a broken or visually changed component is caught before merge.
+
+1. **Build check**: `npm run build-storybook` — verifies all stories compile. A story that imports a renamed prop or a deleted component fails here even if no test covers it.
+2. **Test runner**: `npx test-storybook` — renders every story in a headless browser, fails on any render error, and runs the play functions' assertions.
+3. **Visual testing**: Chromatic screenshots every story, compares it with the last approved screenshot (the baseline), and blocks the PR until someone accepts or rejects each visual change.
+4. **Deploy**: build the static Storybook and host it (S3/Netlify) so reviewers and designers can open the PR's version without running anything.
 
 ```yaml
 # GitHub Actions
@@ -1226,7 +1237,7 @@ Autodocs is the fastest. MDX gives full control for design system documentation.
 - **Args-based**: Simple — pass props via `args` object. Storybook renders the component automatically. Best for leaf components (Button, Input, Badge).
 - **Render-based**: Custom — provide a `render` function that returns JSX. Required for composed components (Dialog with trigger, Dropdown with items, Tabs with panels).
 
-Use args when possible (enables Controls panel). Use render when composition is needed.
+Use args when possible, because args are what the Controls panel edits and what autodocs lists — a `render` function that hard-codes its JSX gives the reader nothing to play with. Use render when composition is needed, and even then you can pass `args` through to the root component inside it to keep some controls working.
 
 ---
 
@@ -1235,6 +1246,8 @@ Use args when possible (enables Controls panel). Use render when composition is 
 ---
 
 **Q11: How do you implement visual regression testing with Storybook?**
+
+Short answer: screenshot every story, compare each screenshot with the last approved one (the **baseline**), and make a human accept or reject every difference. Stories suit this well because each is a fixed, reproducible state of one component, so a diff points at exactly one thing rather than a whole page.
 
 1. **Chromatic** (official): Captures screenshots of every story on every PR. Compares with baseline. Shows pixel diffs for review and approval. Integrates with GitHub PRs.
 
@@ -1248,42 +1261,50 @@ Use args when possible (enables Controls panel). Use render when composition is 
    });
    ```
 
-Chromatic is the easiest — it's built by the Storybook team and requires minimal setup.
+Chromatic is the easiest — it's built by the Storybook team and requires minimal setup. The part to volunteer is flakiness: animations, the current date, random data and web fonts that load late all produce diffs that are not real changes, so freeze them in the stories (fixed dates, seeded data, animations disabled) or reviewers learn to click "accept" without looking.
 
 ---
 
 **Q12: How do you use Storybook for a design system?**
 
-1. **Component catalog**: Every UI primitive has stories covering all variants
-2. **Autodocs**: Auto-generated prop tables and usage examples
-3. **Design tokens**: Document colors, spacing, typography in dedicated stories
-4. **Composition examples**: Show how primitives compose into patterns
-5. **Accessibility**: a11y addon checks every story automatically
-6. **Versioned deployment**: Build and deploy Storybook per release
-7. **Figma integration**: Link designs to stories with `@storybook/addon-designs`
-8. **Publish as npm package**: Consumers reference the Storybook for documentation
+Short answer: Storybook becomes the design system's public website — the place consuming teams go to see what exists, how to use it, and what each prop does — and its stories double as the system's test suite.
+
+1. **Component catalog**: Every UI primitive has stories covering all variants, so a consuming team checks here before building a duplicate.
+2. **Autodocs**: Prop tables and usage examples generated from the stories and types, so the docs cannot fall out of date with the code.
+3. **Design tokens** (the named values for colour, spacing and type, such as `color.primary`): document them in dedicated stories so people use the token rather than a hard-coded hex value.
+4. **Composition examples**: Show how primitives combine into patterns (a form row, a card list), because "how do I put these together" is the question a prop table does not answer.
+5. **Accessibility**: the a11y addon runs automated checks on every story, catching issues like missing labels or low contrast in the shared component once instead of in every app.
+6. **Versioned deployment**: Build and deploy Storybook per release, so a team still on v2 can read the v2 docs.
+7. **Figma integration**: Link designs to stories with `@storybook/addon-designs`, so the design and the implementation sit side by side in review.
+8. **Publish the components as an npm package** alongside it; the Storybook is the documentation consumers read for that package.
 
 ---
 
 **Q13: How do you handle mock data and API calls in stories?**
 
-1. **Static mock data**: Define mock objects in the story file
-2. **MSW (Mock Service Worker)**: Intercept API calls at the network level
+Short answer: keep presentational components fed by props with static mock data, and for components that fetch their own data, intercept the network with MSW rather than mocking your own modules.
+
+1. **Static mock data**: Define mock objects in the story file and pass them as args. This is the simplest option and works for any component that receives its data as props.
+2. **MSW (Mock Service Worker)**: a library that registers a service worker to intercept `fetch` calls and answer them with mock responses. The component runs its real data-fetching code unchanged; only the network is fake, so the story exercises the same code path as production:
    ```tsx
+   import { http, HttpResponse } from 'msw';
+
    export const WithData: Story = {
      parameters: {
        msw: {
          handlers: [
-           rest.get('/api/users', (req, res, ctx) => {
-             return res(ctx.json([{ id: 1, name: 'Alice' }]));
+           http.get('/api/users', () => {
+             return HttpResponse.json([{ id: 1, name: 'Alice' }]);
            }),
          ],
        },
      },
    };
    ```
-3. **Decorators**: Wrap with mocked providers
-4. **Loaders**: Fetch data before story renders:
+
+   This is the MSW 2 API (`http` and `HttpResponse`). Older examples use `rest.get(url, (req, res, ctx) => …)`, which MSW 2 removed.
+3. **Decorators**: Wrap with mocked providers — for example a React Query client or store pre-filled with data, so the component finds its data already cached.
+4. **Loaders**: async functions that run before the story renders; their result is passed to `render` as `loaded`. Useful when mock data must be built asynchronously:
    ```tsx
    export const WithData: Story = {
      loaders: [async () => ({ users: await fetchMockUsers() })],

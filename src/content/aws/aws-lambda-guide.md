@@ -30,7 +30,7 @@ Key characteristics:
 - **Auto-scaling** — scales from 0 to thousands of concurrent executions
 - **Pay-per-use** — billed per request and compute duration (ms)
 - **Event-driven** — triggered by AWS services, HTTP requests, schedules, etc.
-- **Stateless** — each invocation is independent (no shared memory between invocations)
+- **Stateless** — design each invocation as if it starts from nothing. Lambda *may* reuse the same environment for the next call (so a cached client or file can still be there, §6.4), but it may equally start a fresh one, so nothing you rely on for correctness can live in memory or `/tmp`
 - **Supports** — Node.js, Python, Java, Go, .NET, Ruby, custom runtimes
 
 ### When to Use Lambda
@@ -46,6 +46,8 @@ Key characteristics:
 | Data transformation pipelines | |
 
 ### Pricing (as of 2024)
+
+These are the x86 prices in US East (N. Virginia); they were re-checked against the AWS pricing page in September 2026 and had not changed. Arm (Graviton) duration is cheaper, and the example below ignores the free tier.
 
 ```
 Requests:  $0.20 per 1M requests
@@ -119,7 +121,7 @@ SHUTDOWN Phase:
 | Environment variables | 4 KB total |
 | Concurrent executions | 1,000 per region (default, can increase) |
 | Payload (sync) | 6 MB request, 6 MB response |
-| Payload (async) | 256 KB |
+| Payload (async) | 1 MB |
 | Layers | 5 layers per function |
 
 ---
@@ -274,6 +276,8 @@ Install types: `npm install -D @types/aws-lambda`
 ---
 
 ## 4. Event Sources and Triggers
+
+Every trigger uses one of three invocation models, and the model decides the thing you most need to know when something fails: **who retries**. With synchronous calls the caller sees the error and must retry itself. With asynchronous calls Lambda queues the event and retries for you. With poll-based sources Lambda reads batches from a queue or stream, and a failure puts the batch back to be read again.
 
 ### 4.1 Synchronous Invocation
 
@@ -460,6 +464,8 @@ Rule of thumb:
   - CPU-intensive: 1769+ MB (full CPU core)
 ```
 
+The rule-of-thumb figures are starting points, not limits. Memory is also the CPU dial, so a function that is slow because it computes (parsing, image work, crypto) often gets both faster *and* cheaper when you raise memory: you pay per GB-second, and a shorter run can more than offset the higher rate. A function that mostly waits on the network gains little from more memory. Measure rather than guess: AWS Lambda Power Tuning runs your function at several memory sizes and plots cost against duration. For timeouts, set the value just above what the slowest legitimate request needs. Behind API Gateway, the gateway's own integration timeout is what the caller experiences, so a Lambda timeout longer than that only keeps the function running (and billing) after the caller has given up.
+
 ### 6.3 /tmp Storage
 
 ```ts
@@ -557,7 +563,7 @@ my-layer.zip
 
 ## 8. Cold Starts
 
-A cold start occurs when Lambda creates a new execution environment (no warm container available).
+A cold start occurs when Lambda creates a new execution environment (no warm container available). The request then waits for the whole INIT phase from §2.2: downloading your code, starting the runtime, and running everything at module level. That is why package size, heavy imports and work done outside the handler show up as latency on exactly these requests. It matters most for user-facing APIs, where it appears as occasional slow responses; for background jobs it is usually irrelevant.
 
 ### 8.1 What Causes Cold Starts
 
@@ -582,7 +588,7 @@ Factors that increase cold start:
   - Larger deployment package
   - More dependencies
   - VPC configuration (+1-10s, improved with Hyperplane)
-  - More memory allocated (slightly faster init)
+  - Too little memory allocated (CPU scales with memory, so init code runs slower)
   - Layers (slightly slower init)
 ```
 
@@ -618,6 +624,8 @@ export const handler = async (event) => {
 
 ## 9. Concurrency
 
+Concurrency is the number of requests your function is handling at the same moment, and each one needs its own execution environment. The two settings below are easy to confuse because both have "concurrency" in the name: **reserved** concurrency is a *cap and a guarantee* (how many environments this function may use, carved out of the account's shared pool) and costs nothing; **provisioned** concurrency is *pre-warming* (environments initialized ahead of time so requests skip the cold start) and is billed for as long as it is configured.
+
 ### 9.1 Concurrency Model
 
 ```
@@ -628,6 +636,8 @@ Each concurrent invocation = 1 execution environment
 
 Account default: 1,000 concurrent executions per region
   (can request increase to tens of thousands)
+  New AWS accounts start with a reduced quota,
+  which AWS raises automatically as usage grows
 ```
 
 ### 9.2 Reserved Concurrency
@@ -637,7 +647,7 @@ Sets a MAX concurrent executions for a function.
 Guarantees capacity AND limits impact.
 
 Example: Reserve 100 for payment processing
-  - Guaranteed 100 environments always available
+  - Guaranteed capacity for 100 environments (not pre-warmed: see 9.3)
   - Never exceeds 100 (protects downstream services)
   - Other functions share the remaining 900
 ```
@@ -722,6 +732,8 @@ export const handler = async (event) => {
 ```
 
 ### 10.3 RDS/MongoDB (Connection Pooling Challenges)
+
+A traditional database accepts a limited number of connections, and a normal server shares a small pool of them across all its requests. Lambda breaks that assumption: every concurrent environment is a separate process with its own pool, so a traffic spike that scales you to hundreds of environments opens hundreds of connections and can hit the database's limit. The two defences below are to keep each environment's pool tiny and reuse it across warm invocations, or to put RDS Proxy (a managed pooler that sits between Lambda and the database) in front so the database sees a small, stable number of connections.
 
 ```ts
 // Problem: Lambda can create hundreds of concurrent connections
@@ -1160,6 +1172,10 @@ EXCEPTION: "Fat Lambda" with lightweight router
 
 ### 15.2 Idempotency
 
+Async and poll-based triggers deliver events **at least once**, so the same event can reach your handler twice (a retry after a timeout, or a duplicate from the queue). An idempotent handler is one where processing it a second time has no additional effect. The example records each event id with a conditional write that fails if the id already exists, and skips the event when it does.
+
+One gap to know about: this version records the id *before* doing the work. If `processEvent` then throws, the retry finds the id already recorded and skips the event, so it is never processed. Production implementations (such as the idempotency utility in AWS Lambda Powertools) store an "in progress" status first and remove or complete the record depending on whether the work succeeded.
+
 ```ts
 // Lambda may be invoked multiple times for the same event (retries)
 // Make handlers idempotent (safe to repeat)
@@ -1244,7 +1260,9 @@ Triggers are event sources that invoke Lambda functions:
 **Q5: What is the difference between synchronous and asynchronous invocation?**
 
 - **Synchronous**: Caller waits for the response. Lambda executes and returns the result directly. (API Gateway, SDK `invoke()`)
-- **Asynchronous**: Caller gets an immediate 202 acknowledgment. Lambda queues the event and processes it in the background. Failed events can be retried and sent to a DLQ. (S3, SNS, EventBridge)
+- **Asynchronous**: Caller gets an immediate 202 acknowledgment. Lambda queues the event and processes it in the background. Failed events can be retried and sent to a DLQ (dead-letter queue, a queue that collects events that failed every retry so you can inspect them). (S3, SNS, EventBridge)
+
+The practical difference is who handles failure. A synchronous caller receives the error and decides whether to retry; nobody else will. An asynchronous caller has already moved on, so Lambda retries for you (twice by default), which is also why async handlers must be safe to run more than once for the same event.
 
 ---
 
@@ -1256,7 +1274,7 @@ Triggers are event sources that invoke Lambda functions:
 
 1. **Keep package small**: Remove unused dependencies, use tree-shaking
 2. **Initialize outside handler**: SDK clients, DB connections, config — initialized once during cold start, reused on warm invocations
-3. **Provisioned Concurrency**: Pre-warm N environments — eliminates cold starts entirely (costs extra)
+3. **Provisioned Concurrency**: Pre-warm N environments — eliminates cold starts for traffic up to N concurrent requests; anything beyond N still cold-starts (costs extra, billed while configured)
 4. **Choose fast runtimes**: Node.js/Python have faster cold starts than Java/.NET
 5. **Avoid VPC** if not needed (VPC adds ENI setup time)
 6. **Lazy import**: Only import heavy libraries when needed
@@ -1266,14 +1284,13 @@ Triggers are event sources that invoke Lambda functions:
 
 **Q7: How does Lambda scaling work?**
 
-Lambda scales automatically based on incoming requests:
-- Each concurrent request runs in its own execution environment
-- New environments are created as needed (cold starts)
-- **Burst limit**: 500-3000 concurrent immediately (varies by region)
-- After burst: scales by 500/minute
-- **Account limit**: 1,000 concurrent (default, can increase)
-- **Reserved concurrency**: Guarantees capacity for a specific function
-- **Provisioned concurrency**: Pre-warms environments
+Short answer: Lambda scales by running more copies of your function side by side. One execution environment handles one request at a time, so 100 simultaneous requests need 100 environments, and Lambda creates the missing ones on demand (each new one is a cold start).
+
+The limits that shape it:
+- **Scaling rate**: each function can add up to 1,000 concurrent environments every 10 seconds. (Older material quotes a regional "burst limit" of 500–3,000 followed by 500 per minute; AWS replaced that model in late 2023.)
+- **Account limit**: 1,000 concurrent executions per region by default, shared by all your functions, and raisable on request. Requests beyond it are **throttled**: synchronous callers get a 429 error, asynchronous events are retried.
+- **Reserved concurrency** carves a fixed slice out of that shared pool for one function. It guarantees that function can always get that many environments, and also caps it there, which protects a fragile downstream database.
+- **Provisioned concurrency** keeps a number of environments initialized in advance so those requests skip the cold start; you pay for them while they are configured.
 
 Scale-down: Environments are kept warm for ~5-15 minutes after the last invocation, then destroyed.
 
@@ -1281,7 +1298,9 @@ Scale-down: Environments are kept warm for ~5-15 minutes after the last invocati
 
 **Q8: How do you handle database connections in Lambda?**
 
-Challenge: Each Lambda environment opens its own connection. With high concurrency, you can exhaust the database connection pool.
+Short answer: create the connection once per execution environment and reuse it, keep each environment's pool to about one connection, and put RDS Proxy in front of relational databases so a traffic spike cannot open more connections than the database allows.
+
+Challenge: Each Lambda environment is a separate process with its own connection. At 500 concurrent environments that is 500 connections, and relational databases like PostgreSQL and MySQL have a fixed maximum, so a spike can make the database refuse new connections for every client, not just Lambda.
 
 Solutions:
 1. **Initialize outside handler**: Reuse connections on warm invocations
@@ -1306,27 +1325,32 @@ async function getDb() {
 Layers are ZIP archives containing shared code (libraries, runtimes, config) that multiple Lambda functions can use. They're extracted to `/opt/` at runtime.
 
 Benefits:
-- Reduce deployment package size
-- Share code across functions (utilities, SDK clients)
-- Separate business logic from dependencies
-- Independent versioning
+- **Smaller uploads per deploy** — your function zip holds only your code, so deploys are faster and the code stays viewable in the console. Note the layer's size still counts toward the 250 MB unzipped limit; layers do not let you exceed it.
+- **Share code across functions** — one copy of common utilities or dependencies instead of one per function.
+- **Independent versioning** — each published layer version is immutable, and each function pins a specific version, so updating the layer never silently changes a function that has not opted in.
 
 Example: A layer with `sharp` (image processing) shared by 10 Lambda functions instead of packaging it 10 times.
+
+The trade-off to volunteer: a layer is a dependency your bundler and tests do not see, so version mismatches between a layer and the code using it only show up at runtime.
 
 ---
 
 **Q10: Explain Lambda destinations vs DLQ.**
 
-Both handle async invocation results, but destinations are more flexible:
+Short answer: both catch an **asynchronous** invocation that failed every retry, so the event is not silently lost. A dead-letter queue (DLQ) stores the original event, with only the error code and a truncated message attached. A destination sends a full invocation record (the event, the response or error, and why it was sent), can also fire on **success**, and supports more targets. Prefer destinations for new work.
 
 | Feature | DLQ | Destinations |
 |---------|-----|-------------|
 | Trigger | Failure only | Success AND/OR failure |
-| Targets | SQS, SNS | Lambda, SQS, SNS, EventBridge |
-| Info included | Error only | Full invocation record (request + response) |
-| Configuration | On the function | On the function |
+| Targets | Standard SQS queue, standard SNS topic | SQS, SNS, Lambda, EventBridge, and S3 (on failure only) |
+| Info included | The original event, plus error code and message as message attributes | Full invocation record: request payload, response payload, and the reason (for example `RetriesExhausted`) |
+| Configuration | Function level only (all versions share it) | Function, version or alias |
 
-Use destinations for new projects — they provide more context (the event that caused the failure + the error) and support success routing.
+Why the difference matters in practice: a DLQ message tells you *which* event failed and gives only the first 1 KB of the error message, so the full story means correlating the request ID with the logs. The destination record carries the full response and the retry count with it, which is what you want when someone has to reprocess the failures by hand.
+
+Two things interviewers probe:
+- **Neither applies to an SQS trigger.** When Lambda polls an SQS queue, the invocation is not asynchronous; failed messages go back to the queue and to the **queue's own** redrive DLQ, configured on the queue (see §11.3).
+- **Size limits still apply.** An SNS target caps messages at 256 KB, while an async payload can now be up to 1 MB, so a large event can fail to reach an SNS DLQ or destination. SQS or S3 is the safer target for big payloads.
 
 ---
 
@@ -1347,36 +1371,40 @@ Cognito → JWT Auth → API Gateway authorizer
 ```
 
 Key decisions:
-1. **HTTP API v2** over REST API (cheaper, faster)
-2. **One function per route** or **one function with router** (trade-off: isolation vs cold starts)
-3. **DynamoDB** for data (serverless, scales with Lambda)
-4. **SQS** for async work (email, notifications)
-5. **CloudFront** for caching and edge distribution
-6. **Cognito** for authentication
-7. **SAM/CDK** for infrastructure as code
+1. **HTTP API v2** over REST API — cheaper and lower latency; choose REST API only if you need its extras (response caching, API keys and usage plans, WAF).
+2. **One function per route** or **one function with router** — separate functions give each route its own permissions and scaling, one function means fewer cold starts because traffic keeps a single function warm.
+3. **DynamoDB** for data — it is accessed over HTTP with no connection limit, so it does not suffer the connection exhaustion described in Q8, and it scales on demand like Lambda.
+4. **SQS** for async work (email, notifications) — the API responds as soon as the message is queued instead of waiting on a slow third party, and failed sends retry from the queue.
+5. **CloudFront** (AWS's CDN, a network of edge caches) — serves cacheable responses close to users and keeps repeat reads from reaching Lambda at all.
+6. **Cognito** for authentication — API Gateway's JWT authorizer validates the token before your function runs, so unauthenticated requests never cost an invocation.
+7. **SAM/CDK** for infrastructure as code — the whole stack is reproducible from a repository instead of console clicks.
 
 ---
 
 **Q12: How do you handle idempotency in Lambda?**
 
-Lambda may invoke your function multiple times for the same event (retries, at-least-once delivery). You need idempotent handlers:
+Short answer: assume every event can arrive more than once, give each event a stable id, and record that id in a store with a conditional write so the second delivery sees "already done" and skips the work.
 
-1. **Idempotency key**: Use event-specific ID (SQS messageId, API request ID)
-2. **Conditional write**: Use DynamoDB `ConditionExpression: 'attribute_not_exists(id)'`
-3. **Idempotency table**: Store processed event IDs with TTL for automatic cleanup
-4. **Middy middleware**: Use `@middy/idempotency` with AWS Lambda Powertools
-5. **Database constraints**: Use unique constraints to prevent duplicate inserts
+Duplicates are normal, not a bug: async invocations retry on failure, and SQS and streams guarantee *at-least-once* delivery, so a charge-the-card handler that runs twice charges twice. The pieces:
+
+1. **Idempotency key**: an id that is the same on every delivery of one event (SQS `messageId`, or a client-supplied request id for APIs). A timestamp or a freshly generated UUID does not work, because it differs on each retry.
+2. **Conditional write**: DynamoDB `ConditionExpression: 'attribute_not_exists(id)'` makes "check if seen, then record it" a single atomic step, so two copies arriving at the same moment cannot both pass the check.
+3. **Idempotency table with a TTL** (an expiry time after which DynamoDB deletes the row automatically) keeps the table from growing forever; the TTL only needs to outlast the retry window.
+4. **Record the outcome, not just the id**: mark the key "in progress" before the work and "complete" after, deleting it on failure, so a crash mid-way lets the retry run instead of being skipped (the gap in the §15.2 example). AWS Lambda Powertools ships an idempotency utility that implements this, and it can be used as Middy middleware.
+5. **Database constraints**: a unique constraint on the business key (order id, payment id) is a last line of defence that holds even if the other layers have a bug.
 
 ---
 
 **Q13: What is the difference between Lambda@Edge and CloudFront Functions?**
 
+Short answer: both run your code on CloudFront requests. CloudFront Functions are tiny, very cheap JavaScript functions that run at every edge location and can only inspect and change request or response metadata (URL, headers, cookies), with no network access and a sub-millisecond budget. Lambda@Edge is a real Lambda function (Node.js or Python): slower and pricier per request, but it can call other services, read the request body and run for seconds.
+
 | Feature | Lambda@Edge | CloudFront Functions |
 |---------|------------|---------------------|
 | Runtime | Node.js, Python | JavaScript only |
 | Execution | Regional (nearest region) | Edge (all PoPs) |
-| Duration | Up to 30s (origin), 5s (viewer) | Sub-millisecond |
-| Memory | Up to 10 GB | 2 MB |
+| Duration | Up to 30s (viewer and origin events) | Sub-millisecond |
+| Memory | 128 MB (viewer events), up to 10 GB (origin events) | 2 MB |
 | Network | Yes | No |
 | Use case | Complex origin logic, A/B testing, auth | URL rewrites, header manipulation, redirects |
 | Cost | Higher | ~1/6 of Lambda@Edge |
@@ -1449,6 +1477,8 @@ Use when:
 ---
 
 **Q16: How would you optimize Lambda cost?**
+
+Short answer: the bill is requests × price plus memory × duration, so cut the duration (faster code, right-sized memory, Arm), cut the number of invocations (batching, caching), and stop paying for idle capacity (provisioned concurrency only where latency demands it).
 
 1. **Right-size memory**: Use AWS Lambda Power Tuning to find optimal memory (more memory = more CPU = faster = sometimes cheaper)
 2. **Minimize duration**: Optimize code, use connection reuse, parallel API calls

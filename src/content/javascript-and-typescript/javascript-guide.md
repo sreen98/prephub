@@ -23,14 +23,528 @@
 
 ## 1. What is JavaScript?
 
-JavaScript is a **single-threaded**, **dynamically typed**, **interpreted** (JIT-compiled) programming language. It's the language of the web — runs in browsers and on servers (Node.js).
+JavaScript is a **single-threaded**, **dynamically typed**, **JIT-compiled** programming language. It's the language of the web: it runs in browsers, and on servers through Node.js.
 
 Key characteristics:
-- **Single-threaded** — one call stack, one thing at a time
-- **Non-blocking** — async operations via event loop
-- **Prototype-based** — objects inherit from other objects (not classes)
-- **First-class functions** — functions are values, can be passed around
-- **Multi-paradigm** — supports OOP, functional, and event-driven programming
+- **Single-threaded**: one call stack, so one piece of your code runs at a time (§1.4)
+- **Non-blocking**: slow work such as network requests is handed off, and your code carries on (§1.5), with results delivered by the event loop (§1.6)
+- **Prototype-based**: objects inherit from other objects, not from classes (§6)
+- **First-class functions**: functions are values that can be stored and passed around (§1.3)
+- **Multi-paradigm**: supports object-oriented, functional and event-driven programming
+
+The subsections below are how JavaScript actually runs your code, in the order the pieces fit together: the engine that runs it (§1.1), what happens when a function is called (§1.2), what a function actually is (§1.3), why there is one thread (§1.4), how that one thread avoids waiting (§1.5), the loop that ties it together (§1.6), how to get a second thread when you need one (§1.7), and why the language ended up everywhere (§1.8).
+
+### 1.1 The Engine and the Runtime — What Happens When Your Code Runs
+
+An **engine** reads your code, turns it into instructions, runs them, and speeds up the parts that run often. The **browser (or Node)** around the engine supplies everything that is not the language itself: timers, network requests, the page.
+
+**Two pieces, and people mix them up.**
+
+| Piece | What it is | Examples | What it gives you |
+|---|---|---|---|
+| **Engine** | the program that understands JavaScript | V8 (Chrome, Edge, Node), SpiderMonkey (Firefox), JavaScriptCore (Safari) | variables, functions, objects, promises, the call stack, the memory heap |
+| **Runtime** (the host) | the program the engine lives inside | the browser, Node.js | `setTimeout`, `fetch`, `document`, `console`, `fs`, the event loop |
+
+`setTimeout` is **not part of the JavaScript language**. The browser provides it, and Node provides its own version. That is why the same code can have a `document` in the browser and not in Node: same engine, different host.
+
+**What the engine does with your file, step by step:**
+
+1. **Parse.** It reads the text and builds a tree that describes the code, called an **AST** (abstract syntax tree). If there is a syntax error *anywhere*, it stops here and **not one line runs**, not even the lines above the mistake.
+2. **Interpret.** It turns the tree into **bytecode**, a compact list of simple instructions, and starts running it straight away. In V8 this part is called *Ignition*.
+3. **Optimise the hot parts.** While running, it watches which functions are called a lot and what types they receive. Those "hot" functions get compiled into fast machine code. This is **JIT compilation** (just-in-time: compiled while the program runs, not ahead of time). V8's optimising compilers are called *Maglev* and *TurboFan*.
+4. **Undo when a guess is wrong.** The fast code is built on assumptions, like "this function always gets numbers". If it suddenly gets a string, the engine throws the fast code away and goes back to bytecode. This is called **deoptimisation**.
+
+You can see step 1 happen: the first line of this code is never run, because the whole snippet fails to parse first.
+
+```js
+const source = "console.log('line 1 ran'); let x = ;";
+
+try {
+  new Function(source);   // parse the code, but do not run it
+} catch (err) {
+  console.log(err.name);
+}
+console.log('line 1 never printed');
+```
+
+```text
+SyntaxError
+line 1 never printed
+```
+
+**Where things are kept while it runs.** A simple model that answers most interview questions:
+
+- The **call stack** tracks *which function is running right now* and what called it (§1.2).
+- The **heap** is a large area of memory where objects, arrays and functions live. Your variables hold **references** to them, like an address, not the objects themselves.
+- The **garbage collector** frees heap objects that nothing can reach any more (interview Q19).
+
+(Real engines are cleverer than "primitives on the stack, objects on the heap". For example, a variable captured by a closure lives on the heap. The model is still the right one for reasoning about code.)
+
+**The practical takeaway interviewers like:** the optimiser rewards *predictable* code. A function that always receives the same types, and objects that are always created with the same properties in the same order, stay on the fast path. Code that mixes types in one hot function keeps getting deoptimised. This only matters in genuinely hot code; for everything else, write for readability.
+
+---
+
+### 1.2 Execution Context and the Call Stack
+
+Each time a function is called, the engine creates an **execution context**: a small record holding that call's local variables, its `this`, and a link to the scope outside it. The contexts are kept on the **call stack**. A call puts one on top; a return takes it off. Only the top one is running.
+
+Think of a stack of plates. Calling a function puts a plate on top. The function on the top plate is the only one running. When it returns, its plate is removed and the one underneath carries on from where it stopped.
+
+```js
+function third() {
+  console.log('3. in third: the stack is global > first > second > third');
+}
+function second() {
+  console.log('2. in second');
+  third();
+  console.log('4. back in second, because third was taken off the stack');
+}
+function first() {
+  console.log('1. in first');
+  second();
+  console.log('5. back in first');
+}
+
+first();
+console.log('6. back in the global context');
+```
+
+```text
+1. in first
+2. in second
+3. in third: the stack is global > first > second > third
+4. back in second, because third was taken off the stack
+5. back in first
+6. back in the global context
+```
+
+**Every context is set up in two phases, and this is what "hoisting" really is.**
+
+1. **Creation phase.** Before any line runs, the engine scans the code and makes room for every variable and function it declares.
+   - A **function declaration** is stored complete, so it can be called before the line where it is written.
+   - A **`var`** is created and set to `undefined`.
+   - A **`let` or `const`** is created but marked "not ready". Touching it before its line throws a `ReferenceError`. That gap is the *temporal dead zone* (interview Q11).
+2. **Execution phase.** The code then runs top to bottom, filling in values as it reaches each line.
+
+```js
+console.log(typeof greet);   // the function exists already
+console.log(count);          // the var exists, but is still empty
+
+try {
+  console.log(total);        // the let exists, but is not ready yet
+} catch (err) {
+  console.log(err.name);
+}
+
+function greet() {}
+var count = 1;
+let total = 2;
+```
+
+```text
+function
+undefined
+ReferenceError
+```
+
+Nothing was physically moved to the top of the file. "Hoisting" is just the name for the creation phase having set these up before the first line ran.
+
+**The stack has a size limit.** Recursion with no stopping point keeps adding plates until the engine refuses:
+
+```js
+let depth = 0;
+function dive() {
+  depth++;
+  dive();          // no base case, so this never stops by itself
+}
+
+try {
+  dive();
+} catch (err) {
+  console.log(err.name, depth > 1000);
+}
+```
+
+```text
+RangeError true
+```
+
+The message is "Maximum call stack size exceeded", which is a **stack overflow**. The exact limit depends on the engine and on how much each call stores: about 10,000 calls in Node, and it varies between browsers.
+
+**Why the call stack matters for async code:** a callback from `setTimeout` or a promise can only run when the stack is **empty**, meaning every function currently running has returned. That rule is the heart of the event loop (§1.6).
+
+---
+
+### 1.3 Function References — Functions Are Values
+
+In JavaScript a function is a **value**, an object like any other. Its name is just a variable that holds a reference to it. `fn` means "the function itself", and `fn()` means "run it now and give me what it returns".
+
+A recipe and a dish are a good picture: `fn` is the recipe card, which you can copy, hand to someone, or store for later. `fn()` is cooking it, and what you get back is the dish.
+
+```js
+function sayHi() {
+  return 'hi';
+}
+
+const alias = sayHi;              // no (): copy the reference, do not run it
+console.log(alias === sayHi);     // the same function object
+console.log(alias());
+console.log(typeof sayHi, typeof sayHi());
+
+sayHi.calls = 0;                  // a function is an object, so it can hold properties
+console.log(alias.calls);         // alias sees it: there is only one object
+
+const lookalike = function sayHi() { return 'hi'; };
+console.log(lookalike === sayHi); // same code, different object
+
+let handler = () => 'old';
+const saved = handler;            // saved holds the old function
+handler = () => 'new';            // handler now points somewhere else
+console.log(saved());
+```
+
+```text
+true
+hi
+function string
+0
+false
+old
+```
+
+The last line is the one people get wrong. `saved = handler` copied the **reference** at that moment. Pointing `handler` at a new function later does not change what `saved` already holds.
+
+**Three bugs that all come from mixing up `fn` and `fn()`, or from references not matching.**
+
+**1. Calling a function when you meant to pass it.** `setTimeout(save(), 1000)` runs `save` **immediately** and passes its *return value* to `setTimeout`. Pass the function (`setTimeout(save, 1000)`), or wrap it when it needs arguments (`setTimeout(() => save(id), 1000)`). The same mistake in React is `onClick={handleClick()}`, which runs on every render instead of on click.
+
+**2. Removing a listener with a different function.** `removeEventListener` only removes a listener if you give it the **same reference** you added. An arrow written out again is a new function, so nothing matches.
+
+```js
+const button = new EventTarget();
+let clicks = 0;
+
+button.addEventListener('click', () => clicks++);
+button.removeEventListener('click', () => clicks++);   // a NEW function: nothing matches
+button.dispatchEvent(new Event('click'));
+console.log('after removing a lookalike:', clicks);    // still listening
+
+const onClick = () => clicks++;
+const other = new EventTarget();
+other.addEventListener('click', onClick);
+other.removeEventListener('click', onClick);           // the SAME reference: removed
+other.dispatchEvent(new Event('click'));
+console.log('after removing the reference:', clicks);  // no change
+```
+
+```text
+after removing a lookalike: 1
+after removing the reference: 1
+```
+
+This is how listener memory leaks start (interview Q15): a component adds an inline arrow, tries to remove it on cleanup, and the original stays attached forever.
+
+**3. Passing a method loses its object.** `user.greet` is a reference to the function only. The object it came from is not attached to it, so when it is called on its own, `this` is not `user`.
+
+```js
+'use strict';
+
+const user = {
+  name: 'Asha',
+  greet() {
+    return this === undefined ? 'this is undefined' : 'Hi, ' + this.name;
+  },
+};
+
+console.log(user.greet());           // called ON user, so this = user
+const detached = user.greet;         // just the function
+console.log(detached());             // called on nothing
+const bound = user.greet.bind(user); // a new function with this fixed to user
+console.log(bound());
+```
+
+```text
+Hi, Asha
+this is undefined
+Hi, Asha
+```
+
+This is exactly what happens with `setTimeout(user.greet, 0)` or `button.addEventListener('click', this.handleClick)`: the function travels without its object. Fix it with `bind`, or wrap it in an arrow (`() => user.greet()`). Without `'use strict'`, `this` would be the global object instead, which is worse because nothing throws (interview Q8 covers `call`, `apply` and `bind`).
+
+**Why this matters in React:** a function created inside a component is a **new reference on every render**. A `memo` child compares props by reference, so it sees a "new" `onClick` each time and re-renders. `useCallback` exists to keep the same reference between renders (React Q17).
+
+---
+
+### 1.4 Why Is JavaScript Called Single-Threaded?
+
+**Your JavaScript code runs on one thread, with one call stack, so exactly one piece of it runs at any moment.** Two of your functions can never run at the same instant, and a function is never interrupted halfway through by another one of yours.
+
+A thread is one line of work a computer can carry out. A program with several threads can do several things at literally the same time, one per CPU core. Java, C# and Go let your own code start threads freely. JavaScript, by default, gives your code exactly one: in the browser it is called the **main thread**.
+
+**Why it was designed this way.** JavaScript was created in 1995 to make web pages interactive, and the page is the thing every script touches. If two threads could change the same button at the same time, every line of UI code would need locks to stop them corrupting each other, which is where most multithreading bugs come from. With one thread, a function can read the page, decide and update it, knowing nothing else changes underneath it. That guarantee is also why the async code in §8 is much easier to reason about than threaded code.
+
+**What "single-threaded" does NOT mean.** It describes *your code*, not the browser or Node. Around your one thread, the host is busy in parallel:
+
+| Running in parallel, outside your thread | Examples |
+|---|---|
+| Network requests | `fetch` downloads while your code keeps running |
+| Timers | the host counts down `setTimeout` for you |
+| Parts of rendering | image decoding, scrolling and some animations on the compositor |
+| Node's I/O | reading files, DNS lookups and some crypto run on a hidden thread pool (libuv's, 4 threads by default) |
+| Workers | real extra JavaScript threads you start yourself (§1.7) |
+
+So JavaScript can wait for many things at once. It just can't *run your code* for more than one of them at once.
+
+**The cost of one thread: a long task blocks everything.** The main thread also handles clicks, typing and painting the page. While one of your functions runs, none of those can happen. Here a timer is due after 0 ms, but it cannot run until the loop gives the thread back:
+
+```js
+const start = Date.now();
+
+setTimeout(() => {
+  console.log('timer ran after', Date.now() - start >= 300 ? '300 ms or more' : 'less than 300 ms');
+}, 0);
+
+while (Date.now() - start < 300) {}   // 300 ms of work on the only thread
+console.log('loop finished');
+```
+
+```text
+loop finished
+timer ran after 300 ms or more
+```
+
+In a real page, a click during those 300 ms would also wait, and the screen would not update. Browsers flag any task over **50 ms** as a "long task", because that is roughly where people start to notice lag. The fixes are to split the work into smaller pieces that give the thread back in between (tricky Q17 shows how), or to move it to a worker (§1.7).
+
+---
+
+### 1.5 Why Is JavaScript Non-Blocking?
+
+**When your code asks for something slow, such as a network request, a timer or a file, JavaScript does not stop and wait for it.** It hands the job to the host (the browser or Node), carries on with the next line, and runs your callback later, when the result is ready. Waiting happens *outside* your thread, so the thread stays free.
+
+"Blocking" means the thread sits idle until an operation finishes. With only one thread, a blocking network call would freeze the whole page for as long as the server took to answer. So JavaScript's APIs for slow operations are built the other way round: you start the operation and say what to do with the result, and the call returns immediately.
+
+A restaurant with one waiter is a good picture. The waiter takes your order to the kitchen and goes straight to the next table, instead of standing at the kitchen door until your food is ready. When it is ready, the kitchen rings a bell, and the waiter brings it over as soon as they are free.
+
+```js
+console.log('1. order coffee');
+setTimeout(() => console.log('3. coffee is ready'), 0);   // handed off; it waits in the queue
+console.log('2. find a seat');
+```
+
+```text
+1. order coffee
+2. find a seat
+3. coffee is ready
+```
+
+Even with a delay of 0, line 3 prints last. `setTimeout` hands the job to the host and returns at once. The callback can only run once the code that is running now has finished and the call stack is empty.
+
+**How you receive the result** has changed over the years, but the idea is the same: callbacks, then promises, then `async`/`await` (§8). `await` *looks* like waiting, but it only pauses that one `async` function. The thread is released and other code runs in the meantime.
+
+```text
+// Node.js, the same job both ways
+const data = fs.readFileSync('big.csv');                 // BLOCKING: the thread waits; nothing else runs
+fs.readFile('big.csv', (err, data) => { /* later */ });  // NON-BLOCKING: returns at once; the callback runs later
+const data2 = await fs.promises.readFile('big.csv');     // non-blocking, written to look sequential
+```
+
+This is why one Node.js process can serve thousands of connections: while it waits for one database query, it handles other requests, instead of needing one thread per connection.
+
+**Non-blocking is about WAITING, not about computing.** The host can wait for a network or disk in parallel, but only your one thread can run your JavaScript. A loop that crunches numbers for two seconds still blocks, however you wrap it: putting it in a promise or an `async` function changes *when* it runs, not *where* (§1.4's demo, and tricky Q17). A few APIs really are blocking and should be avoided on the main thread: `alert()`, `confirm()`, synchronous `XMLHttpRequest`, and Node's `*Sync` functions inside a server.
+
+---
+
+### 1.6 What Is the Event Loop?
+
+**The event loop is how "later" gets turned back into "now".** When a timer fires or a response arrives, the host does not interrupt your code. It puts your callback in a **queue**, a waiting line. The event loop is a simple loop that waits until the call stack is empty (nothing of yours is running), then takes the next callback from the queue and runs it. Then it does the same again, forever.
+
+In rough code, one turn of the loop in a browser looks like this:
+
+```text
+while (the page is open) {
+  1. take ONE task from the task queue and run it to the end
+       (a timer callback, a click handler, a message from a worker ...)
+  2. run EVERY microtask in the microtask queue, including ones added meanwhile
+       (promise .then callbacks, the code after an await, queueMicrotask)
+  3. if it is time for a new frame, update the screen
+       (requestAnimationFrame callbacks, then style, layout and paint)
+}
+```
+
+There are **two queues**, and that is the detail interviewers ask about:
+
+| Queue | What goes in it | How much runs per turn |
+|---|---|---|
+| **Task queue** (also called the macrotask queue) | `setTimeout`, `setInterval`, UI events, network callbacks, `postMessage` | **one** task |
+| **Microtask queue** | promise callbacks, code after `await`, `queueMicrotask`, `MutationObserver` | **all** of them, until it is empty |
+
+So promise callbacks always run before the next timer, even a timer with a delay of 0:
+
+```js
+console.log('1. synchronous');
+setTimeout(() => console.log('4. timer (a task)'), 0);
+Promise.resolve().then(() => console.log('3. promise callback (a microtask)'));
+console.log('2. still synchronous');
+```
+
+```text
+1. synchronous
+2. still synchronous
+3. promise callback (a microtask)
+4. timer (a task)
+```
+
+Lines 1 and 2 are the code that is already running. Only when it ends is the stack empty. Then step 2 of the loop runs every microtask (line 3), and only then does the next turn take the timer task (line 4).
+
+**Three consequences worth remembering:**
+
+- **Nothing interrupts a running function.** A timer or click waits until the stack is empty (§1.4's demo). That is what makes JavaScript safe to reason about, and why long functions freeze the page.
+- **The screen only updates between tasks.** If you change the DOM ten times in one function, the browser paints once, at the end. If a task never ends, it never paints.
+- **Microtasks can starve the page.** Because the microtask queue is drained completely, a chain of promises that keeps queueing more promises delays rendering and every timer until it stops (tricky Q17).
+
+Node.js has an event loop too, run by its libuv library, with a few extra queues: `process.nextTick` callbacks go before promise microtasks, and `setImmediate` runs in its own phase after I/O. §11 has the reference diagram, interview Q6 goes deeper, and tricky Q7 to Q11 are ordering puzzles to practise on.
+
+---
+
+### 1.7 Web Workers and Worker Threads — Real Parallelism
+
+A worker is a **second JavaScript thread**. It has its own call stack, its own memory and its own event loop, so heavy work can run there without freezing the page. It cannot touch the page, and it talks to the main thread only by sending messages.
+
+**Why you need one.** In the browser, your JavaScript runs on the **main thread**, and that same thread also handles clicks, scrolling and painting the screen. If a function takes 2 seconds, the page is frozen for 2 seconds: no clicks, no scrolling, no animation. Promises do not help here, because a promise changes *when* code runs, not *where* (tricky Q17). A worker is the only way to run JavaScript somewhere else.
+
+Picture a helper working in another room. You pass them a note with the job, they get on with it while you keep serving customers, and they pass a note back with the answer. They cannot reach into your room, and you cannot reach into theirs.
+
+| Ability | Main thread | Worker |
+|---|---|---|
+| Can use the DOM (`document`, elements) | yes | **no** |
+| Has `window` | yes | no (it has `self`) |
+| Can use `fetch`, timers, `IndexedDB` | yes | yes |
+| Shares variables with the other thread | no | no |
+| How they talk | `postMessage` and a `message` event | same |
+
+**The basic shape** (two files, so it is shown as text rather than as a runnable block):
+
+```text
+// main.js
+const worker = new Worker('worker.js');
+
+worker.onmessage = (event) => {
+  console.log('result from worker:', event.data);
+};
+
+worker.postMessage({ numbers: [1, 2, 3, 4] });   // send the job
+// the page stays responsive while the worker is busy
+
+// worker.js
+self.onmessage = (event) => {
+  const total = event.data.numbers.reduce((sum, n) => sum + n, 0);
+  self.postMessage(total);                        // send the answer back
+};
+```
+
+**Messages are copied, not shared.** `postMessage` copies the data with the same algorithm as `structuredClone` (tricky Q24). That is safe, since neither side can change the other's data, but copying a very large array takes time on the main thread. For big binary data, **transfer** it instead: `worker.postMessage(buffer, [buffer])` hands over ownership with no copy, and the sender's buffer becomes empty (Browser APIs tricky Q7). True shared memory exists (`SharedArrayBuffer` with `Atomics`), but browsers only allow it on pages sent with special security headers (cross-origin isolation), and it brings back all the usual threading bugs.
+
+**How a worker works, step by step.** It helps to picture two separate JavaScript "worlds", each with its own event loop (§1.6), connected only by a message channel:
+
+```text
+MAIN THREAD                                        WORKER THREAD
+───────────                                        ─────────────
+1. new Worker('worker.js')  ──── starts ────▶      a new thread loads worker.js and runs its
+                                                   top level: its own global (self), heap,
+                                                   call stack and event loop. No document.
+
+2. worker.postMessage(job)  ── copy of job ──▶     the copy arrives as a "message" TASK in the
+   (returns immediately;                           worker's task queue; its event loop runs
+    the page stays usable)                         self.onmessage when its stack is empty
+
+                                                   3. the heavy work runs HERE, blocking only
+                                                      the worker's thread
+
+4. worker.onmessage runs    ◀── copy of result ──  self.postMessage(result)
+   as a TASK on the main
+   thread's event loop
+
+5. worker.terminate()  (or self.close() from inside) ends the thread and frees its memory
+```
+
+Each step in words:
+
+1. **Creating it** starts a real operating-system thread. The browser loads the script separately, so it must be its own file (or a Blob URL), and it runs in a fresh global scope: none of the main thread's variables exist there.
+2. **Sending a message** makes a copy of the data (the *structured clone* algorithm, the same one `structuredClone` uses) and queues it on the other side. The two threads never share an object, which is why there are no locks and no race conditions to worry about.
+3. **The work** blocks only the worker. The main thread keeps handling clicks and painting.
+4. **The reply** is another copied message, delivered as a task, so your `onmessage` handler runs between other tasks like any event.
+5. **Ending it**: a worker keeps its thread (and its memory) until you stop it. Terminate workers you no longer need, or reuse one for many jobs rather than starting a new one each time, because starting a thread takes a few milliseconds.
+
+**When to use a worker:** CPU-heavy work that takes more than roughly 50 ms, which is where users start to feel lag. Parsing or searching a big file, image and video processing, compression, encryption, heavy data transforms, syntax highlighting a large document.
+
+**When a worker does NOT help:**
+
+- **Network requests.** `fetch` already happens outside your thread. Waiting for a slow API in a worker is no faster.
+- **Updating the page.** The worker cannot touch the DOM, so it can only send results back for the main thread to render.
+- **Small jobs.** Starting a worker and copying data costs time. For a 5 ms task, that overhead is bigger than the work.
+
+**The kinds of worker, which interviewers like to mix up:**
+
+| Kind | What it is for |
+|---|---|
+| **Dedicated Web Worker** | background computation for one page. This is the usual answer |
+| **Shared Worker** | one worker shared by several tabs of the same site |
+| **Service Worker** | a network proxy for offline support, caching and push notifications, *not* for heavy computation (Browser APIs Q11) |
+| **Node `worker_threads`** | the same idea on the server: CPU work off the main thread so the server keeps answering requests (Node.js Q12) |
+
+A Node version of the same idea, for comparison:
+
+```text
+// Node: a worker defined in the same file
+const { Worker, isMainThread, parentPort, workerData } = require('node:worker_threads');
+
+if (isMainThread) {
+  const worker = new Worker(__filename, { workerData: 40 });
+  worker.on('message', (result) => console.log('fib(40) =', result));
+} else {
+  const fib = (n) => (n < 2 ? n : fib(n - 1) + fib(n - 2));
+  parentPort.postMessage(fib(workerData));   // slow, but it does not block the main thread
+}
+```
+
+**A real example you have already used:** this app's Code Playground runs plain JavaScript inside a Web Worker. If your code gets stuck in `while (true) {}`, only the worker is stuck, so the page stays usable, and after 3 seconds the playground calls `worker.terminate()` to stop it. On the main thread, the same loop would freeze the whole tab and nothing could stop it.
+
+---
+
+### 1.8 Why JavaScript Is Everywhere
+
+**Short answer:** JavaScript is the **only programming language every web browser runs natively**. Anyone who builds for the web has to know it, so it has the largest pool of developers of any language. Node.js then took it to servers, and the same people could build the whole product in one language. After that, the ecosystem, the tools and the jobs kept feeding each other. In Stack Overflow's 2025 developer survey it was again the most-used language, by **66%** of respondents, a position it has held for well over a decade.
+
+**Why the browser matters so much.** A website is delivered as HTML, CSS and JavaScript, and every browser on every device ships a JavaScript engine. There is no other language you can send to a browser and expect to run everywhere without a plugin. (WebAssembly lets compiled languages run in browsers too, but it cannot touch the page directly: it still needs JavaScript to reach the DOM.) So JavaScript did not win a contest between languages. It was the only entrant.
+
+**How it got here, briefly:**
+
+| When | What happened | Why it mattered |
+|---|---|---|
+| 1995 | Brendan Eich writes the first version at Netscape in about ten days; it is renamed JavaScript to ride on Java's popularity | the two languages are unrelated apart from the name and some syntax |
+| 1997 | standardised as **ECMAScript** (ECMA-262), so every browser could implement the same language | one language across browsers, instead of one per vendor |
+| 2004–2005 | Gmail and Google Maps show that a web page can feel like an app; the technique gets a name, **Ajax** | JavaScript goes from "form validation" to "the whole user interface" |
+| 2008 | Google's **V8** engine in Chrome compiles JavaScript to machine code (§1.1) | JavaScript becomes fast enough for serious work |
+| 2009–2010 | **Node.js** runs V8 outside the browser; **npm** follows | the same language on the server, and a way to share code |
+| 2015 | **ES2015** (ES6): classes, modules, arrow functions, promises, `let`/`const` | the language finally feels modern, and gets a new version every year from then on |
+| 2012 onwards | **TypeScript** adds static types on top | large codebases become manageable, removing the biggest objection |
+
+**Why developers and companies keep choosing it:**
+
+- **One language across the whole stack.** Browser, server (Node.js, Deno, Bun), mobile (React Native), desktop (Electron, the base of VS Code, Slack and Discord) and edge functions all run JavaScript. A small team can share code, types and people across all of them.
+- **The largest package ecosystem.** npm is the biggest software registry in the world, with millions of packages, so almost any problem has a library already.
+- **Nothing to install to start.** Every browser has a console and a JavaScript engine. A beginner can write their first program in the browser they already use, which is a big reason so many people learn it first.
+- **It never breaks old websites.** Browsers keep code from the 1990s working ("don't break the web"). That makes the language slow to fix old mistakes, but it means what you write keeps running.
+- **It keeps improving, predictably.** A committee called TC39 adds a small set of features every year (Q36), rather than big disruptive rewrites.
+- **It is fast enough.** JIT-compiling engines (§1.1) make typical JavaScript fast for web servers and UIs, and its non-blocking model (§1.5) suits programs that spend most of their time waiting on the network.
+- **Jobs and hiring.** Because the web needs it, there are more JavaScript and TypeScript jobs than for almost any other language, and companies can hire for it easily. Popularity feeds itself.
+
+**The honest downsides**, which a good answer mentions too:
+
+- **Quirks from 1995 that can never be removed**, such as `==` coercion, `typeof null === 'object'` and `this` depending on how a function is called. Linters and `===` work around most of them.
+- **Dynamic typing hurts large codebases.** A renamed property breaks code at runtime, not at build time. This is the main reason TypeScript is now the default for serious projects (Q38).
+- **One thread for your code** (§1.4). CPU-heavy work, such as video encoding or number crunching, needs workers or another language.
+- **Ecosystem churn and supply-chain risk.** Frameworks and tools change often, and a typical project pulls in hundreds of third-party packages, each one a security risk (the Web Security guide covers supply-chain attacks).
 
 ---
 
@@ -38,7 +552,7 @@ Key characteristics:
 
 ### 2.1 Primitive Types (7)
 
-Primitives are the most basic data types in JavaScript. They are immutable (cannot be changed in place) and stored by value, meaning assigning one variable to another copies the value rather than creating a shared reference.
+**A primitive is a single, immutable value; everything else is an object.** Immutable means no operation can change a primitive in place: `str.toUpperCase()` returns a new string and leaves `str` alone. That is why primitives behave as if they are copied: after `let b = a`, changing `b` can never affect `a`, because the only way to "change" `b` is to point it at a different value. There are exactly seven primitive types:
 
 ```js
 // 1. String
@@ -71,7 +585,7 @@ console.log(id === id2);                 // false (always unique)
 
 ### 2.2 Reference Types
 
-Reference types (objects, arrays, functions) are stored by reference, meaning variables hold a pointer to the data in memory rather than the data itself. This means multiple variables can point to the same object, and mutations through one reference are visible through all of them.
+**A variable holding an object holds a reference to it, not a copy of it.** Arrays, functions, dates, maps and sets are all objects. So `const b = a` gives you two names for one object, and `b.name = 'Bob'` is visible through `a` too. It is also why `{} === {}` is `false`: `===` on objects compares identity (is it the same object?), not contents. This one fact explains most "why did my original change?" bugs, including shallow copies with spread (tricky Q20).
 
 ```js
 // Object
@@ -88,7 +602,7 @@ const greet = function() { return 'hi'; };
 
 ### 2.3 typeof Quirks
 
-The `typeof` operator returns a string indicating the type of a value, but it has several well-known quirks that interviewers love to ask about. Understanding these edge cases helps you avoid subtle bugs in type-checking code.
+`typeof` returns a string naming a value's type. It gets two cases wrong, and both break real type checks. `typeof null` is `'object'` because of a bug in the very first implementation that can never be fixed without breaking existing pages, so check for null with `value === null`. And an array is an object, so `typeof []` is `'object'` too; use `Array.isArray(value)` to tell arrays apart.
 
 ```js
 typeof 'hello'       // 'string'
@@ -105,7 +619,7 @@ typeof 42n           // 'bigint'
 
 ### 2.4 Type Coercion
 
-JavaScript automatically converts values between types (implicit coercion) when operators or comparisons expect a different type. Knowing the coercion rules -- especially the difference between `==` (loose, coerces) and `===` (strict, no coercion) -- is essential for avoiding bugs and answering interview questions.
+When an operator gets a type it did not expect, JavaScript silently converts the value instead of throwing. This is called implicit coercion. The rules below explain most surprises: `+` prefers strings, so if either side is a string it joins them (`'5' + 3` is `'53'`); the other arithmetic operators only work on numbers, so they convert both sides to numbers (`'5' - 3` is `2`). `==` (loose equality) also converts before comparing, while `===` (strict equality) never does, which is why `===` is the safe default.
 
 ```js
 // Implicit coercion (avoid in production code)
@@ -160,7 +674,7 @@ obj.age = 30;          // OK
 
 ### 3.2 Hoisting
 
-Hoisting is JavaScript's behavior of moving declarations to the top of their scope during compilation. `var` declarations are hoisted and initialized to `undefined`, while `let`/`const` are hoisted but remain in a "Temporal Dead Zone" until their declaration is reached, causing a `ReferenceError` if accessed early.
+Hoisting is the name for why some variables and functions can be used before the line that declares them. Nothing is physically moved: before a scope runs, the engine sets up every declaration in it (the creation phase in §1.2). A function declaration is set up complete, so you can call it early. A `var` is set up as `undefined`, so reading it early gives `undefined` instead of an error. A `let`/`const` is set up but marked "not ready" until its line runs, and reading it before then throws a `ReferenceError`. That not-ready gap is the Temporal Dead Zone (TDZ, interview Q11).
 
 ```js
 // var is hoisted (declaration, not value)
@@ -207,7 +721,7 @@ const factorial = function fact(n) {
 
 ### 4.2 Arrow Functions
 
-Arrow functions provide a concise syntax for writing functions and have key behavioral differences from regular functions: they do not have their own `this`, `arguments`, or `prototype`, and they cannot be used as constructors. Their lexical `this` binding makes them ideal for callbacks and methods that need to preserve the surrounding context.
+Arrow functions provide a concise syntax for writing functions and have key behavioral differences from regular functions: they do not have their own `this`, `arguments`, or `prototype`, and they cannot be used as constructors. Because an arrow takes `this` from the code around it, it is ideal for a callback *inside* a method, such as `setTimeout(() => this.save())`, where a normal function would lose `this`. For the same reason, do not write an object's method itself as an arrow: it would take `this` from outside the object, not the object (interview Q27).
 
 ```js
 // Full syntax
@@ -337,7 +851,7 @@ const obj2 = { ...obj1, b: 2 };     // { a: 1, b: 2 }
 
 ### 4.5 Higher-Order Functions
 
-Higher-order functions either take a function as an argument or return a function. They are a cornerstone of functional programming in JavaScript and power common patterns like `map`, `filter`, and `reduce`, enabling more declarative and composable code.
+A higher-order function either takes a function as an argument or returns one. This works because functions are values (§1.3). The point is separating *how* from *what*: `map` owns the loop, and you pass in only the part that changes, what to do with each item. Returning a function lets you fix some settings once and reuse the result, as `multiplier(2)` does below.
 
 ```js
 // A function that takes or returns another function
@@ -661,7 +1175,12 @@ The callback is not wrong; it is faithfully reporting the value from the render 
 
 ### 6.1 Object Creation
 
-JavaScript provides several ways to create objects: object literals for simple one-off objects, `Object.create` for setting the prototype directly, constructor functions for the classic pattern, and ES6 classes as syntactic sugar. Knowing each approach and its trade-offs is important for interviews.
+There are four ways to create an object, and the difference between them is how the object gets its shared methods:
+
+- **Object literal** for a one-off object. Its methods live on that object only.
+- **`Object.create(proto)`** when you want to choose the prototype yourself, or `Object.create(null)` for an object with no prototype at all.
+- **Constructor function + `new`**, the pre-2015 way to make many objects of one kind. Methods go on `User.prototype`, so every instance shares one copy instead of carrying its own.
+- **`class`**, which does exactly what the constructor-function version does, with clearer syntax ("syntactic sugar"). This is what you write today when you need many instances.
 
 ```js
 // Object literal
@@ -919,7 +1438,7 @@ console.log([].reduce((a, b) => a + b, 0));          // 0  — safe
 
 ### 7.2 Array Methods (Mutating)
 
-Mutating methods modify the array in place rather than returning a new one. Be cautious with these in functional or React code, where immutability is expected. Always know which methods mutate -- this is a common interview question.
+Mutating methods change the array in place rather than returning a new one. That matters in React and Redux: they detect a change by comparing references, and a mutated array is still the same reference, so `items.push(x); setItems(items)` looks like "nothing changed" and the screen does not update. Copy first (`[...items, x]`), or use the non-mutating versions in §7.1.
 
 ```js
 const arr = [1, 2, 3];
@@ -1138,7 +1657,7 @@ Promise.any([fetchA(), fetchB()])
 
 ### 8.3 Async/Await
 
-`async`/`await` is syntactic sugar over promises that lets you write asynchronous code in a synchronous-looking style. An `async` function always returns a promise, and `await` pauses execution until the awaited promise settles, making complex async flows much easier to read and debug.
+`async`/`await` is syntactic sugar over promises that lets you write asynchronous code in a synchronous-looking style. An `async` function always returns a promise, and `await` pauses *that function* until the awaited promise settles. The thread is not blocked: other code runs while the function waits, and it resumes later as a microtask (§8.4). The win is readability, since errors can be handled with an ordinary `try`/`catch`.
 
 ```js
 // async function always returns a promise
@@ -1170,7 +1689,7 @@ const config = await loadConfig();
 
 ### 8.4 Microtasks vs Macrotasks
 
-The event loop processes two types of queues: microtasks (promises, `queueMicrotask`) and macrotasks (`setTimeout`, `setInterval`, I/O). Microtasks always run before the next macrotask, which is why promise callbacks execute before `setTimeout` callbacks even with a 0ms delay.
+**Promise callbacks run before timers, even a timer with a 0 ms delay.** A *microtask* is a small job the engine runs as soon as the current code finishes (promise `.then` callbacks, the code after an `await`, `queueMicrotask`). A *macrotask* is a whole unit of work the event loop picks up one at a time (`setTimeout`, `setInterval`, I/O, UI events). After each macrotask the engine empties the microtask queue completely, so every pending promise callback gets in first. §1.6 explains the loop step by step and §11 has the diagram; this is the short version:
 
 ```js
 console.log('1');                           // synchronous
@@ -1221,7 +1740,7 @@ try {
 
 `.catch()` returning a value **converts a rejection into a resolution**. That's often what you want, but then the `try`/`catch` is dead code and the caller has to check for the sentinel. Pick one style per call site.
 
-**Where `.then()` is genuinely better** — the case worth knowing, because "always use await" is wrong:
+**Where awaiting each call in turn is wrong** — the case worth knowing, because putting `await` in front of every call runs independent work one after another:
 
 ```js
 // Sequential — 3 round trips, one after another
@@ -1241,7 +1760,7 @@ renderSkeleton();
 const user = await userPromise;
 ```
 
-Two more rules that come up:
+Three more rules that come up:
 
 - **`await` in a loop is sequential.** `for (const id of ids) await fetch(id)` makes N sequential requests. Use `Promise.all(ids.map(fetch))` for parallel, or a bounded pool if N is large enough to hammer the server.
 - **`.forEach` with an `async` callback doesn't wait.** `forEach` ignores the returned promise, so the loop finishes instantly and the work continues in the background. Use `for...of` with `await` (sequential) or `Promise.all(map(...))` (parallel). This one silently breaks ordering guarantees.
@@ -1288,7 +1807,7 @@ And three constraints that get asked:
 
 ### 8.7 Retrying, Cancelling and Bounding Async Work
 
-Three production patterns that come up as "implement this" questions.
+Three production patterns that come up as "implement this" questions: **retry** a call that failed for a temporary reason, **cancel** work nobody needs any more, and **bound** how many calls run at once. Each part ends with what the simple version still gets wrong, because that is where interviewers push.
 
 **Retry with exponential back-off and jitter:**
 
@@ -1520,8 +2039,7 @@ async function run() {
 
 **Reading it line by line:**
 
-- **`new AbortController()`** gives you two halves of one object: the **controller**, which you keep, and `controller.signal`, which you hand out. Only the holder of the controller can cancel; everyone else merely observes. That split is the whole design — it is why you can pass the signal to untrusted code without giving it the power to abort.
-- **`setTimeout(() => ctrl.abort(), 5000)`** is the timeout. `fetch` has no timeout option of its own, which surprises people — this is how you add one.
+- **`setTimeout(() => ctrl.abort(), 5000)`** is the timeout. `fetch` has no timeout option of its own, which surprises people — this is how you add one. If you swap in `AbortSignal.timeout(5000)` as the comment suggests, the rejection becomes a `TimeoutError` rather than an `AbortError`, so the `catch` below must check for that name too (see `handleFixed` above).
 - **`fetch(url, { signal })`** — passing the signal is what makes the request cancellable. Abort after this point rejects the fetch promise **and** tells the browser to tear down the connection, which is the part `Promise.race` cannot do.
 - **`err.name === 'AbortError'`** — an abort surfaces as a rejection, so it lands in the same `catch` as a genuine network failure. The name is the only thing distinguishing them. (The thrown value is a `DOMException`, so `instanceof Error` is true but the class is not `Error`.)
 - **`finally { clearTimeout(timeout) }`** — without this, a request that finishes in 50ms leaves a timer armed for another 4.95 seconds, and in Node that keeps the process alive. `finally` runs on success, failure and abort alike, which is exactly the guarantee you want for cleanup.
@@ -1544,7 +2062,7 @@ async function run() {
 - **Nothing tells the user.** Returning `null` on abort is fine for a timeout you expect; for a user-initiated cancel you usually want a distinct outcome so the UI can say "cancelled" rather than silently rendering nothing.
 - **An aborted request may still have reached the server.** Abort stops *you* listening; it does not undo a mutation the server already committed. That is the same idempotency point as the retry above.
 
-`AbortSignal.timeout(ms)` is the modern shorthand, and `AbortSignal.any([a, b])` combines signals — a user-initiated cancel *and* a timeout. The rule: **always distinguish an abort from a real error**, or a user navigating away logs as a failure and pollutes your error rate.
+The rule to take away: **always distinguish an abort (and a timeout) from a real error**, or a user navigating away logs as a failure and pollutes your error rate.
 
 **Bounded concurrency** — the "throttle promises" pattern.
 
@@ -1590,7 +2108,7 @@ async function pool(items, limit, worker) {
 
 **What it gives you, concretely.** With 8 items, a limit of 3 and workers that finish out of order, the peak number in flight is exactly 3 and the output is still in **input** order — `[10, 20, 30, 40, 50, 60, 70, 80]`, not completion order. Those two properties are the whole point: bounded load, unsurprising results.
 
-**Why not just chunk the array?** Splitting 1,000 items into 200 batches of 5 and awaiting each batch is simpler to write and measurably worse: every batch runs at the speed of its **slowest** member, and the other four workers sit idle waiting for it. A pool has no such barrier — a worker that finishes early immediately takes the next item. On uneven workloads that is often a large difference — nine items where every third one is slow takes **76 ms** through a pool of 3 and **182 ms** in fixed batches of 3, because each batch waits for its own straggler.
+**Why not just chunk the array?** Splitting 1,000 items into 200 batches of 5 and awaiting each batch is simpler to write and measurably worse: every batch runs at the speed of its **slowest** member, and the other four workers sit idle waiting for it. A pool has no such barrier — a worker that finishes early immediately takes the next item. On uneven workloads the difference is large. Take nine items where every group of three holds one 60 ms item and two 5 ms items: a pool of 3 finishes in about **76 ms**, while fixed batches of 3 take about **182 ms** — three batches, each waiting 60 ms for its own straggler.
 
 **What is still missing here:**
 
@@ -1606,7 +2124,7 @@ Also worth naming: `Promise.allSettled` when you want every result regardless of
 
 ### 9.1 Template Literals
 
-Template literals use backticks instead of quotes and support embedded expressions via `${...}`, multiline strings without escape characters, and tagged templates for custom string processing. They are the preferred way to build strings in modern JavaScript.
+Template literals use backticks instead of quotes. They let you drop any expression into a string with `${...}` and write a string across several lines without `\n`. A **tagged template** puts a function name in front of the backtick: the function receives the literal text pieces as an array and the `${}` values as separate arguments, and decides how to join them. That is how libraries escape values before inserting them into HTML or SQL.
 
 ```js
 const name = 'Alice';
@@ -1648,7 +2166,7 @@ const name = user.name ?? 'Anonymous';
 
 ### 9.3 Map, Set, WeakMap, WeakSet
 
-ES6 introduced these built-in collection types as alternatives to plain objects and arrays. `Map` allows any type as a key (not just strings), `Set` stores unique values, and their `Weak` variants hold weak references that allow garbage collection -- useful for caching and metadata without causing memory leaks.
+ES6 introduced these built-in collection types as alternatives to plain objects and arrays. `Map` allows any type as a key (a plain object turns every key into a string), and `Set` stores each value only once. The `Weak` versions exist for one job: attaching data to an object without keeping that object alive. A normal `Map` entry holds its key strongly, so an object used as a key can never be garbage collected while the map exists, which is a leak. A `WeakMap` entry does not count as a reference, so when nothing else points at the key object, the entry disappears with it. The price is that a `WeakMap` or `WeakSet` has no `size` and cannot be looped over, because its contents can vanish at any moment.
 
 ```js
 // Map - key-value pairs (any type as key)
@@ -1728,7 +2246,9 @@ async function* fetchPages(url) {
 
 ### 9.5 Proxy and Reflect
 
-`Proxy` lets you intercept and customize fundamental operations on objects (property access, assignment, function calls, etc.) by defining handler traps. This is the mechanism behind reactivity systems in frameworks like Vue and is useful for validation, logging, and default values.
+`Proxy` lets you intercept and customize fundamental operations on objects (property access, assignment, function calls, etc.) by defining handler traps. This is the mechanism behind reactivity in Vue 3: reading a property through the proxy records who depends on it, and writing to it tells them to update. The same idea gives you validation, logging and default values without changing the code that uses the object.
+
+`Reflect` is its companion: it has one method per trap (`Reflect.get`, `Reflect.set`, and so on) that performs the normal, un-intercepted operation. Inside a trap you do your extra work and then call `Reflect.set(target, prop, value)` to carry out the default behaviour, instead of re-implementing it by hand.
 
 ```js
 const handler = {
@@ -1760,9 +2280,10 @@ Interviewers rarely ask "what year did X land?", but they do ask "is that safe t
 | **ES2023** | `findLast` / `findLastIndex`, the immutable quartet `toSorted` / `toReversed` / `toSpliced` / `with`, hashbang grammar |
 | **ES2024** | `Object.groupBy` / `Map.groupBy`, `Promise.withResolvers`, RegExp `v` flag (set notation), `ArrayBuffer.prototype.transfer` |
 | **ES2025** | Iterator helpers, Set methods (`union`, `intersection`, …), `Promise.try`, `RegExp.escape`, duplicate named capture groups, import attributes (`with { type: 'json' }`) |
-| **ES2026** | **Temporal**, explicit resource management (`using` / `await using`), `Array.fromAsync`, `Error.isError` |
+| **ES2026** | `Array.fromAsync`, `Error.isError`, `Math.sumPrecise`, `Uint8Array` base64/hex, iterator sequencing (`Iterator.concat`), `Map` upsert (`getOrInsert`) |
+| **ES2027** | **Temporal**, explicit resource management (`using` / `await using`) — both finished after the ES2026 snapshot was cut, so they land in the following edition |
 
-Everything through ES2024 is available in every current browser and in Node 20+, so it needs no build step. ES2025 and ES2026 features are the ones worth checking against your minimum target — `using` in particular needs TypeScript 5.2+ or a transpiler because it is *syntax*, not just a new method.
+Everything through ES2024 is available in every current browser and in Node 22+ (Node 20 lacks `Object.groupBy` and `Promise.withResolvers`), so it needs no build step. ES2025 and later features are the ones worth checking against your minimum target — `using` in particular needs TypeScript 5.2+ or a transpiler because it is *syntax*, not just a new method.
 
 ---
 
@@ -1857,7 +2378,7 @@ This is also the reason a helper chain has no `length` and no `.sort()` — sort
 
 ### 9.9 Explicit Resource Management — `using` and `await using`
 
-`try`/`finally` works, but it separates acquisition from cleanup by however many lines the body happens to be, and it nests horribly once you hold three resources. ES2026's explicit resource management adds two new declaration forms that attach cleanup to the *variable's scope* instead.
+`try`/`finally` works, but it separates acquisition from cleanup by however many lines the body happens to be, and it nests horribly once you hold three resources. Explicit resource management (ES2027) adds two new declaration forms that attach cleanup to the *variable's scope* instead.
 
 A resource is any object with a `[Symbol.dispose]()` method (sync) or `[Symbol.asyncDispose]()` (async). When the block containing the `using` declaration exits — by return, by throw, by `break`, by anything — the dispose method runs automatically.
 
@@ -1914,7 +2435,7 @@ for (const path of paths) stack.use(new FileHandle(path));
 
 ### 9.10 The Temporal API — The Replacement for `Date`
 
-`Date` has been the language's most-complained-about built-in since 1995: it is mutable, it parses inconsistently, its months are zero-indexed but its days are not, it silently conflates "an instant in time" with "a date on a calendar", and it has no real time-zone support. `Temporal` reached Stage 4 in March 2026 and fixes all of it by splitting the single overloaded `Date` into several **immutable** types, each of which means exactly one thing.
+`Date` has been the language's most-complained-about built-in since 1995: it is mutable, it parses inconsistently, its months are zero-indexed but its days are not, it silently conflates "an instant in time" with "a date on a calendar", and it has no real time-zone support. `Temporal` reached Stage 4 (finished) in March 2026, too late for the ES2026 snapshot, so it is part of ES2027. It fixes all of it by splitting the single overloaded `Date` into several **immutable** types, each of which means exactly one thing.
 
 | Type | What it represents | Example |
 |---|---|---|
@@ -2119,7 +2640,7 @@ The distinctions that matter:
 - **`error` and `unhandledrejection` are separate events.** Wiring only the first means every unhandled promise rejection goes unreported — and in an `async`-heavy codebase that's most of your errors.
 - **Resource load failures don't bubble**, so a broken `<img>` or a failed `<script>` is invisible unless you listen in the **capture** phase and check `event.target`.
 - **Cross-origin scripts are opaque.** Without `crossorigin="anonymous"` on the `<script>` tag *and* CORS headers on the response, you get the useless `"Script error."` with no message, file or line. This is the reason most teams' error reporting is empty for CDN-served bundles.
-- **`try`/`catch` does not catch async errors** thrown after the synchronous frame exits. A rejection inside a `setTimeout` callback, or in a promise you forgot to `await`, reaches `unhandledrejection` instead.
+- **`try`/`catch` does not catch async errors** thrown after the synchronous frame exits. An error thrown inside a `setTimeout` callback reaches the window `error` event; a rejection from a promise you forgot to `await` reaches `unhandledrejection` (interview Q30 explains why).
 
 In **Node**, the equivalents are `process.on('uncaughtException')` and `process.on('unhandledRejection')` — and the correct behaviour there is different: log, flush, and **exit**. The process is in an undefined state after an uncaught exception, so continuing to serve traffic risks corrupt data. Let your supervisor restart it (see the Node.js guide's graceful-shutdown section).
 
@@ -2165,6 +2686,8 @@ When you *do* want a framework, the reasons are jsdom for DOM tests, snapshot te
 
 ## 11. The Event Loop
 
+A one-screen reference; §1.6 explains the event loop from scratch and interview Q6 goes deeper. Read the diagram top to bottom as one turn of the loop: run the synchronous code, drain every microtask, take one macrotask, and — if a frame is due — update the screen. Rendering is a step between tasks, not a task waiting in the queue.
+
 ```
 +-------------------------------------+
 |           Call Stack                 |
@@ -2185,7 +2708,15 @@ When you *do* want a framework, the reasons are jsdom for DOM tests, snapshot te
 +-------------------------------------+
 |      Macrotask Queue                |
 |  setTimeout, setInterval,           |
-|  I/O callbacks, UI rendering        |
+|  I/O callbacks, UI events           |
++-------------------------------------+
+                |
+                | Between tasks, if a frame is due:
+                v
++-------------------------------------+
+|      Render step (not a queue)      |
+|  requestAnimationFrame callbacks,   |
+|  then style, layout, paint          |
 +-------------------------------------+
 ```
 
@@ -2218,7 +2749,7 @@ console.log('5');                            // 2. sync -> call stack
 
 ### 12.1 ES Modules (ESM) — Modern Standard
 
-ES Modules are the official standard module system for JavaScript, supported in all modern browsers and Node.js. They are statically analyzed at parse time, enabling tree-shaking (dead code elimination) and top-level `await`.
+ES Modules are the official standard module system for JavaScript, supported in all modern browsers and Node.js. `import` and `export` must be written at the top level with fixed names, so a tool can see every import and export by reading the code, without running it. That is what makes **tree-shaking** possible: a bundler can prove an export is never imported and leave it out of the bundle. CommonJS's `require()` is an ordinary function call that can happen anywhere, with a computed name, so a bundler cannot be sure what is used.
 
 ```js
 // Named exports
@@ -2286,7 +2817,7 @@ const { add } = require('./math');
 
 ## 13. DOM Manipulation
 
-The Document Object Model (DOM) is the browser's tree representation of an HTML page, and JavaScript can read and modify it to create dynamic user interfaces. Understanding how to select, create, modify, and remove elements -- as well as how event delegation works -- is essential for front-end interviews.
+The Document Object Model (DOM) is the browser's tree of objects representing the HTML page. Changing those objects from JavaScript changes what is on screen. The reference below covers selecting, creating, modifying and removing elements. The one line to remember is the `innerHTML` comment: assigning a string that contains user input to `innerHTML` lets that input run as code (XSS, cross-site scripting), while `textContent` always inserts plain text.
 
 ```js
 // Selecting elements
@@ -2617,7 +3148,7 @@ Those are not arbitrary. `mouseenter` means "entered this element", whereas `mou
 
 ### 14.1 Module Pattern
 
-The module pattern uses an immediately-invoked function expression (IIFE) and closures to create private state. Variables inside the IIFE are inaccessible from outside, while the returned object exposes only the intended public API.
+**The module pattern gives you private variables without a class.** An IIFE (immediately-invoked function expression — a function that is defined and called in one expression) runs once, and the object it returns keeps a closure over its local variables. Outside code can call the returned functions but has no way to reach `count` itself. ES modules made this less necessary, since a module's top-level variables are already private unless exported, but the pattern still shows up in older code and in interviews. §5.4 ("Private state") walks through why the closure keeps the variable alive.
 
 ```js
 const counter = (() => {
@@ -2631,7 +3162,7 @@ const counter = (() => {
 
 ### 14.2 Observer Pattern
 
-The observer pattern enables event-driven communication: objects subscribe to events and get notified when those events are emitted. This is the foundation of Node.js `EventEmitter`, browser DOM events, and many state management libraries.
+**The observer pattern lets one object announce that something happened without knowing who is listening.** Listeners register a function with `on`; the subject calls every registered function with `emit`. The point is decoupling: the code that emits a `'saved'` event does not import or call the toast, the logger or the analytics code that react to it. The same shape sits under Node's `EventEmitter`, DOM `addEventListener`, and store subscriptions in state libraries. Note that `off` needs the **same function reference** that was passed to `on`, so an inline arrow can never be removed.
 
 ```js
 class EventEmitter {
@@ -2650,7 +3181,7 @@ class EventEmitter {
 
 ### 14.3 Singleton
 
-The singleton pattern restricts a class to a single instance and provides a global access point to it. This is commonly used for shared resources like database connections, configuration objects, or caches.
+The singleton pattern restricts a class to a single instance and provides a global access point to it, for things that must be shared rather than duplicated, such as a database connection pool or a configuration object. In JavaScript you rarely need the class below: an ES module runs only once however many files import it, so `export const db = createPool()` is already a singleton. The cost of either form is the same, hidden global state, which makes tests harder because every test shares the one instance.
 
 ```js
 class Database {
@@ -2666,7 +3197,7 @@ class Database {
 
 ### 14.4 Debounce and Throttle
 
-Debounce and throttle are rate-limiting techniques for controlling how often a function executes. Debounce waits until a pause in activity (e.g., user stops typing), while throttle ensures execution at most once per interval (e.g., scroll handler). Implementing these from scratch is a very common interview coding question.
+**Both limit how often a function runs when events fire far faster than you need.** Debounce waits for a *pause*: it runs once, after the user has stopped typing for `delay` ms. Throttle runs at a steady *rate*: at most once per `limit` ms while the events keep coming, which suits scroll and resize handlers. Both work because the returned function closes over one shared timer or flag (§5.4). The minimal versions below drop `this` and, for throttle, the last call in each window; interview Q16 builds a full debounce with leading and trailing options.
 
 ```js
 // Debounce: execute after N ms of inactivity
@@ -2710,7 +3241,7 @@ null == undefined   // true
 null === undefined  // false
 ```
 
-Always use `===` to avoid unexpected coercion bugs.
+Use `===` by default: `==`'s conversion rules are hard to predict (`'' == 0` and `'0' == 0` are both `true`, yet `'' == '0'` is `false`), and tricky Q2 and Q3 show where they lead. The one common deliberate use of `==` is `value == null`, which is `true` for both `null` and `undefined` and nothing else.
 
 ---
 
@@ -2729,6 +3260,8 @@ const inc = outer();
 console.log(inc()); // 1
 console.log(inc()); // 2 (count persists because of closure)
 ```
+
+Why `count` survives: it lives in a scope object on the heap, and `inc` keeps a reference to that scope, so the garbage collector cannot free it while `inc` is reachable. Each `outer()` call makes a fresh scope, so two counters never share a `count`. Worth volunteering: closures are how JavaScript gets private state (nothing outside can reach `count`), and the same reference is what causes stale values and memory leaks (Q25, Q29). §5.2 walks through the mechanism in full.
 
 ---
 
@@ -2773,7 +3306,7 @@ See **§13.1–13.3** for the phase-by-phase walkthrough, the three stopping met
 | Redeclaration | Allowed | Not allowed | Not allowed |
 | Reassignment | Allowed | Allowed | Not allowed |
 
-Use `const` by default, `let` when reassignment is needed, avoid `var`.
+Use `const` by default, `let` when reassignment is needed, avoid `var`. The reasons to avoid `var`: it ignores blocks, so a variable declared inside an `if` or a loop leaks out of it (the cause of the `setTimeout`-in-a-loop bug in §5.3); reading it before its line gives a silent `undefined` where `let` would throw and point you at the mistake; and redeclaring it is allowed, so a second `var x` quietly overwrites the first. `const` only stops reassignment of the variable; the object it holds can still be changed (§3.1).
 
 ---
 
@@ -2782,6 +3315,8 @@ Use `const` by default, `let` when reassignment is needed, avoid `var`.
 ---
 
 **Q6: What is the event loop? How does JavaScript handle async operations?**
+
+**The simple version first.** JavaScript runs your code on one thread. Slow work (timers, network requests) is handed to the browser or Node, and your code carries on. When the work finishes, its callback waits in a queue, and the **event loop** runs it as soon as the call stack is empty, meaning nothing of yours is still running. §1.4 to §1.6 explain this from scratch with examples; this answer covers the details interviewers go on to ask about, starting with the fact that there are **two** queues and one of them always goes first.
 
 **Start with what "single-threaded" actually means**, because the phrase causes the confusion. JavaScript has **one call stack**, so exactly one line of *your* code runs at a time. It does **not** mean one thing happens at a time: a `fetch` is performed by the browser's networking code, a timer by the platform's timer, a file read by Node's thread pool. Those run elsewhere, genuinely in parallel. What is single-threaded is the part that runs your callbacks.
 
@@ -3012,12 +3547,19 @@ Line by line: `copy === state` is `false`, so the spread did make a new object, 
 
 **Q10: Explain `Promise.all`, `Promise.allSettled`, `Promise.race`, and `Promise.any`.**
 
+Short answer: all four take several promises that are already running and give you one promise back. They differ only in **when that one promise settles and what one failure does to it**. Choose by asking "do I need every result, or just the first?" and "should one failure sink the rest?"
+
 | Method | Resolves when | Rejects when |
 |--------|-------------|-------------|
 | `Promise.all` | ALL promises fulfill | ANY promise rejects |
 | `Promise.allSettled` | ALL promises settle (fulfill or reject) | Never rejects |
-| `Promise.race` | FIRST promise settles (fulfill or reject) | FIRST promise rejects |
-| `Promise.any` | FIRST promise fulfills | ALL promises reject (AggregateError) |
+| `Promise.race` | the first promise to settle fulfills | the first promise to settle rejects |
+| `Promise.any` | FIRST promise fulfills | ALL promises reject (AggregateError, one error holding all the reasons) |
+
+- **`all`** when you need every result and one failure makes the whole thing useless (a page that needs both the user and their settings). It rejects as soon as one fails, but the others keep running; you just stop hearing about them.
+- **`allSettled`** when each result is independent and you want to show what worked and report what failed (a dashboard of widgets, a batch job).
+- **`any`** when several sources can give the same answer and you want the first that succeeds (mirrors, fallbacks). A failure only matters if they all fail.
+- **`race`** when you care about whichever finishes first, success or failure; in practice, a timeout. Note it does not cancel the loser: the slow `fetch` below keeps downloading. `AbortSignal.timeout(ms)` (§8.7) stops the request itself.
 
 ```js
 // all: parallel fetch, fail-fast
@@ -3057,11 +3599,13 @@ The TDZ is the period between entering a scope and the variable's declaration be
 
 `let` and `const` are hoisted (the engine knows they exist) but they're in the TDZ until the declaration line. `var` doesn't have TDZ — it's initialized to `undefined` during hoisting.
 
+Why the language does this: using a variable before it has a value is almost always a bug. With `var` that bug is silent, because you just get `undefined` and the code carries on with a wrong value. The TDZ turns the same mistake into an immediate error that names the variable. It also keeps `const` honest: a `const` that could be read as `undefined` first and as its value later would effectively have two values.
+
 ---
 
 **Q12: Explain generators and when you'd use them.**
 
-Generators are functions that can be paused and resumed. They use `function*` syntax and `yield` to produce values lazily.
+A generator is a function that can pause in the middle and be resumed later. Calling a `function*` does not run its body; it returns an object with a `next()` method. Each `next()` runs the body until the next `yield`, hands back the yielded value, and freezes there with all its local variables intact. That is why the infinite `while (true)` below is safe: it only advances one step each time you ask.
 
 ```js
 function* fibonacci() {
@@ -3079,11 +3623,13 @@ console.log(fib.next()); // { value: 1, done: false }
 console.log(fib.next()); // { value: 2, done: false }
 ```
 
-Use cases:
-- **Lazy evaluation**: Generate values on demand (infinite sequences)
-- **Async flow control**: Redux-Saga uses generators to manage async side effects
-- **Custom iterables**: Make any object work with `for...of`
-- **State machines**: Pause between states
+Where you would use one:
+- **Lazy or infinite sequences.** Values are computed only when asked for, so you can describe "all Fibonacci numbers" or "every page of an API" without building the whole list first.
+- **Custom iterables.** A generator is the shortest way to give an object a `[Symbol.iterator]` so it works with `for...of` and spread (§9.4). Writing the iterator by hand needs an object with `next()` and manual state; the generator keeps that state in ordinary local variables.
+- **Async flow control.** `next(value)` also sends a value *back in* as the result of the paused `yield`. Redux-Saga uses this: your saga yields a description of an effect ("call this API"), the library performs it and resumes the generator with the result, which makes sagas testable without running real requests.
+- **Step-by-step processes.** Each `yield` marks a point where the function can stop and wait for the next step, such as a wizard or a turn-based game, without a separate variable tracking which step you are on.
+
+In everyday code, `async`/`await` has replaced generators for async work; they remain the tool for lazy sequences and custom iteration.
 
 ---
 
@@ -3214,19 +3760,16 @@ for...of waited
 
 **Q15: What are memory leaks in JavaScript and how do you prevent them?**
 
-Common causes:
-1. **Global variables**: Unintentional globals from missing `let`/`const`
-2. **Closures**: Inner functions retaining references to large outer objects
-3. **Event listeners**: Not removing listeners when elements are removed
-4. **Timers**: `setInterval` not cleared
-5. **Detached DOM nodes**: Removed from DOM but still referenced in JS
+Short answer: a memory leak is memory you no longer need that is **still reachable**, so the garbage collector is not allowed to free it. The collector only frees what nothing can reach (Q19), so every leak is something long-lived holding a reference it should have let go. Each common cause is just a different long-lived holder:
 
-Prevention:
-- Use `let`/`const` (block scope, no accidental globals)
-- Remove event listeners in cleanup (`removeEventListener`, React's `useEffect` return)
-- Clear timers (`clearInterval`, `clearTimeout`)
-- Use `WeakMap`/`WeakSet` for caches that should allow GC
-- Use browser DevTools Memory tab to profile heap snapshots
+1. **Accidental globals.** In sloppy mode, assigning to an undeclared name (`total = 0` with no `let`) creates a property on the global object, which lives as long as the page. Prevent it with `let`/`const` and strict mode, which ES modules are by default, where the same line throws instead.
+2. **Event listeners never removed.** The browser keeps every listener you add, and the listener keeps everything its closure can see. Remove it in cleanup (`removeEventListener` with the *same* function reference, or React's `useEffect` return).
+3. **Timers never cleared.** A running `setInterval` is held by the browser forever, along with its callback and whatever that callback closed over. Call `clearInterval`/`clearTimeout` in cleanup.
+4. **Closures holding big objects.** A small callback stored somewhere long-lived keeps its whole scope alive, including large data it does not even use (Q25).
+5. **Detached DOM nodes.** An element removed from the page but still stored in a JavaScript variable, array or map cannot be freed, and neither can its children.
+6. **Caches that only grow.** A `Map` used as a cache keyed by objects keeps those objects alive forever. A `WeakMap` does not, because its keys do not count as references (§9.3).
+
+**How to find one:** in DevTools' Memory tab, take a heap snapshot, repeat the suspect action a few times, take another, and compare. Objects whose count keeps rising, and "Detached" DOM elements, are the leak; the Retainers panel shows what is holding them.
 
 ---
 
@@ -3407,7 +3950,7 @@ state.user.name = 'Bob';       // now genuinely ignored
 
 **Q18: What is currying and how would you implement it?**
 
-Currying transforms a function with multiple arguments into a sequence of functions, each taking one argument.
+Short answer: currying turns a function that takes several arguments, `add(a, b)`, into a chain of functions that each take one, `add(a)(b)`. Each call returns a new function that remembers the arguments so far in a closure, until it has them all and runs the original.
 
 ```js
 // Manual currying
@@ -3432,33 +3975,33 @@ curriedSum(1, 2)(3);                        // 6
 curriedSum(1)(2, 3);                        // 6
 ```
 
-Use cases: partial application, creating specialized functions from generic ones, functional composition.
+**How the generic `curry` works.** `fn.length` is the number of parameters `fn` declares (3 here). Each call adds its arguments to the ones collected so far; once there are at least that many, it calls `fn` with all of them, otherwise it returns another function waiting for more. That is why `curriedSum(1, 2)(3)` works as well as `curriedSum(1)(2)(3)`.
+
+**Why you would want it.** You fix some arguments once and get back a specialised function to reuse: `const add5 = add(5)`, or `const logError = log('error')`. Those one-argument functions then slot straight into `map`, `filter` or a `compose` pipeline, which is where functional-style code uses it. (Fixing some arguments at once, as `bind` does, is called partial application; currying is the one-argument-at-a-time form of it.)
+
+**The gotcha to volunteer:** `fn.length` does not count a parameter with a default value, anything after it, or a rest parameter. So `curry((a, b = 1) => …)` sees a length of 1 and calls the function after the first argument, and a function written as `(...args)` has length 0 and runs immediately.
 
 ---
 
 **Q19: How does garbage collection work in JavaScript?**
 
-Modern JS engines (V8) use **generational garbage collection**:
+Short answer: the engine frees any object your program can no longer **reach**. It does not track whether you still "need" something, only whether any chain of references leads to it from a starting point. Engines like V8 add a generational split on top of that, so the common case is cheap.
 
-1. **Mark-and-sweep** (primary): Starts from "roots" (global object, call stack). Marks all reachable objects. Sweeps (frees) unmarked objects.
+1. **Mark-and-sweep, the core idea.** Start from the "roots", the things that are always reachable: the global object and the variables of every function currently on the call stack. Follow every reference from them and mark each object you reach. Anything left unmarked cannot be reached by any code, so it is swept (freed). This is why two objects that point at each other are still collected once nothing else points at them.
 
-2. **Generational hypothesis**: Most objects die young.
-   - **Young generation** (nursery): Newly created objects. Collected frequently with Scavenge (copying GC).
-   - **Old generation**: Objects that survived multiple young-gen collections. Collected less frequently with Mark-Sweep-Compact.
+2. **Generations, because most objects die young.** Most objects are temporary: the array built inside one function call, the object returned and immediately destructured. So V8 splits the heap in two:
+   - **Young generation** (the "nursery"): new objects go here, and it is collected often with a fast *copying* collector (V8 calls it Scavenge), which copies the few survivors out and treats the rest of the space as free in one go.
+   - **Old generation**: objects that survived a couple of young collections move here. It is collected less often with mark-sweep plus *compaction*, which slides surviving objects together so free memory is not left in scattered small gaps.
 
-3. **Incremental/concurrent**: GC runs in small increments to avoid long pauses (important for 60fps UI).
+3. **Incremental and concurrent work.** Marking a large heap in one go would freeze the page, so much of it is done in small slices between your code, or on background threads, to keep pauses short enough not to drop animation frames.
 
-You can't control GC directly, but you can help:
-- Nullify references when done (`obj = null`)
-- Use WeakMap/WeakSet for secondary references
-- Avoid closures that capture large scopes unnecessarily
-- Reuse objects instead of creating new ones in hot loops
+You cannot trigger or control collection from JavaScript. What you control is reachability: remove listeners and clear timers you no longer need, drop references held by long-lived objects (a module-level cache, a global array), and use `WeakMap`/`WeakSet` when attaching data to objects you do not own. Setting a *local* variable to `null` rarely helps, because it becomes unreachable when the function returns anyway. Q15 covers the leaks that follow when this goes wrong.
 
 ---
 
 **Q20: Explain the `Symbol` primitive. What are well-known symbols?**
 
-`Symbol` creates a unique, immutable value. No two symbols are equal.
+Short answer: `Symbol()` creates a value that is guaranteed to be unique, and its main use is as an object property key that **cannot collide** with any other key. A string key like `'id'` can clash with a property someone else adds; a symbol key cannot, because no other code can produce the same symbol unless you hand it over. Symbol keys are also skipped by `Object.keys`, `for...in` and `JSON.stringify`, so they suit metadata you do not want showing up in normal use. The text passed in (`'description'`) is only a label for debugging; it does not make two symbols equal.
 
 ```js
 const s1 = Symbol('description');
@@ -3466,11 +4009,11 @@ const s2 = Symbol('description');
 s1 === s2;  // false (always unique)
 ```
 
-**Well-known symbols** customize built-in behavior:
-- `Symbol.iterator` — makes object iterable (`for...of`)
-- `Symbol.toPrimitive` — customizes type coercion
-- `Symbol.hasInstance` — customizes `instanceof`
-- `Symbol.toStringTag` — customizes `Object.prototype.toString()`
+**Well-known symbols** are symbols the language itself looks for on your objects. They are hooks: define a method under one of these keys and built-in operations call it. Because they are symbols, adding them can never clash with your own property names, which is exactly why the language used symbols for them.
+- `Symbol.iterator` — read by `for...of`, spread (`[...obj]`), destructuring and `Array.from`. It must return an iterator (an object with a `next()` method). Arrays, strings, `Map` and `Set` already have one, which is why they work in `for...of` and a plain object does not.
+- `Symbol.toPrimitive` — called whenever the object has to become a primitive: `+obj`, `` `${obj}` ``, `obj + 1`, `obj < 5`. It receives a hint (`'number'`, `'string'` or `'default'`) saying what the operation wants, and it takes priority over `valueOf` and `toString`. The `Money` example below uses it.
+- `Symbol.hasInstance` — a static method that `x instanceof C` calls instead of walking the prototype chain. It lets a class decide membership by shape (`static [Symbol.hasInstance](v) { return typeof v?.amount === 'number'; }`). Rarely a good idea in application code, because it makes `instanceof` lie, but it explains why `instanceof` is not always a prototype check.
+- `Symbol.toStringTag` — a string that `Object.prototype.toString.call(obj)` puts in its `[object …]` output. That is why `Object.prototype.toString.call(new Map())` prints `[object Map]`, and why a class with `get [Symbol.toStringTag]() { return 'Money'; }` prints `[object Money]` instead of `[object Object]`.
 
 ```js
 class Money {
@@ -3589,7 +4132,7 @@ The trade-offs to name out loud: iterators are **single-use** (a second `toArray
 
 **Q23: What problem do `using` and `await using` solve that `try`/`finally` does not?**
 
-Explicit resource management (ES2026) binds cleanup to a variable's **scope** rather than to a hand-written block, which fixes three things.
+Explicit resource management (ES2027) binds cleanup to a variable's **scope** rather than to a hand-written block, which fixes three things.
 
 It removes the distance between acquisition and release — with `try`/`finally` the two halves can be a hundred lines apart, and a `return` added in the middle by a later commit is easy to get wrong. It removes nesting: three resources means three nested `try`/`finally` blocks, versus three consecutive `using` declarations. And it makes the contract *declarative* — a type carrying `[Symbol.dispose]` advertises that it must be cleaned up, so forgetting becomes a lint error rather than a leak found in production.
 
@@ -3995,6 +4538,190 @@ withAwait();
 Why the demo prints `2` before `1`: the `.catch` call starts first, because `withAwait()` is only called on the last line, and `withAwait` then needs one more microtask to resume after its own `await`. The timer prints last because it is a task, and every microtask runs before the next task.
 
 **The React version of the same question**: an error boundary is effectively a `try/catch` around rendering, so it cannot catch an error in an event handler or a `fetch`. See React Q56.
+
+---
+
+### How JavaScript Works Under the Hood
+
+Short interview answers. The full explanations, with runnable examples, are in §1.
+
+**Q31: What actually happens when the browser runs your JavaScript?**
+
+An **engine** (V8 in Chrome and Node, SpiderMonkey in Firefox, JavaScriptCore in Safari) parses the code into a syntax tree, turns it into bytecode and starts running it, then compiles the functions that run often into fast machine code (JIT compilation), and throws that code away again if its assumptions stop holding (deoptimisation). The **runtime** around it, the browser or Node, supplies everything that is not the language: timers, `fetch`, the DOM, files, and the event loop. That split is why `setTimeout` exists in both but `document` only in the browser. While it runs, the call stack tracks what is executing, the heap holds objects, and the garbage collector frees what nothing can reach. Full explanation: §1.1.
+
+---
+
+**Q32: What is an execution context, and how does the call stack work?**
+
+Each function call creates an **execution context** (its local variables, its `this`, and a link to the outer scope), which is pushed onto the **call stack**; returning pops it. Only the top one is running. Each context is set up in two phases: a creation phase, where function declarations are stored whole, `var` becomes `undefined` and `let`/`const` are reserved but not ready (the temporal dead zone), then the execution phase. That creation phase is what "hoisting" means. Unbounded recursion overflows the stack with a `RangeError`, and async callbacks only run once the stack is empty. Full explanation: §1.2.
+
+---
+
+**Q33: How do function references work? What is the difference between `fn` and `fn()`?**
+
+A function is an object, and its name is a variable holding a **reference** to it. `fn` is the function itself; `fn()` runs it and gives you the result. Three bugs follow from mixing them up: `setTimeout(save(), 1000)` runs `save` immediately; `removeEventListener` with a freshly written arrow removes nothing, because it is a different function object; and passing `user.greet` on its own loses `this`, because the reference does not carry the object with it. Full explanation: §1.3.
+
+---
+
+**Q34: What is a Web Worker (a worker thread), and when should you use one?**
+
+A worker is a **second JavaScript thread** with its own call stack, memory and event loop. It cannot touch the DOM, and it talks to the main thread only through `postMessage`, which **copies** the data (large buffers can be *transferred* instead). Use one for CPU-heavy work over roughly 50 ms (parsing, image processing, compression) so the page stays responsive. It does not help with network requests, which are already non-blocking, or with DOM updates. Know the kinds apart: dedicated and shared workers compute; a Service Worker is a network proxy; Node has the same idea as `worker_threads`. Full explanation: §1.7.
+
+---
+
+### About the Language Itself
+
+Questions interviewers use to open a conversation, or to check you understand the platform and not just the syntax.
+
+**Q35: Why is JavaScript so popular, and why do most companies use it?**
+
+**Short answer:** because it is the only language every browser runs, so everyone building for the web must use it, and Node.js later let the same language run on servers. That gave it the largest developer community, and the largest package ecosystem (npm), and the two feed each other. It was the most-used language in Stack Overflow's 2025 survey, at 66% of respondents.
+
+**For a company, the practical reasons are:**
+
+- **One language for the whole product:** web front end, back end (Node.js), mobile (React Native) and desktop (Electron). Teams can share code, types and people.
+- **Hiring:** there are more JavaScript and TypeScript developers than for almost any other language.
+- **Speed of building:** npm has a package for almost everything, and there is nothing to install to start.
+- **Good enough performance** for most web servers and UIs, thanks to JIT compilers and its non-blocking I/O.
+
+**What makes the answer strong:** naming the trade-offs too. JavaScript has quirks it can never remove, dynamic typing that hurts big codebases (hence TypeScript), and a single thread for your code (hence workers for CPU-heavy work). Full explanation with the history: §1.8.
+
+---
+
+**Q36: What is the difference between JavaScript and ECMAScript? Who decides what gets added to the language?**
+
+**Short answer:** **ECMAScript** is the *specification*, the official document that defines the language (ECMA-262). **JavaScript** is the language you use, as implemented by engines such as V8, SpiderMonkey and JavaScriptCore, plus whatever the environment adds (the DOM in browsers, `fs` in Node). "ES2015" or "ES2024" names a version of the specification.
+
+The specification is maintained by **TC39**, a committee of Ecma International made up of browser makers, companies and invited experts. New features go through numbered **stages**:
+
+| Stage | Meaning |
+|---|---|
+| **0** | an idea someone has proposed |
+| **1** | the committee agrees the problem is worth solving |
+| **2** | a draft of the solution is chosen |
+| **2.7** | the design is approved; tests are being written (this stage was added in 2024) |
+| **3** | ready to implement; engines start shipping it, often behind a flag |
+| **4** | finished: two engines ship it, and it goes into the next yearly edition |
+
+A new edition comes out every June (ES2024, ES2025 …). That is why you can use a feature like `Object.groupBy` before your team says "we're on ES2024": what matters in practice is whether the engines you target support it, not the edition number (§9.6 lists what shipped when).
+
+**Two related facts people get wrong:** JavaScript has nothing to do with Java apart from the name, which was a 1995 marketing decision; and `setTimeout`, `fetch` and `document` are not part of ECMAScript at all. They come from the browser or Node (§1.1).
+
+---
+
+**Q37: Is JavaScript compiled or interpreted?**
+
+**Short answer:** both, which is why "interpreted" is an outdated answer. Modern engines start by **interpreting** bytecode so the code runs immediately, then **compile** the functions that run often into machine code while the program is running. That is called **just-in-time (JIT) compilation**.
+
+In V8: the source is parsed into a syntax tree, turned into bytecode that its interpreter (Ignition) starts running at once, and hot functions are compiled by optimising compilers (Maglev, then TurboFan) using the types they have seen so far. If those assumptions stop holding, for example a function that always got numbers suddenly gets a string, the engine throws the fast code away and goes back to bytecode (deoptimisation).
+
+**How it differs from a language like C or Go:** those are compiled **ahead of time**, into a machine-code file, before they run. JavaScript is shipped as source code (or minified source) and compiled on the user's machine, every time. That is also why a syntax error anywhere in a file stops the whole file before its first line runs: the engine parses everything first.
+
+Full explanation with a runnable example: §1.1.
+
+---
+
+**Q38: Why do most teams use TypeScript instead of plain JavaScript today?**
+
+**Short answer:** TypeScript is JavaScript with **type annotations** that are checked before the code runs, and then removed. It catches a whole class of bugs at build time instead of in production, and it makes large codebases safe to change. It adds no runtime cost, because what runs in the browser is still plain JavaScript.
+
+**What it buys a team:**
+
+- **Mistakes caught while typing.** Calling a function with the wrong arguments, reading a property that doesn't exist, forgetting that a value can be `null`: TypeScript reports these in the editor, before anyone runs the code.
+- **Safe refactoring.** Rename a field and the compiler lists every place that must change. In plain JavaScript you find out when a user hits the page you missed.
+- **Code that explains itself.** A function's type is documentation that cannot go out of date, and editors use it for autocomplete.
+- **Contracts between teams and services,** for example types generated from an API's OpenAPI description, so a backend change breaks the frontend build rather than the live app.
+
+**What it does not do**, and it is worth saying: it does **not** check anything at runtime. Data from an API, `JSON.parse` or `localStorage` can still be the wrong shape, so you still validate at those boundaries (the TypeScript guide's Q27). It adds a build step and some learning, which is why small scripts and quick prototypes often stay in plain JavaScript.
+
+---
+
+**Q39: What are JavaScript's weaknesses, and when would you choose a different language?**
+
+**Short answer:** JavaScript is a poor fit for **CPU-heavy work**, for systems where **every bit of performance or memory control matters**, and it carries **permanent quirks** from its early design. Choose something else when the job is mainly heavy computation, very low-level, or when the ecosystem you need lives elsewhere.
+
+**The weaknesses, and how teams live with them:**
+
+| Weakness | Why it exists | What people do about it |
+|---|---|---|
+| Quirks: `==` coercion, `typeof null`, `this` rules | the web can't break old sites, so early mistakes stay forever | `===`, linters, `strict` mode, modern syntax |
+| Dynamic typing | designed for small scripts | TypeScript |
+| One thread for your code | a simple, safe model for UI code (§1.4) | workers for CPU-heavy work (§1.7) |
+| Less predictable performance than compiled languages | JIT compilation and garbage collection | fine for most apps; hot paths can move to WebAssembly or a native service |
+| Huge dependency trees | a culture of small packages | lockfiles, auditing, fewer dependencies |
+
+**When a different language is the better choice:**
+
+- **Heavy computation:** machine learning, data processing, video: **Python** for its libraries, or **C++/Rust/Go** for speed.
+- **Systems programming,** where you need control over memory: **Rust, C, C++**.
+- **High-throughput back ends** where teams want strong concurrency and simple deployment: **Go, Java, Kotlin, C#**.
+- **Native mobile features** or the smoothest possible mobile UI: **Swift** and **Kotlin**, although React Native covers most apps.
+
+**The balanced line to end on:** for the front end there is no real alternative, and for back ends that mostly wait on databases and APIs, Node.js is a perfectly good choice. The weakness matters only when the work is mostly computing, not waiting.
+
+---
+
+**Q40: Why do we need closures? What would you use them for?**
+
+**Short answer:** closures are how a function **keeps data between calls without making it global**. Every time you need a function that remembers something (a setting, a counter, a cache, a timer) and you don't want anything else to be able to change it, a closure is the tool. Q2 covers *what* a closure is; this is *why* the language needs them.
+
+Without closures you would have two bad options for remembered data: a **global variable**, which any code can change by accident, or an **object property**, which anyone can also read and overwrite. A closure gives you a third: data that only the functions created alongside it can reach.
+
+```js
+// 1. Private state: nothing outside can change `balance` except through the methods.
+function createAccount(initial) {
+  let balance = initial;
+  return {
+    deposit(amount) { balance += amount; return balance; },
+    getBalance() { return balance; },
+  };
+}
+const account = createAccount(100);
+account.deposit(50);
+console.log(account.getBalance(), account.balance);
+
+// 2. A function factory: each returned function remembers its own setting.
+const multiplier = (factor) => (n) => n * factor;
+const double = multiplier(2);
+const triple = multiplier(3);
+console.log(double(5), triple(5));
+
+// 3. Remembering between calls: a cache that lives as long as the function.
+function memoize(fn) {
+  const cache = new Map();
+  return (n) => {
+    if (!cache.has(n)) cache.set(n, fn(n));
+    return cache.get(n);
+  };
+}
+let calls = 0;
+const slowSquare = (n) => { calls++; return n * n; };
+const fastSquare = memoize(slowSquare);
+fastSquare(9); fastSquare(9); fastSquare(9);
+console.log('computed', calls, 'time');
+```
+
+```text
+150 undefined
+10 15
+computed 1 time
+```
+
+| Line | What the closure is doing |
+|---|---|
+| `150 undefined` | **private state.** `balance` is reachable only through `deposit` and `getBalance`; `account.balance` does not exist, so nothing can set it to a million |
+| `10 15` | **a function factory.** `double` and `triple` are the same code, each remembering its own `factor` |
+| `computed 1 time` | **remembering between calls.** The `cache` lives as long as `fastSquare` does, so the slow work runs once |
+
+**Where you already use closures every day:**
+
+- **Event handlers and callbacks** remember the variables around them when they run later: `button.addEventListener('click', () => save(userId))` still knows `userId` long after the surrounding function returned.
+- **`debounce`, `throttle`, `once` and `memoize`** each keep their timer, flag or cache in a closure (Q16 and Q26 build two of them).
+- **React hooks:** every function inside a component closes over that render's props and state. That is why a handler sees the right value, and also why a stale closure shows an old one (Q29).
+- **Modules and the module pattern:** values declared inside a module (or an older immediately-invoked function) stay private unless exported.
+- **Partial application and currying:** `const add5 = (x) => add(5, x)` fixes one argument now and takes the rest later (Q18).
+
+**The cost to mention:** a closure keeps everything it references alive, so a long-lived closure (an event listener that is never removed, an interval that is never cleared) can hold large objects in memory. Q25 covers that leak.
 
 ---
 
@@ -4480,17 +5207,7 @@ filter 4
 | `map 2` / `filter 4` | so it pulls the next one: `2` → `4`, and `filter` accepts it |
 | `[ 4 ]` | `take(1)` has its single value and stops — **`3` is never touched**, so there is no `map 3` |
 
-An array chain would instead have printed `map 1, map 2, map 3` first, then `filter 2, filter 4, filter 6` — all six callbacks, including work on an element the final answer never needed.
-
-The first thing to notice is that `'nothing yet'` prints before any `map` or `filter` log. Building the chain does no work at all — `.map()` and `.filter()` on an iterator return a new iterator that merely remembers the callback. Nothing is pulled from the source until a terminal operation asks for a value. With arrays this would be impossible: `[1,2,3].map(f)` runs `f` three times immediately and hands back a finished array.
-
-The second thing is the interleaving. Because evaluation is pull-based, `toArray()` asks `take(1)` for one value, which asks `filter` for a value, which asks `map` for a value, which asks the source array's iterator. So each element travels the **entire pipeline** before the next element is touched:
-
-- Pull #1: `map 1` logs, produces `2`. `filter 2` logs, `2 > 2` is `false` — rejected, so `filter` pulls again.
-- Pull #2: `map 2` logs, produces `4`. `filter 4` logs, `4 > 2` is `true` — accepted. `take(1)` has its one value and stops.
-- The source element `3` is **never touched**. No `map 3`, no `filter 6`.
-
-The equivalent array chain would have printed `map 1, map 2, map 3` (all of them, including the wasted third), then `filter 2, filter 4, filter 6`, and allocated two three-element intermediate arrays along the way.
+**Why they interleave.** Evaluation is *pull-based*: `toArray()` asks `take(1)` for a value, which asks `filter`, which asks `map`, which asks the source iterator for one element. So each element travels the **entire pipeline** before the next one is touched, and the pulling stops the moment `take(1)` is satisfied. An array chain works the other way round: `[1, 2, 3].map(f)` runs `f` on every element at once and builds a finished array, so it would have printed `map 1, map 2, map 3`, then `filter 2, filter 4, filter 6`, including work on an element the answer never needed.
 
 There is a further trap hiding here: **`chain` is now dead.** Iterators are single-use, and `take(1)` does not merely stop pulling — on reaching its limit it *closes* the iterator underneath it. Calling `chain.toArray()` again returns `[]`, not the remaining `[6]`, and nothing warns you. (Closing propagates because iterator helpers implement a `return()` method; a bare array iterator does not, which is why `[1,2,3].values()` survives the same treatment. Do not rely on either.)
 
@@ -4525,7 +5242,7 @@ caught boom
 
 **Explanation:**
 
-**First, what `using` is.** ES2026 added *explicit resource management*: declare a variable with `using` instead of `const`, and when the surrounding block ends, JavaScript automatically calls that object's `[Symbol.dispose]()` method. It is the language-level version of Python's `with` or C#'s `using` — a way to guarantee cleanup (close the file, release the lock, roll back the transaction) without writing `try`/`finally` by hand.
+**First, what `using` is.** ES2027 adds *explicit resource management*: declare a variable with `using` instead of `const`, and when the surrounding block ends, JavaScript automatically calls that object's `[Symbol.dispose]()` method. It is the language-level version of Python's `with` or C#'s `using` — a way to guarantee cleanup (close the file, release the lock, roll back the transaction) without writing `try`/`finally` by hand.
 
 So `make('a')` returns an object whose only job is to log when it is disposed, and `using a = make('a')` says "clean this up when `run()` exits".
 
@@ -4540,9 +5257,9 @@ So `make('a')` returns an object whose only job is to log when it is disposed, a
 
 The two surprises are the **order** (last declared, first disposed) and the **timing** (cleanup completes before the exception escapes). Both are deliberate.
 
-Two things determine the output. First, disposal is **LIFO**: `b` was declared last, so it disposes first. This mirrors nested `try`/`finally` blocks, and it is the only order that can be correct in general — if `b` was constructed using `a` (a transaction opened on a connection, a span inside a tracer), then `a` must still be alive while `b` cleans up.
+The order is **LIFO** (last in, first out): `b` was declared last, so it disposes first. This mirrors nested `try`/`finally` blocks, and it is the only order that can be correct in general — if `b` was constructed using `a` (a transaction opened on a connection, a span inside a tracer), then `a` must still be alive while `b` cleans up.
 
-Second, disposal happens **before the exception propagates out of the function**. The `throw` begins unwinding the scope; the scope's exit runs the disposal stack; only then does the error continue to the caller's `catch`. So both `dispose` logs land before `caught boom`. This is exactly the guarantee `finally` gives you, which is the point — `using` is `finally` with the boilerplate removed and the ordering handled for you.
+The timing: disposal happens **before the exception propagates out of the function**. The `throw` begins unwinding the scope; the scope's exit runs the disposal stack; only then does the error continue to the caller's `catch`. So both `dispose` logs land before `caught boom`. This is exactly the guarantee `finally` gives you, which is the point — `using` is `finally` with the boilerplate removed and the ordering handled for you.
 
 Related traps worth knowing:
 
@@ -4564,8 +5281,8 @@ console.log(d.toString());
 
 console.log(Temporal.PlainDate.from('2026-01-31').add({ months: 1 }).toString());
 
-const legacy = new Date(2026, 0, 31);
-legacy.setMonth(legacy.getMonth() + 1);
+const legacy = new Date(Date.UTC(2026, 0, 31));   // UTC, so the printed date is the same in every time zone
+legacy.setUTCMonth(legacy.getUTCMonth() + 1);
 console.log(legacy.toISOString().slice(0, 10));
 ```
 
@@ -4578,7 +5295,7 @@ console.log(legacy.toISOString().slice(0, 10));
 
 **Explanation:**
 
-**First, what `Temporal` is.** It is the ES2026 replacement for the `Date` object, added because `Date` has been the language's worst-designed API for thirty years — it mutates in place, conflates a date with a timestamp, and handles time zones badly. `Temporal.PlainDate` is exactly what the name says: a calendar date with no time and no time zone, which is the right type for a birthday or an invoice date.
+**First, what `Temporal` is.** It is the ES2027 replacement for the `Date` object, added because `Date` has been the language's worst-designed API for thirty years — it mutates in place, conflates a date with a timestamp, and handles time zones badly. `Temporal.PlainDate` is exactly what the name says: a calendar date with no time and no time zone, which is the right type for a birthday or an invoice date.
 
 This snippet puts the old and new APIs side by side on the same question — *what is one month after January 31?* — and they disagree.
 
@@ -4594,7 +5311,7 @@ So the first line is about *immutability* and the difference between the second 
 
 **Immutability.** Every `Temporal` type is frozen; `add`, `subtract`, `with`, `round` and friends all return a **new** object and never touch the receiver. So `d.add({ months: 1 })` on line 2 computes a value and throws it away — `d` is still `2026-01-31`. This is the single most common `Temporal` mistake among developers coming from `Date`, where `setMonth` mutates in place and returns a timestamp number. The mutation-based API was the source of countless aliasing bugs (two variables pointing at the same `Date`, one of them "helpfully" advanced); making the types immutable eliminates the class entirely, at the cost of having to remember to use the return value.
 
-**Clamping instead of overflow.** January 31 plus one month has no obvious answer, because February 31 does not exist. `Temporal`'s default `overflow: 'constrain'` mode **clamps the day to the last valid day of the target month**, giving `2026-02-28`. That matches how humans reason about "a month from the 31st" and how subscription billing works. Legacy `Date` instead lets the invalid day **overflow** into the next month: `setMonth` builds February 31, which normalises to March 3 (2026 is not a leap year, so February has 28 days, and 31 − 28 = 3). Silent overflow is why "renew one month later" code drifts and occasionally skips a month entirely.
+**Clamping instead of overflow.** January 31 plus one month has no obvious answer, because February 31 does not exist. `Temporal`'s default `overflow: 'constrain'` mode **clamps the day to the last valid day of the target month**, giving `2026-02-28`. That matches how humans reason about "a month from the 31st" and how subscription billing works. Legacy `Date` instead lets the invalid day **overflow** into the next month: `setUTCMonth` builds February 31, which normalises to March 3 (2026 is not a leap year, so February has 28 days, and 31 − 28 = 3). The demo uses the UTC methods on purpose: `new Date(2026, 0, 31)` is local midnight, and `toISOString()` prints UTC, so east of Greenwich (India, for example) the same code prints `2026-03-02`, a day early — a second `Date` trap on top of the first. Silent overflow is why "renew one month later" code drifts and occasionally skips a month entirely.
 
 If you actually want the error rather than the clamp, `Temporal` lets you ask for it: `d.add({ months: 1 }, { overflow: 'reject' })` throws a `RangeError` instead of quietly picking a day.
 
@@ -4713,6 +5430,1675 @@ Same 200 ms of total work, but now each step ends with `await` on a `setTimeout`
 
 ---
 
+### Objects & References (Deep Dive)
+
+These build on Q6. Each one turns on the same question: is this a new object, or another reference to one that already exists?
+
+**Q18: Two different objects are used as keys, so why does `a[b]` print `456` and why is there only one key?**
+
+```js
+const a = {};
+const b = { key: 'b' };
+const c = { key: 'c' };
+
+a[b] = 123;
+a[c] = 456;
+
+console.log(a[b]);
+console.log(JSON.stringify(Object.keys(a)));
+```
+
+**Output:**
+```
+456
+["[object Object]"]
+```
+
+**Explanation:**
+
+| Line | Why |
+|---|---|
+| `456` | `a[b]` and `a[c]` are the **same** key, so the second assignment overwrote the first |
+| `["[object Object]"]` | both objects became the string `"[object Object]"` when used as a key |
+
+A plain object's keys can only be **strings or symbols**. When you use anything else in square brackets, JavaScript converts it to a string first. A plain object converts to `"[object Object]"`, whatever is inside it, so `b` and `c` produce the identical key. `a[b] = 123` stores under `"[object Object]"`, `a[c] = 456` overwrites it, and `a[b]` reads that same slot back.
+
+The same conversion is why `obj[1]` and `obj['1']` are one property, and why `obj[[1, 2]]` is `obj['1,2']`.
+
+**When you need objects as keys, use a `Map`**, which compares keys by identity and never converts them:
+
+```js
+const m = new Map();
+const b = { key: 'b' };
+const c = { key: 'c' };
+m.set(b, 123);
+m.set(c, 456);
+console.log(m.get(b), m.size); // 123 2
+```
+
+**Takeaway:** object keys are strings (or symbols). Any object used as a key becomes `"[object Object]"`, so different objects collide. Use a `Map` when the key is an object.
+
+---
+
+**Q19: In what order does `Object.keys` return these keys, and why is it not the order they were written?**
+
+```js
+const obj = { b: 'b', 2: 'two', a: 'a', 1: 'one', '-1': 'minus one', '01': 'zero one' };
+console.log(JSON.stringify(Object.keys(obj)));
+```
+
+**Output:**
+```
+["1","2","b","a","-1","01"]
+```
+
+**Explanation:**
+
+Key order is defined by the language, and it is **not** simply insertion order. `Object.keys` (and `for...in`, `JSON.stringify` and `Object.entries`) list keys in three groups:
+
+1. **Integer-like keys**, in ascending numeric order: `"1"`, `"2"`.
+2. **Every other string key**, in the order they were added: `"b"`, `"a"`, `"-1"`, `"01"`.
+3. **Symbol keys**, in insertion order (only `Reflect.ownKeys` and `Object.getOwnPropertySymbols` show these).
+
+So `2` and `1` jump to the front and swap, even though `b` was written first.
+
+The surprising part is what counts as "integer-like". A key qualifies only if it is a **canonical** non-negative integer, meaning converting it to a number and back gives the same string. `"-1"` is negative, so it is not. `"01"` converts to `1`, which prints back as `"1"`, not `"01"`, so it is not either. Both stay in insertion order with the ordinary strings.
+
+This bites in practice when an object is used as a lookup keyed by id. `{ 30: …, 10: …, 20: … }` comes back as `10, 20, 30`, so any UI that relies on "the order the server sent them" is silently re-sorted. If order matters, use an array or a `Map`, both of which keep insertion order for every key.
+
+**Takeaway:** integer-like keys come first in ascending order, then string keys in insertion order. Do not rely on object key order to mean "the order I added them".
+
+---
+
+**Q20: The copy was made with spread, so why did changing the copy's city and tags change the original, but changing its name did not?**
+
+```js
+const original = { name: 'Asha', address: { city: 'Pune' }, tags: ['admin'] };
+const copy = { ...original };
+
+copy.name = 'Ravi';
+copy.address.city = 'Delhi';
+copy.tags.push('editor');
+
+console.log(original.name);
+console.log(original.address.city);
+console.log(original.tags.length);
+console.log(copy.address === original.address);
+```
+
+**Output:**
+```
+Asha
+Delhi
+2
+true
+```
+
+**Explanation:**
+
+| Line | Why |
+|---|---|
+| `Asha` | `name` is a string, so the copy got its own value; reassigning it touches only the copy |
+| `Delhi` | `address` was copied as a **reference**; both objects point at the same `{ city }` |
+| `2` | `tags` is the same array in both, so `push` changed the one array they share |
+| `true` | proof: the two `address` properties are the same object |
+
+Spread makes a **shallow** copy. It creates a new outer object and copies each top-level property across. For a primitive (string, number, boolean) that copies the value itself. For an object or array, the "value" is a reference, so the copy gets another reference to the **same** nested object.
+
+The rule for predicting these: **assigning a property of the copy is safe, mutating something the copy points to is not.** `copy.name = 'Ravi'` replaces a property on the new outer object. `copy.address.city = 'Delhi'` first reads `copy.address`, which is the shared object, and changes that.
+
+To change a nested value without touching the original, copy each level on the path you change, which is how React and Redux state updates are written:
+
+```js
+const original = { name: 'Asha', address: { city: 'Pune' } };
+const updated = { ...original, address: { ...original.address, city: 'Delhi' } };
+console.log(original.address.city, updated.address.city); // Pune Delhi
+```
+
+For a full independent copy of plain data, use `structuredClone(original)` (see Q24).
+
+**Takeaway:** spread copies one level. Nested objects and arrays are still shared, so mutating them through the copy changes the original.
+
+---
+
+**Q21: The function sets `age` to 30 and later to 100, so why does the original end up with 30 and not 100?**
+
+```js
+function update(user) {
+  user.age = 30;
+  user = { name: 'New', age: 99 };
+  user.age = 100;
+}
+
+const person = { name: 'Asha', age: 25 };
+update(person);
+
+console.log(person.name, person.age);
+```
+
+**Output:**
+```
+Asha 30
+```
+
+**Explanation:**
+
+JavaScript passes every argument **by value**, and for an object that value is a **reference**. This is often called *pass by sharing*. Inside `update`, the parameter `user` starts as a second reference to the same object as `person`.
+
+- `user.age = 30` follows that reference and changes the shared object. `person` sees it.
+- `user = { name: 'New', age: 99 }` does **not** touch the shared object. It points the local variable `user` at a brand-new object. `person` still points at the original.
+- `user.age = 100` changes the new object, which nothing outside the function can reach. It is thrown away when the function returns.
+
+So the original was changed exactly once, by the first line, and prints `Asha 30`.
+
+The two operations look alike and are completely different: **mutating** (`user.age = …`) changes the object both variables share, while **reassigning** (`user = …`) only changes where one variable points. This is also why a function cannot replace the caller's object for them. If you want a new object, `return` it and let the caller assign it.
+
+**Takeaway:** a function receives a copy of the reference. Changing properties through it affects the caller's object; reassigning the parameter does not.
+
+---
+
+**Q22: Only `grid[0]` was incremented, so why did `grid[1]` and `grid[2]` change too, and why does `Array.from` not have the problem?**
+
+```js
+const grid = new Array(3).fill({ count: 0 });
+grid[0].count++;
+console.log(grid[1].count, grid[2].count);
+
+const fixed = Array.from({ length: 3 }, () => ({ count: 0 }));
+fixed[0].count++;
+console.log(fixed[1].count, fixed[2].count);
+```
+
+**Output:**
+```
+1 1
+0 0
+```
+
+**Explanation:**
+
+| Line | Why |
+|---|---|
+| `1 1` | `fill` put the **same** object in all three slots, so there was only ever one `count` |
+| `0 0` | `Array.from` called the arrow function three times, making three separate objects |
+
+`fill(value)` evaluates its argument **once**, then writes that one value into every slot. For a number that is harmless. For `{ count: 0 }` it means every slot holds a reference to the same object, so incrementing through `grid[0]` changes what `grid[1]` and `grid[2]` show.
+
+The same mistake appears with a nested array: `new Array(3).fill([])` gives three references to one inner array, so pushing into "row 0" pushes into every row. It is the classic cause of a 2D grid where setting one cell sets the whole column.
+
+`Array.from({ length: 3 }, () => ({ count: 0 }))` passes a **function**, and `Array.from` calls it once per slot, so each call creates a new object. `new Array(3).fill().map(() => ({ count: 0 }))` works for the same reason. The parentheses around `{ count: 0 }` are needed because an arrow followed by a bare `{` reads it as a function body, not an object.
+
+**Takeaway:** `fill` with an object shares that one object across every slot. Use `Array.from` with a factory function when each slot needs its own object or array.
+
+---
+
+**Q23: Why is `JSON.parse(JSON.stringify(obj))` not a real deep clone? Predict what survives.**
+
+```js
+const source = {
+  when: new Date(0),
+  missing: undefined,
+  notANumber: NaN,
+  big: Infinity,
+  greet() { return 'hi'; },
+  roles: new Map([['admin', true]]),
+  list: [undefined, () => 1],
+};
+
+const clone = JSON.parse(JSON.stringify(source));
+
+console.log(typeof clone.when);
+console.log('missing' in clone);
+console.log(clone.notANumber, clone.big);
+console.log(typeof clone.greet);
+console.log(JSON.stringify(clone.roles));
+console.log(JSON.stringify(clone.list));
+```
+
+**Output:**
+```
+string
+false
+null null
+undefined
+{}
+[null,null]
+```
+
+**Explanation:**
+
+| Line | What happened |
+|---|---|
+| `string` | a `Date` is written as an ISO string and never turned back into a `Date` |
+| `false` | a property whose value is `undefined` is **dropped** entirely |
+| `null null` | `NaN` and `Infinity` are not valid JSON numbers, so they become `null` |
+| `undefined` | functions (including methods) are dropped |
+| `{}` | a `Map` has no enumerable own properties, so it becomes an empty object |
+| `[null,null]` | inside an **array**, `undefined` and functions cannot be dropped (it would shift the indexes), so they become `null` |
+
+The round trip copies only what JSON can express: strings, finite numbers, booleans, `null`, plain objects and arrays. Everything else is converted or lost **without any error**, which is what makes it dangerous. The clone looks fine until someone calls `clone.when.getTime()` and gets `TypeError: clone.when.getTime is not a function`.
+
+It also fails loudly in two cases: a circular reference throws `TypeError: Converting circular structure to JSON`, and a `BigInt` throws `TypeError: Do not know how to serialize a BigInt`.
+
+It is still fine for data that is already JSON-shaped, like an API response you have just parsed. For anything else, `structuredClone` (Q24) is the built-in answer.
+
+**Takeaway:** the JSON round trip silently turns `Date` into a string, drops `undefined` and functions, turns `NaN`/`Infinity` into `null`, and empties `Map`/`Set`. Use it only on plain JSON data.
+
+---
+
+**Q24: `structuredClone` copies an object that contains itself. What does the copy's `self` point to, and what happens with a method?**
+
+```js
+const node = { name: 'root', when: new Date(0), tags: new Set(['a']) };
+node.self = node;
+
+const copy = structuredClone(node);
+
+console.log(copy === node);
+console.log(copy.self === copy);
+console.log(copy.when instanceof Date, copy.tags.has('a'));
+
+try {
+  structuredClone({ run() {} });
+} catch (err) {
+  console.log(err.name);
+}
+```
+
+**Output:**
+```
+false
+true
+true true
+DataCloneError
+```
+
+**Explanation:**
+
+| Line | Why |
+|---|---|
+| `false` | the clone is a new object, not the original |
+| `true` | the cycle was **recreated inside the copy**: `copy.self` points to `copy`, not back to `node` |
+| `true true` | `Date` and `Set` come back as a real `Date` and a real `Set` |
+| `DataCloneError` | functions cannot be cloned, so it throws instead of silently dropping them |
+
+`structuredClone` is the built-in deep copy (browsers and Node 17+). It uses the same algorithm the browser uses to send data to a Web Worker with `postMessage`, which is why it understands far more types than JSON: `Date`, `Map`, `Set`, `RegExp`, typed arrays, `Blob`, `Error` and more.
+
+It keeps a record of every object it has already copied. When it meets `node` a second time (through `node.self`), it reuses the copy it already made instead of looping forever. So a cycle in the original becomes the same cycle in the clone, and shared references stay shared.
+
+What it will not copy, and the three things to say in an interview:
+
+- **Functions and DOM nodes throw** `DataCloneError`. That is better than JSON's silent drop, because you find out immediately.
+- **Class instances lose their class.** `structuredClone(new User())` returns a plain object with the same fields, so `instanceof User` is `false` and its methods are gone.
+- **Getters are run, not copied.** The copy gets the value the getter returned at clone time.
+
+**Takeaway:** `structuredClone` is the right deep copy for data. It preserves cycles, `Date`, `Map` and `Set`, but throws on functions and does not keep class prototypes.
+
+---
+
+**Q25: The object is frozen, so why could `db.host` be changed while `port` could not?**
+
+```js
+'use strict';
+
+const config = Object.freeze({ port: 3000, db: { host: 'localhost' } });
+
+config.db.host = 'prod-db';
+console.log(config.db.host);
+
+try {
+  config.port = 8080;
+} catch (err) {
+  console.log(err instanceof TypeError);
+}
+console.log(config.port);
+```
+
+**Output:**
+```
+prod-db
+true
+3000
+```
+
+**Explanation:**
+
+| Line | Why |
+|---|---|
+| `prod-db` | `Object.freeze` is **shallow**: `db` is a separate object, and it is not frozen |
+| `true` | writing to a frozen property throws a `TypeError` in strict mode |
+| `3000` | the write to `port` never happened |
+
+`Object.freeze(config)` locks the properties **of `config` itself**: none can be added, removed or reassigned. `config.db` is one of those properties, so you cannot point it at a different object. But the object it points to is untouched by the freeze, so `config.db.host = 'prod-db'` is an ordinary write to an ordinary object.
+
+**The `'use strict'` line matters.** In strict mode (every ES module and every `class` body is strict), writing to a frozen property throws. In sloppy mode the same write fails **silently**: no error, and the value just does not change. Remove the first line and the `true` disappears, while `3000` stays the same. The silent version is the one that wastes an afternoon.
+
+To freeze all the way down, walk the object and freeze every nested object too. Interview Q17 in §15 has a `deepFreeze` that does this. In TypeScript, `as const` gives the deep version at compile time only; nothing stops the write at runtime.
+
+**Takeaway:** `Object.freeze` only freezes the top level. Nested objects stay writable unless you freeze them too, and a blocked write only throws in strict mode.
+
+---
+
+**Q26: Why did the getter run once during the spread and never again when reading `copy.stamp`?**
+
+```js
+let reads = 0;
+const source = {
+  get stamp() {
+    reads++;
+    return 'read #' + reads;
+  },
+};
+
+const copy = { ...source };
+
+console.log(reads);
+console.log(copy.stamp, copy.stamp);
+console.log(source.stamp);
+console.log(typeof Object.getOwnPropertyDescriptor(copy, 'stamp').get);
+```
+
+**Output:**
+```
+1
+read #1 read #1
+read #2
+undefined
+```
+
+**Explanation:**
+
+| Line | Why |
+|---|---|
+| `1` | the spread **read** `source.stamp`, which ran the getter once |
+| `read #1 read #1` | the copy holds the plain value the getter returned, so reading it runs nothing |
+| `read #2` | the original still has the getter, so reading it runs the getter again |
+| `undefined` | the copy's `stamp` is a data property, with no `get` function |
+
+Spread (and `Object.assign`) copies properties by **reading** each one from the source and **writing** the result into the target. Reading an accessor property calls its getter, so what gets copied is the value at that moment, not the getter. The copy is a snapshot: `copy.stamp` will say `read #1` forever.
+
+That matters whenever a getter computes something live: a `get total()` on a cart, a `get isExpired()` on a token, a lazily computed value. After a spread, the copy stops updating. It also means spreading an object whose getter throws will throw.
+
+To copy the getter itself, copy the **property descriptors** instead of the values:
+
+```js
+let reads = 0;
+const source = { get stamp() { reads++; return 'read #' + reads; } };
+const live = Object.defineProperties({}, Object.getOwnPropertyDescriptors(source));
+console.log(live.stamp, live.stamp); // read #1 read #2
+```
+
+**Takeaway:** spread and `Object.assign` run getters and copy their current values. Use `Object.getOwnPropertyDescriptors` when the copy must keep the getter.
+
+---
+
+### Scope, Hoisting & Closures
+
+The questions interviewers ask most often of all. Each one comes down to *when* a variable is created and *which* variable a function is looking at.
+
+**Q27: Why do the `var` timers all print 3, while the `let` timers print 0, 1 and 2?**
+
+```js
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => console.log('var:', i), 0);
+}
+for (let j = 0; j < 3; j++) {
+  setTimeout(() => console.log('let:', j), 0);
+}
+```
+
+**Output:**
+```text
+var: 3
+var: 3
+var: 3
+let: 0
+let: 1
+let: 2
+```
+
+**Explanation:**
+
+**In one line:** `var` makes **one** variable for the whole loop, while `let` makes a **new** variable for every iteration, and each arrow function remembers the variable, not the value it had.
+
+The timers run after the loop has finished (§1.6: a `setTimeout` callback waits until the running code is done). By then:
+
+| Loop | How many variables | What each timer sees when it finally runs |
+|---|---|---|
+| `var i` | one `i`, shared by all three callbacks (`var` is function-scoped, not block-scoped) | that single `i`, which the loop left at `3` |
+| `let j` | a fresh `j` for each iteration (`let` is block-scoped, and a `for` loop creates a new binding each time round) | its own `j`: `0`, `1` and `2` |
+
+Before `let` existed (2015), the fix was to create a new scope by hand for each iteration, for example with an immediately-invoked function: `(function (k) { setTimeout(() => console.log(k)); })(i)`. Today the fix is simply `let`. §5.3 walks through the same gotcha in more depth.
+
+**Takeaway:** a closure captures a *variable*. Use `let` in loops so each iteration has its own.
+
+---
+
+**Q28: What does `typeof greet` print before and after the assignment, and why does `show()` print `undefined` instead of `1`?**
+
+```js
+function hoisting() {
+  console.log(typeof greet);
+  var greet = 'hello';
+  function greet() {}
+  console.log(typeof greet);
+}
+hoisting();
+
+var x = 1;
+function show() {
+  console.log(x);
+  var x = 2;
+}
+show();
+```
+
+**Output:**
+```text
+function
+string
+undefined
+```
+
+**Explanation:**
+
+**In one line:** before any code in a scope runs, JavaScript sets up its declarations (hoisting, §1.2): function declarations are ready to use, and `var`s exist but are `undefined`. Assignments then happen as each line runs.
+
+| Line | Why |
+|---|---|
+| `function` | in the setup phase the **function declaration** wins, so before any line runs `greet` is the function |
+| `string` | the line `var greet = 'hello'` then runs and replaces it with the string (the `var` part was already set up; only the assignment happens now) |
+| `undefined` | inside `show`, the `var x` declaration is hoisted to the top of **`show`**, so this `x` is `show`'s own local variable, not the outer `x = 1`. At the `console.log` it exists but has not been assigned yet |
+
+The second case is the one that causes real bugs: declaring a variable anywhere in a function **shadows** (hides) an outer variable with the same name for the *whole* function, even the lines above the declaration. With `let` or `const` the same code would throw instead of printing `undefined` (the next question), which is the safer failure.
+
+(At the top level of an ES module, the first half would not even run: modules reject a `var` and a function declaration with the same name as a `SyntaxError`. That is why the demo puts it inside a function.)
+
+**Takeaway:** declarations are set up before the code runs; assignments happen in place. Declare variables at the top of their scope, and prefer `let`/`const`.
+
+---
+
+**Q29: Why does reading `color` throw inside the block, when there is a perfectly good `color` outside it?**
+
+```js
+let color = 'red';
+{
+  try {
+    console.log(color);
+  } catch (err) {
+    console.log(err.name);
+  }
+  let color = 'blue';
+  console.log(color);
+}
+console.log(color);
+```
+
+**Output:**
+```text
+ReferenceError
+blue
+red
+```
+
+**Explanation:**
+
+**In one line:** the inner `let color` is hoisted to the top of the block but **not initialised**, so from the start of the block until that line, `color` means the *inner* variable, and touching it throws. That gap is the **temporal dead zone** (TDZ).
+
+| Line | Why |
+|---|---|
+| `ReferenceError` | the block has its own `color`, which hides the outer one for the whole block. The inner one is not ready until its `let` line runs |
+| `blue` | after the `let` line, the inner `color` has its value |
+| `red` | outside the block, the outer `color` was never touched |
+
+This is the same shadowing as `var` in the previous question, with one crucial difference: `var` gives you a silent `undefined`, and `let`/`const` give you an error pointing at the line. The error is the better outcome, because the bug shows up immediately instead of as a wrong value somewhere else.
+
+**Takeaway:** `let` and `const` are hoisted too, but reading them before their line throws. A variable declared in a block hides any outer variable with the same name for the entire block.
+
+---
+
+**Q30: Why does `read()` print 2, and why do the two counters not share a count?**
+
+```js
+let count = 1;
+const read = () => count;
+count = 2;
+console.log(read());
+
+function makeCounter() {
+  let n = 0;
+  return () => ++n;
+}
+const a = makeCounter();
+const b = makeCounter();
+a(); a();
+console.log(a(), b());
+```
+
+**Output:**
+```text
+2
+3 1
+```
+
+**Explanation:**
+
+**In one line:** a closure keeps a live link to the **variable**, not a copy of its value; and each call to `makeCounter` creates a **new** variable.
+
+| Line | Why |
+|---|---|
+| `2` | `read` was created when `count` was `1`, but it looks `count` up when it is *called*. By then `count` is `2` |
+| `3 1` | `a` and `b` came from two separate calls to `makeCounter`, and each call created its own `n`. `a` was called twice before, so this third call gives `3`; `b`'s `n` is untouched, so its first call gives `1` |
+
+These two facts explain almost every closure question. The first is why closures show **fresh** values (and why they keep objects in memory, interview Q25). The second is how closures give each instance **private state**, which is the basis of the module pattern and of how React hooks keep state per component.
+
+The opposite case, a closure that shows an *old* value, happens when the closure is attached to an old variable that has since been replaced, such as state from a previous React render (interview Q29).
+
+**Takeaway:** closures read variables live, and every call to the outer function makes new variables.
+
+---
+
+### `this`
+
+`this` is decided by **how a function is called**, not where it is written, except in arrow functions, which never have their own. The demo uses strict mode so the output is the same everywhere.
+
+**Q31: Why does `this.name` work in `regular()`, but not in `arrow()`, not after the method is copied into a variable, and not in the inner `function`?**
+
+```js
+'use strict';
+
+const user = {
+  name: 'Asha',
+  regular() { return this === undefined ? 'undefined' : this.name; },
+  arrow: () => (this === undefined ? 'undefined' : 'has a this'),
+  later() {
+    const inner = function () { return this === undefined ? 'undefined' : this.name; };
+    const innerArrow = () => this.name;
+    return [inner(), innerArrow()];
+  },
+};
+
+console.log(user.regular());
+console.log(user.arrow());
+const detached = user.regular;
+console.log(detached());
+console.log(JSON.stringify(user.later()));
+```
+
+**Output:**
+```text
+Asha
+undefined
+undefined
+["undefined","Asha"]
+```
+
+**Explanation:**
+
+**In one line:** a normal function gets `this` from the object **before the dot at the call site**; an arrow function has no `this` of its own and uses the one from **where it was written**.
+
+| Call | What `this` is | Why |
+|---|---|---|
+| `user.regular()` | `user`, so `Asha` | called as `user.something()`, so `this` is `user` |
+| `user.arrow()` | `undefined` | an arrow takes `this` from the surrounding code. An object literal is not a scope, so the surrounding `this` is the top-level one, which in strict mode is `undefined` |
+| `detached()` | `undefined` | the same function, but called on its own, with no object before the dot |
+| `inner()` inside `later` | `undefined` | a plain call again: `inner` is a normal function called by itself |
+| `innerArrow()` inside `later` | `user`, so `Asha` | the arrow uses `later`'s `this`, and `later` was called as `user.later()` |
+
+The last row is why arrow functions were added: a callback inside a method (`array.map(...)`, `setTimeout(...)`) can use the method's `this` without `const self = this` or `.bind(this)`.
+
+Without `'use strict'`, a plain call gets the global object as `this` instead of `undefined`, so the result depends on whether there happens to be a global `name`. In a browser there usually is (`window.name`, often an empty string), which produces confusing output rather than an error. Modules and classes are always strict.
+
+**Takeaway:** never use an arrow function as an object method that needs `this`; do use arrows for callbacks *inside* methods. A method passed around on its own loses its object (§1.3).
+
+---
+
+### Numbers, Types & Coercion
+
+Short puzzles interviewers use as warm-ups. Each one has a single rule behind it.
+
+**Q32: Why is `0.1 + 0.2` not `0.3`, and why does `9007199254740993` print as `9007199254740992`?**
+
+```js
+console.log(0.1 + 0.2);
+console.log(0.1 + 0.2 === 0.3);
+console.log(Math.abs(0.1 + 0.2 - 0.3) < Number.EPSILON);
+console.log(9007199254740993);
+console.log(Number.MAX_SAFE_INTEGER);
+console.log(9007199254740993n + 1n);
+```
+
+**Output:**
+```text
+0.30000000000000004
+false
+true
+9007199254740992
+9007199254740991
+9007199254740994n
+```
+
+**Explanation:**
+
+**In one line:** JavaScript numbers are 64-bit floating point (the IEEE 754 standard), which stores numbers in binary with a fixed number of digits. Most decimal fractions cannot be written exactly in binary, and whole numbers above 2⁵³ cannot all be stored exactly either.
+
+| Line | Why |
+|---|---|
+| `0.30000000000000004` | `0.1` and `0.2` are each stored as the nearest binary value, which is very slightly off; the tiny errors add up and become visible |
+| `false` | so the sum is not exactly equal to the stored `0.3` |
+| `true` | the usual way to compare: check the difference is smaller than `Number.EPSILON`, the gap between 1 and the next representable number |
+| `9007199254740992` | above 2⁵³, not every whole number can be represented, so this one is rounded to its even neighbour |
+| `9007199254740991` | `Number.MAX_SAFE_INTEGER`: up to here, every whole number is exact |
+| `9007199254740994n` | a `BigInt` (the `n` suffix) stores whole numbers of any size exactly |
+
+This is not a JavaScript bug. Python, Java and C behave the same way with floating-point numbers.
+
+**What to do in real code:** for **money**, store whole cents (`1999`, not `19.99`) and format as a decimal only for display, which is what the Shopping Cart template does. For **IDs** from a database that can exceed 2⁵³, keep them as strings or use `BigInt`, because `JSON.parse` silently rounds large numbers.
+
+**Takeaway:** never compare decimal results with `===`, keep money in integers, and treat very large IDs as strings.
+
+---
+
+**Q33: What does `typeof` return for `null`, `NaN`, an array, a class, and a variable that was never declared?**
+
+```js
+console.log(typeof null);
+console.log(typeof NaN);
+console.log(typeof []);
+console.log(typeof class {});
+console.log(typeof notDeclaredAnywhere);
+console.log(Array.isArray([]), Number.isNaN(NaN));
+```
+
+**Output:**
+```text
+object
+number
+object
+function
+undefined
+true true
+```
+
+**Explanation:**
+
+**In one line:** `typeof` has a few answers that look wrong but are fixed forever for compatibility, and it is the one way to read an undeclared name without throwing.
+
+| Line | Why |
+|---|---|
+| `object` for `null` | a bug from JavaScript's first version (1995). Fixing it would break existing websites, so it stays. Check for null with `value === null` |
+| `number` for `NaN` | "Not a Number" is still a value of the number type: it is what failed arithmetic produces, such as `0 / 0` |
+| `object` for `[]` | arrays are objects. Use `Array.isArray(value)` to detect them |
+| `function` for a class | a class is a special kind of function under the hood (§6) |
+| `undefined` for an undeclared name | reading an undeclared variable normally throws a `ReferenceError`, but `typeof` returns `'undefined'` instead. That is why older code checks `typeof window !== 'undefined'` to detect a browser |
+| `true true` | the reliable checks: `Array.isArray` for arrays and `Number.isNaN` for NaN (the older global `isNaN('a')` converts first and says `true`) |
+
+One exception to the undeclared-name rule: `typeof` does throw for a `let` or `const` variable in its temporal dead zone (Q29), because that variable *is* declared, just not ready yet.
+
+**Takeaway:** `typeof` is for primitives and functions. For `null`, arrays and `NaN`, use `=== null`, `Array.isArray` and `Number.isNaN`.
+
+---
+
+**Q34: Why does `'5' - 2` give 3 but `'5' + 2` give `'52'`, and where does `'baNaNa'` come from?**
+
+```js
+console.log('5' - 2);
+console.log('5' + 2);
+console.log('5' * '2');
+console.log(+'');
+console.log(+'a');
+console.log('b' + 'a' + +'a' + 'a');
+```
+
+**Output:**
+```text
+3
+52
+10
+0
+NaN
+baNaNa
+```
+
+**Explanation:**
+
+**In one line:** `+` means **both** addition and joining strings, and if either side is a string it joins. Every other arithmetic operator (`-`, `*`, `/`) only does maths, so it converts strings to numbers.
+
+| Line | Why |
+|---|---|
+| `3` | `-` only works on numbers, so `'5'` becomes `5` |
+| `52` | `+` with a string on one side joins them: `'5' + '2'` |
+| `10` | `*` converts both strings to numbers |
+| `0` | a **unary** `+` (a `+` with nothing on its left) converts to a number; an empty string becomes `0` |
+| `NaN` | `'a'` is not a number, so converting it gives `NaN` |
+| `baNaNa` | read left to right: `'b' + 'a'` is `'ba'`; then `+'a'` (unary plus) is `NaN`, and `'ba' + NaN` joins to `'baNaN'`; then `+ 'a'` gives `'baNaNa'` |
+
+The last line is a famous joke, but the rule behind it is practical: values from form inputs and URLs are **strings**, so `input.value + 1` joins instead of adding. Convert explicitly with `Number(value)` before doing maths, and check the result with `Number.isNaN`.
+
+**Takeaway:** `+` joins if either side is a string; the other operators always convert to numbers. Convert user input with `Number()` yourself.
+
+---
+
+**Q35: Why does `sort()` put 10 before 3, and why does `map(parseInt)` return `NaN` in the middle?**
+
+```js
+console.log([10, 1, 3, 20].sort().join(', '));
+console.log([10, 1, 3, 20].sort((a, b) => a - b).join(', '));
+console.log(['10', '10', '10'].map(parseInt).join(', '));
+console.log(Array(3).length, Array.of(3).length);
+```
+
+**Output:**
+```text
+1, 10, 20, 3
+1, 3, 10, 20
+10, NaN, 2
+3 1
+```
+
+**Explanation:**
+
+**In one line:** both are **defaults** doing something reasonable that is not what you meant: `sort` compares as text unless you give it a comparison, and `map` passes more arguments than `parseInt` expects.
+
+| Line | Why |
+|---|---|
+| `1, 10, 20, 3` | with no comparison function, `sort` converts every item to a **string** and sorts alphabetically: `'10'` comes before `'3'` because `'1'` comes before `'3'` |
+| `1, 3, 10, 20` | `(a, b) => a - b` returns a negative, zero or positive number, which tells `sort` the numeric order |
+| `10, NaN, 2` | `map` calls its callback with `(value, index, array)`, and `parseInt`'s second parameter is the **radix** (the number base). So the calls are `parseInt('10', 0)` = 10 (0 means "work it out"), `parseInt('10', 1)` = NaN (there is no base 1), and `parseInt('10', 2)` = 2 (binary 10) |
+| `3 1` | `Array(3)` with a single number creates an **empty array of length 3**, not `[3]`. `Array.of(3)` always means "an array containing these items", so it is `[3]`, length 1 |
+
+Two more facts worth knowing: `sort` changes the array it is called on (use `toSorted()` for a sorted copy), and `['1', '2', '3'].map(Number)` is the safe way to convert, because `Number` takes only one argument.
+
+**Takeaway:** always pass a comparison to `sort` for numbers, and never pass `parseInt` straight to `map`.
+
+---
+
+### Promises & Generators
+
+The event-loop questions above are about *order*. These are about *values*: what a promise chain or a generator actually hands you back.
+
+**Q36: The chain starts with a rejection, so why does the second `then` run, and with what value?**
+
+```js
+Promise.reject(new Error('boom'))
+  .then(() => console.log('then 1'))
+  .catch((err) => {
+    console.log('caught', err.message);
+    return 'recovered';
+  })
+  .then((value) => console.log('then 2', value))
+  .finally(() => console.log('finally'));
+```
+
+**Output:**
+```text
+caught boom
+then 2 recovered
+finally
+```
+
+**Explanation:**
+
+**In one line:** a `.catch` that returns normally **recovers** the chain: the value it returns becomes the next step's result, exactly like a `try/catch` that handles an error and carries on.
+
+| Line | Why |
+|---|---|
+| (no `then 1`) | the promise is rejected, so `.then(onFulfilled)` is skipped and the rejection passes down the chain |
+| `caught boom` | `.catch` handles the rejection |
+| `then 2 recovered` | `.catch` returned `'recovered'` without throwing, so the chain carries on as a success with that value |
+| `finally` | `.finally` runs either way and passes the value through unchanged |
+
+This is useful when intended (a fallback value when a request fails), and a bug when not. A common version: a helper does `.catch((err) => console.error(err))`, which returns `undefined`, so every caller's `.then` runs with `undefined` as though the request had succeeded. If a `catch` cannot actually handle the error, **throw it again** (`throw err`) so the chain stays rejected.
+
+**Takeaway:** in a promise chain, `.catch` turns a failure into a success unless it throws again. Put `.catch` where you can genuinely handle the error, usually at the end.
+
+---
+
+**Q37: Both functions wrap the call in `try/catch`, so why does `withoutAwait` reject while `withAwait` catches the error?**
+
+```js
+async function load() {
+  throw new Error('network down');
+}
+
+async function withoutAwait() {
+  try {
+    return load();
+  } catch {
+    return 'caught inside withoutAwait';
+  }
+}
+
+async function withAwait() {
+  try {
+    return await load();
+  } catch {
+    return 'caught inside withAwait';
+  }
+}
+
+withoutAwait().then(console.log, (err) => console.log('withoutAwait rejected:', err.message));
+withAwait().then(console.log);
+```
+
+**Output:**
+```text
+caught inside withAwait
+withoutAwait rejected: network down
+```
+
+**Explanation:**
+
+**In one line:** `return load()` hands back the promise **without waiting for it**, so the function has already left its `try` block by the time the promise rejects. `return await load()` waits **inside** the `try`, so the rejection is thrown there and the `catch` runs.
+
+| Line | Why |
+|---|---|
+| `caught inside withAwait` | `await` pauses *inside* the `try`. When `load()` rejects, the `await` throws at that point, the `catch` runs, and its return value becomes the result |
+| `withoutAwait rejected: network down` | `return load()` returns the promise straight away. The `try` block finishes normally (nothing has been thrown *yet*), and when the promise rejects later, the rejection goes straight to the caller |
+
+The order is worth noticing too: `withAwait` settles first, because `withoutAwait`'s result has to follow the returned promise, which takes a couple of extra steps in the microtask queue.
+
+Outside a `try` block, `return promise` and `return await promise` give the same result. Inside `try`, `catch` or `finally`, the `await` changes the behaviour, and it also gives a clearer stack trace in errors (§8.5 covers mixing `async` with `.then`).
+
+**Takeaway:** inside a `try` block, write `return await`, or the `catch` will never see the error.
+
+---
+
+**Q38: Why is the first value passed to `next()` ignored, and what does the final `next()` return?**
+
+```js
+function* conversation() {
+  const first = yield 'What is your name?';
+  const second = yield 'Hello, ' + first;
+  return 'Done, ' + second;
+}
+
+const talk = conversation();
+console.log(talk.next('ignored').value);
+console.log(talk.next('Asha').value);
+console.log(JSON.stringify(talk.next('bye')));
+console.log(JSON.stringify(talk.next()));
+```
+
+**Output:**
+```text
+What is your name?
+Hello, Asha
+{"value":"Done, bye","done":true}
+{"done":true}
+```
+
+**Explanation:**
+
+**In one line:** calling `next(value)` **resumes** the generator and makes the paused `yield` evaluate to `value`. The first `next()` has no paused `yield` to resume, so whatever you pass to it is thrown away.
+
+| Line | Why |
+|---|---|
+| `What is your name?` | the first `next` starts the generator, which runs to the first `yield` and hands out its value. `'ignored'` goes nowhere: nothing was waiting for it |
+| `Hello, Asha` | `next('Asha')` resumes the first `yield`, which evaluates to `'Asha'`, so `first = 'Asha'`; the generator runs on to the second `yield` |
+| `{"value":"Done, bye","done":true}` | `next('bye')` makes `second = 'bye'`, and the generator reaches `return`. A `return` value is delivered once, with `done: true` |
+| `{"done":true}` | the generator has finished, so every later `next()` gives `done: true` and `value: undefined` (which `JSON.stringify` leaves out) |
+
+So a generator is a conversation: each `yield` sends a value **out**, and the next `next(value)` sends a value **in**. This two-way flow is what Redux Saga is built on, and how `async`/`await` was originally implemented on top of generators.
+
+One more detail: `for...of` and spreading (`[...gen]`) ignore the `return` value. They stop as soon as they see `done: true`, so `'Done, bye'` would never appear in a `for...of` loop.
+
+**Takeaway:** the first `next()` only starts the generator; a value passed to `next` becomes the result of the `yield` that was paused.
+
+---
+
+### Syntax Gotchas
+
+Two rules about how code is *read*, rather than how it runs.
+
+**Q39: Why does passing `name: null` print `null` instead of using the default `'guest'`?**
+
+```js
+function greet({ name = 'guest', greeting = 'Hi' } = {}) {
+  return greeting + ', ' + name;
+}
+
+console.log(greet({ name: undefined }));
+console.log(greet({ name: null }));
+console.log(greet());
+console.log(greet({ greeting: '' }));
+```
+
+**Output:**
+```text
+Hi, guest
+Hi, null
+Hi, guest
+, guest
+```
+
+**Explanation:**
+
+**In one line:** default values in destructuring and parameters apply **only when the value is `undefined`**. `null`, `''`, `0` and `false` are real values, so the default is not used.
+
+| Line | Why |
+|---|---|
+| `Hi, guest` | `name` is `undefined`, so the default applies |
+| `Hi, null` | `null` is a value, so no default |
+| `Hi, guest` | nothing was passed, so the parameter default `= {}` applies, and `name` inside it is `undefined` |
+| `, guest` | `greeting: ''` is a value (an empty string), so it is used as it is |
+
+This matters most with API data, where a missing field often arrives as `null`. When both should mean "use the default", use the **nullish coalescing** operator, which treats `null` and `undefined` alike: `const name = input.name ?? 'guest'`. Avoid `||` for this, because it also replaces `0` and `''`, which are often valid values.
+
+Note the `= {}` after the destructuring pattern: without it, calling `greet()` with no argument would throw, because you cannot destructure `undefined`.
+
+**Takeaway:** defaults cover `undefined` only. Use `??` when `null` should get the default too.
+
+---
+
+**Q40: Why does `getConfig()` return `undefined`, and why does the second part throw a `TypeError`?**
+
+```js
+function getConfig() {
+  return
+  {
+    debug: true;
+  }
+}
+
+console.log(getConfig());
+
+try {
+  const a = 1
+  const b = a
+  [1, 2].forEach((n) => console.log(n))
+} catch (err) {
+  console.log(err.name);
+}
+```
+
+**Output:**
+```text
+undefined
+TypeError
+```
+
+**Explanation:**
+
+**In one line:** JavaScript adds some semicolons for you (**automatic semicolon insertion**, ASI). It adds one after a `return` that ends a line, and it does **not** add one before a line that starts with `[` or `(`.
+
+| Line | Why |
+|---|---|
+| `undefined` | a line break right after `return` ends the statement, so the function runs `return;`. The `{ … }` below is then read as a block containing a label (`debug:`) and the expression `true`, and never runs |
+| `TypeError` | no semicolon is added before a line starting with `[`, so the last two lines are read as `const b = a[1, 2].forEach(...)`. The comma operator makes `a[1, 2]` mean `a[2]`, which on the number `1` is `undefined`, and `undefined.forEach` throws |
+
+Both are real bugs that pass code review, because the code *looks* fine.
+
+**The fixes:** put the opening `{` on the same line as `return` (`return {`), which is the standard style anyway. If you write without semicolons, start any line that begins with `[`, `(` or a template literal with a semicolon (`;[1, 2].forEach(...)`). Or use semicolons and a formatter such as Prettier, which adds them for you.
+
+**Takeaway:** never put a line break right after `return`, and don't start a line with `[` or `(` in semicolon-free code.
+
+---
+
+### Functions, Classes & Control Flow
+
+Puzzles about the order things happen in: which `return` wins, when a class field exists, and when a promise's code actually runs.
+
+**Q41: Which value does each function return when there is a `finally` block, and where did the error in `swallow()` go?**
+
+```js
+function pick() {
+  try {
+    return 'from try';
+  } finally {
+    console.log('finally runs first');
+  }
+}
+console.log(pick());
+
+function override() {
+  try {
+    return 'from try';
+  } finally {
+    return 'from finally';
+  }
+}
+console.log(override());
+
+function swallow() {
+  try {
+    throw new Error('lost');
+  } finally {
+    return 'finally wins';
+  }
+}
+console.log(swallow());
+```
+
+**Output:**
+```text
+finally runs first
+from try
+from finally
+finally wins
+```
+
+**Explanation:**
+
+**In one line:** a `finally` block **always runs**, even after a `return` or a `throw`. If `finally` itself returns, that return **replaces** whatever the `try` was returning or throwing.
+
+| Line | Why |
+|---|---|
+| `finally runs first` | the `try` has decided to return `'from try'`, but before the function actually exits, `finally` runs |
+| `from try` | `finally` did not return anything, so the `try`'s value goes through |
+| `from finally` | a `return` in `finally` overrides the `try`'s return |
+| `finally wins` | the `try` threw, but the `return` in `finally` replaced the exception, so **the error vanished** with no trace |
+
+The third case is the dangerous one. An error that should have reached the caller is silently thrown away, and nothing is logged. Linters flag it (ESLint's `no-unsafe-finally` rule).
+
+**Use `finally` for cleanup only:** closing a file, hiding a spinner, releasing a lock. Never `return`, `throw` or `break` from it. (`using` declarations, §9.9, are the modern way to do cleanup that cannot forget.)
+
+**Takeaway:** `finally` always runs, and a `return` inside it overrides both the `try`'s return and any error. Keep `finally` for cleanup.
+
+---
+
+**Q42: Why does the first `describe()` print `label = undefined`, when `label` is set to `'child'` in the class?**
+
+```js
+class Base {
+  constructor() {
+    this.describe();
+  }
+  describe() {
+    console.log('base describe');
+  }
+}
+
+class Child extends Base {
+  label = 'child';
+  describe() {
+    console.log('child describe, label =', this.label);
+  }
+}
+
+const c = new Child();
+c.describe();
+```
+
+**Output:**
+```text
+child describe, label = undefined
+child describe, label = child
+```
+
+**Explanation:**
+
+**In one line:** a subclass's **fields are set after the parent constructor has finished**. `Base`'s constructor calls `this.describe()`, which runs `Child`'s version, before `Child` has had a chance to set `label`.
+
+What happens during `new Child()`, in order:
+
+1. `Child` has no constructor of its own, so it calls `Base`'s constructor (through `super()`).
+2. `Base`'s constructor calls `this.describe()`. `this` is the new `Child` object, so **`Child`'s** `describe` runs. `label` does not exist yet: it prints `undefined`.
+3. `Base`'s constructor returns, and only then are `Child`'s class fields initialised: `label = 'child'`.
+4. The second `c.describe()` prints `child`.
+
+Java behaves the same way (C# does not: it initialises fields before calling the base constructor). The rule of thumb is the same everywhere: **don't call overridable methods from a constructor**. The parent is running code that belongs to a child that has not been built yet.
+
+This bites in real code when a base class calls `this.render()` or `this.init()` in its constructor and a subclass relies on its own fields there. The fix is to let the caller run `init()` after construction, or to pass the values the parent needs into `super(...)`.
+
+**Takeaway:** subclass fields do not exist until `super()` returns. Never call a method that subclasses override from a constructor.
+
+---
+
+**Q43: Why does `acc['#balance']` give `undefined`, and why doesn't `#balance` appear in `JSON.stringify` or `Object.keys`?**
+
+```js
+class Account {
+  #balance = 100;
+  owner = 'Asha';
+  static isAccount(value) {
+    return #balance in value;
+  }
+  get balance() {
+    return this.#balance;
+  }
+}
+
+const acc = new Account();
+console.log(acc.balance);
+console.log(acc['#balance']);
+console.log(JSON.stringify(acc));
+console.log(Object.keys(acc).join(', '));
+console.log(Account.isAccount(acc), Account.isAccount({ balance: 100 }));
+```
+
+**Output:**
+```text
+100
+undefined
+{"owner":"Asha"}
+owner
+true false
+```
+
+**Explanation:**
+
+**In one line:** a `#` field is not a property with an unusual name; it is a **genuinely private slot** attached to the object, which only code inside the class body can reach.
+
+| Line | Why |
+|---|---|
+| `100` | the `balance` getter is inside the class, so it can read `this.#balance` |
+| `undefined` | `acc['#balance']` looks for an ordinary property literally called `"#balance"`, which does not exist. There is no way to reach `#balance` from outside, not with brackets, not with `Object.getOwnPropertyNames` and not from a subclass |
+| `{"owner":"Asha"}` | private fields are invisible to `JSON.stringify` |
+| `owner` | and to `Object.keys` |
+| `true false` | `#balance in value` (the **ergonomic brand check**, ES2022) asks "was this object created by this class?". A plain object with a `balance` property fails it, which a `typeof value.balance === 'number'` check would not |
+
+Before `#` fields (ES2022), "private" meant a naming convention (`_balance`) that nothing enforced, or a `WeakMap` or closure trick. TypeScript's `private` keyword is also only a compile-time check (TypeScript tricky Q21).
+
+**Takeaway:** `#fields` are truly private: invisible to brackets, `Object.keys`, JSON and subclasses. Use `#x in obj` to check that an object really is an instance of your class.
+
+---
+
+### Equality, Numbers & Arrays
+
+Values that do not behave like the ones they look like.
+
+**Q44: Why is `0 === -0` true but `Object.is(0, -0)` false, and why does `includes` find `NaN` when `indexOf` does not?**
+
+```js
+console.log(0 === -0);
+console.log(Object.is(0, -0));
+console.log(Object.is(NaN, NaN));
+console.log([NaN].includes(NaN), [NaN].indexOf(NaN));
+console.log(1 / -0);
+console.log(JSON.stringify(-0), String(-0));
+```
+
+**Output:**
+```text
+true
+false
+true
+true -1
+-Infinity
+0 0
+```
+
+**Explanation:**
+
+**In one line:** JavaScript has **three** ways to compare values, and they disagree on exactly two cases: `NaN`, and `+0` versus `-0`.
+
+| Line | Why |
+|---|---|
+| `true` | `===` treats `+0` and `-0` as equal |
+| `false` | `Object.is` uses **SameValue**, which tells them apart |
+| `true` | and treats `NaN` as equal to itself (`NaN === NaN` is `false`, tricky Q4) |
+| `true -1` | `includes` uses **SameValueZero**: like `Object.is`, but `+0` equals `-0`. So it finds `NaN`. `indexOf` uses `===`, which never matches `NaN` |
+| `-Infinity` | the sign of zero is real: dividing by `-0` gives negative infinity |
+| `0 0` | but it is invisible when printed: `JSON.stringify` and `String` both show `-0` as `0` |
+
+| Comparison | `NaN` equals `NaN`? | `+0` equals `-0`? | Used by |
+|---|---|---|---|
+| `===` | no | yes | `indexOf`, `switch` |
+| SameValueZero | **yes** | yes | `includes`, `Map`, `Set` |
+| `Object.is` (SameValue) | **yes** | **no** | React's state comparison |
+
+`-0` appears from rounding tiny negative numbers (`Math.round(-0.4)`) and from multiplying by zero. It usually does not matter, but it is why `Object.is` exists, and it is the comparison React uses to decide whether state changed.
+
+**Takeaway:** use `includes` (not `indexOf`) to search for `NaN`, and `Object.is` when you need to tell `-0` from `0`.
+
+---
+
+**Q45: What does `arguments` contain in each function, and why does the arrow function see the outer function's arguments?**
+
+```js
+function regular() {
+  return arguments.length;
+}
+console.log(regular(1, 2, 3));
+
+function outer() {
+  const arrow = () => arguments[0];
+  return arrow('ignored');
+}
+console.log(outer('from outer'));
+
+function withRest(...args) {
+  return Array.isArray(args) + ' ' + Array.isArray(arguments);
+}
+console.log(withRest(1, 2));
+
+function defaults(a, b = 2) {
+  return arguments.length;
+}
+console.log(defaults(1), regular.length, defaults.length);
+```
+
+**Output:**
+```text
+3
+from outer
+true false
+1 0 1
+```
+
+**Explanation:**
+
+**In one line:** `arguments` is an array-like object holding every argument a **normal function** was called with. Arrow functions don't have their own; like `this`, they use the one from the surrounding function.
+
+| Line | Why |
+|---|---|
+| `3` | `regular` was called with three arguments. Even though it declares no parameters, `arguments` holds them all |
+| `from outer` | the arrow has no `arguments` of its own, so `arguments[0]` is `outer`'s first argument. `'ignored'` was passed to the arrow and is lost |
+| `true false` | a rest parameter (`...args`) is a **real array**; `arguments` only looks like one, so it has no `map` or `filter` |
+| `1 0 1` | `arguments.length` counts what was **passed** (`defaults(1)` passed one). A function's own `.length` counts the parameters *before the first default*: `regular` declares none, and `defaults(a, b = 2)` stops counting at `b` |
+
+`arguments` comes from before ES2015. Modern code uses **rest parameters** instead: they are real arrays, they work in arrow functions, and the function's signature says what it accepts. You still meet `arguments` in older code and in polyfills.
+
+**Takeaway:** prefer `...args` over `arguments`. Arrow functions have no `arguments` of their own, and `fn.length` counts parameters only up to the first default.
+
+---
+
+**Q46: What happens to the array when you set `length`, `delete` an item, or assign to index 9?**
+
+```js
+const arr = [1, 2, 3, 4, 5];
+arr.length = 2;
+console.log(arr.join(','));
+
+const holes = [1, , 3];
+console.log(holes.length, 1 in holes);
+console.log(holes.map((x) => x * 10).length, holes.filter(() => true).length);
+
+const items = ['a', 'b', 'c'];
+delete items[1];
+console.log(items.length, items[1]);
+
+const big = [];
+big[9] = 'x';
+console.log(big.length);
+```
+
+**Output:**
+```text
+1,2
+3 false
+3 2
+3 undefined
+10
+```
+
+**Explanation:**
+
+**In one line:** an array's `length` is just a number one higher than its highest index, and **you can change it directly**. Setting it smaller deletes items; skipping indexes creates **holes** (empty slots, which are different from `undefined`).
+
+| Line | Why |
+|---|---|
+| `1,2` | setting `length = 2` permanently removes every item from index 2 onwards |
+| `3 false` | `[1, , 3]` has length 3, but index 1 is a hole: the `in` operator shows no element exists there |
+| `3 2` | `map` keeps the hole (length stays 3), while `filter` skips it (length 2). Array methods treat holes inconsistently |
+| `3 undefined` | `delete` removes the element but **does not shift** the others or change `length`, leaving a hole |
+| `10` | assigning to index 9 of an empty array makes `length` 10, with indexes 0 to 8 as holes |
+
+`arr.length = 0` is a legitimate, fast way to empty an array **in place**, so every reference to that array sees it empty (unlike `arr = []`, which only rebinds one variable).
+
+To remove an item, use `splice(index, 1)` or `filter`, never `delete`. And create arrays of a given size with `Array.from({ length: n }, fn)` or `new Array(n).fill(value)`, so they have real values rather than holes.
+
+**Takeaway:** `length` is writable, `delete` leaves holes, and holes are not `undefined`. Remove items with `splice` or `filter`.
+
+---
+
+**Q47: The object has both `valueOf` and `toString`, so why does `price + 1` use one and `` `${price}` `` use the other?**
+
+```js
+const price = {
+  valueOf() { return 42; },
+  toString() { return 'forty-two'; },
+};
+
+console.log(price + 1);
+console.log(`${price}`);
+console.log(String(price));
+console.log(price * 2);
+console.log(price > 40);
+console.log([1, 2] + [3]);
+```
+
+**Output:**
+```text
+43
+forty-two
+forty-two
+84
+true
+1,23
+```
+
+**Explanation:**
+
+**In one line:** when JavaScript needs a primitive from an object, it asks for a **hint**: `+`, `*` and `>` prefer a number, so they call **`valueOf` first**; template literals and `String()` want a string, so they call **`toString` first**.
+
+| Line | Hint | Called | Result |
+|---|---|---|---|
+| `price + 1` | default (treated like number) | `valueOf` → 42 | `43` |
+| `` `${price}` `` | string | `toString` | `forty-two` |
+| `String(price)` | string | `toString` | `forty-two` |
+| `price * 2` | number | `valueOf` | `84` |
+| `price > 40` | number | `valueOf` | `true` |
+| `[1, 2] + [3]` | default | arrays' `valueOf` returns the array itself (not a primitive), so it falls back to `toString`: `'1,2'` and `'3'` | `1,23` |
+
+This is the mechanism behind every "weird" coercion result: `[] + {}` is `'' + '[object Object]'`, and a `Date` becomes a number in `date2 - date1` (so you can subtract dates) but a readable string in `` `${date}` ``. A class can control all of this precisely with `[Symbol.toPrimitive](hint)`, which receives `'number'`, `'string'` or `'default'`.
+
+**Takeaway:** objects become primitives through `valueOf` (maths and comparisons) or `toString` (strings and templates). If a result looks odd, work out which one was called.
+
+---
+
+**Q48: Does the executor passed to `new Promise` run now or later, and what happens to the second `resolve` and the `reject`?**
+
+```js
+console.log('1. before');
+
+const p = new Promise((resolve, reject) => {
+  console.log('2. executor runs immediately');
+  resolve('first');
+  resolve('second');
+  reject(new Error('too late'));
+  console.log('3. still running after resolve');
+});
+
+p.then((value) => console.log('5. settled with', value));
+console.log('4. after');
+```
+
+**Output:**
+```text
+1. before
+2. executor runs immediately
+3. still running after resolve
+4. after
+5. settled with first
+```
+
+**Explanation:**
+
+**In one line:** the executor runs **immediately and synchronously**, inside the `new Promise(...)` call. Only the `.then` callbacks are delayed. And a promise can settle **only once**: every later `resolve` or `reject` is silently ignored.
+
+| Line | Why |
+|---|---|
+| `1. before` | ordinary synchronous code |
+| `2. executor runs immediately` | the function you pass to `new Promise` is called right away, before `new Promise` returns |
+| `3. still running after resolve` | `resolve` does not stop the function. It records the result, and the code carries on |
+| `4. after` | synchronous code after the promise was created |
+| `5. settled with first` | `.then` callbacks always run later, as a microtask (§1.6). The value is `'first'`: the second `resolve` and the `reject` came after the promise had already settled, so they did nothing |
+
+Two practical consequences:
+
+- **Heavy work inside an executor still blocks.** Wrapping a slow loop in `new Promise` does not make it asynchronous, because the executor runs on the spot (tricky Q17).
+- **Guard code after `resolve`.** Since `resolve` does not stop execution, write `return resolve(value)` when the rest of the function must not run.
+
+**Takeaway:** the executor is synchronous; only `.then` is deferred. The first `resolve` or `reject` wins, and the rest are ignored without any error.
+
+---
+
+### Operators & Names
+
+Small syntax features with one surprising rule each.
+
+**Q49: How far does `?.` short-circuit, and why is `null || undefined ?? 'x'` a syntax error?**
+
+```js
+const user = { profile: null };
+
+console.log(user.profile?.name);
+console.log(user.settings?.theme.color);
+
+let calls = 0;
+const nothing = null;
+nothing?.method(calls++);
+console.log('calls:', calls);
+
+console.log(0 || 'default', 0 ?? 'default');
+
+try {
+  new Function("return null || undefined ?? 'x'");
+} catch (err) {
+  console.log(err.name);
+}
+```
+
+**Output:**
+```text
+undefined
+undefined
+calls: 0
+default 0
+SyntaxError
+```
+
+**Explanation:**
+
+**In one line:** optional chaining stops the **whole rest of the expression** as soon as it meets `null` or `undefined`, including any function call and its arguments. And `??` cannot be mixed with `||` or `&&` without parentheses.
+
+| Line | Why |
+|---|---|
+| `undefined` | `user.profile` is `null`, so `?.name` returns `undefined` instead of throwing |
+| `undefined` | `user.settings` is `undefined`, so `?.` stops there, and `.theme.color` is **never evaluated** (otherwise `.color` on `undefined` would throw) |
+| `calls: 0` | `nothing?.method(calls++)` stops before the call, so the argument `calls++` never runs either |
+| `default 0` | `\|\|` replaces any *falsy* value (so `0` becomes `'default'`); `??` replaces only `null` and `undefined`, so `0` stays |
+| `SyntaxError` | mixing `??` with `\|\|` without brackets is forbidden by the grammar, because it is unclear which should apply first. Write `(null \|\| undefined) ?? 'x'` |
+
+The short-circuit reaches only as far as the **current chain**: `a?.b.c` stops at `a`, but `(a?.b).c` would throw, because the parentheses end the chain.
+
+A common mistake is sprinkling `?.` everywhere. It turns a missing value you should have handled into a silent `undefined` further down the line. Use it where a value is genuinely optional.
+
+**Takeaway:** `?.` skips the rest of the chain, including calls and their arguments. Use `??` for defaults when `0` or `''` are valid, and bracket it when mixed with `||` or `&&`.
+
+---
+
+**Q50: Why is `fact` usable inside the function but `undefined` outside, and why does assigning to `named` throw?**
+
+```js
+const factorial = function fact(n) {
+  return n <= 1 ? 1 : n * fact(n - 1);
+};
+console.log(factorial(5));
+console.log(typeof fact);
+
+const rename = function named() {
+  'use strict';
+  try {
+    named = 'something else';
+  } catch (err) {
+    return err.name;
+  }
+};
+console.log(rename());
+console.log(JSON.stringify([factorial.name, (() => {}).name, (function () {}).name]));
+```
+
+**Output:**
+```text
+120
+undefined
+TypeError
+["fact","",""]
+```
+
+**Explanation:**
+
+**In one line:** a **named function expression**'s name exists **only inside that function**, so it can call itself, and that name is **read-only**.
+
+| Line | Why |
+|---|---|
+| `120` | inside the function, `fact` refers to the function itself, so the recursion works |
+| `undefined` | outside, there is no variable called `fact`. The function is stored in `factorial`; `fact` is not a variable in the surrounding scope |
+| `TypeError` | the inner name is a constant binding. In strict mode, assigning to it throws. In sloppy mode it fails **silently**: the assignment is ignored, and `typeof named` would still be `'function'` |
+| `["fact","",""]` | a function's `.name` is its given name. Anonymous functions called directly have an empty name. (Assigning one to a variable, as in `const f = () => {}`, gives it the variable's name) |
+
+**Why name a function expression at all?** Two good reasons: it can refer to itself reliably, even if the outer variable is later reassigned, and the name appears in **stack traces**, which makes errors much easier to read than a list of `anonymous`.
+
+**Takeaway:** a function expression's own name is visible only inside it and cannot be reassigned. Name your callbacks when you want readable stack traces.
+
+---
+
+**Q51: Why is the `Symbol` key missing from `Object.keys` and JSON, and why does the `Map` keep `'1'` and `1` as separate keys?**
+
+```js
+const id = Symbol('id');
+const user = { name: 'Asha', [id]: 7 };
+
+console.log(Object.keys(user).join(', '));
+console.log(JSON.stringify(user));
+console.log(user[id], Object.getOwnPropertySymbols(user).length);
+console.log(Symbol('id') === Symbol('id'), Symbol.for('id') === Symbol.for('id'));
+
+const m = new Map();
+m.set(NaN, 'not a number');
+m.set('1', 'string one');
+m.set(1, 'number one');
+console.log(m.get(NaN), m.size, [...m.keys()].map((k) => typeof k + ' ' + String(k)).join(', '));
+```
+
+**Output:**
+```text
+name
+{"name":"Asha"}
+7 1
+false true
+not a number 3 number NaN, string 1, number 1
+```
+
+**Explanation:**
+
+**In one line:** `Symbol` keys are **deliberately hidden** from ordinary key listing and from JSON, so they can hold metadata without clashing with normal properties. A `Map` compares keys **by value and type**, while plain objects turn every key into a string.
+
+| Line | Why |
+|---|---|
+| `name` | `Object.keys` (and `for...in`) skip symbol keys |
+| `{"name":"Asha"}` | so does `JSON.stringify` |
+| `7 1` | the symbol property is still there: read it with the symbol itself, or list symbols with `Object.getOwnPropertySymbols` |
+| `false true` | every `Symbol()` call creates a unique value, even with the same description. `Symbol.for('id')` looks it up in a **global registry**, so both calls return the same symbol |
+| `not a number 3 …` | a `Map` finds a `NaN` key (it uses SameValueZero, tricky Q44), and keeps the string `'1'` and the number `1` as **different** keys. In a plain object they would be one key, because object keys are converted to strings (tricky Q18) |
+
+Symbols are how JavaScript adds hooks without breaking existing code: `Symbol.iterator` makes an object work with `for...of`, `Symbol.toPrimitive` controls coercion (tricky Q47), and libraries use private symbols to tag objects without their keys colliding with yours.
+
+**Takeaway:** symbol keys are hidden from `Object.keys` and JSON but not truly private (use `#fields` for that). Use a `Map` when keys are not strings or must keep their type.
+
+---
+
+### Shared State Across the Event Loop
+
+Two puzzles from a real interview. The order of the logs is only half the question: the other half is **what value** a shared variable has by the time each callback runs.
+
+**Q52: A timer and a promise both increment `count`. What does each log print, and in what order?**
+
+```js
+let count = 0;
+function increment() {
+  setTimeout(() => {
+    count++;
+    console.log("timeout:", count);
+  }, 0);
+
+  Promise.resolve().then(() => {
+    count++;
+    console.log("promise:", count);
+  });
+}
+
+increment();
+
+console.log("sync:", count);
+```
+
+**Output:**
+```text
+sync: 0
+promise: 1
+timeout: 2
+```
+
+**Explanation:**
+
+**In one line:** the synchronous code runs first, then every promise callback (a microtask), then the timer (a task), and each callback sees the value `count` has **at the moment it runs**, not when it was scheduled.
+
+| Line | Why |
+|---|---|
+| `sync: 0` | `increment()` only *schedules* the two callbacks and returns. Nothing has incremented `count` yet when the last line runs |
+| `promise: 1` | once the synchronous code finishes, the microtask queue runs first: the promise callback increments `count` to 1 |
+| `timeout: 2` | the timer is a task, so it runs after all microtasks. By then `count` is already 1, so it becomes 2 |
+
+The trap is expecting `timeout: 1`, because the timer was written first. It was *scheduled* first, but a promise callback always runs before the next task (§1.6). Both callbacks share one `count`, so the order they run in decides what each one sees.
+
+**Takeaway:** order is synchronous code, then microtasks, then tasks; and a callback reads shared variables when it runs, not when it was created.
+
+---
+
+**Q53: Two timers each increment `count`, while `main` awaits them. What are A, B, C and D?**
+
+```js
+let count = 0;
+
+function test() {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      count++;
+      resolve(count);
+    }, 0);
+  });
+}
+
+async function main() {
+  console.log("A", count);
+
+  const p1 = test();
+
+  count++;
+
+  const p2 = test();
+
+  const result1 = await p1;
+
+  console.log("B", result1, count);
+
+  const result2 = await p2;
+
+  console.log("C", result2, count);
+}
+
+main();
+
+console.log("D", count);
+```
+
+**Output:**
+```text
+A 0
+D 1
+B 2 2
+C 3 3
+```
+
+**Explanation:**
+
+**In one line:** everything up to the first `await` runs immediately, including the `count++` between the two `test()` calls. The two timers then fire in the order they were created, each incrementing the shared `count`, and each `await` resumes only after its timer has fired.
+
+Step by step:
+
+| Step | What runs | `count` |
+|---|---|---|
+| 1 | `main()` starts and logs **`A 0`** | 0 |
+| 2 | `test()` schedules timer 1; then `count++`; then `test()` schedules timer 2 | 1 |
+| 3 | `await p1`: `main` pauses and returns to the caller, which logs **`D 1`** | 1 |
+| 4 | timer 1 fires: `count++` (to 2) and resolves `p1` with **2** | 2 |
+| 5 | `main` resumes and logs **`B 2 2`** | 2 |
+| 6 | timer 2 fires: `count++` (to 3) and resolves `p2` with **3** | 3 |
+| 7 | `main` resumes and logs **`C 3 3`** | 3 |
+
+Two details most people get wrong:
+
+- **`D` prints `1`, not `0`.** The `count++` between the two `test()` calls is synchronous and runs *before* the first `await`, so by the time control returns to the last line, `count` is already 1. An `async` function runs synchronously until its first `await` (§1.5).
+- **`B` is `2`, not `1`.** Each timer resolves with `count` *after its own increment*, and timer 1 runs after the synchronous `count++`, so it sees 1 and makes it 2. The value a promise resolves with is decided when it resolves, not when `test()` was called.
+
+**Takeaway:** trace the shared variable, not just the log order: synchronous code before the first `await` runs immediately, and each timer reads and changes the variable at the moment it fires.
+
+---
+
 ### Key Rules
 
 ```
@@ -4724,6 +7110,16 @@ Execution Order:
 
 - `==` performs type coercion, `===` does not
 - Objects and arrays compare by reference, not value
+- Object keys are strings: any object used as a key becomes `"[object Object]"`
+- `var` gives a loop one shared variable; `let` gives each iteration its own
+- `+` joins if either side is a string; `-`, `*` and `/` always convert to numbers
+- Defaults apply only to `undefined`; use `??` when `null` should get the default too
+- Inside `try`, write `return await`, or the `catch` never sees the rejection
+- A `return` in `finally` overrides the `try`, and swallows its errors
+- Subclass fields don't exist until `super()` returns
+- `includes` finds `NaN`; `indexOf` does not
+- A promise executor runs synchronously; only the first `resolve`/`reject` counts
+- Spread, `Object.assign` and `Object.freeze` all act on one level only
 - `await` pauses the async function and schedules the rest as a microtask
 - `this` depends on the call site, not where the function is defined
 - `var` is function-scoped, `let`/`const` are block-scoped

@@ -86,9 +86,11 @@ const truth = {
   guides: Object.values(categories).reduce((a, b) => a + b, 0),
   cheatSheets,
   templates: Object.values(playground).reduce((a, b) => a + b, 0),
-  jsChallenges: playground['Coding Challenges'],
+  // JS challenges are every JS-tagged challenge category: the algorithm ones
+  // and the TypeScript (type-checked) ones, matching the UI's totalJsChallenges.
+  jsChallenges: playground['Coding Challenges'] + (playground['TypeScript Challenges'] ?? 0),
   reactChallenges: playground['React Machine Coding'],
-  challengesTotal: playground['Coding Challenges'] + playground['React Machine Coding'],
+  challengesTotal: playground['Coding Challenges'] + (playground['TypeScript Challenges'] ?? 0) + playground['React Machine Coding'],
   solutions,
   trickyTotal,
   trickyGuides,

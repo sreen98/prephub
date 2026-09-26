@@ -37,7 +37,7 @@ A practical, end-to-end playbook for shipping any Android app to the Google Play
 ## 1. Overview & Timeline
 
 ### What you're shipping
-An Android App Bundle (`.aab`) — Google Play's preferred format. Smaller download size, signed by Play (Play App Signing). EAS Build produces one for you.
+An Android App Bundle (`.aab`), the format Google Play requires for new apps. It is not installed directly: Play uses it to build a smaller APK tailored to each device, and signs that APK with a key Google holds for you (Play App Signing, explained in §21.6). EAS Build (Expo's cloud build service) produces the `.aab` for you.
 
 ### Timeline for a brand-new personal developer account
 
@@ -54,7 +54,7 @@ An Android App Bundle (`.aab`) — Google Play's preferred format. Smaller downl
 
 ### Account types that matter
 - **Personal account**: Subject to the 14-day Closed Testing rule (since Nov 2023). Needs 12+ testers.
-- **Organization account**: No 14-day rule, but needs DUNS number and business documents.
+- **Organization account**: No 14-day rule, but needs a DUNS number (a free company identifier issued by Dun & Bradstreet) and business documents.
 
 If you don't have a registered business, personal is fine — just plan for the soak window.
 
@@ -81,7 +81,7 @@ Google requires a way for users to delete their account from outside the app (a 
 
 ### Remove dev/debug artifacts
 - All `console.log` calls (use a logger that's stripped in production)
-- `expo-dev-client` must be in `devDependencies`, not `dependencies` — otherwise it bloats your prod build by ~5MB
+- `expo-dev-client` must be in `devDependencies`, not `dependencies` — otherwise its native code ships in your production build and makes it larger for no benefit
 - Sentry / Firebase / analytics SDKs should not be in debug mode
 
 ### Cookie/session security
@@ -137,16 +137,15 @@ Your Expo `app.json` is the single source of truth for native config. Don't edit
     "android": {
       "enableProguardInReleaseBuilds": true,
       "enableShrinkResourcesInReleaseBuilds": true,
-      "newArchEnabled": false,
       "usesCleartextTraffic": false
     }
   }]
 ]
 ```
 
-- **Proguard + shrink resources**: Reduces APK size, obfuscates code. Mandatory for production.
+- **Proguard + shrink resources**: Turns on R8 (the successor to ProGuard) for release builds, which removes unused code and resources and renames what is left. Not required by Play, but strongly recommended: the app gets smaller and harder to reverse-engineer. The catch is that it can break code that looks classes up by name, so test a release build before shipping (§21.4, tricky Q3).
 - **`usesCleartextTraffic: false`**: Blocks all non-HTTPS network traffic. Required for "Encryption in transit" claim.
-- **`newArchEnabled`**: Set to `false` for SDK 55 unless you've thoroughly tested the new architecture with all native modules.
+- **No `newArchEnabled` flag**: From Expo SDK 55 the New Architecture (§22.1) is always on and cannot be switched off. SDK 54 is the last version where `newArchEnabled: false` works, so if a native module you depend on does not support the New Architecture yet, your options are to stay on SDK 54 until it does or to replace the module.
 
 ### Tablet support
 
@@ -154,7 +153,7 @@ Your Expo `app.json` is the single source of truth for native config. Don't edit
 "ios": { "supportsTablet": true }
 ```
 
-If you set this `true`, Play Console will require **7-inch and 10-inch tablet screenshots** for the store listing. If you don't have tablet-specific UI, set it to `false` to avoid the screenshot requirement.
+Note that this key sits under `ios`: it controls whether the **iOS** build runs as a native iPad app, and it never reaches the Android build. It therefore cannot switch Play Console's tablet-screenshot request on or off; tricky Q7 covers what to do when Play asks for tablet screenshots anyway.
 
 ---
 
@@ -182,7 +181,7 @@ EAS (Expo Application Services) handles signing, native builds, and AAB generati
 
 - **First build**: Set `false`. You want versionCode 1 to match what's in `app.json`.
 - **After your first AAB is accepted by Play**: Flip to `true`. EAS auto-increments versionCode for every subsequent build.
-- **Why this matters**: If you build with `autoIncrement: true` and your first AAB is rejected, your next build will be versionCode 2, leaving a gap. Then you'd have to manually fix the version logic.
+- **Why this matters**: The goal is that the number in `app.json` matches the number Play has actually seen. A gap on its own is harmless, since Play only requires each upload to be higher than the last. The confusion comes when EAS bumps the number from day one and `app.json` stops describing any real build (tricky Q2).
 
 ### Sentry integration
 
@@ -413,7 +412,7 @@ const privacyPolicyUrl = config?.privacyPolicyUrl ?? FALLBACK_URL;
 ```
 
 ### Why this matters for Play Store
-- **Force updates**: When you ship a critical bug fix, you can require all users to update without a new app release.
+- **Force updates**: The fix itself still ships as a normal release, but turning on the "you must update" prompt is just a change to `minimumVersion` on the server. Every older copy of the app reads it on the next launch, with no extra release or review needed to trigger the prompt.
 - **Privacy policy URL changes**: If your hosting URL changes, you don't need to ship an app update.
 - **Play Store URL**: Useful for "Rate us" / "Share app" features that point to your Play Store listing.
 
@@ -441,7 +440,7 @@ The build typically takes 15–25 minutes. EAS uploads the `.aab` to its dashboa
 ### What signing looks like
 - **First build**: EAS generates a signing key for you (or you upload your own). Stored in EAS's encrypted credential store.
 - **Play App Signing**: When you upload the AAB to Play Console, Google signs the final APK with their key for distribution. EAS's key signs the upload.
-- **Don't lose your EAS credentials**: Run `eas credentials` to back them up. If lost, you can't update your app — Google won't let you switch signing keys.
+- **Don't lose your EAS credentials**: Run `eas credentials` to back them up. The key EAS holds is your **upload key**, so losing it is recoverable (you request an upload-key reset in Play Console and wait 1–2 business days), but it blocks every release until the reset goes through. Only apps *not* using Play App Signing lose the ability to update forever when they lose their key (§21.6).
 
 ### Verify before upload
 - Download the `.aab` from EAS
@@ -496,7 +495,7 @@ Plus separately under "Set up your store presence":
 
 ## 11. Content Rating (IARC)
 
-The International Age Rating Coalition questionnaire generates ratings for multiple regions in one go (PEGI, ESRB, ACB, etc.).
+The International Age Rating Coalition questionnaire generates ratings for multiple regions in one go: you answer one set of questions about your content, and it issues the matching rating from each regional ratings board (PEGI in Europe, ESRB in North America, ACB in Australia, and others). Answer for what the app can actually show a user, including content other users post, because that is what the rating promises parents.
 
 ### Typical answers for a non-game app
 
@@ -522,7 +521,7 @@ If your app has **chat features or user-generated content visible to others**, y
 
 ## 12. Target Audience
 
-This determines whether your app is treated as child-directed (subject to COPPA in the US, GDPR-K in the EU).
+This determines whether your app is treated as child-directed, which brings in children's privacy law: COPPA (the Children's Online Privacy Protection Act) in the US and GDPR-K (the GDPR's extra rules for children's data) in the EU. Both restrict what you may collect from children and generally require parental consent, so declaring a child audience you don't really serve adds work with no benefit.
 
 ### Standard adult app
 
@@ -715,8 +714,8 @@ This is what users see on the Play Store.
 | App icon | 512×512 px | PNG | Yes |
 | Feature graphic | 1024×500 px | PNG/JPEG | Yes |
 | Phone screenshots | 320–3840 px sides, 16:9 or 9:16 | PNG/JPEG | 2–8 (recommend 4–6) |
-| 7-inch tablet screenshots | 320–3840 px sides | PNG/JPEG | If `supportsTablet: true` |
-| 10-inch tablet screenshots | 1080–7680 px sides | PNG/JPEG | If `supportsTablet: true` |
+| 7-inch tablet screenshots | 320–3840 px sides | PNG/JPEG | If Play Console asks |
+| 10-inch tablet screenshots | 1080–7680 px sides | PNG/JPEG | If Play Console asks |
 | Promo video | YouTube URL | — | Optional |
 | Chromebook screenshots | — | — | Optional |
 | Android XR | — | — | Optional |
@@ -745,12 +744,12 @@ Take on a real device or emulator at 1080×1920 or 1080×2400. Recommended flow:
 5. Settings / customization
 6. Empty state or onboarding
 
-**Pro tip:** Add captions on top in Figma — boosts conversion 30%+. E.g., "Scan any receipt", "Split fairly", "See who owes what".
+**Pro tip:** Add a short caption on top of each screenshot (Figma works well). People skim the listing, and a caption tells them what each screen does before they read anything else. E.g., "Scan any receipt", "Split fairly", "See who owes what".
 
 ### Reusing phone screenshots for tablet
-If you set `supportsTablet: true`, you must provide tablet screenshots. The cheapest path: reuse phone screenshots. The size ranges allow it (1080×1920 fits both 7-inch and 10-inch limits).
+If Play Console asks for tablet screenshots, the cheapest path is to reuse your phone screenshots. The size ranges allow it (1080×1920 fits both 7-inch and 10-inch limits).
 
-If your app has no real tablet UI, consider setting `supportsTablet: false` instead.
+Changing `supportsTablet` will not make the request go away: that key is iOS-only (see §3 and tricky Q7).
 
 ---
 
@@ -849,7 +848,7 @@ Once approved:
 
 ### Tablet screenshots required even though no tablet UI
 **Symptom**: Form blocks you from saving Main Store Listing.
-**Fix**: Either provide screenshots (reuse phone screenshots — they fit the size range) OR set `supportsTablet: false` in `app.json` and rebuild.
+**Fix**: Provide screenshots; reusing your phone screenshots works because they fit the size range. Setting `supportsTablet: false` does not help, since that key only affects the iOS build (tricky Q7).
 
 ### `versionCode` collision
 **Symptom**: Play Console rejects your AAB upload: "Version code 1 has already been used."
@@ -860,7 +859,7 @@ Once approved:
 **Fix**: Set `autoIncrement: false` for the first production build. Flip to `true` only after first AAB is accepted.
 
 ### `expo-dev-client` in `dependencies`
-**Symptom**: Production AAB is 5–10MB larger than expected; sometimes shows "Connect to Metro" banner in production.
+**Symptom**: Production AAB is noticeably larger than expected; sometimes shows "Connect to Metro" banner in production.
 **Fix**: Move `expo-dev-client` to `devDependencies`. Rebuild.
 
 ### `RECORD_AUDIO` permission auto-added by SDK
@@ -893,7 +892,7 @@ Once approved:
 
 ### Lost EAS credentials
 **Symptom**: Need to update app, but `eas build` says credentials are missing/different.
-**Fix**: Run `eas credentials` and back up the keystore + key alias + passwords. If lost, you can't update — Google won't accept a different signing key for the same package.
+**Fix**: Run `eas credentials` and back up the keystore + key alias + passwords. If they are already lost, request an upload-key reset in Play Console (tricky Q8): with Play App Signing the key you hold is only the upload key, so it can be replaced, but no update can ship until the reset is approved.
 
 ---
 
@@ -955,7 +954,7 @@ Print this and tick before you submit anything.
 - [ ] App icon uploaded (512×512)
 - [ ] Feature graphic uploaded (1024×500)
 - [ ] 4–6 phone screenshots uploaded
-- [ ] Tablet screenshots uploaded (if `supportsTablet: true`)
+- [ ] Tablet screenshots uploaded (if Play Console asks for them)
 
 ### Closed Testing
 
@@ -1154,8 +1153,8 @@ This way you never collide across release tracks (internal build 5 and prod buil
 | Field | Meaning | What happens if wrong |
 |---|---|---|
 | `minSdkVersion` | Lowest Android version your app installs on | Devices below that don't see your app on Play |
-| `targetSdkVersion` | Android version your app is *tested against* — drives compat behavior | Play enforces a minimum (currently 34 for new apps); below = upload rejected |
-| `compileSdkVersion` | Android API the project compiles against | Too low = can't use new APIs; too high = nothing on its own, but may pull in incompatible libs |
+| `targetSdkVersion` | Android version your app is *tested against* — drives compat behavior | Play enforces a minimum that rises every year. From 31 August 2026, new apps and updates must target API 36 (Android 16); below = upload rejected |
+| `compileSdkVersion` | Android API the project compiles against | Only decides which APIs the compiler lets you call; it changes no runtime behaviour (that is `targetSdkVersion`'s job). Too low = the build fails once your code or a library uses a newer API, and AndroidX libraries refuse to build below the compileSdk they declare |
 
 **Target SDK is the political one.** Google bumps the required `targetSdkVersion` annually. Apps that don't meet the new floor get hidden from the Play Store for users on newer Android versions, even if the app still works.
 
@@ -1213,7 +1212,7 @@ Most React Native / Expo apps don't use feature modules — the JS bundle is mon
 You can update **JavaScript and assets** without a Play submission via:
 
 - **EAS Update** (Expo) — hosted by Expo, channel-based.
-- **CodePush** (Microsoft, retiring March 2025) — hosted by Microsoft.
+- **CodePush** (Microsoft) — the hosted service was shut down with Visual Studio App Center on 31 March 2025. Microsoft published a standalone `code-push-server` you can run yourself, so CodePush now means self-hosting.
 - **Self-hosted** — `react-native-code-push`-compatible servers.
 
 What you **cannot** ship via OTA (Play policy):
@@ -1238,7 +1237,7 @@ What you **cannot** ship via OTA (Play policy):
 | **Fabric** | UIManager over the bridge | Fabric renderer over JSI — concurrent-mode aware |
 | **Bridgeless** | — | RN ≥ 0.74 — the legacy bridge is gone entirely |
 
-The "New Architecture" is the bundle of JSI + TurboModules + Fabric + Hermes + Bridgeless. As of RN 0.76, it's the default. For a brand-new app, leave it on. For an app upgrading from old-arch, third-party native modules may not yet support it — that's why our `app.json` keeps `newArchEnabled: false` until the full dependency graph is verified.
+The "New Architecture" is the bundle of JSI + TurboModules + Fabric + Hermes + Bridgeless. As of RN 0.76, it's the default. For a brand-new app, leave it on. For an app upgrading from old-arch, third-party native modules may not yet support it. On Expo you can no longer defer that with a flag: SDK 54 is the last version where `newArchEnabled: false` works, and from SDK 55 the New Architecture is always on. So the order is to check every native module first, then upgrade.
 
 ### 22.2 Managed vs Bare Workflow
 
@@ -1402,9 +1401,9 @@ Internal Testing does *not* count toward the 14-day soak — only Closed Testing
 **Q9: Walk through what happens when a user installs your app from Play.**
 
 1. User taps Install. Play looks at the device's ABI (`arm64-v8a`), density (`xxhdpi`), and locale (`en-US`).
-2. Play picks the matching split APKs from your AAB and stitches them on its servers.
-3. Play signs the resulting APK with your **app signing key** (not the upload key).
-4. APK downloads to the device. Android verifies the signature using V2/V3 APK Signing Block.
+2. Play picks the matching split APKs generated from your AAB: a base APK plus configuration splits for that ABI, density and language.
+3. Those APKs are signed with your **app signing key** (not the upload key), which Google holds.
+4. The APKs download to the device and are installed together as one app. Android verifies their signatures using the V2/V3 APK Signing Block.
 5. Android extracts the package, registers it in Package Manager, and runs install-time hooks.
 6. If you have install-time feature modules, Play also delivers those splits.
 7. App is launchable.
@@ -1470,7 +1469,7 @@ In Expo's `app.json`, put `"RECORD_AUDIO"` in the `blockedPermissions` array —
 
 `targetSdkVersion` is the Android version your app declares it has been *tested against*. The OS uses this to decide which compatibility shims to apply — for example, scoped storage, runtime permission models, background execution restrictions. If your `targetSdk` is 28 and the device runs Android 14, Android applies legacy behavior so older apps don't break.
 
-Google bumps the **required** minimum `targetSdkVersion` annually. Apps that don't keep up get hidden from Play for users on newer Android versions, even though they technically still work. As of late 2024 the floor is API 34 (Android 14) for new apps and updates. The intent is to keep the ecosystem on modern security/privacy primitives.
+Google bumps the **required** minimum `targetSdkVersion` annually. Apps that don't keep up get hidden from Play for users on newer Android versions, even though they technically still work. From 31 August 2026 the floor is API 36 (Android 16) for new apps and updates, and existing apps must target at least API 35 to stay visible to new users on newer Android versions. The intent is to keep the ecosystem on modern security/privacy primitives.
 
 ---
 
@@ -1524,7 +1523,7 @@ The New Architecture replaces the old asynchronous JSON bridge with:
 - **Bridgeless mode** (RN ≥ 0.74) — the legacy bridge is removed entirely.
 - Hermes is the de facto JS engine for the New Architecture.
 
-Migration risk lies in third-party native modules: each has to be ported. Until your full dependency graph supports the New Architecture, you keep `newArchEnabled: false` in `app.json`. As of RN 0.76 it's the default for new apps, but upgrading a real app means auditing every native module.
+Migration risk lies in third-party native modules: each has to be ported. As of RN 0.76 it's the default for new apps. The escape hatch is closing: Expo SDK 54 is the last version that lets you set `newArchEnabled: false`, and from SDK 55 it is always on. So upgrading a real app means auditing every native module first, and staying on SDK 54 until the last one is ported or replaced.
 
 ---
 
@@ -1632,10 +1631,10 @@ This pattern means: changing the privacy policy URL, ramping a force-update, or 
 
 Play tracks the **highest versionCode ever uploaded across all tracks**. A previous internal-testing build that someone forgot about almost certainly used codes 12, 13, and/or 14. The track is irrelevant — Play stores one global high-water mark per app.
 
-Two ways to fix without a rebuild:
+You cannot fix it without a new AAB, because the versionCode is compiled into the signed bundle and Play will never accept 14 again. What you can control is where that rebuild runs:
 
-- **In Play Console**, go to Internal/Closed testing → past releases. You'll see the orphan upload at versionCode 14. There's no way to "release" a code; you have to bump and re-upload.
-- **Locally**, run `eas build --platform android --profile production` with `versionCode` bumped to 15 (or set `autoIncrement: true` so EAS handles it). You will pay one rebuild.
+- **Confirm the cause in Play Console** — go to Internal/Closed testing → past releases. You'll see the orphan upload at versionCode 14. There's no way to "free up" a code once used.
+- **Bump and rebuild** — set `versionCode` to 15 (or set `autoIncrement: true` so EAS handles it). Running `eas build` spends one more cloud build; building locally instead (the local Gradle path in §22.3) spends none, at the cost of having the Android toolchain set up on your machine.
 
 The deeper lesson: never assume `versionCode` resets per track. Adopt `autoIncrement: true` immediately after your first successful upload so the local source of truth (`app.json`) and Play's high-water mark stay in sync.
 
@@ -1645,11 +1644,21 @@ The deeper lesson: never assume `versionCode` resets per track. Adopt `autoIncre
 
 **Q2: You set `autoIncrement: true` in `eas.json` from day one. Your `app.json` says `versionCode: 1`. You build, get versionCode 1 in the artifact, upload to Play. Play accepts it. The next day you build again, get versionCode 2, upload — accepted. But your `app.json` still says 1. A new dev clones the repo, builds locally with `npx expo run:android`, and gets versionCode 1 in the debug APK. Why is this a problem the moment you ship?**
 
-The new dev's debug APK is signed with their local keystore (different from yours), but more importantly its `versionCode` is 1 — the same as your *first* released production build. If they sideload it onto a phone that has the production app installed, Android refuses ("app not installed") because the signing key doesn't match. Worse: every CI job, every PR build, every dev-environment build is colliding on `versionCode: 1`, so nobody has a clean way to test "is my local build newer than what's on Play?"
+Short answer: Play itself is fine, because EAS keeps its own counter. The problem is that `app.json` no longer describes any real build, so anything that reads it instead of EAS produces a number Play has already seen.
 
-The fix: after your first successful production upload, manually bump `app.json` to match Play's reality (`"versionCode": 2`). From then on, `autoIncrement: true` works because every new dev who clones the repo starts from a code higher than any historical artifact in their environment.
+Where the number lives depends on `cli.appVersionSource` in `eas.json`:
 
-**Takeaway:** `autoIncrement` mutates Play's view of versionCode without writing back to `app.json`. After the first prod release, sync `app.json` to the latest released code so local builds don't collide on stale numbers.
+- **`remote`** (the recommended setting since EAS CLI 12) — EAS stores the version on its servers and increments it there. It ignores the `versionCode` in `app.json` and never writes back to it. One correction to the scenario: with `versionCode: 1` in `app.json`, the first remote-incremented build comes out as 2, not 1 (the same thing §19 describes).
+- **`local`** — `autoIncrement` edits your project files instead, and the new number only survives if you commit that change after every build.
+
+With `remote`, the stale `1` bites in two places:
+
+- **A release built outside EAS** (for example a local Gradle build, §22.3) takes its `versionCode` from the project, gets 1, and Play rejects the upload because 1 is already used.
+- **A developer's debug APK cannot stand in for the Play build.** Android refuses to install it over the Play version for two separate reasons: it is signed with a different key, and a lower `versionCode` would be a downgrade. So "is my local build newer than what's on Play?" has no clean answer while every local build says 1.
+
+The fix is to pick one source of truth and say so in the repo. With `remote`, treat EAS as the owner of the number and never build releases elsewhere. If you do need local release builds, sync `app.json` to the latest released code after each production upload, so a fresh clone starts above everything Play has seen.
+
+**Takeaway:** with `appVersionSource: "remote"`, `autoIncrement` updates the counter on EAS's servers and never writes back to `app.json`. Either never build releases outside EAS, or keep `app.json` synced to the latest released code.
 
 ---
 
@@ -1682,11 +1691,13 @@ Debug builds didn't crash because debug doesn't run R8 — code names are intact
 
 **Q4: You're on a personal Play account, started Closed Testing on Day 0 with 12 testers, all installed by Day 1. On Day 7 you notice three testers haven't opened the app in days, so you replace them with three more enthusiastic friends. On Day 14 you apply for Production Access. Google rejects: "We did not detect 12+ testers active for 14 consecutive days." You can prove 12+ active testers most days. What did you misunderstand, and how do you recover?**
 
-The 14-day soak counts **continuous tester-list stability**, not the rolling count of active testers on each day. When you removed three testers and added three on Day 7, Google interpreted that as a new tester cohort starting then — your effective soak day became Day 7, not Day 0. You needed Day 7 → Day 21 to satisfy "14 consecutive days of stable testers, ≥ 12 active."
+Short answer: the rule is counted per tester, not per day. Google's wording is that at least 12 testers must be opted in when you apply, and each of them must have been opted in **continuously for the preceding 14 days**. Your three replacements joined on Day 7, so on Day 14 they had only 7 days each, and only 9 of your testers qualified.
 
-Recovery: don't change the tester list again. Wait until Day 21 (14 days from your last change), make sure 12+ testers are active in that window, and reapply. Going forward, treat the tester list as immutable during the soak — communicate aggressively to keep your initial 12 engaged rather than rotating them.
+"12+ active on most days" is therefore the wrong measure. A tester counts only once they have been opted in for 14 consecutive days. Someone who opts out resets their own count, and someone added late starts from zero. Swapping people does not continue the old testers' clock; it starts a new one for each newcomer.
 
-**Takeaway:** the 14-day soak window resets when the tester roster changes. Plan for a stable 12+ from day zero; don't rotate testers mid-soak.
+Recovery: stop changing the list. Wait until Day 21, when the three who joined on Day 7 have their 14 days, check that 12 or more testers have been opted in for the whole window, and reapply. Keeping the original testers engaged would have been better than rotating them, because each one you remove takes their accumulated days with them.
+
+**Takeaway:** every one of the 12 needs their own unbroken 14 days of opt-in. Replacing a tester restarts the clock for that seat, so plan a stable 12+ from day zero (§17).
 
 ---
 
@@ -1730,7 +1741,7 @@ The bigger compliance risk: GDPR / CCPA. A privacy-policy mismatch is the kind o
 
 **Q7: You set `supportsTablet: false` in `app.json` because your app has no real tablet UI. The build succeeds, AAB uploads. Yet Play Console asks for 7-inch tablet screenshots when you try to save the Main Store Listing. Why, and what's the simplest fix?**
 
-The Main Store Listing's tablet-screenshot requirement is decoupled from manifest-level `supportsTablet`. Play asks for tablet screenshots as part of "discoverability" (your listing should look right on a tablet) regardless of whether you advertise tablet support in the manifest. Even if your app's manifest filters tablets out of installs, the listing is still browsed on tablets.
+Short answer: `supportsTablet` lives under `ios` in `app.json`, so it never reaches the Android build at all, and Play Console cannot see it. The store listing's screenshot request is decided on Play's side, and the listing is browsed on tablets whatever your app declares, so the fix is to supply the screenshots rather than to change a flag.
 
 Two fixes:
 
@@ -1739,7 +1750,7 @@ Two fixes:
 
 Don't try to fight the form — it always wins. Provide assets and move on.
 
-**Takeaway:** Tablet screenshot requirement isn't gated solely by `supportsTablet`. Reusing phone screenshots that fit the size range is the path of least resistance.
+**Takeaway:** The tablet screenshot request is not controlled by `supportsTablet`, which is an iOS-only key. Reusing phone screenshots that fit the size range is the path of least resistance.
 
 ---
 
@@ -1812,7 +1823,7 @@ Three options, in order of safety:
 17. **OTA (EAS Update / CodePush)** ships JS + assets. Anything native = new AAB.
 18. **Sourcemaps must be uploaded per `versionCode`** — no retroactive upload, no symbolicated stack traces.
 19. **Hermes** = JS bytecode at build time; **baseline profiles** = AOT-compiled native methods at install.
-20. **Tablet screenshots** are required even with `supportsTablet: false` if Play asks — reuse phone screenshots that fit the size range.
+20. **Tablet screenshots**: if Play asks for them, supply them. Reusing phone screenshots that fit the size range is enough. No `app.json` flag turns the request off (`supportsTablet` is iOS-only).
 
 ---
 

@@ -35,9 +35,9 @@ The result is that CSS questions in interviews got *harder and more architectura
 
 Three things changed at once.
 
-**The platform caught up.** Container queries, `:has()`, cascade layers, native nesting, `@scope`, subgrid, OKLCH, `color-mix()`, `@property`, `clamp()`, logical properties, `popover` and same-document View Transitions all reached **Baseline** between roughly 2023 and 2026. Features that needed a JavaScript library or a preprocessor are now one declaration.
+**The platform caught up.** Container queries, `:has()`, cascade layers, native nesting, `@scope`, subgrid, OKLCH, `color-mix()`, `@property`, `clamp()`, logical properties, `popover` and same-document View Transitions all reached **Baseline** (the web-platform label for a feature that works in the current versions of every major browser engine) between roughly 2023 and 2026. Features that needed a JavaScript library or a preprocessor are now one declaration.
 
-**That removed the reasons for the workarounds.** BEM existed because CSS had no scoping. CSS-in-JS existed largely for scoping and dynamic values. Sass existed for nesting and variables. Utility-first CSS partly existed to dodge the cascade. When the platform provides scoping, nesting, variables and specificity control, the *architectural* question — what do we actually need a tool for? — becomes a real interview question rather than a matter of taste.
+**That removed the reasons for the workarounds.** BEM (Block-Element-Modifier, a naming convention like `.card__title--large` that keeps every selector a single, unique class) existed because CSS had no scoping. CSS-in-JS existed largely for scoping and dynamic values. Sass existed for nesting and variables. Utility-first CSS (Tailwind-style single-purpose classes such as `.mt-4`) partly existed to dodge the cascade. When the platform provides scoping, nesting, variables and specificity control, the *architectural* question — what do we actually need a tool for? — becomes a real interview question rather than a matter of taste.
 
 **AI made the easy half free.** A model will write your flexbox centring. It will not decide your specificity strategy, tell you why a `position: fixed` element is clipped inside a transformed ancestor, or work out why your `100vh` layout breaks on iOS. Interviewers moved toward exactly those.
 
@@ -47,7 +47,7 @@ So the questions cluster into: **the cascade and specificity** (still the single
 
 ## 2. The Cascade, Specificity and Inheritance
 
-Most CSS bugs are cascade bugs, and most cascade bugs come from not knowing the order of the deciding factors. When two declarations conflict, the browser resolves them in this order — and it only moves to the next step on a tie:
+Most CSS bugs are cascade bugs, and most cascade bugs come from not knowing the order of the deciding factors. (An *origin* is where a style came from: the browser's built-in defaults — the "user-agent" stylesheet — the user's own settings, or you, the page author.) When two declarations conflict, the browser resolves them in this order — and it only moves to the next step on a tie:
 
 ```
 1. Origin & importance   author !important > author > user-agent (roughly; see below)
@@ -108,7 +108,7 @@ The two nuances that come up:
 }
 ```
 
-This is the feature that solves the problem BEM, ITCSS and `!important` were all trying to solve. Specificity wars happen because a low-specificity utility can't override a high-specificity component rule; layers make the *intent* (utilities beat components) explicit instead of encoding it in selector gymnastics.
+This is the feature that solves the problem BEM, ITCSS (Inverted Triangle CSS, a convention for ordering stylesheets from generic to specific) and `!important` were all trying to solve. Specificity wars happen because a low-specificity utility can't override a high-specificity component rule; layers make the *intent* (utilities beat components) explicit instead of encoding it in selector gymnastics.
 
 **The rules to know:**
 
@@ -270,7 +270,7 @@ Media queries ask about the **viewport**. That is the wrong question for a compo
 }
 ```
 
-**Why this is the most important CSS feature of the decade** for component authors: it makes a component genuinely portable. Drop it anywhere and it adapts to its context, with no props, no `ResizeObserver`, and no knowledge of the page it's on. It's what makes a design system component *actually* reusable rather than reusable-with-a-`variant`-prop.
+**Why this matters so much** for component authors: it makes a component genuinely portable. Drop it anywhere and it adapts to its context, with no props, no `ResizeObserver`, and no knowledge of the page it's on. It's what makes a design system component *actually* reusable rather than reusable-with-a-`variant`-prop.
 
 **The rules and gotchas:**
 
@@ -412,7 +412,7 @@ Animated gradients, animated conic progress rings and smooth theme colour transi
 
 HSL looks perceptually uniform and isn't. `hsl(60 100% 50%)` (yellow) and `hsl(240 100% 50%)` (blue) claim the same 50% lightness, but the yellow is dramatically brighter to a human eye. That's why a palette generated by rotating HSL hue at fixed lightness has inconsistent contrast, and why hover states generated with `lighten()` behave unpredictably across hues.
 
-**OKLCH** is perceptually uniform: `oklch(L C H)` with lightness 0–1, chroma, hue in degrees. Equal `L` really does look equally light.
+**OKLCH** is perceptually uniform: `oklch(L C H)` with lightness 0–1, chroma (how saturated or vivid the colour is; 0 is grey), and hue in degrees. Equal `L` really does look equally light.
 
 ```css
 :root {
@@ -422,7 +422,7 @@ HSL looks perceptually uniform and isn't. `hsl(60 100% 50%)` (yellow) and `hsl(2
 }
 ```
 
-This makes systematic palettes *actually* systematic — you can generate a 10-step ramp by stepping `L` and trust the contrast behaves. It also reaches colours sRGB can't express, for wide-gamut displays.
+This makes systematic palettes *actually* systematic — you can generate a 10-step ramp by stepping `L` and trust the contrast behaves. It also reaches colours sRGB (the standard colour space the web has always used) can't express, for wide-gamut displays — modern screens that can show more saturated colours than sRGB covers.
 
 ### 9.2 `color-mix()` and Relative Colour
 
@@ -467,7 +467,7 @@ h1 { font-size: clamp(1.75rem, 1rem + 3vw, 3.5rem); }
 .container { width: clamp(20rem, 90vw, 75rem); }
 ```
 
-The **accessibility rule that gets asked**: the preferred value must include a `rem`-based term, not be pure `vw`. `font-size: clamp(1rem, 4vw, 2rem)` fails WCAG 1.4.4 (Resize Text) because a pure viewport unit ignores the user's browser font-size setting entirely — zooming text does nothing. Mixing `rem + vw` keeps user preference in the equation.
+The **accessibility rule that gets asked**: the preferred value must include a `rem`-based term, not be pure `vw`. `font-size: clamp(1rem, 4vw, 2rem)` fails WCAG (Web Content Accessibility Guidelines, the standard accessibility audits use) success criterion 1.4.4 (Resize Text) because a pure viewport unit ignores the user's browser font-size setting entirely — zooming text does nothing. Mixing `rem + vw` keeps user preference in the equation.
 
 Prefer `cqi` over `vw` inside a component, so it scales to its container rather than the window.
 
@@ -533,7 +533,7 @@ And for modals, the real answer is to **render outside the offending subtree** �
 
 ### 11.2 Containing Blocks
 
-`position: fixed` is famously "relative to the viewport" — except when it isn't. **Any ancestor with a `transform`, `filter`, `perspective`, `will-change` of those, or `contain: paint | layout` becomes the containing block for fixed descendants.** So a `position: fixed` modal inside a card that has `transform: translateZ(0)` for "performance" is fixed *to the card*, and it will be clipped and scroll with it.
+A *containing block* is the box that a positioned element's offsets (`top`, `left`, `inset`) and percentage sizes are measured against. `position: fixed` is famously "relative to the viewport" — except when it isn't. **Any ancestor with a `transform`, `filter`, `perspective`, `will-change` of those, or `contain: paint | layout` becomes the containing block for fixed descendants.** So a `position: fixed` modal inside a card that has `transform: translateZ(0)` for "performance" is fixed *to the card*, and it will be clipped and scroll with it.
 
 This is the bug behind a large share of "my dropdown is cut off" and "my sticky header isn't sticky" reports. Same root cause for `position: sticky` failing: it sticks within its **nearest scrolling ancestor**, and an ancestor with `overflow: hidden | auto` silently becomes that scroll container.
 
@@ -552,7 +552,7 @@ Three features that together delete a category of JavaScript.
 <div id="menu" popover>…</div>
 ```
 
-For free, with no JavaScript: **top-layer rendering** (immune to `z-index` and `overflow: hidden`), **light dismiss** (click outside or press Escape), automatic focus management, and correct `aria-expanded` wiring on the invoker. `popover="manual"` opts out of light dismiss for things like toasts.
+For free, with no JavaScript: **top-layer rendering** (immune to `z-index` and `overflow: hidden`), **light dismiss** (click outside or press Escape), automatic focus management, and correct `aria-expanded` wiring on the invoker. The *top layer* is a separate layer the browser paints above the entire page, outside every stacking context, which is why nothing on the page can cover or clip it. `popover="manual"` opts out of light dismiss for things like toasts.
 
 `::backdrop` styles the layer behind it, and `:popover-open` styles the open state.
 
@@ -587,7 +587,7 @@ Tethering a popover to its trigger — keeping it aligned, flipping it when it w
 
 `position-area` places the element in a 3×3 grid around the anchor; `position-try-fallbacks` lists alternative placements the browser tries when the preferred one would overflow. That's the auto-flipping behaviour Floating UI computes in JavaScript, done by the compositor.
 
-**Support caveat worth stating honestly:** anchor positioning reached Baseline through Chromium and Safari, with Firefox shipping it more recently than the rest — so verify against your support matrix before deleting your JS fallback. The graceful pattern is `@supports (anchor-name: --x)` with the library as the fallback path, which lets you adopt it without a flag day.
+**Support caveat worth stating honestly:** anchor positioning arrived last in Firefox (147, January 2026), after Chromium (125) and Safari (26), and only then became Baseline. That is recent, so check your support matrix before deleting your JS fallback. The graceful pattern is `@supports (anchor-name: --x)` with the library as the fallback path, which lets you adopt it without a flag day.
 
 
 ---
@@ -629,11 +629,13 @@ Two lines of CSS give a multi-page app animated navigation with no framework at 
 
 ### 13.3 The React Answer
 
-React's own `<ViewTransition>` component is **still Canary-only** — it is not in a stable release, despite a lot of 2026 writing implying otherwise. So today the correct answer to "how would you animate route transitions in React?" is:
+**Since React 19.3 (September 2026), React has its own `<ViewTransition>` component, and it is stable.** Wrap part of the tree in it, and React calls the browser's View Transitions API for you whenever a *Transition* (`startTransition`, a Suspense reveal, `useDeferredValue`) changes that part: elements entering, leaving, changing or moving between two places. It is built on exactly the CSS in this section, so `::view-transition-*` rules and `view-transition-name` still apply. The React guide's §16.11 covers it.
 
-- the **browser** API driven from your router (React Router and TanStack Router both have hooks for it), wrapping the navigation's DOM update in `startViewTransition`, or
-- your framework's wrapper (Next.js), or
-- a JS animation library if you need behaviour the platform doesn't give you.
+So the answer to "how would you animate route transitions in React?" now depends on your version:
+
+- **React 19.3 or later:** `<ViewTransition>` around the routed content, with navigations run as Transitions (React Router and Next.js already do this).
+- **Earlier versions:** the **browser** API driven from your router (React Router and TanStack Router both have hooks for it), wrapping the navigation's DOM update in `startViewTransition`. Before 19.3, React's `<ViewTransition>` existed only in Canary builds.
+- **Either way,** a JS animation library if you need behaviour the platform does not give you, such as physics-based springs or gesture-driven animation.
 
 Also always respect `prefers-reduced-motion` — a full-page morph is exactly the kind of motion that triggers vestibular discomfort:
 
@@ -651,7 +653,7 @@ Also always respect `prefers-reduced-motion` — a full-page morph is exactly th
 
 ### 14.1 Animate the Cheap Properties
 
-Only `transform` and `opacity` can be animated entirely on the compositor, skipping layout and paint. Everything else costs a frame's worth of work per frame:
+Only `transform` and `opacity` can be animated entirely on the compositor, skipping layout and paint. (The browser renders in stages: *layout* works out sizes and positions, *paint* fills in pixels, and the *compositor* stacks the painted layers onto the screen, usually on the GPU. Changing a property re-runs its stage and every stage after it, so the later the stage, the cheaper the animation.) Everything else costs a frame's worth of work per frame:
 
 | Animating | Cost |
 |---|---|
@@ -734,7 +736,7 @@ Third-party CSS gets imported into an early layer; utilities live late so they r
 - **`content-visibility: auto`** skips rendering work for off-screen subtrees — one of the largest single wins available for long pages. Pair it with `contain-intrinsic-size` to avoid scrollbar jumping.
 - **`contain: layout | paint | content`** scopes layout and paint work to a subtree, so a change inside a card doesn't invalidate the whole page's layout.
 - **Layout thrash is a JS problem CSS gets blamed for.** Reading `offsetHeight` after a write forces synchronous layout; batch all reads then all writes.
-- **Fonts** are usually the biggest CSS-adjacent cost: `font-display: swap` (or `optional`), `preload` the one or two faces above the fold, subset aggressively, prefer variable fonts over eight static weights, and set `size-adjust`/fallback metrics to reduce CLS from the swap.
+- **Fonts** are usually the biggest CSS-adjacent cost: `font-display: swap` (or `optional`), `preload` the one or two faces above the fold, subset aggressively, prefer variable fonts over eight static weights, and set `size-adjust`/fallback metrics to reduce CLS (Cumulative Layout Shift, the Core Web Vitals score for how much visible content jumps around while the page loads) from the swap.
 - **CLS discipline:** always give images and video `width`/`height` (or `aspect-ratio`) so space is reserved; reserve space for ads and embeds; never insert content above existing content.
 - **Selector performance basically doesn't matter any more** — engines match right-to-left and are extremely fast. The exceptions are pathological cases: a huge unqualified `:has()`, or very deep descendant selectors applied across an enormous DOM. Stylesheet *size* and the number of elements matter far more than selector shape, and saying so signals you know where the real cost is.
 
@@ -947,11 +949,11 @@ The rules that make this hold up:
 
 Three separate problems; I'd separate them before touching anything, because conflating them is how you fix the wrong one.
 
-**Mobile Safari specifically** — the first suspect is `100vh`. On iOS, `vh` resolves against the **largest** viewport (toolbars hidden), so a `100vh` element is taller than the visible area and content hides behind the toolbar. Fix: `height: 100dvh` with a `100vh` fallback, or `svh` if the toolbar's animation causes distracting reflow. Other Safari-specific suspects: `-webkit-fill-available`, `position: sticky` inside an `overflow: hidden` ancestor, flexbox `gap` in older versions, and `100%` height chains where an intermediate element has no height.
+**Mobile Safari specifically** — the first suspect is `100vh`. On iOS, `vh` resolves against the **largest** viewport (toolbars hidden), so a `100vh` element is taller than the visible area and content hides behind the toolbar. Fix: `height: 100dvh` with a `100vh` fallback, or `svh` if the toolbar's animation causes distracting reflow. Other Safari-specific suspects: `-webkit-fill-available`, `position: sticky` inside an `overflow: hidden` ancestor, flexbox `gap` in versions before Safari 14.1 (2021), and `100%` height chains where an intermediate element has no height.
 
 **The content shift** is a CLS problem, and it has a short list of causes: images and iframes with no `width`/`height` or `aspect-ratio` so no space is reserved; a **web font swapping** and re-flowing text at a different metric; content injected above existing content (a banner, a consent dialog); and lazily-loaded content without a reserved skeleton. Fixes in order: intrinsic dimensions or `aspect-ratio` on every media element, `font-display: swap` plus `preload` plus fallback-metric overrides (`size-adjust`, `ascent-override`) so the swap doesn't change layout, reserve space for anything injected, and use `contain-intrinsic-size` alongside `content-visibility`.
 
-**The general method**, which is really what's being tested: reproduce on a real device or a simulator rather than a narrow desktop window, because the failures are engine-specific rather than width-specific. Then in DevTools, walk the ancestor chain for `transform`, `filter`, `overflow` and `contain` (the containing-block and stacking-context traps from §11); check computed values rather than authored ones; and toggle declarations to bisect. For CLS specifically, use the Performance panel's layout-shift regions to see *what* moved rather than guessing, and confirm with **field data** — a shift that only appears on slow connections won't reproduce locally at all, which is exactly why RUM matters.
+**The general method**, which is really what's being tested: reproduce on a real device or a simulator rather than a narrow desktop window, because the failures are engine-specific rather than width-specific. Then in DevTools, walk the ancestor chain for `transform`, `filter`, `overflow` and `contain` (the containing-block and stacking-context traps from §11); check computed values rather than authored ones; and toggle declarations to bisect. For CLS specifically, use the Performance panel's layout-shift regions to see *what* moved rather than guessing, and confirm with **field data** — a shift that only appears on slow connections won't reproduce locally at all, which is exactly why RUM (real-user monitoring: measuring performance in your actual users' browsers) matters.
 
 
 ---
@@ -994,6 +996,7 @@ That ordering is **progressive enhancement**: write the version that works, then
 **6. Verify it, don't hope.** Real devices where it matters, **BrowserStack/Sauce** or Playwright's Chromium/Firefox/**WebKit** engines in CI for the rest — Playwright bundling a real WebKit is the cheapest Safari coverage available. **Visual regression testing** (Chromium + WebKit screenshots per PR) is what actually catches drift, and it must run in a container with pinned fonts or you'll get diffs that aren't bugs. Plus zoom to 200% and 400%, and check `prefers-reduced-motion` and `prefers-color-scheme`.
 
 **7. Where inconsistency is legitimate.** Native form controls, scrollbars, date pickers, focus rings and font rendering *should* look like the platform. Overriding all of them to match a design is a large maintenance cost, usually degrades accessibility, and users generally prefer the platform behaviour. Knowing which battles not to fight is part of the answer.
+
 **Q11: Explain `position: sticky`. How does it differ from the other positioning schemes, and why does it so often fail to stick?**
 
 Sticky is a hybrid, and that is the whole definition: an element is **`relative` until its nearest scrolling ancestor scrolls it past a threshold you set, then `fixed` within that ancestor** — and it never escapes its parent's box. Every one of its failure modes falls out of one of those three clauses.
@@ -1030,14 +1033,10 @@ This is the single most common cause, and `overflow-x: hidden` is the usual culp
 
 #### What to volunteer
 
-The diagnostic, which is the same one that solves `fixed` and `z-index` bugs (see §12): **when sticky misbehaves, walk up the ancestor chain in DevTools looking for `overflow`, `transform`, `filter`, `contain` and `container-type`.** The bug is nearly always in an ancestor, not in the element you are staring at.
+The diagnostic, which is the same one that solves `fixed` and `z-index` bugs (see §11): **when sticky misbehaves, walk up the ancestor chain in DevTools looking for `overflow`, `transform`, `filter`, `contain` and `container-type`.** The bug is nearly always in an ancestor, not in the element you are staring at.
 
 Two more that come up as follow-ups: for a sticky table header, the property goes on `th`, not `thead`, in older engines; and a sticky element still participates in flex and grid layout, so `align-items: stretch` on the parent can leave it full-height with nothing to pin.
 
----
-
-
----
 ---
 
 ## 18. Tricky Questions
@@ -1139,7 +1138,7 @@ Two follow-on rules worth knowing. **Layer order is fixed by the first statement
 
 **Explanation:**
 
-`position: fixed` is described as "positioned relative to the viewport", and that's true only when no ancestor has hijacked the containing block. Any of these on an ancestor changes it:
+`position: fixed` is described as "positioned relative to the viewport", and that's true only when no ancestor has hijacked the containing block. (The containing block is the box that a positioned element's offsets such as `top` and `inset`, and its percentage sizes, are measured against.) Any of these on an ancestor changes it:
 
 ```css
 .card {
@@ -1236,7 +1235,7 @@ Or in pure CSS, if you know the count: `.card:nth-child(1) { view-transition-nam
 - **Both states need the same name** for a morph. If the destination page names the hero `hero-image` and the source names it `hero`, you get two independent fades instead of one morph.
 - **Colons are invalid** in a `view-transition-name`. This is exactly why React changed the `useId` prefix from `:r:` to `_r_` in 19.2 — the old form couldn't be used as a transition name.
 - **A cross-document transition needs `@view-transition { navigation: auto; }` on *both* pages.** Opting in on only one silently does nothing.
-- **React's `<ViewTransition>` is still Canary-only** — not in a stable release, despite a lot of writing implying otherwise. Drive the browser API from your router instead.
+- **Know which React version you are on.** `<ViewTransition>` became stable in React 19.3 (September 2026). Before that it was Canary-only, and the answer was to drive the browser API from your router.
 
 And always gate it on motion preference, since a full-page morph is precisely the kind of movement that causes vestibular discomfort:
 
@@ -1382,7 +1381,8 @@ TOP LAYER & POSITIONING
 47. <dialog>.showModal() = modal + focus trap + Escape + inert page + ::backdrop.
 48. popover for menus/tooltips, modal dialog for blocking flows. Don't swap them.
 49. Anchor positioning (anchor-name / position-anchor / position-area /
-    position-try-fallbacks) replaces Floating UI. Verify Firefox support; use @supports.
+    position-try-fallbacks) replaces Floating UI. Baseline only since Firefox 147
+    (Jan 2026); keep a @supports fallback for older browsers.
 
 VIEW TRANSITIONS
 50. view-transition-name must be UNIQUE per snapshot — duplicates silently degrade
@@ -1390,7 +1390,7 @@ VIEW TRANSITIONS
 51. Same name on BOTH states for a morph. No colons allowed in the name.
 52. Cross-document: @view-transition { navigation: auto; } on BOTH pages.
     Chromium + Safari 18.2; not Firefox stable. Degrades safely.
-53. React's <ViewTransition> is Canary-only — drive the browser API from your router.
+53. React's <ViewTransition> is stable from React 19.3; on older versions, drive the browser API from your router.
 
 MOTION
 54. Animate transform and opacity only (compositor). width/height/top = layout per frame.

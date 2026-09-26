@@ -40,7 +40,7 @@ Microservices solve problems that monoliths struggle with as a system and team g
 
 **The trade-off:** you swap "easy local development, hard scaling" for "easy scaling, hard distributed systems." Most startups should NOT start with microservices — they don't yet have the problems microservices solve, and they get hit by every distributed-systems cost.
 
-Conway's Law lurks underneath: an organization that ships a single product through 200 engineers will produce a system that looks like 200 engineers communicating. Microservices align the system architecture with the org chart.
+Conway's Law lurks underneath. It says a system ends up mirroring the communication structure of the organization that builds it: an organization that ships a single product through 200 engineers will produce a system that looks like 200 engineers communicating. Microservices align the system architecture with the org chart.
 
 ---
 
@@ -71,7 +71,7 @@ Three principles:
 
 ### 1. Bounded contexts (DDD)
 
-A bounded context is a piece of business logic with its own internal language. "Order" in the shopping context means a cart with line items; "Order" in the warehouse context means a fulfillment manifest. These are different concepts that share a word. They should be different services with different data models.
+Domain-Driven Design (DDD) is an approach that models software around the words and rules the business itself uses. Its central unit is the bounded context: a piece of business logic with its own internal language. "Order" in the shopping context means a cart with line items; "Order" in the warehouse context means a fulfillment manifest. These are different concepts that share a word. They should be different services with different data models.
 
 Domain-Driven Design's exercise: list the nouns the business uses. Group them by which conversations they appear in together. Services align with those groups.
 
@@ -81,7 +81,7 @@ Each service should own its data. No "ProductService reads the orders table dire
 
 ### 3. Cohesion > size
 
-"Microservice" is a misleading name. Some services are tiny (auth: 200 LOC). Some are large (search: 50k LOC). What matters is internal cohesion — does the service do ONE thing well? — not size.
+"Microservice" is a misleading name. Some services are tiny (auth: 200 lines of code). Some are large (search: 50,000 lines). What matters is internal cohesion — does the service do ONE thing well? — not size.
 
 **Anti-pattern: "nanoservices."** Splitting a service "because it might need to scale separately" before the scale problem exists creates a distributed network of services that all coordinate to do anything. You pay the network and serialization cost for no benefit.
 
@@ -106,7 +106,7 @@ async function run() {
 
 **Failures cascade.** If user-service is down, A's response fails. If user-service is slow, A is slow. This is why circuit breakers and timeouts exist (§9).
 
-**gRPC** is a popular alternative: binary protocol, schema-defined, supports streaming and bidirectional communication. Faster than JSON-over-HTTP for service-to-service.
+**gRPC** is a popular alternative: you define each service's methods and message shapes in a schema file (Protocol Buffers), and generated client code calls them like local functions. Messages are sent as compact binary over HTTP/2, which is why it is faster than JSON-over-HTTP for service-to-service traffic, and it supports streaming in both directions. The cost: payloads aren't human-readable, and browsers can't call it directly without a proxy.
 
 ### Asynchronous (message queue, event stream)
 
@@ -129,6 +129,8 @@ kafka.subscribe('OrderCreated', async (event) => {
   await sendConfirmationEmail(event.order);
 });
 ```
+
+(The `outbox` insert is how A guarantees the event is eventually published even if it crashes — §8 explains why it is needed.)
 
 **Decoupling.** B can be down for an hour; messages queue up; B catches up when it returns. A doesn't know B exists.
 
@@ -154,7 +156,7 @@ Responsibilities:
 
 Common implementations: AWS API Gateway, Kong, Envoy, nginx, Traefik, plus cloud provider equivalents.
 
-**BFF (Backend for Frontend) variant.** Sometimes you want a gateway PER client type — one for web, one for mobile, one for partners — because each has different needs (mobile wants a denormalized response; web wants chatty individual calls). The BFF gateway sits between the public internet and the internal services, aggregating per client.
+**BFF (Backend for Frontend) variant.** Sometimes you want a separate gateway for each kind of client (one for web, one for mobile, one for partners), each owned by the team that builds that client. The reason is that clients want differently shaped data. A mobile app on a slow, high-latency network wants one request that returns everything a screen needs, already combined (a *denormalized* response: data from several services merged into one payload). A web app on a fast connection can afford several smaller calls and may prefer them, so each part of the page loads and caches on its own. A partner API wants stable, versioned endpoints that rarely change. One shared gateway serving all three ends up full of client-specific special cases. A BFF sits between the public internet and the internal services and does that aggregation for one client only.
 
 **Anti-pattern: business logic in the gateway.** The gateway is for cross-cutting concerns and routing. The moment it starts doing "if order is canceled, refund the customer," you've made it a god service.
 
@@ -180,7 +182,7 @@ A load balancer in front of the service does the registry lookup. Clients call t
 
 ### Service mesh
 
-Istio, Linkerd. Sidecars (a proxy alongside each service container) handle discovery, retries, mTLS, observability. The service code is oblivious to networking concerns. Powerful, complex, expensive to operate.
+Istio, Linkerd. Sidecars (a proxy alongside each service container) handle discovery, retries, mTLS (mutual TLS — both ends of a connection present certificates, so each side proves who it is), observability. The service code is oblivious to networking concerns. Powerful, complex, expensive to operate.
 
 For most teams: Kubernetes' built-in DNS discovery is enough. Consider a service mesh only when you have specific cross-cutting concerns (mTLS everywhere, traffic shifting for canary deploys) that justify the overhead.
 
@@ -221,7 +223,7 @@ When Service A needs data Service B owns:
 
 1. **Synchronous API call** at read time — simplest, but couples availability.
 2. **Replicate data via events** — A subscribes to B's events and maintains its own copy. Reads become local and fast; consistency is eventual.
-3. **CQRS with materialized views** — denormalize for read; the query side may pull from multiple services' event streams.
+3. **CQRS with materialized views** — CQRS (Command Query Responsibility Segregation) means writes and reads use separate models. Writes go to the owning services; a separate read store, pre-joined into exactly the shape a screen needs (a materialized view), is built by consuming several services' events. Reads become one fast local query; the cost is a second copy of the data that lags slightly behind.
 
 ---
 
@@ -239,11 +241,13 @@ Example: place order
 
 If step 3 fails, you run compensations for steps 2 and 1 (release stock, cancel order).
 
+A compensation is not a rollback. Steps 1 and 2 already committed in other databases, and other code may have seen their results, so you cannot un-happen them — you run a new, forward action that cancels their effect. That is why a refund, not a deleted charge, is the compensation for a payment, and why every compensation must be safe to run twice.
+
 Two flavors:
 
 **Choreography:** each service publishes events; other services react. Decentralized, but the workflow is implicit — you have to read every service to see "what's the flow?"
 
-**Orchestration:** a dedicated saga coordinator drives the workflow. Explicit, but introduces a god component.
+**Orchestration:** a dedicated saga coordinator drives the workflow. Explicit, but the coordinator knows about every service in the flow, so it becomes a central component that must be highly available and tends to accumulate logic.
 
 Most production sagas are orchestrated (Temporal, Camunda, AWS Step Functions). Choreography is fine for simple workflows but becomes unmaintainable past 3–4 steps.
 
@@ -276,6 +280,8 @@ A separate process polls the `outbox` table, publishes unpublished events, marks
 - Order insert + outbox insert are atomic.
 - The publish is retryable until it succeeds.
 - The system can crash between commit and publish without losing the event.
+
+The price is **duplicates**. If the publisher crashes after publishing but before marking the row published, it publishes that event again on restart. The outbox gives you *at-least-once* delivery, so consumers must be idempotent — processing the same event twice must have the same effect as processing it once (tricky Q2 below).
 
 This is the canonical fix for "events lost during failures." Every serious microservice that publishes events should use the outbox pattern.
 
@@ -342,6 +348,14 @@ When a downstream is failing consistently, retries make it WORSE (more load on a
    ↘ NO → back to OPEN
 ```
 
+The three states in plain words:
+
+- **Closed** is normal operation. The breaker counts recent failures (errors and timeouts) as calls go through.
+- **Open** means the failure rate crossed the threshold, so the breaker stops calling the downstream at all and returns an error immediately. This does two things: the caller stops wasting seconds waiting on a service that is not going to answer, and the struggling service gets a break from traffic, which is often what it needs to recover.
+- **Half-open** is the probe. After a cooldown, a small number of trial calls go through. If they succeed, the downstream has recovered and the breaker closes; if they fail, it opens again and the cooldown restarts. Without this state the breaker would need a human to reset it.
+
+What the caller does while the breaker is open is a product decision, not a library setting: return a cached value, show a degraded page ("recommendations unavailable"), or fail the request with a clear error.
+
 Libraries: `opossum` for Node, Hystrix (legacy Java), Polly (.NET), Resilience4j (Java).
 
 Combined with timeouts and retries, the breaker prevents cascading failure: when payment-service is overloaded, the breaker trips, order-service fails fast for new payment calls, the user gets an error in 50ms instead of waiting 5s for a timeout.
@@ -376,8 +390,10 @@ logger.info({ traceId: req.traceId, userId, action: 'order.created' });
 
 Counters and histograms aggregated over time. Prometheus is the de facto standard. Standard metrics every service should emit:
 
-- **RED metrics:** Rate (requests/sec), Errors (% failing), Duration (p50/p95/p99 latency).
-- **USE metrics for infrastructure:** Utilization, Saturation, Errors.
+- **RED metrics, for each service:** Rate (requests per second), Errors (the share of requests failing), Duration (latency at p50/p95/p99, meaning the time within which 50%, 95% and 99% of requests finish). These three describe what the service's *callers* experience, which makes them the right basis for alerts.
+- **USE metrics, for each resource (CPU, memory, disk, connection pool):** Utilization (how busy it is), Saturation (how much work is queued waiting for it), Errors. These explain *why* a RED number moved: a latency spike with the connection pool saturated points at the database, not the code.
+
+Watch the high percentiles, not the average. An average of 80ms can hide 1% of requests taking 3 seconds, and in a system where one page makes eight backend calls, far more than 1% of pages hit at least one slow call.
 
 Dashboards: Grafana. Alerting: Alertmanager or PagerDuty integrations.
 
@@ -397,7 +413,10 @@ How does service B know who the user is when service A calls it?
 
 ### Token propagation
 
-The user authenticated to the gateway → got a JWT. The gateway validates the JWT once, passes it (or a derived identity header) to downstream services. Each downstream service validates the JWT signature locally (it's stateless; no DB lookup needed).
+The user authenticated to the gateway → got a JWT (a signed token carrying the user's id and roles). The gateway validates the JWT once, then passes either the JWT itself or a derived identity header to downstream services. Two options, with a real difference:
+
+- **Forward the JWT.** Each downstream service re-validates the signature locally (it's stateless; no DB lookup needed). Safer, because a service trusts only what is signed.
+- **Forward a plain `user_id` header.** Simpler, but a service that trusts the header will believe anyone who can reach it and set that header. It is only safe when nothing but the gateway can reach the service — enforced by network policies or mTLS below.
 
 ```
 [User] → [Gateway: validate JWT, get user_id]
@@ -694,13 +713,13 @@ Without tracing, debugging a slow distributed request can take days. With it, mi
 
 **Q11: A team wants to migrate from a monolith to microservices. What's a sensible incremental approach?**
 
-The "Strangler Fig" pattern. Don't rewrite the whole monolith at once. Extract one capability at a time.
+The "Strangler Fig" pattern — named after a vine that grows around a host tree until it can replace it. Don't rewrite the whole monolith at once. Put a routing layer in front, extract one capability at a time, and move its traffic over, until the old system has nothing left to do.
 
 1. **Stabilize the monolith.** Put a load balancer / gateway in front of it. All traffic still goes to the monolith.
 
 2. **Identify a bounded context to extract.** Pick something with clear boundaries and a clear business need (e.g., "we want to scale checkout independently"). Avoid the temptation to start with shared infrastructure code — start with a vertical slice of the domain.
 
-3. **Build the new service in parallel.** It owns its own DB. Initially, it reads from the monolith's DB (via API or replication) and writes to both.
+3. **Build the new service in parallel.** It owns its own DB, which you fill from the monolith's data and keep in sync by streaming the monolith's changes into it (change data capture, or events). While the monolith still takes the writes, it stays the single source of truth. Do not have application code write to both databases: that is the dual-write problem the outbox section (§8) exists to solve, and a crash between the two writes leaves them disagreeing with nothing to reconcile them.
 
 4. **Migrate writes.** Once the new service is reliable, route writes to it. The monolith still serves reads but is updated by the new service via events.
 
@@ -737,7 +756,7 @@ Examples: **Istio, Linkerd, Consul Connect**.
 **You don't need a mesh when:**
 - You have <20 services. The operational cost of running Istio exceeds its benefits.
 - Your services are mostly in one language. Libraries (resilience patterns, OTel SDK) handle the same concerns simpler.
-- You're using AWS App Mesh / GCP Service Mesh — these add a managed layer but most teams find them overkill.
+- You'd only be adopting a managed mesh to avoid running one yourself. A managed offering takes over running the control plane; it does not remove the proxies, the extra hop or the concepts — if you don't need the capabilities above, it is still overkill.
 
 The mesh is a 2010s solution to "every service code reimplements networking concerns." For most teams, a good HTTP client library + observability stack + Kubernetes networking is sufficient.
 
@@ -763,7 +782,7 @@ The hard truth: a microservices migration that doesn't also rethink ORG STRUCTUR
 
 **Q2: Your event-publishing service crashes mid-process. Half the events for the order got published, half didn't. How do you make sure consumers see a consistent state?**
 
-This is the classic exactly-once delivery problem. Two interlocking patterns:
+Short answer: you don't try to make publishing exactly-once — you make it *at-least-once* (nothing is lost, some events may arrive twice) and make consumers safe to receive duplicates. Two interlocking patterns:
 
 1. **Outbox pattern (producer side).** Events are written to an outbox table IN THE SAME DB TRANSACTION as the data change. A separate publisher process reads from outbox and publishes — retryable. If the publisher crashes mid-publish, the unpublished rows stay and are retried.
 
@@ -803,7 +822,7 @@ Investigate:
 1. **What's the actual cost driver?** Compute, network, storage? "Microservices are expensive" is a vibe; the actual bill has line items.
 2. **How does it compare to monolith costs?** If the monolith you'd replace it with also needs 100 instances, you've just moved the same cost. Microservices add overhead (proxies, sidecars, cross-AZ network) but the bulk of the bill is usually doing the actual work.
 3. **What scales?** Maybe ONE service is 80% of the cost. Then "rewrite as a monolith" is wrong — "right-size or rewrite that one service" is correct.
-4. **What architecture changes would save money?** Spot instances? Caching layer? Async processing instead of synchronous? Often you can recover 30–50% of cost without changing the architecture.
+4. **What architecture changes would save money?** Spot instances? Caching layer? Async processing instead of synchronous? Often a large share of the cost can be recovered without changing the architecture.
 
 If after that the answer is genuinely "the microservices overhead is 30%+ and we'd save by collapsing," then targeted consolidation makes sense. But "rewrite as a monolith" is rarely the right answer for an established product — the org-level coordination cost dwarfs the infra cost.
 
@@ -848,7 +867,7 @@ Whether you need it depends on what you're missing. If your services already hav
 
 If you have many services in many languages, need uniform mTLS, want sophisticated canary deploys, or need pervasive observability without modifying every service — Istio's complexity earns its keep.
 
-The trap: organizations adopt Istio because it's fashionable, not because it solves a problem they have. Then they're paying ~10% performance overhead and constant operational headaches for capabilities they never use.
+The trap: organizations adopt Istio because it's fashionable, not because it solves a problem they have. Then they're paying a latency and CPU cost on every call, plus constant operational headaches, for capabilities they never use.
 
 ---
 
@@ -880,16 +899,15 @@ The user sees a "ghost period" between committing and propagation.
 
 **Q8: A service mesh slows your p99 latency from 50ms to 90ms. Your team wants to remove it. What questions should you ask before pulling the trigger?**
 
-The mesh isn't free — sidecar proxies intercept every call, adding latency. 50→90ms (80% increase) is high; typical Istio overhead is 5–15ms at p99.
+The mesh isn't free: every call now passes through two extra proxies (the caller's sidecar and the callee's), and each adds some latency. But an 80% jump at p99 is more than you should simply accept as "the cost of a mesh". Treat it as a symptom to diagnose before you treat it as a reason to remove the mesh.
 
 Questions before removing:
 
 1. **What problems is the mesh solving?** mTLS everywhere? Traffic splitting? Observability? You need replacement solutions before removing.
 
-2. **Have you measured the source of overhead?** Is it the sidecar's CPU, the extra TCP handshakes, or the control plane (Istio control plane bottlenecks)? Sometimes the overhead is fixable without removing the mesh:
-   - Use HTTP/2 between sidecars instead of HTTP/1.1.
-   - Move from XDS (Istio's config protocol) updates to fewer, larger pushes.
-   - Allocate more CPU to sidecars.
+2. **Have you measured the source of overhead?** Compare traces with and without the sidecar on the same path, and find where the extra time goes. Two common causes can be fixed without removing the mesh:
+   - **The sidecars are starved of CPU.** A proxy that hits its CPU limit gets throttled, and requests queue behind it. That shows up in the tail (p99) long before the average moves. Raise the sidecar's CPU request and limit.
+   - **Connections are not being reused.** If each call opens a new connection, it pays a fresh TCP and mutual-TLS handshake every time. Check whether the proxies upgrade HTTP/1.1 to HTTP/2 between each other (Istio's `h2UpgradePolicy` setting), so many calls share one connection.
 
 3. **What's the cost of NOT having mTLS?** If your compliance audit requires it, you can't just turn it off. You'd need to put TLS in every service's code — bigger change.
 

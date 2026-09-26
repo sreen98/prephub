@@ -26,11 +26,11 @@
 TypeScript is a **statically typed superset of JavaScript** that compiles to plain JavaScript. It adds optional type annotations, interfaces, generics, and other type-system features that catch errors at compile time rather than runtime.
 
 Key benefits:
-- **Type safety** — catch bugs before running code
-- **Better IDE support** — autocompletion, refactoring, go-to-definition
-- **Self-documenting** — types serve as documentation
-- **Gradual adoption** — any valid JS is valid TS
-- **Compiles to any JS version** — target ES5, ES6, ESNext, etc.
+- **Type safety** — a typo in a property name or a missing `null` check becomes a compile error instead of a crash in production.
+- **Better IDE support** — because the editor knows each value's type, it can offer accurate autocompletion, rename a symbol everywhere safely, and jump to where something is defined.
+- **Self-documenting** — a signature like `getUser(id: string): Promise<User | null>` tells the next reader what to pass and what can come back, and unlike a comment it cannot silently go out of date, because the compiler checks it.
+- **Gradual adoption** — plain JavaScript is valid input, so you can rename files to `.ts` one at a time and tighten the checks as you go.
+- **Compiles to any JS version** — the `target` option sets which JavaScript version the output uses (ES5, ES2015, ESNext, …), so you write modern syntax and still ship to older runtimes.
 
 ```bash
 # Install
@@ -364,6 +364,8 @@ const config = {
 
 Interfaces define the shape of an object by specifying property names and their types. They support optional and readonly properties, extension via `extends`, declaration merging, and index signatures, making them ideal for defining contracts in your code.
 
+Two facts do most of the work here. An interface is **structural**: any object with the right properties satisfies it, whether or not anything says `implements User`, because TypeScript compares shapes, not names. And it is **erased**: nothing of `interface User` exists at runtime, so you cannot check `x instanceof User` or loop over its keys. It describes data; it does not validate it (interview Q27 covers what to do at a boundary like `JSON.parse`).
+
 ```ts
 interface User {
   id: number;
@@ -493,6 +495,8 @@ Two more asymmetries follow from the same place: an interface can only extend **
 ### 4.1 Type Annotations
 
 TypeScript lets you annotate function parameters and return values to ensure callers pass the correct types and the function returns what is expected. It also supports optional parameters, default values, and rest parameters with full type safety.
+
+The practical rule: **always annotate parameters**, because TypeScript cannot infer them from inside the function, and under `strict` an unannotated parameter is an error (`Parameter 'a' implicitly has an 'any' type`). **Return types are inferred**, so annotating them is optional; the reason to write one on an exported function anyway is that a wrong `return` is then reported inside the function, instead of as a confusing error at every caller.
 
 ```ts
 // Parameter and return types
@@ -1085,7 +1089,7 @@ type F = ElementOf<string[]>;             // string
 
 ### 10.3 Template Literal Types
 
-Template literal types use backtick syntax at the type level to construct string types from other string literal types. Combined with unions, they can generate large sets of allowed string patterns, which is powerful for typing event names, routes, and CSS properties.
+Template literal types use backtick syntax at the type level to construct string types from other string literal types. Put a union inside one and TypeScript produces every combination, so a few short unions describe a large set of allowed strings. That is how you type event names, routes and CSS values without listing each one by hand.
 
 ```ts
 type EventName = `${'click' | 'focus' | 'blur'}Event`;
@@ -1608,7 +1612,7 @@ Turn `erasableSyntaxOnly` on and all four become errors, pushing you toward `con
 
 ### 14.1 Do's
 
-These are recommended TypeScript patterns that improve type safety, readability, and maintainability. Following them helps you get the most out of the type system while keeping your code clean.
+Each of these exists for a concrete reason. `strict` turns on the checks (null safety above all) that catch the bugs you adopted TypeScript for. Discriminated unions make impossible states impossible to write (see Q25). `unknown` forces a check before use, where `any` silently switches checking off. `as const` keeps literal values like `'/about'` instead of widening them to `string`, so you can derive union types from them. And `import type` tells every tool in the build that the import vanishes at runtime, so none of them has to guess (see Q24).
 
 ```ts
 // 1. Use strict mode
@@ -1647,7 +1651,7 @@ import type { User } from './types';
 
 ### 14.2 Don'ts
 
-These are common TypeScript anti-patterns that weaken type safety or add unnecessary complexity. Avoiding them will help you write more robust code and let TypeScript's inference do the heavy lifting.
+The reasons, in order. `any` does not stay put: anything you read off an `any` value is also `any`, so one escape hatch quietly turns off checking downstream. Enums are the one TypeScript feature that emits a runtime object, which rules them out under Node's type stripping and `erasableSyntaxOnly` (§13.3), while a union of strings does the same job and is erased. `!` is a promise to the compiler that nothing checks at runtime; if the element really is missing, you crash later and further from the cause, whereas an explicit check fails right there with a clear message. Annotating what TypeScript already infers adds noise, and for a `const` it can make the type *wider* (`string` instead of `'Alice'`). And `object` and `Function` are so broad that you cannot safely use what you receive: `Function` accepts any function and lets you call it with any arguments.
 
 ```ts
 // 1. Don't use `any` as escape hatch
@@ -1694,14 +1698,15 @@ function process(obj: Record<string, unknown>, fn: () => void) { /* … */ }
 
 **Q1: What is TypeScript and how does it differ from JavaScript?**
 
-TypeScript is a statically typed superset of JavaScript. It adds optional type annotations, interfaces, generics, and compile-time type checking. All valid JavaScript is valid TypeScript.
+**Short answer:** TypeScript is JavaScript plus a type system that is checked before the code runs and then deleted. "Superset" means any valid JavaScript is already valid TypeScript, so you can adopt it one file at a time.
 
-Key differences:
-- **Type checking**: TS catches type errors at compile time; JS catches them at runtime
-- **Type annotations**: TS has explicit types; JS is dynamically typed
-- **Compilation**: TS compiles to JS; JS runs directly
-- **IDE support**: TS provides much better autocompletion and refactoring
-- **Features**: TS adds interfaces, generics, enums, access modifiers, etc.
+The difference that matters is *when* you find out about a mistake. In JavaScript, calling `user.nmae` or passing a number where a string was expected fails when that line runs, possibly in production. In TypeScript the compiler reports it while you type. Everything else follows from that:
+
+- **Type checking**: TS catches type errors at compile time; JS catches them at runtime, and only on the code paths you actually exercise.
+- **Type annotations**: in TS you can state what a variable holds (`name: string`); JS is dynamically typed, so a variable can hold anything at any moment.
+- **Compilation**: TS must be turned into JS before a browser or Node can run it; JS runs directly. The types are erased in that step, so they cost nothing at runtime and protect nothing at runtime either.
+- **IDE support**: because the editor knows the type of every value, it can offer accurate autocompletion and rename a symbol safely across the whole project.
+- **Features**: TS adds type-only constructs (interfaces, generics, access modifiers) and a few that emit real code (enums).
 
 ---
 
@@ -1731,7 +1736,9 @@ let x: any = 42;
 x.nonExistent.method(); // no error at compile time, crashes at runtime
 ```
 
-Use `unknown` instead — it's type-safe and requires narrowing before use.
+The real danger is that `any` spreads. Anything you read off an `any` value is also `any`, and an `any` can be assigned to any other type, so one untyped value quietly switches off checking for everything it touches.
+
+Use `unknown` instead: it also accepts any value, but the compiler makes you check what it is (narrow it) before you can use it. See Q5.
 
 ---
 
@@ -1754,7 +1761,9 @@ Without generics, you'd use `any` and lose type safety.
 
 **Q5: What is the difference between `unknown` and `any`?**
 
-Both accept any value, but:
+**Short answer:** both accept any value, but `any` switches type checking off, while `unknown` forces you to check what the value is before you use it. That makes `unknown` the safe choice for data whose shape you do not know yet.
+
+In detail:
 - `any`: Disables all type checking. You can do anything with it.
 - `unknown`: Type-safe. You MUST narrow the type before using it.
 
@@ -1801,7 +1810,7 @@ The `status` field is the discriminant. It enables exhaustive type narrowing in 
 
 **Q7: What are utility types? Name 5 commonly used ones.**
 
-Utility types are built-in generic types that transform other types:
+Utility types are built-in generic types that take one type and produce a related one. Their point is to **derive types instead of copying them**: if an update form needs "a `User` with every field optional", `Partial<User>` stays in sync when someone adds a field to `User`, while a hand-written copy silently drifts.
 
 1. `Partial<T>` — makes all properties optional
 2. `Required<T>` — makes all properties required
@@ -1818,7 +1827,7 @@ Utility types are built-in generic types that transform other types:
 
 **Q8: What is type narrowing? List different ways to narrow types.**
 
-Type narrowing is the process of refining a broad type to a more specific one within a code block.
+Type narrowing is TypeScript following your `if` checks. The compiler reads your control flow, so inside `if (typeof x === 'string')` it knows `x` is a string, and in the `else` it knows `x` is whatever is left. That is what makes a union like `string | number` usable: you check, and the compiler lets you use the specific type in that branch without a cast.
 
 Methods:
 1. **typeof**: `if (typeof x === 'string')`
@@ -1908,7 +1917,9 @@ Use cases:
 
 **Q11: Explain conditional types and the `infer` keyword.**
 
-Conditional types follow the pattern `T extends U ? X : Y`:
+**Short answer:** a conditional type is an `if`/`else` for types, and `infer` lets you pull a piece out of a type while you test it. Together they let you compute a type from another type instead of writing it by hand.
+
+The pattern is `T extends U ? X : Y`, read as "if `T` is assignable to `U`, the result is `X`, otherwise `Y`":
 
 ```ts
 type IsString<T> = T extends string ? 'yes' : 'no';
@@ -1916,7 +1927,7 @@ type A = IsString<string>;    // 'yes'
 type B = IsString<number>;    // 'no'
 ```
 
-`infer` declares a type variable inside a conditional type, letting you extract types:
+`infer R` means "whatever type sits in this position, call it `R`". It works like a capture group in a regular expression: you describe the shape (a function returning something, a `Promise` of something), and if the type matches, the captured part is available in the `true` branch. This is how the built-in `ReturnType` and `Awaited` are written, and why you can get a library function's return type without the library exporting it:
 
 ```ts
 // Extract return type
@@ -1936,7 +1947,7 @@ type C = ElementOf<string[]>;              // string
 
 **Q12: What are mapped types? How do you remap keys?**
 
-Mapped types create new types by iterating over keys:
+A mapped type is a loop over the keys of another type: `[P in keyof T]` visits each key, and the right-hand side says what each property becomes. That is how `Partial`, `Readonly` and friends are built. Key remapping adds an `as` clause that renames each key as you go — for example turning `name` into `getName`. If the `as` clause produces `never` for a key, that key is dropped, which is how you filter properties:
 
 ```ts
 // Basic mapped type
@@ -1962,7 +1973,7 @@ type StringUserProps = StringProps<User>;
 
 **Q13: How do distributive conditional types work?**
 
-When a conditional type acts on a **naked** (unboxed) type parameter that is a union, it distributes over each member:
+When a conditional type tests a **naked** type parameter (the bare `T`, not wrapped in something like `[T]` or `T[]`) and you pass it a union, TypeScript runs the conditional once per union member and unions the results. This is usually what you want — it is how `Exclude` removes members from a union — but it is wrong when you mean to test the union *as a whole*, which is when you wrap it to switch distribution off:
 
 ```ts
 type ToArray<T> = T extends unknown ? T[] : never;
@@ -1982,7 +1993,7 @@ type B = ToArrayNonDist<string | number>;
 
 **Q14: Explain declaration merging.**
 
-Declaration merging combines multiple declarations with the same name:
+Declaration merging means that when TypeScript sees two declarations with the same name in the same scope, it combines them into one instead of reporting a duplicate. The practical reason it exists is **extending types you don't own**: you cannot edit Express's `Request` or the DOM's `Window`, but you can declare the same interface again in your own code and add a field to it, which is what the module augmentation example below does.
 
 ```ts
 // Interface merging
@@ -2109,11 +2120,12 @@ type RequestKey = `${HTTPMethod} ${APIRoute}`;
 // 'GET /...' | 'POST /...' | 'PUT /...' | 'DELETE /...'
 ```
 
-Practical uses:
-- Type-safe CSS property names
-- Event handler naming conventions
-- API route typing
-- i18n key typing
+They are useful whenever a string follows a pattern and a typo would otherwise only show up at runtime. When you interpolate a union, you get every combination, so the compiler knows the full set of legal strings and rejects anything else:
+
+- **Event handler names**: `on${Capitalize<EventName>}` gives `'onClick' | 'onFocus'`, and a misspelt handler prop is a compile error.
+- **API routes**: `'GET /users'` is allowed; `'GTE /users'` is not.
+- **i18n keys** (translation keys such as `'checkout.title'`): a key that doesn't exist fails to compile instead of rendering the raw key on screen.
+- **CSS property names**: a misspelt property such as `'backgroud-color'` is rejected instead of silently doing nothing.
 
 Combined with mapped types:
 ```ts
@@ -2139,7 +2151,8 @@ const userV2 = { name: 'Alice' } as User;
 // 1. DOM elements
 const input = document.querySelector('#email') as HTMLInputElement;
 
-// 2. API responses you know the shape of
+// 2. API responses — compiles, but nothing checks it at runtime.
+//    response.json() returns any; prefer unknown + a type guard (see Q27).
 const data = await response.json() as ApiResponse;
 
 // 3. When narrowing doesn't work and you know better
@@ -2149,13 +2162,15 @@ const x = someValue as string;
 const xBroken = someValue as unknown as TargetType;
 ```
 
-Rule: prefer declarations (annotations) over assertions. Assertions bypass type checking.
+Rule: prefer declarations (annotations) over assertions. Assertions bypass type checking. Of the cases above, only the DOM one is a claim you can usually back up; for data that crosses a boundary (network, storage), a cast is an unchecked promise, so validate it instead (Q27).
 
 ---
 
 **Q19: How does TypeScript's type system handle `null` and `undefined`?**
 
-With `strictNullChecks: true` (recommended):
+**Short answer:** with `strictNullChecks` on, `null` and `undefined` are their own types, so a value that might be missing must say so in its type (`string | null`) and the compiler makes you handle that case before use. With it off, they are silently allowed everywhere, which is how "cannot read properties of null" errors get past the compiler.
+
+With `strictNullChecks: true` (recommended, and included in `strict`):
 - `null` and `undefined` are separate types, not assignable to other types
 - You must explicitly handle them
 
@@ -2221,7 +2236,7 @@ For the upgrade plan, the sequence matters:
 
 1. **Go to 6.0 first.** TypeScript 6.0 (March 2026) was the last release on the original JavaScript codebase and exists specifically as a bridge — it turns long-standing deprecations into errors. Fix those on 6.0, where the error messages and tooling you know still apply.
 2. **Then bump to 7.0.** It is behaviourally compatible with 6.0's checking and CLI, so for most codebases this is a dependency change, not a code change.
-3. **Audit anything that consumes the compiler's programmatic API**, because that API is *not* stable in 7.0. Vue, Svelte, Astro and MDX language tooling, custom AST transforms, and some type-aware ESLint setups all drive the compiler as a library and need to stay on 6.0 until they catch up.
+3. **Audit anything that consumes the compiler's programmatic API** (tools that call the compiler as a library rather than running `tsc`), because 7.0 ships no such API at all — a new one is expected in 7.1 (see §13.2). Vue, Svelte, Astro and MDX language tooling, custom AST transforms, and some type-aware ESLint setups all drive the compiler as a library and need to stay on 6.0 until they catch up.
 
 Step 3 is the answer interviewers are actually listening for. "We upgraded and it was fine" is the wrong response if half the toolchain talks to the API. The broader framing worth adding: bundling went native years ago (esbuild, SWC, Rolldown), so `tsc --noEmit` and the language server were the last JavaScript-speed steps in a front-end build. TypeScript 7 is what makes the old "use `transpileOnly` and type-check in a separate CI job" workaround unnecessary.
 
@@ -2549,7 +2564,7 @@ const config = {
 };
 
 function start(mode: "production" | "development") {}
-start(config.mode);
+// start(config.mode);   // ✗ TS2345: Argument of type 'string' is not assignable to parameter of type '"production" | "development"'.
 ```
 
 **Answer:** Compile error — `Argument of type 'string' is not assignable to parameter of type '"production" | "development"'`.
@@ -2563,14 +2578,19 @@ So `config.mode` has type `string`, and `string` is not assignable to the narrow
 There are three standard fixes, each with different tradeoffs:
 
 ```ts
+function start(mode: "production" | "development") {}
+
 // 1. Lock the whole object as const (deeply readonly, all literals preserved)
 const config = { mode: "production", port: 3000 } as const;
+start(config.mode);
 
 // 2. Annotate just the property with the narrow type
-const configV2: { mode: "production" | "development"; port: number } = { /* … */ };
+const configV2: { mode: "production" | "development"; port: number } = { mode: "production", port: 3000 };
+start(configV2.mode);
 
 // 3. Assert at the call site (blunt; only use when you know better than the compiler)
-start(configV2.mode as "production");
+const configV3 = { mode: "production", port: 3000 };
+start(configV3.mode as "production");
 ```
 
 **Takeaway:** Object property types are widened because properties are mutable; use `as const` or an explicit literal-union annotation to preserve literal types through a property access.
@@ -2623,7 +2643,7 @@ type Shape =
   | { kind: "square"; side: number }
   | { kind: "triangle"; base: number; height: number };
 
-function area(shape: Shape): number {
+function area(shape: Shape): number {   // ✗ TS2366: Function lacks ending return statement and return type does not include 'undefined'.
   switch (shape.kind) {
     case "circle":
       return Math.PI * shape.radius ** 2;
@@ -2700,7 +2720,7 @@ A subtle gotcha: `in` narrowing considers a property present if *any* union memb
 
 ```ts
 function getLength<T>(value: T): number {
-  return value.length;
+  return value.length;   // ✗ TS2339: Property 'length' does not exist on type 'T'.
 }
 ```
 
@@ -2721,7 +2741,7 @@ function getLength<T extends { length: number }>(value: T): number {
 getLength("hello");      // OK — strings have .length
 getLength([1, 2, 3]);    // OK — arrays have .length
 getLength({ length: 5 });// OK — structural match
-getLength(42);           // error — number has no .length
+getLength(42);           // ✗ TS2345: Argument of type 'number' is not assignable to parameter of type '{ length: number; }'.
 ```
 
 You could also just type the parameter as `{ length: number }` directly, but the generic form preserves the specific input type for use elsewhere in the signature — for example, returning `T` as a result so callers don't lose the narrow type they passed in. Constraints are the "contract" portion of a generic: the generic parameter lets the caller pick the type, but the constraint lets the function body rely on a minimum shape.
@@ -2846,7 +2866,7 @@ interface Point {
   y: number;
 }
 
-const point1: Point = { x: 1, y: 2, z: 3 };
+const point1: Point = { x: 1, y: 2, z: 3 };   // ✗ TS2353: Object literal may only specify known properties, and 'z' does not exist in type 'Point'.
 
 const obj = { x: 1, y: 2, z: 3 };
 const point2: Point = obj;
@@ -2899,7 +2919,7 @@ A caller of `Handler` will pass in a `MouseEvent`. Can `handler1` — which decl
 
 The common confusion: what if `MouseEvent` had a `clientX` property that `handler1` tries to access? It can't — `handler1` only knows about `Event`, so it only accesses `Event` members. So passing a `MouseEvent` to a function expecting `Event` is always safe, because the callee doesn't know the extra fields exist.
 
-Going the other direction would be unsafe: a function declared to take a narrower type (`(e: MouseButtonEvent) => ...`) could try to access fields the caller isn't required to provide. Under `strictFunctionTypes`, TypeScript checks parameters contravariantly and rejects that case. Without `strictFunctionTypes` (the default for method syntax is still bivariant for legacy reasons), parameters are checked **bivariantly** — both directions are allowed, which is unsound but convenient. Function parameter lists with **fewer** parameters are always allowed because extras simply aren't used.
+Going the other direction would be unsafe: a function declared to take a narrower type (`(e: MouseButtonEvent) => ...`) could try to access fields the caller isn't required to provide. Under `strictFunctionTypes`, TypeScript checks parameters contravariantly and rejects that case. Without `strictFunctionTypes`, parameters are checked **bivariantly** — both directions are allowed, which is unsound but convenient. One exception survives even with the flag on: a method written with method syntax (`handle(e: MouseEvent): void` inside an interface, as opposed to the property form `handle: (e: MouseEvent) => void`) is still checked bivariantly, for compatibility with older code. Function parameter lists with **fewer** parameters are always allowed because extras simply aren't used.
 
 **Takeaway:** With `strictFunctionTypes`, a function is assignable if its parameters are the **same or wider** (contravariant) and its return is the **same or narrower** (covariant); fewer parameters are always fine.
 
@@ -2915,11 +2935,12 @@ Going the other direction would be unsafe: a function declared to take a narrowe
 let a: any = 10;
 let b: unknown = 10;
 
-a.foo.bar;        // A
-b.foo.bar;        // B
+// a.foo.bar;       // (A) compiles, but throws a TypeError when it runs: 10 has no foo
+// b.foo.bar;       // ✗ TS18046: 'b' is of type 'unknown'.   (B)
 
-let s1: string = a;  // C
-let s2: string = b;  // D
+let s1: string = a;  // (C) compiles
+// let s2: string = b;   // ✗ TS2322: Type 'unknown' is not assignable to type 'string'.   (D)
+console.log(typeof s1, s1);
 ```
 
 **Answer:**
@@ -2985,7 +3006,7 @@ var Direction;
 
 The trick `Direction[Direction["Up"] = 0] = "Up"` does two assignments: first it sets `Direction["Up"] = 0` (forward entry), then uses that returned value as the key for `Direction[0] = "Up"` (reverse entry). That's why `Direction.Up` and `Direction["Up"]` both give you `0`, while `Direction[0]` gives you the string `"Up"`.
 
-This reverse mapping is **not** created for string-valued enums. String enums emit only the forward mapping (`{ Up: "UP" }`), because the compiler can't safely reverse an enum where multiple members could share the same value. So for string enums, `SomeEnum["UP"]` works but `SomeEnum["UP_VALUE"]` won't give you back the name.
+This reverse mapping is **not** created for string-valued enums. String enums emit only the forward mapping (`{ Up: "UP" }`). A reverse entry would be keyed by the value, and a string value can collide with a member name — in `enum E { A = "B", B = "A" }` the reverse entries would overwrite the forward ones. So for a string enum, `Direction["Up"]` gives `"UP"`, but `Direction["UP"]` is `undefined`: there is no way back from the value to the name.
 
 Reverse mappings are why numeric enums inflate bundle size more than `as const` objects. If you don't need the reverse lookup and want maximum tree-shakability, `const enum` (inlines values, no object at all) or a plain `as const` object literal are leaner alternatives.
 
@@ -3094,13 +3115,15 @@ The inference fires **only if all four** of these hold:
 
 `b` violates the first condition. Writing `: boolean` is not a no-op — it *pins* the return type, so TypeScript stops at `boolean`, `filter` matches its plain `(value: T) => unknown` overload, and the result stays `(number | null)[]`. The irony is that annotating return types is normally the recommended habit, and here it silently costs you type safety.
 
-Condition 2 is the other easy way to lose it. All three of these fall back to `boolean`:
+Conditions 2–4 are the other easy ways to lose it. All three of these fall back to `boolean`:
 
 ```ts
 const c = (v: number | null) => { if (v === null) return false; return true; };  // two returns
-const d = (v: number | null) => { const ok = v !== null; return ok; };            // indirection
+const d = (v: number | null) => { v = v ?? null; return v !== null; };            // reassigns its parameter
 const e = (v: number | null) => v !== null && Math.random() > 0.5;                // not a pure refinement
 ```
+
+Storing the check in a local first does **not** break it: `(v) => { const ok = v !== null; return ok; }` still infers `v is number`, because control-flow analysis follows a `const` that aliases a condition.
 
 Note that an **inline** arrow works fine — `values.filter(v => v !== null)` gives `number[]` — so this is not about named versus anonymous functions. It is about the shape of the function.
 
@@ -3195,6 +3218,488 @@ What you give up: `enum`'s reverse mapping, `namespace` declaration merging, and
 
 ---
 
+### Types vs Runtime
+
+TypeScript's types are **erased**: the compiler checks them and then deletes them, so none of them exist when the code runs. Most TypeScript surprises come from forgetting that. (The playground strips types without checking them, so Try it shows the runtime output but never a compile error; the ✗ lines show what `tsc` reports.)
+
+**Q20: The value was asserted `as number`, so why does `n + 1` give `'51'`?**
+
+```ts
+const input: unknown = '5';
+const n = input as number;
+console.log(n + 1);
+console.log(typeof n);
+
+const real = Number(input);
+console.log(real + 1);
+```
+
+**Output:**
+```text
+51
+string
+6
+```
+
+**Explanation:**
+
+**In one line:** `as` is a promise *you* make to the compiler, not a conversion. It changes what TypeScript believes about the value and changes nothing at runtime, so the string `'5'` is still a string.
+
+| Line | Why |
+|---|---|
+| `51` | at runtime `n` is the string `'5'`, and `'5' + 1` joins strings (JavaScript tricky Q34) |
+| `string` | `typeof` looks at the real value, which the assertion never touched |
+| `6` | `Number(input)` actually converts, so this is real arithmetic |
+
+After compilation the second line is just `const n = input;`. The type checker was happy, because it believed you, and the bug happens anyway.
+
+A plain `'5' as number` would be rejected, because TypeScript refuses assertions between types that obviously do not overlap. Going through `unknown` (or `any`) removes even that check, which is why `value as unknown as Something` is such a strong code smell.
+
+**Takeaway:** `as` never converts. To turn data into the type you want, convert it (`Number`, `String`, `new Date`) or validate it with a type guard or a schema library such as Zod.
+
+---
+
+**Q21: `pin` is `private`, so why can the code still read it, and why does it show up in `JSON.stringify` when `#secret` does not?**
+
+```ts
+class Wallet {
+  private pin = 1234;
+  #secret = 'hidden';
+  reveal() {
+    return this.#secret;
+  }
+}
+
+const w = new Wallet();
+// console.log(w.pin);   // ✗ TS2341: Property 'pin' is private and only accessible within class 'Wallet'.
+console.log(w['pin']);
+console.log(JSON.stringify(w));
+console.log(Object.keys(w).join(', '));
+console.log(w.reveal());
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+1234
+{"pin":1234}
+pin
+hidden
+```
+
+**Explanation:**
+
+**In one line:** `private` is a **compile-time** rule that TypeScript erases; `#secret` is a real JavaScript **private field** that the engine enforces at runtime.
+
+| Line | Why |
+|---|---|
+| (✗ line) | `w.pin` is rejected by the compiler: that is all `private` does |
+| `1234` | `w['pin']` compiles, because TypeScript deliberately allows bracket access to private members as an escape hatch, and at runtime `pin` is an ordinary property |
+| `{"pin":1234}` | `JSON.stringify` sees normal properties, so the "private" PIN is serialised. `#secret` is not a property at all, so it never appears |
+| `pin` | same for `Object.keys` |
+| `hidden` | code inside the class can read `#secret`; nothing outside can, not even with brackets, and a typo in `#secret` would be an error at runtime too |
+
+**Which to use:** `#private` when the value must genuinely be unreachable (tokens, internal state a library's users must not depend on). TypeScript's `private` when you only want the compiler to stop accidental use, or when you need to reach the field from tests or subclasses (`protected`). Remember that anything TypeScript-`private` is visible in the browser's dev tools, in logs and in serialised output.
+
+**Takeaway:** `private` hides a field from the type checker; `#private` hides it from JavaScript.
+
+---
+
+**Q22: A `Robot` is not a `Cat`, so why can one be assigned to a `Cat` variable, while `Euros` cannot be assigned to `Dollars`?**
+
+```ts
+class Cat {
+  name = 'Tom';
+  speak() { return 'meow'; }
+}
+class Robot {
+  name = 'R2';
+  speak() { return 'beep'; }
+}
+
+const pet: Cat = new Robot();
+console.log(pet instanceof Cat, pet.speak());
+
+class Dollars {
+  private readonly currency = 'USD';
+  constructor(public amount: number) {}
+}
+class Euros {
+  private readonly currency = 'EUR';
+  constructor(public amount: number) {}
+}
+// const wallet: Dollars = new Euros(5);   // ✗ TS2322: Type 'Euros' is not assignable to type 'Dollars'. Types have separate declarations of a private property 'currency'.
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+false beep
+```
+
+**Explanation:**
+
+**In one line:** TypeScript compares objects by **shape** (structural typing), not by class name, so anything with a `name` and a `speak()` counts as a `Cat`. A **`private` member** is the exception: it makes a class match only itself.
+
+| Line | Why |
+|---|---|
+| `false beep` | `pet` compiled as a `Cat` because `Robot` has the same shape, but at runtime it is still a `Robot`: `instanceof Cat` is `false`, and `speak()` says `beep` |
+| (✗ line) | `Dollars` and `Euros` have the same public shape, but each declares its own `private currency`. TypeScript treats private members as tied to the class that declared them, so the two are incompatible |
+
+Structural typing is usually what you want: any object literal with the right fields can be passed where an interface is expected, without inheriting from anything. It becomes a problem when two types have the same shape but different *meanings*, like two currencies, or a `UserId` and an `OrderId` that are both strings.
+
+The `private` trick shown here is one way to make a type **nominal** (matched by name). For plain values, the usual technique is a **branded type**: `type UserId = string & { readonly __brand: 'UserId' }`, which cannot be assigned from a plain string or another brand.
+
+**Takeaway:** TypeScript checks shapes, not class names, so `instanceof` and the type system can disagree. Use a private member or a brand when two same-shaped types must not mix.
+
+---
+
+**Q23: Why does `Object.keys(p)` give you `string[]` instead of `('x' | 'y')[]`, and why does the sum come out as 103?**
+
+```ts
+interface Point {
+  x: number;
+  y: number;
+}
+
+function sum(p: Point) {
+  let total = 0;
+  for (const key of Object.keys(p)) {
+    // total += p[key];   // ✗ TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'Point'.
+    total += (p as unknown as Record<string, number>)[key];
+  }
+  return total;
+}
+
+const point3d = { x: 1, y: 2, z: 100 };
+console.log(sum(point3d));
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+103
+```
+
+**Explanation:**
+
+**In one line:** because of structural typing, a value typed `Point` may have **more** properties than `x` and `y`, so TypeScript cannot promise that `Object.keys` returns only `'x'` and `'y'`.
+
+| Line | Why |
+|---|---|
+| (✗ line) | `key` is a plain `string`, and `Point` has no index signature, so `p[key]` is not allowed |
+| `103` | `point3d` has an extra `z: 100`. It is still a valid `Point` (it has `x` and `y`), so it can be passed in, and `Object.keys` returns all three keys at runtime: 1 + 2 + 100 |
+
+This is the most-asked "why is TypeScript being annoying?" question, and the output is the answer: typing `Object.keys` as `(keyof T)[]` would be a lie, and the sum shows exactly what that lie would hide. (An object *literal* passed directly would be rejected for the extra property, tricky Q11, but a variable is not checked that way.)
+
+**What to do instead:**
+
+- Loop over the keys you actually know: `(['x', 'y'] as const).forEach((k) => total += p[k])`.
+- If you really want every key and accept the risk, cast deliberately and locally: `(Object.keys(p) as (keyof Point)[])`.
+- For dictionary-style data, type it as a dictionary from the start: `Record<string, number>` or a `Map`.
+
+**Takeaway:** `Object.keys` returns `string[]` on purpose, because an object can always carry extra properties. Iterate over known keys, or model the data as a record.
+
+---
+
+**Q24: `names[2]` is typed as `string`, so why is it `undefined`, and why does `scores.ravi + 1` compile at all?**
+
+```ts
+const names = ['Asha', 'Ravi'];
+const third = names[2];
+console.log(third);
+console.log(third?.toUpperCase());
+
+const scores: Record<string, number> = { asha: 9 };
+console.log(scores.ravi + 1);
+```
+
+**Output:**
+```text
+undefined
+undefined
+NaN
+```
+
+**Explanation:**
+
+**In one line:** by default TypeScript assumes that indexing an array or a record **always finds something**. That is convenient and wrong, and the `noUncheckedIndexedAccess` compiler option fixes it.
+
+| Line | Why |
+|---|---|
+| `undefined` | the array has two items, so index 2 is empty, but its type is still `string` |
+| `undefined` | `?.` protected us here; `third.toUpperCase()` would also compile and would crash at runtime |
+| `NaN` | `scores.ravi` has type `number` because of the `Record<string, number>` type, but there is no `ravi`, so it is `undefined + 1` |
+
+With `"noUncheckedIndexedAccess": true` in `tsconfig.json`, both `names[2]` and `scores.ravi` become `string | undefined` / `number | undefined`, and the compiler makes you handle the missing case. It is not part of `strict`, because it adds friction to every index access, but many teams now turn it on, especially for code that handles records keyed by user input or API data.
+
+Loops such as `for (const name of names)` and methods such as `map` are unaffected, because they only visit items that exist.
+
+**Takeaway:** without `noUncheckedIndexedAccess`, `arr[i]` and `record[key]` are typed as if they always exist. Turn it on, or treat index access as possibly `undefined` yourself.
+
+---
+
+**Q25: `forEach` expects a callback that returns `void`, so why is `push` (which returns a number) allowed, and why does `cb()` print 42?**
+
+```ts
+const items: number[] = [];
+[1, 2, 3].forEach((n) => items.push(n));
+
+type Callback = () => void;
+const cb: Callback = () => 42;
+console.log(cb());
+
+function log(): void {
+  // return 42;   // ✗ TS2322: Type 'number' is not assignable to type 'void'.
+}
+console.log(items.join(','), log());
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+42
+1,2,3 undefined
+```
+
+**Explanation:**
+
+**In one line:** a **function type** with a `void` return means "the caller will ignore whatever you return", so a function that returns something is still allowed. A **function declaration** annotated `: void` is different: it must not return a value.
+
+| Line | Why |
+|---|---|
+| `42` | `cb` has the type `() => void`, but the function assigned to it returns `42`. That is allowed, and at runtime the value is still returned. The type only says nobody *should* use it |
+| (✗ line) | `function log(): void` declares that this function itself returns nothing, so `return 42` is an error |
+| `1,2,3 undefined` | `forEach` accepted the `push` callback even though `push` returns the new length |
+
+This rule exists so that ordinary code works. `arr.forEach((n) => other.push(n))` is common, and rejecting it because `push` returns a number would force people to write braces everywhere. `forEach` does nothing with the return value, so allowing it is safe.
+
+The catch: `void` is **not** a promise that the value is `undefined`. If you call a `() => void` function yourself and use its result, TypeScript types that result as `void`, which you cannot use as anything, but at runtime it might be `42`.
+
+**Takeaway:** `() => void` as a *type* means "return value ignored", not "returns nothing". Annotate the function itself with `: void` when it must not return a value.
+
+---
+
+**Q26: `typeof value === 'object'` checked that it is an array, so why is `value` still `possibly 'null'`?**
+
+```ts
+function size(value: string[] | null) {
+  if (typeof value === 'object') {
+    // return value.length;   // ✗ TS18047: 'value' is possibly 'null'.
+    return value?.length ?? 0;
+  }
+  return -1;
+}
+console.log(size(null), size(['a']));
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+0 1
+```
+
+**Explanation:**
+
+**In one line:** in JavaScript `typeof null` is `'object'` (JavaScript tricky Q33), and TypeScript knows it, so a `typeof` check for `'object'` does **not** remove `null` from the type.
+
+| Line | Why |
+|---|---|
+| (✗ line) | inside the `if`, `value` is still `string[] \| null`, because `null` also passes `typeof … === 'object'` |
+| `0 1` | at runtime `size(null)` enters that branch, which is exactly the crash the compiler just prevented; the `?.` and `??` version handles it |
+
+This is TypeScript doing its job well: the check *looks* sufficient, and in plain JavaScript it is a real, common crash (`Cannot read properties of null`).
+
+**The idiomatic fixes:** check for `null` directly (`if (value !== null)`), use `Array.isArray(value)` when you mean an array, or write `if (value)`, which rules out `null` and `undefined` (but also `0` and `''`, so be deliberate with non-objects).
+
+**Takeaway:** `typeof x === 'object'` includes `null`. Narrow with `x !== null` or `Array.isArray`.
+
+---
+
+### Types That Behave Differently Than They Look
+
+Type-level results that most people get backwards the first time.
+
+**Q27: Why does `keyof (Book | Product)` give only `'id'`, while `keyof (Book & Product)` gives every key?**
+
+```ts
+type Book = { id: number; title: string };
+type Product = { id: number; price: number };
+
+type KeysOfEither = keyof (Book | Product);
+type KeysOfBoth = keyof (Book & Product);
+
+const a: KeysOfEither = 'id';
+// const b: KeysOfEither = 'title';   // ✗ TS2322: Type '"title"' is not assignable to type '"id"'.
+const c: KeysOfBoth = 'price';
+console.log(a, c);
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+id price
+```
+
+**Explanation:**
+
+**In one line:** `keyof` lists the keys you can **safely read**. From "a Book *or* a Product" you can only rely on the keys they share; from "a Book *and* a Product" you have all of them.
+
+| Type | Result | Why |
+|---|---|---|
+| `keyof (Book \| Product)` | `'id'` | a value of this type might be either one, so only `id` is guaranteed to exist |
+| `keyof (Book & Product)` | `'id' \| 'title' \| 'price'` | a value of this type has everything from both |
+
+So the union and the intersection flip when you take their keys: a **union of types** gives an **intersection of keys**, and an **intersection of types** gives a **union of keys**. The ✗ line shows it: `'title'` is not a key you can use on "a Book or a Product".
+
+This is why reading a property on a union fails unless every member has it, and why the fix is to **narrow** first (with `in`, a discriminant field, or a type guard) to one member, whose keys are all available (tricky Q6).
+
+**Takeaway:** `keyof` a union is the keys every member shares; `keyof` an intersection is all the keys.
+
+---
+
+**Q28: Why can't you read `err.message` inside `catch`?**
+
+```ts
+try {
+  JSON.parse('{bad json');
+} catch (err) {
+  // console.log(err.message);   // ✗ TS18046: 'err' is of type 'unknown'.
+  if (err instanceof Error) console.log(err.name);
+  console.log(typeof err);
+}
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+SyntaxError
+object
+```
+
+**Explanation:**
+
+**In one line:** anything can be thrown in JavaScript, not only `Error` objects, so under `strict` TypeScript types the `catch` variable as **`unknown`** and makes you check what it is first.
+
+| Line | Why |
+|---|---|
+| (✗ line) | `err` is `unknown`, so reading `.message` is not allowed without narrowing |
+| `SyntaxError` | after `err instanceof Error`, TypeScript knows it is an `Error`, and this one is the `SyntaxError` from the bad JSON |
+| `object` | the real value at runtime |
+
+`throw 'oops'`, `throw 404` and `throw { code: 1 }` are all legal JavaScript, and libraries do all of them. Code that assumes `err.message` then shows "undefined" to the user, or crashes inside its own error handler. The `useUnknownInCatchVariables` option, part of `strict` since TypeScript 4.4, is what types it as `unknown`; without it, `err` is `any` and nothing is checked.
+
+A common helper for the other case: `const message = err instanceof Error ? err.message : String(err);`.
+
+**Takeaway:** treat a caught value as `unknown`. Check `instanceof Error` before reading `message`.
+
+---
+
+**Q29: Both overloads accept the value on its own, so why does `parse(either)` fail with 'No overload matches this call'?**
+
+```ts
+function parse(input: string): number;
+function parse(input: number): string;
+function parse(input: string | number) {
+  return typeof input === 'string' ? Number(input) : String(input);
+}
+
+const a = parse('42');
+const b = parse(42);
+console.log(typeof a, typeof b);
+
+const either: string | number = Math.random() > 0.5 ? 'x' : 1;
+// parse(either);   // ✗ TS2769: No overload matches this call.
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+number string
+```
+
+**Explanation:**
+
+**In one line:** callers only see the **overload signatures**, and each one is checked on its own. `string | number` does not fit the `string` overload or the `number` overload, and the wider implementation signature is invisible from outside.
+
+| Line | Why |
+|---|---|
+| `number string` | `parse('42')` matched the first overload, so `a` is a `number`; `parse(42)` matched the second, so `b` is a `string` |
+| (✗ line) | `either` could be a string or a number. Neither overload accepts that union, and TypeScript does not try the implementation signature `(input: string \| number)`, because callers cannot see it |
+
+That hidden implementation signature is the part people miss. The last `function parse(input: string | number)` line is only there for the function body; it is not one of the ways you are allowed to call `parse`.
+
+**The fixes:** add an overload that accepts the union (`function parse(input: string | number): string | number;`), or replace the overloads with a **conditional return type**: `function parse<T extends string | number>(input: T): T extends string ? number : string`. Overloads are clearest when there are two or three genuinely different call shapes; beyond that, a conditional or generic type is usually easier to maintain.
+
+**Takeaway:** only the overload signatures are callable, each checked separately. A union argument needs an overload that accepts the union.
+
+---
+
+**Q30: `nickname?: string` and `nickname: string | undefined` look the same, so why does `{}` fit one and not the other?**
+
+```ts
+type WithOptional = { nickname?: string };
+type WithUndefined = { nickname: string | undefined };
+
+const a: WithOptional = {};
+// const b: WithUndefined = {};   // ✗ TS2741: Property 'nickname' is missing in type '{}' but required in type 'WithUndefined'.
+const c: WithUndefined = { nickname: undefined };
+console.log('nickname' in a, 'nickname' in c);
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+false true
+```
+
+**Explanation:**
+
+**In one line:** `?` means the property **may be missing**; `| undefined` means the property **must be there**, but its value may be `undefined`.
+
+| Line | Why |
+|---|---|
+| (✗ line) | `WithUndefined` requires the key to be present, and `{}` does not have it |
+| `false true` | at runtime the difference is real: `'nickname' in a` is `false` (the key does not exist), while `c` has the key, set to `undefined` |
+
+The difference matters wherever code checks for the *presence* of a key: `in`, `Object.keys`, `hasOwnProperty`, spreading one object over another (`{ ...defaults, ...overrides }` copies an explicit `undefined` and wipes out the default), and APIs where "missing" means "leave unchanged" but `undefined` or `null` means "clear it".
+
+By default, an optional property also accepts an explicit `undefined`. The `exactOptionalPropertyTypes` option makes `nickname?: string` mean only "missing or a string", so writing `{ nickname: undefined }` becomes an error, which catches exactly the spreading bug above.
+
+**Takeaway:** use `?` when a key can be left out, and `| undefined` when it must always be present. `exactOptionalPropertyTypes` stops the two blurring together.
+
+---
+
+**Q31: Why is `name` narrowed to `string` inside the first arrow function, but `possibly 'undefined'` inside the second?**
+
+```ts
+function greeter(name: string | undefined) {
+  if (!name) name = 'guest';
+  return () => name.toUpperCase();
+}
+console.log(greeter(undefined)());
+
+function laterReassigned(input: string | undefined) {
+  let name = input;
+  if (!name) name = 'guest';
+  // const shout = () => name.toUpperCase();   // ✗ TS18048: 'name' is possibly 'undefined'.
+  name = input;
+}
+```
+
+**Output** (the lines marked ✗ are compile errors, commented out so the code runs):
+```text
+GUEST
+```
+
+**Explanation:**
+
+**In one line:** a closure might run later, so TypeScript keeps a narrowing inside it only if the variable **cannot be reassigned after the closure is created**. In the second function it is reassigned on the next line.
+
+| Line | Why |
+|---|---|
+| `GUEST` | in `greeter`, the last assignment to `name` is before the arrow function is created, so whenever the arrow runs, `name` is still a `string` |
+| (✗ line) | in `laterReassigned`, `name = input` comes *after* the arrow is created. The arrow might run after that line, when `name` could be `undefined` again, so TypeScript drops the narrowing |
+
+This was improved in **TypeScript 5.4**: before that, TypeScript forgot narrowings inside closures for any `let` variable or parameter, and the first function needed a `const` copy (`const safe = name;`) to compile. Now it looks at where the last assignment is.
+
+The general rule behind it: narrowing is a fact about the value **at a point in the code**, and a callback runs at an unknown later point. The easy way to keep a narrowing is to capture the narrowed value in a `const`.
+
+**Takeaway:** a narrowing survives into a callback only if nothing reassigns the variable afterwards. When in doubt, copy it into a `const`.
+
+---
+
 ### Key Rules
 
 ```
@@ -3209,6 +3714,17 @@ TypeScript Output Cheat Sheet:
 8. Function params are contravariant (strict mode)
 9. Numeric enums have reverse mapping, string enums don't
 10. Template literal types distribute over unions
+11. Types are erased: `as` never converts, `private` is compile-time only, `#private` is real
+12. Classes match by shape; a `private` member makes a class match only itself
+13. `Object.keys` returns `string[]` because objects can carry extra keys
+14. `arr[i]` and `record[key]` are assumed to exist unless `noUncheckedIndexedAccess` is on
+15. `() => void` means "return value ignored", not "returns nothing"
+16. `typeof x === 'object'` does not exclude `null`
+17. `keyof (A | B)` = shared keys; `keyof (A & B)` = all keys
+18. `catch (err)` is `unknown` under `strict`
+19. Only overload signatures are callable, each checked on its own
+20. `?:` may be missing; `| undefined` must be present
+21. Narrowing survives into a closure only if the variable is not reassigned after it
 ```
 
 ---

@@ -14,20 +14,31 @@ import { detectJSX, detectTS, stripModuleSyntax } from '../../lib/playgroundRunn
  * rule used to mean hand-building a throwaway script each time. This is it,
  * permanently, running in the push gate.
  */
-function compile(code: string, name: string) {
+function compile(code: string, name: string, lang?: string) {
   const { code: stripped } = stripModuleSyntax(code);
   const presets: (string | [string, Record<string, unknown>])[] = [];
-  if (detectTS(stripped)) presets.push(['typescript', { isTSX: detectJSX(stripped), allExtensions: true }]);
-  if (detectJSX(stripped)) presets.push('react');
+  const jsx = lang !== 'ts' && detectJSX(stripped);
+  if (lang === 'ts' || detectTS(stripped)) presets.push(['typescript', { isTSX: jsx, allExtensions: true }]);
+  if (jsx) presets.push('react');
   babel.transform(stripped, {
     presets,
     filename: `${name.replace(/[^\w]/g, '_')}.tsx`,
   });
 }
 
+/**
+ * A TypeScript challenge (lang 'ts') is full of generics such as Equal<A, B>,
+ * which detectJSX reads as a component tag. Its language is declared, so trust
+ * the declaration: it is TypeScript, never React, and it must not be skipped
+ * as "JSX" by the execution checks below.
+ */
+function isReactSource(tpl: { lang?: string }, code: string): boolean {
+  return tpl.lang !== 'ts' && detectJSX(code);
+}
+
 describe('every template compiles', () => {
-  it.each(allTemplates.map((t) => [t.name, t.code] as const))('%s', (name, code) => {
-    expect(() => compile(code, name)).not.toThrow();
+  it.each(allTemplates.map((t) => [t.name, t.code, t.lang] as const))('%s', (name, code, lang) => {
+    expect(() => compile(code, name, lang)).not.toThrow();
   });
 });
 
@@ -37,7 +48,7 @@ describe('every solution compiles', () => {
     const broken: string[] = [];
     for (const key of playgroundSolutionKeys) {
       try {
-        compile(solutions[key], key);
+        compile(solutions[key], key, allTemplates.find((t) => t.name === key)?.lang);
       } catch (err) {
         broken.push(`${key}: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`);
       }
@@ -120,11 +131,11 @@ describe('plain-JS challenges actually execute and pass their own tests', () => 
 
     for (const key of playgroundSolutionKeys) {
       const tpl = allTemplates.find((t) => t.name === key);
-      if (!tpl || tpl.tag !== 'JS' || detectJSX(solutions[key])) continue;
+      if (!tpl || tpl.tag !== 'JS' || isReactSource(tpl, solutions[key])) continue;
 
       const logs: string[] = [];
       const { code: stripped } = stripModuleSyntax(solutions[key]);
-      const src = detectTS(stripped)
+      const src = tpl.lang === 'ts' || detectTS(stripped)
         ? babel.transform(stripped, { presets: [['typescript', { allExtensions: true }]], filename: 'x.ts' }).code
         : stripped;
       try {
@@ -197,10 +208,10 @@ describe('plain-JS challenges actually execute and pass their own tests', () => 
       const failures: string[] = [];
       for (const key of playgroundSolutionKeys) {
         const tpl = allTemplates.find((t) => t.name === key);
-        if (!tpl || tpl.tag !== 'JS' || detectJSX(solutions[key])) continue;
+        if (!tpl || tpl.tag !== 'JS' || isReactSource(tpl, solutions[key])) continue;
         const logs: string[] = [];
         const { code: stripped } = stripModuleSyntax(solutions[key]);
-        const src = detectTS(stripped)
+        const src = tpl.lang === 'ts' || detectTS(stripped)
           ? babel.transform(stripped, { presets: [['typescript', { allExtensions: true }]], filename: 'x.ts' }).code
           : stripped;
         try {

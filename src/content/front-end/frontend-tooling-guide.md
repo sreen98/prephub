@@ -386,6 +386,7 @@ module.exports = {
 
 ```jsx
 import React, { lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
 
 // Each lazy() call creates a separate chunk
 const Dashboard = lazy(() => import('./Dashboard'));
@@ -587,6 +588,8 @@ Vite splits the work into two fundamentally different phases:
 └──────────────────────────────────────────────────────┘
 ```
 
+The diagram shows the classic design that Vite 7 and earlier used: esbuild in development, Rollup for the production build. Vite 8 runs Rolldown in both places (§9.1), but the idea this section explains is unchanged — development serves your source files one module at a time, and only the production build produces a full bundle.
+
 ### 3.3 Why Vite is Fast — Native ES Modules
 
 In traditional bundlers (webpack, CRA), the dev server must:
@@ -626,16 +629,18 @@ Subsequent starts:
   2. Only re-bundle if package.json or lock file changed
 ```
 
-Why esbuild? It is written in Go and is **10-100x faster** than JavaScript-based bundlers:
+Why esbuild? It is written in Go and is **10-100x faster** than JavaScript-based bundlers. esbuild's own published benchmark — a production bundle of 10 copies of the three.js library from scratch, with minification and source maps — shows the gap:
 
-| Tool | Bundling 10,000 modules |
+| Tool | Time (esbuild's benchmark) |
 |---|---|
-| esbuild | ~0.3 seconds |
-| webpack 5 | ~30 seconds |
-| Rollup | ~25 seconds |
-| Parcel 2 | ~15 seconds |
+| esbuild | 0.39 s |
+| Parcel 2 | 14.91 s |
+| Rollup 4 + Terser | 34.10 s |
+| webpack 5 | 41.21 s |
 
-esbuild achieves this speed through Go's parallelism, a from-scratch architecture with minimal AST passes, and zero-cost abstractions.
+Treat these as a ratio, not a promise: it is one benchmark run by the esbuild project on one machine, and your project's numbers will differ.
+
+esbuild gets this speed from three things: it is compiled native code rather than JavaScript running in Node, it parses files in parallel across all CPU cores, and it makes very few passes over the AST (abstract syntax tree, the in-memory structure a tool builds from your source) where a Babel-plus-webpack pipeline re-parses and re-walks the code several times.
 
 ### 3.5 HMR Architecture
 
@@ -843,7 +848,7 @@ interface ImportMeta {
 
 - **Existing large codebase** already on webpack — migration cost may not be worth it
 - **Highly custom build requirements** — webpack's loader/plugin ecosystem is unmatched
-- **Module Federation** — webpack 5's Module Federation for micro-frontends has no Vite equivalent
+- **Module Federation already in use** — webpack 5's runtime module sharing for micro-frontends. Vite had no real equivalent until Vite 8's Rolldown graph added support (§9.1), so an existing federated setup is a reason to stay put rather than a reason Vite cannot do it
 - **Need fine-grained control** over every aspect of the build
 
 ### When to Use Vite
@@ -922,7 +927,7 @@ npm uninstall react-scripts
 - Designed for **library authors** — produces clean, readable output
 - Best-in-class **tree shaking** (pioneered it for JavaScript)
 - Outputs ESM, CommonJS, UMD, IIFE formats
-- Used by Vite as the production bundler
+- Used by Vite as the production bundler up to Vite 7 (Vite 8 switched to Rolldown, a Rust reimplementation of Rollup's API)
 - Simpler plugin API than webpack
 
 ```js
@@ -952,7 +957,7 @@ export default {
 **Key characteristics:**
 - **10-100x faster** than webpack, Rollup, or Parcel
 - Compiles TypeScript and JSX natively (no Babel needed)
-- Used by Vite for dependency pre-bundling and dev transforms
+- Used by Vite for dependency pre-bundling and dev transforms up to Vite 7
 - Limited plugin API compared to webpack/Rollup
 - Does not perform type checking (only strips types)
 - No HMR support (not designed as a dev server)
@@ -993,7 +998,7 @@ esbuild.build({
 - Built-in dev server with HMR
 - Automatic code splitting via dynamic imports
 - Uses SWC for JavaScript transformation (since Parcel 2)
-- Scope hoisting (like Rollup's tree shaking)
+- Scope hoisting — concatenating modules into one scope instead of wrapping each in its own function, which makes output smaller and lets the minifier drop more unused code (the same technique Rollup uses)
 - Multi-core compilation via worker threads
 
 ```bash
@@ -1038,7 +1043,7 @@ npx parcel build src/index.html
 npx next dev --turbo
 ```
 
-**When to use:** If you are using Next.js, Turbopack is the default dev bundler as of Next.js 14. Not yet usable outside of Next.js.
+**When to use:** If you are on Next.js 16 you are already using it — it is the default for both `next dev` and `next build`. Earlier Next.js versions offered it for dev only, behind the `--turbo` flag shown above. It is not usable outside Next.js.
 
 ### 5.5 SWC (Speedy Web Compiler)
 
@@ -1074,7 +1079,7 @@ npx next dev --turbo
 
 ### 5.6 Rspack
 
-**What:** A Rust rewrite of webpack from ByteDance, first released 2023 and production-viable from 2026. Its defining choice is **config compatibility** — it aims to run your existing `webpack.config.js`.
+**What:** A Rust rewrite of webpack from ByteDance. Its first public release (0.1) was in March 2023, the stable 1.0 shipped in August 2024, and 2.0 followed in April 2026. Its defining choice is **config compatibility** — it aims to run your existing `webpack.config.js`.
 
 **Key characteristics:**
 - **Webpack-compatible config, loaders and plugin API** — `babel-loader`, `css-loader`, `MiniCssExtractPlugin` and most of the ecosystem work unchanged
@@ -1104,10 +1109,10 @@ module.exports = {
 | Feature | Webpack | Vite | Rollup | esbuild | Parcel | Turbopack |
 |---|---|---|---|---|---|---|
 | **Language** | JS | JS | JS | Go | JS + SWC (Rust) | Rust |
-| **Primary use** | Applications | Applications | Libraries | Build tool component | Applications | Next.js dev |
+| **Primary use** | Applications | Applications | Libraries | Build tool component | Applications | Next.js (dev and build) |
 | **Config** | Complex | Minimal | Moderate | Minimal | Zero | N/A (Next.js) |
 | **Dev speed** | Slow | Fast | N/A | N/A | Medium | Fastest |
-| **Tree shaking** | Good | Great (Rollup) | Best | Good | Good | N/A |
+| **Tree shaking** | Good | Great (Rollup; Rolldown from Vite 8) | Best | Good | Good | N/A |
 | **Plugin ecosystem** | Massive | Growing | Large | Limited | Medium | N/A |
 | **Code splitting** | Yes | Yes | Yes (manual) | Yes (basic) | Yes (auto) | Yes |
 | **HMR** | Yes | Yes | No | No | Yes | Yes |
@@ -1417,20 +1422,20 @@ For a medium React project (~200 dependencies):
 | **Install with lock file** (`ci`) | ~20s | ~12s | ~2s | ~8s |
 | **Add one package** | ~8s | ~5s | ~2s | ~3s |
 
-These vary by project size, network speed, and hardware. The key takeaways:
+These are illustrative round numbers, not measurements — they show the relative order, and real times vary a lot with project size, network speed, hardware and tool version. For measured figures, pnpm publishes a regularly re-run benchmark at pnpm.io/benchmarks (it compares npm and pnpm). The key takeaways:
 - pnpm and Yarn PnP are fastest for cold installs
 - Yarn PnP with zero-installs is fastest overall (no install step at all)
 - npm is the slowest but has improved significantly since npm 7
 
 ### 6.7 When to Use Which
 
-**npm** — Default choice. Zero setup. Best compatibility. Use when you don't have a specific reason for alternatives. Required for publishing to npm registry.
+**npm** — Default choice. Zero setup, and every tutorial and CI image assumes it. Use it unless you have a specific problem (disk use, phantom dependencies, a large monorepo) that one of the others solves.
 
 **Yarn Classic** — Legacy choice. Many existing projects use it. Workspaces work well. If starting new, consider Yarn Berry or pnpm instead.
 
-**Yarn Berry (PnP)** — Best for teams comfortable with the PnP paradigm. Zero-installs in CI is a killer feature. Good for monorepos. Compatibility issues can be frustrating.
+**Yarn Berry (PnP)** — For teams willing to live without `node_modules/`. The payoff is zero-installs: with the package cache committed, CI skips the install step entirely. The cost is that tools which assume a `node_modules/` folder exists need patches or editor SDKs, and chasing those down is where teams lose time.
 
-**pnpm** — Best for monorepos. Best disk usage. Strictest dependency resolution (catches phantom deps). Fast. Growing rapidly in popularity. Used by Vue, Vite, and many large open-source projects.
+**pnpm** — The usual pick for monorepos. Each package version is stored once on disk and hard-linked into projects, so installs are fast and disk use is low; and because only declared dependencies are linked at the top of `node_modules/`, a phantom dependency fails immediately instead of working by accident. Used by Vue, Vite, and many large open-source projects.
 
 ---
 
@@ -1447,11 +1452,11 @@ npx create-vite@latest my-app
 ```
 
 What happens:
-1. Check if `create-vite` exists in local `node_modules/.bin/`
+1. Check if `create-vite` exists in the local project (`node_modules/.bin/`)
 2. If not, check if it exists globally
-3. If not, **download it temporarily**, execute it, then delete it
+3. If not, ask before installing it (skip the prompt with `--yes`), install it into a folder inside the **npm cache**, and run it from there
 
-This means you always run the **latest version** without polluting your global installs.
+Nothing is added to your global installs, and the copy stays in the cache rather than being deleted. Version pinning matters: a name with no version (`npx create-vite`) is matched against whatever version the project already has installed, so ask for `@latest` (as above) when you specifically want the newest release.
 
 ### 7.3 Common Use Cases
 
@@ -1555,7 +1560,7 @@ npx -p typescript tsc --init
 |---|---|---|---|
 | `dependencies` | `npm install` (always) | Required at runtime | react, express, lodash |
 | `devDependencies` | `npm install` (not in production with `--omit=dev`) | Only needed for development/build | vite, eslint, jest, @types/* |
-| `peerDependencies` | **Not auto-installed** (npm 7+ auto-installs) | "I need this, but the consumer should provide it" | react (for a React component library) |
+| `peerDependencies` | Auto-installed by npm 7+ (npm 3–6 only warned if missing) | "I need this, but the consumer should provide it" | react (for a React component library) |
 | `optionalDependencies` | `npm install` (failure is ok) | Platform-specific, non-critical | fsevents (macOS only) |
 
 **When to use peerDependencies:**
@@ -1817,7 +1822,12 @@ The framing that scores best: name the *pattern* rather than the versions. Every
 
 **Q1: What is a bundler and why do React apps need one?**
 
-A bundler is a tool that takes your source files (JS, JSX, CSS, images, etc.) and combines them into optimized output files for the browser. React apps need a bundler because: (1) browsers cannot parse JSX — it must be transpiled to JavaScript via Babel/SWC/esbuild, (2) bare module specifiers like `import React from 'react'` don't work in browsers, (3) without bundling, loading hundreds of individual module files via HTTP would be catastrophically slow, (4) production apps need tree shaking, code splitting, minification, and asset processing that only a bundler can provide.
+A bundler takes your source files (JS, JSX, CSS, images) and turns them into a small number of optimised files the browser can load. A React app needs one because what you write is not what a browser can run efficiently:
+
+1. **Browsers cannot parse JSX.** It must be transpiled (rewritten) to plain JavaScript by Babel, SWC or esbuild.
+2. **Bare imports do not resolve.** `import React from 'react'` names a package, not a URL, and the browser has no idea where `node_modules` is.
+3. **Hundreds of small files are slow.** Loading every module as its own HTTP request creates a waterfall, because the browser only discovers each import after downloading the file that contains it.
+4. **Production needs optimisation.** Tree shaking (removing unused exports), code splitting, minification and asset hashing all need a tool that sees the whole app at once.
 
 ---
 
@@ -1835,7 +1845,7 @@ The caret means "compatible with" — it allows updates that do not change the l
 
 **Q4: What is npx and how is it different from npm?**
 
-`npm` is a package manager — it installs and manages dependencies. `npx` is a package runner — it executes binaries from npm packages. The key difference: `npx create-vite my-app` downloads `create-vite` temporarily, runs it, and deletes it. Without npx, you'd need `npm install -g create-vite` then `create-vite my-app`, polluting your global installs. npx also runs local project binaries: `npx eslint .` finds and runs `./node_modules/.bin/eslint` without needing a script in package.json.
+`npm` is a package manager — it installs and manages dependencies. `npx` is a package runner — it executes binaries from npm packages. The key difference: `npx create-vite my-app` fetches `create-vite` into the npm cache (not your global installs) and runs it from there. Without npx, you'd need `npm install -g create-vite` then `create-vite my-app`, polluting your global installs. npx also runs local project binaries: `npx eslint .` finds and runs `./node_modules/.bin/eslint` without needing a script in package.json.
 
 ---
 
@@ -1849,19 +1859,32 @@ A lock file records the exact version, download URL, and integrity hash of every
 
 **Q6: How does webpack's dependency graph work?**
 
-Webpack starts at the configured entry point (e.g., `./src/index.js`) and recursively parses every `import` and `require()` statement to build a directed acyclic graph (DAG) of all modules in the application. For each file, webpack: (1) resolves the import path using `resolve.extensions` and `resolve.alias`, (2) applies matching loaders to transform the file (e.g., `babel-loader` transpiles JSX), (3) parses the transformed output for further imports, (4) repeats recursively. The resulting graph contains every module, its dependencies, and its transformed code. Webpack then groups modules into chunks (based on entry points and dynamic `import()` calls) and writes the output bundles. This graph-based approach enables tree shaking (remove unused exports) and code splitting (separate chunks loaded on demand).
+Webpack starts at the entry point (e.g. `./src/index.js`) and follows every `import` and `require()` it finds, file by file, until it has a map of every module the app uses and which module imports which. For each file it:
+
+1. **Resolves** the import path to a real file, using `resolve.extensions` and `resolve.alias`.
+2. **Transforms** the file with any matching loaders (e.g. `babel-loader` turns JSX into JavaScript). This comes first because webpack can only read imports out of JavaScript.
+3. **Parses** the transformed output for more imports.
+4. **Repeats** for each newly found file.
+
+The finished graph holds every module, its dependencies and its transformed code. Webpack then groups modules into chunks (one per entry point, plus one per dynamic `import()`) and writes them out. Having the whole graph is what makes the two big optimisations possible: tree shaking (dropping exports nothing imports) and code splitting (chunks loaded on demand).
 
 ---
 
 **Q7: Explain how Vite's dev server works and why it's faster than webpack's.**
 
-Vite's dev server leverages native ES modules in the browser. Instead of bundling the entire app before serving (like webpack), Vite: (1) serves `index.html` with a `<script type="module">` tag, (2) the browser parses each file and sends HTTP requests for imports, (3) Vite transforms files on-demand (JSX to JS, TypeScript stripping via esbuild), (4) only the requested module is processed. For `node_modules`, Vite pre-bundles them with esbuild (which is 10-100x faster than webpack) into single files, cached in `node_modules/.vite/`. The result: server starts in milliseconds regardless of project size, because Vite only processes files the browser actually requests. HMR is also faster because only the changed module needs re-transformation, not an entire chunk rebuild.
+Vite's dev server leverages native ES modules in the browser. Instead of bundling the entire app before serving (like webpack), Vite: (1) serves `index.html` with a `<script type="module">` tag, (2) the browser parses each file and sends HTTP requests for imports, (3) Vite transforms files on-demand (JSX to JS, TypeScript stripping — esbuild up to Vite 7, Rolldown from Vite 8), (4) only the requested module is processed. For `node_modules`, Vite pre-bundles them into single files (with esbuild up to Vite 7, which is 10-100x faster than webpack), cached in `node_modules/.vite/`. The result: server starts in milliseconds regardless of project size, because Vite only processes files the browser actually requests. HMR is also faster because only the changed module needs re-transformation, not an entire chunk rebuild.
 
 ---
 
 **Q8: What is tree shaking and what are the requirements for it to work?**
 
-Tree shaking is dead code elimination based on ES module static analysis. The bundler examines `import` and `export` statements at build time, determines which exports are never imported anywhere, and removes the unused code. Requirements: (1) the code must use ES modules (`import`/`export`), not CommonJS (`require`/`module.exports`), because ES module imports are statically analyzable while CommonJS imports are dynamic, (2) the bundler must be in production mode (webpack) or configured for optimization, (3) the `sideEffects` field in `package.json` should be set to `false` (or list only files with side effects like CSS) so the bundler knows it's safe to skip entire unused modules. Common pitfall: importing an entire library (`import _ from 'lodash'`) defeats tree shaking. Use named imports from ES module builds (`import { debounce } from 'lodash-es'`).
+Tree shaking is removing code that nothing uses. At build time the bundler reads every `import` and `export`, works out which exports are never imported, and leaves them out of the bundle. It needs three things:
+
+1. **ES modules, not CommonJS.** `import`/`export` are fixed at the top of a file, so a tool can read them without running the code. `require()` is an ordinary function call that can take a computed name, so the bundler cannot know in advance what it will load.
+2. **Optimisation switched on** — production mode in webpack, or the equivalent in your bundler.
+3. **A `sideEffects` hint in `package.json`.** Set it to `false`, or list only the files that do something on import (such as CSS). Without it the bundler must keep an unused module in case importing it changes something, like registering a global.
+
+Common pitfall: importing a whole CommonJS library (`import _ from 'lodash'`) defeats tree shaking. Use named imports from an ES-module build instead (`import { debounce } from 'lodash-es'`).
 
 ---
 
@@ -1881,43 +1904,89 @@ npm copies package files into each project's `node_modules/` directory. If ten p
 
 **Q11: Explain webpack's code splitting strategies and how splitChunks works.**
 
-Webpack offers three code splitting strategies: (1) **Multiple entry points** — separate bundles for different pages (`entry: { home: './home.js', admin: './admin.js' }`), (2) **Dynamic imports** — `import('./Module')` creates a separate chunk loaded on demand (used with `React.lazy()`), (3) **SplitChunks optimization** — automatically extracts shared modules. The `splitChunks` plugin uses `cacheGroups` to define splitting rules. Each cache group has a `test` regex (which modules to include), `chunks` ('all', 'async', 'initial'), `minSize` (minimum chunk size to split), `minChunks` (minimum number of chunks that must share the module), and `priority` (when a module matches multiple groups). A common pattern: `vendor` group for `node_modules` (long cache lifetime since they change rarely), `react` group for React/ReactDOM (very stable), and `common` group for shared application code. The `runtimeChunk: 'single'` option extracts webpack's runtime code into a separate chunk so that content hashes of other chunks don't change when only the runtime changes.
+Webpack splits code in three ways:
+
+1. **Multiple entry points** — a separate bundle per page (`entry: { home: './home.js', admin: './admin.js' }`).
+2. **Dynamic imports** — `import('./Module')` becomes its own chunk, downloaded only when that line runs (this is what `React.lazy()` uses).
+3. **`splitChunks`** — webpack pulls modules that several chunks share into a common chunk automatically, so they are downloaded once.
+
+`splitChunks` is configured with `cacheGroups`, each a rule for one kind of shared chunk:
+
+- `test` — a regex choosing which modules belong to the group
+- `chunks` — which chunks to split from: `'all'`, `'async'` or `'initial'`
+- `minSize` — don't split out anything smaller than this
+- `minChunks` — how many chunks must share a module before it is extracted
+- `priority` — which group wins when a module matches more than one
+
+A common setup is a `vendor` group for `node_modules`, a `react` group for React/ReactDOM and a `common` group for shared app code. The point is caching: code that rarely changes sits in its own file, so its content hash (and the browser's cached copy) survives a deploy that only touched app code. `runtimeChunk: 'single'` does the same for webpack's small runtime, so a change to it does not change every other chunk's hash.
 
 ---
 
 **Q12: How does Vite handle the production build differently from development?**
 
-In development, Vite uses native ES modules with on-demand transformation (no bundling). In production, Vite uses Rollup as a full bundler. The reasons: (1) native ES modules in production would cause a waterfall of HTTP requests — the browser discovers imports sequentially, each requiring a round trip, (2) production needs tree shaking, which requires analyzing the entire module graph, (3) code splitting for optimal chunk loading requires global knowledge of the dependency graph, (4) minification, asset hashing, and CSS extraction need a full build pass. Vite configures Rollup with sensible defaults: automatic code splitting at dynamic import boundaries, CSS code splitting (each async chunk gets its own CSS), asset URL handling with content hashing, and minification via esbuild (faster than Terser). The `build.rollupOptions` field exposes Rollup's full configuration for advanced customization like `manualChunks`.
+Short answer: development serves each source file separately and transforms it on request; production builds one optimised bundle, because the browser tricks that make dev fast would make a real site slow. (Up to Vite 7 the production bundler was Rollup; Vite 8 uses Rolldown for both, but the dev-versus-build split described here still holds.) The reasons production must bundle: (1) native ES modules in production would cause a waterfall of HTTP requests — the browser discovers imports sequentially, each requiring a round trip, (2) production needs tree shaking, which requires analyzing the entire module graph, (3) code splitting for optimal chunk loading requires global knowledge of the dependency graph, (4) minification, asset hashing, and CSS extraction need a full build pass. Vite configures Rollup with sensible defaults: automatic code splitting at dynamic import boundaries, CSS code splitting (each async chunk gets its own CSS), asset URL handling with content hashing, and minification via esbuild (faster than Terser). The `build.rollupOptions` field exposes Rollup's full configuration for advanced customization like `manualChunks`.
 
 ---
 
 **Q13: What is Yarn PnP and what problems does it solve?**
 
-Yarn Plug'n'Play eliminates the `node_modules/` directory entirely. Instead, Yarn stores packages as `.zip` files in `.yarn/cache/` and generates a `.pnp.cjs` file that maps every package name and version to its location on disk. When Node.js tries to resolve a module, the PnP runtime intercepts the resolution and serves the file directly from the zip archive. Problems solved: (1) **No phantom dependencies** — PnP only resolves packages explicitly declared in your `package.json`, catching undeclared dependency usage immediately, (2) **Faster installs** — writing thousands of files to `node_modules/` is slow; PnP just downloads zip files, (3) **Less disk space** — zip files are smaller than extracted directories, (4) **Deterministic resolution** — no hoisting heuristics that can vary, (5) **Zero-installs** — commit `.yarn/cache/` to git and CI needs no install step at all. Downsides include compatibility issues with packages that use `__dirname` to traverse `node_modules/`, and IDE integration requires editor SDKs.
+Yarn Plug'n'Play (PnP) gets rid of the `node_modules/` folder. Yarn keeps each package as a `.zip` file in `.yarn/cache/` and writes a `.pnp.cjs` file that maps every package name and version to where it lives. When Node.js looks for a module, the PnP runtime answers from that map and reads the file straight out of the zip.
+
+What it solves:
+
+1. **No phantom dependencies** (packages you import without declaring them). PnP only resolves what your `package.json` lists, so an undeclared import fails at once instead of working by accident.
+2. **Faster installs.** Writing thousands of small files into `node_modules/` is the slow part of an install; PnP writes one zip per package.
+3. **Less disk space**, because zips are smaller than unpacked folders.
+4. **Deterministic resolution.** There is no hoisting (moving packages up the folder tree) whose result can vary between installs.
+5. **Zero-installs.** Commit `.yarn/cache/` and CI needs no install step at all.
+
+The cost: packages that walk `node_modules/` themselves (e.g. with `__dirname`) break, and editors need Yarn's SDKs to find types and tools.
 
 ---
 
 **Q14: Compare the production output of webpack vs Rollup (used by Vite). Which produces better tree-shaking results?**
 
-Rollup generally produces better tree-shaking results because it was designed from the ground up for ES modules. Rollup uses "scope hoisting" — it places all modules in a single scope, which allows the minifier to see and eliminate more dead code. Webpack wraps each module in a function closure (`__webpack_require__`), which creates scope boundaries that can prevent some dead code elimination. Webpack 5 added "concatenateModules" optimization (ModuleConcatenationPlugin) to achieve similar scope hoisting for ES modules, closing the gap significantly. In practice, the difference matters most for library authors where every byte counts. For applications, both produce well-optimized output. Rollup's output is also more readable (useful for libraries consumers might debug), while webpack's output includes more runtime overhead for module loading. Vite uses Rollup for production and esbuild for minification, combining Rollup's superior tree shaking with esbuild's superior minification speed.
+Rollup generally produces better tree-shaking results because it was designed from the ground up for ES modules. Rollup uses "scope hoisting" — it places all modules in a single scope, which allows the minifier to see and eliminate more dead code. Webpack wraps each module in a function closure (`__webpack_require__`), which creates scope boundaries that can prevent some dead code elimination. Webpack 5 added "concatenateModules" optimization (ModuleConcatenationPlugin) to achieve similar scope hoisting for ES modules, closing the gap significantly. In practice, the difference matters most for library authors where every byte counts. For applications, both produce well-optimized output. Rollup's output is also more readable (useful for libraries consumers might debug), while webpack's output includes more runtime overhead for module loading. Up to Vite 7, Vite used Rollup for production and esbuild for minification, combining Rollup's tree shaking with esbuild's speed; Vite 8 does both with Rolldown.
 
 ---
 
 **Q15: You run `npm install` on a fresh machine and get different packages than your coworker. What went wrong and how do you prevent it?**
 
-Several possible causes: (1) **No lock file committed** — `package.json` uses semver ranges like `^18.2.0`. If a new version (18.3.0) was published between your coworker's install and yours, you get different versions. Fix: always commit `package-lock.json`. (2) **Used `npm install` instead of `npm ci` in CI** — `npm install` can modify the lock file. `npm ci` reads the lock file strictly and fails if it doesn't match `package.json`. (3) **Different npm versions** — different npm versions may resolve dependencies differently. Fix: use `engines` field and `corepack enable` with `packageManager` field. (4) **Lock file was not updated after a change** — someone edited `package.json` but didn't run `npm install` to update the lock file. (5) **Registry inconsistency** — rare, but unpublished packages or different registries can cause divergence. Prevention: commit lock files, use `npm ci` in CI, pin npm version, use `.npmrc` for registry config.
+Almost always, the install was resolved from version ranges instead of from a lock file. The usual causes:
+
+1. **No lock file committed.** `package.json` holds ranges like `^18.2.0`, so if 18.3.0 was published between your coworker's install and yours, you each get a different version. Fix: always commit `package-lock.json`.
+2. **`npm install` where `npm ci` belonged.** `npm install` may update the lock file; `npm ci` installs exactly what the lock file says and fails if it disagrees with `package.json`.
+3. **Different npm versions**, which can resolve the same ranges differently. Fix: declare the version with the `engines` and `packageManager` fields, and run `corepack enable` so the declared manager is used.
+4. **A stale lock file.** Someone edited `package.json` by hand and never ran `npm install`, so the lock file no longer matches it.
+5. **A different registry** (rare) — a private mirror, or a package that was unpublished.
+
+Prevention: commit the lock file, use `npm ci` in CI, pin the package-manager version, and set the registry in `.npmrc`.
 
 ---
 
 **Q16: Explain the role of SWC and esbuild in the modern frontend toolchain. Are they bundlers?**
 
-Neither SWC nor esbuild is primarily a bundler in the way webpack is. **SWC** (Speedy Web Compiler) is a Rust-based compiler and transpiler — a drop-in replacement for Babel. It handles JSX transformation, TypeScript stripping, syntax downleveling, and minification, but 20x faster than Babel. It is used by Next.js (since v12), Parcel 2, and Vite (via `@vitejs/plugin-react-swc`). **esbuild** is a Go-based bundler AND transpiler. It can bundle, but its primary role in the ecosystem is as a fast transpiler and minifier. Vite uses esbuild for: (1) dependency pre-bundling in development, (2) TypeScript/JSX transformation during dev, and (3) minification in production builds. Neither replaces webpack/Vite/Rollup for production application bundling in most real-world cases because they have limited plugin APIs and lack some features (esbuild's code splitting is less sophisticated, SWC is a compiler not a bundler). They are building blocks that other tools compose. The trend is Rust/Go tools handling the compute-intensive transpilation/minification while JavaScript tools handle the orchestration and plugin ecosystem.
+Mostly no. They are fast building blocks that bundlers are made from, not the bundler most apps use directly.
+
+**SWC** (Speedy Web Compiler) is a Rust compiler — a drop-in replacement for Babel. It transforms JSX, strips TypeScript, downlevels new syntax for older browsers and minifies, around 20x faster than Babel. Next.js (since v12), Parcel 2 and Vite (via `@vitejs/plugin-react-swc`) use it. It does not bundle.
+
+**esbuild** is written in Go and is both a bundler and a transpiler, but in the ecosystem it is used mainly as the fast transpiler and minifier inside other tools. Up to Vite 7, Vite used it for:
+
+1. dependency pre-bundling in development
+2. TypeScript/JSX transformation during dev
+3. minification in production builds
+
+Vite 8 moved all three onto Rolldown.
+
+Why they do not replace webpack/Vite/Rollup for application bundling: esbuild's plugin API is limited and its code splitting is basic, and SWC is a compiler, not a bundler. The pattern is a division of labour — Rust and Go tools do the CPU-heavy work (parsing, transforming, minifying), and the JavaScript tools around them handle orchestration and the plugin ecosystem.
 
 ---
 
 **Q17: What is Module Federation in webpack 5 and why doesn't Vite have an equivalent?**
 
-Module Federation is a webpack 5 feature that allows independently built and deployed applications to share modules at runtime. Application A can expose a React component, and Application B can consume it without having it at build time — the module is loaded over the network at runtime. This enables **micro-frontends**: separate teams build and deploy their features independently, and a shell application composes them. Key concepts: `exposes` (modules this build makes available), `remotes` (other builds to consume modules from), and `shared` (dependencies that should be deduplicated at runtime, e.g., React). Vite doesn't have a built-in equivalent because Module Federation requires a custom runtime module loading system that is deeply integrated into webpack's module format. There are community plugins (`vite-plugin-federation`) that provide partial compatibility, but they don't match webpack's implementation. This is one of the few remaining reasons large organizations choose webpack over Vite.
+Short answer: Module Federation lets separately built and deployed apps load each other's code at runtime. The premise of the question is now dated — Vite 8 supports it through Rolldown (§9.1) — so the strong answer explains why Vite *used* to lack it, then corrects the premise.
+
+Module Federation is a webpack 5 feature that allows independently built and deployed applications to share modules at runtime. Application A can expose a React component, and Application B can consume it without having it at build time — the module is loaded over the network at runtime. This enables **micro-frontends**: separate teams build and deploy their features independently, and a shell application composes them. Key concepts: `exposes` (modules this build makes available), `remotes` (other builds to consume modules from), and `shared` (dependencies that should be deduplicated at runtime, e.g., React). Vite ≤7 had no built-in equivalent because Module Federation needs a runtime module loader that is deeply integrated into the bundler's module format, and Vite ran two different tools (esbuild in dev, Rollup in production) with no single runtime to build it into. Community plugins (`vite-plugin-federation`) offered partial compatibility. Vite 8's single Rolldown graph is what made native support possible, so federation is no longer a reason on its own to choose webpack for new work — though an existing webpack federation setup is still a reason not to migrate in a hurry.
 
 ---
 
@@ -1963,7 +2032,19 @@ What still legitimately keeps a project on webpack: a heavy CommonJS or non-stan
 
 **Q22: How can you see the original React source code in browser DevTools even though webpack bundles everything into a single (or few) output file(s)?**
 
-This is possible because of **source maps**. When webpack builds your code, it can generate a `.map` file alongside each bundle (e.g., `main.js.map`). A source map is a JSON file that contains a mapping between every position in the bundled output and the corresponding position in the original source files. The browser DevTools detect the `//# sourceMappingURL=main.js.map` comment at the end of the bundle, fetch the map file, and use it to reconstruct the original file tree under the **Sources** tab — so you see your React components exactly as you wrote them, not the transpiled/minified bundle. In webpack, this is controlled by the `devtool` option. Common values include: (1) `source-map` — generates a full, separate `.map` file with accurate line/column mappings; best for production debugging but increases build time, (2) `eval-source-map` — embeds source maps inside `eval()` calls per module; fast rebuilds, great for development, (3) `cheap-module-source-map` — maps to original lines (not columns) after loader transforms; good balance of speed and accuracy, (4) `hidden-source-map` — generates the `.map` file but does not add the `sourceMappingURL` comment, so the map is not automatically loaded by browsers; useful in production when you want to upload maps to an error tracking service (like Sentry) without exposing them publicly, (5) `false` / `none` — no source maps at all. **In production**, many teams either disable source maps or use `hidden-source-map` to avoid exposing original source code to end users, while still uploading maps to error monitoring tools for readable stack traces. Vite similarly generates source maps via the `build.sourcemap` option in `vite.config.js`.
+Short answer: **source maps**. The build writes a `.map` file next to each bundle, and DevTools uses it to show you the original files instead of the bundled output.
+
+A source map is a JSON file (e.g. `main.js.map`) that records, for every position in the bundled output, the file, line and column it came from in your source. The bundle ends with a `//# sourceMappingURL=main.js.map` comment; DevTools sees it, fetches the map, and rebuilds your original file tree under the **Sources** tab — your React components as you wrote them, with breakpoints that land on the right line.
+
+In webpack the `devtool` option controls this, and the choice is a trade between build speed and accuracy:
+
+- `source-map` — a full, separate `.map` file with exact line and column mappings. Most accurate, slowest to build.
+- `eval-source-map` — maps embedded per module inside `eval()` calls. Fast rebuilds, good for development.
+- `cheap-module-source-map` — maps lines but not columns. A middle ground.
+- `hidden-source-map` — writes the `.map` file but leaves out the `sourceMappingURL` comment, so browsers never load it. You upload the map to an error tracker (such as Sentry) to get readable stack traces without publishing your source.
+- `false` — no source maps.
+
+**In production**, the usual choice is either no maps or `hidden-source-map`, because a linked map hands your original source to anyone who opens DevTools. Vite does the same job through the `build.sourcemap` option in `vite.config.js`.
 
 ---
 

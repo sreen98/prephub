@@ -27,7 +27,7 @@ A comprehensive guide to mastering behavioral interviews. This is not about algo
 
 ## 1. Why Behavioral Interviews Matter
 
-Behavioral interviews exist because **past behavior is the single best predictor of future behavior**. This isn't an HR slogan — it's the underlying empirical claim from organizational psychology that justifies the entire format. The seminal work is Janz, Hellervik & Gilmore's *Behavior Description Interviewing* (1986), which showed that structured questions about specific past situations predict future job performance roughly **2–3x better** than unstructured interviews ("tell me about your strengths") and **5x better** than résumé screening alone. Google's internal Project Oxygen and Project Aristotle research confirmed the same pattern at scale: structured behavioral signals are the most reliable predictor of who succeeds at the company.
+Behavioral interviews exist because **past behavior is the best available predictor of future behavior**. This isn't an HR slogan — it's the underlying claim from organizational psychology that justifies the entire format. The foundational book is Janz, Hellervik & Gilmore's *Behavior Description Interviewing* (1986), which argued that structured questions about specific past situations ("tell me about a time you…") predict job performance better than unstructured chats ("tell me about your strengths"). The practical consequence for you: the interviewer is not grading your opinions about teamwork, they are collecting evidence of what you actually did.
 
 The theory rests on three assumptions:
 
@@ -45,7 +45,7 @@ Companies use them to evaluate:
 
 ### Key Facts
 
-- Nearly every company (FAANG, startups, enterprise) includes at least one behavioral round.
+- Nearly every company — FAANG (Facebook/Meta, Amazon, Apple, Netflix, Google), startups, enterprise — includes at least one behavioral round.
 - At Amazon, behavioral questions appear in *every single interview loop*, not just one round.
 - A strong behavioral interview can tip the scales when two candidates are technically equal.
 - Conversely, a poor behavioral round can disqualify an otherwise brilliant engineer.
@@ -66,7 +66,7 @@ Companies use them to evaluate:
 
 ## 2. The STAR Method
 
-The STAR method is the gold standard framework for answering behavioral questions. It keeps your answers structured, concise, and impactful.
+STAR stands for **Situation, Task, Action, Result** — the four beats of a story, in order. It is the most widely used structure for behavioral answers because it forces the two things interviewers need and candidates tend to skip: what *you personally* did (Action) and what changed because of it (Result). Without a structure, most people spend a minute on background and run out of time before the part being graded.
 
 ### 2.1 Situation
 
@@ -190,7 +190,7 @@ Action    — what you did that demonstrated it.
 Result    — outcome.
 ```
 
-Best for: rubric-driven interviews (Amazon LP, Microsoft growth mindset, Google GCA) where the interviewer is grading against a specific signal.
+Best for: rubric-driven interviews (Amazon's Leadership Principles, Microsoft's growth mindset, Google's GCA — General Cognitive Ability, see §7.2) where the interviewer is grading against a specific signal.
 
 ### 3.5 When to use which
 
@@ -212,7 +212,7 @@ The key insight: **interviewers are not graded on which framework you used.** Th
 
 This is usually the first question. It is not an invitation to recite your resume. It is your chance to frame the narrative of your career.
 
-### 3.1 Framework: Present, Past, Future
+### 4.1 Framework: Present, Past, Future
 
 Structure your answer in three parts:
 
@@ -226,7 +226,7 @@ Structure your answer in three parts:
 - End with a connection to the company/role.
 - Practice it until it sounds natural, not rehearsed.
 
-### 3.2 Example Answers
+### 4.2 Example Answers
 
 #### Junior Engineer (0-2 years experience)
 
@@ -801,7 +801,7 @@ Before any negotiation, know the market for your level at this company:
 - **Blind** — anonymous community discussions; useful for negotiation tactics specific to companies.
 - **Personal network** — engineers at the company at your target level. The most reliable data.
 
-Know three numbers for your level:
+Know three numbers for your level. The "P" means percentile: P75 is the figure that 75% of reported offers fall below.
 - **P50** — the median offer.
 - **P75** — strong but achievable.
 - **P90** — top-of-band; achievable with strong performance/competing offers.
@@ -826,7 +826,7 @@ Don't just negotiate base. Negotiate *total comp*, which usually breaks into:
 
 - **Base salary** — easiest to compare across offers; least flexible to negotiate at most companies.
 - **Signing bonus** — one-time; often the most flexible component (recruiter has more authority over it). Expires if you leave within ~12 months.
-- **Equity (RSUs, options)** — often the largest piece for FAANG offers. Usually 4-year vest with 1-year cliff. Variable depending on stock price for public companies; speculative for private.
+- **Equity (RSUs, options)** — often the largest piece for FAANG offers. RSUs (restricted stock units) are shares granted to you that become yours over time; options are the right to buy shares later at a fixed price. Usually a 4-year vest with a 1-year cliff: nothing becomes yours until your first anniversary, then the first quarter arrives at once and the rest in regular instalments. Variable depending on stock price for public companies; speculative for private.
 - **Annual / refresher equity** — separate from the initial grant; ongoing. Often missed in negotiations because it's not in the initial offer letter.
 - **Performance bonus** — usually a % of base; varies by performance rating.
 - **Relocation** — lump-sum or expense-reimbursement; often negotiable up.
@@ -969,7 +969,7 @@ Behavioral interviews are as much about *how* you communicate as *what* you say.
 
 | Technique | How to Apply It |
 |---|---|
-| **Structured answers** | Use STAR. Interviewers can follow a structured answer 10x more easily than a rambling one. |
+| **Structured answers** | Use STAR. An interviewer taking notes against a rubric can find the Action and Result in a structured answer; in a rambling one they often can't, and a signal they can't find scores as missing. |
 | **Signposting** | Say "There are three things I did..." or "The result had two parts..." This tells the listener what to expect. |
 | **Pausing** | A 3-second pause before answering shows thoughtfulness, not uncertainty. Much better than "um" or "uh." |
 | **Conciseness** | Aim for 60-120 second answers. If the interviewer wants more detail, they will ask. |
@@ -1103,9 +1103,10 @@ The second camp now includes some of the largest employers in the industry:
 | **Google** | Candidates analyse an existing codebase with **Gemini** available. Explicitly graded on "AI fluency, including prompt engineering, output validation, and debugging skills" |
 | **Meta** | Offers a **choice of models** to switch between during the interview — GPT, Claude Sonnet, Claude Haiku, Gemini, Llama. Graded on problem solving, code quality, **verification**, and communication |
 | **Canva** | Expects candidates for backend, frontend and ML roles to use Copilot, Cursor or Claude. Questions were **redesigned** to require "iterative thinking, requirement clarification, and good decision-making" |
-| **Anthropic** | Formalised the **AI-collaborative coding interview** — the rubric grades prompt quality, verification and integration as first-class signals |
 
-The common thread across all four: **the assistant is not the thing being tested — your judgement about the assistant is.**
+The common thread across all three: **the assistant is not the thing being tested — your judgement about the assistant is.**
+
+The first camp is just as real, so never assume. Anthropic, which makes Claude, tells candidates the opposite in its published hiring guidance: for live interviews, "This is all you–no AI assistance unless we indicate otherwise", and take-homes are done without Claude unless the team says so. Read each company's candidate guidance, and if it is silent, ask your recruiter before the round rather than during it.
 
 ### 14.2 What Is Actually Being Graded
 
@@ -1284,7 +1285,7 @@ These questions are about the behavioral interview process itself — understand
 >
 > **With design**, the disagreements that recur are feasibility and cost. A designer asks for something that is genuinely expensive — an animation that will jank on mid-range Android, or a custom select that breaks keyboard access. I do not say "we can't." I say what it costs and offer the nearest thing that is cheap: here is the interaction at 60fps with a CSS transform instead of an animated height; here is the native control styled to match, which keeps the keyboard behaviour we would otherwise have to rebuild. I have also learnt to bring the constraint *early* — reviewing designs at the wireframe stage rather than at handoff, because at handoff the conversation is about rework and everyone is defensive. Where I have been wrong is assuming a request was decoration when it was a deliberate accessibility or brand decision, which is why I ask what problem the design is solving before proposing an alternative.
 >
-> **With backend**, it is usually API shape. The frontend wants one call that returns what a screen needs; the backend wants clean, resource-shaped endpoints. Both are right within their own scope, and arguing that in the abstract goes nowhere. What resolves it is showing the concrete cost — "this screen makes six round trips on a 4G connection, here is the waterfall" — and then proposing a place for the mismatch to live, usually a BFF, so neither side has to compromise its own layer. When we cannot agree in time, I integrate against an agreed contract and mock it, so the disagreement stops blocking both teams while it is settled.
+> **With backend**, it is usually API shape. The frontend wants one call that returns what a screen needs; the backend wants clean, resource-shaped endpoints. Both are right within their own scope, and arguing that in the abstract goes nowhere. What resolves it is showing the concrete cost — "this screen makes six round trips on a 4G connection, here is the waterfall" — and then proposing a place for the mismatch to live, usually a BFF (backend for frontend: a thin server layer, often owned by the frontend team, that combines the resource-shaped endpoints into the one response a screen needs), so neither side has to compromise its own layer. When we cannot agree in time, I integrate against an agreed contract and mock it, so the disagreement stops blocking both teams while it is settled.
 >
 > The general rule: **disagree on the artefact, not with the person, and write the decision down.** The same argument recurring every quarter is a documentation failure, not a personality one. And I escalate early rather than late — a week of silent disagreement is far more expensive than a fifteen-minute conversation with both leads in the room.
 
@@ -1353,7 +1354,7 @@ These questions are about the behavioral interview process itself — understand
 > Once I know about one, four habits handle most cases.
 >
 > - **Agree the contract first.** For an API, that means the endpoint, request and response shape, error cases and a rough date, written down (an OpenAPI spec, a shared doc, a ticket in their backlog). A verbal "yeah, we'll add a field" is not a dependency you can plan around.
-> - **Don't wait for them to finish.** Build against the agreed contract with a mock, such as MSW in the browser or a stub server, so the frontend is done and tested before the real API exists. Integration then becomes a short task instead of the whole remaining schedule.
+> - **Don't wait for them to finish.** Build against the agreed contract with a mock, such as MSW (Mock Service Worker, a library that intercepts the browser's network requests and returns fake responses) or a stub server, so the frontend is done and tested before the real API exists. Integration then becomes a short task instead of the whole remaining schedule.
 > - **Have one named person on each side**, and check in early and briefly rather than waiting for a deadline. "Is the `/orders` change still on for the 14th?" a week out is far kinder than "it's not ready?" on the 14th.
 > - **Make the risk visible on my side.** If their date slips, my product owner hears it from me, with the options: ship behind a feature flag, ship without that field, or move the release.
 >

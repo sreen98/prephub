@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import React, { act } from 'react';
+import type React from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { transform } from '@babel/standalone';
 import { templateCategories } from './playgroundTemplates';
+import { buildReactScope } from '../../lib/playgroundScope';
 
 /** Mounts, lets the fake session resolve, then clicks a nav button by label. */
 async function mount(code: string, clickLabel?: string): Promise<string[]> {
@@ -15,12 +17,10 @@ async function mount(code: string, clickLabel?: string): Promise<string[]> {
   console.error = (...a: unknown[]) => { msgs.push(String(a[0])); };
   try {
     const out = transform(code, { presets: [['typescript', { isTSX: true, allExtensions: true }], 'react'] });
-    const scope: Record<string, unknown> = {
-      React, useState: React.useState, useEffect: React.useEffect, useRef: React.useRef,
-      useMemo: React.useMemo, useCallback: React.useCallback, useContext: React.useContext,
-      createContext: React.createContext, memo: React.memo, Fragment: React.Fragment,
-      render: (el: React.ReactElement) => { void act(() => { root.render(el); }); },
-    };
+    // The playground's REAL scope. A hand-written one here hid that `Client Cache`
+    // declared `const cache`, which collides with React's own `cache` export
+    // (a SyntaxError the moment the reader pressed Run).
+    const scope = buildReactScope((el: React.ReactElement) => { void act(() => { root.render(el); }); });
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
     const fn = new Function(...Object.keys(scope), out.code ?? '');
     await act(async () => { fn(...Object.values(scope)); await Promise.resolve(); });

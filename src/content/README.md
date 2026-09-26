@@ -8,7 +8,7 @@ A comprehensive collection of guides covering everything a full-stack developer 
 
 ## 🎯 Start Here — The 20 Topics That Actually Come Up
 
-If you have limited time, this is the list. These twenty topics account for the overwhelming majority of questions in a typical frontend or full-stack loop. Everything else in this collection is depth on top of them.
+If you have limited time, this is the list. These twenty topics come up in almost every frontend or full-stack loop, because the harder questions are built on them: a performance question assumes you know reconciliation, an async bug assumes you know the event loop. Everything else in this collection is depth on top of them.
 
 ### JavaScript Core
 
@@ -50,7 +50,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 | 19 | **Browser Storage** (localStorage, sessionStorage, IndexedDB) | [Browser APIs Guide](/frontend/browser-apis) |
 | 20 | **REST APIs & HTTP Methods** | [API Design Guide](/backend/api-design) |
 
-> **A note on how these are tested in 2026.** Because AI assistants can produce standard implementations instantly, interviewers have moved past definitions. Expect to be asked *why* rather than *what* — why a closure causes this memory leak, why this `useEffect` runs twice, why this memoization does nothing. The [Tricky Output Questions](/quiz) sections across the guides are built for exactly that, and the [Code Playground](/playground) has 120 challenges where you implement these from scratch.
+> **A note on how these are tested in 2026.** Because AI assistants can produce standard implementations instantly, interviewers have moved past definitions. Expect to be asked *why* rather than *what* — why a closure causes this memory leak, why this `useEffect` runs twice, why this memoization does nothing. The [Tricky Output Questions](/quiz) sections across the guides are built for exactly that, and the [JavaScript Playground](/playground) and [React Playground](/playground/react) have coding and machine-coding challenges where you implement these from scratch.
 
 ---
 
@@ -58,7 +58,7 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 ### 🎨 Front End (25 guides)
 
-**Core React** — [React Guide](/frontend/react) (hooks, reconciliation and Fiber, performance, React 19/19.2), [React Router](/frontend/react-router) (nested layouts, loaders, the URL as state), [Next.js & RSC](/frontend/nextjs-rsc)
+**Core React** — [React Guide](/frontend/react) (hooks, reconciliation and Fiber, performance, React 19 through 19.3), [React Router](/frontend/react-router) (nested layouts, loaders, the URL as state), [Next.js & RSC](/frontend/nextjs-rsc)
 
 **Global state management** — [TanStack Query](/frontend/tanstack-query), [Redux Toolkit](/frontend/redux-toolkit), [Redux Saga](/frontend/redux-saga), [Zustand](/frontend/zustand) — start with the split the guides all teach: **server state** belongs in TanStack Query, rarely-changing config in Context, and only genuinely shared client state in a store
 
@@ -125,9 +125,9 @@ If you have limited time, this is the list. These twenty topics account for the 
 ## 🛠️ Interactive Tools
 
 - **[Query Playground](/query-playground)** — **34 write-and-check questions**, 20 PostgreSQL and 14 MongoDB. You write the query, run it against real seeded data and your answer is checked automatically. It runs an actual PostgreSQL build in the browser, so window functions, `DISTINCT ON`, `FILTER` and recursive CTEs all behave exactly as they would on a server; MongoDB questions run real aggregation pipelines.
-- **[Code Playground](/playground)** — **198 templates**: JS fundamentals and interview topics, **32 spec polyfills** and **10 utility implementations** written from scratch, **98 coding challenges** tagged by pattern and difficulty, and **39 React machine-coding** challenges — **137 challenges** in total. **98 have a multi-approach solution** with a Time/Space/Verdict comparison, and **187 have an Explain walkthrough** — 148 animated algorithm steppers plus 39 React build-order guides.
+- **[JavaScript Playground](/playground)** and **[React Playground](/playground/react)** — two playgrounds over one editor, each with only its own templates and challenges; **218 templates** in all: JS fundamentals and interview topics, **32 spec polyfills** and **10 utility implementations** written from scratch, **111 coding challenges** (6 of them TypeScript, graded by the compiler) tagged by pattern and difficulty, and **46 React machine-coding** challenges — **157 challenges** in total. **111 have a multi-approach solution** with a Time/Space/Verdict comparison, and **201 have an Explain walkthrough** — 155 animated algorithm steppers plus 46 React build-order guides.
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
-- **[Daily Review](/review)** — spaced repetition (SM-2) so what you learn actually sticks.
+- **[Daily Review](/review)** — spaced repetition using the SM-2 algorithm: a question you answer well comes back after a longer gap each time, one you miss comes back soon, so review time goes to what you are about to forget.
 - **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.
 - **[Cheat Sheets](/cheatsheets)** — 14 printable quick-reference cards: [TypeScript](/cheatsheets/typescript), [Python](/cheatsheets/python), [SQL](/cheatsheets/sql), [GraphQL](/cheatsheets/graphql), [Regex](/cheatsheets/regex), [Docker & Kubernetes](/cheatsheets/docker-kubernetes), [React Hooks](/cheatsheets/react-hooks), [JS ES6+](/cheatsheets/javascript-es6), [Big-O](/cheatsheets/big-o-notation), [CSS Flexbox/Grid](/cheatsheets/css-flexbox-grid), [HTTP Status Codes](/cheatsheets/http-status-codes), [Git Commands](/cheatsheets/git-commands), [Git Workflows](/cheatsheets/git-workflows) and [Comparison Tables](/cheatsheets/comparison-tables).
 - **Bookmarks & Checkpoints** — save any heading, or drop a "where I left off" marker on any guide.
@@ -140,9 +140,9 @@ If you have limited time, this is the list. These twenty topics account for the 
 
 **Interviewing in a month?** Read the guides for your stack front to back, do the Playground challenges for the patterns you're weakest on, and use Daily Review to keep it. Add [Frontend System Design](/system-design/frontend) and [Frontend Architecture](/frontend/architecture) if you're going for senior or above.
 
-**Levelling up generally?** Pick the guides on things you use daily but have never read properly — most engineers find [Modern CSS](/frontend/modern-css), [Accessibility](/frontend/accessibility), [Web Security](/backend/web-security) and [SQL](/backend/sql) are the biggest gaps, because they're rarely taught and increasingly asked.
+**Levelling up generally?** Pick the guides on things you use daily but have never read properly — [Modern CSS](/frontend/modern-css), [Accessibility](/frontend/accessibility), [Web Security](/backend/web-security) and [SQL](/backend/sql) are common gaps, because they're rarely taught.
 
-**Every guide has the same shape:** concepts → practical examples → best practices → **Interview Questions & Answers** → **Tricky Output Questions** (guess-the-output with detailed explanations) → a cheat sheet → references.
+**Most guides share the same shape:** concepts → practical examples → best practices → **Interview Questions & Answers** → **Tricky Output Questions** (guess-the-output with detailed explanations, in the guides that have them) → a cheat sheet → references.
 
 ---
 

@@ -24,7 +24,8 @@ export type Pattern =
   | 'Sorting'
   | 'Linked List'
   | 'Closure / State'
-  | 'In-Place';
+  | 'In-Place'
+  | 'Tree Traversal';
 
 /** Canonical list — used for filter chips in the templates modal. */
 export const ALL_PATTERNS: Pattern[] = [
@@ -42,6 +43,7 @@ export const ALL_PATTERNS: Pattern[] = [
   'Linked List',
   'Closure / State',
   'In-Place',
+  'Tree Traversal',
 ];
 
 /** Patterns grouped into super-categories for the modal filter UI.
@@ -50,7 +52,7 @@ export const ALL_PATTERNS: Pattern[] = [
 export const PATTERN_GROUPS: { label: string; patterns: Pattern[] }[] = [
   { label: 'Linear scans',  patterns: ['Two Pointer', 'Sliding Window', 'In-Place'] },
   { label: 'Lookup',        patterns: ['Hash Map / Set', 'Stack'] },
-  { label: 'Recursive',     patterns: ['Recursion / D&C', 'Backtracking'] },
+  { label: 'Recursive',     patterns: ['Recursion / D&C', 'Backtracking', 'Tree Traversal'] },
   { label: 'Optimization',  patterns: ['Dynamic Programming', 'Greedy', 'Binary Search'] },
   { label: 'Data + Misc',   patterns: ['Sorting', 'Linked List', 'Closure / State', 'Math / Bit'] },
 ];
@@ -95,7 +97,7 @@ export const templateCategories: TemplateCategory[] = [
     templates: [
       {
         name: 'Hello World',
-        code: '// Welcome to the Code Playground!\nconsole.log("Hello, World!");\nconsole.log("Start coding here...");',
+        code: '// Welcome to the JavaScript Playground!\nconsole.log("Hello, World!");\nconsole.log("Start coding here...");',
       },
       {
         name: 'Array Methods',
@@ -2835,17 +2837,7 @@ console.log("slots are now:", JSON.stringify(slots));
         name: 'Two Sum',
         patterns: ['Hash Map / Set'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Two Sum =====
-// Given an array of integers and a target,
-// return indices of the two numbers that add up to target.
-//
-// Example: twoSum([2, 7, 11, 15], 9) \u2192 [0, 1]
-//
-// Constraints:
-// - Each input has exactly one solution
-// - You may not use the same element twice
-
-function twoSum(nums, target) {
+        code: `function twoSum(nums, target) {
   // YOUR CODE HERE
 
 }
@@ -2864,17 +2856,7 @@ test("Example 3", twoSum([3, 3], 6), [0, 1]);`,
         name: 'Reverse String',
         patterns: ['Two Pointer'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Reverse String =====
-// Reverse a string without using the built-in reverse() method.
-//
-// Example: reverseString("hello") \u2192 "olleh"
-// Example: reverseString("world") \u2192 "dlrow"
-//
-// Constraints:
-// - Do not use Array.prototype.reverse()
-// - Try to do it in place (treat string as char array)
-
-function reverseString(str) {
+        code: `function reverseString(str) {
   // YOUR CODE HERE
 
 }
@@ -2895,18 +2877,7 @@ test("Palindrome", reverseString("racecar"), "racecar");`,
         name: 'Valid Palindrome',
         patterns: ['Two Pointer'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Valid Palindrome =====
-// Check if a string is a palindrome, considering only
-// alphanumeric characters and ignoring case.
-//
-// Example: isPalindrome("A man, a plan, a canal: Panama") \u2192 true
-// Example: isPalindrome("race a car") \u2192 false
-//
-// Constraints:
-// - Ignore non-alphanumeric characters
-// - Case insensitive comparison
-
-function isPalindrome(s) {
+        code: `function isPalindrome(s) {
   // YOUR CODE HERE
 
 }
@@ -2927,19 +2898,7 @@ test("With numbers", isPalindrome("0P"), false);`,
         name: 'FizzBuzz',
         patterns: ['Math / Bit'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: FizzBuzz =====
-// Return an array of strings from 1 to n where:
-// - Multiples of 3 are replaced with "Fizz"
-// - Multiples of 5 are replaced with "Buzz"
-// - Multiples of both 3 and 5 are replaced with "FizzBuzz"
-// - Other numbers are converted to strings
-//
-// Example: fizzBuzz(5) \u2192 ["1", "2", "Fizz", "4", "Buzz"]
-//
-// Constraints:
-// - Return array of strings, not print them
-
-function fizzBuzz(n) {
+        code: `function fizzBuzz(n) {
   // YOUR CODE HERE
 
 }
@@ -2959,19 +2918,7 @@ test("FizzBuzz at 30", fizzBuzz(30).slice(-1), ["FizzBuzz"]);`,
         name: 'Max Profit',
         patterns: ['Greedy', 'Dynamic Programming'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Max Profit (Best Time to Buy & Sell Stock) =====
-// Given an array of prices where prices[i] is the price on day i,
-// find the maximum profit from one transaction (buy then sell).
-// If no profit is possible, return 0.
-//
-// Example: maxProfit([7, 1, 5, 3, 6, 4]) \u2192 5  (buy at 1, sell at 6)
-// Example: maxProfit([7, 6, 4, 3, 1]) \u2192 0  (prices only decrease)
-//
-// Constraints:
-// - You must buy before you sell
-// - Only one transaction allowed
-
-function maxProfit(prices) {
+        code: `function maxProfit(prices) {
   // YOUR CODE HERE
 
 }
@@ -2992,21 +2939,7 @@ test("Buy first sell last", maxProfit([1, 4, 2, 7]), 6);`,
         name: 'Valid Parentheses',
         patterns: ['Stack'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Valid Parentheses =====
-// Given a string containing just '(', ')', '{', '}', '[' and ']',
-// determine if the input string is valid.
-//
-// A string is valid if:
-// - Open brackets are closed by the same type
-// - Open brackets are closed in the correct order
-//
-// Example: isValid("()[]{}") \u2192 true
-// Example: isValid("(]") \u2192 false
-//
-// Constraints:
-// - String contains only bracket characters
-
-function isValid(s) {
+        code: `function isValid(s) {
   // YOUR CODE HERE
 
 }
@@ -3028,17 +2961,7 @@ test("Empty string", isValid(""), true);`,
         name: 'Merge Sorted Arrays',
         patterns: ['Two Pointer'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Merge Sorted Arrays =====
-// Given two sorted arrays, merge them into one sorted array.
-//
-// Example: mergeSorted([1, 3, 5], [2, 4, 6]) \u2192 [1, 2, 3, 4, 5, 6]
-//
-// Constraints:
-// - Both input arrays are already sorted in ascending order
-// - Do not simply concatenate and sort
-// - Aim for O(n + m) time complexity
-
-function mergeSorted(arr1, arr2) {
+        code: `function mergeSorted(arr1, arr2) {
   // YOUR CODE HERE
 
 }
@@ -3059,17 +2982,7 @@ test("With duplicates", mergeSorted([1, 3, 3], [2, 3, 4]), [1, 2, 3, 3, 3, 4]);`
         name: 'Flatten Array',
         patterns: ['Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Flatten Array =====
-// Flatten a deeply nested array without using Array.prototype.flat().
-//
-// Example: flatten([1, [2, [3, [4]], 5]]) \u2192 [1, 2, 3, 4, 5]
-//
-// Constraints:
-// - Do not use .flat() or .flatMap()
-// - Handle arbitrary nesting depth
-// - Return a new array (don't modify the original)
-
-function flatten(arr) {
+        code: `function flatten(arr) {
   // YOUR CODE HERE
 
 }
@@ -3090,23 +3003,7 @@ test("Empty arrays", flatten([[], [1], [], [2, []], 3]), [1, 2, 3]);`,
         name: 'Debounce',
         patterns: ['Closure / State'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Debounce =====
-// Implement a debounce function that delays invoking the provided
-// function until after 'delay' milliseconds have elapsed since
-// the last time it was invoked.
-//
-// Example:
-//   const debouncedFn = debounce(fn, 300);
-//   debouncedFn(); // starts timer
-//   debouncedFn(); // resets timer
-//   // fn is called once, 300ms after the last call
-//
-// Constraints:
-// - Returns a new function
-// - Resets the timer on each call
-// - Passes arguments to the original function
-
-function debounce(fn, delay) {
+        code: `function debounce(fn, delay) {
   // YOUR CODE HERE
 
 }
@@ -3150,19 +3047,7 @@ setTimeout(() => {
         name: 'Group Anagrams',
         patterns: ['Hash Map / Set', 'Sorting'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Group Anagrams =====
-// Given an array of strings, group the anagrams together.
-// An anagram is a word formed by rearranging the letters of another.
-//
-// Example: groupAnagrams(["eat","tea","tan","ate","nat","bat"])
-//   \u2192 [["eat","tea","ate"], ["tan","nat"], ["bat"]]
-//
-// Constraints:
-// - Order of groups doesn't matter
-// - Order within groups doesn't matter
-// - All inputs are lowercase letters
-
-function groupAnagrams(strs) {
+        code: `function groupAnagrams(strs) {
   // YOUR CODE HERE
 
 }
@@ -3185,19 +3070,7 @@ test("No anagrams", groupAnagrams(["abc","def","ghi"]), [["abc"],["def"],["ghi"]
         name: 'Find Duplicates',
         patterns: ['Hash Map / Set'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Find Duplicates =====
-// Return an array of all duplicate values in the input array.
-// A duplicate appears more than once.
-//
-// Example: findDuplicates([1, 2, 3, 2, 4, 3, 5]) → [2, 3]
-// Example: findDuplicates(["a", "b", "a", "c"]) → ["a"]
-//
-// Constraints:
-// - Each duplicate should appear once in the result
-// - Order of result doesn't matter (tests sort before comparing)
-// - Aim for O(n) time, O(n) space using a hash map
-
-function findDuplicates(arr) {
+        code: `function findDuplicates(arr) {
   // YOUR CODE HERE
 
 }
@@ -3219,18 +3092,7 @@ test("Triple duplicate", findDuplicates([1, 1, 1, 2, 2]), [1, 2]);`,
         name: 'Remove Duplicates',
         patterns: ['Hash Map / Set'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Remove Duplicates =====
-// Remove duplicate values from an array, preserving original order.
-// Implement WITHOUT using Set or filter+indexOf (do it manually).
-//
-// Example: removeDuplicates([1, 2, 1, 3, 2, 4]) → [1, 2, 3, 4]
-//
-// Constraints:
-// - Preserve first-seen order
-// - Do NOT use new Set() or [...new Set(arr)]
-// - Aim for O(n) time using a hash map
-
-function removeDuplicates(arr) {
+        code: `function removeDuplicates(arr) {
   // YOUR CODE HERE
 
 }
@@ -3251,22 +3113,7 @@ test("Empty", removeDuplicates([]), []);`,
         name: 'Clean Mixed Array',
         patterns: ['Hash Map / Set', 'Sorting'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Clean Mixed Array =====
-// You get an array that mixes numbers with characters (and other junk).
-// Return only the numbers, with duplicates removed, sorted ascending.
-//
-// Example: cleanNumbers([5, "a", 3, 5, "b", 1, 3]) → [1, 3, 5]
-// Example: cleanNumbers([10, 9, "x", 1, 100])      → [1, 9, 10, 100]
-//
-// Rules (ask these in the interview before you code):
-// - A "number" means a real number value. The string "7" is a character.
-// - NaN, Infinity, true, null and undefined are not usable numbers.
-// - Sort numerically: 9 comes before 10.
-// - Do not change the input array.
-//
-// Aim for clean, readable steps: filter, then dedupe, then sort.
-
-function cleanNumbers(arr) {
+        code: `function cleanNumbers(arr) {
   // YOUR CODE HERE
 
 }
@@ -3293,18 +3140,7 @@ test("Does not change the input", input, [3, "a", 1, 3]);`,
         name: 'Find Missing Number',
         patterns: ['Math / Bit'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Find Missing Number =====
-// An array contains n distinct numbers from the range [0, n].
-// Find the one number that is missing.
-//
-// Example: findMissing([3, 0, 1]) → 2  (range is 0..3, missing 2)
-// Example: findMissing([0, 1, 3]) → 2  (range is 0..3, missing 2)
-//
-// Constraints:
-// - Numbers are distinct, in [0, n], one is missing
-// - O(n) time, O(1) space — use the sum trick: n*(n+1)/2 - sum(arr)
-
-function findMissing(nums) {
+        code: `function findMissing(nums) {
   // YOUR CODE HERE
 
 }
@@ -3325,23 +3161,7 @@ test("Larger array", findMissing([9, 6, 4, 2, 3, 5, 7, 0, 1]), 8);`,
         name: 'Find All Missing Numbers',
         patterns: ['Hash Map / Set', 'In-Place'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Find All Missing Numbers =====
-// An array of n integers where every value is in the range [1, n].
-// Some values appear twice, which is exactly why others never appear.
-// Return every value in [1, n] that is missing, in ascending order.
-//
-// Example: findAllMissing([4, 3, 2, 7, 8, 2, 3, 1]) -> [5, 6]
-// Example: findAllMissing([1, 1])                   -> [2]
-//
-// Constraints:
-// - Every value is in [1, n] where n is the array length
-// - Duplicates are allowed
-// - A Set works and is O(n) space. The graded version uses O(1) extra
-//   space: treat the array as its own lookup table. For each value v,
-//   flip the sign at index v - 1 to record "seen". Afterwards every
-//   index still holding a positive number is a missing value.
-
-function findAllMissing(nums) {
+        code: `function findAllMissing(nums) {
   // YOUR CODE HERE
 
 }
@@ -3362,26 +3182,7 @@ test("Single element", findAllMissing([1]), []);`,
         name: 'First Missing Positive',
         patterns: ['In-Place', 'Hash Map / Set'],
         difficulty: 'Hard',
-        code: `// ===== CHALLENGE: First Missing Positive =====
-// Given an UNSORTED array holding any integers at all — negatives,
-// zero, duplicates, values far larger than the array — return the
-// smallest POSITIVE integer that does not appear in it.
-//
-// Example: firstMissingPositive([1, 2, 0])     -> 3
-// Example: firstMissingPositive([3, 4, -1, 1]) -> 2
-// Example: firstMissingPositive([7, 8, 9, 11]) -> 1
-//
-// Constraints:
-// - O(n) time and O(1) extra space is the graded answer
-// - Sorting is O(n log n) and a Set is O(n) space, so neither qualifies
-//
-// The insight that makes O(1) space possible at all: with only n slots
-// the answer can never exceed n + 1, so the array itself can serve as
-// the lookup table. Swap each value v into index v - 1 whenever
-// 1 <= v <= n, then the first index i where nums[i] !== i + 1 is the
-// answer. If every slot matches, the answer is n + 1.
-
-function firstMissingPositive(nums) {
+        code: `function firstMissingPositive(nums) {
   // YOUR CODE HERE
 
 }
@@ -3403,24 +3204,7 @@ test("Perfect run", firstMissingPositive([1, 2, 3, 4]), 5);`,
         name: 'Missing Term in Arithmetic Sequence',
         patterns: ['Binary Search', 'Math / Bit'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Missing Term in Arithmetic Sequence =====
-// An arithmetic sequence — each term differs from the previous one by
-// a constant step — has had exactly ONE middle term removed.
-// Given the remaining terms in order, return the term that is missing.
-//
-// Example: findMissingTerm([2, 5, 8, 14])  -> 11   (step 3)
-// Example: findMissingTerm([5, 7, 11, 13]) -> 9    (step 2)
-// Example: findMissingTerm([15, 12, 6, 3]) -> 9    (step -3)
-//
-// Constraints:
-// - The FIRST and LAST terms are always present and only a middle term
-//   is missing. Without that guarantee the step is ambiguous — you
-//   could not tell [2, 5, 8] from a sequence missing its endpoint.
-// - The array holds n terms, so the complete sequence held n + 1,
-//   which makes the step (last - first) / n
-// - The step may be negative. Aim for O(log n) with binary search.
-
-function findMissingTerm(seq) {
+        code: `function findMissingTerm(seq) {
   // YOUR CODE HERE
 
 }
@@ -3442,17 +3226,7 @@ test("Missing just before last", findMissingTerm([1, 3, 5, 9]), 7);`,
         name: 'Move Zeros',
         patterns: ['Two Pointer', 'In-Place'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Move Zeros to End =====
-// Move all zeros to the end of the array, keeping non-zero
-// elements in their original order. Modify in-place if you can.
-//
-// Example: moveZeros([0, 1, 0, 3, 12]) → [1, 3, 12, 0, 0]
-//
-// Constraints:
-// - Preserve relative order of non-zero elements
-// - Try to do it with a two-pointer approach: O(n) time, O(1) space
-
-function moveZeros(nums) {
+        code: `function moveZeros(nums) {
   // YOUR CODE HERE
 
   return nums;
@@ -3474,19 +3248,7 @@ test("Zeros first", moveZeros([0, 0, 1, 2]), [1, 2, 0, 0]);`,
         name: 'Rotate Array',
         patterns: ['Two Pointer', 'In-Place'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Rotate Array =====
-// Rotate the array to the right by k steps.
-// k may be larger than the array length — rotate by k % n.
-//
-// Example: rotate([1, 2, 3, 4, 5], 2) → [4, 5, 1, 2, 3]
-// Example: rotate([1, 2], 5)          → [2, 1]    (5 % 2 = 1)
-//
-// Constraints:
-// - Return the rotated array (don't print it)
-// - Pure (don't mutate input) — return a new array
-// - Try the slice + concat approach OR the reverse-three-times trick
-
-function rotate(nums, k) {
+        code: `function rotate(nums, k) {
   // YOUR CODE HERE
 
 }
@@ -3507,17 +3269,7 @@ test("Single",       rotate([1], 5), [1]);`,
         name: 'Bubble Sort',
         patterns: ['Sorting'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Bubble Sort (Custom Sort, No Built-In) =====
-// Sort an array of numbers ascending WITHOUT using
-// Array.prototype.sort or any built-in sort.
-//
-// Example: bubbleSort([5, 1, 4, 2, 8]) → [1, 2, 4, 5, 8]
-//
-// Bubble Sort: repeatedly swap adjacent out-of-order pairs.
-// Time: O(n²) worst/average, O(n) best with early-exit.
-// Space: O(1) — sorts in place.
-
-function bubbleSort(arr) {
+        code: `function bubbleSort(arr) {
   // YOUR CODE HERE
 
 }
@@ -3538,16 +3290,7 @@ test("Empty",       bubbleSort([]), []);`,
         name: 'Quick Sort',
         patterns: ['Sorting', 'Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Quick Sort =====
-// Sort using the Quick Sort algorithm. Pick a pivot, partition
-// into less-than and greater-than-pivot, recursively sort each.
-//
-// Example: quickSort([3, 6, 1, 4, 8, 2]) → [1, 2, 3, 4, 6, 8]
-//
-// Average: O(n log n). Worst: O(n²) on already-sorted input
-// with naive pivot. Use middle/random pivot to avoid the worst case.
-
-function quickSort(arr) {
+        code: `function quickSort(arr) {
   // YOUR CODE HERE
 
 }
@@ -3568,17 +3311,7 @@ test("Duplicates", quickSort([3, 1, 3, 2, 1]), [1, 1, 2, 3, 3]);`,
         name: 'Merge Sort',
         patterns: ['Sorting', 'Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Merge Sort =====
-// Sort using the Merge Sort algorithm. Recursively split the
-// array in half, sort each half, then merge sorted halves.
-//
-// Example: mergeSort([5, 2, 8, 1, 9, 3]) → [1, 2, 3, 5, 8, 9]
-//
-// Time: O(n log n) — guaranteed, even on worst case.
-// Space: O(n) — needs auxiliary arrays for merging.
-// Stable: yes (preserves order of equal elements).
-
-function mergeSort(arr) {
+        code: `function mergeSort(arr) {
   // YOUR CODE HERE — split, recurse, merge
 
 }
@@ -3604,19 +3337,7 @@ test("Big",       mergeSort([10, -5, 7, 0, 3, 7]), [-5, 0, 3, 7, 7, 10]);`,
         name: 'Anagram Check',
         patterns: ['Hash Map / Set', 'Sorting'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Anagram Check =====
-// Determine if two strings are anagrams of each other.
-// Anagrams contain exactly the same letters in different order.
-//
-// Example: isAnagram("listen", "silent") → true
-// Example: isAnagram("hello", "world")   → false
-//
-// Constraints:
-// - Case-insensitive
-// - Ignore spaces
-// - O(n) time using a frequency map (NOT sort+compare)
-
-function isAnagram(s1, s2) {
+        code: `function isAnagram(s1, s2) {
   // YOUR CODE HERE
 
 }
@@ -3637,19 +3358,7 @@ test("Empty strings",     isAnagram("", ""),             true);`,
         name: 'Longest Substring',
         patterns: ['Sliding Window', 'Hash Map / Set'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Longest Substring Without Repeating =====
-// Given a string, find the length of the longest substring
-// without repeating characters.
-//
-// Example: lengthOfLongestSubstring("abcabcbb") → 3  ("abc")
-// Example: lengthOfLongestSubstring("bbbbb")    → 1  ("b")
-// Example: lengthOfLongestSubstring("pwwkew")   → 3  ("wke")
-//
-// Constraints:
-// - Use the sliding window pattern with a Map/Set
-// - O(n) time, O(min(n, charset)) space
-
-function lengthOfLongestSubstring(s) {
+        code: `function lengthOfLongestSubstring(s) {
   // YOUR CODE HERE
 
 }
@@ -3670,18 +3379,7 @@ test("Unique",   lengthOfLongestSubstring("abcdef"), 6);`,
         name: 'First Non-Repeating Char',
         patterns: ['Hash Map / Set'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: First Non-Repeating Character =====
-// Return the first character in a string that does NOT repeat,
-// or null if every character repeats.
-//
-// Example: firstNonRepeating("leetcode")     → "l"
-// Example: firstNonRepeating("loveleetcode") → "v"
-// Example: firstNonRepeating("aabb")         → null
-//
-// Constraints:
-// - Two-pass: count then scan, OR one-pass with order-preserving map
-
-function firstNonRepeating(s) {
+        code: `function firstNonRepeating(s) {
   // YOUR CODE HERE
 
 }
@@ -3702,19 +3400,7 @@ test("Empty",        firstNonRepeating(""), null);`,
         name: 'Sum Curry',
         patterns: ['Closure / State', 'Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Sum Curry — sum(1)(2)(3)... =====
-// Implement an infinitely curryable sum function.
-// Calling it without arguments (or coercing to number) returns the total.
-//
-// Example: sum(1)(2)(3)()       → 6
-// Example: sum(1)(2)(3)(4)(5)() → 15
-//
-// Constraints:
-// - Must work with any number of curried calls
-// - Final empty () returns the accumulated sum
-// - Hint: return a function that captures the running total in closure
-
-function sum(a) {
+        code: `function sum(a) {
   // YOUR CODE HERE
 
 }
@@ -3735,22 +3421,7 @@ test("With zero",    sum(0)(0)(5)(),       5);`,
         name: 'Memoize',
         patterns: ['Closure / State', 'Hash Map / Set'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Memoize =====
-// Implement a higher-order function that caches results of
-// expensive function calls. Subsequent calls with the same
-// arguments return the cached result.
-//
-// Example:
-//   const slowAdd = (a, b) => { /* heavy work */ return a + b; };
-//   const fastAdd = memoize(slowAdd);
-//   fastAdd(1, 2);  // computes, returns 3
-//   fastAdd(1, 2);  // cached, returns 3 instantly
-//
-// Constraints:
-// - Cache key must distinguish different argument sets
-// - JSON.stringify(args) is the simplest key strategy
-
-function memoize(fn) {
+        code: `function memoize(fn) {
   // YOUR CODE HERE
 
 }
@@ -3771,22 +3442,7 @@ console.log(computeCount === 2 ? "✅" : "❌", "Cache hit count: expected 2 com
         name: 'Deep Clone',
         patterns: ['Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Deep Clone =====
-// Implement a deep clone function for plain JS objects/arrays.
-// Modifying the clone must NOT affect the original.
-//
-// Example:
-//   const obj = { a: { b: { c: 1 } } };
-//   const copy = deepClone(obj);
-//   copy.a.b.c = 999;
-//   obj.a.b.c === 1  (unchanged)
-//
-// Constraints:
-// - Handle plain objects, arrays, primitives
-// - Bonus: handle Date, RegExp
-// - Do NOT use structuredClone() or JSON.parse(JSON.stringify())
-
-function deepClone(value) {
+        code: `function deepClone(value) {
   // YOUR CODE HERE
 
 }
@@ -3812,22 +3468,7 @@ test("Different reference", original === cloned, false);`,
         name: 'Throttle',
         patterns: ['Closure / State'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Throttle =====
-// Throttle ensures a function is called AT MOST once every \`limit\` ms.
-// (Compare to Debounce: debounce delays until pause; throttle caps rate.)
-//
-// Use case: scroll/resize handlers — fire every 100ms, not 60 times/second.
-//
-// Example:
-//   const onScroll = throttle(() => console.log("fire"), 100);
-//   // 10 calls in 50ms => fires once at t=0
-//   // call at t=110 => fires
-//
-// Constraints:
-// - First call should fire immediately
-// - Subsequent calls within the window should be ignored
-
-function throttle(fn, limit) {
+        code: `function throttle(fn, limit) {
   // YOUR CODE HERE
 
 }
@@ -3851,20 +3492,7 @@ setTimeout(() => {
         name: 'EventEmitter',
         patterns: ['Closure / State', 'Hash Map / Set'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: EventEmitter =====
-// Implement a basic event emitter (pub/sub).
-//
-//   on(event, fn)    — register a listener
-//   off(event, fn)   — remove that listener
-//   emit(event, ...args) — call all listeners for event
-//   once(event, fn)  — fire fn at most once
-//
-// Example:
-//   const ee = new EventEmitter();
-//   ee.on("data", (x) => console.log("got", x));
-//   ee.emit("data", 42);  // got 42
-
-class EventEmitter {
+        code: `class EventEmitter {
   constructor() {
     // YOUR CODE HERE
   }
@@ -3911,15 +3539,7 @@ console.log(onceCount === 1 ? "✅" : "❌", \`once should fire 1x, fired \${onc
         name: 'LRU Cache',
         patterns: ['Hash Map / Set', 'Linked List'],
         difficulty: 'Hard',
-        code: `// ===== CHALLENGE: LRU Cache =====
-// Least-Recently-Used cache with capacity \`n\`.
-//   get(key)      — return value or -1, mark as most-recently-used
-//   put(key, val) — insert/update, evict LRU if full
-//
-// Both operations should be O(1).
-// Hint: JavaScript Map preserves insertion order — that's the trick.
-
-class LRUCache {
+        code: `class LRUCache {
   constructor(capacity) {
     // YOUR CODE HERE
   }
@@ -3950,14 +3570,7 @@ console.log(cache.get(4));    // "d"`,
         name: 'Compose & Pipe',
         patterns: ['Recursion / D&C', 'Closure / State'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Compose & Pipe =====
-// Functional composition.
-//   compose(f, g, h)(x) = f(g(h(x)))   — right to left
-//   pipe(f, g, h)(x)    = h(g(f(x)))   — left to right
-//
-// Used in libraries like Redux (compose) and RxJS (pipe).
-
-function compose(...fns) {
+        code: `function compose(...fns) {
   // YOUR CODE HERE
 
 }
@@ -3987,14 +3600,7 @@ test("Single fn",             compose(double)(5), 10);`,
         name: 'Binary Search',
         patterns: ['Binary Search'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Binary Search =====
-// Given a SORTED array and a target, return the index of the target
-// or -1 if not found. O(log n).
-//
-// Example: binarySearch([-1, 0, 3, 5, 9, 12], 9) → 4
-// Example: binarySearch([-1, 0, 3, 5, 9, 12], 2) → -1
-
-function binarySearch(nums, target) {
+        code: `function binarySearch(nums, target) {
   // YOUR CODE HERE — left/right pointers, narrow the range each step
 
 }
@@ -4016,16 +3622,7 @@ test("Single element",   binarySearch([42], 42), 0);`,
         name: 'Roman to Integer',
         patterns: ['Math / Bit'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Roman to Integer =====
-// Convert a Roman numeral to an integer.
-// Symbols: I=1, V=5, X=10, L=50, C=100, D=500, M=1000
-// Subtraction rules: IV=4, IX=9, XL=40, XC=90, CD=400, CM=900
-//
-// Example: romanToInt("III")    → 3
-// Example: romanToInt("LVIII")  → 58
-// Example: romanToInt("MCMXCIV") → 1994
-
-function romanToInt(s) {
+        code: `function romanToInt(s) {
   // YOUR CODE HERE
   // Hint: if current symbol < next symbol, subtract; else add
 
@@ -4047,17 +3644,7 @@ test("XL",      romanToInt("XL"),      40);`,
         name: 'Reverse Linked List',
         patterns: ['Linked List'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Reverse Linked List =====
-// Reverse a singly linked list. Each node = { val, next }.
-// Return the new head.
-//
-// Example: 1 -> 2 -> 3 -> null   becomes   3 -> 2 -> 1 -> null
-//
-// Constraints:
-// - O(n) time, O(1) space iterative is the canonical answer
-// - Recursive is also valid
-
-function reverseList(head) {
+        code: `function reverseList(head) {
   // YOUR CODE HERE — three pointers: prev, curr, next
 
 }
@@ -4089,18 +3676,7 @@ test("Long list",   toArray(reverseList(fromArray([1, 2, 3, 4, 5]))), [5, 4, 3, 
         name: 'Container With Most Water',
         patterns: ['Two Pointer', 'Greedy'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Container With Most Water =====
-// Given an array of heights, find two lines that together with
-// the x-axis form a container holding the most water.
-// Return the maximum amount of water it can store.
-//
-// Example: maxArea([1, 8, 6, 2, 5, 4, 8, 3, 7]) → 49
-//
-// Constraints:
-// - Two-pointer approach: O(n) time, O(1) space
-// - Move the pointer with the smaller height inward each step
-
-function maxArea(heights) {
+        code: `function maxArea(heights) {
   // YOUR CODE HERE
 
 }
@@ -4121,22 +3697,7 @@ test("Single",    maxArea([5]),                          0);`,
         name: 'Climbing Stairs',
         patterns: ['Dynamic Programming'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Climbing Stairs =====
-// You're climbing a staircase with n steps. Each move you can take
-// either 1 step or 2 steps. How many distinct ways can you reach
-// the top?
-//
-// Example: climbStairs(2) → 2  (1+1, or 2)
-// Example: climbStairs(3) → 3  (1+1+1, 1+2, 2+1)
-// Example: climbStairs(4) → 5
-//
-// Recognize the pattern: it's Fibonacci!
-// f(n) = f(n-1) + f(n-2)
-//
-// Constraints:
-// - O(n) time, O(1) space — track only the last two values
-
-function climbStairs(n) {
+        code: `function climbStairs(n) {
   // YOUR CODE HERE
 
 }
@@ -4158,28 +3719,7 @@ test("n = 10", climbStairs(10), 89);`,
         name: 'Balanced Brackets (Count)',
         patterns: ['Math / Bit'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Balanced Brackets — Count Match =====
-// Given a string with parens (), square brackets [], and curly braces {},
-// return true if EACH PAIR has equal counts of opening and closing.
-//
-// Note: this is COUNT-BASED — it does NOT check nesting order.
-//   "(([]))" → true   (2 of '(', 2 of ')', 1 of '[', 1 of ']')
-//   "([)]"   → true   (counts match — though not properly nested!)
-//   ")(["    → false  (1 ')' but no '(', 1 '[' but no ']')
-//
-// For ORDER-AWARE validation, see the "Valid Parentheses" template.
-//
-// Constraints:
-// - Each pair must have equal opening + closing counts
-// - Other characters (letters, digits, spaces) are ignored
-//
-// Show Solution covers multiple approaches:
-//   - Counters per pair (best — O(n) time, O(1) space)
-//   - Hash map of bracket counts (cleaner for many bracket types)
-//   - Stack-based (uses more memory; not strictly needed)
-//   - Regex / split+filter (most concise; multiple passes)
-
-function isBalancedByCount(str) {
+        code: `function isBalancedByCount(str) {
   // YOUR CODE HERE
 
 }
@@ -4203,25 +3743,7 @@ test("Reversed order",         isBalancedByCount(")("),     true);  // counts ma
         name: 'Second Largest Number',
         patterns: ['Greedy'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Second Largest Number =====
-// Given an array of numbers, return the second largest UNIQUE value.
-// If no second largest exists (e.g., array of all duplicates), return null.
-//
-// Example: secondLargest([3, 1, 4, 1, 5, 9, 2, 6])    → 6
-// Example: secondLargest([5, 5, 5])                    → null
-// Example: secondLargest([10, 5])                      → 5
-//
-// Constraints:
-// - Do NOT use sort() — that's the whole point
-// - Aim for O(n) time, O(1) space (single pass tracking top two)
-//
-// Show Solution covers multiple approaches:
-//   - Single-pass two-variable tracking (BEST — O(n) time, O(1) space)
-//   - Two-pass: find max, then find max != max
-//   - Set + reduce (cleaner; O(n) time, O(n) space)
-//   - Min-heap of size 2 (overkill here, useful when k > 2)
-
-function secondLargest(nums) {
+        code: `function secondLargest(nums) {
   // YOUR CODE HERE
 
 }
@@ -4248,16 +3770,7 @@ test("Empty",                 secondLargest([]),                       null);`,
         name: 'Maximum Subarray',
         patterns: ['Dynamic Programming', 'Greedy'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Maximum Subarray (Kadane's) ═════
-// Given an integer array, find the contiguous subarray with the
-// largest sum and return that sum.
-//
-// Example: maxSubArray([-2,1,-3,4,-1,2,1,-5,4]) → 6  ([4,-1,2,1])
-//
-// Hint: at each i, the best subarray ending here is either
-// (a) just nums[i], or (b) nums[i] + best ending at i-1.
-
-function maxSubArray(nums) {
+        code: `function maxSubArray(nums) {
   // YOUR CODE HERE
 }
 
@@ -4276,16 +3789,7 @@ test("All positive", maxSubArray([1,2,3,4]),                10);`,
         name: 'Trapping Rain Water',
         patterns: ['Two Pointer'],
         difficulty: 'Hard',
-        code: `// ═════ CHALLENGE: Trapping Rain Water ═════
-// Given an array of non-negative integers representing bar heights
-// of unit width, compute how much rainwater the structure can trap.
-//
-// Example: trap([0,1,0,2,1,0,1,3,2,1,2,1]) → 6
-//
-// Hint: water above index i = min(maxLeft, maxRight) - height[i].
-// The two-pointer trick computes this in O(1) extra space.
-
-function trap(height) {
+        code: `function trap(height) {
   // YOUR CODE HERE
 }
 
@@ -4304,17 +3808,7 @@ test("Flat",     trap([2,2,2]),                    0);`,
         name: '3Sum',
         patterns: ['Two Pointer', 'Sorting'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: 3Sum ═════
-// Given an integer array, return all unique triplets [a, b, c]
-// such that a + b + c === 0. The triplets themselves should NOT
-// duplicate (order within a triplet must be ascending).
-//
-// Example: threeSum([-1,0,1,2,-1,-4]) → [[-1,-1,2], [-1,0,1]]
-//
-// Hint: sort the array, then for each i fix nums[i] and use a
-// two-pointer scan on the right slice to find pairs summing to -nums[i].
-
-function threeSum(nums) {
+        code: `function threeSum(nums) {
   // YOUR CODE HERE — return Array<[number, number, number]> sorted ascending
 }
 
@@ -4334,17 +3828,7 @@ test("With duplicates", threeSum([-2,0,1,1,2]),   [[-2,0,2], [-2,1,1]]);`,
         name: 'Generate Parentheses',
         patterns: ['Backtracking', 'Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Generate Parentheses ═════
-// Given n pairs of parentheses, return all combinations of
-// well-formed parentheses.
-//
-// Example: generate(3) →
-//   ["((()))","(()())","(())()","()(())","()()()"]
-//
-// Hint: backtrack with two counters (open, close). Add '(' if
-// open < n; add ')' if close < open.
-
-function generate(n) {
+        code: `function generate(n) {
   // YOUR CODE HERE
 }
 
@@ -4363,16 +3847,7 @@ test("n=0", generate(0), [""]);`,
         name: 'Subsets',
         patterns: ['Backtracking', 'Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Subsets (Power Set) ═════
-// Given an array of distinct integers, return all possible subsets
-// (the power set). Order of subsets in your answer does not matter
-// but each subset itself should be in input order.
-//
-// Example: subsets([1,2,3]) → [[],[1],[2],[3],[1,2],[1,3],[2,3],[1,2,3]]
-//
-// Hint: backtracking is the cleanest. Iterative bit-mask works too.
-
-function subsets(nums) {
+        code: `function subsets(nums) {
   // YOUR CODE HERE
 }
 
@@ -4391,17 +3866,7 @@ test("[]",      subsets([]),      [[]]);`,
         name: 'Permutations',
         patterns: ['Backtracking', 'Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Permutations ═════
-// Given an array of distinct integers, return all possible
-// permutations. n! results.
-//
-// Example: permute([1,2,3]) →
-//   [[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]
-//
-// Hint: backtracking with a "used" set, OR swap-based recursion
-// in place.
-
-function permute(nums) {
+        code: `function permute(nums) {
   // YOUR CODE HERE
 }
 
@@ -4421,14 +3886,7 @@ test("[1]",     permute([1]),     [[1]]);`,
         name: 'Min Stack',
         patterns: ['Stack'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Min Stack (O(1) min) ═════
-// Implement a stack with: push(x), pop(), top(), getMin().
-// All operations must be O(1).
-//
-// Hint: keep a parallel "min stack" that tracks the running minimum
-// at each level — push the new min when it's <= current min.
-
-class MinStack {
+        code: `class MinStack {
   constructor() {
     // YOUR CODE HERE
   }
@@ -4459,18 +3917,7 @@ test("getMin one popped",   s.getMin(), -5);`,
         name: 'Daily Temperatures',
         patterns: ['Stack'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Daily Temperatures ═════
-// Given an array of daily temperatures, return an array where
-// answer[i] = number of days you'd have to wait until a warmer
-// temperature. If never, answer[i] = 0.
-//
-// Example: dailyTemperatures([73,74,75,71,69,72,76,73])
-//          →          [1, 1, 4, 2, 1, 1, 0, 0]
-//
-// Hint: monotonic decreasing stack of indices. Pop while the new
-// temp is warmer than what's on top.
-
-function dailyTemperatures(t) {
+        code: `function dailyTemperatures(t) {
   // YOUR CODE HERE
 }
 
@@ -4488,16 +3935,7 @@ test("Decreasing", dailyTemperatures([90,80,70]),            [0,0,0]);`,
         name: 'Coin Change',
         patterns: ['Dynamic Programming'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Coin Change ═════
-// Given coin denominations and an amount, return the FEWEST coins
-// needed to make up that amount. -1 if impossible. Unlimited supply
-// of each coin.
-//
-// Example: coinChange([1,2,5], 11) → 3   (5 + 5 + 1)
-//
-// Hint: classic 1D DP. dp[i] = min coins for amount i.
-
-function coinChange(coins, amount) {
+        code: `function coinChange(coins, amount) {
   // YOUR CODE HERE
 }
 
@@ -4516,16 +3954,7 @@ test("Single",     coinChange([1,2,5], 5),   1);`,
         name: 'House Robber',
         patterns: ['Dynamic Programming'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: House Robber ═════
-// Each house holds money. You cannot rob two adjacent houses
-// (alarms connect). Return the max amount you can rob.
-//
-// Example: rob([1,2,3,1]) → 4   (rob house 0 and 2: 1 + 3)
-//
-// Hint: dp[i] = max(dp[i-1], dp[i-2] + nums[i]). Two scalars
-// suffice — O(1) space.
-
-function rob(nums) {
+        code: `function rob(nums) {
   // YOUR CODE HERE
 }
 
@@ -4544,17 +3973,7 @@ test("Empty",        rob([]),              0);`,
         name: 'Jump Game',
         patterns: ['Greedy'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Jump Game ═════
-// Each element nums[i] is the MAX jump length from index i.
-// Return true if you can reach the last index from index 0.
-//
-// Example: canJump([2,3,1,1,4]) → true
-//          canJump([3,2,1,0,4]) → false   (stuck at index 3)
-//
-// Hint: greedy. Track the farthest reachable index. If you ever
-// reach an index farther than that, return false.
-
-function canJump(nums) {
+        code: `function canJump(nums) {
   // YOUR CODE HERE
 }
 
@@ -4573,16 +3992,7 @@ test("Zero start",  canJump([0,1]),       false);`,
         name: 'Detect Cycle in Linked List',
         patterns: ['Linked List', 'Two Pointer'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Detect Cycle in Linked List ═════
-// Given the head of a singly linked list, return true if a cycle
-// exists, otherwise false.
-//
-// Example: 3 → 2 → 0 → -4 ↻ (back to 2)  → true
-//
-// Hint: Floyd's tortoise & hare. Slow moves 1, fast moves 2; if
-// they ever meet, cycle exists. O(n) time, O(1) space.
-
-function hasCycle(head) {
+        code: `function hasCycle(head) {
   // YOUR CODE HERE
 }
 
@@ -4613,16 +4023,7 @@ test("Empty",          hasCycle(null),                      false);`,
         name: 'Sort Colors',
         patterns: ['Two Pointer', 'In-Place'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Sort Colors (Dutch Flag) ═════
-// Given an array with values 0, 1, 2 only, sort them IN PLACE
-// in one pass without using a sort built-in.
-//
-// Example: sortColors([2,0,2,1,1,0]) → [0,0,1,1,2,2]
-//
-// Hint: three pointers — low (next 0 slot), mid (cursor),
-// high (next 2 slot). Move mid forward, swap as needed.
-
-function sortColors(nums) {
+        code: `function sortColors(nums) {
   // YOUR CODE HERE — mutate nums; no return needed
 }
 
@@ -4648,16 +4049,7 @@ test("All same", a4, [1,1,1]);`,
         name: 'Top K Frequent Elements',
         patterns: ['Hash Map / Set', 'Sorting'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Top K Frequent Elements ═════
-// Given an integer array and integer k, return the k most frequent
-// elements. Order of the returned k elements does not matter.
-//
-// Example: topK([1,1,1,2,2,3], 2) → [1, 2]
-//
-// Hint: bucket sort by frequency runs in O(n). Heap-of-size-k is
-// O(n log k). Sort all entries is O(n log n) and acceptable.
-
-function topK(nums, k) {
+        code: `function topK(nums, k) {
   // YOUR CODE HERE
 }
 
@@ -4676,16 +4068,7 @@ test("All same", topK([7,7,7], 1),      [7]);`,
         name: 'Merge Two Sorted Lists',
         patterns: ['Linked List', 'Two Pointer'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Merge Two Sorted Lists ═════
-// Given heads of two sorted singly linked lists, splice them
-// together into one sorted list and return its head.
-//
-// Example: mergeTwoLists(1→2→4, 1→3→4) → 1→1→2→3→4→4
-//
-// Hint: dummy head + tail pointer. Walk both, picking the smaller
-// each step. When one runs out, splice the rest of the other.
-
-function mergeTwoLists(l1, l2) {
+        code: `function mergeTwoLists(l1, l2) {
   // YOUR CODE HERE
 }
 
@@ -4724,17 +4107,7 @@ test("Disjoint",  toArray(mergeTwoLists(fromArray([1,2,3]), fromArray([4,5,6])))
         name: 'Rotate Array Left',
         patterns: ['Two Pointer', 'In-Place'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Rotate Array Left ═════
-// Rotate the array LEFT by k positions, in place.
-//
-// Example: rotateLeft([1,2,3,4,5,6,7], 3) → [4,5,6,7,1,2,3]
-//
-// Hint 1: rotating LEFT by k is the same as rotating RIGHT by n-k.
-// Hint 2: three-reversal trick — reverse first k, reverse the rest,
-//         then reverse the whole array.
-//         (Same three reversals as right-rotation, opposite order.)
-
-function rotateLeft(nums, k) {
+        code: `function rotateLeft(nums, k) {
   // YOUR CODE HERE — mutate nums; return nums for test ergonomics
 }
 
@@ -4755,19 +4128,7 @@ test("Single",     rotateLeft([42], 1),            [42]);`,
         name: 'Reverse Words in a String',
         patterns: ['Two Pointer'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Reverse Words in a String ═════
-// Reverse the ORDER of words in a string. Words are separated by one
-// or more spaces. Leading/trailing whitespace and multiple inner
-// spaces should be collapsed to single spaces.
-//
-// Example: reverseWords("  hello   world  ") → "world hello"
-//          reverseWords("the sky is blue")   → "blue is sky the"
-//
-// Hint 1: split on whitespace, filter empty tokens, reverse, join.
-// Hint 2: The "two-reversal trick" — reverse the WHOLE string, then
-//         reverse each word in place. Pairs with Reverse String.
-
-function reverseWords(s) {
+        code: `function reverseWords(s) {
   // YOUR CODE HERE
 }
 
@@ -4790,18 +4151,7 @@ test("Punctuated",      reverseWords("a good   example"),      "example good a")
       {
         name: 'Longest Common Prefix',
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Longest Common Prefix ═════
-// Write a function to find the longest common prefix string amongst
-// an array of strings. If there is no common prefix, return "".
-//
-// Example: longestCommonPrefix(["flower","flow","flight"]) → "fl"
-//          longestCommonPrefix(["dog","racecar","car"])    → ""
-//
-// Hint: vertical scan — walk character index i from 0 upward; check
-// that strs[0][i] matches every strs[j][i]. Stop on first mismatch
-// or when any string runs out.
-
-function longestCommonPrefix(strs) {
+        code: `function longestCommonPrefix(strs) {
   // YOUR CODE HERE
 }
 
@@ -4822,17 +4172,7 @@ test("One empty", longestCommonPrefix(["", "abc"]),                 "");`,
         name: 'Longest Palindromic Substring',
         patterns: ['Two Pointer', 'Dynamic Programming'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Longest Palindromic Substring ═════
-// Given a string s, return the longest palindromic substring in s.
-//
-// Example: longestPalindrome("babad") → "bab" (or "aba", both valid)
-//          longestPalindrome("cbbd")  → "bb"
-//
-// Hint: expand-around-center. For each index i, expand outward as
-// long as left and right characters match. Handle BOTH odd-length
-// (single center) and even-length (two-character center) cases.
-
-function longestPalindrome(s) {
+        code: `function longestPalindrome(s) {
   // YOUR CODE HERE
 }
 
@@ -4854,17 +4194,7 @@ test("None",      longestPalindrome("abcde"), ["a","b","c","d","e"]);`,
         name: 'Reverse Vowels of a String',
         patterns: ['Two Pointer'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Reverse Vowels of a String ═════
-// Reverse only the vowels (a, e, i, o, u — both cases) in the
-// string. All other characters stay in place.
-//
-// Example: reverseVowels("hello")    → "holle"
-//          reverseVowels("leetcode") → "leotcede"
-//
-// Hint: two-pointer. Advance left until it lands on a vowel,
-// advance right backward to a vowel, swap, step inward.
-
-function reverseVowels(s) {
+        code: `function reverseVowels(s) {
   // YOUR CODE HERE
 }
 
@@ -4884,21 +4214,7 @@ test("Empty",        reverseVowels(""),         "");`,
       {
         name: 'String to Integer (atoi)',
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: String to Integer (atoi) ═════
-// Convert a string to a 32-bit signed integer, following these rules:
-//   1. Skip leading whitespace.
-//   2. Read an optional + or − sign.
-//   3. Read digits until a non-digit or end of string.
-//   4. Clamp to [-2³¹, 2³¹ − 1] on overflow.
-//   5. Return 0 if no digits were read.
-//
-// Example: myAtoi("42")             → 42
-//          myAtoi("   -42")         → -42
-//          myAtoi("4193 with words") → 4193
-//          myAtoi("words 987")       → 0
-//          myAtoi("91283472332")     → 2147483647 (clamped to INT_MAX)
-
-function myAtoi(s) {
+        code: `function myAtoi(s) {
   // YOUR CODE HERE
 }
 
@@ -4922,21 +4238,7 @@ test("Empty",           myAtoi(""),                 0);`,
         name: 'Letter Combinations of Phone Number',
         patterns: ['Backtracking', 'Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Letter Combinations of Phone Number ═════
-// Given a string of digits 2..9, return all letter combinations the
-// digits could represent on a classic phone keypad.
-//
-// Mapping:
-//   2 → "abc"   3 → "def"   4 → "ghi"   5 → "jkl"
-//   6 → "mno"   7 → "pqrs"  8 → "tuv"   9 → "wxyz"
-//
-// Example: letterCombinations("23") →
-//   ["ad","ae","af","bd","be","bf","cd","ce","cf"]
-//
-// Hint: backtracking. For each digit, branch into 3–4 child letters
-// and recurse for the rest of the digits.
-
-function letterCombinations(digits) {
+        code: `function letterCombinations(digits) {
   // YOUR CODE HERE
 }
 
@@ -4959,17 +4261,7 @@ test("Three",  letterCombinations("234"),  [
         name: 'Single Number',
         patterns: ['Math / Bit'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Single Number ═════
-// Every element appears TWICE in the array except for ONE element
-// that appears exactly once. Find that one. O(n) time and O(1) space.
-//
-// Example: singleNumber([2,2,1])      → 1
-//          singleNumber([4,1,2,1,2])  → 4
-//
-// Hint: XOR. \`a ^ a = 0\` and \`a ^ 0 = a\`. XOR every number; the
-// duplicates cancel and the single one survives.
-
-function singleNumber(nums) {
+        code: `function singleNumber(nums) {
   // YOUR CODE HERE
 }
 
@@ -4988,27 +4280,7 @@ test("Negative",singleNumber([-1,-1,-2]), -2);`,
         name: 'Single Number II',
         patterns: ['Math / Bit'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Single Number II ═════
-// Every element appears THREE TIMES in the array except for ONE
-// element that appears exactly once. Find that one.
-// O(n) time and O(1) space.
-//
-// Example: singleNumberII([2,2,3,2])         → 3
-//          singleNumberII([0,1,0,1,0,1,99])  → 99
-//
-// Follow-up to "Single Number". The XOR trick from that problem
-// FAILS here — XOR cancels pairs (mod 2), but here we have triples.
-//
-// Hint: Think bit-by-bit. For each of the 32 bits, count how many
-// numbers have that bit set. Modulo 3 isolates the lone element's
-// bit pattern: triples contribute 0 mod 3; the singleton contributes 1.
-//
-// Two clean approaches:
-//   1. Bit-counting mod 3 (32 passes) — easy to explain
-//   2. Two-bit state machine (ones/twos) — single pass, harder to derive
-// Solution shows both.
-
-function singleNumberII(nums) {
+        code: `function singleNumberII(nums) {
   // YOUR CODE HERE
 }
 
@@ -5028,18 +4300,7 @@ test("Large bit",  singleNumberII([1,1,1,2147483646]), 2147483646);`,
         name: 'Majority Element',
         patterns: ['Math / Bit'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Majority Element ═════
-// Given an array of size n, return the element that appears more
-// than ⌊n/2⌋ times. You may assume one always exists.
-//
-// Example: majorityElement([3,2,3])        → 3
-//          majorityElement([2,2,1,1,1,2,2]) → 2
-//
-// Hint: Boyer–Moore voting algorithm. Keep a candidate and a count.
-// On match, increment count; on mismatch, decrement count; on count
-// 0, swap the candidate. Runs in O(n) time, O(1) space.
-
-function majorityElement(nums) {
+        code: `function majorityElement(nums) {
   // YOUR CODE HERE
 }
 
@@ -5057,19 +4318,7 @@ test("All same", majorityElement([5,5,5,5]),       5);`,
       {
         name: 'Product of Array Except Self',
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Product of Array Except Self ═════
-// Given an array nums, return an array where output[i] is the
-// product of all elements of nums EXCEPT nums[i]. You may NOT use
-// division. Target O(n) time and O(1) extra space (the output
-// array does not count).
-//
-// Example: productExceptSelf([1,2,3,4]) → [24,12,8,6]
-//
-// Hint: two passes. First pass fills output[i] with the product of
-// everything LEFT of i. Second pass walks right-to-left with a
-// running "right product" and multiplies it into output[i].
-
-function productExceptSelf(nums) {
+        code: `function productExceptSelf(nums) {
   // YOUR CODE HERE
 }
 
@@ -5087,20 +4336,7 @@ test("Pair",      productExceptSelf([3,5]),           [5,3]);`,
       {
         name: 'Plus One',
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Plus One ═════
-// You are given a non-negative integer represented as an array of
-// digits (most-significant first). Increment by one and return the
-// resulting digit array.
-//
-// Example: plusOne([1,2,3])  → [1,2,4]
-//          plusOne([9,9,9])  → [1,0,0,0]
-//          plusOne([0])      → [1]
-//
-// Hint: walk from right to left. If the digit is < 9, increment and
-// return. If it is 9, set to 0 and carry. If you walk off the left
-// end with a carry, prepend a 1.
-
-function plusOne(digits) {
+        code: `function plusOne(digits) {
   // YOUR CODE HERE
 }
 
@@ -5120,19 +4356,7 @@ test("Zero",      plusOne([0]),             [1]);`,
         name: 'Subarray Sum Equals K',
         patterns: ['Hash Map / Set'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Subarray Sum Equals K ═════
-// Given an integer array and an integer k, return the number of
-// contiguous subarrays whose sum equals k.
-//
-// Example: subarraySum([1,1,1], 2)  → 2   ([1,1] twice)
-//          subarraySum([1,2,3], 3)  → 2   ([1,2] and [3])
-//
-// Hint: prefix sums + hash map. Walk the array maintaining a running
-// sum S. At each index, the count of subarrays ending here with sum k
-// equals the count of times \`S − k\` has appeared as a prior prefix.
-// Store prefix-sum frequencies in a Map.
-
-function subarraySum(nums, k) {
+        code: `function subarraySum(nums, k) {
   // YOUR CODE HERE
 }
 
@@ -5153,20 +4377,7 @@ test("Single match",  subarraySum([5], 5),           1);`,
         name: 'Search in Rotated Sorted Array',
         patterns: ['Binary Search'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Search in Rotated Sorted Array ═════
-// You are given a sorted-then-rotated array of distinct integers
-// (e.g. [4,5,6,7,0,1,2] which was [0..7] rotated). Find the index
-// of target, or -1 if not present. Must run in O(log n).
-//
-// Example: searchRotated([4,5,6,7,0,1,2], 0)  → 4
-//          searchRotated([4,5,6,7,0,1,2], 3)  → -1
-//
-// Hint: modified binary search. At each step, ONE half of the
-// mid-split is guaranteed to be sorted (compare nums[lo] with
-// nums[mid] to find which). Check if target lies within that
-// sorted half; if yes, search there; otherwise search the other.
-
-function searchRotated(nums, target) {
+        code: `function searchRotated(nums, target) {
   // YOUR CODE HERE
 }
 
@@ -5187,17 +4398,7 @@ test("Rotated by 1",         searchRotated([5,1,2,3,4], 1),     1);`,
       {
         name: 'Spiral Matrix',
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Spiral Matrix ═════
-// Given an m × n matrix, return all elements in spiral order
-// (start top-left, go right → down → left → up → repeat inward).
-//
-// Example: spiralOrder([[1,2,3],[4,5,6],[7,8,9]]) → [1,2,3,6,9,8,7,4,5]
-//
-// Hint: maintain four boundaries (top, bottom, left, right).
-// After traversing each edge, shrink the corresponding boundary
-// inward by 1. Stop when top > bottom or left > right.
-
-function spiralOrder(matrix) {
+        code: `function spiralOrder(matrix) {
   // YOUR CODE HERE
 }
 
@@ -5221,16 +4422,7 @@ test("1x1",       spiralOrder([[42]]),                                     [42])
         name: 'Find Maximum in Array',
         patterns: ['Greedy'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Find Maximum in Array ═════
-// Return the largest number in the array. Return null if the
-// array is empty.
-//
-// Example: findMax([3, 7, 1, 9, 4]) → 9
-//
-// Hint: single pass with a running max. Start at -Infinity (so
-// any real number wins) — or use the first element as the seed.
-
-function findMax(nums) {
+        code: `function findMax(nums) {
   // YOUR CODE HERE
 }
 
@@ -5248,23 +4440,31 @@ test("With negatives", findMax([-3, 0, 5, -1]),      5);
 test("Empty",        findMax([]),                    null);`,
       },
       {
+        name: 'Max Consecutive Ones',
+        patterns: ['Sliding Window', 'Greedy'],
+        difficulty: 'Easy',
+        code: `function maxConsecutiveOnes(nums) {
+  // YOUR CODE HERE
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = actual === expected;
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${expected}, got \${actual}\`);
+};
+
+test("Interview array",  maxConsecutiveOnes([1,1,1,1,1,1,0,0,1,0,1,1,1,1,1,0]), 6);
+test("Longest run is not the total", maxConsecutiveOnes([1,1,0,1,1,1]), 3);
+test("Run at the very end", maxConsecutiveOnes([0,0,1,1,1]),       3);
+test("All ones",         maxConsecutiveOnes([1,1,1,1]),             4);
+test("All zeros",        maxConsecutiveOnes([0,0,0]),               0);
+test("Empty",            maxConsecutiveOnes([]),                    0);`,
+      },
+      {
         name: 'Find Min and Max',
         patterns: ['Greedy'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Find Min and Max (Single Pass) ═════
-// Return both the smallest and largest numbers in the array as
-// an object { min, max }. Return { min: null, max: null } if
-// the array is empty.
-//
-// Example: findMinMax([3, 7, 1, 9, 4]) → { min: 1, max: 9 }
-//
-// Hint: track two running variables — currentMin (start at +∞)
-// and currentMax (start at -∞). One pass, O(n). The naive
-// approach uses 2n comparisons; the pair-wise trick achieves
-// roughly 3n/2 by comparing pairs first, then comparing the
-// smaller of the pair with min and the larger with max.
-
-function findMinMax(nums) {
+        code: `function findMinMax(nums) {
   // YOUR CODE HERE — return { min, max }
 }
 
@@ -5285,20 +4485,7 @@ test("Empty",        findMinMax([]),                 { min: null, max: null });`
         name: 'Third Largest Number',
         patterns: ['Greedy'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Third Largest Number ═════
-// Return the third DISTINCT largest number in the array. If
-// fewer than three distinct numbers exist, return the maximum.
-//
-// Example: thirdLargest([3, 2, 1])       → 1
-//          thirdLargest([1, 2])          → 2  (only two distinct)
-//          thirdLargest([2, 2, 3, 1])    → 1  (distinct: 3,2,1)
-//
-// Hint: extend the Second Largest pattern. Track first, second,
-// third with -Infinity sentinels. On each x: skip if equal to
-// any of first/second/third (must be DISTINCT). Otherwise
-// cascade-shift values down as needed.
-
-function thirdLargest(nums) {
+        code: `function thirdLargest(nums) {
   // YOUR CODE HERE
 }
 
@@ -5319,21 +4506,7 @@ test("Single",          thirdLargest([42]),            42);`,
         name: 'Kth Largest Element',
         patterns: ['Sorting'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Kth Largest Element ═════
-// Return the k-th largest element in the array (k is 1-indexed:
-// k=1 means the largest, k=2 the second largest, etc.). The k-th
-// largest is the element that would be at index n-k if the array
-// were sorted ascending. Duplicates count.
-//
-// Example: kthLargest([3,2,1,5,6,4], 2)         → 5
-//          kthLargest([3,2,3,1,2,4,5,5,6], 4)   → 4
-//
-// Three classic approaches:
-//   1. Sort + index   — O(n log n) time, simplest
-//   2. Heap of size k — O(n log k) time, better for streaming
-//   3. Quickselect    — O(n) average, the optimal-asymptotic
-
-function kthLargest(nums, k) {
+        code: `function kthLargest(nums, k) {
   // YOUR CODE HERE
 }
 
@@ -5354,22 +4527,7 @@ test("Single",         kthLargest([42], 1),                  42);`,
         name: 'Find Peak Element',
         patterns: ['Binary Search'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Find Peak Element ═════
-// A peak element is one strictly greater than its neighbors.
-// Given an array where adjacent elements differ, return the
-// INDEX of ANY peak (multiple peaks may exist; any valid index
-// is accepted). nums[-1] and nums[n] are treated as -∞.
-//
-// Example: findPeak([1, 2, 3, 1])    → 2   (value 3 is a peak)
-//          findPeak([1, 2, 1, 3, 5, 6, 4]) → 1 OR 5 (two peaks)
-//
-// Hint: binary search runs in O(log n). At mid: if nums[mid] >
-// nums[mid+1], a peak lies on the LEFT half (including mid).
-// Else a peak lies on the RIGHT half (excluding mid). The
-// answer is always inside the surviving half because the
-// edges are -∞.
-
-function findPeak(nums) {
+        code: `function findPeak(nums) {
   // YOUR CODE HERE — return any valid peak INDEX
 }
 
@@ -5393,21 +4551,7 @@ test("Two elements",  findPeak([1, 2]),                       [1]);`,
         name: 'Auto-Retry for Promises',
         patterns: ['Closure / State'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Auto-Retry for Promises ═════
-// Wrap a function that returns a Promise. If it rejects, retry up to
-// 'retries' times with exponential backoff between attempts.
-//
-// Example:
-//   const flaky = autoRetry(unreliableFn, 3, 100);
-//   await flaky();   // retries 3 times before giving up
-//
-// Hint:
-//  - async/await + try/catch in a for loop
-//  - back-off: delay * 2^attempt (or full-jitter)
-//  - throw the LAST error if all retries exhausted
-//  - common in production HTTP clients, queue workers, etc.
-
-function autoRetry(fn, retries = 3, delay = 100) {
+        code: `function autoRetry(fn, retries = 3, delay = 100) {
   // YOUR CODE HERE — return an async function with same signature as fn
 }
 
@@ -5448,20 +4592,7 @@ run();`,
         name: 'Batch Promises by Concurrency',
         patterns: ['Closure / State'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Throttle Promises by Batching ═════
-// Given an array of async task functions, run them with a CONCURRENCY
-// CAP — at most N in flight at once. Preserve the order of results.
-//
-// Example: 100 API calls, but only fire 5 at a time.
-//
-// Hint:
-//  - Don't just chunk into Math.ceil(n/k) batches and Promise.all each
-//    batch — that wastes the time when one task finishes early but its
-//    batch-mates are still running.
-//  - Better: an "always-N-in-flight" pool. Workers pull from a shared
-//    index until tasks run out.
-
-async function batchPromises(tasks, concurrency) {
+        code: `async function batchPromises(tasks, concurrency) {
   // YOUR CODE HERE — return array of results in same order as tasks
 }
 
@@ -5494,20 +4625,7 @@ run();`,
         name: 'Async Tasks in Series',
         patterns: ['Closure / State'],
         difficulty: 'Easy',
-        code: `// ═════ CHALLENGE: Execute Async Tasks in Series ═════
-// Given an array of async functions, run them ONE AT A TIME (not
-// concurrently). Return an array of results in order.
-//
-// This is the "do A, wait, then do B with A's result, etc." pattern.
-//
-// Example:
-//   const tasks = [() => fetchUser(), () => fetchPosts(), () => fetchComments()];
-//   const [user, posts, comments] = await runInSeries(tasks);
-//
-// Hint: a simple for-of loop with await is the most readable form.
-// Avoid Promise.all (that's parallel). Avoid forEach + await (broken).
-
-async function runInSeries(tasks) {
+        code: `async function runInSeries(tasks) {
   // YOUR CODE HERE — return array of results in order
 }
 
@@ -5539,25 +4657,7 @@ run();`,
         name: 'Implement useState (Basic)',
         patterns: ['Closure / State'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: Implement useState (Basic) ═════
-// Write a tiny version of React's useState that supports:
-//   - get the current value
-//   - set the value, which triggers a re-render
-//   - functional update form: setState(prev => prev + 1)
-//
-// We won't have the full React reconciler, so model the "render cycle"
-// as a function the user passes in. Each setState call invokes the
-// renderer with the new value.
-//
-// Example:
-//   const [getCount, setCount] = createState(0, render);
-//   setCount(c => c + 1);   // triggers render(1)
-//   setCount(5);            // triggers render(5)
-//
-// Hint: closure holds the current value. The setter is a function
-// that updates the closure variable and calls the renderer.
-
-function createState(initial, render) {
+        code: `function createState(initial, render) {
   // YOUR CODE HERE — return [getValue, setValue]
 }
 
@@ -5594,23 +4694,7 @@ test("Independent slot 2", getCount(), 12);   // unchanged`,
         name: 'JSON Prettifier',
         patterns: ['Recursion / D&C'],
         difficulty: 'Medium',
-        code: `// ═════ CHALLENGE: JSON Prettifier ═════
-// Given a JavaScript value, return a pretty-printed JSON string with
-// the specified indentation. Match JSON.stringify(value, null, indent).
-//
-// Example: prettify({a:1, b:[2,3]}, 2) →
-//   {
-//     "a": 1,
-//     "b": [
-//       2,
-//       3
-//     ]
-//   }
-//
-// Hint: recursive descent. Handle each type — null, boolean, number,
-// string (escape!), array, object — and emit indented lines.
-
-function prettify(value, indent = 2) {
+        code: `function prettify(value, indent = 2) {
   // YOUR CODE HERE — produce the indented JSON string
 }
 
@@ -5648,22 +4732,7 @@ test("Tab indent", prettify({x: 1}, 4),
         name: 'Task Runner with Concurrency Control',
         patterns: ['Closure / State'],
         difficulty: 'Hard',
-        code: `// ═════ CHALLENGE: Task Runner with Concurrency Control ═════
-// Build a class that manages async tasks with a concurrency cap. Tasks
-// can be added at any time; the runner processes at most N in flight.
-//
-// API:
-//   const runner = new TaskRunner(2);          // max 2 concurrent
-//   const p = runner.add(() => fetchUser(id)); // returns a Promise
-//   await p;
-//
-// Tasks added past the cap are queued and started as slots free up.
-// Each .add(fn) returns a promise resolving to fn's result.
-//
-// Hint: keep a counter of running tasks + a queue of pending tasks.
-// When a task finishes, dequeue the next one and start it.
-
-class TaskRunner {
+        code: `class TaskRunner {
   constructor(concurrency) {
     // YOUR CODE HERE
   }
@@ -5712,19 +4781,7 @@ run();`,
         name: 'Merge Intervals',
         patterns: ['Sorting', 'Greedy'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Merge Intervals =====
-// Given a list of intervals, merge all overlapping ones and
-// return the result sorted by start time.
-//
-// Example: merge([[1,3],[2,6],[8,10],[15,18]]) → [[1,6],[8,10],[15,18]]
-//          merge([[1,4],[4,5]])                → [[1,5]]   (touching counts as overlap)
-//
-// Constraints:
-// - Two intervals overlap if the next start <= the current end
-// - Sort by start first, then sweep once: O(n log n) time, O(n) space
-// - Don't mutate the input
-
-function merge(intervals) {
+        code: `function merge(intervals) {
   // YOUR CODE HERE
 
   return [];
@@ -5747,20 +4804,7 @@ test("Empty",           merge([]),                           []);`,
         name: 'Minimum Size Subarray Sum',
         patterns: ['Sliding Window', 'Two Pointer'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Minimum Size Subarray Sum =====
-// Find the length of the SHORTEST contiguous subarray whose sum is >= target.
-// Return 0 if no such subarray exists.
-//
-// Example: minSubArrayLen(7, [2,3,1,2,4,3]) → 2    ([4,3])
-//          minSubArrayLen(11, [1,1,1,1])    → 0    (total is only 4)
-//
-// Constraints:
-// - All numbers are positive (this is what makes the window valid)
-// - Grow the window from the right, shrink from the left while the sum
-//   still qualifies: O(n) time, O(1) space
-// - The brute-force O(n²) works but the window is the expected answer
-
-function minSubArrayLen(target, nums) {
+        code: `function minSubArrayLen(target, nums) {
   // YOUR CODE HERE
 
   return 0;
@@ -5783,24 +4827,7 @@ test("Empty",           minSubArrayLen(1,  []),            0);`,
         name: 'Sliding Window Maximum',
         patterns: ['Sliding Window', 'Stack'],
         difficulty: 'Hard',
-        code: `// ===== CHALLENGE: Sliding Window Maximum =====
-// Return the maximum of every contiguous window of size k.
-//
-// Example: maxSlidingWindow([1,3,-1,-3,5,3,6,7], 3) → [3,3,5,5,6,7]
-//
-//   [1  3  -1] -3  5  3  6  7   → 3
-//    1 [3  -1  -3] 5  3  6  7   → 3
-//    1  3 [-1  -3  5] 3  6  7   → 5
-//    ...
-//
-// Constraints:
-// - The naive answer re-scans each window: O(n·k). Aim for O(n).
-// - Use a MONOTONIC DEQUE of INDICES, kept in decreasing value order.
-//   The front is always the current window's max.
-// - Two rules per step: drop indices that fell out of the window,
-//   and pop from the back while the incoming value is larger.
-
-function maxSlidingWindow(nums, k) {
+        code: `function maxSlidingWindow(nums, k) {
   // YOUR CODE HERE
 
   return [];
@@ -5823,20 +4850,7 @@ test("Empty",        maxSlidingWindow([], 3),                  []);`,
         name: 'Longest Consecutive Sequence',
         patterns: ['Hash Map / Set'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Longest Consecutive Sequence =====
-// Find the length of the longest run of consecutive integers.
-// The numbers may be in any order and may contain duplicates.
-//
-// Example: longestConsecutive([100,4,200,1,3,2]) → 4    (1,2,3,4)
-//          longestConsecutive([0,3,7,2,5,8,4,6,0,1]) → 9 (0..8)
-//
-// Constraints:
-// - Sorting gives O(n log n). Aim for O(n) with a Set.
-// - The trick: only START counting from a number whose predecessor
-//   (n - 1) is NOT in the set — that's a sequence start. Every element
-//   is then visited at most twice overall.
-
-function longestConsecutive(nums) {
+        code: `function longestConsecutive(nums) {
   // YOUR CODE HERE
 
   return 0;
@@ -5859,22 +4873,7 @@ test("Empty",        longestConsecutive([]),                       0);`,
         name: 'Next Permutation',
         patterns: ['In-Place', 'Two Pointer'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Next Permutation =====
-// Rearrange the numbers into the next lexicographically greater
-// permutation. If none exists (already the largest), return the
-// smallest permutation instead (i.e. fully sorted ascending).
-//
-// Example: nextPermutation([1,2,3]) → [1,3,2]
-//          nextPermutation([3,2,1]) → [1,2,3]   (wrapped around)
-//          nextPermutation([1,1,5]) → [1,5,1]
-//
-// Constraints:
-// - In-place, O(n) time, O(1) extra space
-// - Three steps: (1) scan from the right for the first i where
-//   nums[i] < nums[i+1] — the "pivot"; (2) find the rightmost element
-//   greater than the pivot and swap; (3) reverse the suffix.
-
-function nextPermutation(nums) {
+        code: `function nextPermutation(nums) {
   // YOUR CODE HERE
 
   return nums;
@@ -5897,21 +4896,7 @@ test("Two swap",      nextPermutation([2,3,1]),   [3,1,2]);`,
         name: 'Rotate Matrix 90°',
         patterns: ['In-Place', 'Two Pointer'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Rotate Matrix 90° Clockwise =====
-// Rotate an n x n matrix 90 degrees clockwise, in place.
-//
-// Example:  [[1,2,3],        [[7,4,1],
-//            [4,5,6],   →     [8,5,2],
-//            [7,8,9]]         [9,6,3]]
-//
-// Constraints:
-// - In-place: O(1) extra space (no new matrix)
-// - The elegant trick: TRANSPOSE (swap across the main diagonal),
-//   then REVERSE each row. Two simple passes beat index gymnastics.
-// - Anticlockwise is the same but reverse the rows FIRST (or reverse
-//   the column order after transposing).
-
-function rotate(matrix) {
+        code: `function rotate(matrix) {
   // YOUR CODE HERE
 
   return matrix;
@@ -5933,21 +4918,7 @@ test("4x4", rotate([[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]),
         name: 'Shuffle Array (Fisher-Yates)',
         patterns: ['Math / Bit', 'In-Place'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Shuffle an Array (Fisher-Yates) =====
-// Return a UNIFORMLY random permutation — every ordering equally likely.
-//
-// The classic wrong answer is arr.sort(() => Math.random() - 0.5).
-// It is NOT uniform: the comparator is inconsistent, so the result
-// depends on the engine's sort algorithm and some orderings are far
-// more likely than others. Interviewers ask this to see if you know.
-//
-// Constraints:
-// - O(n) time, O(1) extra space if shuffling in place
-// - Walk from the END backwards; for each i pick j in [0, i] and swap
-// - Note the range is INCLUSIVE of i — picking from [0, i-1] gives you
-//   Sattolo's algorithm (only cyclic permutations), a classic off-by-one
-
-function shuffle(arr) {
+        code: `function shuffle(arr) {
   // YOUR CODE HERE
 
   return arr;
@@ -5979,20 +4950,7 @@ test("All positions reachable", positionSeen.every(s => s.size === 5), true);`,
         name: 'Array Intersection & Union',
         patterns: ['Hash Map / Set'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Array Intersection, Union & Difference =====
-// Implement the three set operations on arrays, WITHOUT the ES2025
-// Set methods (.intersection/.union/.difference) — build them yourself.
-//
-// Example: intersection([1,2,3,4], [2,4,6]) → [2,4]
-//          union([1,2], [2,3])              → [1,2,3]
-//          difference([1,2,3], [2])         → [1,3]
-//
-// Constraints:
-// - Results must be DEDUPLICATED and preserve first-seen order
-// - O(n + m) with a Set — the nested-loop version is O(n·m)
-// - difference(a, b) = "in a but not in b" (not symmetric)
-
-function intersection(a, b) {
+        code: `function intersection(a, b) {
   // YOUR CODE HERE
   return [];
 }
@@ -6026,20 +4984,7 @@ test("Empty inputs",        union([], []),                    []);`,
         name: 'Chunk Array',
         patterns: ['In-Place', 'Math / Bit'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Chunk an Array =====
-// Split an array into groups of at most \`size\`. The last chunk holds
-// the remainder. This is lodash's _.chunk, and it comes up constantly
-// in real work — batching API calls, paginating, grid layouts.
-//
-// Example: chunk([1,2,3,4,5], 2) → [[1,2],[3,4],[5]]
-//          chunk([1,2,3], 5)     → [[1,2,3]]
-//
-// Constraints:
-// - Don't mutate the input
-// - size < 1 (or non-integer) should return [] rather than loop forever
-// - O(n) time; try both a slice-based and a reduce-based version
-
-function chunk(arr, size) {
+        code: `function chunk(arr, size) {
   // YOUR CODE HERE
 
   return [];
@@ -6063,21 +5008,7 @@ test("Negative guard",   chunk([1,2], -1),      []);`,
         name: 'String Compression (RLE)',
         patterns: ['Two Pointer', 'In-Place'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: String Compression (Run-Length Encoding) =====
-// Compress a string by replacing runs of the same character with the
-// character followed by the run length. Runs of length 1 keep no count.
-// If the "compressed" result isn't shorter, return the ORIGINAL.
-//
-// Example: compress("aabcccccaaa") → "a2bc5a3"
-//          compress("abc")         → "abc"    (compression would be longer)
-//          compress("aabb")        → "aabb"   ("a2b2" is the same length)
-//
-// Constraints:
-// - Counts of 10+ are multi-digit: "aaaaaaaaaaaa" → "a12"
-// - O(n) time, single pass with a run counter
-// - The "return original if not shorter" rule is the part people miss
-
-function compress(str) {
+        code: `function compress(str) {
   // YOUR CODE HERE
 
   return str;
@@ -6101,22 +5032,7 @@ test("Empty",          compress(""),             "");`,
         name: 'Integer to Roman',
         patterns: ['Greedy', 'Hash Map / Set'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Integer to Roman =====
-// Convert an integer (1..3999) to a Roman numeral.
-// This is the mirror of the existing "Roman to Integer" challenge.
-//
-// Example: intToRoman(3)    → "III"
-//          intToRoman(58)   → "LVIII"    (50 + 5 + 3)
-//          intToRoman(1994) → "MCMXCIV"  (1000 + 900 + 90 + 4)
-//
-// Constraints:
-// - The whole trick is including the SIX subtractive pairs
-//   (900=CM, 400=CD, 90=XC, 40=XL, 9=IX, 4=IV) in your value table.
-//   With those present, a simple greedy descent works and no special
-//   cases are needed.
-// - O(1) time — the table has a fixed 13 entries
-
-function intToRoman(num) {
+        code: `function intToRoman(num) {
   // YOUR CODE HERE
 
   return "";
@@ -6141,23 +5057,7 @@ test("One",          intToRoman(1),    "I");`,
         name: 'Reverse Integer',
         patterns: ['Math / Bit'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Reverse Integer =====
-// Reverse the digits of a signed integer. If the result overflows the
-// 32-bit signed range [-2^31, 2^31 - 1], return 0.
-//
-// Example: reverse(123)  → 321
-//          reverse(-123) → -321
-//          reverse(120)  → 21     (trailing zeros vanish)
-//          reverse(1534236469) → 0  (overflows)
-//
-// Constraints:
-// - Keep the sign; reverse only the digits
-// - The overflow check is the real content of this question.
-//   JS numbers are doubles so you won't wrap like C would — you must
-//   check the bounds EXPLICITLY (INT32 range is ±2147483648).
-// - Try it with arithmetic (% and /) rather than string reversal
-
-function reverse(x) {
+        code: `function reverse(x) {
   // YOUR CODE HERE
 
   return 0;
@@ -6182,21 +5082,7 @@ test("Palindromic",    reverse(1221),       1221);`,
         name: 'Isomorphic Strings',
         patterns: ['Hash Map / Set'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Isomorphic Strings =====
-// Two strings are isomorphic if the characters of s can be replaced
-// to get t, with a CONSISTENT ONE-TO-ONE mapping. No two characters
-// may map to the same character, and a character maps to only one.
-//
-// Example: isIsomorphic("egg", "add")   → true   (e→a, g→d)
-//          isIsomorphic("foo", "bar")   → false  (o would map to both a and r)
-//          isIsomorphic("badc", "baba") → false  (d and c both map to a)
-//
-// Constraints:
-// - The trap is checking only ONE direction. "badc"/"baba" passes a
-//   one-way check and is still wrong — you need BOTH mappings.
-// - O(n) time with two maps (or one map plus a set of used targets)
-
-function isIsomorphic(s, t) {
+        code: `function isIsomorphic(s, t) {
   // YOUR CODE HERE
 
   return false;
@@ -6220,23 +5106,7 @@ test("Empty",       isIsomorphic("", ""),         true);`,
         name: 'Longest Repeating Char Replacement',
         patterns: ['Sliding Window', 'Hash Map / Set'],
         difficulty: 'Medium',
-        code: `// ===== CHALLENGE: Longest Repeating Character Replacement =====
-// You may change at most k characters. Return the length of the longest
-// substring containing a single repeated character after those changes.
-//
-// Example: characterReplacement("ABAB", 2)     → 4  (change both B→A)
-//          characterReplacement("AABABBA", 1)  → 4  ("AABA" → "AAAA")
-//
-// Constraints:
-// - The key insight: a window is VALID when
-//     (window length) - (count of the most frequent char in it) <= k
-//   because everything that isn't the majority char must be changed.
-// - Grow right, shrink left while invalid: O(n) time, O(26) space
-// - You do NOT need to recompute maxCount when shrinking — the answer
-//   only ever grows, so a stale maxCount is harmless. Worth understanding
-//   why, because interviewers ask.
-
-function characterReplacement(s, k) {
+        code: `function characterReplacement(s, k) {
   // YOUR CODE HERE
 
   return 0;
@@ -6259,21 +5129,7 @@ test("Empty",         characterReplacement("", 2),         0);`,
         name: 'Minimum Window Substring',
         patterns: ['Sliding Window', 'Hash Map / Set'],
         difficulty: 'Hard',
-        code: `// ===== CHALLENGE: Minimum Window Substring =====
-// Find the SHORTEST substring of s containing every character of t,
-// including duplicates. Return "" if there isn't one.
-//
-// Example: minWindow("ADOBECODEBANC", "ABC") → "BANC"
-//          minWindow("a", "aa")              → ""     (needs two a's)
-//
-// Constraints:
-// - Counts matter: t = "AABC" needs TWO A's in the window
-// - Grow right until valid, then shrink left while still valid,
-//   recording the best: O(|s| + |t|) time
-// - Track a "missing" counter rather than comparing whole maps on every
-//   step — comparing maps makes it O(n·k) and is the usual slow answer
-
-function minWindow(s, t) {
+        code: `function minWindow(s, t) {
   // YOUR CODE HERE
 
   return "";
@@ -6297,23 +5153,7 @@ test("Empty t",       minWindow("abc", ""),              "");`,
         name: 'Case Converter (camel/snake/kebab)',
         patterns: ['Hash Map / Set'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Case Converter =====
-// Convert between the three casings you actually meet in real code:
-// API responses in snake_case, CSS in kebab-case, JS in camelCase.
-//
-// Example: toCamel("user_first_name")  → "userFirstName"
-//          toSnake("userFirstName")    → "user_first_name"
-//          toKebab("userFirstName")    → "user-first-name"
-//
-// Constraints:
-// - toCamel must handle BOTH snake_case and kebab-case input
-// - Consecutive separators and leading/trailing ones shouldn't produce
-//   empty segments or stray capitals
-// - Already-converted input should pass through unchanged (idempotent)
-// - Bonus: deepCamelize(obj) — recursively convert every key of a
-//   nested object/array. This is the version you write at work.
-
-function toCamel(str) {
+        code: `function toCamel(str) {
   // YOUR CODE HERE
   return str;
 }
@@ -6348,25 +5188,7 @@ test("Empty",            toCamel(""),                 "");`,
         name: 'First Repeating Character',
         patterns: ['Hash Map / Set'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: First Repeating Character =====
-// Return the first character that appears more than once, scanning
-// left to right. Return null if every character is unique.
-//
-// This is the MIRROR of "First Non-Repeating Char" — and note the
-// two questions want different scans, which is the point.
-//
-// Example: firstRepeating("success")  → "c"   (s repeats later, but c
-//                                              is the first char we SEE twice)
-//          firstRepeating("abcdef")   → null
-//
-// Constraints:
-// - "First" means the earliest SECOND occurrence, not the earliest
-//   character that happens to repeat. In "success": s appears at 0 and 3,
-//   c at 2 and 3... walk it carefully — the answer is the first index
-//   at which you encounter an already-seen character.
-// - O(n) time, one pass with a Set — no second pass needed
-
-function firstRepeating(str) {
+        code: `function firstRepeating(str) {
   // YOUR CODE HERE
 
   return null;
@@ -6390,25 +5212,7 @@ test("Spaces count", firstRepeating("a b a"),    " ");`,
         name: 'Sum Without Loops',
         patterns: ['Recursion / D&C', 'Math / Bit'],
         difficulty: 'Easy',
-        code: `// ===== CHALLENGE: Sum an Array Without Loops =====
-// Sum the numbers in an array WITHOUT for / while / do-while.
-// A frequent warm-up: interviewers use it to see which tools you reach
-// for and whether you know their limits.
-//
-// Write FOUR versions:
-//   sumReduce   — Array.prototype.reduce
-//   sumRecursive — head + recurse on the tail
-//   sumTail      — tail-recursive with an accumulator
-//   sumNested    — handles arbitrarily nested arrays: [1,[2,[3,[4]]]] → 10
-//
-// Constraints:
-// - No for / while / do-while anywhere
-// - Handle the empty array (should be 0, not undefined or NaN)
-// - Know the catch: JS engines do NOT implement tail-call optimisation
-//   (despite it being in the ES2015 spec), so deep recursion still
-//   overflows the stack. reduce is the production answer.
-
-function sumReduce(arr) {
+        code: `function sumReduce(arr) {
   // YOUR CODE HERE
   return 0;
 }
@@ -6444,6 +5248,573 @@ test("nested",           sumNested([1,[2,[3,[4]]]]),  10);
 test("nested empty",     sumNested([[],[[]]]),        0);
 test("nested mixed",     sumNested([1,[2,3],[[4],5]]),15);`,
       },
+
+      // ===== Trees and DOM traversal =====
+
+      {
+        name: 'DOM Tree Height',
+        patterns: ['Tree Traversal', 'Recursion / D&C'],
+        difficulty: 'Easy',
+        code: `function treeHeight(node) {
+  // YOUR CODE HERE
+
+}
+
+// ═════ TREE HELPER (plain objects standing in for DOM nodes) ═════
+const el = (tag, ...children) => ({ tag, children });
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const page = el("html",
+  el("head", el("title")),
+  el("body",
+    el("header", el("nav", el("ul", el("li"), el("li")))),
+    el("main", el("p"))));
+
+test("Nested page", treeHeight(page), 6);
+test("Single node", treeHeight(el("div")), 1);
+test("Empty tree", treeHeight(null), 0);
+test("Wide but shallow", treeHeight(el("ul", el("li"), el("li"), el("li"), el("li"))), 2);
+test("Deepest branch is the last child", treeHeight(el("div", el("p"), el("p"), el("section", el("div", el("span"))))), 4);`,
+      },
+      {
+        name: 'Invert Binary Tree',
+        patterns: ['Tree Traversal', 'Recursion / D&C'],
+        difficulty: 'Easy',
+        code: `function invertTree(root) {
+  // YOUR CODE HERE
+
+}
+
+// ═════ TREE HELPERS ═════
+const node = (val, left = null, right = null) => ({ val, left, right });
+// A tree as nested [val, left, right] arrays, so a test can compare a whole tree at once.
+const shape = (n) => (n ? [n.val, shape(n.left), shape(n.right)] : null);
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const full = node(4, node(2, node(1), node(3)), node(7, node(6), node(9)));
+test("Full tree", shape(invertTree(full)), [4, [7, [9, null, null], [6, null, null]], [2, [3, null, null], [1, null, null]]]);
+test("Single node", shape(invertTree(node(1))), [1, null, null]);
+test("Empty tree", invertTree(null), null);
+test("Left chain becomes a right chain", shape(invertTree(node(1, node(2, node(3))))), [1, null, [2, null, [3, null, null]]]);
+const same = node(5, node(3), node(8));
+test("Returns the same root, mirrored in place", invertTree(same) === same && same.left.val === 8, true);`,
+      },
+      {
+        name: 'Level-Order Traversal',
+        patterns: ['Tree Traversal'],
+        difficulty: 'Medium',
+        code: `function levelOrder(root) {
+  // YOUR CODE HERE
+
+}
+
+// ═════ TREE HELPER (plain objects standing in for DOM nodes) ═════
+const el = (tag, ...children) => ({ tag, children });
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const page = el("body",
+  el("header", el("h1"), el("nav")),
+  el("main", el("article", el("p"), el("p"))),
+  el("footer"));
+
+test("Page", levelOrder(page), [["body"], ["header", "main", "footer"], ["h1", "nav", "article"], ["p", "p"]]);
+test("Single node", levelOrder(el("div")), [["div"]]);
+test("Empty tree", levelOrder(null), []);
+test("A chain", levelOrder(el("a", el("b", el("c")))), [["a"], ["b"], ["c"]]);
+test("Left to right across different parents", levelOrder(el("r", el("x", el("x1")), el("y"), el("z", el("z1"), el("z2")))), [["r"], ["x", "y", "z"], ["x1", "z1", "z2"]]);`,
+      },
+      {
+        name: 'getElementsByClassName from Scratch',
+        patterns: ['Tree Traversal'],
+        difficulty: 'Medium',
+        code: `function getElementsByClassName(root, classNames) {
+  // YOUR CODE HERE
+
+}
+
+// ═════ TREE HELPERS (plain objects standing in for DOM nodes) ═════
+const el = (id, className, ...children) => ({ tag: "div", id, className, children });
+const ids = (nodes) => nodes && nodes.map((n) => n.id);
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const root = el("root", "app",
+  el("a", "card big",
+    el("a1", "card"),
+    el("a2", "big card featured")),
+  el("b", "cardboard"),
+  el("c", "  card   big  "),
+  el("d", "", el("d1", "card big")));
+
+test("One class, document order", ids(getElementsByClassName(root, "card")), ["a", "a1", "a2", "c", "d1"]);
+test("Every class must match, in any order", ids(getElementsByClassName(root, "big card")), ["a", "a2", "c", "d1"]);
+test("Whole class names only", ids(getElementsByClassName(root, "car")), []);
+test("The root itself is not included", ids(getElementsByClassName(root, "app")), []);
+test("Extra spaces in the query", ids(getElementsByClassName(root, "  featured ")), ["a2"]);
+test("Empty query matches nothing", ids(getElementsByClassName(root, "")), []);`,
+      },
+      {
+        name: 'Find Matching Node in Identical Tree',
+        patterns: ['Tree Traversal'],
+        difficulty: 'Medium',
+        code: `function findCorrespondingNode(rootA, rootB, target) {
+  // YOUR CODE HERE
+
+}
+
+// ═════ TREE HELPERS (plain objects standing in for DOM nodes) ═════
+const el = (tag, ...children) => ({ tag, parent: null, children });
+// Sets every node's parent pointer, the way the DOM's parentNode works.
+const withParents = (node, parent = null) => {
+  node.parent = parent;
+  for (const child of node.children) withParents(child, node);
+  return node;
+};
+const makePage = () => withParents(
+  el("div",
+    el("p"),
+    el("p", el("span"), el("span")),
+    el("p")));
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const A = makePage();
+const B = makePage();
+
+test("Root maps to root", findCorrespondingNode(A, B, A) === B, true);
+test("A leaf", findCorrespondingNode(A, B, A.children[0]) === B.children[0], true);
+test("Two levels down", findCorrespondingNode(A, B, A.children[1].children[1]) === B.children[1].children[1], true);
+test("Same tag as its siblings: position decides, not the tag", findCorrespondingNode(A, B, A.children[2]) === B.children[2], true);
+test("A node that is not in tree A", findCorrespondingNode(A, B, makePage().children[0]), null);`,
+      },
+      {
+        name: 'Lowest Common Ancestor of Two Nodes',
+        patterns: ['Tree Traversal', 'Hash Map / Set'],
+        difficulty: 'Medium',
+        code: `function lowestCommonAncestor(a, b) {
+  // YOUR CODE HERE
+
+}
+
+// ═════ TREE HELPERS (plain objects standing in for DOM nodes) ═════
+const el = (id, ...children) => ({ id, parent: null, children });
+// Sets every node's parent pointer, the way the DOM's parentNode works.
+const withParents = (node, parent = null) => {
+  node.parent = parent;
+  for (const child of node.children) withParents(child, node);
+  return node;
+};
+// null stays null, so a function that returns nothing (undefined) does not pass.
+const idOf = (n) => (n === null ? null : n && n.id);
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+const root = withParents(
+  el("root",
+    el("a",
+      el("a1", el("a1x")),
+      el("a2")),
+    el("b", el("b1"))));
+const [a, b] = root.children;
+const [a1, a2] = a.children;
+const a1x = a1.children[0];
+const b1 = b.children[0];
+
+test("Siblings", idOf(lowestCommonAncestor(a1, a2)), "a");
+test("Different depths", idOf(lowestCommonAncestor(a1x, a2)), "a");
+test("Different subtrees", idOf(lowestCommonAncestor(a1x, b1)), "root");
+test("One is an ancestor of the other", idOf(lowestCommonAncestor(a, a1x)), "a");
+test("The same node twice", idOf(lowestCommonAncestor(b1, b1)), "b1");
+test("Nodes in different trees", idOf(lowestCommonAncestor(a1, withParents(el("other", el("x"))).children[0])), null);`,
+      },
+    ],
+  },
+  {
+    label: 'TypeScript Challenges',
+    tag: 'JS',
+    kind: 'challenge',
+    templates: [
+      {
+        name: 'MyPick and MyOmit',
+        lang: 'ts',
+        difficulty: 'Easy',
+        code: `type MyPick<T, K> = any; // YOUR CODE HERE
+
+type MyOmit<T, K> = any; // YOUR CODE HERE
+
+function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): MyPick<T, K> {
+  // YOUR CODE HERE
+}
+
+function omit<T extends object, K extends keyof T>(obj: T, keys: K[]): MyOmit<T, K> {
+  // YOUR CODE HERE
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+interface Todo {
+  readonly id: number;
+  title: string;
+  description?: string;
+  completed: boolean;
+}
+
+type _pick1 = Expect<Equal<MyPick<Todo, "title">, { title: string }>>;
+type _pick2 = Expect<Equal<MyPick<Todo, "title" | "completed">, { title: string; completed: boolean }>>;
+type _pick3 = Expect<Equal<MyPick<Todo, "id" | "description">, { readonly id: number; description?: string }>>;
+type _omit1 = Expect<Equal<MyOmit<Todo, "description" | "completed">, { readonly id: number; title: string }>>;
+type _omit2 = Expect<Equal<MyOmit<Todo, "id" | "title">, { description?: string; completed: boolean }>>;
+
+// These must NOT compile: a key that Todo does not have is a mistake.
+// @ts-expect-error
+type _bad1 = MyPick<Todo, "nope">;
+// @ts-expect-error
+type _bad2 = MyOmit<Todo, "nope">;
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+const todo: Todo = { id: 1, title: "Write tests", description: "for pick and omit", completed: false };
+test("pick one key", pick(todo, ["title"]), { title: "Write tests" });
+test("pick two keys", pick(todo, ["id", "completed"]), { id: 1, completed: false });
+test("omit one key", omit(todo, ["description"]), { id: 1, title: "Write tests", completed: false });
+test("omit two keys", omit(todo, ["id", "title"]), { description: "for pick and omit", completed: false });
+test("omit does not change the input", todo, { id: 1, title: "Write tests", description: "for pick and omit", completed: false });`,
+      },
+      {
+        name: 'Model an API Response',
+        lang: 'ts',
+        difficulty: 'Easy',
+        code: `interface User {
+  id: number;
+  name: string;
+}
+
+type RequestState<T> = any; // YOUR CODE HERE
+
+function describeState(state: RequestState<User>): string {
+  // YOUR CODE HERE
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+type _status = Expect<Equal<RequestState<User>["status"], "loading" | "success" | "error">>;
+type _data = Expect<Equal<Extract<RequestState<User>, { status: "success" }>["data"], User>>;
+type _error = Expect<Equal<Extract<RequestState<User>, { status: "error" }>["error"], string>>;
+
+// These must NOT compile: each one is a state the UI should never be in.
+// @ts-expect-error success with no data
+const bad1: RequestState<User> = { status: "success" };
+// @ts-expect-error loading does not carry data yet
+const bad2: RequestState<User> = { status: "loading", data: { id: 1, name: "Ada" } };
+// @ts-expect-error an error needs its message
+const bad3: RequestState<User> = { status: "error" };
+// @ts-expect-error there is no "idle" state in this model
+const bad4: RequestState<User> = { status: "idle" };
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+test("loading", describeState({ status: "loading" }), "Loading...");
+test("success", describeState({ status: "success", data: { id: 1, name: "Ada" } }), "Hello, Ada");
+test("error", describeState({ status: "error", error: "Network timeout" }), "Failed: Network timeout");`,
+      },
+      {
+        name: 'DeepReadonly<T>',
+        lang: 'ts',
+        difficulty: 'Medium',
+        code: `type DeepReadonly<T> = any; // YOUR CODE HERE
+
+function deepFreeze<T>(value: T): DeepReadonly<T> {
+  // YOUR CODE HERE
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+interface Config {
+  name: string;
+  server: { host: string; port: number; tls: { enabled: boolean } };
+  tags: string[];
+  onReady: () => void;
+}
+
+type _prim = Expect<Equal<DeepReadonly<string>, string>>;
+type _fn = Expect<Equal<DeepReadonly<(x: number) => string>, (x: number) => string>>;
+type _arr = Expect<Equal<DeepReadonly<{ id: number }[]>, readonly { readonly id: number }[]>>;
+type _deep = Expect<Equal<DeepReadonly<Config>, {
+  readonly name: string;
+  readonly server: { readonly host: string; readonly port: number; readonly tls: { readonly enabled: boolean } };
+  readonly tags: readonly string[];
+  readonly onReady: () => void;
+}>>;
+
+// These must NOT compile: every level is read-only. This function is never
+// called, so the checker reads these lines and the runtime never runs them.
+function mutations(cfg: DeepReadonly<Config>) {
+  // @ts-expect-error top level
+  cfg.name = "other";
+  // @ts-expect-error two levels down
+  cfg.server.port = 8080;
+  // @ts-expect-error three levels down
+  cfg.server.tls.enabled = false;
+  // @ts-expect-error arrays become readonly arrays, which have no push
+  cfg.tags.push("new");
+  cfg.onReady(); // functions are left alone, so calling one is fine
+}
+
+// ===== RUNTIME TESTS: deepFreeze is the runtime twin of DeepReadonly =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+const config: Config = {
+  name: "api",
+  server: { host: "localhost", port: 3000, tls: { enabled: true } },
+  tags: ["a", "b"],
+  onReady: () => {},
+};
+const frozen = deepFreeze(config);
+test("returns the same object", frozen === config, true);
+test("top level is frozen", Object.isFrozen(config), true);
+test("nested object is frozen", Object.isFrozen(config.server), true);
+test("deepest object is frozen", Object.isFrozen(config.server.tls), true);
+test("arrays are frozen", Object.isFrozen(config.tags), true);
+test("primitives pass through", deepFreeze(42), 42);`,
+      },
+      {
+        name: 'Type-safe groupBy',
+        lang: 'ts',
+        difficulty: 'Medium',
+        code: `function groupBy(items: any[], key: (item: any) => any): any {
+  // YOUR CODE HERE
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+interface User {
+  name: string;
+  role: "admin" | "editor" | "viewer";
+  age: number;
+}
+
+const users: User[] = [
+  { name: "Ada", role: "admin", age: 36 },
+  { name: "Linus", role: "editor", age: 28 },
+  { name: "Grace", role: "admin", age: 45 },
+  { name: "Tim", role: "viewer", age: 28 },
+];
+
+const byRole = groupBy(users, (u) => u.role);
+const byParity = groupBy([1, 2, 3, 4, 5], (n) => (n % 2 === 0 ? "even" : "odd"));
+const byAge = groupBy(users, (u) => u.age);
+
+type _role = Expect<Equal<typeof byRole, Record<"admin" | "editor" | "viewer", User[]>>>;
+type _parity = Expect<Equal<typeof byParity, Record<"even" | "odd", number[]>>>;
+type _age = Expect<Equal<typeof byAge, Record<number, User[]>>>;
+type _item = Expect<Equal<typeof byRole.admin, User[]>>;
+
+// These must NOT compile. This function is never called, so the checker
+// reads these lines and the runtime never runs them.
+function misuse() {
+  // @ts-expect-error there is no "owner" group: the key type is exactly the role union
+  byRole.owner;
+  // @ts-expect-error an object cannot be a property key
+  groupBy(users, (u) => ({ role: u.role }));
+  // @ts-expect-error the callback gets a User, which has no email
+  groupBy(users, (u) => u.email);
+}
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+test("group by role", byRole?.admin?.map((u) => u.name), ["Ada", "Grace"]);
+test("every role present", Object.keys(byRole ?? {}).sort(), ["admin", "editor", "viewer"]);
+test("keeps input order in each group", byAge?.[28]?.map((u) => u.name), ["Linus", "Tim"]);
+test("computed string keys", byParity, { odd: [1, 3, 5], even: [2, 4] });
+test("empty input", groupBy([], (x: number) => x), {});
+test("a key named __proto__ is just a key", groupBy(["__proto__", "a"], (s) => s)?.["__proto__"], ["__proto__"]);`,
+      },
+      {
+        name: 'Typed EventEmitter',
+        lang: 'ts',
+        difficulty: 'Medium',
+        code: `class TypedEmitter<Events> {
+  on(event: any, listener: (payload: any) => void): void {
+    // YOUR CODE HERE
+  }
+
+  off(event: any, listener: (payload: any) => void): void {
+    // YOUR CODE HERE
+  }
+
+  emit(event: any, payload: any): void {
+    // YOUR CODE HERE
+  }
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+type AppEvents = {
+  login: { user: string };
+  logout: { reason: string };
+  message: { from: string; text: string };
+};
+
+const emitter = new TypedEmitter<AppEvents>();
+const log: string[] = [];
+
+// The listener's parameter type comes from the event name.
+emitter.on("message", (m) => {
+  type _payload = Expect<Equal<typeof m, { from: string; text: string }>>;
+  log.push(m.from + ": " + m.text);
+});
+
+// These must NOT compile. This function is never called, so the checker
+// reads these lines and the runtime never runs them.
+function misuse() {
+  // @ts-expect-error "logni" is not an event
+  emitter.emit("logni", { user: "ada" });
+  // @ts-expect-error login's payload needs a user
+  emitter.emit("login", { name: "ada" });
+  // @ts-expect-error logout's payload is { reason }, not a string
+  emitter.emit("logout", "bye");
+  // @ts-expect-error a login listener receives { user }, which has no text
+  emitter.on("login", (p) => log.push(p.text));
+  // @ts-expect-error off must name a real event too
+  emitter.off("nope", () => {});
+}
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+emitter.emit("message", { from: "ada", text: "hi" });
+test("listener receives the payload", log, ["ada: hi"]);
+
+const seen: string[] = [];
+const onLogin = (p: { user: string }) => seen.push("first " + p.user);
+emitter.on("login", onLogin);
+emitter.on("login", (p) => seen.push("second " + p.user));
+emitter.emit("login", { user: "grace" });
+test("every listener runs, in order", seen, ["first grace", "second grace"]);
+
+emitter.off("login", onLogin);
+emitter.emit("login", { user: "tim" });
+test("off removes only that listener", seen, ["first grace", "second grace", "second tim"]);
+
+let threw = false;
+try { emitter.emit("logout", { reason: "idle" }); } catch { threw = true; }
+test("emit with no listeners does nothing", threw, false);
+test("events do not leak into each other", log, ["ada: hi"]);`,
+      },
+      {
+        name: 'Paths<T> (dotted keys)',
+        lang: 'ts',
+        difficulty: 'Hard',
+        code: `type Paths<T> = any; // YOUR CODE HERE
+
+type PathValue<T, P> = any; // YOUR CODE HERE
+
+function get(obj: any, path: string): any {
+  // YOUR CODE HERE
+}
+
+// ===== TYPE TESTS (checked by the TypeScript type checker when you press Run) =====
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Expect<T extends true> = T;
+
+interface Settings {
+  theme: string;
+  server: { host: string; port: number; tls: { enabled: boolean } };
+  tags: string[];
+}
+
+type _flat = Expect<Equal<Paths<{ a: number; b: string }>, "a" | "b">>;
+type _nested = Expect<Equal<Paths<{ a: { b: { c: number } } }>, "a" | "a.b" | "a.b.c">>;
+type _settings = Expect<Equal<Paths<Settings>,
+  "theme" | "server" | "server.host" | "server.port" | "server.tls" | "server.tls.enabled" | "tags">>;
+type _value = Expect<Equal<PathValue<Settings, "server.tls">, { enabled: boolean }>>;
+
+const settings: Settings = {
+  theme: "dark",
+  server: { host: "localhost", port: 8080, tls: { enabled: true } },
+  tags: ["a", "b"],
+};
+
+// get returns the type AT the path, not unknown.
+const port = get(settings, "server.port");
+const tls = get(settings, "server.tls.enabled");
+type _port = Expect<Equal<typeof port, number>>;
+type _tls = Expect<Equal<typeof tls, boolean>>;
+
+// These must NOT compile. This function is never called, so the checker
+// reads these lines and the runtime never runs them.
+function misuse() {
+  // @ts-expect-error no such key under server
+  get(settings, "server.nope");
+  // @ts-expect-error a path cannot end in a dot
+  get(settings, "server.");
+  // @ts-expect-error arrays are leaves: the path stops at tags
+  get(settings, "tags.length");
+  // @ts-expect-error the value at server.port is a number, not a string
+  const s: string = get(settings, "server.port");
+}
+
+// ===== RUNTIME TESTS =====
+const test = (name: string, actual: unknown, expected: unknown) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : "Expected " + JSON.stringify(expected) + ", got " + JSON.stringify(actual));
+};
+
+test("top-level key", get(settings, "theme"), "dark");
+test("two levels", port, 8080);
+test("three levels", tls, true);
+test("path to an object", get(settings, "server.tls"), { enabled: true });
+test("path to an array", get(settings, "tags"), ["a", "b"]);`,
+      },
     ],
   },
   {
@@ -6454,17 +5825,7 @@ test("nested mixed",     sumNested([1,[2,3],[[4],5]]),15);`,
       {
         name: 'Responsive Images (srcset / AVIF)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Image Optimization =====
-// Images are usually the largest thing on a page and almost always the LCP
-// element. This covers the four levers and the one people get wrong.
-//
-// TASK
-//   1. Serve the right RESOLUTION per device (srcset + sizes)
-//   2. Serve modern FORMATS with fallback (<picture> + AVIF/WebP)
-//   3. Reserve space so the image cannot cause layout shift (CLS)
-//   4. Get loading priority right — lazy below the fold, eager for the LCP
-
-function ResolutionSwitching() {
+        code: `function ResolutionSwitching() {
   return (
     <figure style={{ margin: 0 }}>
       {/* srcset = candidates; sizes = how WIDE the image will DISPLAY.
@@ -6475,6 +5836,8 @@ function ResolutionSwitching() {
         srcSet="/img/hero-400.jpg 400w, /img/hero-800.jpg 800w, /img/hero-1600.jpg 1600w"
         sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 600px"
         alt="A team collaborating around a whiteboard"
+        loading="eager"
+        fetchPriority="high"
         width={800}
         height={450}
         style={{ width: '100%', height: 'auto', borderRadius: 8, background: '#222' }}
@@ -6569,18 +5932,7 @@ render(<App />);
       {
         name: 'Protected Route (Auth + RBAC)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Protected Route with Roles =====
-// Authentication = WHO you are. Authorization = WHAT you may do. This shows
-// both gates, and the three states people forget.
-//
-// TASK
-//   1. Gate a page behind login (authentication)
-//   2. Gate an admin page behind a role (authorization)
-//   3. Handle the LOADING state — before the session is known you are neither
-//      logged in nor logged out, and getting this wrong bounces real users
-//   4. Remember where the user was going, so login returns them there
-
-const AuthContext = React.createContext(null);
+        code: `const AuthContext = React.createContext(null);
 
 // Fake session restore — in a real app this validates a token with the server.
 function restoreSession() {
@@ -6732,17 +6084,7 @@ render(<Root />);
       {
         name: 'Mini Redux Store',
         jsx: true,
-        code: `// ===== MACHINE CODING: Build a Redux-like Store =====
-// Implement the store Redux gives you, so you can explain what it actually
-// does — and why useReducer + Context is not the same thing.
-//
-// TASK
-//   1. createStore(reducer): getState, dispatch, subscribe
-//   2. Wire it into React WITHOUT re-rendering every consumer
-//   3. A selector hook, so a component re-renders only when its slice changes
-//   4. Middleware (logging), to show why dispatch is wrapped
-
-// ---------- 1. the store — ~20 lines, no dependencies ----------
+        code: `// ---------- 1. the store — ~20 lines, no dependencies ----------
 function createStore(reducer, initialState, middleware) {
   let state = reducer(initialState, { type: '@@INIT' });
   const listeners = new Set();
@@ -6868,18 +6210,10 @@ render(<App />);
       {
         name: 'Client Cache (stale-while-revalidate)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Client-Side Caching =====
-// Build the caching behaviour TanStack Query / SWR give you, so you can
-// explain what those libraries actually do.
-//
-// TASK
-//   1. Serve cached data instantly on revisit (no loading flash)
-//   2. Revalidate in the background and update when fresh data lands
-//   3. De-duplicate concurrent requests for the same key
-//   4. Expose isStale so the UI can show "refreshing"
-
-// ---------- a tiny cache with request de-duplication ----------
-const cache = new Map();     // key -> { data, updatedAt }
+        code: `// ---------- a tiny cache with request de-duplication ----------
+// Named queryCache, not cache: React exports a function called cache, and the
+// playground puts every React export in scope, so a const cache would not compile.
+const queryCache = new Map();     // key -> { data, updatedAt }
 const inflight = new Map();  // key -> Promise   (de-dupe)
 
 const STALE_MS = 5000;
@@ -6895,7 +6229,7 @@ function getOrFetch(key, fetcher) {
   // Two callers mounting at once must share ONE request, not fire two.
   if (inflight.has(key)) return inflight.get(key);
   const p = fetcher()
-    .then(data => { cache.set(key, { data, updatedAt: Date.now() }); return data; })
+    .then(data => { queryCache.set(key, { data, updatedAt: Date.now() }); return data; })
     .finally(() => inflight.delete(key));
   inflight.set(key, p);
   return p;
@@ -6903,7 +6237,7 @@ function getOrFetch(key, fetcher) {
 
 function useCachedUser(id) {
   const key = 'user:' + id;
-  const entry = cache.get(key);
+  const entry = queryCache.get(key);
 
   // Initialise FROM CACHE, so a revisit renders data on the first frame.
   const [data, setData] = React.useState(entry ? entry.data : null);
@@ -6912,7 +6246,7 @@ function useCachedUser(id) {
 
   React.useEffect(() => {
     let cancelled = false;
-    const cached = cache.get(key);
+    const cached = queryCache.get(key);
     setData(cached ? cached.data : null);
     setError(null);
 
@@ -6984,18 +6318,7 @@ render(<App />);
       {
         name: 'WebSocket Live Feed',
         jsx: true,
-        code: `// ===== MACHINE CODING: WebSocket Live Feed =====
-// Real-time UI with the connection lifecycle handled properly. The playground
-// has no server, so FakeSocket below implements the same API as a real
-// WebSocket — swap in "new WebSocket(url)" and the component is unchanged.
-//
-// TASK
-//   1. Connect on mount, close on unmount
-//   2. Show connection status
-//   3. Reconnect with exponential backoff + jitter after a drop
-//   4. Cap the buffer so memory doesn't grow forever
-
-// ---------- stand-in with the real WebSocket surface ----------
+        code: `// ---------- stand-in with the real WebSocket surface ----------
 class FakeSocket {
   constructor() {
     this.readyState = 0;                       // CONNECTING
@@ -7119,17 +6442,7 @@ render(<App />);
       {
         name: 'Optimistic UI Updates',
         jsx: true,
-        code: `// ===== MACHINE CODING: Optimistic UI Updates =====
-// Show the result of an action IMMEDIATELY, then reconcile with the server.
-// The graded part is the FAILURE path: what happens when the request loses.
-//
-// TASK
-//   1. Add a todo that appears instantly, before the server confirms
-//   2. Mark it visually as pending
-//   3. Roll it back and surface an error if the request fails
-//   4. Keep the input usable throughout
-//
-// Two implementations below: React 19's useOptimistic, and the manual
+        code: `// Two implementations below: React 19's useOptimistic, and the manual
 // rollback you would write in React 18. Know both — interviewers ask why
 // useOptimistic exists.
 
@@ -7156,11 +6469,12 @@ function OptimisticTodos() {
     (current, pendingText) => [...current, { id: 'pending', text: pendingText, pending: true }]
   );
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    const text = new FormData(e.target).get('text');
+  // A form ACTION receives the FormData, not an event: there is nothing to
+  // preventDefault, and React 19 resets the uncontrolled form itself once the
+  // action finishes.
+  async function onSubmit(formData) {
+    const text = formData.get('text');
     if (!text) return;
-    e.target.reset();
     setError(null);
 
     // MUST be inside a transition/action, or React warns and discards it.
@@ -7217,7 +6531,7 @@ function ManualOptimisticTodos() {
     <section>
       <h4 style={{ margin: '0 0 8px' }}>Manual rollback (React 18 style)</h4>
       <form
-        onSubmit={e => { e.preventDefault(); const v = e.target.text.value; e.target.reset(); if (v) add(v); }}
+        onSubmit={e => { e.preventDefault(); const v = e.target.elements.text.value; e.target.reset(); if (v) add(v); }}
         style={{ display: 'flex', gap: 8, marginBottom: 10 }}
       >
         <input name="text" placeholder='try "fail"' style={{ flex: 1, padding: 6 }} />
@@ -7261,16 +6575,7 @@ render(<App />);
       {
         name: 'Suspense + Lazy (Code Splitting)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Suspense + React.lazy =====
-// Code splitting in React is React.lazy + Suspense. This template shows both
-// halves: a lazily-loaded component, and Suspense for data.
-//
-// TASK
-//   1. Load a component only when it is needed, with a fallback
-//   2. Handle the case where loading FAILS (Suspense does not do this)
-//   3. Show a Suspense-for-data resource
-//
-// In a real app the lazy factory is a dynamic import:
+        code: `// In a real app the lazy factory is a dynamic import:
 //     const Heavy = React.lazy(() => import('./HeavyChart'));
 // which is what makes the bundler emit a separate chunk. The playground has
 // no module system, so we resolve a component directly — the API and the
@@ -7382,17 +6687,7 @@ render(<App />);
       {
         name: 'Display Data from a JSON Prop',
         jsx: true,
-        code: `// ===== MACHINE CODING: Display Data from a JSON Prop =====
-// The classic screening exercise: you are handed a JSON file, pass it to a
-// component as a prop, access the data, and render what's asked for.
-//
-// TASK
-//   1. Pass \`data\` into <TeamDirectory /> as a prop
-//   2. Render each member's name, role and location
-//   3. Show the total headcount
-//   4. Handle the empty case
-//
-// WHAT INTERVIEWERS ACTUALLY CHECK
+        code: `// WHAT INTERVIEWERS ACTUALLY CHECK
 //   - a stable \`key\` that is NOT the array index
 //   - destructuring props rather than \`props.data.members\`
 //   - defensive access: the shape may not be what you assume
@@ -7465,12 +6760,7 @@ render(<App />);
       {
         name: 'JSON → API → React fetch',
         jsx: true,
-        code: `// ===== MACHINE CODING: JSON file -> Express endpoint -> React fetch -> UI =====
-// The full-stack version of the exercise above. The playground has no server,
-// so the Express half is shown as reference and the fetch is stubbed with the
-// SAME contract — the React code below is exactly what you'd ship.
-//
-// ---------------------------------------------------------------------------
+        code: `// ---------------------------------------------------------------------------
 // BACKEND (reference — this is the code you'd write in the interview)
 // ---------------------------------------------------------------------------
 // import express from 'express';
@@ -7584,18 +6874,7 @@ render(<App />);
       {
         name: 'Fetch Users from an API',
         jsx: true,
-        code: `// ===== MACHINE CODING: List users from a real API =====
-// This one genuinely hits the network:
-//   https://jsonplaceholder.typicode.com/users
-// Press Run and watch every state happen for real.
-//
-// TASK
-//   1. Fetch the users on mount and render name / email / company
-//   2. Handle all four states — loading, error, empty, success
-//   3. Cancel the request if the component unmounts before it lands
-//   4. Let the user retry after a failure
-
-const API = 'https://jsonplaceholder.typicode.com/users';
+        code: `const API = 'https://jsonplaceholder.typicode.com/users';
 
 function Users() {
   // ONE status field, not three booleans. isLoading + isError can represent
@@ -7716,14 +6995,7 @@ render(<App />);
       {
         name: 'Pagination',
         jsx: true,
-        code: `// ===== MACHINE CODING: Pagination Component =====
-// Build a paginated list that fetches data from a simulated API.
-// - Display items for the current page
-// - Show page navigation (prev/next + page numbers)
-// - Handle loading state
-// - Highlight the active page
-
-// Simulated API
+        code: `// Simulated API
 const ALL_ITEMS = Array.from({ length: 50 }, (_, i) => ({
   id: i + 1,
   title: \`Item #\${i + 1}\`,
@@ -7782,6 +7054,7 @@ function Pagination() {
         </button>
         {pageNums.map(n => (
           <button key={n} onClick={() => setPage(n)}
+            aria-label={"Page " + n} aria-current={n === page ? "page" : undefined}
             style={{
               padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc",
               background: n === page ? "#4f46e5" : "#fff",
@@ -7808,15 +7081,7 @@ render(<Pagination />);`,
       {
         name: 'Search Filter',
         jsx: true,
-        code: `// ===== MACHINE CODING: Real-time Search Filter =====
-// Filter a product list as the user types.
-//
-// TASK
-//   1. Filter as the user types — case-insensitive, across name AND category
-//   2. Show a match count and a real empty state
-//   3. Then the follow-up you will actually be asked: "now add debouncing"
-//
-// BOTH versions are below, side by side, with counters. Type in each and watch
+        code: `// BOTH versions are below, side by side, with counters. Type in each and watch
 // the numbers — then read WHAT'S BEING GRADED, because for a local array the
 // debounced one is measurably WORSE, and saying so is the stronger answer.
 
@@ -8015,129 +7280,232 @@ render(<App />);
       {
         name: 'Chat App',
         jsx: true,
-        code: `// ===== MACHINE CODING: Real-time Chat Application =====
-// Build a chat app with multiple users.
-// - Switch between users
-// - Send messages
-// - Messages appear in real-time
-// - Auto-scroll to latest message
-// - Simulated bot replies
+        code: `// WEBSOCKET OR POLLING?
+//   Polling (ask "anything new?" every few seconds) is simple and works through
+//   every proxy, but messages arrive late and most requests return nothing.
+//   A WebSocket keeps one connection open in both directions, so the server
+//   pushes messages and typing events the moment they happen. Chat needs the
+//   client to send often too (messages, typing), which is exactly what a
+//   WebSocket is for. Real apps still keep polling as a fallback.
+//
+// The playground has no server, so FakeSocket below behaves like one: it
+// confirms your messages, and "Alex" types and replies. Swap in
+// new WebSocket(url) and send/onmessage keep the same shape.
 
-function ChatApp() {
-  const [messages, setMessages] = React.useState([
-    { id: 1, user: "Alice", text: "Hey! Ready for the interview prep?", time: "10:00 AM" },
-    { id: 2, user: "Bob", text: "Yes! Let's discuss React patterns.", time: "10:01 AM" },
-  ]);
-  const [input, setInput] = React.useState("");
-  const [currentUser, setCurrentUser] = React.useState("Alice");
-  const bottomRef = React.useRef(null);
-  const users = ["Alice", "Bob", "Charlie"];
+class FakeSocket {
+  constructor() {
+    this.onmessage = null;
+    this.dropNext = false;           // flip on to see a failed send
+  }
+  receive(data) {
+    if (this.onmessage) this.onmessage({ data: JSON.stringify(data) });
+  }
+  send(raw) {
+    const msg = JSON.parse(raw);
+    if (msg.type !== "message") return;          // typing events need no reply
+    const failThis = this.dropNext;
+    this.dropNext = false;
+    setTimeout(() => {
+      if (failThis) {
+        this.receive({ type: "error", clientId: msg.clientId });
+        return;
+      }
+      // The server confirms with its own id, and echoes the clientId back.
+      this.receive({ type: "ack", clientId: msg.clientId, id: "s" + Date.now(), at: Date.now() });
+      // Then Alex starts typing, and replies.
+      setTimeout(() => this.receive({ type: "typing", user: "Alex" }), 300);
+      setTimeout(() => this.receive({
+        type: "message", id: "s" + (Date.now() + 1), user: "Alex", text: "Got it: " + msg.text, at: Date.now(),
+      }), 1500);
+    }, 400);
+  }
+  close() { this.onmessage = null; }
+}
 
-  const userColors = { Alice: "#4f46e5", Bob: "#059669", Charlie: "#d97706" };
+// History, as a REST call would return it.
+function fetchHistory() {
+  return new Promise((resolve) => setTimeout(() => resolve([
+    { id: "s1", user: "Alex", text: "Morning! Did the deploy go out?", at: Date.now() - 60000, status: "sent" },
+    { id: "s2", user: "You", text: "Yes, about ten minutes ago.", at: Date.now() - 50000, status: "sent" },
+  ]), 600));
+}
+
+const TYPING_SEND_EVERY = 2000;   // tell the server at most once per 2 s while typing
+const TYPING_EXPIRES = 3000;      // hide "is typing" if no update arrives for 3 s
+
+function useChat() {
+  const [messages, setMessages] = React.useState(null);   // null = still loading
+  const [typingUser, setTypingUser] = React.useState(null);
+  const socketRef = React.useRef(null);
+  const typingTimer = React.useRef(null);
 
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    let cancelled = false;
+    const socket = new FakeSocket();
+    socketRef.current = socket;
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    const now = new Date();
-    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setMessages(prev => [...prev, {
-      id: Date.now(), user: currentUser, text: input.trim(), time,
-    }]);
-    setInput("");
+    fetchHistory().then((history) => {
+      // Merge rather than replace: a pushed message may have arrived first.
+      if (!cancelled) setMessages((current) => mergeById(history, current || []));
+    });
 
-    // Simulate a reply from another user
-    const others = users.filter(u => u !== currentUser);
-    const replier = others[Math.floor(Math.random() * others.length)];
-    setTimeout(() => {
-      const replyTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      const replies = ["That's a great point!", "I agree!", "Can you elaborate?", "Interesting approach!", "Let me think about that..."];
-      setMessages(prev => [...prev, {
-        id: Date.now(), user: replier,
-        text: replies[Math.floor(Math.random() * replies.length)], time: replyTime,
-      }]);
-    }, 1000 + Math.random() * 1500);
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "typing") {
+        setTypingUser(data.user);
+        // Typing indicators must expire on their own. If the "stopped typing"
+        // event is lost, the indicator would otherwise stay forever.
+        clearTimeout(typingTimer.current);
+        typingTimer.current = setTimeout(() => setTypingUser(null), TYPING_EXPIRES);
+      }
+      if (data.type === "message") {
+        setTypingUser(null);
+        setMessages((current) => mergeById(current || [], [{ ...data, status: "sent" }]));
+      }
+      if (data.type === "ack") {
+        // Match on clientId: the server's id did not exist when we sent it.
+        setMessages((current) => current.map((m) =>
+          m.clientId === data.clientId ? { ...m, id: data.id, status: "sent" } : m));
+      }
+      if (data.type === "error") {
+        setMessages((current) => current.map((m) =>
+          m.clientId === data.clientId ? { ...m, status: "failed" } : m));
+      }
+    };
+
+    return () => {
+      cancelled = true;
+      clearTimeout(typingTimer.current);
+      socket.close();
+    };
+  }, []);
+
+  const send = (text, retryOf) => {
+    // A clientId made on this device is the message's identity until the
+    // server assigns one. It is also what stops a retry being shown twice.
+    const clientId = retryOf ? retryOf.clientId : "c" + Date.now() + Math.random().toString(36).slice(2, 6);
+    const message = { clientId, id: clientId, user: "You", text, at: Date.now(), status: "sending" };
+    setMessages((current) => retryOf
+      ? current.map((m) => (m.clientId === clientId ? message : m))
+      : [...(current || []), message]);
+    socketRef.current.send(JSON.stringify({ type: "message", clientId, text }));
+  };
+
+  const lastTypingSent = React.useRef(0);
+  const notifyTyping = () => {
+    const now = Date.now();
+    if (now - lastTypingSent.current < TYPING_SEND_EVERY) return;   // throttle
+    lastTypingSent.current = now;
+    socketRef.current.send(JSON.stringify({ type: "typing" }));
+  };
+
+  return { messages, typingUser, send, notifyTyping, socketRef };
+}
+
+// Adds incoming messages, skipping any whose id is already in the list.
+function mergeById(existing, incoming) {
+  const seen = new Set(existing.map((m) => m.id));
+  return [...existing, ...incoming.filter((m) => !seen.has(m.id))].sort((a, b) => a.at - b.at);
+}
+
+function ChatApp() {
+  const { messages, typingUser, send, notifyTyping, socketRef } = useChat();
+  const [draft, setDraft] = React.useState("");
+  const endRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (endRef.current) endRef.current.scrollIntoView({ block: "end" });
+  }, [messages, typingUser]);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!draft.trim() || !messages) return;
+    send(draft.trim());
+    setDraft("");
   };
 
   return (
-    <div style={{ fontFamily: "system-ui", maxWidth: 440, border: "1px solid #e0e0e0", borderRadius: 12, overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ padding: "12px 16px", background: "#4f46e5", color: "#fff" }}>
-        <strong>Chat Room</strong>
-        <div style={{ fontSize: 12, opacity: 0.8 }}>{users.length} participants</div>
-      </div>
+    <div style={{ width: 380, border: "1px solid #334155", borderRadius: 10, overflow: "hidden", background: "#0f172a" }}>
+      <div style={{ padding: "10px 14px", borderBottom: "1px solid #334155", fontWeight: 600 }}>Alex</div>
 
-      {/* User switcher */}
-      <div style={{ display: "flex", gap: 4, padding: "8px 12px", background: "#f5f5f5", borderBottom: "1px solid #e0e0e0" }}>
-        {users.map(u => (
-          <button key={u} onClick={() => setCurrentUser(u)}
-            style={{
-              padding: "4px 12px", borderRadius: 16, border: "none", fontSize: 12,
-              background: u === currentUser ? userColors[u] : "#e0e0e0",
-              color: u === currentUser ? "#fff" : "#333", cursor: "pointer",
-            }}>
-            {u}
-          </button>
-        ))}
-      </div>
-
-      {/* Messages */}
-      <div style={{ height: 280, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-        {messages.map(msg => {
-          const isMe = msg.user === currentUser;
+      <div role="log" aria-live="polite" aria-label="Messages" style={{ height: 260, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        {messages === null && <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading messages…</p>}
+        {messages && messages.map((m) => {
+          const mine = m.user === "You";
           return (
-            <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
-              <span style={{ fontSize: 11, color: userColors[msg.user], fontWeight: 600, marginBottom: 2 }}>
-                {msg.user}
-              </span>
-              <div style={{
-                padding: "8px 12px", borderRadius: 12, maxWidth: "75%", fontSize: 14,
-                background: isMe ? "#4f46e5" : "#f0f0f0",
-                color: isMe ? "#fff" : "#333",
-              }}>
-                {msg.text}
+            // key = clientId for our own messages, so the bubble keeps its
+            // identity when the server id arrives. Changing the key would
+            // remount it and restart any animation.
+            <div key={m.clientId || m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "75%" }}>
+              <div style={{ padding: "8px 12px", borderRadius: 12, fontSize: 14, background: mine ? "#2563eb" : "#1e293b", opacity: m.status === "sending" ? 0.6 : 1 }}>
+                {m.text}
               </div>
-              <span style={{ fontSize: 10, color: "#999", marginTop: 2 }}>{msg.time}</span>
+              {mine && (
+                <div style={{ fontSize: 11, color: m.status === "failed" ? "#fca5a5" : "#94a3b8", textAlign: "right", marginTop: 2 }}>
+                  {m.status === "sending" && "Sending…"}
+                  {m.status === "sent" && "Sent"}
+                  {m.status === "failed" && (
+                    <span>
+                      Not sent.{" "}
+                      <button onClick={() => send(m.text, m)} style={{ background: "none", border: "none", color: "#93c5fd", cursor: "pointer", fontSize: 11, padding: 0 }}>Retry</button>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
-        <div ref={bottomRef} />
+        {typingUser && <p style={{ fontSize: 13, color: "#94a3b8", fontStyle: "italic", margin: 0 }}>{typingUser} is typing…</p>}
+        <div ref={endRef} />
       </div>
 
-      {/* Input */}
-      <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid #e0e0e0" }}>
+      <form onSubmit={submit} style={{ display: "flex", gap: 6, padding: 10, borderTop: "1px solid #334155" }}>
         <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && sendMessage()}
-          placeholder={\`Message as \${currentUser}...\`}
-          style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14 }}
+          value={draft}
+          onChange={(e) => { setDraft(e.target.value); notifyTyping(); }}
+          placeholder={messages ? "Type a message" : "Loading…"}
+          aria-label="Message"
+          disabled={!messages}
+          style={{ flex: 1, padding: 8, borderRadius: 6, border: "1px solid #475569", background: "#1e293b", color: "#fff" }}
         />
-        <button onClick={sendMessage}
-          style={{ padding: "8px 16px", borderRadius: 8, background: "#4f46e5", color: "#fff", border: "none", cursor: "pointer" }}>
-          Send
-        </button>
-      </div>
+        <button type="submit" style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: "#2563eb", color: "#fff", cursor: "pointer" }}>Send</button>
+      </form>
+      <button
+        onClick={() => { socketRef.current.dropNext = true; }}
+        style={{ margin: "0 10px 10px", background: "none", border: "none", color: "#94a3b8", fontSize: 12, cursor: "pointer", padding: 0, textDecoration: "underline" }}
+      >
+        Make the next message fail
+      </button>
     </div>
   );
 }
 
-render(<ChatApp />);`,
+function App() {
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+      <h2>Live chat</h2>
+      <ChatApp />
+    </div>
+  );
+}
+
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - Reconnecting: after a dropped connection, reconnect with backoff and ask
+//     for everything after the last message id you have, or messages sent
+//     while offline are lost. See the "WebSocket Live Feed" template.
+//   - Offline sending: keep unsent messages in an outbox (IndexedDB) and send
+//     them in order when the connection returns.
+//   - Long histories: load older messages when scrolling up, and keep the
+//     scroll position still while they are inserted above.
+//   - Auto-scroll only when the user is already near the bottom. If they have
+//     scrolled up to read, show a "New messages" button instead.`,
       },
       {
         name: 'Modal Component',
         jsx: true,
-        code: `// ===== MACHINE CODING: Reusable Modal Component =====
-// Build a reusable modal that:
-// - Can be triggered by different buttons
-// - Handles different content types (text, form, confirmation)
-// - Has a close button and backdrop click to dismiss
-// - Supports keyboard (Escape to close)
-// - Animates in/out
-
-function Modal({ isOpen, onClose, title, children }) {
+        code: `function Modal({ isOpen, onClose, title, children }) {
   React.useEffect(() => {
     const handleKey = (e) => { if (e.key === "Escape") onClose(); };
     if (isOpen) document.addEventListener("keydown", handleKey);
@@ -8152,14 +7520,14 @@ function Modal({ isOpen, onClose, title, children }) {
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 1000, animation: "fadeIn 0.2s ease",
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title} style={{
         background: "#fff", borderRadius: 12, padding: 24, minWidth: 320,
         maxWidth: "90%", maxHeight: "80vh", overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)", animation: "slideUp 0.2s ease",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h3 style={{ margin: 0 }}>{title}</h3>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label="Close"
             style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#999", padding: 4 }}>
             x
           </button>
@@ -8250,14 +7618,7 @@ render(<App />);`,
       {
         name: 'Image Gallery + Lazy Load',
         jsx: true,
-        code: `// ===== MACHINE CODING: Image Gallery with Lazy Loading =====
-// Build an image gallery that:
-// - Lazy loads images as they enter the viewport
-// - Uses IntersectionObserver for efficient loading
-// - Shows placeholder while loading
-// - Displays in a responsive grid
-
-function LazyImage({ src, alt, style }) {
+        code: `function LazyImage({ src, alt, style }) {
   const [loaded, setLoaded] = React.useState(false);
   const [inView, setInView] = React.useState(false);
   const ref = React.useRef(null);
@@ -8340,13 +7701,7 @@ render(<ImageGallery />);`,
       {
         name: 'Drag and Drop',
         jsx: true,
-        code: `// ===== MACHINE CODING: Drag-and-Drop Interface =====
-// Build a drag-and-drop interface to:
-// - Reorder items within a list
-// - Drag items between two lists
-// - Visual feedback during drag
-
-function DragDropApp() {
+        code: `function DragDropApp() {
   const [todo, setTodo] = React.useState([
     { id: "1", text: "Learn React hooks" },
     { id: "2", text: "Build a portfolio" },
@@ -8447,13 +7802,7 @@ render(<DragDropApp />);`,
       {
         name: 'Product List Sort & Filter',
         jsx: true,
-        code: `// ===== MACHINE CODING: Product List with Sorting & Filtering =====
-// Build a product list with:
-// - Sort by price or rating (asc/desc)
-// - Filter by category and price range
-// - Show active filters and clear option
-
-const PRODUCTS = [
+        code: `const PRODUCTS = [
   { id: 1, name: "Wireless Headphones", category: "Audio", price: 79, rating: 4.5 },
   { id: 2, name: "Bluetooth Speaker", category: "Audio", price: 49, rating: 4.2 },
   { id: 3, name: "USB-C Hub", category: "Accessories", price: 35, rating: 4.0 },
@@ -8562,15 +7911,7 @@ render(<ProductList />);`,
       {
         name: 'Responsive Navbar',
         jsx: true,
-        code: `// ===== MACHINE CODING: Responsive Navbar =====
-// Build a responsive navbar that:
-// - Shows full menu on desktop
-// - Collapses to hamburger menu on mobile
-// - Smooth slide-in mobile menu
-// - Active link highlighting
-// - Resize to see it adapt!
-
-function Navbar() {
+        code: `function Navbar() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [active, setActive] = React.useState("Home");
   const [width, setWidth] = React.useState(400);
@@ -8616,6 +7957,7 @@ function Navbar() {
           {/* Hamburger */}
           {isMobile && (
             <button onClick={() => setMenuOpen(m => !m)}
+              aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen}
               style={{
                 background: "none", border: "none", color: "#fff",
                 fontSize: 22, cursor: "pointer", padding: 4, lineHeight: 1,
@@ -8627,7 +7969,9 @@ function Navbar() {
 
         {/* Mobile menu */}
         {isMobile && (
-          <div style={{
+          // inert while closed: a height of 0 hides the links visually, but they
+          // would still be reachable with Tab and read out by a screen reader.
+          <div inert={!menuOpen} style={{
             maxHeight: menuOpen ? links.length * 48 : 0,
             overflow: "hidden", background: "#16162a",
             transition: "max-height 0.3s ease",
@@ -8664,17 +8008,7 @@ render(<Navbar />);`,
       {
         name: 'Infinite Scroll',
         jsx: true,
-        code: `// ===== MACHINE CODING: Infinite Scrolling List =====
-// Build an infinite scrolling list that:
-// - Loads more items when scrolling near the bottom
-// - Uses IntersectionObserver (no scroll event listener)
-// - Shows loading indicator
-// - Handles "no more data" state
-// - HANDLES FAILURE with a retry (the half most implementations skip —
-//   an infinite list that silently stops on a network blip looks like
-//   "no more data" to the user, which is a much worse bug than an error)
-
-function fakeAPI(page) {
+        code: `function fakeAPI(page) {
   const totalPages = 8;
   return new Promise((resolve, reject) =>
     setTimeout(() => {
@@ -8808,15 +8142,7 @@ render(<InfiniteScroll />);`,
       {
         name: 'Notifications',
         jsx: true,
-        code: `// ===== MACHINE CODING: Real-time Notifications =====
-// Build a notifications system that:
-// - Shows toast notifications dynamically
-// - Supports different types (success, error, warning, info)
-// - Auto-dismiss after timeout
-// - Manual dismiss with close button
-// - Stacked positioning with animation
-
-function useNotifications() {
+        code: `function useNotifications() {
   const [notifications, setNotifications] = React.useState([]);
 
   const add = React.useCallback((message, type = "info", duration = 3000) => {
@@ -8941,13 +8267,7 @@ render(<App />);`,
       {
         name: 'Star Rating',
         jsx: true,
-        code: `// ===== MACHINE CODING: Star Rating =====
-// 5-star rating component with hover preview.
-// - Click to set rating
-// - Hover to preview the rating
-// - Half-stars optional (basic version: whole stars only)
-
-function StarRating({ totalStars = 5, initialRating = 0, onChange }) {
+        code: `function StarRating({ totalStars = 5, initialRating = 0, onChange }) {
   const [rating, setRating] = React.useState(initialRating);
   const [hover, setHover] = React.useState(0);
 
@@ -9001,132 +8321,250 @@ render(<App />);`,
       {
         name: 'Tabs',
         jsx: true,
-        code: `// ===== MACHINE CODING: Tabs Component =====
-// Compound component pattern: <Tabs> + <Tabs.Tab> + <Tabs.Panel>
-// share state via Context. The user composes; the library wires it.
+        code: `// WHICH ANIMATION TOOL?
+//   CSS transitions + keyframes (used here): a slide and a fade need nothing
+//     else, and cost zero bytes of JavaScript.
+//   Framer Motion (now called Motion): worth it for EXIT animations (the old
+//     panel fading out before it unmounts) and for layout animation, where
+//     layoutId moves the underline between tabs without measuring anything.
+//     It adds a few tens of KB.
+//   react-transition-group (CSSTransition): adds enter/exit class names at the
+//     right moments so plain CSS can animate a component that is unmounting.
+//   Rule of thumb: CSS until you need exit or layout animations.
 
-const TabsContext = React.createContext(null);
+const INITIAL_TABS = [
+  { id: "profile", label: "Profile", content: "Your name, photo and contact details." },
+  { id: "security", label: "Security", content: "Password, two-factor login and active sessions." },
+  { id: "billing", label: "Billing", content: "Plan, invoices and payment methods." },
+];
 
-function Tabs({ children, defaultIndex = 0 }) {
-  const [active, setActive] = React.useState(defaultIndex);
+function Tabs({ tabs, activeId, onChange }) {
+  const base = React.useId();                 // unique ids, even with two Tabs on one page
+  const tabRefs = React.useRef(new Map());    // id -> button element, for focus and measuring
+  const [indicator, setIndicator] = React.useState({ left: 0, width: 0 });
+
+  // Measure the active tab and move the underline to it. useLayoutEffect runs
+  // after the DOM updates but BEFORE the browser paints, so the underline never
+  // shows in the old place for a frame.
+  React.useLayoutEffect(() => {
+    const el = tabRefs.current.get(activeId);
+    if (el) setIndicator({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [activeId, tabs]);
+
+  const onKeyDown = (e) => {
+    const index = tabs.findIndex((t) => t.id === activeId);
+    let next = null;
+    if (e.key === "ArrowRight") next = (index + 1) % tabs.length;
+    else if (e.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = tabs.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    onChange(tabs[next].id);
+    tabRefs.current.get(tabs[next].id).focus();   // focus follows selection
+  };
+
+  const active = tabs.find((t) => t.id === activeId);
+
   return (
-    <TabsContext.Provider value={{ active, setActive }}>
-      <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #444" }}>
-        {children}
+    <div style={{ border: "1px solid #334155", borderRadius: 8, overflow: "hidden" }}>
+      <div role="tablist" aria-label="Account settings" onKeyDown={onKeyDown}
+        style={{ position: "relative", display: "flex", background: "#0f172a" }}>
+        {tabs.map((tab) => {
+          const selected = tab.id === activeId;
+          return (
+            <button
+              key={tab.id}
+              ref={(el) => { if (el) tabRefs.current.set(tab.id, el); else tabRefs.current.delete(tab.id); }}
+              role="tab"
+              id={base + "-tab-" + tab.id}
+              aria-selected={selected}
+              aria-controls={base + "-panel-" + tab.id}
+              tabIndex={selected ? 0 : -1}      // one Tab stop for the whole list; arrows move inside it
+              onClick={() => onChange(tab.id)}
+              style={{
+                padding: "12px 18px", background: "none", border: "none", cursor: "pointer", fontSize: 14,
+                color: selected ? "#60a5fa" : "#94a3b8", fontWeight: selected ? 600 : 400,
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+        <span
+          aria-hidden="true"
+          className="tabs-anim"
+          style={{
+            position: "absolute", bottom: 0, height: 2, background: "#60a5fa",
+            left: 0, width: indicator.width, transform: "translateX(" + indicator.left + "px)",
+            transition: "transform 0.25s ease, width 0.25s ease",   // transform animates on the GPU; left would not
+          }}
+        />
       </div>
-    </TabsContext.Provider>
-  );
-}
-
-Tabs.List = function TabList({ children }) {
-  return (
-    <div style={{ display: "flex", borderBottom: "1px solid #444", background: "#222" }}>
-      {children}
+      {active && (
+        <div
+          // key = the tab id, so switching tabs mounts a NEW panel and the
+          // fade-in keyframe plays again. Without it React reuses the div.
+          key={active.id}
+          className="tab-panel tabs-anim"
+          role="tabpanel"
+          id={base + "-panel-" + active.id}
+          aria-labelledby={base + "-tab-" + active.id}
+          tabIndex={0}
+          style={{ padding: 20, color: "#cbd5e1", background: "#1e293b", minHeight: 60 }}
+        >
+          {active.content}
+        </div>
+      )}
     </div>
   );
-};
-
-Tabs.Tab = function Tab({ index, children }) {
-  const { active, setActive } = React.useContext(TabsContext);
-  const isActive = active === index;
-  return (
-    <button
-      onClick={() => setActive(index)}
-      style={{
-        flex: 1, padding: "12px 16px", border: "none", cursor: "pointer",
-        background: isActive ? "#1e293b" : "transparent",
-        color: isActive ? "#60a5fa" : "#aaa",
-        borderBottom: isActive ? "2px solid #60a5fa" : "2px solid transparent",
-        fontWeight: isActive ? 600 : 400, fontSize: 14, transition: "all 0.15s",
-      }}
-    >
-      {children}
-    </button>
-  );
-};
-
-Tabs.Panel = function Panel({ index, children }) {
-  const { active } = React.useContext(TabsContext);
-  if (active !== index) return null;
-  return <div style={{ padding: 20, color: "#ddd", background: "#1e293b" }}>{children}</div>;
-};
+}
 
 function App() {
+  const [tabs, setTabs] = React.useState(INITIAL_TABS);
+  const [activeId, setActiveId] = React.useState("profile");
+
+  // If the active tab is removed, fall back to the first one. Derived during
+  // render, not fixed up in an effect afterwards.
+  const safeActiveId = tabs.some((t) => t.id === activeId) ? activeId : tabs[0] && tabs[0].id;
+
+  const addTab = () => {
+    const n = tabs.length + 1;
+    const id = "custom-" + Date.now();
+    setTabs([...tabs, { id, label: "Tab " + n, content: "Content for tab " + n + "." }]);
+    setActiveId(id);
+  };
+  const removeActive = () => {
+    if (tabs.length > 1) setTabs(tabs.filter((t) => t.id !== safeActiveId));
+  };
+
+  const btn = { padding: "6px 12px", borderRadius: 6, border: "1px solid #475569", background: "#334155", color: "#fff", cursor: "pointer" };
+
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
-      <h2>Tabs Component</h2>
-      <Tabs defaultIndex={0}>
-        <Tabs.List>
-          <Tabs.Tab index={0}>Profile</Tabs.Tab>
-          <Tabs.Tab index={1}>Settings</Tabs.Tab>
-          <Tabs.Tab index={2}>Billing</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel index={0}>
-          <h3>Profile</h3><p>Manage your profile information.</p>
-        </Tabs.Panel>
-        <Tabs.Panel index={1}>
-          <h3>Settings</h3><p>App preferences and notifications.</p>
-        </Tabs.Panel>
-        <Tabs.Panel index={2}>
-          <h3>Billing</h3><p>Subscription and payment methods.</p>
-        </Tabs.Panel>
-      </Tabs>
+      <style>{
+        "@keyframes tab-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }" +
+        ".tab-panel { animation: tab-fade 0.2s ease-out; }" +
+        "@media (prefers-reduced-motion: reduce) { .tabs-anim { animation: none !important; transition: none !important; } }"
+      }</style>
+      <h2>Tabs</h2>
+      <p style={{ color: "#94a3b8", fontSize: 14 }}>Click a tab, or focus one and use the arrow keys.</p>
+      <Tabs tabs={tabs} activeId={safeActiveId} onChange={setActiveId} />
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button style={btn} onClick={addTab}>Add tab</button>
+        <button style={btn} onClick={removeActive} disabled={tabs.length <= 1}>Remove active tab</button>
+      </div>
     </div>
   );
 }
 
-render(<App />);`,
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - Keep hidden panels mounted? Unmounting (done here) resets their state and
+//     keeps the DOM small. If a panel holds a half-filled form, keep it mounted
+//     with the hidden attribute, or use React 19's <Activity mode="hidden">.
+//   - The URL: store the active tab in the query string (?tab=billing) so it
+//     survives a refresh and can be linked to.
+//   - Resizing: the underline is measured once per change. If tab widths can
+//     change (fonts loading, window resize), re-measure with a ResizeObserver.`,
       },
       {
         name: 'Accordion',
         jsx: true,
-        code: `// ===== MACHINE CODING: Accordion =====
-// Expand/collapse panels. Supports single-open or multi-open mode.
-// - allowMultiple={true}: many panels open at once
-// - allowMultiple={false}: only one open at a time (radio-like)
+        code: `// SINGLE OR MULTIPLE?
+//   Single-open keeps a long page short and suits FAQs, where people read one
+//   answer. Multi-open suits settings or filters, where people compare
+//   sections. Support both with one prop; the only difference is one line in
+//   toggle(). Storing the open ids in a Set makes both cases the same code.
+//
+// THE NATIVE OPTION
+//   <details><summary> gives you open/close, keyboard support and
+//   screen-reader state with no JavaScript, and several <details> sharing a
+//   name="..." attribute behave as single-open. Use it when you do not need a
+//   custom animation.
 
-function Accordion({ items, allowMultiple = false }) {
-  const [openIds, setOpenIds] = React.useState(new Set());
+function Accordion({ items, allowMultiple = false, defaultOpenIds = [] }) {
+  const [openIds, setOpenIds] = React.useState(() => new Set(defaultOpenIds));
+  const base = React.useId();
+  const headerRefs = React.useRef([]);
 
-  function toggle(id) {
-    setOpenIds(prev => {
+  const toggle = (id) => {
+    setOpenIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
       } else {
-        if (!allowMultiple) next.clear();
+        if (!allowMultiple) next.clear();     // the ONLY line that differs between the modes
         next.add(id);
       }
       return next;
     });
-  }
+  };
+
+  // Arrow keys move focus between headers. Tab still moves out normally.
+  const onHeaderKeyDown = (e, index) => {
+    const last = items.length - 1;
+    let target = null;
+    if (e.key === "ArrowDown") target = index === last ? 0 : index + 1;
+    else if (e.key === "ArrowUp") target = index === 0 ? last : index - 1;
+    else if (e.key === "Home") target = 0;
+    else if (e.key === "End") target = last;
+    if (target === null) return;
+    e.preventDefault();
+    headerRefs.current[target].focus();
+  };
 
   return (
-    <div style={{ border: "1px solid #444", borderRadius: 8, overflow: "hidden" }}>
-      {items.map(item => {
+    <div style={{ border: "1px solid #334155", borderRadius: 8, overflow: "hidden" }}>
+      {items.map((item, index) => {
         const isOpen = openIds.has(item.id);
+        const headerId = base + "-header-" + item.id;
+        const panelId = base + "-panel-" + item.id;
         return (
-          <div key={item.id} style={{ borderBottom: "1px solid #333" }}>
-            <button
-              onClick={() => toggle(item.id)}
+          <div key={item.id} style={{ borderBottom: index === items.length - 1 ? "none" : "1px solid #334155" }}>
+            {/* The button sits inside a heading, so headings navigation still finds it. */}
+            <h3 style={{ margin: 0 }}>
+              <button
+                ref={(el) => { headerRefs.current[index] = el; }}
+                id={headerId}
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                onClick={() => toggle(item.id)}
+                onKeyDown={(e) => onHeaderKeyDown(e, index)}
+                style={{
+                  width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "14px 16px", border: "none", cursor: "pointer", textAlign: "left",
+                  background: isOpen ? "#1e293b" : "#0f172a", color: "#fff", fontSize: 15, fontWeight: 500,
+                }}
+              >
+                <span>{item.title}</span>
+                <span aria-hidden="true" className="acc-anim" style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s", color: "#60a5fa" }}>▼</span>
+              </button>
+            </h3>
+            {/* Animating height: height: auto cannot be transitioned, but a
+                one-row grid going from 0fr to 1fr can, and it needs no
+                measuring. The panel stays mounted so it can animate closed.
+                visibility: hidden is what takes the closed content out of the
+                Tab order and the accessibility tree; the grid alone only makes
+                it look empty. */}
+            <div
+              id={panelId}
+              role="region"
+              aria-labelledby={headerId}
+              className="acc-anim"
               style={{
-                width: "100%", padding: "14px 16px", border: "none", cursor: "pointer",
-                background: isOpen ? "#1e293b" : "#222", color: "#fff",
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                fontSize: 15, fontWeight: 500, textAlign: "left",
+                display: "grid", gridTemplateRows: isOpen ? "1fr" : "0fr",
+                visibility: isOpen ? "visible" : "hidden",
+                transition: "grid-template-rows 0.25s ease, visibility 0.25s",
               }}
             >
-              <span>{item.title}</span>
-              <span style={{
-                transform: isOpen ? "rotate(180deg)" : "rotate(0)",
-                transition: "transform 0.2s", color: "#60a5fa",
-              }}>▼</span>
-            </button>
-            {isOpen && (
-              <div style={{ padding: "14px 16px", background: "#0f172a", color: "#cbd5e1", fontSize: 14 }}>
-                {item.content}
+              <div style={{ overflow: "hidden" }}>
+                <div style={{ padding: "14px 16px", background: "#0b1220", color: "#cbd5e1", fontSize: 14 }}>
+                  {item.content}
+                </div>
               </div>
-            )}
+            </div>
           </div>
         );
       })}
@@ -9136,33 +8574,36 @@ function Accordion({ items, allowMultiple = false }) {
 
 function App() {
   const items = [
-    { id: 1, title: "What is React?", content: "A JavaScript library for building user interfaces." },
-    { id: 2, title: "What are hooks?", content: "Functions that let you use state and lifecycle in function components." },
-    { id: 3, title: "What is reconciliation?", content: "React's algorithm for diffing the virtual DOM and updating the real DOM efficiently." },
+    { id: "react", title: "What is React?", content: <p style={{ margin: 0 }}>A library for building user interfaces from components. <a href="#docs" style={{ color: "#93c5fd" }}>A link, to test Tab</a>.</p> },
+    { id: "hooks", title: "What are hooks?", content: "Functions that let function components use state, effects and context." },
+    { id: "recon", title: "What is reconciliation?", content: "How React compares the new element tree with the old one to decide the smallest set of DOM changes." },
   ];
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+      <style>{"@media (prefers-reduced-motion: reduce) { .acc-anim { transition: none !important; } }"}</style>
       <h2>Accordion (single-open)</h2>
-      <Accordion items={items} allowMultiple={false} />
+      <Accordion items={items} defaultOpenIds={["react"]} />
       <h2 style={{ marginTop: 24 }}>Accordion (multi-open)</h2>
-      <Accordion items={items} allowMultiple={true} />
+      <Accordion items={items} allowMultiple />
     </div>
   );
 }
 
-render(<App />);`,
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - Controlled version: accept openIds + onChange props so a parent can open
+//     a section from outside (for example from a URL hash). Fall back to the
+//     internal state when they are not passed.
+//   - Search inside closed sections: hidden="until-found" lets the browser's
+//     find-in-page open a section that contains the match (Chromium only).
+//   - Heavy panels: mounting them only when first opened, then keeping them,
+//     saves work on a long FAQ.`,
       },
       {
         name: 'OTP Input',
         jsx: true,
-        code: `// ===== MACHINE CODING: OTP Input =====
-// 6-digit OTP input that:
-// - Auto-advances to next field on input
-// - Backspace moves to previous field when current is empty
-// - Accepts digits only
-// - Paste support: distributes digits across fields
-
-function OTPInput({ length = 6, onComplete }) {
+        code: `function OTPInput({ length = 6, onComplete }) {
   const [digits, setDigits] = React.useState(Array(length).fill(""));
   const refs = React.useRef([]);
 
@@ -9242,14 +8683,7 @@ render(<App />);`,
       {
         name: 'Tic-Tac-Toe',
         jsx: true,
-        code: `// ===== MACHINE CODING: Tic-Tac-Toe =====
-// Classic 3x3 tic-tac-toe.
-// - Two players (X and O) alternate
-// - Detect winner across rows, columns, diagonals
-// - Detect draw
-// - Reset button
-
-const LINES = [
+        code: `const LINES = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],     // rows
   [0, 3, 6], [1, 4, 7], [2, 5, 8],     // cols
   [0, 4, 8], [2, 4, 6],                // diagonals
@@ -9345,11 +8779,7 @@ render(<App />);`,
       {
         name: 'Stopwatch',
         jsx: true,
-        code: `// ===== MACHINE CODING: Stopwatch =====
-// Start, pause, resume, reset. Display HH:MM:SS.ms.
-// Uses requestAnimationFrame for smooth millisecond updates.
-
-function formatTime(ms) {
+        code: `function formatTime(ms) {
   const hours = Math.floor(ms / 3600000);
   const minutes = Math.floor((ms % 3600000) / 60000);
   const seconds = Math.floor((ms % 60000) / 1000);
@@ -9422,10 +8852,7 @@ render(<App />);`,
       {
         name: 'Calculator',
         jsx: true,
-        code: `// ===== MACHINE CODING: Calculator =====
-// Standard 4-function calculator with display, digits, ops, equals, clear.
-
-function App() {
+        code: `function App() {
   const [display, setDisplay] = React.useState("0");
   const [previous, setPrevious] = React.useState(null);
   const [op, setOp] = React.useState(null);
@@ -9525,15 +8952,7 @@ render(<App />);`,
       {
         name: 'Auto-Complete (ARIA combobox)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Auto-Complete (ARIA Combobox) =====
-// Search suggestions as you type. This one question combines FOUR
-// things, and interviewers grade all four:
-//   1. Debouncing so you don't fire per keystroke
-//   2. Cancelling the previous request (or results arrive out of order)
-//   3. Keyboard navigation — ↓ ↑ Enter Esc Home End
-//   4. Accessibility — the ARIA combobox pattern
-//
-// THE MECHANISM THAT MATTERS: aria-activedescendant. DOM focus stays in
+        code: `// THE MECHANISM THAT MATTERS: aria-activedescendant. DOM focus stays in
 // the INPUT while a "virtual" focus moves through the options. If you
 // move real focus onto the <li>s, typing stops working — that's the
 // single most common way this component is built wrong.
@@ -9769,103 +9188,175 @@ render(<AutoComplete />);`,
       {
         name: 'Toast / Snackbar',
         jsx: true,
-        code: `// ===== MACHINE CODING: Toast / Snackbar =====
-// Toast queue with auto-dismiss. Stack multiple toasts.
-// Trigger by calling a function (typical pattern: useToast hook).
+        code: `// CONTEXT, REDUX OR AN EVENT SYSTEM?
+//   Context   works, but toast() can only be called from inside a component,
+//             and every consumer re-renders whenever the list changes.
+//   Redux     works, but it puts timers and throwaway UI into the global store.
+//   A tiny store (used here): a plain object with subscribe + getSnapshot.
+//             Anything can call it, and only the <Toaster> re-renders.
+//             React reads it with useSyncExternalStore. Libraries such as
+//             react-hot-toast and sonner are built the same way.
 
-function useToast() {
-  const [toasts, setToasts] = React.useState([]);
+const MAX_VISIBLE = 3;
 
-  const show = React.useCallback((message, type = "info", duration = 3000) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, duration);
-  }, []);
+// ---------- the store: plain JavaScript, no React ----------
+function createToastStore() {
+  let toasts = [];                 // every toast not yet dismissed, oldest first
+  let nextId = 1;
+  const listeners = new Set();
+  const emit = () => listeners.forEach((listener) => listener());
 
-  const dismiss = React.useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  return { toasts, show, dismiss };
+  return {
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    getSnapshot() {
+      return toasts;               // same array until something changes
+    },
+    add(message, type, duration) {
+      // Already showing or queued? Do not stack a second copy.
+      if (toasts.some((t) => t.message === message && t.type === type)) return null;
+      const id = nextId++;
+      toasts = [...toasts, { id, message, type, duration }];
+      emit();
+      return id;
+    },
+    dismiss(id) {
+      toasts = toasts.filter((t) => t.id !== id);
+      emit();
+    },
+  };
 }
 
-function ToastContainer({ toasts, dismiss }) {
-  const colors = {
-    info:    { bg: "#1e293b", border: "#3b82f6", icon: "ℹ" },
-    success: { bg: "#064e3b", border: "#10b981", icon: "✓" },
-    error:   { bg: "#7f1d1d", border: "#ef4444", icon: "✕" },
-    warn:    { bg: "#78350f", border: "#f59e0b", icon: "⚠" },
-  };
+const toastStore = createToastStore();
+
+// ---------- the public API: plain functions, callable from anywhere ----------
+const toast = {
+  info: (message) => toastStore.add(message, "info", 3000),
+  success: (message) => toastStore.add(message, "success", 3000),
+  error: (message) => toastStore.add(message, "error", 6000),   // errors stay longer
+  dismiss: (id) => toastStore.dismiss(id),
+};
+
+// ---------- React side ----------
+function useToasts() {
+  return React.useSyncExternalStore(toastStore.subscribe, toastStore.getSnapshot);
+}
+
+const COLORS = { info: "#2563eb", success: "#16a34a", error: "#dc2626" };
+
+function ToastItem({ item }) {
+  const [paused, setPaused] = React.useState(false);
+  const remaining = React.useRef(item.duration);
+
+  // The countdown only starts once the toast is ON SCREEN, because only
+  // visible toasts are mounted. A queued toast never expires unseen.
+  React.useEffect(() => {
+    if (paused) return;
+    const startedAt = Date.now();
+    const timer = setTimeout(() => toastStore.dismiss(item.id), remaining.current);
+    return () => {
+      clearTimeout(timer);                              // no timer outlives its toast
+      remaining.current -= Date.now() - startedAt;      // keep the time that was left
+    };
+  }, [paused, item.id]);
 
   return (
-    <div style={{
-      position: "fixed", top: 20, right: 20, display: "flex",
-      flexDirection: "column", gap: 8, zIndex: 1000,
-    }}>
-      {toasts.map((t) => {
-        const c = colors[t.type] || colors.info;
-        return (
-          <div
-            key={t.id}
-            style={{
-              minWidth: 280, padding: "12px 16px", background: c.bg,
-              borderLeft: \`4px solid \${c.border}\`, borderRadius: 6,
-              color: "#fff", display: "flex", alignItems: "center", gap: 10,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-              animation: "slideIn 0.2s ease",
-            }}
-          >
-            <span style={{ fontSize: 18, color: c.border }}>{c.icon}</span>
-            <span style={{ flex: 1, fontSize: 14 }}>{t.message}</span>
-            <button
-              onClick={() => dismiss(t.id)}
-              style={{ background: "none", border: "none", color: "#888", cursor: "pointer", fontSize: 16 }}
-            >
-              ×
-            </button>
-          </div>
-        );
-      })}
-      <style>{\`@keyframes slideIn { from { opacity: 0; transform: translateX(20px) } to { opacity: 1; transform: translateX(0) } }\`}</style>
+    <div
+      className="toast-in"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+        borderRadius: 8, background: "#1e293b", color: "#f1f5f9", fontSize: 14,
+        borderLeft: "4px solid " + COLORS[item.type], boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+      }}
+    >
+      <span style={{ flex: 1 }}>{item.message}</span>
+      <button
+        onClick={() => toast.dismiss(item.id)}
+        aria-label="Dismiss notification"
+        style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}
+      >
+        ×
+      </button>
     </div>
   );
+}
+
+function Toaster() {
+  const toasts = useToasts();
+  const visible = toasts.slice(0, MAX_VISIBLE);
+  const waiting = toasts.length - visible.length;
+
+  // The live region is ALWAYS mounted, even with nothing in it. A region that
+  // appears at the same moment as its text is usually not announced at all.
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{ position: "absolute", right: 16, bottom: 16, width: 280, display: "flex", flexDirection: "column", gap: 8 }}
+    >
+      {visible.map((item) => <ToastItem key={item.id} item={item} />)}
+      {waiting > 0 && (
+        <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "right" }}>+{waiting} waiting</div>
+      )}
+    </div>
+  );
+}
+
+// Plain code outside React, calling toast() directly. No hook, no context.
+function saveProfile(shouldFail) {
+  return new Promise((resolve) => setTimeout(resolve, 400)).then(() => {
+    if (shouldFail) toast.error("Could not save your profile. Please try again.");
+    else toast.success("Profile saved");
+  });
 }
 
 function App() {
-  const { toasts, show, dismiss } = useToast();
+  const burst = () => {
+    for (let i = 1; i <= 5; i++) toast.info("Upload " + i + " of 5 finished");
+  };
 
-  const btnStyle = (color) => ({
-    padding: "10px 16px", border: "none", borderRadius: 6,
-    background: color, color: "#fff", cursor: "pointer", marginRight: 8,
-    fontSize: 14, fontWeight: 600,
-  });
+  const btn = { padding: "8px 14px", borderRadius: 6, border: "1px solid #475569", background: "#334155", color: "#fff", cursor: "pointer" };
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
-      <h2>Toast / Snackbar</h2>
-      <p style={{ color: "#888" }}>Click a button to fire a toast (auto-dismiss in 3s).</p>
-      <div style={{ marginTop: 16 }}>
-        <button onClick={() => show("Saved successfully", "success")} style={btnStyle("#10b981")}>Success</button>
-        <button onClick={() => show("Heads up!", "warn")} style={btnStyle("#f59e0b")}>Warning</button>
-        <button onClick={() => show("Something broke", "error")} style={btnStyle("#ef4444")}>Error</button>
-        <button onClick={() => show("Here's some info", "info")} style={btnStyle("#3b82f6")}>Info</button>
+    <div style={{ position: "relative", minHeight: 340, padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+      <style>{
+        "@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }" +
+        ".toast-in { animation: toast-in 0.2s ease-out; }" +
+        "@media (prefers-reduced-motion: reduce) { .toast-in { animation: none; } }"
+      }</style>
+      <h2>Toast notifications</h2>
+      <p style={{ color: "#94a3b8", fontSize: 14 }}>Hover a toast to pause it. Click "Burst" to see the queue.</p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button style={btn} onClick={() => saveProfile(false)}>Save (success)</button>
+        <button style={btn} onClick={() => saveProfile(true)}>Save (fails)</button>
+        <button style={btn} onClick={burst}>Burst of 5</button>
+        <button style={btn} onClick={() => toast.info("Same message twice")}>Duplicate test</button>
       </div>
-      <ToastContainer toasts={toasts} dismiss={dismiss} />
+      <Toaster />
     </div>
   );
 }
 
-render(<App />);`,
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - Where does <Toaster> go? Once, near the root, so it is never unmounted
+//     by a page change.
+//   - Errors: a second region with role="alert" (assertive) interrupts the
+//     screen reader, which is right for an error and wrong for "Saved".
+//   - Actions ("Undo"): give the toast a button and an onAction callback, and
+//     keep it on screen longer. A toast that needs a decision should not
+//     disappear on its own.
+//   - Position and stacking are CSS. The queue is what stops overlap.`,
       },
       {
         name: 'Carousel / Slider',
         jsx: true,
-        code: `// ===== MACHINE CODING: Carousel / Slider =====
-// Image carousel with prev/next, dots, keyboard nav, auto-play.
-
-const SLIDES = [
+        code: `const SLIDES = [
   { color: "#3b82f6", title: "Slide 1", subtitle: "Blue ocean" },
   { color: "#10b981", title: "Slide 2", subtitle: "Green meadow" },
   { color: "#f59e0b", title: "Slide 3", subtitle: "Golden sunset" },
@@ -9899,14 +9390,19 @@ function App() {
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
       <h2>Carousel</h2>
-      <div style={{ position: "relative", borderRadius: 12, overflow: "hidden" }}>
+      {/* A labelled region, and each slide says which one it is: without these a
+          screen reader hears five slides at once and no way to tell the current one. */}
+      <div role="region" aria-roledescription="carousel" aria-label="Featured"
+           style={{ position: "relative", borderRadius: 12, overflow: "hidden" }}>
         <div style={{
           display: "flex",
           transform: \`translateX(\${-index * 100}%)\`,
           transition: "transform 0.4s ease",
         }}>
           {SLIDES.map((s, i) => (
-            <div key={i} style={{
+            <div key={i} role="group" aria-roledescription="slide"
+                 aria-label={(i + 1) + " of " + SLIDES.length} aria-hidden={i !== index}
+                 style={{
               flex: "0 0 100%", height: 240, display: "flex",
               flexDirection: "column", alignItems: "center", justifyContent: "center",
               background: s.color, color: "#fff",
@@ -9916,12 +9412,12 @@ function App() {
             </div>
           ))}
         </div>
-        <button onClick={prev} style={{
+        <button onClick={prev} aria-label="Previous slide" style={{
           position: "absolute", top: "50%", left: 12, transform: "translateY(-50%)",
           background: "rgba(0,0,0,0.5)", color: "#fff", border: "none",
           width: 36, height: 36, borderRadius: "50%", fontSize: 18, cursor: "pointer",
         }}>‹</button>
-        <button onClick={next} style={{
+        <button onClick={next} aria-label="Next slide" style={{
           position: "absolute", top: "50%", right: 12, transform: "translateY(-50%)",
           background: "rgba(0,0,0,0.5)", color: "#fff", border: "none",
           width: 36, height: 36, borderRadius: "50%", fontSize: 18, cursor: "pointer",
@@ -9932,6 +9428,8 @@ function App() {
           <button
             key={i}
             onClick={() => setIndex(i)}
+            aria-label={"Go to slide " + (i + 1)}
+            aria-current={i === index ? "true" : undefined}
             style={{
               width: 10, height: 10, borderRadius: "50%", border: "none",
               background: i === index ? "#60a5fa" : "#444", cursor: "pointer",
@@ -9958,13 +9456,7 @@ render(<App />);`,
       {
         name: 'Todo List (localStorage + memo)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Todo List — localStorage + Re-render Optimization =====
-// The classic "build a to-do list" ask — but the follow-up is always
-// "now make sure typing in the input doesn't re-render all 500 items."
-// That follow-up is the actual interview. Open the React DevTools
-// Profiler with "Highlight updates" on and watch which parts flash.
-//
-// The four techniques, and why each one matters:
+        code: `// The four techniques, and why each one matters:
 //   1. Isolate the input's state in its own component, so keystrokes
 //      re-render ONE component instead of the whole list.
 //   2. React.memo on the row, so unchanged rows bail out.
@@ -10217,11 +9709,7 @@ render(<TodoApp />);`,
       {
         name: 'Counter (optimized re-renders)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Counter, done properly =====
-// Every React interview opens with this, and the real question is the
-// follow-up: "now optimize the re-renders and handle the edge cases."
-//
-// The five things they're actually checking:
+        code: `// The five things they're actually checking:
 //   1. FUNCTIONAL UPDATES — setCount(c => c + 1), not setCount(count + 1).
 //      Batched updates and stale closures both break the second form.
 //   2. useCallback with an EMPTY dep array — only possible because of (1).
@@ -10349,12 +9837,7 @@ render(<Counter initial={0} step={1} min={-10} max={10} />);`,
       {
         name: 'Search with Debounce + Cancel',
         jsx: true,
-        code: `// ===== MACHINE CODING: Debounced Search with Request Cancellation =====
-// "Build a search input that doesn't fire an API call on every keystroke."
-// Debouncing is the easy half. The half that separates candidates is
-// CANCELLING the in-flight request, because without it you get a race:
-//
-//   type "re"  → request A starts (slow)
+        code: `//   type "re"  → request A starts (slow)
 //   type "rea" → request B starts (fast) → renders results for "rea"
 //   request A finally resolves          → OVERWRITES with results for "re"
 //
@@ -10503,11 +9986,7 @@ render(<SearchBox />);`,
       {
         name: 'Modal (Portal + Focus Trap)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Accessible Modal =====
-// "Build a reusable modal triggerable from anywhere." They're testing
-// portals, focus management, event bubbling and accessibility.
-//
-// The FIVE things a correct modal must do, and the order matters:
+        code: `// The FIVE things a correct modal must do, and the order matters:
 //   1. Render in a portal (or the top layer) so an ancestor's
 //      overflow:hidden or transform can't clip it.
 //   2. Move focus INTO the modal on open.
@@ -10575,10 +10054,10 @@ function Modal({ isOpen, onClose, title, children }) {
 
   if (!isOpen) return null;
 
-  // ReactDOM.createPortal renders into a different DOM node while staying
+  // createPortal (from react-dom; in scope here as a bare name) renders into a different DOM node while staying
   // in the React tree — so context still flows in, and React events still
   // bubble to React ancestors even though the DOM nodes are unrelated.
-  return ReactDOM.createPortal(
+  return createPortal(
     <div
       onClick={onClose}                       // click the backdrop to dismiss
       style={{
@@ -10710,11 +10189,7 @@ render(<App />);`,
       {
         name: 'Form with Validation',
         jsx: true,
-        code: `// ===== MACHINE CODING: Form with Real-Time Validation =====
-// Tests controlled vs uncontrolled, validation timing, and — the part
-// most people skip — the ACCESSIBILITY of error messages.
-//
-// The UX rule that matters most: DON'T validate on every keystroke from
+        code: `// The UX rule that matters most: DON'T validate on every keystroke from
 // the start. Telling someone their email is invalid after they've typed
 // "a" is hostile. Validate on BLUR, then live-update once the field has
 // been touched. That single decision is what interviewers are listening
@@ -10908,14 +10383,7 @@ render(<SignupForm />);`,
       {
         name: 'Form with Dynamic Fields',
         jsx: true,
-        code: `// ===== MACHINE CODING: Form with Dynamic Fields (field array) =====
-// Build a form where the user can ADD and REMOVE rows:
-// - One source of truth: an array of row objects, each with a stable id
-// - Per-row validation, errors derived from state rather than stored
-// - Submit disabled until every row is valid
-// - The graded detail: key by id, NEVER by array index
-
-let nextId = 3;
+        code: `let nextId = 3;
 
 function DynamicFieldsForm() {
   // One array IS the form state. Each row carries its own id so React can
@@ -11066,14 +10534,7 @@ render(<DynamicFieldsForm />);`,
       {
         name: 'Multi-Step Form (Wizard)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Multi-Step Form (Wizard) =====
-// Build a 3-step form where:
-// - ALL steps share one state object owned by the parent
-// - Next is blocked until the current step validates
-// - Going Back preserves everything already typed
-// - A review step shows the whole payload before submit
-
-const STEPS = ["Account", "Profile", "Review"];
+        code: `const STEPS = ["Account", "Profile", "Review"];
 
 // Validation lives per step, so "can I advance?" is one lookup.
 const validators = [
@@ -11219,12 +10680,7 @@ render(<Wizard />);`,
       {
         name: 'Theme Switcher (dark/light)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Theme Switcher =====
-// "Dark/light toggle that persists across sessions." Tests Context API,
-// CSS variables, system preferences — and the one they always mention:
-// THE FLASH OF WRONG THEME on reload.
-//
-// THREE states, not two. This is the part most implementations get wrong:
+        code: `// THREE states, not two. This is the part most implementations get wrong:
 //   'light'  — user explicitly chose light
 //   'dark'   — user explicitly chose dark
 //   'system' — follow the OS, and KEEP following it if the OS changes
@@ -11416,19 +10872,7 @@ render(
       {
         name: 'Button (variants + sizes)',
         jsx: true,
-        code: `// ===== MACHINE CODING: Button (variants + sizes) =====
-// This looks like a CSS question and is not one. What gets graded is the
-// PROP API: what a consumer can express, what they cannot express by
-// accident, and what the component refuses to let them get wrong.
-//
-// TASK
-//   1. variant + size as closed sets, resolved by lookup, never if-chains
-//   2. forward ref and every unknown prop, so it substitutes for <button>
-//   3. loading as a state distinct from disabled, announced to AT
-//   4. polymorphic "as" so the same design renders a link
-//   5. icon-only must be labelled, or it announces as "button"
-
-const VARIANTS = {
+        code: `const VARIANTS = {
   primary:   { background: "#4f46e5", color: "#fff",     border: "1px solid #4f46e5" },
   secondary: { background: "#fff",    color: "#1e293b",  border: "1px solid #cbd5e1" },
   ghost:     { background: "transparent", color: "#4f46e5", border: "1px solid transparent" },
@@ -11604,6 +11048,1327 @@ render(<Demo />);
 //   - The polymorphic escape hatch: a link is a link. Production libraries
 //     use asChild (Radix) or a render prop rather than "as", because "as"
 //     cannot merge props onto a component the consumer already built.`,
+      },
+      {
+        name: 'Nested Comments (recursive replies)',
+        jsx: true,
+        code: `// THE KEY DECISION IS THE DATA SHAPE.
+//   Nested (replies inside replies): easy to render, painful to update. Adding
+//     a reply means copying every object on the path down to it, and finding a
+//     comment by id means searching the whole tree.
+//   Flat, keyed by id (used here, often called "normalised"):
+//     byId:    { c1: { id, author, text, parentId, childIds: ["c2"] }, ... }
+//     rootIds: ["c1", "c4"]
+//   Adding a reply touches exactly two entries: the new comment and its parent.
+//   Servers usually send comments flat with a parentId anyway.
+
+// What an API typically returns: a flat list, each with its parent's id.
+const FROM_SERVER = [
+  { id: "c1", parentId: null, author: "Asha",  text: "Should the design system ship its own icons?" },
+  { id: "c2", parentId: "c1", author: "Ravi",  text: "Yes, one set keeps every product consistent." },
+  { id: "c3", parentId: "c2", author: "Meera", text: "Only if someone owns updating them." },
+  { id: "c4", parentId: "c1", author: "Sam",   text: "We could wrap an open-source set instead." },
+  { id: "c5", parentId: null, author: "Lena",  text: "Separate question: do we need dark mode tokens first?" },
+];
+
+function normalise(list) {
+  const byId = {};
+  const rootIds = [];
+  for (const c of list) byId[c.id] = { ...c, childIds: [] };
+  for (const c of list) {
+    if (c.parentId) byId[c.parentId].childIds.push(c.id);
+    else rootIds.push(c.id);
+  }
+  return { byId, rootIds };
+}
+
+// A tiny store, so each <Comment> can subscribe to ITS OWN entry.
+// When a reply is added, only the parent's entry changes, so only the parent
+// re-renders. Passing the whole byId object down as a prop would re-render
+// every comment on every change.
+function createCommentStore(list) {
+  let state = normalise(list);
+  let nextId = 100;
+  const listeners = new Set();
+
+  return {
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    getComment: (id) => state.byId[id],
+    getRootIds: () => state.rootIds,
+    addReply(parentId, author, text) {
+      const id = "c" + nextId++;       // a real app gets the id from the server
+      const reply = { id, parentId, author, text, childIds: [] };
+      const parent = state.byId[parentId];
+      state = {
+        rootIds: state.rootIds,
+        byId: {
+          ...state.byId,
+          [id]: reply,
+          [parentId]: { ...parent, childIds: [...parent.childIds, id] },   // a NEW object only for the parent
+        },
+      };
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
+const store = createCommentStore(FROM_SERVER);
+
+function useComment(id) {
+  return React.useSyncExternalStore(store.subscribe, () => store.getComment(id));
+}
+
+const MAX_INDENT_DEPTH = 4;   // deeper replies stop indenting so text never gets squeezed
+
+// Recursive: a Comment renders its children as Comments.
+// memo + a single string prop means a comment only re-renders when its own
+// entry in the store changes.
+const Comment = React.memo(function Comment({ id, depth }) {
+  const comment = useComment(id);
+  const [collapsed, setCollapsed] = React.useState(false);
+  const [replying, setReplying] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
+
+  // Watch the console: replying logs only the parent and the new reply.
+  React.useEffect(() => {
+    console.log("rendered", id);
+  });
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!draft.trim()) return;
+    store.addReply(id, "You", draft.trim());
+    setDraft("");
+    setReplying(false);
+  };
+
+  const replies = comment.childIds.length;
+  const small = { background: "none", border: "none", color: "#60a5fa", cursor: "pointer", fontSize: 12, padding: 0 };
+
+  return (
+    <li style={{ listStyle: "none", marginTop: 10 }}>
+      <div style={{ borderLeft: "2px solid #334155", paddingLeft: 10 }}>
+        <div style={{ fontSize: 13, color: "#94a3b8" }}>{comment.author}</div>
+        <div style={{ fontSize: 14, margin: "2px 0 4px" }}>{comment.text}</div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button style={small} onClick={() => setReplying((r) => !r)}>Reply</button>
+          {replies > 0 && (
+            <button style={small} aria-expanded={!collapsed} onClick={() => setCollapsed((c) => !c)}>
+              {collapsed ? "Show " + replies + (replies === 1 ? " reply" : " replies") : "Hide replies"}
+            </button>
+          )}
+        </div>
+        {replying && (
+          <form onSubmit={submit} style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              aria-label={"Reply to " + comment.author}
+              placeholder={"Reply to " + comment.author}
+              autoFocus
+              style={{ flex: 1, padding: 6, borderRadius: 4, border: "1px solid #475569", background: "#0f172a", color: "#fff" }}
+            />
+            <button type="submit" style={{ padding: "6px 10px" }}>Post</button>
+          </form>
+        )}
+      </div>
+      {replies > 0 && !collapsed && (
+        <ul style={{ margin: 0, paddingLeft: depth < MAX_INDENT_DEPTH ? 20 : 0 }}>
+          {comment.childIds.map((childId) => (
+            // key = the comment's id, never the array index. With index keys,
+            // a new reply inserted above others would hand its neighbours'
+            // collapsed/draft state to the wrong comment.
+            <Comment key={childId} id={childId} depth={depth + 1} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+});
+
+function Thread() {
+  const rootIds = React.useSyncExternalStore(store.subscribe, store.getRootIds);
+  return (
+    <ul style={{ margin: 0, padding: 0 }}>
+      {rootIds.map((id) => <Comment key={id} id={id} depth={0} />)}
+    </ul>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff", maxWidth: 560 }}>
+      <h2>Comments</h2>
+      <Thread />
+    </div>
+  );
+}
+
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - Very deep threads: stop at a depth and show "Continue this thread",
+//     which loads that branch on its own page (what Reddit does).
+//   - Thousands of comments: load replies on demand ("Show 24 replies" fetches
+//     them), and virtualise the top level.
+//   - Optimistic posting: add the reply with a temporary id and a "sending"
+//     state, then swap in the server id. See the Optimistic UI template.
+//   - Recursion limit: rendering is recursive, but the data is not. A cycle in
+//     the data (a comment that is its own ancestor) would recurse forever, so
+//     validate parentIds when normalising.`,
+      },
+      {
+        name: 'Sidebar Navigation (responsive + submenus)',
+        jsx: true,
+        code: `// CSS OR JAVASCRIPT FOR "RESPONSIVE"?
+//   Layout (widths, hiding, stacking) belongs in CSS media queries.
+//   Use a JavaScript media query only where BEHAVIOUR differs: here, the
+//   drawer has open/closed state, a backdrop and Escape handling that the
+//   desktop sidebar does not need. With server rendering, remember the server
+//   cannot know the screen width, so render the desktop version by default
+//   and let the client switch after mounting.
+//
+// The preview pane is narrower than your window, so use the toggle at the top
+// to see the mobile layout.
+
+const NAV = [
+  { label: "Dashboard", path: "/dashboard" },
+  {
+    label: "Projects",
+    children: [
+      { label: "All projects", path: "/projects" },
+      { label: "Archived", path: "/projects/archived" },
+    ],
+  },
+  {
+    label: "Team",
+    children: [
+      { label: "Members", path: "/team/members" },
+      { label: "Roles", path: "/team/roles" },
+    ],
+  },
+  { label: "Settings", path: "/settings" },
+];
+
+// Which section contains this path? Used to open the right submenu.
+function sectionFor(path) {
+  const section = NAV.find((item) => item.children && item.children.some((c) => c.path === path));
+  return section ? section.label : null;
+}
+
+// Subscribes to a CSS media query. useSyncExternalStore keeps it in step with
+// the browser, and the typeof guards keep it safe where matchMedia is missing
+// (server rendering, some test environments).
+function useMediaQuery(query) {
+  const subscribe = React.useCallback((onChange) => {
+    if (typeof window.matchMedia !== "function") return () => {};
+    const mql = window.matchMedia(query);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, [query]);
+  const getSnapshot = () => typeof window.matchMedia === "function" && window.matchMedia(query).matches;
+  return React.useSyncExternalStore(subscribe, getSnapshot, () => true);
+}
+
+// In a real app this is react-router's <NavLink>, which sets aria-current for you.
+function NavItem({ item, currentPath, onNavigate, indent }) {
+  const active = item.path === currentPath;
+  return (
+    <a
+      href={item.path}
+      aria-current={active ? "page" : undefined}
+      onClick={(e) => {
+        e.preventDefault();          // the router handles it; no full page load
+        onNavigate(item.path);
+      }}
+      style={{
+        display: "block", padding: "8px 12px", paddingLeft: indent ? 28 : 12, borderRadius: 6,
+        textDecoration: "none", fontSize: 14,
+        color: active ? "#fff" : "#cbd5e1", background: active ? "#2563eb" : "transparent",
+      }}
+    >
+      {item.label}
+    </a>
+  );
+}
+
+function Section({ section, open, onToggle, currentPath, onNavigate }) {
+  const id = "submenu-" + section.label.toLowerCase();
+  return (
+    <li>
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={id}
+        style={{
+          width: "100%", display: "flex", justifyContent: "space-between", padding: "8px 12px",
+          background: "none", border: "none", color: "#cbd5e1", fontSize: 14, cursor: "pointer", borderRadius: 6,
+        }}
+      >
+        {section.label}
+        <span aria-hidden="true" className="nav-anim" style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform 0.2s" }}>›</span>
+      </button>
+      {/* Height animation without measuring: a one-row grid goes from 0fr to 1fr.
+          visibility:hidden when closed matters as much as the animation. Without
+          it, the collapsed links are still reachable with Tab, and focus vanishes
+          into something the user cannot see. */}
+      <div
+        id={id}
+        className="nav-anim"
+        style={{
+          display: "grid", gridTemplateRows: open ? "1fr" : "0fr",
+          visibility: open ? "visible" : "hidden",
+          transition: "grid-template-rows 0.2s ease, visibility 0.2s",
+        }}
+      >
+        <ul style={{ overflow: "hidden", margin: 0, padding: 0, listStyle: "none" }}>
+          {section.children.map((child) => (
+            <li key={child.path}>
+              <NavItem item={child} currentPath={currentPath} onNavigate={onNavigate} indent />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </li>
+  );
+}
+
+function SidebarNav({ currentPath, onNavigate }) {
+  // Start with the current page's section open. Lazy initial state: computed once.
+  const [openSections, setOpenSections] = React.useState(() => new Set([sectionFor(currentPath)]));
+
+  const toggle = (label) =>
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+
+  const navigate = (path) => {
+    // Opening the new page's section happens HERE, in the event, not in an
+    // effect that watches the path. Same result, one render, no flicker.
+    const section = sectionFor(path);
+    if (section) setOpenSections((prev) => new Set(prev).add(section));
+    onNavigate(path);
+  };
+
+  return (
+    <nav aria-label="Main">
+      <ul style={{ margin: 0, padding: 8, listStyle: "none", display: "flex", flexDirection: "column", gap: 2 }}>
+        {NAV.map((item) =>
+          item.children ? (
+            <Section
+              key={item.label}
+              section={item}
+              open={openSections.has(item.label)}
+              onToggle={() => toggle(item.label)}
+              currentPath={currentPath}
+              onNavigate={navigate}
+            />
+          ) : (
+            <li key={item.path}>
+              <NavItem item={item} currentPath={currentPath} onNavigate={navigate} />
+            </li>
+          )
+        )}
+      </ul>
+    </nav>
+  );
+}
+
+function Layout({ isDesktop, path, setPath }) {
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const drawerVisible = isDesktop || drawerOpen;
+
+  // Escape closes the drawer. The listener exists only while it is open.
+  React.useEffect(() => {
+    if (isDesktop || !drawerOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setDrawerOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isDesktop, drawerOpen]);
+
+  const onNavigate = (next) => {
+    setPath(next);
+    setDrawerOpen(false);            // on mobile, picking a page closes the drawer
+  };
+
+  return (
+    <div style={{ position: "relative", display: "flex", height: 360, overflow: "hidden", border: "1px solid #334155", borderRadius: 8 }}>
+      <aside
+        className="nav-anim"
+        style={{
+          width: 220, flexShrink: 0, background: "#0f172a", borderRight: "1px solid #334155", zIndex: 2,
+          // Desktop: part of the layout. Mobile: slides in over the page.
+          position: isDesktop ? "relative" : "absolute", top: 0, bottom: 0, left: 0,
+          transform: drawerVisible ? "none" : "translateX(-100%)",
+          visibility: drawerVisible ? "visible" : "hidden",      // off-screen links must not take focus
+          transition: "transform 0.25s ease, visibility 0.25s",
+        }}
+      >
+        <SidebarNav currentPath={path} onNavigate={onNavigate} />
+      </aside>
+
+      {!isDesktop && drawerOpen && (
+        <button
+          aria-label="Close menu"
+          onClick={() => setDrawerOpen(false)}
+          style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", border: "none", zIndex: 1, cursor: "pointer" }}
+        />
+      )}
+
+      <main style={{ flex: 1, padding: 16, color: "#e2e8f0" }}>
+        {!isDesktop && (
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-expanded={drawerOpen}
+            aria-label="Open menu"
+            style={{ fontSize: 20, background: "none", border: "1px solid #475569", color: "#fff", borderRadius: 6, padding: "2px 10px", cursor: "pointer" }}
+          >
+            ☰
+          </button>
+        )}
+        <h3>You are on {path}</h3>
+        <p style={{ color: "#94a3b8", fontSize: 14 }}>Open "Projects", pick a page, and watch the highlight and the submenus follow.</p>
+      </main>
+    </div>
+  );
+}
+
+function App() {
+  const wideScreen = useMediaQuery("(min-width: 768px)");
+  const [preview, setPreview] = React.useState("auto");   // the preview pane is not your screen
+  const [path, setPath] = React.useState("/team/roles");  // lives above Layout, so the key below does not reset it
+  const isDesktop = preview === "auto" ? wideScreen : preview === "desktop";
+
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+      <style>{"@media (prefers-reduced-motion: reduce) { .nav-anim { transition: none !important; } }"}</style>
+      <h2>Sidebar navigation</h2>
+      <div role="group" aria-label="Preview layout" style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {["auto", "desktop", "mobile"].map((mode) => (
+          <button
+            key={mode}
+            aria-pressed={preview === mode}
+            onClick={() => setPreview(mode)}
+            style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #475569", cursor: "pointer", background: preview === mode ? "#2563eb" : "#1e293b", color: "#fff" }}
+          >
+            {mode}
+          </button>
+        ))}
+      </div>
+      {/* key: switching layouts starts the drawer closed rather than half-open */}
+      <Layout key={isDesktop ? "desktop" : "mobile"} isDesktop={isDesktop} path={path} setPath={setPath} />
+    </div>
+  );
+}
+
+render(<App />);`,
+      },
+      {
+        name: 'Data Table (sort + filter + paginate)',
+        jsx: true,
+        code: `// CLIENT-SIDE OR SERVER-SIDE?
+//   Client-side (used here): every row is already in the browser, up to a few
+//     thousand. Filter, then sort, then slice out one page, all in useMemo.
+//   Server-side: too many rows to send. Keep the SAME state object, but turn it
+//     into query parameters (?q=ali&status=active&sort=name&dir=asc&page=2&size=10)
+//     and let the server return one page plus the total count. The header,
+//     rows and pagination components do not change at all. The request that
+//     server-side mode would send is printed under the table.
+
+const NAMES = ["Asha", "Ravi", "Meera", "Sam", "Lena", "Omar", "Priya", "Chen", "Ines", "Tom", "Yuki", "Kofi"];
+const TEAMS = ["Design", "Platform", "Payments", "Growth"];
+const STATUSES = ["active", "invited", "suspended"];
+
+// 60 predictable rows, so sorting and filtering are easy to check by eye.
+const ROWS = Array.from({ length: 60 }, (_, i) => ({
+  id: i + 1,
+  name: NAMES[i % NAMES.length] + " " + String.fromCharCode(65 + (i % 26)) + ".",
+  team: TEAMS[(i * 7) % TEAMS.length],
+  status: STATUSES[(i * 5) % STATUSES.length],
+  tickets: (i * 37) % 90,
+}));
+
+const COLUMNS = [
+  { key: "name", label: "Name" },
+  { key: "team", label: "Team" },
+  { key: "status", label: "Status" },
+  { key: "tickets", label: "Open tickets", numeric: true },
+];
+
+// ---------- all table state in one reducer ----------
+// Resetting the page is part of each transition, so "filtered to 3 rows but
+// still on page 5" cannot happen.
+const initialState = { query: "", status: "all", sort: null, page: 1, pageSize: 10 };
+
+function tableReducer(state, action) {
+  switch (action.type) {
+    case "query": return { ...state, query: action.value, page: 1 };
+    case "status": return { ...state, status: action.value, page: 1 };
+    case "pageSize": return { ...state, pageSize: action.value, page: 1 };
+    case "page": return { ...state, page: action.value };
+    case "sort": {
+      // off -> ascending -> descending -> off
+      const s = state.sort;
+      if (!s || s.key !== action.key) return { ...state, sort: { key: action.key, dir: "asc" } };
+      if (s.dir === "asc") return { ...state, sort: { key: action.key, dir: "desc" } };
+      return { ...state, sort: null };
+    }
+    default: return state;
+  }
+}
+
+// ---------- pure data pipeline: filter -> sort -> paginate ----------
+function useTableRows(rows, state) {
+  const filtered = React.useMemo(() => {
+    const q = state.query.trim().toLowerCase();
+    return rows.filter((r) =>
+      (state.status === "all" || r.status === state.status) &&
+      (q === "" || r.name.toLowerCase().includes(q) || r.team.toLowerCase().includes(q))
+    );
+  }, [rows, state.query, state.status]);
+
+  const sorted = React.useMemo(() => {
+    if (!state.sort) return filtered;
+    const { key, dir } = state.sort;
+    const sign = dir === "asc" ? 1 : -1;
+    // Copy before sorting: sort() changes the array in place.
+    return [...filtered].sort((a, b) =>
+      typeof a[key] === "number" ? (a[key] - b[key]) * sign : String(a[key]).localeCompare(String(b[key])) * sign
+    );
+  }, [filtered, state.sort]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / state.pageSize));
+  const page = Math.min(state.page, pageCount);        // never past the last page
+  const start = (page - 1) * state.pageSize;
+  return { pageRows: sorted.slice(start, start + state.pageSize), total: sorted.length, page, pageCount };
+}
+
+// ---------- presentational pieces: props in, events out ----------
+function TableHeader({ columns, sort, onSort }) {
+  return (
+    <thead>
+      <tr>
+        {columns.map((col) => {
+          const dir = sort && sort.key === col.key ? sort.dir : null;
+          return (
+            // aria-sort tells a screen reader which column is sorted and how.
+            <th key={col.key} aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}
+              style={{ textAlign: col.numeric ? "right" : "left", padding: 0, borderBottom: "1px solid #475569" }}>
+              {/* A real <button> inside the header: focusable and keyboard-operable for free. */}
+              <button onClick={() => onSort(col.key)}
+                style={{ width: "100%", textAlign: "inherit", padding: "8px 10px", background: "none", border: "none", color: "#e2e8f0", fontWeight: 600, cursor: "pointer" }}>
+                {col.label} <span aria-hidden="true">{dir === "asc" ? "▲" : dir === "desc" ? "▼" : "↕"}</span>
+              </button>
+            </th>
+          );
+        })}
+      </tr>
+    </thead>
+  );
+}
+
+const TableRow = React.memo(function TableRow({ row, columns }) {
+  return (
+    <tr>
+      {columns.map((col) => (
+        <td key={col.key} style={{ padding: "6px 10px", textAlign: col.numeric ? "right" : "left", borderBottom: "1px solid #1e293b" }}>
+          {row[col.key]}
+        </td>
+      ))}
+    </tr>
+  );
+});
+
+function Pagination({ page, pageCount, pageSize, total, onPage, onPageSize }) {
+  const btn = { padding: "4px 10px", borderRadius: 4, border: "1px solid #475569", background: "#1e293b", color: "#fff", cursor: "pointer" };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, fontSize: 13, color: "#cbd5e1", flexWrap: "wrap" }}>
+      <button style={btn} onClick={() => onPage(page - 1)} disabled={page <= 1}>Previous</button>
+      <span aria-live="polite">Page {page} of {pageCount} ({total} rows)</span>
+      <button style={btn} onClick={() => onPage(page + 1)} disabled={page >= pageCount}>Next</button>
+      <label style={{ marginLeft: "auto" }}>
+        Rows per page{" "}
+        <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))}>
+          {[5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+// What server-side mode would request. Same state, different transport.
+function toQueryString(state) {
+  const params = new URLSearchParams();
+  if (state.query) params.set("q", state.query);
+  if (state.status !== "all") params.set("status", state.status);
+  if (state.sort) { params.set("sort", state.sort.key); params.set("dir", state.sort.dir); }
+  params.set("page", String(state.page));
+  params.set("size", String(state.pageSize));
+  return "/api/users?" + params.toString();
+}
+
+function DataTable({ rows, columns }) {
+  const [state, dispatch] = React.useReducer(tableReducer, initialState);
+  const { pageRows, total, page, pageCount } = useTableRows(rows, state);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <input
+          value={state.query}
+          onChange={(e) => dispatch({ type: "query", value: e.target.value })}
+          placeholder="Search name or team"
+          aria-label="Search name or team"
+          style={{ flex: 1, padding: 6, borderRadius: 4, border: "1px solid #475569", background: "#0f172a", color: "#fff" }}
+        />
+        <select aria-label="Filter by status" value={state.status} onChange={(e) => dispatch({ type: "status", value: e.target.value })}>
+          <option value="all">All statuses</option>
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <TableHeader columns={columns} sort={state.sort} onSort={(key) => dispatch({ type: "sort", key })} />
+        <tbody>
+          {pageRows.length === 0 ? (
+            <tr><td colSpan={columns.length} style={{ padding: 16, textAlign: "center", color: "#94a3b8" }}>No rows match these filters.</td></tr>
+          ) : (
+            // key = the row's id. With index keys, sorting would reuse the
+            // wrong row's DOM and any row-level state would jump rows.
+            pageRows.map((row) => <TableRow key={row.id} row={row} columns={columns} />)
+          )}
+        </tbody>
+      </table>
+
+      <Pagination
+        page={page} pageCount={pageCount} pageSize={state.pageSize} total={total}
+        onPage={(p) => dispatch({ type: "page", value: p })}
+        onPageSize={(n) => dispatch({ type: "pageSize", value: n })}
+      />
+      <p style={{ fontSize: 12, color: "#94a3b8", fontFamily: "monospace" }}>Server-side mode would request: {toQueryString({ ...state, page })}</p>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+      <h2>Team members</h2>
+      <DataTable rows={ROWS} columns={COLUMNS} />
+    </div>
+  );
+}
+
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - 10,000+ rows in the browser: paginating keeps the DOM small, but if you
+//     must show one long list, virtualise it (render only the visible rows).
+//   - Typing lag on a big dataset: wrap the query in useDeferredValue so the
+//     input stays responsive while the filter catches up, or debounce it.
+//     In server-side mode, debounce AND cancel stale requests (see the
+//     "Search with Debounce + Cancel" template).
+//   - Put the state in the URL so a filtered, sorted page can be shared and
+//     survives a refresh.
+//   - Sorting by several columns: sort becomes an array of { key, dir }, and
+//     the comparator walks it until one key breaks the tie.`,
+      },
+      {
+        name: 'Like Button (optimistic + rollback)',
+        jsx: true,
+        code: `// NUMBER 3 IS THE TRAP.
+//   The naive version sends one request per click. Three clicks means three
+//   requests, which can come back in ANY order, so an old response can
+//   overwrite a newer click, and a failed old request can "roll back" a change
+//   the user made after it.
+//   The fix here: at most ONE request in flight. Clicks made while it is
+//   running just change what the user WANTS. When the request finishes, if
+//   the server state still differs from what they want, send one more.
+//   Five fast clicks become at most two requests, and they cannot overtake
+//   each other.
+//
+//   Also: send the STATE (liked: true), not the action ("toggle"). Repeating
+//   "set liked to true" is harmless; repeating "toggle" flips it back.
+
+// ---------- a fake server: 600 ms per request, can be told to fail ----------
+const api = {
+  state: { liked: false, count: 41 },
+  failNext: false,
+  setLiked(liked) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        if (api.failNext) {
+          api.failNext = false;
+          reject(new Error("500 Internal Server Error"));
+          return;
+        }
+        if (api.state.liked !== liked) {
+          api.state = { liked, count: api.state.count + (liked ? 1 : -1) };
+        }
+        resolve({ ...api.state });          // the server's truth, count included
+      }, 600);
+    });
+  },
+};
+
+function useOptimisticLike(initial) {
+  const [shown, setShown] = React.useState(initial);   // what the user sees
+  const [error, setError] = React.useState(null);
+  const [requests, setRequests] = React.useState(0);
+
+  // Refs, not state: these are read by an async loop, which must see the
+  // latest value right now, not the value from the render that started it.
+  const confirmed = React.useRef(initial);        // last state the server confirmed
+  const wanted = React.useRef(initial.liked);     // what the user wants right now
+  const inFlight = React.useRef(false);
+
+  const sync = async () => {
+    inFlight.current = true;
+    try {
+      while (wanted.current !== confirmed.current.liked) {
+        setRequests((n) => n + 1);
+        confirmed.current = await api.setLiked(wanted.current);
+      }
+      setShown(confirmed.current);                // settle on the server's real count
+    } catch {
+      wanted.current = confirmed.current.liked;   // roll back to what we KNOW is saved
+      setShown(confirmed.current);
+      setError("Could not save your like, so it was undone. Please try again.");
+    } finally {
+      inFlight.current = false;
+    }
+  };
+
+  const toggle = () => {
+    setError(null);
+    wanted.current = !wanted.current;
+    const liked = wanted.current;
+    setShown((prev) => ({ liked, count: prev.count + (liked ? 1 : -1) }));   // optimistic
+    if (!inFlight.current) sync();                // otherwise the running loop picks it up
+  };
+
+  return { shown, error, requests, toggle };
+}
+
+function LikeButton() {
+  const { shown, error, requests, toggle } = useOptimisticLike({ liked: false, count: 41 });
+
+  return (
+    <div>
+      <button
+        onClick={toggle}
+        aria-pressed={shown.liked}           // the label stays "Like"; the state is pressed or not
+        aria-label="Like"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 16px", borderRadius: 999,
+          border: "1px solid #475569", background: shown.liked ? "#be123c" : "#1e293b", color: "#fff",
+          fontSize: 16, cursor: "pointer",
+        }}
+      >
+        <span aria-hidden="true">{shown.liked ? "♥" : "♡"}</span>
+        <span>{shown.count}</span>
+      </button>
+      <p style={{ fontSize: 13, color: "#94a3b8" }}>Requests sent: {requests}</p>
+      {error && <p role="alert" style={{ color: "#fca5a5", fontSize: 14 }}>{error}</p>}
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+      <h2>Like button</h2>
+      <p style={{ color: "#94a3b8", fontSize: 14 }}>
+        Click fast, several times: the heart follows every click, but only one or two requests go out.
+      </p>
+      <LikeButton />
+      <button
+        onClick={() => { api.failNext = true; }}
+        style={{ marginTop: 8, padding: "6px 12px", borderRadius: 6, border: "1px solid #7f1d1d", background: "#450a0a", color: "#fecaca", cursor: "pointer" }}
+      >
+        Make the next request fail
+      </button>
+    </div>
+  );
+}
+
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - React 19 has useOptimistic for this: the optimistic value is shown while
+//     an action runs and is dropped automatically when it ends, so there is no
+//     manual rollback. See the "Optimistic UI Updates" template.
+//   - With TanStack Query: onMutate saves the old cache value and writes the
+//     new one, onError puts the saved value back, onSettled refetches.
+//   - The count others see: after success we show the SERVER's count, which
+//     includes other people's likes, rather than trusting our own arithmetic.
+//   - Leaving the page mid-request: the request still completes on the server.
+//     Nothing to undo, and React ignores state updates after unmount.`,
+      },
+      {
+        name: 'Rate-Limited Button (throttle vs lock)',
+        jsx: true,
+        code: `// WHICH TOOL FOR A BUTTON?
+//   Debounce: waits until the clicks STOP, then runs once. Right for a search
+//     box. Wrong for a button: the first click appears to do nothing, so people
+//     click again.
+//   Throttle: runs on the first click, then ignores clicks for a fixed time.
+//     Right for "Refresh" or "Load more", where repeating is fine but not
+//     ten times a second.
+//   In-flight lock: runs on the first click and ignores clicks until THAT
+//     request finishes. Right for Submit, Pay, Save: the goal is "exactly once",
+//     and no fixed time window can promise that, because the request may take
+//     longer than the window.
+//
+// lodash or custom? lodash's throttle/debounce are fine, but in React you must
+//   create them ONCE (useMemo or useRef), or every render makes a new throttled
+//   function with a fresh timer, which throttles nothing. Cancel them on unmount.
+
+// A fake API that takes 800 ms and counts every call it receives.
+function createApi() {
+  let calls = 0;
+  return {
+    get calls() { return calls; },
+    save() {
+      calls++;
+      return new Promise((resolve) => setTimeout(resolve, 800));
+    },
+  };
+}
+
+// ---------- throttle, leading edge: first call runs, the rest are dropped for ms milliseconds ----------
+function useThrottledCallback(fn, ms) {
+  const fnRef = React.useRef(fn);
+  const lastRun = React.useRef(0);
+  React.useEffect(() => { fnRef.current = fn; });   // always call the latest fn
+
+  // useCallback with [ms]: the SAME throttled function on every render.
+  return React.useCallback(() => {
+    const now = Date.now();
+    if (now - lastRun.current < ms) return;          // too soon: drop this click
+    lastRun.current = now;
+    fnRef.current();
+  }, [ms]);
+}
+
+// ---------- in-flight lock: ignore clicks until the request settles ----------
+function useInFlightLock(fn) {
+  const busyRef = React.useRef(false);    // the real guard
+  const [busy, setBusy] = React.useState(false);   // only for showing it on screen
+
+  const run = React.useCallback(async () => {
+    // A ref, not the busy state: two clicks can land before React re-renders,
+    // and both would still read busy === false. The ref changes immediately.
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }, [fn]);
+
+  return [run, busy];
+}
+
+function Counter({ label, calls }) {
+  return <span style={{ fontSize: 13, color: "#94a3b8" }}>{label}: <strong style={{ color: "#fff" }}>{calls}</strong> API calls</span>;
+}
+
+const btn = { padding: "8px 14px", borderRadius: 6, border: "1px solid #475569", background: "#334155", color: "#fff", cursor: "pointer", minWidth: 150 };
+
+function NaiveButton() {
+  const [api] = React.useState(createApi);
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  const onClick = () => { api.save(); bump(); };
+  return <Row button={<button style={btn} onClick={onClick}>Save (no guard)</button>} counter={<Counter label="No guard" calls={api.calls} />} />;
+}
+
+function ThrottledButton() {
+  const [api] = React.useState(createApi);
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  const throttled = useThrottledCallback(() => { api.save(); bump(); }, 1000);
+  return <Row button={<button style={btn} onClick={throttled}>Refresh (throttle 1 s)</button>} counter={<Counter label="Throttled" calls={api.calls} />} />;
+}
+
+function LockedButton() {
+  const [api] = React.useState(createApi);
+  const save = React.useCallback(() => api.save(), [api]);
+  const [run, busy] = useInFlightLock(save);
+  return (
+    <Row
+      button={
+        // aria-disabled instead of disabled: a disabled button drops keyboard
+        // focus in some browsers, and the lock already ignores extra clicks.
+        <button style={{ ...btn, opacity: busy ? 0.6 : 1 }} onClick={run} aria-disabled={busy} aria-busy={busy}>
+          {busy ? "Saving…" : "Pay (in-flight lock)"}
+        </button>
+      }
+      counter={<Counter label="Locked" calls={api.calls} />}
+    />
+  );
+}
+
+function Row({ button, counter }) {
+  return <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12 }}>{button}{counter}</div>;
+}
+
+function App() {
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+      <h2>Rapid clicks vs the API</h2>
+      <p style={{ color: "#94a3b8", fontSize: 14 }}>Click each button five times, fast.</p>
+      <NaiveButton />
+      <ThrottledButton />
+      <LockedButton />
+    </div>
+  );
+}
+
+render(<App />);
+
+// THE PART THAT IS NOT A FRONTEND PROBLEM
+//   Every guard above lives in one browser tab. Two tabs, a retry after a
+//   timeout, or a slow network that resends can still deliver the same
+//   request twice. For anything that must happen once (payments, orders),
+//   send an idempotency key: a unique id generated once per user action and
+//   sent with every retry, so the server can recognise a repeat and return
+//   the first result instead of charging twice. The frontend guard is for the
+//   user's experience; the idempotency key is the guarantee.`,
+      },
+      {
+        name: 'Shopping Cart (reducer + derived totals)',
+        jsx: true,
+        code: `// THREE DECISIONS THAT MAKE IT CORRECT
+//   Store only { productId, quantity }. Never store the price or the total:
+//     prices change, and a total you store is a total that can disagree with
+//     the items. Look the price up from the catalogue and COMPUTE the totals.
+//   Work in cents (whole numbers). 0.1 + 0.2 is 0.30000000000000004 in
+//     JavaScript, and money must never drift by a cent.
+//   One reducer owns every change, so the rules (max stock, no quantity 0)
+//     live in one place instead of in every button.
+
+// The catalogue. In a real app this comes from the API.
+const PRODUCTS = {
+  p1: { id: "p1", name: "Wireless Mouse", priceCents: 1999, stock: 5 },
+  p2: { id: "p2", name: "Mechanical Keyboard", priceCents: 8950, stock: 2 },
+  p3: { id: "p3", name: "USB-C Cable", priceCents: 799, stock: 10 },
+};
+const DISCOUNT_CODES = { SAVE10: 10 };   // percent off
+const TAX_RATE = 0.08;
+const STORAGE_KEY = "demo-cart";
+
+// ---------- the reducer: every cart rule in one place ----------
+function cartReducer(state, action) {
+  switch (action.type) {
+    case "add": {
+      const existing = state.items.find((i) => i.productId === action.productId);
+      const stock = PRODUCTS[action.productId].stock;
+      if (existing) {
+        return {
+          ...state,
+          items: state.items.map((i) =>
+            i.productId === action.productId ? { ...i, quantity: Math.min(i.quantity + 1, stock) } : i
+          ),
+        };
+      }
+      return { ...state, items: [...state.items, { productId: action.productId, quantity: 1 }] };
+    }
+    case "setQuantity": {
+      const stock = PRODUCTS[action.productId].stock;
+      const quantity = Math.max(1, Math.min(action.quantity, stock));   // clamp: 1 .. stock
+      return {
+        ...state,
+        items: state.items.map((i) => (i.productId === action.productId ? { ...i, quantity } : i)),
+      };
+    }
+    case "remove":
+      return { ...state, items: state.items.filter((i) => i.productId !== action.productId) };
+    case "applyCode":
+      return { ...state, code: DISCOUNT_CODES[action.code] ? action.code : null };
+    case "clear":
+      return { items: [], code: null };
+    default:
+      return state;
+  }
+}
+
+// ---------- totals are DERIVED, never stored ----------
+function computeTotals(cart) {
+  const lines = cart.items
+    .filter((i) => PRODUCTS[i.productId])                 // skip products that no longer exist
+    .map((i) => {
+      const product = PRODUCTS[i.productId];
+      return { ...i, product, lineCents: product.priceCents * i.quantity };
+    });
+  const subtotalCents = lines.reduce((sum, l) => sum + l.lineCents, 0);
+  const discountCents = cart.code ? Math.round((subtotalCents * DISCOUNT_CODES[cart.code]) / 100) : 0;
+  const taxCents = Math.round((subtotalCents - discountCents) * TAX_RATE);
+  const totalCents = subtotalCents - discountCents + taxCents;
+  const count = lines.reduce((sum, l) => sum + l.quantity, 0);
+  return { lines, subtotalCents, discountCents, taxCents, totalCents, count };
+}
+
+const formatMoney = (cents) => "$" + (cents / 100).toFixed(2);
+
+// ---------- persistence: read once, validate, and never let storage crash the app ----------
+function loadCart() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    // Saved data can be old, edited or from a previous version: check its shape.
+    if (saved && Array.isArray(saved.items) && saved.items.every((i) => typeof i.productId === "string" && i.quantity > 0)) {
+      return { items: saved.items, code: typeof saved.code === "string" ? saved.code : null };
+    }
+  } catch {
+    // Private mode, blocked storage or corrupt JSON: start with an empty cart.
+  }
+  return { items: [], code: null };
+}
+
+// ---------- context: one cart, shared by the header and the page ----------
+const CartContext = React.createContext(null);
+
+function CartProvider({ children }) {
+  const [cart, dispatch] = React.useReducer(cartReducer, undefined, loadCart);   // lazy: read storage once
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // Storage full or blocked: the cart still works for this visit.
+    }
+  }, [cart]);
+
+  const totals = React.useMemo(() => computeTotals(cart), [cart]);
+  const value = React.useMemo(() => ({ cart, totals, dispatch }), [cart, totals]);
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+}
+
+function useCart() {
+  const value = React.useContext(CartContext);
+  if (!value) throw new Error("useCart must be used inside <CartProvider>");
+  return value;
+}
+
+// ---------- UI ----------
+const btn = { padding: "6px 10px", borderRadius: 6, border: "1px solid #475569", background: "#334155", color: "#fff", cursor: "pointer" };
+
+function HeaderBadge() {
+  const { totals } = useCart();
+  return <span aria-label={"Cart, " + totals.count + " items"} style={{ background: "#2563eb", borderRadius: 999, padding: "2px 10px" }}>🛒 {totals.count}</span>;
+}
+
+function ProductList() {
+  const { cart, dispatch } = useCart();
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {Object.values(PRODUCTS).map((p) => {
+        const inCart = cart.items.find((i) => i.productId === p.id);
+        const atLimit = inCart && inCart.quantity >= p.stock;
+        return (
+          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1e293b", padding: 10, borderRadius: 8 }}>
+            <span>{p.name} <span style={{ color: "#94a3b8" }}>{formatMoney(p.priceCents)}</span></span>
+            <button style={btn} disabled={atLimit} onClick={() => dispatch({ type: "add", productId: p.id })}>
+              {atLimit ? "Max in cart" : "Add to cart"}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CartView() {
+  const { totals, cart, dispatch } = useCart();
+  const [code, setCode] = React.useState("");
+
+  if (totals.lines.length === 0) return <p style={{ color: "#94a3b8" }}>Your cart is empty.</p>;
+
+  return (
+    <div>
+      {totals.lines.map((line) => (
+        <div key={line.productId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #334155" }}>
+          <span style={{ flex: 1 }}>{line.product.name}</span>
+          <button style={btn} aria-label={"Decrease " + line.product.name}
+            onClick={() => dispatch({ type: "setQuantity", productId: line.productId, quantity: line.quantity - 1 })}>−</button>
+          <span aria-label={line.product.name + " quantity"}>{line.quantity}</span>
+          <button style={btn} aria-label={"Increase " + line.product.name}
+            onClick={() => dispatch({ type: "setQuantity", productId: line.productId, quantity: line.quantity + 1 })}>+</button>
+          <span style={{ width: 80, textAlign: "right" }}>{formatMoney(line.lineCents)}</span>
+          <button style={btn} aria-label={"Remove " + line.product.name}
+            onClick={() => dispatch({ type: "remove", productId: line.productId })}>×</button>
+        </div>
+      ))}
+
+      <form
+        onSubmit={(e) => { e.preventDefault(); dispatch({ type: "applyCode", code: code.trim().toUpperCase() }); }}
+        style={{ display: "flex", gap: 6, marginTop: 10 }}
+      >
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Discount code (try SAVE10)" aria-label="Discount code"
+          style={{ flex: 1, padding: 6, borderRadius: 4, border: "1px solid #475569", background: "#0f172a", color: "#fff" }} />
+        <button style={btn} type="submit">Apply</button>
+      </form>
+
+      <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 4, marginTop: 10, fontSize: 14 }}>
+        <dt>Subtotal</dt><dd style={{ margin: 0 }}>{formatMoney(totals.subtotalCents)}</dd>
+        {totals.discountCents > 0 && (<><dt>Discount ({cart.code})</dt><dd style={{ margin: 0 }}>−{formatMoney(totals.discountCents)}</dd></>)}
+        <dt>Tax (8%)</dt><dd style={{ margin: 0 }}>{formatMoney(totals.taxCents)}</dd>
+        <dt style={{ fontWeight: 700 }}>Total</dt><dd style={{ margin: 0, fontWeight: 700 }} data-testid="total">{formatMoney(totals.totalCents)}</dd>
+      </dl>
+      <button style={{ ...btn, marginTop: 10 }} onClick={() => dispatch({ type: "clear" })}>Clear cart</button>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <CartProvider>
+      <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff", maxWidth: 560 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2>Shop</h2>
+          <HeaderBadge />
+        </div>
+        <ProductList />
+        <h3>Cart</h3>
+        <CartView />
+      </div>
+    </CartProvider>
+  );
+}
+
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - Logged-in users: keep the cart on the server so it follows them across
+//     devices. A guest cart in localStorage is MERGED into the server cart at
+//     login, rather than one silently replacing the other.
+//   - Prices change while the item sits in the cart: the server recalculates
+//     the total at checkout and the UI shows "the price of X changed".
+//     The client total is a preview; the server's total is the one charged.
+//   - Several tabs: listen for the "storage" event to pick up changes made in
+//     another tab.
+//   - Why Context and not Redux here: one cart, a handful of consumers, and a
+//     reducer already holds the rules. The same reducer moves into a Redux
+//     slice or a Zustand store unchanged if the app grows.`,
+      },
+      {
+        name: 'File Upload (progress + cancel)',
+        jsx: true,
+        code: `// WHY XMLHttpRequest AND NOT fetch?
+//   fetch has no upload progress events. XMLHttpRequest does:
+//   xhr.upload.onprogress fires with how many bytes have been SENT so far
+//   (event.loaded) out of the total (event.total). axios uses XHR in the
+//   browser, which is why its onUploadProgress works.
+//
+// The playground has no server, so FakeXHR below behaves like one: it
+// reports progress in steps and fails files with "fail" in the name. Swap in
+// the real XMLHttpRequest (the default for createXHR) and nothing else changes.
+//
+// SPRING BOOT SIDE: the controller takes @RequestParam("file") MultipartFile.
+// Its defaults are 1 MB per file and 10 MB per request
+// (spring.servlet.multipart.max-file-size / max-request-size). A bigger file
+// is rejected, so raise both, and handle 413 Payload Too Large in the UI.
+
+const MAX_BYTES = 5 * 1024 * 1024;                        // 5 MB, matching the server limit
+const ALLOWED_TYPES = ["image/png", "image/jpeg", "application/pdf"];
+
+// ---------- a fake server with the XMLHttpRequest surface we use ----------
+class FakeXHR {
+  constructor() {
+    this.upload = { onprogress: null };
+    this.onload = null;
+    this.onerror = null;
+    this.onabort = null;
+    this.status = 0;
+    this.timer = null;
+  }
+  open(method, url) { this.url = url; }
+  send(formData) {
+    const file = formData.get("file");
+    const total = file.size;
+    let loaded = 0;
+    this.timer = setInterval(() => {
+      loaded = Math.min(total, loaded + Math.ceil(total / 5));
+      if (this.upload.onprogress) this.upload.onprogress({ lengthComputable: true, loaded, total });
+      if (loaded >= total) {
+        clearInterval(this.timer);
+        this.status = file.name.includes("fail") ? 500 : 201;
+        if (this.onload) this.onload();
+      }
+    }, 150);
+  }
+  abort() {
+    clearInterval(this.timer);
+    if (this.onabort) this.onabort();
+  }
+}
+
+// ---------- the upload function: a promise, plus progress and cancel ----------
+function uploadFile(file, { url, onProgress, signal, createXHR = () => new XMLHttpRequest() }) {
+  return new Promise((resolve, reject) => {
+    const xhr = createXHR();
+    const form = new FormData();
+    form.append("file", file);                 // the field name Spring's @RequestParam expects
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300
+      ? resolve(xhr.status)
+      : reject(new Error(xhr.status === 413 ? "File is too large for the server" : "Upload failed (" + xhr.status + ")")));
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.onabort = () => reject(new DOMException("Upload cancelled", "AbortError"));
+
+    // The same AbortController pattern as fetch, so callers cancel both the same way.
+    signal.addEventListener("abort", () => xhr.abort());
+
+    xhr.open("POST", url);
+    // Do NOT set Content-Type yourself. The browser adds
+    // "multipart/form-data; boundary=..." and the boundary is required.
+    xhr.send(form);
+  });
+}
+
+function validate(file) {
+  if (!ALLOWED_TYPES.includes(file.type)) return "Only PNG, JPEG or PDF files";
+  if (file.size > MAX_BYTES) return "Larger than 5 MB";
+  return null;
+}
+
+// ---------- React: one row of state per file ----------
+function useUploads(createXHR) {
+  const [uploads, setUploads] = React.useState([]);
+  const controllers = React.useRef(new Map());      // id -> AbortController
+
+  const update = (id, patch) =>
+    setUploads((list) => list.map((u) => (u.id === id ? { ...u, ...patch } : u)));
+
+  const start = (id, file) => {
+    const controller = new AbortController();
+    controllers.current.set(id, controller);
+    update(id, { status: "uploading", progress: 0, error: null });
+    uploadFile(file, {
+      url: "/api/files",
+      signal: controller.signal,
+      createXHR,
+      onProgress: (progress) => update(id, { progress }),
+    })
+      .then(() => update(id, { status: "done", progress: 100 }))
+      .catch((err) =>
+        update(id, err.name === "AbortError" ? { status: "cancelled" } : { status: "failed", error: err.message }))
+      .finally(() => controllers.current.delete(id));
+  };
+
+  const addFiles = (files) => {
+    const added = files.map((file, i) => ({
+      id: Date.now() + "-" + i + "-" + file.name,
+      file,
+      progress: 0,
+      error: validate(file),
+      status: validate(file) ? "rejected" : "queued",
+    }));
+    setUploads((list) => [...list, ...added]);
+    added.filter((u) => u.status === "queued").forEach((u) => start(u.id, u.file));
+  };
+
+  // Leaving the page cancels whatever is still uploading.
+  React.useEffect(() => {
+    const map = controllers.current;
+    return () => map.forEach((c) => c.abort());
+  }, []);
+
+  return {
+    uploads,
+    addFiles,
+    cancel: (id) => { const c = controllers.current.get(id); if (c) c.abort(); },
+    retry: (u) => start(u.id, u.file),
+  };
+}
+
+function UploadRow({ upload, onCancel, onRetry }) {
+  const colour = { done: "#16a34a", failed: "#dc2626", rejected: "#dc2626", cancelled: "#64748b" }[upload.status] || "#2563eb";
+  return (
+    <li style={{ listStyle: "none", background: "#1e293b", borderRadius: 8, padding: 10, marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+        <span>{upload.file.name}</span>
+        <span style={{ color: "#94a3b8" }}>{upload.status === "uploading" ? upload.progress + "%" : upload.status}</span>
+      </div>
+      {upload.status !== "rejected" && (
+        <div
+          role="progressbar"
+          aria-label={"Uploading " + upload.file.name}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={upload.progress}
+          style={{ height: 6, background: "#334155", borderRadius: 3, marginTop: 6, overflow: "hidden" }}
+        >
+          <div style={{ width: upload.progress + "%", height: "100%", background: colour, transition: "width 0.15s" }} />
+        </div>
+      )}
+      {upload.error && <p style={{ color: "#fca5a5", fontSize: 13, margin: "6px 0 0" }}>{upload.error}</p>}
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+        {upload.status === "uploading" && <button onClick={() => onCancel(upload.id)}>Cancel</button>}
+        {(upload.status === "failed" || upload.status === "cancelled") && <button onClick={() => onRetry(upload)}>Retry</button>}
+      </div>
+    </li>
+  );
+}
+
+function Uploader() {
+  // FakeXHR in the playground. In a real app, drop the argument.
+  const { uploads, addFiles, cancel, retry } = useUploads(() => new FakeXHR());
+
+  const sample = (name, type, kb) => new File([new Uint8Array(kb * 1024)], name, { type });
+
+  return (
+    <div>
+      <label style={{ display: "block", marginBottom: 10 }}>
+        Choose files{" "}
+        <input type="file" multiple onChange={(e) => { addFiles([...e.target.files]); e.target.value = ""; }} />
+      </label>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <button onClick={() => addFiles([sample("photo.png", "image/png", 300)])}>Sample image</button>
+        <button onClick={() => addFiles([sample("will-fail.pdf", "application/pdf", 200)])}>File the server rejects</button>
+        <button onClick={() => addFiles([sample("notes.txt", "text/plain", 1)])}>Wrong file type</button>
+      </div>
+      <ul style={{ padding: 0, margin: 0 }}>
+        {uploads.map((u) => <UploadRow key={u.id} upload={u} onCancel={cancel} onRetry={retry} />)}
+      </ul>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff", maxWidth: 520 }}>
+      <h2>File upload</h2>
+      <Uploader />
+    </div>
+  );
+}
+
+render(<App />);
+
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - Very large files (hundreds of MB): split them into chunks and upload
+//     each separately, so a dropped connection only retries one chunk, and the
+//     upload can resume. Or upload straight to storage with a pre-signed URL
+//     (S3, GCS) so the file never passes through your Spring Boot service.
+//   - Many files at once: limit how many upload at the same time (two or three)
+//     and queue the rest, or they compete for bandwidth and all finish late.
+//   - Validation on the client is for the user's convenience only. The server
+//     must check type and size again, and should check the file's contents,
+//     not trust its name or the type the browser reported.
+//   - Progress reaching 100% means the bytes were SENT, not that the server
+//     finished processing them. Show "Processing…" until the response arrives.`,
       },
     ],
   },

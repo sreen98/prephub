@@ -26,9 +26,9 @@ Git is a **distributed version control system** (DVCS) created by Linus Torvalds
 
 - **Distributed**: Every clone is a full repository with complete history
 - **Fast**: Nearly all operations are local (no network round-trip)
-- **Integrity**: Everything is checksummed with SHA-1 hashes before storage
-- **Branching**: Lightweight branches make branching/merging cheap and frequent
-- **Staging area**: An intermediate area between working directory and repository
+- **Integrity**: Everything is stored under the SHA-1 hash of its content, so a corrupted or tampered file no longer matches its name and Git notices
+- **Branching**: A branch is just a pointer to a commit, so creating one costs almost nothing and teams branch for every change
+- **Staging area**: An intermediate area between working directory and repository where you assemble exactly what the next commit will contain
 
 ### 1.2 Snapshots, Not Diffs
 
@@ -72,7 +72,7 @@ graph LR
 | **Staged** | Staging Area (Index) | Marked a modified file to go into the next commit |
 | **Committed** | .git Repository | Data is safely stored in the local database |
 
-The **staging area** (also called the **index**) is a file in `.git/index` that stores information about what will go into your next commit. This is what makes Git unique — you can selectively stage parts of your changes.
+The **staging area** (also called the **index**) is a file in `.git/index` that stores information about what will go into your next commit. Because you choose what goes in, you can stage only part of your changes — for example, commit a bug fix on its own while leaving an unrelated half-finished refactor out — so each commit stays one logical change.
 
 ```bash
 # Check which state files are in
@@ -103,7 +103,7 @@ git commit -m "Add feature"
 
 ## 2. Git Internals
 
-Understanding Git internals transforms you from a Git user to someone who truly understands what every command does under the hood.
+Git stores just four kinds of object plus a handful of named pointers to them. Nearly every command either writes new objects or moves a pointer, so once you know those two pieces, commands like `reset`, `rebase` and `reflog` stop being magic.
 
 ### 2.1 The .git Directory
 
@@ -129,7 +129,7 @@ When you run `git init`, Git creates a `.git` directory with this structure:
 
 ### 2.2 Git Objects
 
-Git is fundamentally a **content-addressable filesystem**. Everything is stored as objects identified by SHA-1 hashes. There are four types of objects:
+Git is fundamentally a **content-addressable filesystem**: the name of each stored object is the SHA-1 hash of its content, so you look things up by what they contain rather than by a path. Identical content always gets the same name, which is how Git avoids storing duplicates. There are four types of objects:
 
 ```mermaid
 graph TD
@@ -205,6 +205,8 @@ cat .git/HEAD
 - **Attached HEAD**: Points to a branch (normal state) — `ref: refs/heads/main`
 - **Detached HEAD**: Points directly to a commit — happens when you checkout a specific commit, tag, or remote branch
 
+Why the difference matters: when HEAD is attached, each new commit moves the branch forward with it. When HEAD is detached, no branch moves, so a commit you make there is reachable only from HEAD — switch away and nothing points to it except the reflog.
+
 ```bash
 # Detached HEAD state
 git checkout abc1234
@@ -238,7 +240,7 @@ git reset --hard HEAD@{1}  # Restore to before the reset
 
 ### 2.5 Packfiles
 
-Git periodically packs loose objects into **packfiles** for efficiency. Instead of storing every version as a complete snapshot, packfiles use delta compression.
+Git periodically packs loose objects into **packfiles** for efficiency. This does not contradict "snapshots, not diffs": snapshots are the *model* every command works with, while packfiles are a *storage* optimisation underneath, where similar objects are stored as one full copy plus deltas (the differences) to save disk space.
 
 ```bash
 # Manually trigger packing
@@ -252,7 +254,7 @@ git verify-pack -v .git/objects/pack/pack-*.idx
 
 ## 3. Branching & Merging
 
-Branching is Git's "killer feature". Creating a branch is nearly instantaneous — Git just creates a new 41-byte file (a pointer to a commit).
+Creating a branch is nearly instantaneous because Git copies no files: it writes one 41-byte file (a 40-character commit hash plus a newline) that points at a commit. That is why branching per feature or per bug fix is normal in Git, where in older centralized tools a branch was a heavyweight copy.
 
 ### 3.1 Creating and Managing Branches
 
@@ -385,8 +387,8 @@ git diff --base     # Changes from common ancestor
 
 | Strategy | Flag | Use Case |
 |----------|------|----------|
-| **recursive** (default) | `-s recursive` | Standard two-branch merge |
-| **ort** (Git 2.33+) | `-s ort` | Faster replacement for recursive |
+| **recursive** | `-s recursive` | Standard two-branch merge; the default before Git 2.34 |
+| **ort** (default since Git 2.34) | `-s ort` | Faster rewrite of recursive, same results in normal use |
 | **ours** | `-s ours` | Keep our version entirely, discard theirs |
 | **octopus** | `-s octopus` | Merge more than two branches simultaneously |
 | **resolve** | `-s resolve` | Simple three-way merge (for two heads only) |
@@ -510,7 +512,7 @@ pick a1b2c3d Add user model
 
 > **Never rebase commits that have been pushed to a public/shared repository.**
 
-Rebasing rewrites commit history (creates new commit hashes). If others have based work on the original commits, rebasing creates duplicate commits and confusion.
+Rebasing rewrites commit history: every replayed commit gets a new hash. Your teammates' clones still contain the *old* commits. When they next pull, Git sees your new commits and their old ones as different commits that happen to make the same changes, merges the two, and the history ends up with every change twice — often with conflicts to resolve along the way.
 
 ```bash
 # SAFE: Rebase your local feature branch onto updated main
@@ -534,7 +536,7 @@ git rebase feature    # DON'T DO THIS if others use main
 
 ### 4.5 Rebase onto
 
-Use `--onto` for more precise control over which commits to replay:
+A plain `git rebase main` replays every commit on your branch that is not on `main`. `--onto` lets you name the cut point separately from the destination: `git rebase --onto <new-base> <old-base> <branch>` takes only the commits on `<branch>` after `<old-base>` and replays them onto `<new-base>`. The typical case is a branch you started from the wrong place — say from `develop` when it should have come from `main` — where you want your own commits moved but not `develop`'s. (Q22 below walks through a diagram.)
 
 ```bash
 # Rebase feature branch from old-base onto new-base
@@ -576,8 +578,8 @@ graph LR
 | `release/*` | Release prep, bug fixes | `develop` | `main` + `develop` |
 | `hotfix/*` | Urgent production fixes | `main` | `main` + `develop` |
 
-**Pros**: Clear structure, parallel development, release management.
-**Cons**: Complex, too heavy for continuous delivery, many long-lived branches.
+**Pros**: Every kind of work has a named home, so a release can be stabilised on its own branch while new features keep landing on `develop`, and an urgent fix can go straight from `main` to production.
+**Cons**: Finished work waits on `develop` until someone cuts a release branch, which fights continuous delivery (shipping every change as soon as it is merged). The long-lived `develop` and `release` branches drift apart, and every fix must be merged into two places.
 
 ### 5.2 GitHub Flow
 
@@ -617,8 +619,10 @@ git merge short-feature
 git branch -d short-feature
 ```
 
+The idea is that branches which live for hours cannot drift far enough to produce painful merges. The catch is that unfinished features land on `main` too, which is why the practices below matter.
+
 **Key practices:**
-- Feature flags to hide incomplete work
+- Feature flags (a runtime switch that keeps new code turned off) to hide incomplete work that is already merged
 - Short-lived branches (hours to 1-2 days)
 - Frequent integration (multiple times per day)
 - Comprehensive automated testing
@@ -628,7 +632,7 @@ git branch -d short-feature
 
 ### 5.4 Forking Workflow
 
-Used in open-source projects. Each contributor has their own fork (server-side clone).
+Used in open-source projects, where contributors are not given push access to the main repository. Each contributor has their own fork (a server-side copy they *can* push to) and proposes changes by opening a pull request from it.
 
 ```bash
 # 1. Fork the repository on GitHub
@@ -668,7 +672,7 @@ git push origin main
 
 ## 6. Undoing Changes
 
-One of Git's greatest strengths is the ability to undo almost anything. Understanding the right tool for each situation is essential.
+The right undo command depends on one question: has anyone else seen this commit? For work only you have, rewriting history (`reset`, `--amend`) is fine and keeps it tidy. Once a commit is pushed to a shared branch, add a new commit that reverses it (`revert`) instead, because rewriting it would break everyone who already pulled it.
 
 ### 6.1 Overview of Undo Commands
 
@@ -715,7 +719,7 @@ git restore --staged --worktree file.js
 
 ### 6.3 git reset
 
-Moves the branch pointer (HEAD) to a different commit. Three modes control what happens to the staging area and working directory:
+Moves the current branch (the one HEAD points to) to a different commit. The commits after that point are no longer on the branch, though they stay recoverable through the reflog for a while. Three modes control what happens to the staging area and working directory:
 
 ```bash
 # Soft: Move HEAD, keep staging area and working directory
@@ -957,9 +961,9 @@ git cherry-pick --abort
 
 ### 8.4 Risks and Considerations
 
-- **Duplicate commits**: Cherry-picked commits have different hashes, creating duplicates if branches are later merged
-- **Context dependency**: A commit may depend on previous changes not present in the target branch
-- **Merge confusion**: Repeated cherry-picks between branches can cause merge conflicts later
+- **The same change appears twice in history**: the cherry-picked copy has a different hash from the original, so if the two branches are later merged, `git log` shows both commits. Git usually copes with this well: a merge sees the identical change on both sides and applies it once without a conflict, and `git rebase` recognises that the change is already upstream and skips the commit (it prints a "skipped previously applied commit" hint). The cost is mostly a noisier history, not broken code.
+- **Context dependency**: A commit may depend on earlier changes that are not in the target branch, so it can apply cleanly and still not compile or behave correctly there.
+- **Merge conflicts once the copies diverge**: the easy case above only holds while both copies are identical. If someone edits the same lines after cherry-picking (for example, adjusts the fix on the release branch), the two branches now changed those lines differently, and the later merge conflicts. Repeated cherry-picks back and forth make this more likely.
 - **Prefer merge/rebase** when possible — cherry-pick is for exceptions, not the regular workflow
 
 ---
@@ -1210,7 +1214,7 @@ Pre-release suffixes: `v1.0.0-alpha`, `v1.0.0-beta.1`, `v1.0.0-rc.1`
 
 ### 11.1 Git Bisect
 
-Binary search through commits to find which commit introduced a bug.
+Binary search through commits to find which commit introduced a bug. You tell Git one commit that is broken and one that worked; it checks out the commit halfway between, you say "good" or "bad", and it throws away the half that cannot contain the culprit. Each answer halves the range, so about 10 checks cover 1,000 commits.
 
 ```bash
 # Start bisecting
@@ -1266,8 +1270,8 @@ git submodule update --remote
 ```
 
 **Submodule gotchas:**
-- Submodules point to a specific commit, not a branch
-- Team members must run `git submodule update` after pulling
+- Submodules point to a specific commit, not a branch — the parent repo records "use utils at commit abc123", so new commits in the library change nothing until someone updates that pointer and commits it
+- Team members must run `git submodule update` after pulling; a plain `git pull` moves the recorded pointer but leaves the submodule's files at the old commit
 - Moving/removing submodules requires updating `.gitmodules` and `.git/config`
 
 ### 11.3 Subtrees
@@ -1353,7 +1357,7 @@ fi
 
 ### 11.6 Sparse Checkout
 
-Clone a repository but only checkout specific directories — useful for monorepos.
+Clone a repository but only checkout specific directories — useful for monorepos (one repository holding many projects), where you work on one package and do not want the other thousands of files on disk. The clone below pairs it with `--filter=blob:none`, a *partial clone*: Git downloads the commits and directory listings but fetches file contents only when a checkout actually needs them.
 
 ```bash
 # Enable sparse checkout
@@ -1375,7 +1379,7 @@ git sparse-checkout disable
 
 ### 11.7 Shallow Clone
 
-Clone with limited history to save time and disk space.
+Clone with limited history to save time and disk space. The typical user is a CI job that only needs to build the latest commit. The trade-off: commands that walk history — `git log`, `git blame`, `git bisect`, finding a merge base — can only see the commits you fetched.
 
 ```bash
 # Clone with only the last commit
@@ -1490,7 +1494,7 @@ git diff --ignore-all-space
 
 ### 12.1 Commit Messages
 
-Write clear, consistent commit messages. The widely adopted **Conventional Commits** format:
+A commit message is read later by someone asking "why was this changed?", usually while debugging. The widely adopted **Conventional Commits** format adds a machine-readable prefix, so tools can generate changelogs and decide the next version number from the history:
 
 ```
 <type>[optional scope]: <description>
@@ -1539,6 +1543,11 @@ git commit -m "changes"
 5. Use the imperative mood ("Add feature" not "Added feature")
 6. Wrap the body at 72 characters
 7. Use the body to explain *what* and *why*, not *how*
+
+These rules come from Chris Beams' widely cited post "How to Write a Git Commit Message". The two numbers have practical reasons behind them:
+- **50 characters is a rule of thumb, not a hard limit.** The subject is what you see in one-line views such as `git log --oneline`, so it has to be short enough to scan, and the limit forces you to say what the commit does in one phrase. GitHub cuts off any subject longer than 72 characters with an ellipsis, which is the real ceiling.
+- **72 characters for the body** because Git never wraps text itself, and `git log` indents the body. Wrapping at 72 leaves room for that indent while keeping lines under 80 characters, the traditional terminal width.
+- **Imperative mood** matches the messages Git writes itself ("Merge branch …", "Revert …"). A good test: the subject should complete the sentence "If applied, this commit will …".
 
 ### 12.2 .gitignore
 
@@ -1602,7 +1611,7 @@ refactor/database-queries
 
 ### 12.4 Pull Request Best Practices
 
-1. **Keep PRs small** — ideally under 400 lines changed
+1. **Keep PRs small** — ideally under 400 lines changed. The number comes from a SmartBear study of code review at Cisco (about 2,500 reviews), which found reviewers should look at no more than 200–400 lines at a time: beyond roughly 400 lines, their ability to find defects drops. A big PR does not get a more careful review, it gets a quicker, shallower one.
 2. **One concern per PR** — don't mix features and refactoring
 3. **Write a clear description** — what, why, how to test
 4. **Self-review first** — review your own diff before requesting review
@@ -1661,6 +1670,8 @@ git config --global alias.amend "commit --amend --no-edit"
 
 **Q1: What is the difference between git merge and git rebase?**
 
+Short answer: both bring one branch's changes into another. Merge keeps history exactly as it happened and joins the branches with a merge commit; rebase rewrites your commits so they sit on top of the other branch, giving a straight line of history. Because rebase creates new commits, only rebase work nobody else has pulled.
+
 Both integrate changes from one branch into another, but they do it differently:
 
 **Merge** creates a new "merge commit" that ties together the histories of both branches. It preserves the complete history and branch topology.
@@ -1688,6 +1699,8 @@ Key difference: Merge preserves history as it happened. Rebase rewrites history 
 **Q2: What is a detached HEAD state and how do you fix it?**
 
 **Detached HEAD** occurs when HEAD points directly to a commit instead of a branch reference. This happens when you checkout a specific commit, a tag, or a remote branch.
+
+The risk is that commits made here belong to no branch: normally a new commit moves the current branch forward, but with HEAD detached there is no branch to move. The fix is simply to give those commits a branch name before you leave.
 
 ```bash
 # Enter detached HEAD
@@ -1765,6 +1778,8 @@ git revert HEAD
 ---
 
 **Q5: What is the difference between `git fetch` and `git pull`?**
+
+Short answer: `git fetch` only downloads what is new on the remote and lets you look at it; `git pull` downloads it and immediately merges (or rebases) it into your current branch. Fetch is always safe; pull changes your branch and can stop you with a conflict.
 
 `git fetch` downloads new data from the remote repository but does **not** modify your working directory or current branch. It updates your remote-tracking branches (e.g., `origin/main`).
 
@@ -1960,7 +1975,7 @@ git cherry-pick abc1234 def5678 ghi9012
 
 **Q12: How does `git bisect` work?**
 
-`git bisect` performs a binary search through your commit history to find which commit introduced a bug. It's incredibly efficient — for 1000 commits, it finds the culprit in about 10 steps.
+`git bisect` performs a binary search through your commit history to find which commit introduced a bug. Each test halves the range of suspect commits, so for 1000 commits it finds the culprit in about 10 steps.
 
 ```bash
 git bisect start
@@ -1992,6 +2007,8 @@ Both `--force` and `--force-with-lease` overwrite the remote branch, but they di
 
 - `git push --force` overwrites the remote **unconditionally**, potentially destroying other people's commits
 - `git push --force-with-lease` checks that the remote branch is where you expect it to be. If someone else pushed commits, it **refuses** to push
+
+"Where you expect" means your remote-tracking branch (`origin/feature`, as of your last fetch). That is also the one gap worth volunteering: if you run `git fetch` after a teammate pushes and then force-push without looking, your expectation now includes their commit, the lease passes, and their work is overwritten anyway.
 
 ```bash
 # Scenario: You rebased your feature branch
@@ -2079,6 +2096,8 @@ git revert -m 1 merge-commit-hash
 ---
 
 **Q16: How do you squash commits? What are the different ways?**
+
+Short answer: squashing means combining several commits into one. There are three ways, and the choice depends on where you are — interactive rebase to tidy your own branch before review, a squash merge to land a whole branch as one commit on `main`, and a soft reset as the quick local shortcut.
 
 **Method 1: Interactive rebase**
 
@@ -2289,7 +2308,7 @@ git diff $(git merge-base main feature) main    # What main changed
 git diff $(git merge-base main feature) feature  # What feature changed
 ```
 
-**Recursive strategy**: When there are multiple common ancestors (criss-cross merges), Git recursively merges the common ancestors to create a virtual merge base before performing the three-way merge.
+**Recursive strategy** (and `ort`, its rewrite and the default since Git 2.34): When there are multiple common ancestors (criss-cross merges), Git recursively merges the common ancestors to create a virtual merge base before performing the three-way merge.
 
 ---
 
@@ -2426,8 +2445,10 @@ git subtree pull --prefix=lib/utils https://github.com/lib/utils.git main --squa
 
 **Q24: How does Git handle large files? What is Git LFS?**
 
-Git stores complete snapshots. Large binary files (images, videos, datasets) cause problems because:
-- Every version is stored as a complete blob (no efficient delta for binaries)
+Short answer: history in Git is permanent and every clone downloads all of it, so a 200 MB video committed ten times is roughly 2 GB that every developer and every CI job pulls forever. Git LFS keeps only small pointer files in the repository and fetches the real files on demand.
+
+Large binary files (images, videos, datasets) cause problems because:
+- Every version is stored as a complete blob (binaries rarely compress well as deltas)
 - Repository size grows rapidly
 - Clone/fetch times become slow
 
@@ -2502,6 +2523,8 @@ git reset --hard origin/feature-branch
 git fetch origin
 git rebase --onto origin/feature-branch origin/feature-branch@{1} feature-branch
 ```
+
+That last command is the delicate part. `origin/feature-branch@{1}` is where the remote-tracking branch pointed *before* the fetch, i.e. the old, pre-rebase tip. So the command takes only the commits a teammate made on top of the old tip and replays them onto the rewritten branch, leaving the old copies of everyone else's commits behind.
 
 **Option 2: Merge instead (safer for shared branches)**
 

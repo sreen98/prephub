@@ -99,11 +99,11 @@ document.querySelector('#list').addEventListener('click', e => {
 
 ## 2. Storage APIs
 
-The browser ships **five** different storage mechanisms with very different rules. Picking the wrong one is a common bug source — auth tokens in `localStorage` (XSS-readable), large data in cookies (sent on every request), expecting tabs to share `sessionStorage` (they don't).
+The browser ships **five** different storage mechanisms with very different rules. Picking the wrong one is a common bug source — auth tokens in `localStorage` (readable by XSS, cross-site scripting: an attacker's script running inside your page), large data in cookies (sent on every request), expecting tabs to share `sessionStorage` (they don't).
 
 ### 2.1 Cookies
 
-The original. Strings only, sent automatically on every same-origin request, max ~4 KB total per domain. The only client-readable storage that the *server* can also see, which is why they're still the standard transport for session IDs and CSRF tokens.
+The original. Strings only, sent automatically on every same-origin request, max ~4 KB total per domain. The only client-readable storage that the *server* can also see, which is why they're still the standard transport for session IDs and CSRF tokens (CSRF, cross-site request forgery, is another site tricking the user's browser into sending a request to yours, with the user's cookies attached).
 
 ```js
 // Set (the API is one of the worst in the platform — a string with semicolons)
@@ -195,7 +195,7 @@ await cache.put('/api/x', new Response(JSON.stringify({}))); // manual
 const res = await cache.match('/static/logo.svg');         // hit or undefined
 ```
 
-This is what enables a PWA's offline-first behavior — the Service Worker intercepts `fetch`, looks up `caches.match`, and falls back to network.
+This is what enables a PWA's (progressive web app: a website that can be installed and work offline like an app) offline-first behavior — the Service Worker intercepts `fetch`, looks up `caches.match`, and falls back to network.
 
 ### 2.5 Storage comparison
 
@@ -284,7 +284,7 @@ ac.abort();   // both listeners removed
 
 ### 3.3 WebSockets
 
-Full-duplex, persistent TCP connection over a single HTTP-upgraded handshake. Both client and server can push at any time.
+A persistent, full-duplex connection: it starts as an ordinary HTTP request that asks to "upgrade", then stays open as a raw two-way channel over the same TCP connection. Full-duplex means both client and server can send at any time, without waiting for the other — unlike HTTP, where the client always asks and the server only answers.
 
 ```js
 const ws = new WebSocket('wss://example.com/socket');
@@ -421,16 +421,19 @@ The blank line terminates an event. `id` is sent back as `Last-Event-ID` on reco
 | Mechanism      | Direction          | Protocol         | Auto-reconnect | Binary? | Through proxies? |
 |----------------|--------------------|--------------------|---------------|---------|-------------------|
 | Long polling   | Client request     | HTTP request loop  | n/a           | Yes     | Always            |
-| SSE            | Server → client    | HTTP (text only)   | Yes (built-in)| No      | Yes               |
+| SSE            | Server → client    | HTTP (text only)   | Yes (built-in)| No      | Usually*          |
 | WebSocket      | Bidirectional      | TCP after upgrade  | No            | Yes     | Often blocked     |
 | Webhook        | Server → server    | HTTP POST          | n/a           | Yes     | n/a (server-only) |
+
+* A proxy that buffers responses holds events back until its buffer fills,
+  so the stream looks frozen. Turn response buffering off for the SSE route.
 ```
 
 **Pick by use case:**
 
-- **Notifications, score tickers, log tail, AI streaming** → SSE. Simpler than WebSocket, free reconnect, works through every proxy.
+- **Notifications, score tickers, log tail, AI streaming** → SSE. Simpler than WebSocket, free reconnect, and it is ordinary HTTP, so it passes proxies and firewalls that block WebSocket upgrades (make sure none of them buffer the response).
 - **Chat, collaborative editing, multiplayer games** → WebSocket. You need bidirectional and you need it fast.
-- **Anything else, especially behind weird corporate firewalls** → polling. Boring and reliable.
+- **Anything else, especially behind weird corporate firewalls** → polling. Boring and reliable. (Long polling means the client sends a request, the server holds it open until it has something to say, replies, and the client immediately sends the next one — push built out of ordinary requests.)
 
 ---
 
@@ -521,7 +524,7 @@ self.addEventListener('activate', e => {
 
 ## 5. Observers
 
-The four observer APIs replaced what used to be done with scroll/resize listeners and `setInterval` polling — all four batch their callbacks and run them in a dedicated frame, far cheaper than the old way.
+The four observer APIs replaced what used to be done with scroll/resize listeners and `setInterval` polling. The saving comes from batching: instead of running your code on every scroll event or every DOM change, the browser collects what changed and hands you one list of entries later. `MutationObserver` delivers its list in a microtask after the current script finishes; `IntersectionObserver` and `ResizeObserver` compute their results once per rendered frame, after the browser has already done layout, so reading sizes and positions in the callback does not force an extra layout. That is far cheaper than a scroll handler that calls `getBoundingClientRect()` dozens of times a second.
 
 ### 5.1 IntersectionObserver
 
@@ -541,7 +544,7 @@ document.querySelectorAll('img[data-src]').forEach(img => io.observe(img));
 ```
 
 - **`rootMargin`** — expand the trigger area. `'200px'` means "fire 200px before the element enters the viewport" — preload images before the user scrolls to them.
-- **`threshold`** — fraction of the element visible (0 to 1). `[0, 0.5, 1]` fires at every quarter visibility.
+- **`threshold`** — fraction of the element visible (0 to 1). An array such as `[0, 0.5, 1]` fires the callback each time visibility crosses one of those values: as the element first appears, at half visible, and when fully visible.
 - **`root`** — the scroll container. Defaults to the viewport.
 
 ### 5.2 MutationObserver
@@ -616,7 +619,7 @@ history.go(-2);
 **Key rules:**
 
 - **`popstate` does NOT fire on `pushState`/`replaceState`** — only on user navigation (back/forward, hash change). You manually update your app state when you push.
-- **The `state` object is structured-cloned and persisted** in the browser's history. ~640 KB limit. Don't put non-cloneable objects (functions, DOM nodes) in there.
+- **The `state` object is structured-cloned and persisted** in the browser's history. Browsers cap its serialized size and `pushState` throws if you exceed it, so store an id, not a whole data set. Don't put non-cloneable objects (functions, DOM nodes) in there.
 - **Path must be same-origin.** `pushState({}, '', 'https://other.com/x')` throws.
 - **Back-forward cache (bfcache)** — when the user navigates away and back, the browser may resurrect the *exact* in-memory page. Use `pageshow`/`pagehide` events with `e.persisted === true` to detect.
 
@@ -654,7 +657,7 @@ performance.getEntriesByName('parse');  // [{ duration: 23.4, ... }]
 
 `performance.now()` gives a high-resolution monotonic timestamp (microsecond-precise, immune to system clock changes — `Date.now()` is none of those things).
 
-For Core Web Vitals (LCP, INP, CLS) and the `web-vitals` library, see the [React Guide § Performance](#) — the same metrics, more product-focused framing.
+For Core Web Vitals (LCP, INP, CLS — Google's three user-experience metrics for loading speed, responsiveness and visual stability) and the `web-vitals` library, see the [Web Performance guide](/frontend/web-performance) — the same metrics, more product-focused framing.
 
 ---
 
@@ -664,7 +667,7 @@ Four ways to schedule work, each with a specific shape:
 
 ```js
 // 1. setTimeout / setInterval — millisecond delay, no frame guarantee
-setTimeout(fn, 0);   // "next tick" — actually clamped to ≥4ms in most browsers
+setTimeout(fn, 0);   // a later task — clamped to ≥4ms only once timeouts nest more than 5 deep
 
 // 2. queueMicrotask — runs BEFORE next paint, after current task
 queueMicrotask(() => console.log('microtask'));   // same queue as Promise.then
@@ -695,7 +698,7 @@ requestIdleCallback(deadline => {
 [Pull next task]
 ```
 
-This is why `await fetch(...)` can starve the event loop if the response comes back synchronously cached — microtasks can keep firing before the browser ever paints.
+The consequence worth knowing: the browser drains the **entire** microtask queue before it can paint, including microtasks queued by other microtasks. So a long chain of promise callbacks — each `.then` scheduling the next — freezes rendering just as surely as a `while` loop, even though every individual step is tiny.
 
 ---
 
@@ -790,7 +793,7 @@ if (perm === 'granted') {
 }
 ```
 
-For notifications that survive tab close (push), you need a Service Worker + Push API + a server holding VAPID keys.
+For notifications that survive tab close (push), you need a Service Worker + Push API + a server holding VAPID keys (a key pair that identifies your server to the browser's push service, so only you can send pushes to your subscribers).
 
 ### Clipboard
 
@@ -837,7 +840,7 @@ const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
 
 Keys can be **non-extractable** — you can use them to encrypt/sign but never read the bytes back, even from your own code. The browser holds them in a protected slot. This is what makes `crypto.subtle` fundamentally safer than `Math.random()` + a userland library.
 
-`Math.random()` is **never** appropriate for security purposes. It's a deterministic PRNG, predictable from a small number of outputs. Use `crypto.getRandomValues` for tokens, IDs, and any random number that must be unpredictable.
+`Math.random()` is **never** appropriate for security purposes. It's a deterministic PRNG (pseudo-random number generator: a formula that produces random-looking numbers from an internal state), so an attacker who sees a small number of outputs can work out the state and predict the rest. Use `crypto.getRandomValues` for tokens, IDs, and any random number that must be unpredictable.
 
 ---
 
@@ -1057,7 +1060,7 @@ list.addEventListener('click', e => {
 | Protocol | TCP after HTTP upgrade | Plain HTTP, long-lived response |
 | Reconnect | You implement | Built-in (browser auto-retries) |
 | Binary | Yes | No (text only) |
-| Through proxies | Often blocked | Always works |
+| Through proxies | Often blocked | Usually works (plain HTTP), but a buffering proxy delays events |
 | Browser API | `WebSocket` | `EventSource` |
 
 Pick **SSE** for one-way streams: notifications, logs, AI token streaming, score tickers. The free auto-reconnect with `Last-Event-ID` replay is a huge win.
@@ -1122,13 +1125,13 @@ Use cases:
 - **Impression analytics** — fire one event when an ad/section is at least 50% visible.
 - **Active-section nav** — highlight the side-nav entry whose section is currently in view.
 
-The browser batches callbacks and runs them in a dedicated frame, so it scales to thousands of observed elements without scroll jank.
+It scales to thousands of observed elements without scroll jank because the browser works out intersections once per frame, as part of rendering, and hands you one batched list of entries — your code does not run on every scroll event.
 
 ---
 
 **Q10: What's the difference between `requestAnimationFrame` and `setTimeout`?**
 
-- **`setTimeout(fn, 0)`** schedules `fn` to run on the next event-loop tick (clamped to ≥4ms in most browsers). It has **no relation** to the screen refresh — your animation can run between frames and never get drawn.
+- **`setTimeout(fn, 0)`** schedules `fn` as a new task on a later turn of the event loop (browsers clamp the delay to at least 4ms once timeouts are nested several levels deep). It has **no relation** to the screen refresh — your animation can run between frames and never get drawn.
 - **`requestAnimationFrame(fn)`** runs `fn` *just before the next paint*, syncing your update with the browser's render cycle (~60Hz, more on high-refresh-rate displays). Receives a high-resolution timestamp for interpolation.
 
 ```js
@@ -1173,20 +1176,22 @@ Web Workers are for pure computation: parsing huge JSON, image processing, crypt
 
 You **must** use it (or its server equivalent) any time security depends on the operation — passwords, tokens, encryption keys, signatures. Never use `Math.random()` for anything security-related; it's a deterministic PRNG predictable from a few outputs. `crypto.getRandomValues` and `crypto.randomUUID` are the right tools for unpredictable IDs.
 
-Userland libraries (`bcrypt.js`, `CryptoJS`) still have niche uses (legacy algorithms, password hashing — Web Crypto doesn't yet ship a good password KDF API), but for everyday symmetric crypto, hashing, and randomness, prefer the native API.
+Userland libraries (`bcrypt.js`, `CryptoJS`) still have niche uses (legacy algorithms, password hashing — Web Crypto doesn't yet ship a good password KDF, key derivation function: a deliberately slow hash designed so stolen password hashes are expensive to brute-force), but for everyday symmetric crypto, hashing, and randomness, prefer the native API.
 
 ---
 
 **Q13: What's the back-forward cache (bfcache) and how does it interact with your code?**
 
-When the user navigates away from a page and back, the browser may resurrect the **exact in-memory page** — JS state, scroll position, even open WebSockets — without re-running anything. This is bfcache, and it's the reason the back button feels instant on well-built sites.
+When the user navigates away from a page and back, the browser may resurrect the **exact in-memory page** — JS state, scroll position, timers — without re-running anything. This is bfcache, and it's the reason the back button feels instant on well-built sites.
 
 Your code must handle bfcache transitions:
 
 - **`pagehide`** with `e.persisted === true` — page is being frozen, not unloaded. Don't tear down what you'll need on resume.
-- **`pageshow`** with `e.persisted === true` — page was restored from bfcache. Refresh stale data, reconnect WebSockets the browser silently dropped, restart timers.
+- **`pageshow`** with `e.persisted === true` — page was restored from bfcache. Refresh stale data, reopen any connections you closed in `pagehide`, restart timers.
 
-Things that **prevent** bfcache eligibility: `unload` listeners, open IndexedDB transactions, `Cache-Control: no-store`. If your page won't bfcache, the back button is slow — it's worth diagnosing in DevTools' Application panel.
+Things that **prevent** bfcache eligibility: `unload` listeners, open IndexedDB connections, in-progress `fetch`/XHR requests, `Cache-Control: no-store` on the page. Open WebSockets block it in some browsers but not in current Chrome or Safari, so close them in `pagehide` and reopen in `pageshow` rather than relying on either behaviour.
+
+**Why an `unload` listener blocks it:** `unload` is older than bfcache, and code written for it assumes the page is about to be destroyed — it sends a final analytics beacon, clears state, closes connections. If the browser then brought that page back from the cache, it would come back half torn down. Rather than risk that, Chrome and Firefox on desktop simply skip bfcache for any page with an `unload` listener. Use `pagehide` instead: it fires in both cases and tells you, via `e.persisted`, which one is happening. If your page won't bfcache, the back button is slow — it's worth diagnosing in DevTools' Application panel.
 
 ---
 
@@ -1196,7 +1201,7 @@ All three are message-passing APIs, with different scopes:
 
 - **`window.postMessage`** — cross-origin between windows/iframes. Required to talk to an embedded iframe on a different origin. **Always validate `event.origin` and `event.source`** in the receiver.
 - **`BroadcastChannel`** — same-origin broadcast across tabs/iframes/workers. One named channel; everyone subscribed receives every message. Perfect for "user logged out — log out everywhere."
-- **`MessageChannel`** — creates a paired `MessagePort` duplex. Used for RPC-style worker communication; you can transfer one port to a worker and have a private bidirectional channel.
+- **`MessageChannel`** — creates a paired `MessagePort` duplex. Used for RPC-style (remote procedure call: "call this function over there and send me the result") worker communication; you can transfer one port to a worker and have a private bidirectional channel.
 
 All three serialize messages with the **structured clone algorithm** (no functions, no DOM nodes; cycles are fine).
 
@@ -1208,7 +1213,8 @@ The platform's algorithm for **deep-copying** values across realms — workers, 
 
 - Handles cycles (a → b → a doesn't infinite loop).
 - Copies typed arrays, Maps, Sets, Dates, RegExps, Blobs, Files, ArrayBuffers correctly.
-- **Fails on**: functions, DOM nodes, class instances with custom prototypes (you get a plain object back), Symbols, Proxies.
+- **Throws on** functions, DOM nodes, Symbols and Proxies.
+- **Loses the prototype** of class instances: the copy is a plain object with the same data but none of the class's methods.
 
 `structuredClone(value)` exposes it directly — a faster, more correct deep-clone than `JSON.parse(JSON.stringify(...))`:
 
@@ -1265,7 +1271,7 @@ const clients = await self.clients.matchAll({ type: 'window' });
 clients.forEach(c => c.postMessage({ type: 'logout' }));
 ```
 
-**Which to reach for.** `BroadcastChannel` is the right default — it is designed for exactly this, carries structured data, and does not abuse storage as a message bus. The `storage` event is the compatibility fallback and has one useful property the others lack: it works even if the other tab's JavaScript is idle, because the browser dispatches it. A Service Worker is the answer when the message must also reach tabs you did not open from this one.
+**Which to reach for.** `BroadcastChannel` is the right default — it is designed for exactly this, reaches every same-origin tab, carries structured data, and does not abuse storage as a message bus. The `storage` event is the compatibility fallback for older browsers that lack `BroadcastChannel`; it costs a throwaway storage write per message. A Service Worker is worth using when you already have one (for offline or push), since it can message every window it controls from one place.
 
 **Three details that separate a working answer from a complete one:**
 
@@ -1315,7 +1321,7 @@ However, two subtleties trip people up:
 
 2. **The thrown error is recoverable**, but a robust handler shouldn't just retry blindly — the user's quota is full and your write *will* fail again. The right pattern is to catch, prune the value (e.g., drop optional fields, evict old cache entries), and retry; or surface a "we couldn't save your cart" UX rather than failing silently.
 
-The one place the atomicity guarantee breaks down is if the value contains a circular reference or something `JSON.stringify` cannot serialize — `JSON.stringify` throws *before* `setItem` runs, so storage is untouched, but the call site needs to handle that error too.
+One more failure path to handle, which is not a storage failure at all: the value contains a circular reference or something `JSON.stringify` cannot serialize — `JSON.stringify` throws *before* `setItem` runs, so storage is untouched, but the call site needs to handle that error too.
 
 **Takeaway:** `localStorage.setItem` is atomic — failed writes leave existing values intact. Catch `QuotaExceededError`, but treat it as "user is out of space," not "transient error to retry."
 
@@ -1333,7 +1339,7 @@ This catches teams that try to "set the cookie from JS for SPA convenience and j
 
 The correct pattern: server sets the auth cookie via `Set-Cookie: sid=...; HttpOnly; Secure; SameSite=Lax; Path=/`, the browser attaches it automatically to every same-origin request, and JavaScript never touches it. If JS *needs* to know whether the user is logged in, the server returns a separate non-`HttpOnly` "is_authenticated: true" cookie or a `/me` endpoint — the auth cookie itself stays opaque to JS.
 
-The same rule applies to `Secure` over HTTP and `SameSite` flags — JavaScript can set them, but trying to set `HttpOnly` from JS is ignored.
+`Secure` and `SameSite`, by contrast, *can* be set from JavaScript (though browsers reject a `Secure` cookie set from an `http://` page). `HttpOnly` is the only one of the three that is server-only.
 
 **Takeaway:** `HttpOnly` cookies are server-only. If JS needs auth state, request it from the server; never try to mirror an `HttpOnly` cookie in JS.
 
@@ -1372,7 +1378,7 @@ async function run() {
 
 Wrapping `fetch` in a helper that converts non-2xx to thrown errors is so universal that libraries like `ky`, `wretch`, and `axios` all do it by default. Every team eventually writes one or adopts one — usually after a Sentry alert shows that a 500 silently became `{}` because the code did `await res.json()` without checking.
 
-A second variant of this trap: a 401 *with* a JSON body that's not valid JSON makes `res.json()` throw a SyntaxError. The 500 case logs as "JSON parse error," and the real cause (the 5xx) is invisible without manual logging. Always check `res.ok` first; if it's false, log the status and `await res.text()` to capture whatever the server actually sent.
+A second variant of this trap: an error response (a 401, a 500) whose body is not valid JSON — often an HTML error page from a proxy — makes `res.json()` throw a SyntaxError. It then logs as "JSON parse error," and the real cause (the status code) is invisible without manual logging. Always check `res.ok` first; if it's false, log the status and `await res.text()` to capture whatever the server actually sent.
 
 **Takeaway:** `fetch` resolves on any HTTP response, even 5xx. Always check `res.ok` and throw yourself — or use a wrapper that does it for you.
 
@@ -1414,7 +1420,7 @@ A subtler win: pair the same signal with `AbortSignal.timeout(5000)` via `AbortS
 
 **Explanation:**
 
-HTTP/1.1 has no in-flight request multiplexing — each TCP connection can serve one request at a time. Browsers cap concurrent connections per origin (typically **6 in Chrome/Firefox**) to avoid hammering servers. If you fire 10 concurrent `fetch`es to one origin over HTTP/1.1, six get connections immediately and **four queue at the browser** until a connection frees up. Slow requests block the queue: a single 30-second request occupies one of the six slots for the duration. The slow request itself isn't the bug — the *queue head-of-line blocking* is what makes the others look slow.
+Short answer: the browser, not the server, is queueing the requests. HTTP/1.1 has no in-flight request multiplexing — each TCP connection can serve one request at a time. Browsers cap concurrent connections per origin (typically **6 in Chrome/Firefox**) to avoid hammering servers. Your six `fetch` calls are not alone, either: images, scripts and fonts from the same origin compete for the same slots, so six fetches on a busy page are already over the limit. If you fire 10 concurrent `fetch`es to one origin over HTTP/1.1, six get connections immediately and **four queue at the browser** until a connection frees up. Slow requests block the queue: a single 30-second request occupies one of the six slots for the duration. The slow request itself isn't the bug — the *queue head-of-line blocking* is what makes the others look slow.
 
 Two fixes, in order of leverage:
 
@@ -1452,7 +1458,7 @@ Notice the second argument — the **transfer list**. Without it, the buffer is 
 
 A related gotcha: the worker can transfer the buffer back when it's done, so the main thread regains ownership for further work. If you forget to transfer back, the main thread can't read the worker's results without another clone.
 
-For shared ownership (both threads reading/writing the same memory simultaneously), the answer is **`SharedArrayBuffer`** with `Atomics` for synchronization — but `SharedArrayBuffer` requires cross-origin isolation (`COOP`/`COEP` headers), which most apps don't set up by default.
+For shared ownership (both threads reading/writing the same memory simultaneously), the answer is **`SharedArrayBuffer`** with `Atomics` for synchronization — but `SharedArrayBuffer` requires cross-origin isolation (the `COOP` and `COEP` headers — Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy — which cut the page off from uncooperative cross-origin windows and resources), which most apps don't set up by default.
 
 **Takeaway:** `postMessage` clones by default — that's a 100 MB walk for a 100 MB buffer. Use the transfer list (`postMessage(data, [data.buffer])`) to move ownership instead.
 
@@ -1516,7 +1522,7 @@ window.addEventListener('message', e => {
 });
 ```
 
-A sneakier variant: when the sender says `postMessage('hello', '*')`, anyone listening (including malicious frames inside *the same parent*) can read it. If the message contains tokens or PII, the sender should target a specific origin: `postMessage('hello', 'https://embed.example.com')`. The browser then refuses to deliver if the iframe has navigated to a different origin in between — a useful integrity check.
+A sneakier variant: when the sender says `postMessage('hello', '*')`, anyone listening (including malicious frames inside *the same parent*) can read it. If the message contains tokens or PII (personally identifiable information), the sender should target a specific origin: `postMessage('hello', 'https://embed.example.com')`. The browser then refuses to deliver if the iframe has navigated to a different origin in between — a useful integrity check.
 
 Real bugs along this pattern have been found in production payment widgets, OAuth flows, and even browser extensions.
 
@@ -1587,9 +1593,9 @@ Browsers throttle or pause `requestAnimationFrame` callbacks when the tab is hid
 
 When the tab becomes visible again, three things compound:
 
-1. **Animation state is stale.** Your animation thinks 60 frames have passed since the user last looked at it; the browser thinks 0 frames have passed. If you advance state by a fixed delta per frame, you're 60 frames behind real time.
-2. **The first rAF after visibility-change can be a "catch-up" frame** — some browsers fire one immediately, and your callback advances state by the assumed 16ms. A naive animation jumps forward by one frame's worth, which looks fine; one that integrates "I should be at second 30 now" jumps by a huge amount.
-3. **A `setInterval`-based animation has the opposite problem** — it keeps firing in the background (though throttled to ≥1s), so timers run *more* than expected by visible-time and the animation's perceived speed is wrong.
+1. **A fixed step per callback falls behind real time.** If each callback advances the animation by "one frame" (say 16ms of motion), then while hidden it advanced one step per second — or none — instead of sixty. When the tab returns, the animation is far behind where the clock says it should be, and it crawls on from there.
+2. **An animation that computes position from elapsed time jumps instead.** If your code says "I started 30 seconds ago, so I should be at second 30", the first callback after the tab returns leaps straight there — a visible jump rather than a lag.
+3. **A `setInterval`-based animation has a different problem** — it keeps firing in the background, but throttled (typically to once a second or less), so it too advances far less than it would have while visible, and the jump or lag reappears when the tab comes back.
 
 The fix is to use the **timestamp argument** rAF passes you, not a frame counter:
 

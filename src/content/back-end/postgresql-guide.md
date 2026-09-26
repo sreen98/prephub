@@ -71,7 +71,7 @@ So a table accumulates **dead tuples**, and this is what "bloat" means: pages fu
 
 **What blocks vacuum** is the classic production incident: a **long-running transaction**, an **idle-in-transaction** connection, an unused **replication slot**, or a **prepared transaction** holds the oldest visible snapshot, so vacuum cannot remove any tuple newer than it. Bloat then grows without bound while autovacuum runs and reclaims nothing. Watch `pg_stat_activity` for `state = 'idle in transaction'` and set `idle_in_transaction_session_timeout`.
 
-**Transaction ID wraparound.** XIDs are 32-bit. Postgres must "freeze" old tuples before the counter wraps, and if it cannot — usually because vacuum is blocked — it starts warning, then refuses writes entirely to protect data. That is one of the few ways to take a Postgres cluster fully read-only, and it is always the same root cause: vacuum was prevented from running.
+**Transaction ID wraparound.** Every transaction gets a transaction ID (XID), and XIDs are 32-bit, so the counter eventually wraps around to reuse old numbers. Before that happens Postgres must "freeze" old tuples — mark them as visible to everyone, so their stale `xmin` can never be mistaken for a future transaction. Freezing is done by vacuum, so if vacuum is blocked, Postgres first starts warning, then refuses writes entirely to protect data. That is one of the few ways to take a Postgres cluster fully read-only, and it is always the same root cause: vacuum was prevented from running.
 
 ---
 
@@ -95,7 +95,7 @@ Postgres implements three of the four SQL isolation levels; **`READ UNCOMMITTED`
 | Repeatable Read | no | no | **no** | possible |
 | Serializable | no | no | no | no |
 
-Two Postgres-specific facts worth stating:
+Three Postgres-specific facts worth stating:
 
 - **The default is `READ COMMITTED`**, and each *statement* gets a fresh snapshot. So two identical `SELECT`s in one transaction can return different data.
 - **Postgres's `REPEATABLE READ` also prevents phantom reads**, which the SQL standard does not require — it is implemented as full snapshot isolation. But snapshot isolation still permits **write skew**: two transactions each read a condition, each write, and the combination violates an invariant neither could see being broken. The classic case is two doctors both dropping off-call because each sees one other on call.
@@ -141,7 +141,7 @@ CREATE INDEX CONCURRENTLY ON orders (customer_id);
 
 **Why your index isn't used** — the list to run through:
 
-1. **Non-sargable predicate.** Wrapping the column in a function (`WHERE lower(email) = …`, `WHERE date(created_at) = …`) defeats a plain index. Fix with an expression index, or rewrite as a range.
+1. **Non-sargable predicate.** "Sargable" (from *search argument able*) means the predicate compares the bare column, so the index can be searched directly. Wrapping the column in a function (`WHERE lower(email) = …`, `WHERE date(created_at) = …`) defeats a plain index. Fix with an expression index, or rewrite as a range.
 2. **Leftmost-prefix rule.** An index on `(a, b, c)` serves `a`, `(a,b)`, `(a,b,c)` — not `b` alone.
 3. **Type mismatch.** Comparing a `varchar` column to an integer, or a `timestamptz` to a `timestamp`, can force a cast on the column side.
 4. **Low selectivity.** If the predicate matches a large fraction of the table, a sequential scan genuinely is cheaper. The planner is right.
@@ -211,7 +211,7 @@ Also watch **`idle in transaction`**: a connection that opened a transaction and
 
 **Replica lag** is the thing that causes application bugs: a user writes, then reads from a replica and doesn't see their own write. Fixes are read-your-writes routing (send a user's reads to the primary for a short window), or `synchronous_commit = remote_apply` at the cost of latency. Monitor lag in bytes and seconds.
 
-**Logical replication** replicates row-level changes for selected tables via publications and subscriptions. Use it for cross-version upgrades, selective replication and CDC into other systems. It does not replicate DDL, and a **replication slot whose consumer is gone will retain WAL forever** and block vacuum — a frequent cause of a disk filling up.
+**Logical replication** replicates row-level changes for selected tables via publications and subscriptions. Use it for cross-version upgrades, selective replication and CDC (change data capture — streaming every row change into another system such as a search index or warehouse). It does not replicate DDL, and a **replication slot whose consumer is gone will retain WAL forever** and block vacuum — a frequent cause of a disk filling up.
 
 Failover needs an external tool: **Patroni**, `repmgr`, or a managed service. Postgres does not elect a new primary by itself, and two primaries accepting writes (split brain) is the failure to design against.
 
@@ -275,7 +275,7 @@ ORDER BY embedding <=> $1
 LIMIT 10;
 ```
 
-Operators: `<->` L2, `<=>` cosine, `<#>` negative inner product. **The operator in `ORDER BY` must match the index's opclass**, or the index is ignored and you get a full scan — the single most common pgvector mistake.
+Operators: `<->` L2, `<=>` cosine, `<#>` negative inner product. **The operator in `ORDER BY` must match the index's opclass** (operator class — the `vector_cosine_ops` part, which fixes which distance the index can answer), or the index is ignored and you get a full scan — the single most common pgvector mistake.
 
 Index choice: **HNSW** (graph-based) gives better recall at a given latency and doesn't need training data, at the cost of build time and memory; **IVFFlat** builds faster and uses less memory but needs representative data present before building and is sensitive to the `lists` parameter. Both are **approximate** — tune `hnsw.ef_search` or `ivfflat.probes` to trade recall against speed, and measure recall against exact search rather than assuming.
 
@@ -402,7 +402,7 @@ Four that actually change decisions. **Connection model**: Postgres forks a proc
 
 **Q5: Your worker fleet processes the same job twice occasionally. The query is `SELECT … WHERE state='queued' LIMIT 10 FOR UPDATE`. What's wrong?**
 
-**`FOR UPDATE` without `SKIP LOCKED` makes workers block on each other, and under Read Committed the re-evaluated rows can be picked up twice.** With plain `FOR UPDATE`, worker B blocks waiting for worker A's locks; when A commits, B's statement **re-evaluates** the `WHERE` clause against the new snapshot in Read Committed, and depending on how the rows were updated it can end up claiming rows it shouldn't, while the blocking itself destroys throughput. The idiomatic Postgres queue is `FOR UPDATE SKIP LOCKED`, where each worker takes rows nobody else has locked and never waits. You also need the claim and the state change in **one transaction** — select-then-update in separate transactions reintroduces the race — plus `ORDER BY id` for deterministic ordering, and idempotent job handlers, because at-least-once delivery is the only guarantee any queue gives you across a crash.
+**The duplicate comes from releasing the lock before the job is marked as taken; the missing `SKIP LOCKED` is why the fleet is also slow.** `FOR UPDATE` holds its row locks only until the transaction ends. If the worker runs the `SELECT … FOR UPDATE` in one transaction (often an autocommit statement from an ORM) and sets `state='running'` in a later one, the lock is gone in between, the row still says `queued`, and a second worker can claim it — so the job runs twice. When the claim and the update *are* in one transaction, plain `FOR UPDATE` is actually safe: worker B blocks on A's locked rows, and once A commits, Read Committed re-checks B's `WHERE` against the updated row, sees `state='running'`, and leaves it out. What that costs is throughput — every worker queues behind the one holding the locks. The fix is both halves: claim and mark in **one statement or transaction** (`UPDATE jobs SET state='running' WHERE id IN (SELECT id … FOR UPDATE SKIP LOCKED) RETURNING *` is the idiom), and `SKIP LOCKED` so each worker takes rows nobody else has locked instead of waiting. Add `ORDER BY id` for predictable ordering, and keep handlers idempotent, because every recovery path — a transaction rolled back after the side effect happened, or a reaper that re-queues jobs stuck in `running` after a crash — can hand an already-done job to another worker. At-least-once delivery is the only guarantee any queue gives you.
 
 ---
 

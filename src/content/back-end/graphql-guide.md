@@ -33,7 +33,7 @@ The two things senior interviews actually dig into are the **N+1 problem** (§6)
 
 Three parts, and conflating them causes most confusion:
 
-- **A type system.** The schema declares every type, field and relationship. It is the contract, and it is introspectable.
+- **A type system.** The schema declares every type, field and relationship. It is the contract, and it is *introspectable* — a client can send a query asking the server to describe its own schema, which is what powers autocomplete and code generation.
 - **A query language.** Clients ask for a tree of fields. The response mirrors the query's shape exactly.
 - **An execution engine.** The server walks the query, calls a **resolver** per field, and assembles the result.
 
@@ -108,7 +108,7 @@ type Query   { candidate(id: ID!): Candidate }
 type Mutation{ createCandidate(input: CandidateInput!): CreateCandidatePayload! }
 ```
 
-The built-in scalars are `Int`, `Float`, `String`, `Boolean`, `ID`. Everything else is custom (`DateTime`, `EmailAddress`) with your own serialise/parse logic — which is also a **validation** hook, since a custom scalar rejects bad input before any resolver runs.
+That notation is **SDL** (Schema Definition Language), GraphQL's own syntax for declaring a schema. The built-in scalars are `Int`, `Float`, `String`, `Boolean`, `ID`. Everything else is custom (`DateTime`, `EmailAddress`) with your own serialise/parse logic — which is also a **validation** hook, since a custom scalar rejects bad input before any resolver runs.
 
 **Nullability is the single most consequential schema decision.** `String!` promises a value always. If a non-null field's resolver throws or returns null, GraphQL cannot represent that, so it **nulls out the nearest nullable parent** — and if every ancestor is non-null, the entire `data` becomes `null`. So aggressive `!` turns one flaky field into a total request failure. The rule of thumb: non-null for genuinely invariant identity fields (`id`), nullable for anything that depends on a remote call, permissions, or may legitimately be absent. Lists have two positions: `[Role!]!` is a non-null list of non-null items; `[Role]` may be null and may contain nulls.
 
@@ -173,7 +173,7 @@ const resolvers = {
 - **`parent`** — the value the parent field resolved to. This is what makes the graph work.
 - **`args`** — validated against the schema before your code runs.
 - **`context`** — per-request: the authenticated user, DataLoaders, database handles. Build it fresh per request; a context shared across requests leaks data between users via the loader cache.
-- **`info`** — the AST of the current field. Powerful for look-ahead (deciding which columns to select), and the usual source of unreadable code.
+- **`info`** — the AST (abstract syntax tree: the parsed query as a tree of objects) of the current field. Powerful for look-ahead (deciding which columns to select), and the usual source of unreadable code.
 
 Execution is **depth-first down the tree, breadth-parallel across sibling fields**. Fields with no resolver fall back to `parent[fieldName]`, which is why returning plain rows from the top-level resolver often "just works".
 
@@ -216,7 +216,7 @@ Non-negotiable details:
 - **Errors** for individual keys are returned *as* `Error` instances in the array position, not thrown.
 - DataLoader solves the **request** N+1. It does not stop a client asking for 10,000 items — that is what pagination (§7) and complexity limits (§10) are for.
 
-Alternatives worth naming: **look-ahead projection** via `info` to build one join; a **CQRS read model** or materialised view for expensive shapes; and in federated setups, entity resolution is already batched by the router.
+Alternatives worth naming: **look-ahead projection** via `info` to build one join; a **CQRS read model** (a separate store kept pre-shaped for reads) or materialised view for expensive shapes; and in federated setups, entity resolution is already batched by the router.
 
 ---
 
@@ -346,7 +346,7 @@ applications: (parent, args, ctx) =>
 Three levels, used together:
 
 - **Field level** — return `null` (for a nullable field) or an error for `Candidate.email` when the viewer lacks permission. Note this is *why* sensitive fields should be nullable.
-- **Object level** — can this viewer see this candidate at all? This is where **IDOR** bugs live: `candidate(id:)` must check ownership, not just existence.
+- **Object level** — can this viewer see this candidate at all? This is where **IDOR** (insecure direct object reference — changing an id in a request to read someone else's record) bugs live: `candidate(id:)` must check ownership, not just existence.
 - **Query level** — cost and rate limits per viewer (§10).
 
 The GraphQL-specific hazard is that **any path can reach any type**. A field guarded on `Query.candidate` may be reachable via `Company.candidates` without the check. So authorize on the **type/field being returned**, not on the entry point. Directive-based approaches (`@auth(requires: ADMIN)`) are declarative and nicely visible in the schema, but they only cover coarse role checks — anything data-dependent ("owns this record") still needs the service layer.
@@ -447,7 +447,7 @@ Say this out loud in an interview; it signals judgement:
 - **Mostly commands, not queries.** If your API is actions rather than data shapes, GraphQL's strength is unused.
 - **Reporting and analytics.** Aggregations over huge datasets fit SQL or a purpose-built endpoint far better.
 
-The strongest case for GraphQL: **many heterogeneous clients** (web, iOS, Android, partners) evolving at different rates over a **richly connected domain**, where the endpoint-negotiation loop is a real organisational cost. A common middle path is a **BFF**: GraphQL for your own clients, REST underneath between services.
+The strongest case for GraphQL: **many heterogeneous clients** (web, iOS, Android, partners) evolving at different rates over a **richly connected domain**, where the endpoint-negotiation loop is a real organisational cost. A common middle path is a **BFF** (backend for frontend — a thin server owned by the client teams): GraphQL for your own clients, REST underneath between services.
 
 ---
 

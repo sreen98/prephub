@@ -165,7 +165,7 @@ The most-used family — they reshape one method's body without changing what it
 - **Extract Method** — pull a code block out into its own named function. The single most important refactoring; if you only learn one, this is it.
 - **Inline Method** — the inverse. When a method's body is more obvious than its name, replace calls with the body.
 - **Extract Variable** — give a sub-expression a name so the next reader doesn't have to decode it.
-- **Replace Temp with Query** — instead of computing a value into a temp variable, extract it into a method that's called on demand.
+- **Replace Temp with Query** — instead of computing a value into a temp variable, extract it into a method that's called on demand. The temp ties the value to one spot in one function; the method can be reused, and removing temps is often what makes a block small enough to Extract Method.
 - **Substitute Algorithm** — replace the body of a method with a clearer implementation that produces the same output.
 
 ```js
@@ -202,12 +202,12 @@ function applyTax(amount) {
 
 ### 5.2 Moving Features Between Objects
 
-When responsibilities are in the wrong class:
+These fix code that is in the wrong place. The signal is **Feature Envy** or **Shotgun Surgery** (§4): a function that reads another object's data more than its own, or one change that forces edits in several classes.
 
-- **Move Method / Move Field** — the method belongs on the data it operates on. Move it.
-- **Extract Class** — when one class does two unrelated things, split.
-- **Inline Class** — when a class adds no value over its caller, fold it in.
-- **Hide Delegate** — replace `a.getB().doX()` with `a.doX()`. The caller doesn't need to know `B` exists.
+- **Move Method / Move Field** — the method belongs on the data it operates on. Move it there, so a change to that data and the logic that uses it happen in one file.
+- **Extract Class** — when one class does two unrelated things, split it. The tell is a group of fields and methods that are only ever used together, such as `street`, `city`, `zip` and `formatAddress()` inside `User`.
+- **Inline Class** — the inverse: when a class does so little that it only forwards calls, fold it into its caller. An extra layer the reader must open costs more than it hides.
+- **Hide Delegate** — replace `a.getB().doX()` with `a.doX()`. The caller no longer needs to know `B` exists, so changing how `A` gets its work done does not break every caller.
 
 ### 5.3 Simplifying Conditional Expressions
 
@@ -244,18 +244,18 @@ function shippingCostV2(order) {
 
 - **Rename Method** — names are the cheapest, highest-leverage code change you can make.
 - **Add / Remove Parameter** — change the API signature.
-- **Separate Query from Modifier** — a method that both returns a value and changes state should be split into two.
+- **Separate Query from Modifier** — a method that both returns a value and changes state should be split into two. Otherwise a caller who only wanted to *read* the value triggers the change too, and calling it twice (in a log line, in a test) silently does the side effect twice.
 - **Introduce Parameter Object** — collapse a long parameter list into one structured arg.
 - **Replace Constructor with Factory Method** — gives you a name and the freedom to return subclasses or pooled instances.
 
 ### 5.5 Dealing with Generalization
 
-For class hierarchies (relevant in TS / OO codebases; less in idiomatic React):
+These reshape class hierarchies. They matter in TypeScript and other object-oriented codebases, and much less in idiomatic React, which uses composition instead of inheritance.
 
-- **Pull Up Method/Field** — move shared behavior into the superclass.
-- **Push Down Method/Field** — move specific behavior down into the subclass that needs it.
-- **Extract Superclass / Interface** — when two classes share behavior, extract.
-- **Replace Inheritance with Delegation** — when "is-a" is the wrong relationship, hold the supertype as a field instead of inheriting.
+- **Pull Up Method/Field** — when two subclasses carry the same code, move it into the superclass so it is written, and fixed, once.
+- **Push Down Method/Field** — the inverse: when only one subclass uses something on the superclass, move it down. Otherwise every other subclass inherits behaviour that makes no sense for it.
+- **Extract Superclass / Interface** — when two unrelated classes share behaviour, pull it out. Choose an interface when callers only need the shared *shape*, and a superclass when you also want to share the *code*.
+- **Replace Inheritance with Delegation** — when "is-a" is the wrong relationship (a `Stack` that extends `Array` also inherits `splice`, which breaks the stack), hold the other type as a field and forward only the calls you want. This is "composition over inheritance" applied as a refactoring.
 
 ---
 
@@ -451,7 +451,7 @@ Things that should fail review without much discussion:
 
 Refactoring is **incremental** — small, behavior-preserving changes applied in sequence, with tests passing at every step. The system never stops being shippable. Rewriting throws away the existing code and starts over; the system is broken until the rewrite is done.
 
-The risk profile is completely different. A refactor that breaks gets reverted in one commit; a rewrite that breaks loses weeks. Joel Spolsky's classic essay *"Things You Should Never Do, Part I"* argues that rewrites are the single biggest strategic mistake software teams make — Netscape did it and lost the browser war. Real-world, prefer refactoring; rewrite only when the existing system has become genuinely impossible to extend (and even then, do it module-by-module via the **strangler fig pattern**, not all at once).
+The risk profile is completely different. A refactor that breaks gets reverted in one commit; a rewrite that breaks loses weeks. Joel Spolsky's classic essay *"Things You Should Never Do, Part I"* argues that rewrites are the single biggest strategic mistake software teams make — Netscape did it and lost the browser war. Real-world, prefer refactoring; rewrite only when the existing system has become genuinely impossible to extend (and even then, do it module-by-module via the **strangler fig pattern** — build the new version beside the old one and move features across one at a time, see Q9 — not all at once).
 
 ---
 
@@ -520,7 +520,7 @@ If a comment explains *what*, the answer is usually: rename a variable, or extra
 One refactor at a time, tests passing throughout:
 
 1. **Read it once, end-to-end.** Don't change anything yet. Build the mental model of what it does.
-2. **Add a regression test** if there isn't one. A character-stylized test that captures *current* output is better than nothing.
+2. **Add a regression test** if there isn't one. A *characterization test* (one that records what the component renders today, right or wrong, so any change shows up as a failure) is better than nothing — you are not checking it is correct, only that you did not change it.
 3. **Extract obvious sub-components first.** A 50-line render block that produces a card → `<UserCard />`. Pass the data down. No logic moves yet.
 4. **Extract custom hooks for cohesive state.** Search-with-debounce, modal open/close, form state — each becomes `useFoo()`. The component shrinks; the hook can be tested in isolation.
 5. **Replace `useEffect`-as-derivation with derivation in render.** `useEffect(() => setX(deriveFrom(y)), [y])` is almost always wrong; compute `x` directly.
@@ -788,7 +788,7 @@ A real example: in event-handler-heavy React code, the temptation is to `useStat
 
 **Explanation:**
 
-This is one of the most common code-review disagreements, and the answer is "it depends — but the reviewer is asking the wrong question."
+Short answer: the number of cases does not decide it; the number of *places that switch on the same field* does. If this is the only switch on that field, the author is right. If other code already switches on it too, the reviewer is.
 
 The right question isn't *"3 cases or 30?"* It's *"how many switches on the same discriminator are scattered through the codebase?"* If the entire app has exactly one switch on `payment.type`, leaving it as a switch is fine — there's nothing to consolidate. If `payment.type` is switched on in 7 places (`format`, `validate`, `process`, `refund`, `display`, `tax`, `audit`), every new payment type requires editing 7 functions, you'll forget one, and the bug shows up six months later when the new type's audit log is empty. *That* is the problem polymorphism solves: not the local switch, but the cross-cutting "where do I add a new variant" cost.
 
@@ -800,11 +800,11 @@ So the answer to the reviewer/author dispute:
 A diagnostic that catches this is grep: search for the discriminator (`payment.type`, `event.kind`, `user.role`) — if it appears in three or more files outside the type definition, the polymorphism refactor probably pays off. In TS, **discriminated unions** with `never` exhaustiveness checks are a lighter middle ground:
 
 ```ts
-type Payment = { type: 'card'; cvv: string } | { type: 'bank'; iban: string } | { type: 'cash' };
+type Payment = { type: 'card'; number: string } | { type: 'bank'; iban: string } | { type: 'cash' };
 
 function describe(p: Payment): string {
   switch (p.type) {
-    case 'card': return `card ending in ${p.cvv.slice(-4)}`;
+    case 'card': return `card ending in ${p.number.slice(-4)}`;
     case 'bank': return `bank account ${p.iban}`;
     case 'cash': return 'cash';
     default:

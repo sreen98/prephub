@@ -15,7 +15,8 @@ describe('playground React scope', () => {
       'useActionState', 'useTransition', 'useDeferredValue', 'useId',
       'useSyncExternalStore', 'useLayoutEffect', 'useImperativeHandle',
       'lazy', 'forwardRef', 'startTransition', 'StrictMode', 'Profiler',
-      'createPortal', 'flushSync', 'render',
+      'ViewTransition', 'addTransitionType',
+      'browser', 'createPortal', 'flushSync', 'useFormStatus', 'render',
     ]) {
       expect(scope, `${name} must be in playground scope`).toHaveProperty(name);
       expect(scope[name], `${name} must not be undefined`).toBeDefined();

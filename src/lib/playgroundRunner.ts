@@ -201,7 +201,14 @@ export interface WorkerRunResult { logs: WorkerLog[]; timedOut: boolean; }
 // `syncTimeoutMs` if the synchronous portion doesn't finish (catches
 // infinite loops). After sync completes, gives a short grace window for
 // trailing setTimeout/Promise callbacks before tearing the worker down.
-export function runInWorker(code: string, syncTimeoutMs: number = 3000): Promise<WorkerRunResult> {
+/**
+ * `waitFor`: keep the worker alive after the synchronous part until a log line
+ * starting with `marker` arrives (or `maxMs` passes), instead of the usual
+ * 400 ms drain. Hidden tests use it: timer-based cases can need a few seconds.
+ */
+export function runInWorker(
+  code: string, syncTimeoutMs: number = 3000, waitFor?: { marker: string; maxMs: number },
+): Promise<WorkerRunResult> {
   return new Promise((resolve) => {
     const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
     const url = URL.createObjectURL(blob);
@@ -241,11 +248,17 @@ export function runInWorker(code: string, syncTimeoutMs: number = 3000): Promise
       const msg = e.data;
       if (msg.kind === 'log') {
         logs.push({ type: msg.type, text: msg.text });
+        // The awaited marker arrived: give trailing logs a moment, then close.
+        if (waitFor && syncDone && typeof msg.text === 'string' && msg.text.startsWith(waitFor.marker)) {
+          if (asyncDrainTimer !== null) clearTimeout(asyncDrainTimer);
+          asyncDrainTimer = window.setTimeout(() => finalize(false), 50);
+        }
       } else if (msg.kind === 'sync-done') {
         syncDone = true;
         // Brief async drain window for trailing setTimeout/Promise callbacks
         // (debounce demos etc.) before we close the worker.
-        asyncDrainTimer = window.setTimeout(() => finalize(false), 400);
+        const seen = waitFor && logs.some((l) => l.text.startsWith(waitFor.marker));
+        asyncDrainTimer = window.setTimeout(() => finalize(false), waitFor && !seen ? waitFor.maxMs : 400);
       }
     };
 

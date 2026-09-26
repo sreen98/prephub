@@ -24,11 +24,11 @@
 MongoDB is a **document-oriented NoSQL database** that stores data in flexible, JSON-like documents (BSON). Instead of rows and columns (SQL), data is stored as collections of documents.
 
 Key characteristics:
-- **Document model** — flexible schema, nested objects, arrays
-- **Horizontal scaling** — built-in sharding
-- **High availability** — replica sets with automatic failover
-- **Rich queries** — ad-hoc queries, aggregation framework, full-text search
-- **BSON format** — binary JSON with additional types (ObjectId, Date, Decimal128)
+- **Document model** — one record can hold nested objects and arrays, so a user and their addresses can live in a single document instead of two joined tables. Documents in the same collection do not have to share a shape, which makes adding a field a code change rather than a schema migration.
+- **Horizontal scaling** — sharding splits one collection across several servers by a key you choose, so you add machines instead of buying a bigger one.
+- **High availability** — a replica set keeps copies of the data on several servers; if the main one (the primary) dies, the others elect a replacement automatically, usually within seconds.
+- **Rich queries** — filter on any field, including fields inside nested objects and arrays, plus the aggregation pipeline (§5) for grouping and joining, and full-text search.
+- **BSON format** — BSON (binary JSON) is the on-disk and wire format. It adds types JSON lacks, such as `ObjectId`, real dates and `Decimal128` for exact money values.
 
 ### SQL vs MongoDB Terminology
 
@@ -499,6 +499,8 @@ db.orders.aggregate([
 
 ## 6. Indexes
 
+Without an index, MongoDB answers a query by reading every document in the collection (a collection scan, `COLLSCAN`). An index is a separate, sorted structure (a B-tree) holding the values of one or more fields plus a pointer to each document, so MongoDB can jump to the matching entries the way you use the index at the back of a book (`IXSCAN`). The price is paid on writes: every insert, update and delete must also update every index on the collection, and indexes take memory. So you index the fields your real queries filter and sort on, not every field.
+
 ### 6.1 Index Types
 
 ```js
@@ -613,6 +615,13 @@ db.users.find({ email: "alice@example.com" }).explain("executionStats");
 | Need atomic updates | Need to query sub-documents independently |
 
 ### 7.3 Common Patterns
+
+Each pattern is a named answer to one recurring schema problem. The rule behind all of them is the same: shape the document around how the application reads it, not around how the data is related.
+
+- **Subset**: a document that embeds everything grows large, and every read pays to load it. Embed only the part you show every time (the last few orders) and keep the full history in its own collection.
+- **Bucket**: one document per reading gives millions of tiny documents, each with its own index entry. Grouping a fixed window (a day of sensor readings) into one document cuts the document and index count, and storing `count`, `sum`, `min` and `max` lets summaries skip the array entirely.
+- **Polymorphic**: things that are mostly alike but differ in a few fields (articles, videos, podcasts) live in one collection with a `type` field, so a single query lists them all instead of one query per collection.
+- **Attribute**: when each product has different fields, you cannot index them all by name. Storing them as an array of `{ key, value }` pairs lets one compound index on `attributes.key` and `attributes.value` serve every attribute.
 
 ```json
 // Pattern 1: Subset pattern — embed frequently accessed fields, reference the rest
@@ -832,7 +841,7 @@ const isMatch = await user.comparePassword('mypassword');
 
 ## 9. Transactions
 
-Multi-document transactions ensure atomicity across multiple operations.
+A write to a single document is already atomic in MongoDB: all of its field changes, including changes to nested objects and arrays, apply together or not at all. You only need a transaction when one logical change touches **several** documents and a half-finished result would be wrong, such as moving money between two accounts or creating a user together with their account row. A multi-document transaction makes that group all-or-nothing: either every write commits, or `abortTransaction()` undoes them all.
 
 ```js
 const session = await mongoose.startSession();
@@ -875,6 +884,8 @@ Primary (reads + writes) ←→ Secondary (reads) ←→ Secondary (reads)
 - **Arbiter**: Votes in elections, holds no data
 - If primary goes down, secondaries elect a new primary (automatic failover)
 
+An election needs a strict majority of voting members, so that two halves of a split network can never both elect a primary. That is why replica sets use an odd number of voters, and why an arbiter exists: it is a cheap extra vote for a set that has an even number of data-bearing members, without the cost of storing another copy of the data.
+
 ### 10.2 Sharding (Horizontal Scaling)
 
 ```
@@ -885,6 +896,8 @@ Client → mongos (router) → Shard 1 (replica set)
 Config servers store shard metadata (which data is where)
 ```
 
+Your application never talks to a shard directly. It talks to `mongos`, a routing process that looks up in the config servers which shard holds which range of data, sends the query only to the shards that need it, and merges the results.
+
 **Shard key**: Determines how data is distributed across shards.
 
 ```js
@@ -893,7 +906,7 @@ sh.shardCollection("mydb.orders", { userId: "hashed" });
 sh.shardCollection("mydb.orders", { region: 1, createdAt: 1 });
 ```
 
-Good shard key: high cardinality, even distribution, matches query patterns.
+Good shard key: high cardinality (many distinct values, so the data can be split into many pieces), even distribution (writes spread across shards instead of piling onto one), and matches query patterns (common queries include the key, so `mongos` can send them to one shard instead of all of them). Q13 below walks through the bad choices.
 
 ---
 
@@ -924,6 +937,8 @@ db.users.find({ email: "a@b.com" }, { email: 1, name: 1, _id: 0 });
 
 ### 11.2 Bulk Operations
 
+Each separate `updateOne` call is a network round trip to the server. A bulk operation sends many inserts, updates and deletes in one request, which matters when you are writing thousands of documents. An **ordered** bulk stops at the first error; an unordered one keeps going and reports every failure at the end.
+
 ```js
 const bulk = db.users.initializeOrderedBulkOp();
 bulk.insert({ name: "Alice" });
@@ -942,6 +957,15 @@ await User.bulkWrite([
 ---
 
 ## 12. Security
+
+MongoDB security is mostly about closing defaults you would never ship: require a login, give each application only the roles it needs, keep the server off the public internet, and encrypt traffic. The list below is the checklist; the one application-code risk, NoSQL injection, is explained in Q17.
+
+- **Authentication** makes every client log in. Without it, anyone who can reach the port can read and change everything.
+- **Role-based access control** (RBAC) grants each user a set of roles; `readWrite` on one database is enough for most apps, so a leaked app password cannot drop other databases or create users.
+- **Network security**: bind to private addresses only and use TLS, because a database reachable from the internet will be found by scanners.
+- **Client-side field-level encryption** encrypts chosen fields in the driver before they are sent, so the server (and anyone with a backup) only ever sees ciphertext.
+- **Audit logging** records who did what, which matters for compliance.
+- **Input sanitisation** stops a request body from smuggling query operators into a filter (see Q17).
 
 ```js
 // 1. Authentication
@@ -984,7 +1008,7 @@ const email = String(req.body.email);      // force to string
 
 **Q1: What is MongoDB and how does it differ from SQL databases?**
 
-MongoDB is a document-oriented NoSQL database. Key differences:
+Short answer: MongoDB stores each record as a self-contained JSON-like document that can nest related data, where a SQL database splits data into fixed-shape tables and joins them at query time. That makes MongoDB convenient when your data is naturally read as one object and its shape changes often, and a SQL database the safer choice when you have many relationships and need the database to enforce the structure. Key differences:
 
 | Aspect | SQL (MySQL/PostgreSQL) | MongoDB |
 |--------|----------------------|---------|
@@ -1043,6 +1067,8 @@ Use `findOne()` when you need a single document (by ID or unique field). Use `fi
 { name: "Alice", addressId: ObjectId("...") }
 ```
 
+The deciding question is how the data grows and how it is read. Embed when the child data is small, bounded and always loaded with the parent: one read gets everything, and a single-document write updates it atomically. Reference when the child list can grow without limit (a document has a hard 16 MB cap, and a huge document is slow to load anyway), or when the child is read or updated on its own.
+
 ---
 
 ### Intermediate
@@ -1051,7 +1077,7 @@ Use `findOne()` when you need a single document (by ID or unique field). Use `fi
 
 **Q6: Explain the aggregation pipeline.**
 
-The aggregation pipeline is a framework for data transformation and analysis. Documents pass through a sequence of stages, each transforming the data:
+Short answer: the aggregation pipeline is how you ask MongoDB for computed results (totals, groupings, joins) rather than stored documents. You pass an array of stages; documents flow through them in order, like an assembly line, and each stage's output is the next stage's input:
 
 ```js
 db.orders.aggregate([
@@ -1062,23 +1088,23 @@ db.orders.aggregate([
 ]);
 ```
 
-Common stages: `$match`, `$group`, `$project`, `$sort`, `$lookup` (join), `$unwind`, `$facet`, `$bucket`. It's more powerful than simple `find()` queries — equivalent to SQL's GROUP BY, HAVING, JOIN, subqueries, etc.
+Common stages: `$match`, `$group`, `$project`, `$sort`, `$lookup` (join), `$unwind`, `$facet`, `$bucket`. `find()` can only filter, sort and pick fields of existing documents; the pipeline can also reshape and combine them, which covers what SQL does with GROUP BY, HAVING, JOIN and subqueries. Because each stage works on the previous stage's output, order matters: put `$match` first so later stages process fewer documents and the filter can use an index (tricky Q7 shows how reordering changes the result).
 
 ---
 
 **Q7: How do indexes work in MongoDB? What types are there?**
 
-Indexes are data structures that speed up queries by allowing MongoDB to find documents without scanning every document (COLLSCAN).
+Short answer: an index is a separate sorted structure (a B-tree) holding a field's values and a pointer to each document. With one, MongoDB jumps straight to the matching entries (`IXSCAN`); without one, it reads every document in the collection (`COLLSCAN`). §6 has the full explanation.
 
-Types:
-1. **Single field**: `{ email: 1 }` — index one field
-2. **Compound**: `{ department: 1, createdAt: -1 }` — multiple fields (order matters)
-3. **Unique**: Enforces uniqueness
-4. **Text**: Full-text search
-5. **TTL**: Auto-delete documents after time
-6. **Partial**: Index only documents matching a condition
-7. **Wildcard**: Index all fields dynamically
-8. **Geospatial**: `2dsphere` for location queries
+Types, and the problem each one solves:
+1. **Single field**: `{ email: 1 }` — the common case: speeds up filters and sorts on one field.
+2. **Compound**: `{ department: 1, createdAt: -1 }` — several fields in one index. Order matters, because the index is sorted by the first field, then the second within it; a query can use it only from the left (see Q12 for the ESR rule).
+3. **Unique**: rejects a second document with the same value, so the database, not your code, guarantees there is one account per email.
+4. **Text**: splits strings into words so you can search inside them, which a normal index on a string cannot do.
+5. **TTL** (time to live): a background task deletes documents once a date field is older than a set age, which suits sessions and temporary tokens.
+6. **Partial**: indexes only documents matching a condition, so the index is smaller and cheaper to maintain when queries only ever target that subset.
+7. **Wildcard**: indexes every field, or every field under a path, for documents whose field names you do not know in advance.
+8. **Geospatial**: `2dsphere` supports "near this point" and "inside this area" queries on coordinates.
 
 Trade-off: Indexes speed up reads but slow down writes (index must be updated on every insert/update/delete) and consume memory.
 
@@ -1115,7 +1141,7 @@ try {
 session.endSession();
 ```
 
-Limitations: Transactions add overhead, require replica sets, and have a 60-second default timeout. Design your schema to minimize the need for transactions.
+Limitations: Transactions add overhead, require replica sets, and have a 60-second default timeout. Design your schema to minimize the need for transactions: since a write to a single document is already atomic, data that must change together can often be embedded in one document, and then no transaction is needed at all.
 
 ---
 
@@ -1215,7 +1241,7 @@ db.users.createIndex({ status: 1, name: 1, age: 1 });
 //                      equality    sort    range
 ```
 
-Why: Equality narrows to exact matches (most selective). Sort avoids in-memory sorting. Range at the end doesn't break the sort order.
+Why: an index is sorted by its first field, then by the second within each value of the first, and so on. After an **equality** match on `status`, the matching entries form one contiguous block that is already sorted by `name`, so MongoDB can return them in order and never sort in memory. If the **range** field came before the sort field, the range would cover many `age` values, and within that span the entries are sorted by `age` first, not by `name`, so MongoDB would have to gather them all and sort them itself. Putting the range last means it only trims entries from a list that is already in the right order.
 
 ---
 
@@ -1237,6 +1263,8 @@ sh.shardCollection("mydb.orders", { userId: 1, createdAt: 1 });
 ```
 
 Bad shard keys: `{ status: 1 }` (low cardinality), `{ createdAt: 1 }` (all writes go to one shard).
+
+Why those two fail: data is split into ranges of the shard key, so a field with only a handful of values (`status`) can never be split into more pieces than it has values, and one popular value becomes one oversized piece stuck on one shard. A key that only ever increases (`createdAt`, or a default `ObjectId`, which starts with a timestamp) sends every new document to whichever shard owns the highest range, so one shard takes all the writes while the rest sit idle. Hashing the key spreads writes evenly, but a range query then has to ask every shard and merge the answers (a "scatter-gather" query), which is the trade-off noted in the example above.
 
 ---
 
@@ -1313,9 +1341,13 @@ Unlike SQL databases, MongoDB doesn't require formal migrations for schema chang
 
 **Q16: Explain read/write concerns and read preferences.**
 
+Short answer: all three are dials on the same trade-off in a replica set, safety and freshness versus speed. **Write concern** says how many servers must have a write before you are told it succeeded. **Read concern** says how safely replicated the data you read must be. **Read preference** says which server you read from.
+
+The risk they manage: a write that only the primary has seen can be lost. If the primary crashes before the secondaries copy it, a secondary becomes primary without that write, and when the old primary rejoins, its unreplicated write is rolled back. Waiting for a majority means the write survives any single failure.
+
 **Write Concern** — how many replica set members must acknowledge a write:
-- `w: 1` — acknowledged by primary (default)
-- `w: "majority"` — acknowledged by majority of members (durable)
+- `w: 1` — acknowledged by the primary only (fast, but can be rolled back as described above; this was the default before MongoDB 5.0)
+- `w: "majority"` — acknowledged by majority of members (durable; the default for most replica sets since MongoDB 5.0; the exception is a set with arbiters where the data-bearing voting members do not outnumber the voting majority, which still defaults to `w: 1`)
 - `w: 0` — fire and forget (fastest, no guarantee)
 
 **Read Concern** — what data a read sees:
@@ -1330,11 +1362,13 @@ Unlike SQL databases, MongoDB doesn't require formal migrations for schema chang
 - `secondaryPreferred` — secondary, fallback to primary
 - `nearest` — lowest latency node
 
+"Eventual consistency" here means secondaries copy the primary a little behind, so a read from a secondary can return data that is slightly out of date. The classic bug: a user saves their profile (the write goes to the primary), the page reloads and reads from a secondary, and their change appears to have vanished. Read from the primary for anything a user just wrote; send reports and analytics, which tolerate slightly stale data, to secondaries.
+
 ---
 
 **Q17: How do you prevent NoSQL injection?**
 
-MongoDB is vulnerable to injection when user input is passed directly as query objects:
+Short answer: make sure user input can only ever be a plain value, never an object. MongoDB queries are objects, and operators such as `$gt` or `$ne` are just keys in them. If you drop `req.body.email` into a filter and an attacker sends JSON like `{ "$gt": "" }` instead of a string, the filter no longer says "email equals X" but "email is greater than the empty string", which matches every user. No string concatenation is involved, which is why this surprises people who only know SQL injection.
 
 ```js
 // Vulnerable:
@@ -1378,7 +1412,7 @@ Use cases:
 - Data synchronization (replicate changes to another system)
 - Event sourcing / audit trails
 
-Requires replica set. Uses the oplog internally.
+Requires replica set. Uses the oplog internally: the oplog (operations log) is the running list of every write that secondaries replay to stay in sync, and a change stream is effectively your application subscribing to that same feed. That is why it needs a replica set, and why, unlike polling, it tells you about changes without querying the collection repeatedly.
 
 ---
 
@@ -1472,11 +1506,11 @@ await db.collection('users').updateOne(
 );
 ```
 
-**Output:** Error: the update operation document must contain atomic operators.
+**Output:** `MongoInvalidArgumentError: Update document requires atomic operators` (thrown by the Node driver before the request is sent).
 
 **Explanation:**
 
-`updateOne` and `updateMany` in the modern Node driver require the update document to consist of **atomic update operators** like `$set`, `$inc`, `$push`, `$unset`, etc. Passing a plain document without any `$`-prefixed operator is rejected with the error above — this is a guardrail the driver added because silently "replacing" the document is usually a bug, not the intent. If you truly want to replace a document wholesale, you must use `replaceOne`, which takes a plain document and swaps out every field except `_id`. In the legacy mongo shell (pre-4.2 semantics) a plain-document update would perform a replacement, so `{ name: "Bob", age: 30 }` would have rewritten the document to exactly `{ _id: 1, name: "Bob", age: 30 }` — dropping `email` and `age`'s old value. Using `$set` instead performs a **partial update**: it writes only the listed fields, leaving untouched fields intact, yielding `{ _id: 1, name: "Bob", age: 30, email: "alice@test.com" }`. The immutability of `_id` is enforced in all three cases — you cannot change it via any operator.
+`updateOne` and `updateMany` in the modern Node driver require the update document to consist of **atomic update operators** like `$set`, `$inc`, `$push`, `$unset`, etc. Passing a plain document without any `$`-prefixed operator is rejected with the error above — this is a guardrail the driver added because silently "replacing" the document is usually a bug, not the intent. If you truly want to replace a document wholesale, you must use `replaceOne`, which takes a plain document and swaps out every field except `_id`. The older `update()` method (`db.collection.update()` in the legacy `mongo` shell, now deprecated in `mongosh`) treats a plain document as a replacement, so `{ name: "Bob", age: 30 }` would have rewritten the document to exactly `{ _id: 1, name: "Bob", age: 30 }` — dropping `email` and `age`'s old value. Using `$set` instead performs a **partial update**: it writes only the listed fields, leaving untouched fields intact, yielding `{ _id: 1, name: "Bob", age: 30, email: "alice@test.com" }`. The immutability of `_id` is enforced in all three cases — you cannot change it via any operator.
 
 **Takeaway:** Use `$set` for partial updates, `replaceOne` for full replacements — a plain doc passed to `updateOne` throws.
 
@@ -1640,7 +1674,7 @@ console.log(result.map(r => `${r.name}:${r.tags}`));
 
 **Explanation:**
 
-`$unwind` flattens an array field by emitting one output document per element of that array, with the array field replaced by the individual element. Tracing through each input: document A has `tags: ["js", "react"]`, so `$unwind` emits two documents — `{name:"A", tags:"js"}` and `{name:"A", tags:"react"}`. Document C has `tags: ["node"]`, emitting one document `{name:"C", tags:"node"}`. Document B has `tags: []`, and this is the critical case: **by default `$unwind` drops documents whose array is empty, null, or missing entirely**. It emits zero output documents for B, so B vanishes from the pipeline. Total output: 2 + 0 + 1 = 3 documents. If you need to preserve documents that have no array elements (for example, when building a left-outer-join style result after `$lookup`), use the expanded form `{ $unwind: { path: "$tags", preserveNullAndEmptyArrays: true } }` — then B passes through with `tags` set to `null`. There's also an `includeArrayIndex` option that records the original array position on each emitted document. This default-drop behavior is the same trap that bites developers doing `$lookup` followed by `$unwind` on the joined field when some parent docs have no match.
+`$unwind` flattens an array field by emitting one output document per element of that array, with the array field replaced by the individual element. Tracing through each input: document A has `tags: ["js", "react"]`, so `$unwind` emits two documents — `{name:"A", tags:"js"}` and `{name:"A", tags:"react"}`. Document C has `tags: ["node"]`, emitting one document `{name:"C", tags:"node"}`. Document B has `tags: []`, and this is the critical case: **by default `$unwind` drops documents whose array is empty, null, or missing entirely**. It emits zero output documents for B, so B vanishes from the pipeline. Total output: 2 + 0 + 1 = 3 documents. If you need to preserve documents that have no array elements (for example, when building a left-outer-join style result after `$lookup`), use the expanded form `{ $unwind: { path: "$tags", preserveNullAndEmptyArrays: true } }` — then B passes through with the `tags` field removed entirely (it comes out as `{ name: "B" }`; an empty array unwinds to a missing field, not to `null`). There's also an `includeArrayIndex` option that records the original array position on each emitted document. This default-drop behavior is the same trap that bites developers doing `$lookup` followed by `$unwind` on the joined field when some parent docs have no match.
 
 **Takeaway:** `$unwind` silently drops docs with empty/missing/null arrays — use `preserveNullAndEmptyArrays: true` to keep them.
 

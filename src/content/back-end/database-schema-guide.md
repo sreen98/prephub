@@ -40,6 +40,8 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 
 ### Key Principles
 
+The idea behind every principle below: **design the storage around the questions your app asks most often.** A schema that mirrors your real-world nouns neatly but needs five lookups to render the main page is a bad schema, however tidy it looks.
+
 ```
 1. Model for your queries, not your entities
    - In MongoDB: structure documents around how data is accessed
@@ -120,6 +122,8 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 
 ### When to Embed
 
+*Embedding* means putting related data inside the parent document, so one read returns everything. It is the default in MongoDB when the child data has no life of its own: an address only matters as part of its user.
+
 ```json
 // Embed when:
 // 1. Data is always accessed together
@@ -153,6 +157,8 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 ```
 
 ### When to Reference
+
+*Referencing* means storing only the other document's `_id` and fetching it separately (with Mongoose's `populate()` or the `$lookup` aggregation stage), much like a foreign key in SQL. You pay an extra lookup, and in exchange documents stay small and a shared record exists only once. The deciding question is usually growth: a job can receive thousands of candidates, and one MongoDB document is capped at 16 MB, so the candidates cannot live inside the job.
 
 ```json
 // Reference when:
@@ -197,6 +203,8 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 
 ### Hybrid Approach
 
+The hybrid copies the one or two fields you *display* (a department's name) into the parent, while the full record stays in its own collection. You get the fast single-read of embedding for the common screen, and accept that a rename must update every copy.
+
 ```javascript
 // Store frequently accessed fields from related docs
 // "Denormalized reference"
@@ -238,7 +246,7 @@ Write performance   Atomic update        Separate updates
 
 ### Attribute Pattern
 
-Store varying attributes as key-value pairs when different documents have different fields.
+Use this when documents in one collection have different sets of fields: a shirt has `size` and `material`, a charger has `voltage`. Instead of one field per possible attribute (mostly empty, and each needing its own index to be searchable), store them as an array of `{ key, value }` pairs. Then **one** compound index on `attributes.key` + `attributes.value` makes every attribute searchable, including ones added next year. The query uses `$elemMatch` so that `key` and `value` must match inside the *same* array element; without it, a product with `color: blue` and `size: red` elsewhere in the array could match `color = red`.
 
 ```json
 // Instead of many sparse fields:
@@ -262,7 +270,7 @@ Store varying attributes as key-value pairs when different documents have differ
 
 ### Bucket Pattern
 
-Group time-series or streaming data into buckets to reduce document count.
+Use this for data that arrives as a stream of small readings (sensor values, metrics, events). Instead of one document per reading, keep one document per time window (say, one per sensor per hour) with the readings in an array. Fewer, larger documents mean a much smaller index (one entry per hour instead of one per reading), and the `stats` field lets a dashboard show hourly min/max/average without reading the individual values. The window must be bounded so the array cannot grow forever.
 
 ```json
 // Instead of one document per event:
@@ -288,7 +296,7 @@ Group time-series or streaming data into buckets to reduce document count.
 
 ### Computed Pattern
 
-Pre-compute frequently accessed derived values.
+Store a derived value (a count, an average) on the document and update it when the underlying data changes, instead of recalculating it on every read. It pays off when the value is read far more often than the data changes: a job's candidate count shown on every list page. The cost is that every write path must keep it correct; `$inc` makes each update atomic, so two applications arriving at once still add 2.
 
 ```javascript
 // Instead of calculating on every read:
@@ -325,7 +333,7 @@ await db.jobs.updateOne(
 
 ### Polymorphic Pattern
 
-Store different entity types in the same collection with a `type` discriminator.
+Store different but related kinds of record in one collection, with a `type` field (the *discriminator*) saying which kind each document is. An email, a push message and an SMS share most fields (recipient, status, sent time) and are usually listed together ("show this user's notifications"), so one collection with one index serves that query; the type-specific fields simply appear only on the documents that need them.
 
 ```javascript
 // Notifications collection
@@ -363,7 +371,7 @@ const smsNotification = {
 
 ### Outlier Pattern
 
-Handle documents that deviate from the norm differently.
+Design for the typical document, and handle the rare giant one separately instead of letting it dictate the schema. If 99% of users have a handful of addresses, embedding is right for them; the few with thousands would blow past the size limit. So embed up to a cap, set a flag, and put the overflow in a second collection that only the flagged documents ever read.
 
 ```json
 // Most users have 1-10 addresses, but some have 1000+
@@ -392,6 +400,8 @@ Handle documents that deviate from the norm differently.
 ```
 
 ### Tree Structures
+
+There are several ways to store a hierarchy (an org chart, categories), and each one makes a different question cheap. **Parent reference** makes "move this node" a one-field update, but finding all descendants takes one query per level. **Materialized path** stores the whole route as a string, so "everything under Engineering" is a single prefix/regex match. **Nested sets** number every node with a `left` and `right` value so that a node's descendants are exactly the nodes whose numbers fall between its two values: subtree reads are one range query, but inserting a node renumbers much of the tree. **Array of ancestors** stores the ids of every ancestor, so both "all descendants of X" (`ancestors._id: X`) and "breadcrumb for this node" are single indexed queries. Pick by which question your app asks most.
 
 ```json
 // 1. Parent Reference (simplest)
@@ -552,37 +562,45 @@ jobSchema.virtual('candidates', {
 
 ### Middleware (Hooks)
 
+Hooks (Mongoose calls them middleware) are functions Mongoose runs before (`pre`) or after (`post`) an operation such as `save`, `find` or `aggregate`. Inside a document hook like `save`, `this` is the document; inside a query hook like `find`, `this` is the query being built, so you can add conditions to it before it runs.
+
+The soft-delete filter is the reason hooks are worth knowing. With soft delete, a "deleted" job is still in the collection with `deletedAt` set. If every caller had to remember `{ deletedAt: null }`, one forgotten filter would show deleted jobs to users. A `pre(/^find/)` hook (the regex matches `find`, `findOne`, `findOneAndUpdate` and the rest) adds the filter in one place, so the default is safe and a caller has to ask explicitly for deleted rows. `aggregate` does not go through the find hooks, which is why it needs its own hook that prepends a `$match` stage.
+
+The hooks below are written without a `next` callback: they throw to report an error and use `async` for async work. That form works in current Mongoose versions, and Mongoose 9 removed the `next` parameter from `pre` hooks altogether.
+
 ```javascript
-// Pre-save hook
-jobSchema.pre('save', function (next) {
+// Pre-save hook: validation that spans two fields.
+// Throwing aborts the save, and save() rejects with this error.
+jobSchema.pre('save', async function () {
   if (this.salary.min && this.salary.max && this.salary.min > this.salary.max) {
-    next(new Error('Minimum salary cannot exceed maximum salary'));
+    throw new Error('Minimum salary cannot exceed maximum salary');
   }
-  next();
+  // Mongoose sets isNew to false once save() succeeds, so remember it for the post hook
+  this.$locals.wasNew = this.isNew;
 });
 
 // Pre-find hook (auto-exclude soft-deleted)
-jobSchema.pre(/^find/, function (next) {
+jobSchema.pre(/^find/, function () {
   // Only apply if not explicitly querying deleted docs
   if (!this.getQuery().deletedAt) {
     this.where({ deletedAt: null });
   }
-  next();
 });
 
 // Post-save hook (side effects)
 jobSchema.post('save', async function (doc) {
-  if (doc.isNew) {
+  if (doc.$locals.wasNew) {
     await notifyTeam(doc.department, `New job created: ${doc.title}`);
   }
 });
 
 // Pre-aggregate hook
-jobSchema.pre('aggregate', function (next) {
+jobSchema.pre('aggregate', function () {
   this.pipeline().unshift({ $match: { deletedAt: null } });
-  next();
 });
 ```
+
+Two bugs this version avoids. The older callback style needed `return next(err)`: without the `return`, the function carried on and called `next()` a second time after reporting the error. And checking `doc.isNew` in a `post('save')` hook never fires, because by then the save has succeeded and Mongoose has already set `isNew` to `false`; the flag has to be captured in the `pre` hook (here in `$locals`, a per-document scratch object Mongoose provides for exactly this).
 
 ### Static Methods & Instance Methods
 
@@ -697,6 +715,8 @@ db.offices.createIndex({ location: '2dsphere' });
 ```
 
 ### ESR Rule (Equality, Sort, Range)
+
+An index is sorted by its first field, then by the second within each value of the first, and so on, like a phone book sorted by surname then first name. That is why order matters. **Equality** fields go first because they narrow the index to one contiguous block. **Sort** fields go next so that, inside that block, entries are already in the order you want and the database does not have to sort results in memory. **Range** fields go last because a range (`>= 100000`) spans many values of that field; putting it before the sort field would break the block into many pieces, each separately sorted, and the database would have to sort again.
 
 ```javascript
 // For compound indexes, order fields as:
@@ -1168,6 +1188,8 @@ ALTER TABLE jobs
 
 ### Normal Forms
 
+*Normalization* means organising tables so that **each fact is stored in exactly one place**. When a fact is duplicated (a department's name copied onto every employee row), a rename has to update every copy, and a missed one leaves the database contradicting itself. The normal forms are a checklist of the ways duplication sneaks in; each one below builds on the previous. A *dependency* here means "knowing column A tells you column B": knowing a `department_id` tells you the `department_name`.
+
 ```
 1NF (First Normal Form):
 - Each column contains atomic (indivisible) values
@@ -1231,11 +1253,15 @@ Denormalize when:
 - Acceptable eventual consistency
 ```
 
+Why "write-heavy" points to normalizing: in a normalized schema each fact is stored once, so a change is one write to one row. Every denormalized copy is another place the same change must be written, and a write that updates some copies but not others leaves the data disagreeing with itself. So the more often data changes, the more denormalization costs; it pays off only when reads vastly outnumber writes.
+
 ---
 
 ## 11. Denormalization & Performance
 
 ### Common Denormalization Strategies
+
+*Denormalization* is deliberately storing a fact in more than one place to make reads cheaper. It is a trade, not a shortcut: every copy is one more thing a write must keep correct. Each strategy below says which copy exists and what keeps it up to date.
 
 ```javascript
 // 1. Duplicate fields for read performance
@@ -1377,11 +1403,10 @@ function tenantScope(schema) {
   });
 
   // Auto-add tenantId to new documents
-  schema.pre('save', function (next) {
+  schema.pre('save', function () {
     if (this.isNew && !this.tenantId && this._tenantId) {
       this.tenantId = this._tenantId;
     }
-    next();
   });
 
   // Helper to set tenant context
@@ -1409,11 +1434,19 @@ const jobs = await TenantJob.find({ status: 'open' });
 // Automatically adds: { status: 'open', tenantId: 'tenant-abc' }
 ```
 
+The idea: in a shared table, forgetting `tenantId` in one query leaks another customer's data, so the plugin makes the tenant filter something you get by default rather than something you must remember.
+
+How `forTenant` works: `Object.create(Model)` makes a new object whose prototype is the real model, so everything not overridden (such as `aggregate`) still falls through to the model. It then replaces four read methods with wrappers that call the real method and attach `.where({ tenantId })` to the query it returns. Because a Mongoose query does not run until it is awaited, the extra condition is in place before anything reaches the database. Request code asks for `Job.forTenant(req.tenantId)` once and never writes the filter by hand.
+
+What it does **not** cover, and an interviewer will ask: only those four methods are scoped. `updateMany`, `deleteMany`, `findOneAndUpdate` and `aggregate` go straight to the unscoped model, and the `pre('save')` fallback only fires if something has set `_tenantId` on the document, which this helper never does, so new documents still need `tenantId` set explicitly (the `required: true` will reject them otherwise). A production version scopes writes and aggregations too, and where the database supports it, many teams add a database-level backstop such as row-level security in PostgreSQL, so a forgotten filter in application code still cannot return another tenant's rows.
+
 ---
 
 ## 13. Schema Validation
 
 ### MongoDB Schema Validation
+
+A flexible schema means MongoDB will store any shape you send unless you tell it otherwise. Database-level validation is the last line of defence: it applies to every writer (your app, a script, someone in the shell), so bad data cannot get in through a path that skipped the application's checks. `validationLevel: 'moderate'` applies the rules to new documents and to updates of documents that already pass, which lets you add validation to a collection that has old, non-conforming data.
 
 ```javascript
 // JSON Schema validation at the database level
@@ -1454,6 +1487,8 @@ db.createCollection('users', {
 
 ### Application-Level Validation with Zod
 
+Application-level validation runs before the database is touched, so it can return a clear error to the user ("minimum salary must not exceed maximum") and check rules that span fields. Use both layers: the app for good error messages, the database for the guarantee.
+
 ```javascript
 import { z } from 'zod';
 
@@ -1492,6 +1527,8 @@ async function createJob(req, res) {
 ## 14. Time-Series & Event Data
 
 ### Time-Series Schema Design
+
+Three options, from simplest to most specialised. One document per event is easy but produces a huge collection and index. Bucketing (the bucket pattern above) groups events by time window by hand. A **time series collection** (MongoDB 5.0+) does that bucketing for you internally: you insert one document per reading, and MongoDB stores them compactly, grouped by `metaField` (which source the reading came from) and time. Prefer it when it is available.
 
 ```javascript
 // Approach 1: One document per event (simple, high volume)
@@ -1535,6 +1572,8 @@ db.createCollection('metrics', {
 ```
 
 ### Event Sourcing Schema
+
+*Event sourcing* stores every change as an event ("status changed from open to under assessment") instead of overwriting the current state. The current state is computed by replaying the events in order. You get a complete history and audit trail for free, at the cost of more complex reads. The unique index on `{ aggregateId, version }` is the key detail: an *aggregate* is the entity the events belong to (one job), and if two writers both try to append version 4, the second insert fails instead of silently interleaving events.
 
 ```javascript
 const eventSchema = new mongoose.Schema({
@@ -1595,9 +1634,11 @@ The hybrid approach embeds frequently-read fields (like `department.name`) while
 
 **Q2: What are database indexes and why are they important?**
 
-Indexes are data structures (typically B-trees) that store a subset of the collection's data in an easy-to-traverse form. Without indexes, MongoDB must scan every document in a collection (COLLSCAN) to find matches. With indexes, it can jump directly to matching documents (IXSCAN).
+**Short answer:** an index is a sorted copy of one or more fields, each entry pointing back to its document, so the database can jump to matching documents instead of reading every one. It works like the index at the back of a book.
 
-Common types: single field, compound (multiple fields), unique (enforce uniqueness), text (full-text search), TTL (auto-expire documents), partial (index only matching documents).
+The usual structure is a *B-tree* (a balanced, sorted tree that finds any value in a few steps even across millions of entries). Without indexes, MongoDB must scan every document in a collection (COLLSCAN) to find matches. With indexes, it can jump directly to matching documents (IXSCAN).
+
+Common types: single field; compound (several fields, sorted by the first then the next, see Q9); unique (also *rejects* a second document with the same value, which makes it a data-integrity tool, not only a speed one); text (full-text search); TTL, short for time-to-live (MongoDB deletes documents automatically once a date field is older than a set age, useful for sessions); partial (only indexes documents matching a filter, so the index stays small).
 
 Trade-offs: indexes speed up reads but slow down writes (every insert/update must update the index too) and consume memory. Index strategically based on your actual query patterns.
 
@@ -1605,9 +1646,11 @@ Trade-offs: indexes speed up reads but slow down writes (every insert/update mus
 
 **Q3: Explain the difference between SQL and NoSQL databases.**
 
-**SQL** (PostgreSQL, MySQL): Structured schema (tables, rows, columns), SQL query language, ACID transactions, strong consistency, relationships via foreign keys and JOINs. Best for structured data with complex relationships, financial systems, and when data integrity is critical.
+**Short answer:** SQL databases store data in tables with a fixed schema and are built around joining related tables and guaranteeing consistency. "NoSQL" is a loose label for everything else, mostly databases that trade some of those guarantees or the query flexibility for a more flexible data shape and easier horizontal scaling (spreading data across many machines). The real question is which access patterns and guarantees your data needs.
 
-**NoSQL** (MongoDB, DynamoDB, Cassandra): Flexible schema (documents, key-value, graph, columnar), different query languages, tunable consistency, horizontal scaling. Best for rapidly evolving schemas, large-scale systems, hierarchical data, and when read performance is the priority.
+**SQL** (PostgreSQL, MySQL): Structured schema (tables, rows, columns), SQL query language, ACID transactions (a group of changes either all happens or none does, and concurrent transactions do not see each other's half-finished work), strong consistency, relationships via foreign keys and JOINs. Best for structured data with complex relationships, financial systems, and when data integrity is critical.
+
+**NoSQL** (MongoDB, DynamoDB, Cassandra): Flexible schema (documents, key-value, graph, columnar), different query languages, tunable consistency (you choose per operation how many copies must confirm a read or write, trading safety for speed), horizontal scaling. Best for rapidly evolving schemas, very large write volumes, and data that is naturally one self-contained document (an order with its line items). The catch: queries that were not planned for, especially ones that join across entities, are harder than in SQL.
 
 MongoDB specifically is a document database that stores JSON-like documents, supports rich queries, aggregation pipelines, and scales horizontally via sharding.
 
@@ -1626,10 +1669,14 @@ It prevents bad data from entering the system (null emails, negative salaries, i
 
 **Q5: What are the normal forms in relational databases?**
 
+**Short answer:** normal forms are successive rules for removing duplicated facts from tables, so that each fact lives in one place and an update cannot leave two copies disagreeing. In practice you aim for 3NF.
+
 **1NF**: Atomic values (no arrays or repeating groups), unique rows (primary key).
 **2NF**: 1NF + no partial dependencies (all non-key columns depend on the entire primary key, not just part of a composite key).
 **3NF**: 2NF + no transitive dependencies (non-key columns depend only on the primary key, not on other non-key columns).
-**BCNF**: 3NF + every determinant is a candidate key.
+**BCNF**: 3NF + every determinant is a candidate key. A *determinant* is any column (or set of columns) that fixes the value of another column; a *candidate key* is any column set that uniquely identifies a row. BCNF only differs from 3NF in unusual tables with several overlapping candidate keys.
+
+A single example covers 2NF and 3NF: an `enrollments` table keyed by `(student_id, course_id)` that also stores `student_name` breaks 2NF, because the name depends on only half the key, so it is repeated for every course the student takes. An `employees` table with `department_id` and `department_name` breaks 3NF, because the name depends on the department, not the employee. In both cases the fix is to move the column to the table where its key lives.
 
 Most production databases are normalized to 3NF for write operations, with strategic denormalization (materialized views, computed columns, caching) for read-heavy access patterns.
 
@@ -1653,11 +1700,11 @@ For MongoDB, approach #1 is most common. Key implementation: add `tenantId` to e
 
 **Q7: Explain the MongoDB aggregation pipeline and when to use it.**
 
-The aggregation pipeline is a sequence of stages that transform documents. Each stage receives documents from the previous stage and produces output for the next.
+**Short answer:** the aggregation pipeline is MongoDB's way to compute results (counts, averages, reshaped data, joins) inside the database. You pass an array of stages; documents flow through them in order, each stage filtering, grouping or reshaping what the previous one produced, much like a Unix pipe or a chain of `.filter().map().reduce()`.
 
 Common stages: `$match` (filter), `$group` (aggregate), `$project` (reshape), `$sort`, `$limit`, `$skip`, `$lookup` (join), `$unwind` (flatten arrays), `$facet` (parallel pipelines), `$addFields`, `$bucket`.
 
-Use aggregation for: reporting/analytics, data transformation, computing statistics, combining data from multiple collections, and building dashboard data. It's more efficient than fetching all documents and computing in application code because the database handles the computation closer to the data.
+Put `$match` as early as possible: it can use an index and shrinks the data every later stage has to handle. Use aggregation for: reporting/analytics, data transformation, computing statistics, combining data from multiple collections, and building dashboard data. It's more efficient than fetching all documents and computing in application code because the database handles the computation closer to the data.
 
 ---
 
@@ -1669,7 +1716,7 @@ Unlike SQL databases with rigid schemas, MongoDB's flexible schema allows gradua
 
 2. **Batch migration**: Run a script that updates all documents in batches. Use `batchSize()` to avoid memory issues and add progress logging.
 
-3. **Dual-write**: Deploy code that handles both schemas, run migration script, then deploy code for new schema only.
+3. **Expand and contract** (often loosely called dual-write): deploy code that can read both the old and the new shape, run the migration script, then deploy code that handles only the new shape. Strictly, dual-write means the application writes both old and new fields during the transition, so either version of the code can read the data; that is one way to do the "expand" step (see §8, Zero-Downtime Migration Strategy).
 
 4. **Schema versioning**: Add a `schemaVersion` field. Application code handles each version.
 
@@ -1705,7 +1752,7 @@ Benefits: fewer documents to scan, better locality (all hourly data in one docum
 
 **Q11: How would you design a schema for an event sourcing system?**
 
-Event sourcing stores every state change as an immutable event rather than just the current state. The schema needs:
+**Short answer:** event sourcing stores every change as an immutable event (never updated or deleted) instead of overwriting the current state, and computes the current state by replaying those events. The schema needs an append-only event log with a per-entity version number, plus snapshots and read-optimized views so you are not replaying everything on every read. An *aggregate* below means the entity the events belong to, such as one job.
 
 1. **Events collection**: `aggregateId` (entity it belongs to), `eventType`, `version` (sequential per aggregate), `data` (event payload), `metadata` (timestamp, userId, correlationId). Index on `{ aggregateId: 1, version: 1 }` (unique).
 
@@ -1713,15 +1760,15 @@ Event sourcing stores every state change as an immutable event rather than just 
 
 3. **Projections**: Read-optimized views built by consuming events. Updated asynchronously by event handlers.
 
-To rebuild state: load the latest snapshot, then replay events after that snapshot's version. For querying, use projections (materialized views) not the event store directly. Handle concurrency with optimistic locking (check version before appending).
+To rebuild state: load the latest snapshot, then replay events after that snapshot's version. For querying, use projections (materialized views) not the event store directly. Handle concurrency with *optimistic locking*: instead of locking the aggregate, each writer reads the current version, then appends its event with the next version number. The unique `{ aggregateId, version }` index makes a second writer's append fail if someone else got there first, and that writer reloads and retries.
 
 ---
 
 **Q12: How do you handle data consistency in a distributed system with MongoDB?**
 
-MongoDB provides different consistency levels:
+**Short answer:** MongoDB lets you choose, per operation, how much safety to pay for. Production MongoDB runs as a *replica set*: one primary that takes writes and several secondaries holding copies. The settings below decide how many copies must confirm a write, which copies you may read from, and whether you can read data that might later be rolled back.
 
-1. **Write Concern**: `w: 'majority'` ensures writes are acknowledged by majority of replica set members. `w: 1` (default) only waits for primary.
+1. **Write Concern**: `w: 'majority'` ensures writes are acknowledged by majority of replica set members, so the write survives the primary failing. `w: 1` only waits for the primary, which is faster but can lose a write if the primary crashes before copying it. Since MongoDB 5.0 the default is `majority` for most deployments; older versions defaulted to `w: 1`.
 
 2. **Read Concern**: `'majority'` reads data acknowledged by majority (no dirty reads). `'local'` reads the latest data on the node (may be rolled back).
 
@@ -1737,17 +1784,17 @@ For distributed applications: use `majority` write/read concern for critical ope
 
 **Q13: How would you design the database layer for a system handling 100K writes/second?**
 
-Key strategies:
+**Short answer:** no single machine takes 100K writes/second comfortably, so the answer is to spread writes across many machines (sharding) and make each write cheaper (batching, fewer indexes, smaller documents). The shard key choice is the part interviewers probe.
 
-1. **Sharding**: Distribute writes across shards. Choose a shard key with high cardinality and even distribution (e.g., hashed `_id` or compound key). Avoid monotonically increasing keys (they create hot spots).
+1. **Sharding**: split the collection across several servers (*shards*), each owning a range of a chosen field, the *shard key*. Choose a shard key with high cardinality (many distinct values) and even distribution (e.g., hashed `_id` or compound key). Avoid monotonically increasing keys such as a timestamp or a default `ObjectId`: every new document has the largest value yet, so every insert lands on the one shard owning the top of the range (a *hot spot*) while the others sit idle.
 
-2. **Write optimization**: Use bulk writes (`insertMany`, `bulkWrite`), unordered operations (parallel execution), and minimize indexes on write-heavy collections.
+2. **Write optimization**: Use bulk writes (`insertMany`, `bulkWrite`) so one network round trip carries many documents, unordered operations (the server need not stop at the first failure or keep the order, so it can apply them in parallel), and minimize indexes on write-heavy collections, since every index is updated on every insert.
 
 3. **Buffering**: Write to Redis first, flush to MongoDB in batches. Accepts small data loss window for much higher throughput.
 
 4. **Schema design**: Minimize document size, avoid large arrays (which require rewriting the entire document), use the bucket pattern for time-series data.
 
-5. **Hardware**: Use WiredTiger storage engine, ensure enough RAM for working set, use SSDs, separate data and journal to different volumes.
+5. **Hardware**: Use the WiredTiger storage engine (the default since MongoDB 3.2), ensure enough RAM for the *working set* (the data and indexes that are accessed regularly; once they no longer fit in memory, reads go to disk and throughput collapses), use SSDs, separate data and journal to different volumes.
 
 6. **Monitoring**: Track `opcounters`, replication lag, page faults, lock percentage. Alert on write queue buildup.
 
@@ -1755,7 +1802,7 @@ Key strategies:
 
 **Q14: Compare the trade-offs of different multi-tenancy database architectures at scale.**
 
-**Shared tables** (tenant column): Best for: SaaS with many small tenants (thousands). Pros: low cost, simple operations, easy cross-tenant queries/analytics. Cons: noisy neighbor risk, must enforce tenant isolation in every query, hard to give tenants different SLAs, GDPR data deletion is a query not a database drop.
+**Shared tables** (tenant column): Best for: SaaS with many small tenants (thousands). Pros: low cost, simple operations, easy cross-tenant queries/analytics. Cons: noisy neighbor risk (one heavy tenant's traffic slows everyone sharing the database), must enforce tenant isolation in every query, hard to give tenants different SLAs, GDPR data deletion is a query not a database drop.
 
 **Database per tenant**: Best for: regulated industries, enterprise clients with strict isolation requirements. Pros: strongest isolation, per-tenant backup/restore, independent scaling, easy compliance. Cons: connection management (thousands of databases), schema migrations across all databases, higher infrastructure cost.
 

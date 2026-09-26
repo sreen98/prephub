@@ -311,7 +311,7 @@ Styles in RN are **JavaScript objects**, not CSS. They look similar (camelCase k
 
 - No cascade, no inheritance (except Text-inside-Text).
 - No selectors, pseudo-classes, media queries.
-- No units — all numbers are **density-independent pixels (dp)**. One `dp` is ~1 pt on iOS and `dp` on Android.
+- No units — all numbers are **density-independent pixels (dp)**: a unit that stays the same physical size whatever the screen's pixel density, so `width: 100` looks about as wide on a budget phone as on a high-resolution one. It corresponds to a point (pt) on iOS and a dp on Android.
 - No `display: block` — layout is Flexbox by default.
 - Not all CSS works. For example, no `float`, `grid`, `position: sticky`.
 
@@ -589,6 +589,12 @@ function DetailsScreen({ route }) {
 ### Typed navigation (TypeScript)
 
 ```tsx
+import { Text } from 'react-native';
+import {
+  createNativeStackNavigator,
+  type NativeStackScreenProps,
+} from '@react-navigation/native-stack';
+
 type RootStackParamList = {
   Home: undefined;
   Details: { id: number };
@@ -600,6 +606,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 type Props = NativeStackScreenProps<RootStackParamList, 'Details'>;
 function DetailsScreen({ route, navigation }: Props) {
   const { id } = route.params; // typed as number
+  return <Text>ID: {id}</Text>;
 }
 ```
 
@@ -663,7 +670,7 @@ The same options as React on web, with mobile-specific considerations for offlin
 | **Zustand** | Small global stores without boilerplate — increasingly popular for RN |
 | **Redux Toolkit** | Large apps with complex state; works identically to web |
 | **TanStack Query** | Server state, caching, background refetch |
-| **Jotai / Valtio** | Atomic / proxy-based state for fine-grained reactivity |
+| **Jotai / Valtio** | Jotai splits state into small independent "atoms"; Valtio wraps an object in a proxy that tracks which fields you read. Either way, a component re-renders only when the piece it uses changes |
 | **MobX** | Observable state, minimal boilerplate |
 
 ### Mobile-specific considerations
@@ -1066,11 +1073,11 @@ useEffect(() => {
 </Animated.View>
 ```
 
-**`useNativeDriver: true` requirement**: only works for transform and opacity. Layout properties (width, height, padding, backgroundColor) **cannot** use the native driver — they'd need to trigger layout each frame, which requires the JS thread.
+**`useNativeDriver: true` requirement**: only works for properties that do not affect layout — `transform`, `opacity`, and colour properties such as `backgroundColor`. Layout properties (width, height, padding) **cannot** use the native driver — changing them means re-running layout for the screen on every frame, and the native driver only knows how to update a view's appearance, not recompute layout.
 
 ### Reanimated (recommended for serious animations)
 
-`react-native-reanimated` v3+ runs animations on the UI thread using worklets — JS functions that execute natively at 60/120 fps.
+`react-native-reanimated` v3+ runs animations on the UI thread using worklets — small JS functions that Reanimated copies to a separate JS runtime on the UI thread, so they keep ticking at 60/120 fps even while your main JS thread is busy (see Q23).
 
 ```tsx
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -1331,7 +1338,7 @@ const id = await NativeModules.MyModule.getDeviceId();
 
 ### New architecture (TurboModules)
 
-Same idea but with codegen'd types and **synchronous calls via JSI**. You write a TypeScript spec, run codegen, and implement the native side. Massively faster for hot paths.
+Same idea but with codegen'd types and **synchronous calls via JSI** (the C++ interface in §21). You write a TypeScript spec, run codegen (a build step that generates the native interface from that spec, so JS and native cannot disagree about argument types), and implement the native side. Methods called many times per second gain the most, because each call no longer pays for serializing its arguments to JSON and back.
 
 ### Expo modules
 
@@ -1364,7 +1371,7 @@ The new rendering system. It:
 
 A JS engine purpose-built for mobile by Meta. Ships bytecode so apps start faster; lower memory; smaller binary. Default since RN 0.70.
 
-**Comparison (classic Hermes vs JSC)**: Hermes TTI ~35% faster on Android, APK ~30% smaller, heap ~30% smaller. Trade-off: no `Function.prototype.toString` code inspection, stricter spec conformance.
+**Comparison (classic Hermes vs JSC)**: the published measurements are per app, not universal — Mattermost reported roughly **50% faster cold start** on an Android Pixel XL after switching, and Callstack measured **~40% faster startup and ~18% less memory on iOS** for the same Mattermost app. On Android the app usually gets smaller too, mainly because the Hermes engine is smaller than the Intl-enabled JSC it replaces; on iOS, where JSC ships with the operating system, Callstack measured about 2.4 MiB of added app size instead. Measure your own app rather than quoting a percentage. Trade-off: Hermes is *less* complete, not stricter — `Function.prototype.toString` cannot return source (it runs bytecode), and a few features are deliberately unsupported, notably local-scope `eval()` and `with`.
 
 ### Bridgeless mode
 
@@ -1396,7 +1403,7 @@ Don't optimize without data. Use:
 1. **Virtualize lists** — `FlatList` + proper `keyExtractor` + `getItemLayout`. Never `map` over 100+ items.
 2. **Memoize row components** — `React.memo`, stable `renderItem` and callbacks with `useCallback`.
 3. **Avoid inline arrow props on memoized children** — new reference each render defeats memoization.
-4. **Native driver for animations** — `useNativeDriver: true` for transform / opacity; use Reanimated for layout.
+4. **Native driver for animations** — `useNativeDriver: true` for transform / opacity / colours; use Reanimated for layout.
 5. **Images** — resize server-side, use `expo-image`, provide dimensions to avoid re-layout.
 6. **Hermes** — enable it (it's default now).
 7. **InteractionManager** — defer expensive work until after the transition / animation.
@@ -1601,7 +1608,7 @@ EAS Update has channels and percentage rollouts. Roll 5% → monitor → 25% →
 
 ## 27. Accessibility
 
-Accessibility is not optional — both stores test for it, and millions of users rely on VoiceOver (iOS) and TalkBack (Android).
+Accessibility is not optional: many users navigate entirely with the platform screen readers, VoiceOver (iOS) and TalkBack (Android), which read out each element's label and role. A `Pressable` with only an icon inside is announced as nothing useful unless you give it a label, so the props below are what make your UI usable for them.
 
 ### Labels & roles
 
@@ -1880,7 +1887,9 @@ React Native is a framework for building cross-platform mobile apps using React 
 
 **Q2: How does React Native bridge JavaScript and native code?**
 
-Historically via the **bridge**: JS and native ran on separate threads and exchanged asynchronous, serialized JSON messages. Every call crossed a queue and paid serialization cost, which caused jank on complex UIs. The **new architecture** replaces this with JSI (JavaScript Interface), a C++ layer letting JS hold direct references to native host objects. Calls can now be synchronous, there's no serialization, and rendering is handled by Fabric (a C++ renderer) with TurboModules providing lazy-loaded native modules. Hermes (default JS engine) completes the stack.
+Short answer: the old way was an asynchronous message queue (the bridge); the new way is a C++ layer (JSI) that lets JavaScript call native code directly.
+
+Historically via the **bridge**: JS and native ran on separate threads and exchanged asynchronous, serialized JSON messages. Every call crossed a queue and paid serialization cost, which caused jank on complex UIs. The **new architecture** replaces this with JSI (JavaScript Interface), a C++ layer letting JS hold direct references to native host objects (C++ objects that look like ordinary JavaScript objects from the JS side). Calls can now be synchronous, there's no serialization, and rendering is handled by Fabric (a C++ renderer) with TurboModules providing lazy-loaded native modules. Hermes (default JS engine) completes the stack.
 
 ---
 
@@ -1916,7 +1925,7 @@ Two key defaults flip: `flexDirection` defaults to `column` (vs `row` on web), a
 
 **Q8: What is Hermes and why use it?**
 
-Hermes is a JavaScript engine built by Meta specifically for React Native on mobile. It ships **pre-compiled bytecode** (no runtime parse), uses significantly less memory, and has smaller binary size. Benchmarks show ~30–40% faster time-to-interactive on Android vs JavaScriptCore. It's the default engine since RN 0.70. Trade-offs: `Function.prototype.toString` doesn't return source, some spec edge cases are stricter.
+Hermes is a JavaScript engine built by Meta specifically for React Native on mobile. It ships **pre-compiled bytecode** (no runtime parse), uses significantly less memory, and has smaller binary size. Published measurements are app-specific — Mattermost saw roughly 50% faster cold start on Android and about 40% faster startup with 18% less memory on iOS — so quote a real measurement of your own app rather than a universal percentage. It's the default engine since RN 0.70. Trade-offs: `Function.prototype.toString` doesn't return source (Hermes runs bytecode), and a few features are deliberately unsupported, such as local-scope `eval()` and `with`.
 
 ---
 
@@ -1942,7 +1951,7 @@ The safe area is the region of the screen not obscured by the notch, dynamic isl
 
 **Q11: How do you optimize a `FlatList` rendering 10,000 items?**
 
-Several levers, ordered by impact:
+Render as little as possible and never rebuild what did not change: give the list stable keys and known row heights, keep every prop you pass it referentially stable, and let it render only a small window around the viewport. The levers, ordered by impact:
 
 1. **`keyExtractor`** — stable, unique keys prevent needless re-renders on reorder.
 2. **`getItemLayout`** — when item height is known, lets RN skip measurement and enables instant scroll-to-index.
@@ -1967,7 +1976,9 @@ Other useful methods: `goBack`, `popToTop`, `replace`, `reset`.
 
 **Q13: What is `useNativeDriver: true` in Animated, and when can you use it?**
 
-By default, `Animated` runs the animation on the **JS thread** — each frame computes new values in JS, serializes to native, and triggers a render. A heavy JS thread (large lists, complex renders) drops animation frames. `useNativeDriver: true` moves the animation to the **UI thread**: JS declares the interpolation once, and the native side ticks 60/120 fps independently. Limitation: only **transform and opacity** are supported — layout properties (width, height, padding, backgroundColor) require a layout pass and must stay on the JS side. For those, use **Reanimated**, which runs animations as worklets on the UI thread even for layout.
+Short answer: it hands the whole animation to the native UI thread up front, so it keeps running smoothly even when your JavaScript is busy — but only for properties that don't change layout.
+
+By default, `Animated` runs the animation on the **JS thread** — each frame computes new values in JS, serializes to native, and triggers a render. A heavy JS thread (large lists, complex renders) drops animation frames. `useNativeDriver: true` moves the animation to the **UI thread**: JS declares the interpolation once, and the native side ticks 60/120 fps independently. Limitation: only **non-layout properties** are supported — `transform`, `opacity` and colours such as `backgroundColor` — while layout properties (width, height, padding) require a layout pass and must stay on the JS side. For those, use **Reanimated**, which runs animations as worklets on the UI thread even for layout.
 
 ---
 
@@ -2061,6 +2072,8 @@ Net result: faster startup, smoother animations under load, less memory, unlocke
 
 **Q22: How do you debug a slow-scrolling list?**
 
+First find out which thread is slow — the JS thread (usually wasted re-renders) or the UI thread (usually image decoding or layout) — because the fixes are different. Then work through these in order:
+
 1. **Enable the Perf Monitor** (shake → Perf Monitor). Watch JS FPS vs UI FPS. If JS is low, JS thread is bottlenecking; if UI is low, native rendering is.
 2. **React DevTools Profiler** — are rows re-rendering when they shouldn't? Look for "why did this render" reasons.
 3. **Check `renderItem` referential stability** — a new function each render breaks `React.memo` on rows.
@@ -2085,7 +2098,7 @@ Metro is RN's bundler. Compared to Webpack:
 
 - **Platform-aware resolution**: `./Button.ios.tsx` resolves only on iOS.
 - **Single output per platform**: produces one big JS bundle per platform, not multiple chunks (though code-splitting via async imports is supported).
-- **Fast HMR** tailored for RN's `__metro_hmr__` hot-reload protocol.
+- **Fast HMR**: the dev server pushes changed modules to the app over a WebSocket, which is what Fast Refresh runs on.
 - **Asset handling**: `require('./logo.png')` produces an asset reference that RN's native layer resolves to a packaged resource.
 - **No browser polyfills** — it doesn't bundle `path`, `fs`, `http`.
 - **Tree-shaking** is limited compared to modern web bundlers.
@@ -2095,6 +2108,8 @@ Config lives in `metro.config.js`. You rarely touch it except for monorepo setup
 ---
 
 **Q25: What strategies do you use to reduce app startup time?**
+
+Startup is mostly loading and running JavaScript plus rendering the first screen, so the strategy is to load less code, run less of it before the first frame, and make that first screen small. In practice:
 
 1. **Hermes** — bytecode eliminates JS parse cost at startup.
 2. **Lazy-require heavy modules** — `const Heavy = require('./Heavy')` at call site, not module top. Metro bundles eagerly but the require chain isn't evaluated until reached.
@@ -2123,7 +2138,7 @@ Using EAS Update (or CodePush), treat each JS-bundle ship like a native release:
 
 **Q27: How would you architect a React Native app for a large team?**
 
-Several orthogonal decisions:
+Pick one default per concern and write it down, so dozens of engineers make the same choice the same way instead of re-deciding it screen by screen. The concerns are independent of each other:
 
 - **Expo + Prebuild** for velocity and OTA updates; bare only if you have specific native needs.
 - **Monorepo** (pnpm / Yarn workspaces + Nx or Turborepo) sharing UI, hooks, and API clients with a web app if you have one.
@@ -2157,7 +2172,7 @@ JSI (JavaScript Interface) is a **C++ abstraction over a JS engine**. It defines
 1. **Install host objects**: C++ classes that appear as JS objects. When JS reads a property or calls a method, your C++ code runs synchronously.
 2. **Call into JS from C++**: create values, call functions, get return values.
 
-This replaces the legacy bridge's "serialize → enqueue → deserialize" roundtrip. A TurboModule method call becomes a direct C++ vtable call.
+This replaces the legacy bridge's "serialize → enqueue → deserialize" roundtrip. A TurboModule method call becomes an ordinary C++ function call, with no message queue and no JSON in between.
 
 Practically: you almost never write raw JSI — you use TurboModule codegen (Expo Modules even more so). But understanding JSI explains **why** the new arch enables sync calls and why it's so much faster.
 
@@ -2165,7 +2180,7 @@ Practically: you almost never write raw JSI — you use TurboModule codegen (Exp
 
 **Q30: How do you prevent a memory leak in a React Native screen?**
 
-Common leaks and fixes:
+A screen leaks when something that outlives it — a subscription, timer, request or native callback — still holds a reference to it after it unmounts. The fix is to release each of those in the effect's cleanup. The common ones:
 
 1. **Forgotten event subscriptions** — `addEventListener` returns a subscription; call `.remove()` or `removeEventListener` in the cleanup. Covers `Keyboard`, `AppState`, `Linking`, `Dimensions`, navigation listeners.
 2. **Timers** — `clearTimeout` / `clearInterval` in cleanup.
@@ -2202,6 +2217,8 @@ function App() {
 
 **Explanation:**
 
+Short answer: the root `View` has no size, so it collapses to 0×0, and `flex: 1` on a child takes a share of zero.
+
 React Native uses Facebook's Yoga layout engine, which is a Flexbox implementation that does **not** auto-stretch a `View` to fill its parent the way a web `<body>` + `<div>` chain does. A `View` with no `flex`, no `width`, and no `height` measures its content and, because neither child has an intrinsic size, the parent collapses to 0×0. The blue child declares `flex: 1`, which means "take the remaining space of your parent's main axis" — but the parent's main-axis size is 0, so 1 × 0 is still 0. The red child has no dimensions and no children, so it too measures as 0×0. Nothing is drawn. This is fundamentally different from the web, where the document body has a viewport-derived height and block elements expand to fill their containing block's width automatically. In RN, every ancestor in the chain must have a resolvable size (via `flex`, explicit dimensions, or `StyleSheet.absoluteFill`) for `flex: 1` to produce a non-zero value. The fix is to put `flex: 1` on the root `<View>` (or use `<SafeAreaView style={{ flex: 1 }}>`) so the chain resolves against the screen.
 
 **Takeaway:** In RN, flex only fills space that a parent actually has — make sure `flex: 1` reaches the root of the tree.
@@ -2225,6 +2242,8 @@ function App() {
 
 **Explanation:**
 
+Short answer: stacked, because React Native's default `flexDirection` is `'column'`, not the web's `'row'`.
+
 Yoga in React Native deliberately overrides the CSS default of `flex-direction: row` and uses `'column'` instead. The reasoning is that mobile layouts are overwhelmingly vertical (scrollable feeds, stacked cards, lists), so making column the default removes the need to set `flexDirection` on nearly every container. This trips up web developers because in CSS Flexbox `flex-direction: row` is the spec default, but Yoga treats RN-specific defaults as platform idioms. Note also that every `View` in RN is implicitly `display: flex`; there is no `display: block`, no inline flow, and no float model. So the layout engine is always flex, just with column as the starting axis. To get the web-like horizontal layout, add `flexDirection: 'row'` to the parent. Combine with `justifyContent` (main axis, which is now horizontal) and `alignItems` (cross axis, now vertical) — note these two swap meaning depending on `flexDirection`, another common source of confusion.
 
 **Takeaway:** Every `View` is flex, and the default direction is `'column'`, not `'row'` like the web.
@@ -2247,6 +2266,8 @@ function App() {
 
 **Explanation:**
 
+Short answer: it throws, because only `<Text>` maps to a native view that can display text.
+
 React Native does not have a generic "text node" primitive the way the web DOM does. On the web, browsers happily render any string child because the DOM defines text nodes as first-class citizens that can live anywhere. In RN, the renderer maps JSX to native views (`UIView` on iOS, `android.view.View` on Android), and those native containers simply cannot display text — only the platform's text view (`UILabel` / `TextView`) can. The `<Text>` component is the RN primitive that bridges to those native text views, applying font metrics, line breaking, and accessibility roles. When the renderer walks children of a non-`<Text>` host component and finds a raw string, it aborts with an invariant because there is no native element to receive it. Importantly, this rule is recursive: once you're inside a `<Text>`, nested `<Text>` children are fine and inherit parent styles (a handy way to style spans). Whitespace, newlines, and template literals all count as strings — so even `<View>{" "}</View>` fails. The fix is always to wrap text: `<Text>Hello</Text>`.
 
 **Takeaway:** Only `<Text>` can render strings in RN — everything else is a native container that cannot hold text nodes.
@@ -2268,6 +2289,8 @@ const styles = StyleSheet.create({
 
 **Explanation:**
 
+Short answer: the array is flattened left to right and merged per property, so the last value for each key wins and keys set only once are kept.
+
 React Native's style prop accepts either a plain style object, a registered `StyleSheet` ID (an integer returned by `StyleSheet.create`), `false`/`null`/`undefined`, or an array of any of those. When given an array, the reconciler flattens it left-to-right, and later entries override earlier entries on a **per-property** basis — not by replacing the whole object. So `styles.a` contributes `color: 'red'` and `fontSize: 20`; `styles.b` then overwrites `color` with `'blue'` but contributes nothing for `fontSize`, leaving it at 20. Falsy entries are skipped, which is why conditional styling like `style={[styles.base, isActive && styles.active]}` is such a common pattern — when `isActive` is false, the `false` is dropped silently. The array can be nested arbitrarily (`[a, [b, c], d]`) and RN still flattens correctly. Under the hood, `StyleSheet.create` freezes the objects and returns integer IDs, which used to be a small perf optimization for bridge serialization (sending one int instead of a whole object); on Fabric this matters less, but the API stays the same. If you need to programmatically merge and inspect the final object, use `StyleSheet.flatten([...])`.
 
 **Takeaway:** RN style arrays merge per-property, last-wins — use conditional entries and `StyleSheet.flatten` when you need to inspect the merged result.
@@ -2285,6 +2308,8 @@ React Native's style prop accepts either a plain style object, a registered `Sty
 **Output:** The green child renders at **0 pixels tall** and is invisible.
 
 **Explanation:**
+
+Short answer: 0 tall, because a percentage needs a parent whose height is already known, and this parent's height depends on the child.
 
 Percentage-based dimensions in Yoga resolve against the parent's **measured** size on the corresponding axis — `height: '50%'` means "fifty percent of my parent's computed height". The parent here is a `View` with no explicit `height`, no `flex`, and no `maxHeight`, so Yoga falls back to measuring the parent by its content. Its only content is the child, whose size is itself a percentage of... the parent. This creates a circular dependency, and Yoga resolves it by treating the unknown parent dimension as 0 for percentage resolution, which makes the child 0 tall, which makes the parent 0 tall — a stable zero fixed point. Contrast this with `flex: 1`, which is a **distributive** rule: "take the remaining space after other children are laid out". If the parent chain all the way up to the screen has non-zero resolved height, flex propagates correctly; percentages do not, because they require an already-measured parent. This mirrors web behavior for `height: 50%` on a parent with `height: auto`, but it is easy to forget in RN because the root of the tree is not a styled `<body>` with an implicit viewport size. The fix is to make the parent's height explicit, flex-based, or take up the full screen via `flex: 1` from the root down.
 
@@ -2319,13 +2344,17 @@ function List({ data }) {
 }
 ```
 
-**Output:** Every visible row re-renders on each tap of the `+` button — you see `render 1`, `render 2`, ... in the console each time.
+**Output:** `Row` itself does not re-run — no new `render 1`, `render 2` lines appear, because `Row`'s only prop (`item`) is the same object as before. But the `FlatList` and every visible cell wrapper around `Row` **do** re-render on each tap, and `renderItem` is called again for every visible cell.
 
 **Explanation:**
 
-`React.memo` works by shallow-comparing the previous and next props; if they are referentially equal it bails out of reconciliation. The gotcha here has two layers. First, `renderItem` is defined inline, so every render of `List` produces a new function identity. `FlatList` internally stores the latest `renderItem` and re-invokes it for each visible cell whenever it re-renders; this produces a fresh `<Row item={...} />` element tree. Second, even though `item` itself is the same object reference frame-to-frame (assuming `data` is stable), `FlatList` does still re-render its cell wrappers because its own props changed (the new `renderItem` identity). `React.memo` on `Row` will correctly skip the inner work when `item` is stable — but the cell wrapper above `Row` does reconcile, which is why you see the extra work. The fix is a combination: `const renderItem = useCallback(({ item }) => <Row item={item} />, [])` to stabilize the function, keep `data` in a stable reference (via state or `useMemo`), and never pass newly created handlers like `onPress={() => handle(item.id)}` into `Row` — either define handlers with `useCallback` or pass `item.id` and let `Row` look up the handler from context.
+Short answer: `React.memo` saves the row, but it cannot save the list. The inline `renderItem` is a new function on every render of `List`, and that new prop is enough to make `FlatList` re-render and re-invoke `renderItem` for each visible cell.
 
-**Takeaway:** Memoized rows still re-render unless `renderItem`, `data`, and every prop into the row are referentially stable.
+`React.memo` shallow-compares the previous and next props and skips the render if they are all the same reference. Here `Row` receives only `item`, and `item` is the same object from the (stable) `data` array, so the memo check passes and the `console.log` inside `Row` does not fire. The wasted work happens one level up: `FlatList` sees a changed `renderItem` prop, re-renders its cell wrappers, and calls `renderItem` again to build a fresh `<Row item={...} />` element for each one. With a cheap `Row` that is tolerable; the moment you add a prop that is new on every render — `onPress={() => handle(item.id)}` is the classic one — the memo check fails and every visible row re-renders too.
+
+The fix is to make everything that flows into the list stable: `const renderItem = useCallback(({ item }) => <Row item={item} />, [])`, keep `data` in state or `useMemo` so it is the same array between renders, and pass handlers created with `useCallback` (or pass `item.id` and let `Row` look the handler up from context) rather than creating a fresh arrow per row.
+
+**Takeaway:** `React.memo` on the row stops only the row's own render — the list still does work unless `renderItem`, `data`, and every prop into the row are referentially stable.
 
 ---
 
@@ -2335,9 +2364,11 @@ function List({ data }) {
 <FlatList data={[{ name: 'a' }, { name: 'b' }]} renderItem={({ item }) => <Text>{item.name}</Text>} />
 ```
 
-**Output:** The list renders, but you get a dev warning: `Warning: Each child in a list should have a unique "key" prop.` RN internally falls back to using the array **index** as the key.
+**Output:** The list renders, but `VirtualizedList` logs a warning: `VirtualizedList: missing keys for items, make sure to specify a key or id property on each item or provide a custom keyExtractor.` Internally it falls back to using the array **index** as the key.
 
 **Explanation:**
+
+Short answer: it does not break — it falls back to the array index as the key and logs a warning — but index keys attach row state to the wrong item once the list is reordered.
 
 `FlatList` is built on top of `VirtualizedList`, which assigns a key to every cell so React can match previous render output to the new one for reconciliation. The lookup order is: (1) use `keyExtractor(item, index)` if provided, (2) use `item.key` if the item object has one, (3) use `item.id` if present, (4) fall back to the index. The fallback to index is what keeps the app running, but it is dangerous because cell recycling and internal state (selection, input focus, animations, expanded/collapsed) are keyed by this value. If you later reorder, insert, or delete items, React thinks "the item at index 0 is still the same item" even though its content changed, leading to ghost state where a row visually shows new data but keeps the old input value, selected state, or animation progress. On large or paginated lists, this also interferes with `getItemLayout` optimization and can cause visual jumps when items shift. Always provide `keyExtractor={item => item.id}` using a stable, unique domain identifier — never the index, never a derived hash of mutable content.
 
@@ -2362,6 +2393,8 @@ function App() {
 **Output:** The `FlatList` **re-renders fully** on every tap, even though the items' IDs and content are identical.
 
 **Explanation:**
+
+Short answer: it fully re-renders, because an array literal is a new reference on every render and React compares props by reference.
 
 React compares props by referential identity, not structural equality. `[{ id: 1 }, { id: 2 }]` written inside the render body constructs a brand-new array — and brand-new item objects — on every render of `App`. From `FlatList`'s perspective, `prevProps.data !== nextProps.data`, so it re-measures, re-evaluates which rows are visible, and re-invokes `renderItem`. Worse, because each item object is also a new reference, even a memoized `Row` would break: `React.memo`'s shallow comparison sees a different `item` prop. This kind of unstable reference is one of the single biggest performance regressions in RN apps, because list work scales with the number of visible cells times the cost of each cell. The correct patterns are: (1) put `data` into state or a ref and update only when truly changed, (2) wrap derived lists in `useMemo(() => transform(source), [source])`, (3) hoist static lists to module scope outside the component, or (4) for server data, use a query library like TanStack Query that stabilizes the reference when nothing changed.
 
@@ -2389,9 +2422,11 @@ useEffect(() => {
 
 **Explanation:**
 
-When `useNativeDriver: true` is set, the Animated API serializes the animation (keyframes, easing, interpolations, style bindings) down to the native side at `start()` time, and from then on the animation runs entirely on the UI thread without hopping back to the JS thread on each frame. This is what gives native-driven animations perfect 60/120 fps smoothness even when the JS thread is busy. The catch: driving a property natively requires the native animated module to be able to mutate it without triggering a layout pass — which is only possible for properties that map to compositor-level transforms on the GPU. Those are `transform` (translateX/Y, scale, rotate, skew) and `opacity`. Layout properties (`width`, `height`, `padding`, `margin`, `top`/`left`, `flex`) would require re-running Yoga layout on every frame, which the native driver refuses to do. Color is also excluded because color interpolation requires JS-side math. The two standard workarounds: (1) use `useNativeDriver: false` for layout animations, accepting that they'll jank if the JS thread is busy; or (2) switch to **Reanimated**, which runs worklets on the UI thread and can animate layout properties via its shared-values-plus-layout-animator system. For width specifically, you can often get the same visual effect by animating `transform: [{ scaleX }]` with native driver, which is free on the GPU.
+Short answer: the native driver can only animate properties it can change without re-running layout, and `width` needs layout, so it is rejected.
 
-**Takeaway:** Native driver only supports `transform` and `opacity` — for anything else, drop to JS driver or reach for Reanimated.
+When `useNativeDriver: true` is set, the Animated API serializes the animation (keyframes, easing, interpolations, style bindings) down to the native side at `start()` time, and from then on the animation runs entirely on the UI thread without hopping back to the JS thread on each frame. This is what gives native-driven animations perfect 60/120 fps smoothness even when the JS thread is busy. The catch: the native animated module can only change properties that do not trigger a layout pass — it can change how a view looks, but not how big it is or where it sits. The supported set is `transform` (translateX/Y, scale, rotate, skew), `opacity`, colour properties (`backgroundColor`, `color`, `tintColor` and the border colours) and a few other non-layout styles. Layout properties (`width`, `height`, `padding`, `margin`, `top`/`left`, `flex`) would require re-running Yoga layout on every frame, which the native driver does not do by default. The two standard workarounds: (1) use `useNativeDriver: false` for layout animations, accepting that they'll jank if the JS thread is busy; or (2) switch to **Reanimated**, which runs worklets on the UI thread and can animate layout properties via its shared-values-plus-layout-animator system. For width specifically, you can often get the same visual effect by animating `transform: [{ scaleX }]` with native driver, which is free on the GPU.
+
+**Takeaway:** The native driver only animates non-layout properties (`transform`, `opacity`, colours) — for layout properties, drop to the JS driver or reach for Reanimated.
 
 ---
 
@@ -2412,6 +2447,8 @@ function Screen() {
 **Answer:** If the user navigates away (or the screen unmounts for any reason) before the fetch resolves, `setData` will be called on an unmounted component, the network request continues to consume bandwidth and battery, and the closure prevents garbage collection of the captured state and component tree.
 
 **Explanation:**
+
+Short answer: the request keeps running after the screen is gone, wasting network and battery and keeping the dead screen's state in memory until it finishes.
 
 In a stack navigator, `Screen` may be unmounted at any moment — the user hits back, a deep link replaces it, the tab changes, or the app is backgrounded and killed. The `fetch` Promise, however, has no knowledge of React's lifecycle. It continues downloading the response, parses the JSON, and then calls `setData`. React 18 removed the noisy "can't call setState on an unmounted component" warning because it caused more false positives than real bugs, but the underlying leak is still real: the network connection is open, the response body is parsed into memory, and the closure holds references to `setData` (which in turn holds onto the fiber and its props). On slow networks or during screen-rotation storms, you can easily rack up a dozen orphaned requests. The correct pattern is to pair the effect with an `AbortController`: pass `signal: c.signal` into the fetch, and return `() => c.abort()` from the effect. `fetch` will reject with an `AbortError`, the network layer will cancel the request at the native level (both iOS URLSession and Android OkHttp honor abort), and the component tree can be collected. In practice, most apps should use a data-fetching library (TanStack Query, RTK Query, Apollo) which handles cancellation, caching, retries, and race conditions automatically.
 
@@ -2440,6 +2477,8 @@ function Counter() {
 
 **Explanation:**
 
+Short answer: it sticks at 1, because the interval callback captured `count` from the first render, where it is `0`, and keeps computing `0 + 1`.
+
 This is the classic stale-closure bug. `useEffect` with `[]` runs once on mount. At that moment, the interval callback closes over the `count` binding from that particular render — which is `0`. The callback, whenever it fires, computes `0 + 1 = 1` and passes `1` to `setCount`. On the next tick it again computes `0 + 1 = 1` (still reading the same captured `count`) and passes `1`. React sees `Object.is(prev, next) === true` after the first update and bails out of re-rendering. The interval never gets torn down and recreated because its dependency array is empty, so there's no chance for a fresh closure with the updated `count` to be captured. There are three canonical fixes, each with trade-offs. (1) Functional updater: `setCount(c => c + 1)` — React passes the latest state to the updater, so closure staleness doesn't matter. This is the correct fix here. (2) Add `count` to dependencies: works but recreates the interval every second, which drifts the timing and is wasteful. (3) Use a ref that mirrors the latest value: `const ref = useRef(count); ref.current = count;` and read `ref.current` inside the interval. Useful when the updater pattern doesn't fit (e.g., reading other state or props). Note: RN's JS thread and the web's event loop behave the same here — this is a pure React issue, not platform-specific.
 
 **Takeaway:** Inside long-lived subscriptions (intervals, listeners, timers) always use the functional updater or a ref — never read state directly from the closure.
@@ -2462,6 +2501,8 @@ This is the classic stale-closure bug. `useEffect` with `[]` runs once on mount.
 
 **Explanation:**
 
+Short answer: the `shadow*` properties are an iOS layer feature; Android draws shadows from `elevation` instead, so you set both.
+
 iOS and Android have fundamentally different shadow models at the native layer. On iOS, every `UIView` backed by `CALayer` supports `shadowColor`, `shadowOffset`, `shadowOpacity`, and `shadowRadius` as layer-level properties; RN maps the matching style keys directly onto the layer. On Android, Material Design expresses depth through **elevation** — a `float` Z-position on the `View` that the platform uses to compute both a silhouette shadow (via `ViewOutlineProvider`) and ambient/key light contributions. The iOS-named properties simply have no equivalent that Android can honor without a custom drawing pass, so RN ignores them on Android. Additionally, Android's elevation-based shadow needs the view to have a solid background (an opaque `backgroundColor`), a defined outline (rectangle, rounded rect, or path), and non-clipped overflow for the shadow silhouette to render — otherwise the platform has nothing to cast a shadow from. The idiomatic cross-platform fix is to set both families of properties (iOS ignores `elevation`, Android ignores the shadow* keys), and always include `backgroundColor: 'white'` (or another opaque color). Newer RN versions added a `boxShadow` style on Fabric that mimics the CSS syntax and is normalized across platforms, but for broad compatibility ship both. For complex custom shadows, use `react-native-shadow-2` or layer a pre-rendered shadow image.
 
 **Takeaway:** iOS uses `shadow*` properties, Android uses `elevation` — set both, plus an opaque `backgroundColor`, for shadows that work everywhere.
@@ -2481,6 +2522,8 @@ import { SafeAreaView } from 'react-native';
 **Output:** On iOS the content is padded away from the notch, status bar, and home indicator. On Android the view renders flush to the edges with **no padding**, causing content to sit under the status bar.
 
 **Explanation:**
+
+Short answer: the core `SafeAreaView` is built on an iOS-only API and behaves as a plain `View` on Android; use `react-native-safe-area-context` instead.
 
 The `SafeAreaView` shipped in the `react-native` core package is intentionally iOS-only. It maps to a native `UIView` that reads the current view controller's `safeAreaInsets` — a UIKit API that reports the insets for notches, dynamic islands, and the home indicator. On Android, the equivalent concept is handled through `WindowInsets` (status bar, navigation bar, gesture inset, IME), and these APIs differ enough across Android versions (edge-to-edge mode, display cutouts on 9+, gesture navigation on 10+) that the RN core team decided not to ship a built-in implementation, falling back to a plain `View`. The community library `react-native-safe-area-context` provides a proper cross-platform implementation: a `SafeAreaProvider` at the root that reads insets once per layout change, a `SafeAreaView` that consumes them, and a `useSafeAreaInsets()` hook for fine-grained control (e.g., applying only the top inset to a header, only the bottom inset to a tab bar). It works on both platforms, handles rotation, handles split-screen, and integrates with React Navigation (which uses it internally for headers and bottom tabs). The rule of thumb: never import `SafeAreaView` from `react-native` in a cross-platform app — always import from `react-native-safe-area-context`.
 
@@ -2503,6 +2546,8 @@ function Modal() {
 
 **Explanation:**
 
+Short answer: nothing is listening for the back press, so Android runs its default action and backgrounds the app instead of closing your fake modal.
+
 Android's hardware back button is a system-level event delivered to the current Activity. RN's default handler pops the current navigator screen if one exists, and if the navigation stack is empty, it calls `moveTaskToBack()` (effectively exiting). Your conditional-render "modal" is just a `<View>` in the component tree — it's invisible to Android's back dispatcher, the navigation library, and the platform. Nothing in the tree is subscribed to back presses, so the default Activity behavior runs and the app backgrounds. To handle this correctly, you need to subscribe to the `hardwareBackPress` event with `BackHandler.addEventListener('hardwareBackPress', handler)` and return `true` from the handler when your modal is open (returning `true` tells Android "I've consumed this event, don't do the default"). You must also clean up the subscription on unmount or when the modal closes. The cleaner option is to use the built-in `<Modal>` component, which exposes an `onRequestClose` callback that fires for hardware back (Android) and is required to be implemented on that platform. Or use a library like `react-native-modal` / React Navigation's modal screens, both of which wire the back handler automatically. iOS has no equivalent because there is no hardware back button — users dismiss with a gesture or a UI-provided close affordance.
 
 **Takeaway:** Conditional-render modals don't capture Android back — subscribe to `BackHandler` or use `<Modal onRequestClose>` / a navigation-based modal.
@@ -2516,6 +2561,10 @@ Android's hardware back button is a system-level event delivered to the current 
 **Q15: When an app reads its auth token from `AsyncStorage` inside a `useEffect` and renders either `<LoginScreen />` or `<HomeScreen />` based on whether the token is present, what does a logged-in user actually see on cold start, and what are the options to fix it?**
 
 ```tsx
+import { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LoginScreen, HomeScreen } from './screens';
+
 function App() {
   const [token, setToken] = useState(null);
 
@@ -2532,7 +2581,9 @@ function App() {
 
 **Explanation:**
 
-`AsyncStorage` is, as the name says, **asynchronous**: on iOS it serializes to a plist on disk, on Android to SQLite (or a file system variant). Every read hops over the JS/native bridge, does I/O, and returns through a Promise. On the first render of `App`, `token` is `null` (the initial state) because React renders synchronously and the effect runs **after** commit. So the first frame paints `LoginScreen`, then microseconds to hundreds of milliseconds later the promise resolves, `setToken` triggers a re-render, and `HomeScreen` replaces it. The user perceives a login-screen flash followed by a jarring swap. There are three correct fixes, and production apps typically combine them: (1) **MMKV** (`react-native-mmkv`) is a synchronous, memory-mapped key-value store; you can read at module scope or during the initial render with no promise, eliminating the flash. (2) Keep the native splash screen up until hydration completes, via `expo-splash-screen` or `react-native-bootsplash` — call `preventAutoHideAsync()` at startup and `hideAsync()` after reading the token. (3) Render a neutral loading state (a blank view with the app's background color) instead of `LoginScreen` while `token` is still the sentinel value — and use a three-state enum (`'unknown' | 'loggedIn' | 'loggedOut'`) rather than `null` so you can tell "haven't checked" apart from "checked and empty". The splash + MMKV combination gives the smoothest UX.
+Short answer: they see the login screen flash first, because the token read is asynchronous and the first render happens before it returns.
+
+`AsyncStorage` is, as the name says, **asynchronous**: the classic iOS implementation writes a JSON manifest file (with large values in separate files), Android uses SQLite, and version 3 of the library uses SQLite on both. Every read hops over the JS/native bridge, does I/O, and returns through a Promise. On the first render of `App`, `token` is `null` (the initial state) because React renders synchronously and the effect runs **after** commit. So the first frame paints `LoginScreen`, then microseconds to hundreds of milliseconds later the promise resolves, `setToken` triggers a re-render, and `HomeScreen` replaces it. The user perceives a login-screen flash followed by a jarring swap. There are three correct fixes, and production apps typically combine them: (1) **MMKV** (`react-native-mmkv`) is a synchronous, memory-mapped key-value store; you can read at module scope or during the initial render with no promise, eliminating the flash. (2) Keep the native splash screen up until hydration completes, via `expo-splash-screen` or `react-native-bootsplash` — call `preventAutoHideAsync()` at startup and `hideAsync()` after reading the token. (3) Render a neutral loading state (a blank view with the app's background color) instead of `LoginScreen` while `token` is still the sentinel value — and use a three-state enum (`'unknown' | 'loggedIn' | 'loggedOut'`) rather than `null` so you can tell "haven't checked" apart from "checked and empty". The splash + MMKV combination gives the smoothest UX.
 
 **Takeaway:** AsyncStorage-backed gates always flash — use MMKV for sync reads, keep the splash screen up during hydration, and distinguish "unknown" from "logged out".
 
@@ -2548,6 +2599,8 @@ function App() {
 
 **Explanation:**
 
+Short answer: `source` must be `{ uri: '...' }` or a `require(...)` result; a bare string is not a valid source, so nothing is drawn.
+
 RN's `<Image>` does **not** mirror the HTML `<img>` API. Its `source` prop is typed as either (a) a numeric ID returned by `require('./local.png')` — the Metro bundler turns that call into an integer that maps to a bundled asset at runtime — or (b) an object like `{ uri: 'https://...' }` for remote/URL images. An object form can also carry metadata that the web's `<img>` has no equivalent for: `width`, `height` (for content-aware layout), `headers` (for Authorization or signed URL tokens), `cache` policy (`default` / `reload` / `force-cache` / `only-if-cached`), `method`, and `body` for POST-fetched images. Passing a string short-circuits all of this — the renderer does not implicitly wrap the string into `{ uri }`, so the image module sees an invalid source and draws nothing. The right call is always `source={{ uri: 'https://example.com/pic.jpg' }}` for remote images and `source={require('./pic.png')}` for bundled assets. If you need to handle both cases in the same component, pass the normalized object form. For heavy remote image workflows (placeholders, blurhash, progressive decoding, caching) use `expo-image` or `react-native-fast-image`, both of which accept the same source shape but add features the core `<Image>` lacks.
 
 **Takeaway:** RN `<Image>` takes `require(...)` or `{ uri }` — never a raw string. Use `expo-image` / `react-native-fast-image` when you need caching and placeholders.
@@ -2561,7 +2614,7 @@ React Native Output Cheat Sheet:
 1. Views without flex: 1 collapse to 0 → blank screens.
 2. flexDirection defaults to 'column' (not 'row' like web).
 3. Strings must live inside <Text>, not <View>.
-4. useNativeDriver only supports transform + opacity.
+4. useNativeDriver only animates non-layout props (transform, opacity, colors).
 5. setState inside intervals uses captured stale state — use functional updater.
 6. Android shadows need elevation, not shadowColor/shadowOpacity.
 7. SafeAreaView from 'react-native' is iOS-only; use react-native-safe-area-context.
@@ -2588,7 +2641,7 @@ React Native Output Cheat Sheet:
 
 **Q20: Your `.ipa` is 60 MB but users report a 190 MB download and complaints about storage. How is that possible?**
 
-**The `.ipa` size is not the download size** — App Store processing re-signs and re-packages the app, and what users download depends on their device. The `.ipa` you upload is compressed and contains a single slice; the delivered app includes device-specific resources, and crucially the App Store adds **encryption padding** and per-architecture variants, so the install size is routinely two to three times the archive. The authoritative numbers are in **App Store Connect → App Size report**, broken down per device — check that, never the local file size. If you're near the **200 MB cellular limit**, users get an "are you sure" prompt that measurably reduces installs. Levers: asset catalogs so only the needed image scale ships, on-demand resources for large optional assets, dead-code stripping and dependency auditing, and Hermes to shrink the JS payload. On Android the equivalent trap is comparing a universal APK against the per-device APKs Play actually generates from your AAB.
+**The `.ipa` size is not the download size** — App Store processing re-signs and re-packages the app, and what users download depends on their device (App Thinning). Crucially, the App Store **encrypts the app binary** (FairPlay DRM) before compressing the download. Encryption does not change the binary's size, but encrypted data looks random and barely compresses, so the download can be much larger than your locally compressed `.ipa` suggests. The authoritative numbers are in **App Store Connect → App Size report**, broken down per device — check that, never the local file size. If you're near the **200 MB cellular limit**, users get an "are you sure" prompt that measurably reduces installs. Levers: asset catalogs so only the needed image scale ships, on-demand resources for large optional assets, dead-code stripping and dependency auditing, and Hermes to shrink the JS payload. On Android the equivalent trap is comparing a universal APK against the per-device APKs Play actually generates from your AAB.
 
 ## References
 

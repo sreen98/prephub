@@ -93,6 +93,9 @@ Nesting is the feature everything else rests on. A nested route renders *inside*
 The parent decides *where* the child appears, with `<Outlet />`:
 
 ```jsx
+import { Outlet } from 'react-router-dom';
+import { Header } from './Header';
+
 function RootLayout() {
   return (
     <div>
@@ -257,6 +260,8 @@ function Root() {
 **`useFetcher` is the one worth knowing.** It calls a loader or action **without navigating** — a "mark as read" button, a newsletter signup in the footer, a like. You get the same pending state and the same revalidation, with no URL change:
 
 ```jsx
+import { useFetcher } from 'react-router-dom';
+
 function LikeButton({ id }) {
   const fetcher = useFetcher();
   // The optimistic value: what the server will say once this lands.
@@ -306,7 +311,10 @@ In declarative mode there are no `errorElement`s, so a plain React error boundar
 Routes are the correct splitting boundary: one page should not ship the other ninety-nine.
 
 ```jsx
-const Dashboard = React.lazy(() => import('./Dashboard'));
+import { lazy, Suspense } from 'react';
+import { Route } from 'react-router-dom';
+
+const Dashboard = lazy(() => import('./Dashboard'));
 
 <Route
   path="dashboard"
@@ -337,6 +345,9 @@ const dashboardRoute = {
 ## 10. Protected Routes
 
 ```jsx
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from './auth';
+
 function RequireAuth({ children }) {
   const { status, user } = useAuth();
   const location = useLocation();
@@ -365,6 +376,9 @@ A client-side navigation changes the page without the browser doing any of the t
 **Scroll.** The browser restores scroll on a real navigation; a `pushState` does not. In framework mode `<ScrollRestoration />` handles it. Otherwise:
 
 ```jsx
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
@@ -377,6 +391,9 @@ Depend on `pathname` rather than the whole location, or changing a search param 
 **Focus is the one people miss entirely.** After a real navigation, focus resets to the document. After a client-side one it stays wherever it was — so a keyboard user activates a link and focus is still on a link that no longer exists, and a screen reader announces nothing at all.
 
 ```jsx
+import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+
 function RouteAnnouncer({ title }) {
   const headingRef = useRef(null);
   const { pathname } = useLocation();
@@ -499,7 +516,7 @@ Set `basename` when the app is not at the domain root:
 
 **Q1: How does client-side routing actually work?**
 
-The router intercepts link clicks, calls `history.pushState` to change the URL without issuing a request, and re-renders the component tree against the new URL. It also listens for `popstate` so the browser's Back and Forward buttons work. Because no document is fetched, the JavaScript context survives — state, sockets, timers — which is the whole performance argument for an SPA. The costs are the ones you then have to reimplement: scroll restoration, focus management, and a server rewrite so a deep link does not 404.
+The router intercepts link clicks, calls `history.pushState` to change the URL without issuing a request, and re-renders the component tree against the new URL. It also listens for `popstate` — the event the browser fires when the user presses Back or Forward — and re-renders for the URL it lands on. Because no document is fetched, the JavaScript context survives — state, sockets, timers — which is the whole performance argument for an SPA. The costs are the ones you then have to reimplement: scroll restoration, focus management, and a server rewrite so a deep link does not 404.
 
 ---
 
@@ -566,6 +583,7 @@ Two things the browser stops doing for you. **Scroll** is not restored on a `pus
 **Q12: How would you test routing?**
 
 `MemoryRouter` with `initialEntries` so the starting URL is explicit and no real history is involved; `createMemoryRouter` plus `RouterProvider` when I need loaders to run. The specific bug worth testing for is a component reading the global `window.location` instead of `useLocation()` — it typechecks, works in development, and silently breaks under a basename, because `window.location.pathname` includes the basename and the route path does not.
+
 **Q13: How do you handle a 404 / Page Not Found in React Router?**
 
 Start by separating the two 404s, because the interviewer usually means one and the deployment bug is the other.
@@ -573,6 +591,8 @@ Start by separating the two 404s, because the interviewer usually means one and 
 **The client 404** is a route that matches when nothing else does. A splat as a sibling of your real routes:
 
 ```tsx
+import { Routes, Route } from 'react-router-dom';
+
 function NotFound() {
   return <h1>Page not found</h1>;
 }
@@ -595,6 +615,8 @@ function AppRoutes() {
 For a 404 that keeps your chrome, nest it inside the layout route rather than beside it:
 
 ```tsx
+import { Routes, Route, Outlet } from 'react-router-dom';
+
 function Layout() { return <div><nav>nav</nav><Outlet /></div>; }
 function Dashboard() { return <h1>Dashboard</h1>; }
 function SectionNotFound() { return <p>No such page in this section.</p>; }
@@ -679,6 +701,8 @@ Navigation is a **side effect**: it updates the router's state. Doing it during 
 The library's answer is `<Navigate to="/login" replace />` — a component that performs the navigation in an effect, after commit. That is the whole reason it exists as a component rather than being a function you call inline.
 
 ```jsx
+import { Navigate, useNavigate } from 'react-router-dom';
+
 function RequireAuth({ status, children }) {
   const navigate = useNavigate();
 
@@ -761,6 +785,8 @@ This exact bug shipped in this app when `Sidebar` was extracted from `App.tsx` a
 
 ```jsx
 // Setup — declarative
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
 function App() {
   return (
     <BrowserRouter basename="/app">
@@ -778,6 +804,8 @@ function App() {
 
 ```jsx
 // Navigation
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+
 function Nav() {
   const navigate = useNavigate();
   return (
@@ -793,6 +821,8 @@ function Nav() {
 
 ```jsx
 // Reading the URL
+import { useParams, useSearchParams } from 'react-router-dom';
+
 function Filters() {
   const { id } = useParams();                      // keys come from the PATH
   const [params, setParams] = useSearchParams();

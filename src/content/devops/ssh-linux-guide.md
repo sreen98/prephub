@@ -32,7 +32,7 @@ The two things interviews actually test: **can you explain SSH key authenticatio
 
 ## 1. How SSH Works
 
-SSH gives you an encrypted, authenticated channel over an untrusted network. A connection has three phases:
+SSH gives you an encrypted, authenticated channel over an untrusted network. A connection has three phases. The first uses a Diffie–Hellman exchange: a method that lets two machines agree on a shared secret key while an eavesdropper who sees every message still cannot work out the key.
 
 ```
 1. Key exchange     → negotiate ciphers, do a Diffie–Hellman exchange
@@ -44,7 +44,7 @@ SSH gives you an encrypted, authenticated channel over an untrusted network. A c
 
 Two distinct key pairs are involved, and conflating them is the classic misunderstanding:
 
-- The **host key** identifies the *server*. It is what `known_hosts` records, and it is how you detect a man-in-the-middle.
+- The **host key** identifies the *server*. It is what `known_hosts` records, and it is how you detect a man-in-the-middle (MITM: an attacker who sits between you and the server, pretending to be the server to you).
 - Your **user key** identifies *you*, in phase 3.
 
 ```
@@ -54,7 +54,7 @@ ED25519 key fingerprint is SHA256:abc123...
 
 That prompt is the **only** point at which MITM is detectable, which is why blindly typing "yes" — or worse, scripting `StrictHostKeyChecking=no` — removes SSH's server-authentication guarantee entirely. In automation, pre-seed `known_hosts` from a trusted source, or use `ssh-keyscan` at image-build time and ship the result.
 
-Forward secrecy comes from the per-session key: recording traffic and later stealing the host key does not decrypt past sessions.
+SSH also has **forward secrecy**: past sessions stay private even if a long-term key leaks later. It comes from the per-session key, which is thrown away when the session ends and is never derived from the host key — so an attacker who records your traffic today and steals the host key next year still cannot decrypt the recording.
 
 ---
 
@@ -179,7 +179,7 @@ ssh -D 1080 bastion
 #   set the browser's SOCKS proxy to localhost:1080
 ```
 
-Mnemonic: **`-L` brings a remote service to you; `-R` exposes your service remotely; `-D` makes the server a proxy.**
+Mnemonic: **`-L` brings a remote service to you; `-R` exposes your service remotely; `-D` makes the server a proxy.** (SOCKS is a generic proxy protocol: a browser or other app sends each connection request to the proxy, and the proxy — here, the SSH server — makes the connection on its behalf.)
 
 Useful flags: `-N` (no remote command — just the tunnel), `-f` (background), `-T` (no TTY). So `ssh -fNL 5433:db:5432 bastion` is the idiomatic "open a tunnel and get my prompt back".
 
@@ -263,7 +263,7 @@ systemctl daemon-reload            # after editing a unit file
 journalctl -u nginx -f --since "10 min ago"
 ```
 
-**`enable` ≠ `start`.** `enable` makes it boot-persistent, `start` runs it now — forgetting `enable` is why a service comes back after a reboot only in staging where someone remembered.
+**`enable` ≠ `start`.** `start` runs the service now; `enable` makes it start automatically at every boot. They are independent, so a service you only `start`ed runs fine until the next reboot and then silently stays down — the classic "it worked yesterday" outage after a kernel patch. `enable --now` does both.
 
 A minimal unit:
 
@@ -344,9 +344,9 @@ Interpretation notes that separate a real answer from a tool list:
 - **Load average is per-runnable-task, not a percentage.** Compare it to core count: load 4 on 4 cores is saturated; load 4 on 32 cores is idle. On Linux load **includes tasks blocked on I/O**, so high load with low CPU means you are I/O-bound.
 - **`free` is misleading.** Linux uses spare RAM as page cache by design, so low "free" is healthy — read **`available`**.
 - **High `%iowait`** points at disk or network storage, not CPU.
-- **`df -h` full but nothing large?** Check **`df -i`** for inode exhaustion, and check for **deleted-but-open files** with `lsof +L1` — a rotated log still held by a process consumes space invisible to `du`.
-- **OOM kills** appear in `dmesg`, not in your app log; the app just vanishes.
-- Steal time (`%st` in `top`) on a VM means the hypervisor is busy — your neighbour's problem, not yours.
+- **`df -h` full but nothing large?** Check **`df -i`** for inode exhaustion (an inode is the record a filesystem keeps for each file; on many filesystems the number of inodes is fixed when the disk is formatted, so millions of tiny files can use them all up while bytes remain free), and check for **deleted-but-open files** with `lsof +L1` — a rotated log still held by a process consumes space invisible to `du`.
+- **OOM kills** appear in `dmesg`, not in your app log; the app just vanishes. (OOM = out of memory: when RAM runs out, the kernel's OOM killer picks a process and kills it outright, so the app gets no chance to log anything.)
+- Steal time (`%st` in `top`) on a VM is time your virtual CPU wanted to run but the hypervisor (the software that shares one physical machine between many VMs) gave the real CPU to another VM. High steal means a busy neighbour, not a problem in your code — the fix is on the infrastructure side (a different or dedicated instance), not tuning your app.
 
 ---
 
@@ -488,35 +488,59 @@ The operational point: run any long migration, build or restore **inside tmux**,
 
 **Q1: Explain how SSH key-based authentication works.**
 
-You generate a key pair; the **private key never leaves your machine** and the public key is appended to `~/.ssh/authorized_keys` on the server. On connection the server sends a challenge, your client signs it with the private key, and the server verifies that signature against the stored public key. Nothing reusable crosses the network, which is why it is strictly stronger than password auth — there is no credential to intercept and nothing practical to brute-force, and the key can be passphrase-protected at rest. Worth separating from this is the **host key**, a *different* pair that identifies the server and is what `known_hosts` records; that is the mechanism that detects a man-in-the-middle, and accepting the fingerprint prompt blindly (or setting `StrictHostKeyChecking=no`) throws that guarantee away. Prefer **Ed25519** over RSA, and remember `sshd` **silently ignores** keys if `~/.ssh`, `authorized_keys` or the home directory have loose permissions — the reason appears only in the server log.
+You generate a key pair; the **private key never leaves your machine** and the public key is appended to `~/.ssh/authorized_keys` on the server. On connection the server sends a challenge, your client signs it with the private key, and the server verifies that signature against the stored public key. Nothing reusable crosses the network, which is why it is strictly stronger than password auth — there is no credential to intercept and nothing practical to brute-force, and the key can be passphrase-protected at rest.
+
+Worth separating from this is the **host key**, a *different* pair that identifies the server and is what `known_hosts` records; that is the mechanism that detects a man-in-the-middle, and accepting the fingerprint prompt blindly (or setting `StrictHostKeyChecking=no`) throws that guarantee away.
+
+Prefer **Ed25519** over RSA, and remember `sshd` **silently ignores** keys if `~/.ssh`, `authorized_keys` or the home directory have loose permissions — the reason appears only in the server log.
 
 **Q2: What is agent forwarding and why is it risky?**
 
-`ssh-agent` holds your decrypted private keys in memory; **agent forwarding** (`ssh -A`) exposes a socket to the remote host so it can ask your local agent to sign challenges, letting you authenticate onward without copying a key to that server. The risk is that the socket is usable by **anyone with root on that host, or any process running as your user**, for the life of your session — they can authenticate as you to every system your keys open. They never obtain the key itself, but they don't need to. So never forward to a host you don't fully trust, and prefer **`ProxyJump`**, which tunnels through the intermediate host with the final connection **end-to-end encrypted**, so the jump host can neither read your session nor use your keys. If you must forward, scope it per-host in `ssh_config` rather than globally, and use `ssh-add -c` to require confirmation for each signature.
+`ssh-agent` holds your decrypted private keys in memory; **agent forwarding** (`ssh -A`) exposes a socket to the remote host so it can ask your local agent to sign challenges, letting you authenticate onward without copying a key to that server.
+
+The risk is that the socket is usable by **anyone with root on that host, or any process running as your user**, for the life of your session — they can authenticate as you to every system your keys open. They never obtain the key itself, but they don't need to.
+
+So never forward to a host you don't fully trust, and prefer **`ProxyJump`**, which tunnels through the intermediate host with the final connection **end-to-end encrypted**, so the jump host can neither read your session nor use your keys. If you must forward, scope it per-host in `ssh_config` rather than globally, and use `ssh-add -c` to require confirmation for each signature.
 
 **Q3: Explain local, remote and dynamic port forwarding.**
 
-**Local (`-L`)** opens a port on your machine that tunnels through the SSH server to a target — `ssh -L 5433:db.internal:5432 bastion` lets you point `psql` at `localhost:5433` and reach a private database. **Remote (`-R`)** does the reverse: it opens a port on the *server* that tunnels back to something reachable from your machine — `ssh -R 8080:localhost:3000 public-host` exposes your local dev server on the remote host. **Dynamic (`-D`)** starts a local SOCKS proxy so arbitrary traffic routes through the server, which is effectively a lightweight VPN for a browser. The mnemonic is: `-L` brings a remote service to you, `-R` exposes your service remotely, `-D` makes the server a proxy. Add `-fNL` for a backgrounded tunnel with no shell. One security note: `-R` binds to loopback on the server unless `GatewayPorts yes` is set, deliberately, because remote forwarding is an easy way to expose an internal service to the internet by accident.
+**Local (`-L`)** opens a port on your machine that tunnels through the SSH server to a target — `ssh -L 5433:db.internal:5432 bastion` lets you point `psql` at `localhost:5433` and reach a private database. **Remote (`-R`)** does the reverse: it opens a port on the *server* that tunnels back to something reachable from your machine — `ssh -R 8080:localhost:3000 public-host` exposes your local dev server on the remote host. **Dynamic (`-D`)** starts a local SOCKS proxy so arbitrary traffic routes through the server, which is effectively a lightweight VPN for a browser.
+
+The mnemonic is: `-L` brings a remote service to you, `-R` exposes your service remotely, `-D` makes the server a proxy. Add `-fNL` for a backgrounded tunnel with no shell. One security note: `-R` binds to loopback on the server unless `GatewayPorts yes` is set, deliberately, because remote forwarding is an easy way to expose an internal service to the internet by accident.
 
 **Q4: A server is slow. Walk me through your diagnosis.**
 
-I work top-down and let each step rule out a layer. **`uptime`** for load average, interpreted against core count — load 4 is saturated on 4 cores and idle on 32 — and remembering Linux load **includes tasks blocked on I/O**, so high load with low CPU means I/O-bound. Then **CPU**: `top`/`mpstat -P ALL 1` to split `%usr`, `%sys` and especially `%iowait`, plus `%st` steal time which on a VM means the hypervisor is oversubscribed. Then **memory**: `free -h` reading **`available`** rather than "free", because Linux deliberately uses spare RAM as page cache, and `dmesg -T | grep -i oom` to check whether the kernel killed something — an OOM kill appears there, not in the app log. Then **disk**: `df -h`, `df -i` for inodes, `iostat -xz 1` for `%util` and `await`. Then **network**: `ss -tulpn` and connection-state counts. Finally logs via `journalctl -p err`. The habit that matters is forming a hypothesis from the numbers before touching anything.
+I work top-down and let each step rule out a layer. **`uptime`** for load average, interpreted against core count — load 4 is saturated on 4 cores and idle on 32 — and remembering Linux load **includes tasks blocked on I/O**, so high load with low CPU means I/O-bound.
+
+Then **CPU**: `top`/`mpstat -P ALL 1` to split `%usr`, `%sys` and especially `%iowait`, plus `%st` steal time which on a VM means the hypervisor is oversubscribed. Then **memory**: `free -h` reading **`available`** rather than "free", because Linux deliberately uses spare RAM as page cache, and `dmesg -T | grep -i oom` to check whether the kernel killed something — an OOM kill appears there, not in the app log. Then **disk**: `df -h`, `df -i` for inodes, `iostat -xz 1` for `%util` and `await`. Then **network**: `ss -tulpn` and connection-state counts. Finally logs via `journalctl -p err`.
+
+The habit that matters is forming a hypothesis from the numbers before touching anything.
 
 **Q5: `df` says the disk is full but `du` doesn't account for the space. Why?**
 
-**Almost certainly deleted-but-still-open files, or inode exhaustion.** `du` walks the directory tree, so it cannot see a file that has been unlinked while a process still holds an open descriptor — the space stays allocated until that process closes the file or exits. The classic case is a log rotated with `create` semantics while the writing process was never signalled to reopen, so it keeps appending to a deleted inode that grows invisibly. Find it with **`lsof +L1`**, which lists open files with a link count of zero, and reclaim it by restarting or `HUP`-ing the holder. The other cause is **inode exhaustion** — check `df -i`; millions of tiny files (session files, mail spool, cache) exhaust inodes while leaving plenty of free bytes, and it reports as "No space left on device" which sends people hunting for large files that don't exist. A third, rarer one is space reserved for root, which makes a filesystem appear full to unprivileged writes at ~95%.
+**Almost certainly deleted-but-still-open files, or inode exhaustion.** `du` walks the directory tree, so it cannot see a file that has been unlinked while a process still holds an open descriptor — the space stays allocated until that process closes the file or exits. The classic case is a log rotated with `create` semantics while the writing process was never signalled to reopen, so it keeps appending to a deleted inode that grows invisibly. Find it with **`lsof +L1`**, which lists open files with a link count of zero, and reclaim it by restarting or `HUP`-ing the holder.
+
+The other cause is **inode exhaustion** — check `df -i`; millions of tiny files (session files, mail spool, cache) exhaust inodes while leaving plenty of free bytes, and it reports as "No space left on device" which sends people hunting for large files that don't exist. A third, rarer one is space reserved for root, which makes a filesystem appear full to unprivileged writes at ~95%.
 
 **Q6: How would you harden SSH on a public-facing server?**
 
-The single biggest win is **`PasswordAuthentication no`** with key-only auth, which eliminates brute-force entirely. Then `PermitRootLogin no`, an **allow-list** via `AllowGroups` rather than a deny-list, `MaxAuthTries 3`, a short `LoginGraceTime`, and `AllowAgentForwarding no` and `X11Forwarding no` unless genuinely needed. Outside `sshd` itself: restrict source ranges at the **firewall or security group**, which does more than any config setting; run `fail2ban` to throttle noise; and at scale replace `authorized_keys` with **SSH certificates** from an SSH CA so access expires automatically and revocation is central. Changing the port only reduces log volume — it is not security. Two operational rules I'd insist on: always validate with **`sshd -t`** and test a new session from a second terminal **while keeping the current one open**, because a bad config on a host with no console access is unrecoverable; and use `reload` rather than `restart` so live sessions survive. On AWS, **SSM Session Manager** is better still — IAM-authorised shell access with CloudTrail auditing and no inbound port at all.
+The single biggest win is **`PasswordAuthentication no`** with key-only auth, which eliminates brute-force entirely. Then `PermitRootLogin no`, an **allow-list** via `AllowGroups` rather than a deny-list, `MaxAuthTries 3`, a short `LoginGraceTime`, and `AllowAgentForwarding no` and `X11Forwarding no` unless genuinely needed.
+
+Outside `sshd` itself: restrict source ranges at the **firewall or security group**, which does more than any config setting; run `fail2ban` to throttle noise; and at scale replace `authorized_keys` with **SSH certificates** from an SSH CA so access expires automatically and revocation is central. Changing the port only reduces log volume — it is not security.
+
+Two operational rules I'd insist on: always validate with **`sshd -t`** and test a new session from a second terminal **while keeping the current one open**, because a bad config on a host with no console access is unrecoverable; and use `reload` rather than `restart` so live sessions survive. On AWS, **SSM Session Manager** is better still — IAM-authorised shell access with CloudTrail auditing and no inbound port at all.
 
 **Q7: What's the difference between `SIGTERM` and `SIGKILL`, and why does it matter?**
 
-`SIGTERM` (15) is a **request** to terminate: the process can catch it, flush buffers, close connections, release locks and exit cleanly. `SIGKILL` (9) **cannot be caught or ignored** — the kernel destroys the process immediately, so in-flight writes are lost, temp files and lock files are left behind, and clients see abrupt connection resets. So you always send TERM first and only escalate to KILL if it doesn't exit within a grace period, which is exactly what `kill` does by default and what `systemd`'s `TimeoutStopSec` automates. The reason this comes up beyond the shell is that it is the same contract everywhere: Docker's `stop` sends TERM then KILL after a grace period, and Kubernetes uses `terminationGracePeriodSeconds` — so an application that doesn't handle `SIGTERM` drops in-flight requests on every deploy. `SIGHUP` is the third one to know: many daemons reload configuration on HUP without restarting.
+`SIGTERM` (15) is a **request** to terminate: the process can catch it, flush buffers, close connections, release locks and exit cleanly. `SIGKILL` (9) **cannot be caught or ignored** — the kernel destroys the process immediately, so in-flight writes are lost, temp files and lock files are left behind, and clients see abrupt connection resets. So you always send TERM first and only escalate to KILL if it doesn't exit within a grace period, which is exactly what `kill` does by default and what `systemd`'s `TimeoutStopSec` automates.
+
+The reason this comes up beyond the shell is that it is the same contract everywhere: Docker's `stop` sends TERM then KILL after a grace period, and Kubernetes uses `terminationGracePeriodSeconds` — so an application that doesn't handle `SIGTERM` drops in-flight requests on every deploy. `SIGHUP` is the third one to know: many daemons reload configuration on HUP without restarting.
 
 **Q8: How do you connect to a host with no public IP?**
 
-Through a **bastion** with `ProxyJump`: `ssh -J bastion.example.com deploy@10.0.1.5`, or declared once in `ssh_config` with `Host prod-* / ProxyJump bastion` so `ssh prod-web-01` just works. The property that makes `ProxyJump` the right answer rather than chaining two `ssh` calls with agent forwarding is that the session to the final host is **end-to-end encrypted through** the bastion — it forwards TCP but cannot read the traffic or use your keys, which removes the agent-forwarding risk entirely. The bastion itself needs to be hardened and audited: key-only auth, MFA, session logging, tight inbound rules, and ideally short-lived SSH certificates so access expires. Better still, if you're on AWS, **SSM Session Manager** removes the bastion: shell access is authorised by IAM, logged to CloudTrail and S3, and requires **no open inbound port**, which eliminates the whole attack surface rather than defending it.
+Through a **bastion** with `ProxyJump`: `ssh -J bastion.example.com deploy@10.0.1.5`, or declared once in `ssh_config` with `Host prod-* / ProxyJump bastion` so `ssh prod-web-01` just works. The property that makes `ProxyJump` the right answer rather than chaining two `ssh` calls with agent forwarding is that the session to the final host is **end-to-end encrypted through** the bastion — it forwards TCP but cannot read the traffic or use your keys, which removes the agent-forwarding risk entirely.
+
+The bastion itself needs to be hardened and audited: key-only auth, MFA, session logging, tight inbound rules, and ideally short-lived SSH certificates so access expires. Better still, if you're on AWS, **SSM Session Manager** removes the bastion: shell access is authorised by IAM, logged to CloudTrail and S3, and requires **no open inbound port**, which eliminates the whole attack surface rather than defending it.
 
 **Q9: How do you find the top 10 IPs hitting your server from an access log?**
 
@@ -524,11 +548,15 @@ Through a **bastion** with `ProxyJump`: `ssh -J bastion.example.com deploy@10.0.
 awk '{print $1}' access.log | sort | uniq -c | sort -rn | head
 ```
 
-`awk` extracts the first field, `sort` groups identical values **adjacently**, `uniq -c` collapses and counts them, and `sort -rn` orders by count descending. The detail that matters is that **`uniq` only collapses adjacent lines**, so omitting the first `sort` silently produces wrong counts rather than an error — that's the part interviewers are checking. From there you'd extend the same idiom: `awk '$9 >= 500'` to filter 5xx first, `awk '{sum+=$10; n++} END {print sum/n}'` for an average latency, and `grep -E "5[0-9]{2}"` when the field position varies. On a very large file, `awk` alone can do the counting in one pass with an associative array, which avoids sorting the whole input.
+`awk` extracts the first field, `sort` groups identical values **adjacently**, `uniq -c` collapses and counts them, and `sort -rn` orders by count descending. The detail that matters is that **`uniq` only collapses adjacent lines**, so omitting the first `sort` silently produces wrong counts rather than an error — that's the part interviewers are checking.
+
+From there you'd extend the same idiom: `awk '$9 >= 500'` to filter 5xx first, `awk '{sum+=$10; n++} END {print sum/n}'` for an average latency, and `grep -E "5[0-9]{2}"` when the field position varies. On a very large file, `awk` alone can do the counting in one pass with an associative array, which avoids sorting the whole input.
 
 **Q10: `ssh` says "Connection refused" on one host and "Connection timed out" on another. What's the difference?**
 
-**"Refused" means something answered and actively rejected the connection; "timed out" means nothing answered at all.** Refused is a TCP RST — you reached the host, and there is no process listening on that port, so the causes are `sshd` not running, `sshd` listening on a different port, or a local firewall rejecting rather than dropping. Timed out means your SYN was silently dropped, so the packet never got there or the reply never came back: a security group or network ACL, a host firewall set to DROP, wrong IP, no route, or the host being down. That distinction tells you where to look — refused is a service problem on a host you can reach, timed out is a network-path problem — and it saves the common mistake of debugging `sshd` config when nothing is reaching the machine. Confirm with `nc -zv host 22`, and remember `ping` failing proves nothing because ICMP is routinely blocked.
+**"Refused" means something answered and actively rejected the connection; "timed out" means nothing answered at all.** Refused is a TCP RST — you reached the host, and there is no process listening on that port, so the causes are `sshd` not running, `sshd` listening on a different port, or a local firewall rejecting rather than dropping. Timed out means your SYN was silently dropped, so the packet never got there or the reply never came back: a security group or network ACL, a host firewall set to DROP, wrong IP, no route, or the host being down.
+
+That distinction tells you where to look — refused is a service problem on a host you can reach, timed out is a network-path problem — and it saves the common mistake of debugging `sshd` config when nothing is reaching the machine. Confirm with `nc -zv host 22`, and remember `ping` failing proves nothing because ICMP is routinely blocked.
 
 ---
 

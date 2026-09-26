@@ -40,7 +40,7 @@ This guide covers what the libraries are, the v1 reset that changed both of them
 | **LangSmith** | tracing, evaluation and prompt management (hosted) | debugging non-determinism and gating deploys on evals |
 | **LangGraph Platform** | deployment for long-running, stateful agent workloads | you do not want to build the durable-execution infrastructure |
 
-**The relationship in one sentence:** `create_agent` compiles down to a LangGraph graph, so anything you build with LangChain already has LangGraph's persistence, streaming and interrupt machinery underneath.
+**The relationship in one sentence:** `create_agent` compiles down to a LangGraph graph, so anything you build with LangChain already has LangGraph's persistence (saving state after each step so a run can resume later), streaming and interrupt (pause for a human) machinery underneath.
 
 **The practical split** most teams land on: start with `create_agent`, and drop to a hand-built `StateGraph` when you need branching, loops, parallel branches or a cycle the agent loop does not give you. You do not rewrite when you cross that line — you are already in the same runtime.
 
@@ -266,7 +266,7 @@ graph.add_edge("tools", "model")          # the cycle that makes it an agent
 app = graph.compile(checkpointer=checkpointer)
 ```
 
-**That cycle is the whole point.** A DAG cannot loop; agents are loops. Two more properties that come up: nodes with no dependency between them **run in parallel** in the same superstep, and because execution is superstep-based, a node returning a partial dict merges rather than overwrites.
+**That cycle is the whole point.** A DAG (directed acyclic graph — a flowchart whose arrows never loop back) cannot loop; agents are loops. Two more properties that come up. LangGraph runs in **supersteps**: one tick in which every node that is ready runs, after which all their returned updates are merged into state before the next tick. So nodes with no dependency between them **run in parallel** in the same superstep. And a node returning a partial dict only touches the keys it names — the rest of the state is left alone, and the keys it does name merge through their reducers.
 
 ---
 
@@ -371,7 +371,7 @@ The point to make in an interview: because agent behaviour is non-deterministic,
 
 An agent is a long-running, stateful process, which is a poor fit for a request-response handler. The options:
 
-- **Self-host the graph** in your own service: a worker pool, a Postgres checkpointer, a run id the client polls or subscribes to over SSE, and cancellation plumbed through.
+- **Self-host the graph** in your own service: a worker pool, a Postgres checkpointer, a run id the client polls or subscribes to over SSE (Server-Sent Events, a one-way HTTP stream from server to browser), and cancellation plumbed through.
 - **LangGraph Platform / Server**, which provides that infrastructure — durable execution, a task queue, streaming endpoints, cron, and a state-inspection UI.
 
 Either way the requirements are the same: **do not run a multi-minute agent inside an HTTP request**; checkpoint every step; make write tools idempotent, because resume replays; return a run id immediately and stream progress; and provide a real cancellation path that reaches the running tool.
@@ -524,7 +524,7 @@ The general lesson is that in a checkpointed runtime, **any node may execute mor
 
 The tutorial predates LangChain v1. Those APIs moved to `langchain-classic` when the main namespace was reduced to the agent-centric modules, so the import path no longer resolves.
 
-Two options. Short term, install `langchain-classic` and import from there — the code still works, so this unblocks you. Better, port it: `LLMChain` is a prompt piped to a model, which is a one-line Runnable; `AgentExecutor` with a ReAct agent becomes `create_agent`, with anything you were doing in callbacks or subclasses moving to middleware.
+Two options. Short term, install `langchain-classic` and import from there — the code still works, so this unblocks you. Better, port it: `LLMChain` is a prompt piped to a model, which is a one-line Runnable; `AgentExecutor` with a ReAct agent (the reason-then-act loop: the model decides, calls a tool, reads the result, repeats) becomes `create_agent`, with anything you were doing in callbacks or subclasses moving to middleware.
 
 The judgement I would apply: a classic import is fine as a migration step, but I would not build new features on it, since it is explicitly the legacy surface. And I would treat the tutorial's *architecture* with suspicion too, not just its imports — pre-1.0 material often encodes patterns (deep chain nesting, memory classes) that the current library deliberately moved away from.
 
@@ -546,7 +546,7 @@ Because the system prompt is not an access control. It is text in the same conte
 
 The design error is that `issue_refund` accepts a `customer_id` or an arbitrary `order_id` from the model. Authorisation must happen in `wrap_tool_call` middleware or inside the tool itself, on the server, using the authenticated user from the runtime context — never a value the model produced. The tool should verify that the order belongs to *this* session's customer, is refundable, and is within policy, and return an instructive error otherwise so the agent can escalate instead.
 
-This is the confused deputy: the agent holds more authority than the person talking to it, so the privileged component has to do the checking. I would also add an approval gate above a threshold, idempotency keys so a retried loop cannot double-refund, and a full audit log of tool calls with arguments.
+This is the confused deputy problem — a trusted component tricked into using its privileges on someone else's behalf: the agent holds more authority than the person talking to it, so the privileged component has to do the checking. I would also add an approval gate above a threshold, idempotency keys so a retried loop cannot double-refund, and a full audit log of tool calls with arguments.
 
 ---
 

@@ -98,7 +98,7 @@ export default function HomePage() {
             <Terminal size={20} className="text-white" />
           </div>
           <span className="text-sm font-semibold">Code Playground</span>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">Run JS code</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">JavaScript &amp; React</span>
         </Link>
 
         <Link

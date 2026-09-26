@@ -92,7 +92,7 @@ RETRIEVAL  (per query, budget ≈ 200-800ms)
 
 **Tables deserve their own note** because they are the most common source of confidently wrong RAG answers. A table flattened to prose loses the row/column relationship, so the model reads numbers off the wrong row. Options that work: keep the table as markdown in one chunk, generate a natural-language summary of the table to embed alongside it, or — best where possible — do not retrieve tabular data at all and let the model query a database instead (see §15).
 
-**Enrichment at ingest is cheap and pays back at query time.** Store with every chunk: its source document and URL, the section heading path, a created/updated timestamp, the owning team or tenant, and an ACL identifier. All of it becomes a metadata filter later, and metadata filtering is the highest-leverage precision tool you have.
+**Enrichment at ingest is cheap and pays back at query time.** Store with every chunk: its source document and URL, the section heading path, a created/updated timestamp, the owning team or tenant, and an ACL identifier (access-control list — which users or groups may read this document). All of it becomes a metadata filter later, and metadata filtering is the highest-leverage precision tool you have.
 
 ---
 
@@ -117,7 +117,7 @@ The unit you index. Too large and one chunk covers many topics, so its embedding
 
 **Parent-child (small-to-big) is worth understanding properly** because it resolves the core tension. Embed and search over small, precise chunks; when one matches, pass its larger parent section to the model. You get the retrieval accuracy of small chunks and the comprehension of large ones. The variant that also works well is **sentence-window**: index single sentences, return the sentences either side.
 
-**Contextual retrieval** is the technique that has shown the largest measured gains: before embedding, prepend a short LLM-generated description of how the chunk fits into its document ("This section of the 2025 annual report discusses Q3 revenue in the EMEA segment"). It fixes the pronoun-and-orphan problem directly. Anthropic's published results put the reduction in top-20 retrieval failures at **35%** for contextual embeddings, **49%** combined with contextual BM25, and **67%** with a reranker on top. It costs one cheap LLM call per chunk at ingest — an offline cost paid once.
+**Contextual retrieval** is the technique that has shown the largest measured gains: before embedding, prepend a short LLM-generated description of how the chunk fits into its document ("This section of the 2025 annual report discusses Q3 revenue in the EMEA segment"). It fixes the pronoun-and-orphan problem directly. Anthropic's published results put the reduction in top-20 retrieval failures at **35%** for contextual embeddings, **49%** combined with contextual BM25 (the same trick applied to the keyword index — BM25 is covered in §7), and **67%** with a reranker on top. It costs one cheap LLM call per chunk at ingest — an offline cost paid once.
 
 ---
 
@@ -149,7 +149,7 @@ A **vector database** stores embeddings and answers "which of these are nearest 
 | **HNSW** | a navigable graph of vectors, searched greedily | fastest queries, high memory, the common default |
 | **IVF** | cluster the space, search only nearby clusters | less memory; recall depends on how many clusters you probe |
 | **Flat** | compare against everything | exact and simple — fine up to ~100k vectors |
-| **Quantised (PQ/SQ)** | compress vectors to fewer bits | large memory savings, some recall loss |
+| **Quantised (PQ/SQ — product / scalar quantisation)** | compress vectors to fewer bits | large memory savings, some recall loss |
 
 **The tuning knob to name in an interview is recall versus latency.** HNSW's `ef_search` (and IVF's `nprobe`) controls how much of the graph is explored: raise it and you find more of the true nearest neighbours more slowly. Systems that "miss obvious documents" are often just under-searched.
 
@@ -174,7 +174,7 @@ Pure vector search fails in specific, predictable ways:
 | "did the deploy **not** succeed?" | negation barely moves a vector — "succeeded" and "failed" are neighbours |
 | `useSyncExternalStore` | identifiers need lexical matching, not gist |
 
-**Keyword search (BM25)** has exactly the opposite strengths: it nails rare terms and exact strings, and it is useless when the user's words differ from the document's. So combine them.
+**Keyword search (BM25)** — the standard keyword-ranking formula, which scores a document by how often the query's words appear in it, weighting rare words more heavily than common ones — has exactly the opposite strengths: it nails rare terms and exact strings, and it is useless when the user's words differ from the document's. So combine them.
 
 **Fusing the two ranked lists** is usually done with **Reciprocal Rank Fusion (RRF)**, which is popular because it needs no score calibration — vector similarities and BM25 scores are on incomparable scales, and RRF uses only the *ranks*:
 
@@ -348,7 +348,7 @@ Saying this unprompted is a strong signal.
 - **Structured, aggregate questions.** "What was total revenue by region last quarter?" is SQL. Retrieving text chunks about revenue and asking a model to add them up is slower, more expensive and wrong more often. Use text-to-SQL or a tool over the real database.
 - **A corpus small enough to fit in context.** Below roughly a few tens of thousands of tokens, put it all in the prompt, use prompt caching, and skip the pipeline entirely.
 - **Actions rather than knowledge.** "Cancel my order" is a tool call.
-- **Questions over the whole corpus.** "Summarise every complaint this month" is a map-reduce job, not a top-k retrieval.
+- **Questions over the whole corpus.** "Summarise every complaint this month" is a map-reduce job (summarise each batch, then summarise the summaries), not a top-k retrieval, because it needs every document rather than the few most similar ones.
 - **When the model already knows it.** General knowledge needs no retrieval, and retrieving badly for it makes the answer worse.
 
 ---

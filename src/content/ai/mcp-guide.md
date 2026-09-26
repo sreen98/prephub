@@ -101,7 +101,7 @@ It is also the answer to "should this be a tool or a resource?" — if the model
 | Transport | Shape | Use for |
 |---|---|---|
 | **stdio** | the host launches the server as a subprocess; JSON-RPC over stdin/stdout | local servers — file access, local tooling, developer machines |
-| **Streamable HTTP** | ordinary HTTP requests, optionally with an SSE response stream | remote and hosted servers |
+| **Streamable HTTP** | ordinary HTTP requests, optionally with an SSE (Server-Sent Events — a one-way stream of messages on a single HTTP response) response stream | remote and hosted servers |
 | **HTTP+SSE (legacy)** | the original two-endpoint design | **deprecated** — do not build on it |
 
 **stdio is the right default for anything local.** There is no port, no authentication surface and no network exposure; the process inherits the user's environment, and its lifetime is the host's.
@@ -127,7 +127,7 @@ The headline change, and the most likely deep question if your interviewer is cu
 - **Servers scale and restart like normal web services.** A rolling deploy no longer drops in-flight connections that were holding session state.
 - **List results are cacheable.** Because `tools/list` no longer varies per connection, responses carry `ttlMs` and `cacheScope`, so a gateway or client can cache the tool catalogue instead of re-fetching it per connection.
 
-**Header-based routing** came with it: requests carry `Mcp-Method` and `Mcp-Name` HTTP headers, so gateways, WAFs and rate limiters can route, meter and block **without parsing the JSON body**. That is a small change with large consequences for anyone running MCP behind existing infrastructure — you can rate-limit a specific tool by name at the edge.
+**Header-based routing** came with it: requests carry `Mcp-Method` and `Mcp-Name` HTTP headers, so gateways, WAFs (web application firewalls) and rate limiters can route, meter and block **without parsing the JSON body**. That is a small change with large consequences for anyone running MCP behind existing infrastructure — you can rate-limit a specific tool by name at the edge.
 
 **The trade-off, stated honestly:** stateless means the *protocol* holds no session. Application state has not disappeared — it moved into your server, keyed by the authenticated identity, like any other web service. That is a better place for it, but it is not nothing.
 
@@ -166,7 +166,7 @@ The general point: the core stayed small and the optional parts became explicit,
 
 ## 9. Authorization
 
-Remote servers use **OAuth 2.1**, with the server acting as an OAuth resource server and delegating to a real authorization server. The 2026-07-28 revision hardened several things:
+Remote servers use **OAuth 2.1**, with the MCP server acting as an OAuth **resource server** (the API that accepts and checks access tokens) and delegating login to a real **authorization server** (the service that authenticates the user and issues those tokens). The 2026-07-28 revision hardened several things:
 
 - **RFC 9207 issuer validation** is required before redeeming an authorization code, closing a mix-up attack where a malicious authorization server can trick a client into sending a code to the wrong place.
 - **Client credentials are bound to their issuing authorization server**, so a credential cannot be replayed against a different one.
@@ -334,7 +334,7 @@ Practically: show users full descriptions and diff them on change, pin versions,
 
 **Descriptions as prompts.** Each says what it is for, what it covers, and **when not to use it**, since ambiguity between similar tools is the main cause of wrong selection.
 
-**Auth**: remote server over Streamable HTTP, acting as an OAuth 2.1 resource server delegating to the company IdP. Every tool authorises against the token's identity — the model cannot pass a `user_id`, because the server ignores it and uses the session. Scopes distinguish read from write.
+**Auth**: remote server over Streamable HTTP, acting as an OAuth 2.1 resource server delegating to the company IdP (identity provider — the single sign-on service that already owns employee identities). Every tool authorises against the token's identity — the model cannot pass a `user_id`, because the server ignores it and uses the session. Scopes distinguish read from write.
 
 **Results**: compact and structured — the five fields that matter, not the whole record, because everything returned costs context. Errors are instructive so the model can correct itself.
 

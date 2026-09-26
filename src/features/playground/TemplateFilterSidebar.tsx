@@ -48,7 +48,8 @@ export default function TemplateFilterSidebar({
       {/* Tag pills at top of category list — counts respect the
           current modal mode (templates vs challenges) so they
           reflect what the user is actually browsing. */}
-      <div className="px-3 pb-3 flex gap-1.5 flex-wrap">
+      {/* A playground locked to one language passes no options: nothing to switch. */}
+      <div className={tagOptions.length > 1 ? 'px-3 pb-3 flex gap-1.5 flex-wrap' : 'hidden'}>
         {tagOptions.map((tag: string) => {
           const wantedKind = modalMode === 'challenges' ? 'challenge' : 'template';
           const inMode = allTemplates.filter(t => (t.kind ?? 'template') === wantedKind);

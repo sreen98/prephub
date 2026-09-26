@@ -16,7 +16,7 @@ Quick-reference comparison tables for Git "X vs Y" questions interviewers love.
 | **Traceability** | Easy to see when branches joined | Harder to see where work began |
 | **Reversibility** | Easy — revert the merge commit | Hard — original SHAs are gone |
 
-**When to use which:** Use `merge` for integrating shared/public branches (e.g., merging a feature into `main`). Use `rebase` to keep a clean linear history on local/private branches before opening a PR.
+**When to use which:** Use `merge` for integrating shared/public branches (e.g., merging a feature into `main`). Use `rebase` to keep a clean linear history on local/private branches before opening a PR. The line between them is whether anyone else has the commits: rebase replaces your commits with new ones (new SHAs), so a teammate who already built on the old ones now has a history that no longer matches yours and must untangle it by hand.
 
 ---
 
@@ -44,7 +44,7 @@ Quick-reference comparison tables for Git "X vs Y" questions interviewers love.
 | **Resets working directory** | No — files untouched | No — files untouched | Yes — all uncommitted changes deleted |
 | **Data loss risk** | None | None (changes still in working dir) | High — untracked files survive, but all tracked changes are gone |
 | **Typical use** | Recommit with a different message or combine commits | Unstage files and rework what to commit | Completely discard all work since target commit |
-| **Recovery** | Easy | Easy | Only via `git reflog` within ~30 days |
+| **Recovery** | Easy | Easy | Discarded *commits* via `git reflog` (typically ~30 days); uncommitted changes are gone for good |
 
 **When to use which:** Use `--soft` to amend or squash recent commits. Use `--mixed` (the default) to unstage and re-select files. Use `--hard` only when you truly want to throw everything away.
 

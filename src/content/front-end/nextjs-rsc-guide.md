@@ -122,6 +122,10 @@ The core discipline: put `'use client'` on the **smallest** component that genui
 ```tsx
 // ❌ Whole page becomes client-rendered for one button
 'use client';
+// stand-ins so this example runs on its own
+const ProductGallery = ({ product }) => <p>[gallery for {product.name}]</p>;
+const ProductDescription = ({ product }) => <p>{product.description}</p>;
+
 export default function ProductPage({ product }) {
   const [qty, setQty] = useState(1);
   return (
@@ -132,6 +136,8 @@ export default function ProductPage({ product }) {
     </div>
   );
 }
+
+render(<ProductPage product={{ name: 'Desk lamp', description: 'Warm, dimmable.' }} />);
 ```
 
 ```tsx
@@ -162,7 +168,7 @@ Props crossing from a Server Component to a Client Component are **serialised**,
 | JSX / React elements | Node streams, `fs` handles, DB clients |
 | **Server Actions** (a special reference) | |
 
-The most frequent real-world failure is passing an ORM object straight through — it looks like a plain object but carries a prototype full of methods. The fix is to map to a plain DTO at the boundary, which is good practice anyway because it stops you accidentally shipping fields the client shouldn't see.
+The most frequent real-world failure is passing an ORM object (a record returned by a database library such as Prisma or Mongoose) straight through — it looks like a plain object but carries a prototype full of methods. The fix is to map to a plain DTO (data transfer object: a plain object holding only the fields the UI needs) at the boundary, which is good practice anyway because it stops you accidentally shipping fields the client shouldn't see.
 
 **And that's the security point**: every prop you pass to a Client Component is **serialised into the payload the browser receives.** Passing an entire `user` record because you only need `user.name` leaks the password hash into the page source. This is not theoretical — it's one of the most common RSC data-leak bugs.
 
@@ -214,6 +220,9 @@ A Next.js 16 breaking change that trips up everyone upgrading:
 export default function Page({ params, searchParams }) {
   return <div>{params.slug}</div>;
 }
+
+// Next 14 passed plain objects like these; in Next 16 params is a Promise, so params.slug is undefined
+render(<Page params={{ slug: 'hello-world' }} searchParams={{}} />);
 ```
 
 ```tsx
@@ -225,7 +234,7 @@ export default async function Page({ params, searchParams }) {
 }
 ```
 
-The same applies to `cookies()`, `headers()` and `draftMode()` — all async, all must be awaited. The reason is Partial Pre-rendering: making them async lets Next render the static shell without them and suspend only where dynamic data is actually read.
+The same applies to `cookies()`, `headers()` and `draftMode()` — all async, all must be awaited. The reason is Partial Pre-rendering (PPR, explained in §5): Next pre-builds the parts of a page that are the same for every visitor and fills in the per-request parts later. Making these request APIs async lets Next render that static shell without them and pause only at the point where dynamic data is actually read.
 
 ### 4.3 Route Handlers
 
@@ -244,6 +253,8 @@ Route Handlers use Web `Request`/`Response`. Worth knowing when you still need t
 
 ## 5. Rendering Strategies
 
+The acronyms, in plain words: **CSR** (client-side rendering) builds the page in the browser from JavaScript; **SSR** (server-side rendering) builds HTML on the server for each request; **SSG** (static site generation) builds it once at build time; **ISR** (incremental static regeneration) is SSG that rebuilds individual pages in the background once they go stale; **PPR** (Partial Pre-rendering) is explained under the table. In the trade-off column, LCP (Largest Contentful Paint) is how long until the main content appears, and TTFB (time to first byte) is how long until the server starts responding.
+
 | Strategy | When HTML is produced | Use for | Trade-off |
 |---|---|---|---|
 | **CSR** | in the browser | dashboards behind auth, highly interactive tools | poor LCP, bad SEO |
@@ -259,6 +270,11 @@ Route Handlers use Web `Request`/`Response`. Worth knowing when you still need t
 With PPR, Next renders the static shell at build time, stopping at your `Suspense` boundaries. That shell ships from the CDN edge immediately; the dynamic holes stream in per request. You get static latency with dynamic capability. Underneath, this is React 19.2's `prerender`/`resume` API (see the React guide §16.8).
 
 ```tsx
+// stand-ins so this example runs on its own
+const StaticHeader = () => <header>PrepHub</header>;
+const UserSkeleton = () => <p>Loading your greeting…</p>;
+const PersonalisedGreeting = () => <p>Welcome back, Ada</p>;
+
 export default function Page() {
   return (
     <>
@@ -375,6 +391,15 @@ const [user, posts] = await Promise.all([getUser(id), getPosts(id)]);
 
 ```tsx
 // ✅ Better still — start both, stream each in as it resolves
+// stand-ins so this example runs on its own
+const wait = (ms, value) => new Promise((resolve) => setTimeout(() => resolve(value), ms));
+const getUser = (id) => wait(300, { id, name: 'Ada' });
+const getPosts = (id) => wait(900, [{ id: 1, title: 'Hello RSC' }]);
+const User = ({ promise }) => <h2>{use(promise).name}</h2>;
+const Posts = ({ promise }) => <ul>{use(promise).map((p) => <li key={p.id}>{p.title}</li>)}</ul>;
+const UserSkeleton = () => <p>Loading user…</p>;
+const PostsSkeleton = () => <p>Loading posts…</p>;
+
 export default function Page({ params }) {
   const userPromise = getUser(params.id);     // no await
   const postsPromise = getPosts(params.id);
@@ -385,15 +410,19 @@ export default function Page({ params }) {
     </>
   );
 }
+
+render(<Page params={{ id: '42' }} />);
 ```
 
-The third pattern is worth knowing well: **start the fetch without awaiting, pass the promise down, and unwrap it with `use()` inside a Suspense boundary.** Requests overlap, and each section renders the moment its own data is ready rather than waiting for the slowest.
+The third pattern is worth knowing well: **start the fetch without awaiting, pass the promise down, and unwrap it with `use()` inside a Suspense boundary.** (`use()` is the React 19 API that reads a promise's value during render: the component suspends until the promise resolves, and the nearest `Suspense` shows its fallback meanwhile.) Requests overlap, and each section renders the moment its own data is ready rather than waiting for the slowest.
 
 A structural waterfall to watch for: a nested layout that awaits data before its child page can render. Layouts and pages render in parallel where possible, but an `await` in a layout blocks the segments beneath it.
 
 ---
 
 ## 7. Server Actions
+
+A Server Action is an async function marked `'use server'` that runs on the server but can be called from the client, most often by passing it to a form's `action`. Next turns it into an HTTP endpoint behind the scenes, which is why the example below treats it exactly like one: authenticate, validate, authorise, then mutate. The client half uses `useActionState`, a React 19 hook that wraps an action and gives you its latest return value (`state`) and whether it is still running (`pending`).
 
 ```tsx
 // app/actions.ts
@@ -425,6 +454,7 @@ export async function updateProfile(prevState: unknown, formData: FormData) {
 ```tsx
 'use client';
 import { useActionState } from 'react';
+import { updateProfile } from './actions';
 
 export function ProfileForm() {
   const [state, action, pending] = useActionState(updateProfile, null);
@@ -458,6 +488,10 @@ Other properties worth knowing:
 ## 8. Streaming and Suspense
 
 ```tsx
+// stand-ins so this example runs on its own
+const Skeleton = () => <p>Loading…</p>;
+const SlowSection = () => <p>Slow section</p>;
+
 // loading.tsx wraps the segment in Suspense automatically
 export default function Loading() { return <Skeleton />; }
 
@@ -529,7 +563,7 @@ The Data Access Layer is the actual boundary, and the reason is structural: **it
 ### 9.3 The Mistakes
 
 - **Authorising only in `proxy.ts`.** See §9.1.
-- **Trusting an ID from the client.** `getInvoice(params.id)` without checking the invoice belongs to the session's org is a textbook IDOR. Scope the query, don't validate the parameter.
+- **Trusting an ID from the client.** `getInvoice(params.id)` without checking the invoice belongs to the session's org is a textbook IDOR (insecure direct object reference: the attacker simply changes the id in the URL and reads another customer's record). Scope the query, don't validate the parameter.
 - **Passing the session object into a Client Component.** RSC props are serialised into the payload the browser receives — so this publishes it. Pass only what the UI needs.
 - **Assuming a Server Action is private** because no UI calls it.
 - **Using `localStorage` for tokens.** Any token JavaScript can read is XSS-exfiltratable. `HttpOnly; Secure; SameSite=Lax` cookies, and prefer a session cookie with the tokens held server-side (the BFF pattern — see the OAuth & SSO and Web Security guides).
@@ -574,7 +608,7 @@ Released **21 October 2025**. The headline items:
 - **Turbopack is stable and the default bundler** for all apps: 2–5× faster production builds, up to 10× faster Fast Refresh. Opt out with `next dev --webpack` / `next build --webpack`. Filesystem caching is available in beta behind `experimental.turbopackFileSystemCacheForDev`.
 - **`proxy.ts`** replaces `middleware.ts` (§10).
 - **React Compiler support is stable** via `reactCompiler: true` — promoted out of `experimental`, though **not on by default**, and it increases build time because it runs through Babel.
-- **React 19.2** features available in the App Router: `useEffectEvent` and `<Activity />`. **View Transitions are not in that list** — React's own `<ViewTransition>` is still Canary-only, so animating a route change here means the browser's `document.startViewTransition`, not the React component (see the React guide, §16.9).
+- **React 19.2** features available in the App Router: `useEffectEvent` and `<Activity />`. **View Transitions were not in that list**, because React's `<ViewTransition>` was still Canary-only in 19.2. It became stable in **React 19.3** (September 2026), so on a Next.js release that ships React 19.3 or later you can use the component; on earlier versions, animating a route change means the browser's `document.startViewTransition` (see the React guide, §16.10 and §16.11).
 - **New caching APIs**: `updateTag()`, `refresh()`, and `revalidateTag(tag, profile)` — the single-argument form is deprecated.
 - **Routing overhaul**: layout deduplication when prefetching (a page with 50 links downloads the shared layout once, not 50 times) and incremental prefetching that cancels requests when a link leaves the viewport.
 - **Next.js DevTools MCP** — a Model Context Protocol integration giving AI agents access to your app's routing, caching and rendering behaviour, unified browser and server logs, and error stack traces.
@@ -684,7 +718,7 @@ Then the three invalidation APIs, which have genuinely different semantics:
 - **`updateTag(tag)`** — Server Actions only, **read-your-writes**: expires and re-reads within the same request, so the user sees their own change immediately.
 - **`refresh()`** — Server Actions only, refreshes **uncached** data without touching the cache.
 
-Getting this wrong produces a specific, recognisable bug: using `revalidateTag` where you needed `updateTag` gives you "I saved it but it still shows the old value," because SWR served the stale copy back.
+Getting this wrong produces a specific, recognisable bug: using `revalidateTag` where you needed `updateTag` gives you "I saved it but it still shows the old value," because stale-while-revalidate served the stale copy back.
 
 ---
 
@@ -719,7 +753,7 @@ export async function getInvoices() {
 }
 ```
 
-Three details that distinguish a good answer. Wrap `verifySession` in React's **`cache()`** so one request verifies once even if ten components ask. Use **`import 'server-only'`** so the module can never be pulled into a client bundle — that turns a hope into a build error. And **scope the query to the session** rather than validating an ID from the caller, because `getInvoice(params.id)` without an ownership check is a textbook IDOR.
+Three details that distinguish a good answer. Wrap `verifySession` in React's **`cache()`** so one request verifies once even if ten components ask. Use **`import 'server-only'`** so the module can never be pulled into a client bundle — that turns a hope into a build error. And **scope the query to the session** rather than validating an ID from the caller, because `getInvoice(params.id)` without an ownership check is a textbook IDOR (insecure direct object reference: change the id, read another customer's data).
 
 One subtle trap worth volunteering: **layouts persist across navigations**, so an auth check in a layout does *not* re-run on every client-side navigation to a child route. Authorization belongs in the data layer, not in a layout you assume runs each time.
 
@@ -732,6 +766,11 @@ Before PPR, a route had to be entirely static or entirely dynamic. One personali
 PPR dissolves that. Next renders the **static shell** at build time, stopping at your `Suspense` boundaries, and that shell ships from the CDN edge immediately. The **dynamic holes stream in per request**.
 
 ```tsx
+// stand-ins so this example runs on its own
+const StaticHeader = () => <header>PrepHub</header>;
+const UserSkeleton = () => <p>Loading your greeting…</p>;
+const PersonalisedGreeting = () => <p>Welcome back, Ada</p>;
+
 export default function Page() {
   return (
     <>
@@ -774,7 +813,7 @@ Two related mechanics: a Client Component can't `import` a Server Component but 
 
 **Q7: When would you *not* use Next.js or RSC?**
 
-Being able to answer this is what separates someone who has used it from someone who has adopted it.
+Short answer: when the app is mostly client state, when the main RSC wins (SEO, a fast first paint for anonymous visitors) don't matter to your users, when your hosting can't provide what makes Next pleasant, or when the team would spend the deadline learning the model. Interviewers ask this to see whether you chose the tool or merely adopted it.
 
 **Heavily interactive applications.** A trading dashboard, a design tool, a collaborative editor, a video editor — these are almost entirely client state, with real-time updates and complex local interaction. RSC gives you very little (there's no meaningful server-rendered content to stream) and costs you ceremony: every component needs `'use client'`, and you're paying for a framework whose main advantage you can't use. A Vite SPA is simpler and faster to develop.
 
@@ -792,7 +831,7 @@ What I *would* use it for: content-heavy and commerce sites where SEO and LCP ar
 
 **Q8: Your App Router page has a 4-second TTFB. Walk me through diagnosing and fixing it.**
 
-TTFB in the App Router is almost always **waiting on data**, so I'd work from the request timeline inward.
+TTFB (time to first byte: how long before the server sends anything back) in the App Router is almost always **waiting on data**, so I'd work from the request timeline inward.
 
 **1. Find where the time goes.** Next 16's dev logs split each request into *Compile* and *Render*, which immediately tells me whether it's my code or the build. In production I'd want tracing — a span per data fetch — because "the page is slow" and "one query is slow" need different fixes.
 
@@ -862,6 +901,105 @@ Also worth saying: Server Actions are **POST-only and serialised one at a time**
 
 ---
 
+**Q10: What is the difference between `revalidate` and `cache` in Next.js?**
+
+**Caching decides whether a result is stored and reused. Revalidation decides when a stored result stops being good enough.** They are two halves of one policy, which is why they get confused: you cannot revalidate something that was never cached, and a cache with no revalidation rule serves the same answer forever.
+
+The confusion is worse because "cache" names three different things in a Next.js app, and the question is often really asking which one you mean:
+
+| Name | What it stores | How long it lives |
+|---|---|---|
+| `'use cache'` (Next 16, Cache Components) | the result of a function, component or page, keyed by its arguments | until its `cacheLife` says it is stale, or a tag is invalidated |
+| React `cache()` | a function's result **for one request only**, so five components asking for the current user cause one query | the current render; nothing survives to the next request |
+| `fetch(url, { cache: 'force-cache' })` (the model before Cache Components) | the HTTP response, in Next's Data Cache | until `next: { revalidate }` passes or a tag is invalidated |
+
+And revalidation comes in two kinds:
+
+- **Time-based:** "this can be up to an hour old". In Next 16 that is `cacheLife('hours')` inside a `'use cache'` scope (or a custom profile with `stale`, `revalidate` and `expire` times). With Cache Components on, the old `export const revalidate = 3600` segment config is an error, and `cacheLife` replaces it.
+- **On-demand:** "this changed, throw it away now". Tag the cached work with `cacheTag('posts')`, then call `revalidateTag('posts', 'max')` (stale-while-revalidate: the next visitor still gets the old copy while a fresh one is built; the profile argument is now required) or, from a Server Action, `updateTag('posts')` (read-your-own-writes: the next request waits for fresh data). §6.2–6.4 go deeper.
+
+```tsx
+import { cacheLife, cacheTag, updateTag } from 'next/cache';
+
+export async function getPosts() {
+  'use cache';            // CACHE: store and reuse this result
+  cacheLife('hours');     // REVALIDATE by time: stale after about an hour
+  cacheTag('posts');      // make it invalidatable on demand
+  return db.post.findMany();
+}
+
+export async function createPost(formData: FormData) {
+  'use server';
+  await db.post.create({ data: { title: String(formData.get('title')) } });
+  updateTag('posts');     // REVALIDATE on demand: the author sees their post at once
+}
+```
+
+**What to volunteer:** a `'use cache'` entry is kept **in memory** by default, so it is scoped to one deployment and lost when a serverless instance shuts down, whereas the older `fetch` Data Cache survived deployments. If the cached value must outlive the instance, use `'use cache: remote'` or a cache handler. That difference is how a team moves to Cache Components and quietly doubles its database load.
+
+---
+
+**Q11: How do you decide which components should be Server Components and which should be Client Components in the App Router?**
+
+**Start from "everything is a Server Component" and make a component a Client Component only when it needs something the server does not have.** In the App Router every component is a Server Component unless its file (or a file that imports it) says `'use client'`, so the question is really where to draw that line.
+
+A component must be a Client Component when it needs:
+
+- **State or effects:** `useState`, `useReducer`, `useEffect`, or any hook built on them.
+- **Event handlers:** `onClick`, `onChange`, `onSubmit` with a function (a form `action` pointing at a Server Action is the exception, and needs no client code).
+- **Browser APIs:** `window`, `localStorage`, `IntersectionObserver`, media queries.
+- **A library that uses any of those**, which includes most animation, chart and date-picker libraries.
+
+Everything else stays on the server, and that is where the benefits are: data is fetched next to the database with no client round trip, secrets and large dependencies never reach the browser, and the component adds **nothing** to the JavaScript bundle.
+
+**Then push the boundary down to the leaves.** A product page is not a Client Component because it has an "Add to cart" button; the button is. Mark the smallest interactive piece `'use client'` and keep the page, the layout and the data fetching on the server. Two techniques make that possible:
+
+- **Pass server-rendered content in as `children`.** A Client Component can render Server Component output it receives as props, so a client-side `<Tabs>` can wrap server-rendered panels without making them client code.
+- **Pass data down, not functions.** Props that cross the boundary must be serialisable (plain objects, arrays, strings, Dates, promises), so the server fetches and the client displays (Q6).
+
+**The trap to name:** `'use client'` marks an *entry point*, not a single component. Everything that file imports becomes client code too, which is how one `onClick` grows a bundle by 180 KB (tricky Q4). And `import 'server-only'` in data-access modules turns an accidental client import into a build error instead of a leaked query.
+
+---
+
+**Q12: How would you handle streaming UI and progressive rendering in Next.js?**
+
+**Send the page in pieces: the parts that are ready go to the browser immediately, and each slow part streams in when its data arrives, instead of the whole page waiting for the slowest query.** The mechanism is React Suspense over a streamed HTTP response: the server sends the HTML shell and a fallback for every suspended piece, keeps the connection open, and appends each piece's HTML (plus a tiny script that swaps it into place) as it resolves. §8 covers the mechanics.
+
+In practice:
+
+1. **`loading.tsx`** gives a whole route segment an instant fallback during navigation. It is a Suspense boundary Next wraps around the page for you.
+2. **`<Suspense>` inside the page** is the finer tool: wrap each independently slow section (reviews, recommendations, a dashboard widget) in its own boundary, so the fast parts are never held hostage by the slow ones.
+3. **Start requests in parallel, and await them where they are used.** Two sequential `await`s in the page create a waterfall that no amount of Suspense hides. Kick the promises off together, and let each async component await its own data (§6.5).
+4. **With Cache Components (Next 16), you get Partial Prerendering by default:** everything that does not read request data (`cookies()`, `headers()`, `searchParams`) or uncached data is prerendered into a static shell served from the CDN, and only the Suspense-wrapped dynamic parts render per request. The design rule is to push request-time reads down into small, Suspense-wrapped components so the shell stays large.
+
+```tsx
+import { Suspense } from 'react';
+
+export default function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <>
+      <ProductHeader params={params} />                 {/* fast: cached */}
+      <Suspense fallback={<ReviewsSkeleton />}>
+        <Reviews params={params} />                    {/* slow: streams in when ready */}
+      </Suspense>
+      <Suspense fallback={<RecommendationsSkeleton />}>
+        <Recommendations params={params} />            {/* independent: does not wait for Reviews */}
+      </Suspense>
+    </>
+  );
+}
+```
+
+**What interviewers grade:**
+
+- **Fallbacks that match the final layout** (a skeleton of the same size), or streaming trades a slow page for a jumping one, which shows up as layout shift.
+- **Boundaries at meaningful units,** not around every component: fifty spinners popping in one by one is worse than one.
+- **Errors per boundary:** an `error.tsx` or error boundary next to each Suspense boundary, so one failed widget shows its own error instead of blanking the page.
+- **What streaming does not fix:** the slow query is still slow. Streaming improves when the user first sees something, not when the whole page is done, so measure time to first byte and when the largest element paints, not only total time.
+- **SEO and status codes:** once the shell is sent the HTTP status is already `200`, so a "not found" discovered inside a streamed section cannot change it. Check existence before the first `await` that suspends, and call `notFound()` there.
+
+---
+
 ## 15. Tricky Questions
 
 ---
@@ -926,7 +1064,7 @@ export async function updateProfile(id: string, data: Profile) {
 }
 ```
 
-**Answer:** `revalidateTag` gives **stale-while-revalidate** semantics — the user is served the cached (stale) copy immediately while revalidation happens in the background. For read-your-writes you need `updateTag`.
+**Answer:** `revalidateTag` gives **stale-while-revalidate** (SWR) semantics — the user is served the cached (stale) copy immediately while revalidation happens in the background. For read-your-writes you need `updateTag`.
 
 **Explanation:**
 

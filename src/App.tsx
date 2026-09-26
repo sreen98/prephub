@@ -252,7 +252,8 @@ export default function App() {
     const pageTitles: Record<string, string> = {
       '/': 'PrepHub — Free Full-Stack Interview Prep Guides',
       '/quiz': 'Quiz Mode — PrepHub',
-      '/playground': 'Code Playground — PrepHub',
+      '/playground': 'JavaScript Playground — PrepHub',
+      '/playground/react': 'React Playground — PrepHub',
       '/query-playground': 'Query Playground — PrepHub',
       '/interview': 'Interview Simulator — PrepHub',
       '/review': 'Spaced Repetition Review — PrepHub',
@@ -384,7 +385,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Sidebar expand button (desktop, when collapsed). Hidden on /playground — the playground has its own inline toggle to avoid overlapping the editor. */}
-      {isSidebarCollapsed && location.pathname !== '/playground' && (
+      {isSidebarCollapsed && !location.pathname.startsWith('/playground') && (
         <button
           onClick={() => setIsSidebarCollapsed(false)}
           className="hidden md:flex fixed top-1/2 -translate-y-1/2 left-0 z-[55] py-3 px-1 rounded-r-lg bg-slate-200/80 dark:bg-slate-800/80 border border-l-0 border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700 hover:px-2 transition-all"
@@ -426,7 +427,10 @@ export default function App() {
             <Route path="/quiz" element={<QuizMode />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/interview" element={<InterviewSimulator />} />
-            <Route path="/playground" element={<CodePlayground />} />
+            {/* Two playgrounds, one component. The key makes switching between
+                them a remount, so neither inherits the other's editor state. */}
+            <Route path="/playground" element={<CodePlayground key="js" flavor="js" />} />
+            <Route path="/playground/react" element={<CodePlayground key="react" flavor="react" />} />
             <Route path="/query-playground" element={<QueryPlayground />} />
             <Route path="/bookmarks" element={<BookmarksPage />} />
             <Route path="/checkpoints" element={<CheckpointsPage />} />

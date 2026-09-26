@@ -32,13 +32,13 @@ The React guide covers React-specific optimisation (memoisation, virtualisation,
 
 Three things made performance a first-class requirement rather than an engineering preference:
 
-**It's measurable in the field.** Chrome ships real-user metrics to the Chrome UX Report, so your performance is a public number aggregated across actual users on actual devices — not a score from your laptop.
+**It's measurable in the field.** Chrome ships real-user metrics to the Chrome UX Report (CrUX), so your performance is a public number aggregated across actual users on actual devices — not a score from your laptop.
 
 **It's a ranking signal.** Core Web Vitals feed into Google Search ranking. That converts a technical concern into a commercial one, which is what gets it prioritised.
 
 **The correlation with revenue is well documented.** Slower pages produce measurably lower conversion and higher bounce across published case studies. The direction is never in dispute; only the magnitude varies by product.
 
-The framing that matters for interviews: **performance is a distribution, not a number.** Your median user may be fine while p75 is broken, and Core Web Vitals are assessed at **p75** precisely because averages hide the users having a bad time. Any answer that starts with "I'd check the average" is starting wrong.
+The framing that matters for interviews: **performance is a distribution, not a number.** p75 is the 75th percentile: sort every page load from fastest to slowest, and p75 is the value 75% of loads come in at or under — so a bad p75 means at least a quarter of your page loads are bad ones. Your median user may be fine while p75 is broken, and Core Web Vitals are assessed at **p75** precisely because averages hide the users having a bad time. Any answer that starts with "I'd check the average" is starting wrong.
 
 ---
 
@@ -103,7 +103,7 @@ Measure the split before optimising. Teams routinely compress an image when thei
 
 The distinction interviewers probe, because acting on the wrong one wastes weeks.
 
-| Aspect | **Lab (synthetic)** | **Field (RUM)** |
+| Aspect | **Lab (synthetic)** | **Field (RUM — real-user monitoring)** |
 |---|---|---|
 | Source | Lighthouse, WebPageTest, CI | real users; CrUX, your own RUM |
 | Conditions | one simulated device and network | every device, network and locale you serve |
@@ -111,7 +111,7 @@ The distinction interviewers probe, because acting on the wrong one wastes weeks
 | Good for | **debugging**, regression gates, comparing changes | **knowing the truth**, prioritising |
 | Weakness | isn't your users | can't tell you *why* |
 
-**Field data tells you what to fix; lab data helps you fix it.** Both, in that order.
+**Field data tells you what to fix; lab data helps you fix it.** Both, in that order. Lab data is a test run you control; field data, or RUM, is small timing reports sent back from your real visitors' browsers.
 
 ```js
 // Real-user monitoring with the web-vitals library
@@ -167,7 +167,7 @@ Understanding the critical path is what lets you reason about a waterfall instea
 **The two blocking behaviours are different and often confused:**
 
 - **A synchronous `<script>` blocks HTML parsing.** The parser stops dead until the script is fetched and executed, because the script might `document.write`. `defer` fetches in parallel and runs after parsing, in order; `async` fetches in parallel and runs whenever it arrives, out of order; `type="module"` is deferred by default.
-- **A stylesheet blocks *rendering*, not parsing.** The browser continues parsing HTML (and the preload scanner keeps discovering resources), but it won't paint until the CSSOM is complete — because painting with incomplete styles would flash unstyled content.
+- **A stylesheet blocks *rendering*, not parsing.** The browser continues parsing HTML (and the preload scanner keeps discovering resources), but it won't paint until the CSSOM (the CSS Object Model — the browser's parsed version of all your stylesheets) is complete — because painting with incomplete styles would flash unstyled content.
 
 **The preload scanner** is a secondary parser that races ahead of the main one looking for resources to fetch early. Understanding it explains a lot of "why is this resource discovered late?":
 
@@ -240,7 +240,7 @@ Images are usually the largest bytes on a page and very often the LCP element, s
 
 Every attribute is load-bearing:
 
-- **`srcset` + `sizes`** let the browser pick the right file for the viewport and DPR. **`sizes` is the part people get wrong** — it describes the *rendered* width, and if it's inaccurate the browser confidently picks the wrong resource. Getting `sizes` wrong is worse than omitting `srcset`.
+- **`srcset` + `sizes`** let the browser pick the right file for the viewport and DPR (device pixel ratio — how many physical pixels a phone packs into one CSS pixel, often 2 or 3). **`sizes` is the part people get wrong** — it describes the *rendered* width, and if it's inaccurate the browser confidently picks the wrong resource. Getting `sizes` wrong is worse than omitting `srcset`.
 - **`width` and `height`** (or `aspect-ratio`) reserve space, which is how you avoid CLS. The browser computes the aspect ratio from these and holds the box before the image arrives.
 - **`fetchpriority="high"`** for the LCP image; **`loading="lazy"`** for everything below the fold, and **never** for the LCP image.
 - **Formats:** AVIF (best compression) → WebP (universal) → JPEG/PNG fallback via `<picture>`. AVIF typically saves 30–50% over JPEG at equivalent quality, though it encodes slowly.
@@ -282,8 +282,8 @@ Fonts are uniquely damaging because they sit on the critical path for **text**, 
 
 | Value | Behaviour |
 |---|---|
-| `block` | invisible text for up to ~3s, then fallback (FOIT — bad for LCP) |
-| **`swap`** | fallback immediately, swap when loaded (**FOUT** — good LCP, causes CLS) |
+| `block` | invisible text for up to ~3s, then fallback (FOIT, "flash of invisible text" — bad for LCP) |
+| **`swap`** | fallback immediately, swap when loaded (**FOUT**, "flash of unstyled text" — good LCP, causes CLS) |
 | `fallback` | ~100ms invisible, then fallback; swaps only if it loads within ~3s |
 | **`optional`** | ~100ms invisible, then fallback **permanently** for this page load — **zero CLS** |
 
@@ -329,7 +329,7 @@ Note that a slow third party is also a **reliability** risk — a synchronously-
 
 ### 8.3 The Cost of Hydration
 
-For SSR/SSG apps, the page **looks** ready long before it is: HTML paints, then the framework downloads, parses, executes and hydrates. That gap is measurable and it's exactly where INP fails.
+For SSR/SSG apps (server-side rendering on each request, or static generation at build time — both send finished HTML), the page **looks** ready long before it is: HTML paints, then the framework downloads, parses, executes and hydrates. Hydration is the step where the framework's JavaScript attaches event handlers to that HTML; until it finishes, buttons look real but do nothing. That gap is measurable and it's exactly where INP fails.
 
 The mitigations, in ascending order of structural change: code-split so less JS hydrates; **defer hydration** of below-the-fold components (React 19.2's `<Activity>` renders hidden subtrees at lower priority); **islands architecture** (Astro, Qwik) where only interactive components ever ship JS; and **RSC**, where non-interactive components ship no JavaScript at all.
 
@@ -347,20 +347,30 @@ function processAll(items) { for (const item of items) expensiveWork(item); }
 ```
 
 ```js
-// ✓ Yield to the main thread so pending input can be handled
+// ✓ Yield to the main thread every ~50ms so pending input can be handled
 async function processAll(items) {
+  let deadline = performance.now() + 50;
   for (const item of items) {
     expensiveWork(item);
-    if (navigator.scheduling?.isInputPending?.()) await scheduler.yield();
+    if (performance.now() >= deadline) {
+      await yieldToMain();
+      deadline = performance.now() + 50;
+    }
   }
+}
+
+function yieldToMain() {
+  // scheduler.yield() where it exists; setTimeout(0) everywhere else
+  if (globalThis.scheduler?.yield) return globalThis.scheduler.yield();
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 ```
 
-`scheduler.yield()` is the modern primitive — it yields but keeps your continuation at a *higher* priority than new tasks, unlike `setTimeout(0)` which puts you at the back of the queue. `scheduler.postTask()` lets you schedule work at explicit priorities (`user-blocking`, `user-visible`, `background`).
+`scheduler.yield()` is the modern primitive — it yields but keeps your continuation at a *higher* priority than new tasks, unlike `setTimeout(0)` which puts you at the back of the queue. It is not in every browser yet (Chrome 129+ and Firefox 142+, not Safari), hence the fallback. The loop yields on a **time budget** rather than asking `navigator.scheduling.isInputPending()`: that API only ever shipped in Chromium, so a loop gated on it never yields at all in Firefox or Safari, and it can miss input Chrome has not yet delivered to the page. Yielding every ~50 ms keeps each task under the long-task threshold whatever the browser. `scheduler.postTask()` lets you schedule work at explicit priorities (`user-blocking`, `user-visible`, `background`).
 
 ### 9.2 Getting Work Off the Thread Entirely
 
-**Web Workers** are the real answer for genuinely heavy computation — parsing large JSON, filtering or sorting thousands of rows, image processing, cryptography. Post back only what's needed for render. The constraint is that Workers have no DOM access, and `postMessage` uses structured cloning (so very large payloads have a real serialisation cost — use transferables or `SharedArrayBuffer` when it matters).
+**Web Workers** are the real answer for genuinely heavy computation — parsing large JSON, filtering or sorting thousands of rows, image processing, cryptography. Post back only what's needed for render. The constraint is that Workers have no DOM access, and `postMessage` copies the data (structured cloning), so very large payloads have a real serialisation cost. When it matters, send a transferable instead — an `ArrayBuffer` whose ownership moves to the Worker without a copy — or share memory with `SharedArrayBuffer`.
 
 **`requestIdleCallback`** for genuinely deferrable work: analytics, prefetching, warming caches.
 
@@ -636,8 +646,8 @@ I'd treat it as a negotiation backed by data rather than a technical dead end.
 - **Load on interaction (the facade pattern).** A chat widget doesn't need to load on page load — render a static button that looks like the widget and load the real thing on click. This is often a complete fix, and it's invisible to the business requirement.
 - **Load after the page is interactive** — on `requestIdleCallback`, or after the LCP has been reported, so it can't compete with the critical path.
 - **Partytown** — run it in a Web Worker. Works well for analytics and tag managers that don't need synchronous DOM access; won't work for scripts that manipulate the page.
-- **Server-side alternative.** Many analytics vendors offer a server-side tagging or CAPI option that removes the client script entirely. This is frequently the best answer and rarely considered.
-- **Self-host and pin the script** if the vendor allows it — you control caching and it can't change under you (though you then own updating it, and it interacts with SRI as discussed in the Web Security guide).
+- **Server-side alternative.** Many analytics vendors offer server-side tagging or a CAPI (conversions API — your server sends the events to the vendor directly) that removes the client script entirely. This is frequently the best answer and rarely considered.
+- **Self-host and pin the script** if the vendor allows it — you control caching and it can't change under you (though you then own updating it, and it interacts with SRI — Subresource Integrity, a hash in the `<script>` tag the browser checks before running the file — as discussed in the Web Security guide).
 - **Gate it.** Load it only for the cohorts that need it — e.g. session replay for 5% of sessions, not 100%.
 
 **3. Make the trade-off explicit and owned.** If none of the above is sufficient, the decision is a business one: this script costs X in conversion via degraded performance and delivers Y in value. My job is to make X visible and give the business a real number, not to quietly absorb it. Setting a **third-party performance budget** turns each future request into an explicit trade rather than a default yes.
@@ -649,7 +659,7 @@ I'd treat it as a negotiation backed by data rather than a technical dead end.
 
 **Q9: How do you explain performance metrics like FCP, TTI and CLS to non-technical stakeholders?**
 
-Translate each metric into **the moment the user experiences**, then attach it to a number the business already cares about. Never lead with the acronym.
+Translate each metric into **the moment the user experiences**, then attach it to a number the business already cares about. Never lead with the acronym. (TTI, Time to Interactive, is an older lab metric for when the page can reliably respond; INP measures the same user concern — does a tap get a response — from real users, so the two share a row below.)
 
 | Metric | Say this instead | The user's question it answers |
 |---|---|---|
@@ -674,11 +684,10 @@ The framing that lands: **"there are three separate promises a page makes — I 
 **If they ask what it'll take**, give the honest shape: the diagnosis is cheap and fast, the fixes vary enormously — an image format change is an afternoon, and "our rendering strategy puts a floor under LCP" is a quarter. Being clear about which one you're in is what makes the next conversation easier.
 
 ---
----
 
 **Q10: Your app is fast on your laptop and slow on a real Android device. What do you measure first?**
 
-Before measuring anything, name why the gap exists, because it decides what you look at. Your laptop has a fast multi-core CPU, a warm cache, a wired connection and no thermal limit. A mid-range Android phone has roughly **a quarter of the single-core performance**, a smaller cache, a variable radio, and it throttles when warm. The work that is invisible on a desktop is the work that dominates there — so the first question is not "which metric is bad" but **"is this CPU, or network?"**
+Before measuring anything, name why the gap exists, because it decides what you look at. Your laptop has a fast multi-core CPU, a warm cache, a wired connection and no thermal limit. A mid-range Android phone often has **a third or less of the single-core performance** (a budget one, less still), a smaller cache, a variable radio, and it throttles when warm. The work that is invisible on a desktop is the work that dominates there — so the first question is not "which metric is bad" but **"is this CPU, or network?"**
 
 **Measure on the device, not a simulation of one.** Remote debugging over USB with Chrome DevTools gives you a real profile from the real hardware; Lighthouse's 4× CPU slowdown is a useful proxy and it is still a proxy. A `navigator.hardwareConcurrency` of 8 on your desk and 4 on the phone is not the difference — the per-core speed is.
 
@@ -694,6 +703,9 @@ Before measuring anything, name why the gap exists, because it decides what you 
 **And the fix that is usually right** is not micro-optimisation — it is sending less JavaScript. Hydration cost scales with how much of the page is interactive, which is why route-level splitting and moving work to the server pay far more on a phone than any amount of memoisation.
 
 **Takeaway:** segment the field data by device before anything else, then decide CPU versus network from a trace on real hardware. A desktop profile cannot tell you which of the two you have.
+
+---
+
 **Q11: A page makes a dozen API calls on load and feels slow. How do you optimise it?**
 
 Resist the urge to start cutting requests. **The count is rarely the problem; the shape is.** Twelve parallel requests on HTTP/2 share one connection and cost roughly one round trip. Four *sequential* ones cost four. Open the Network panel, sort by start time, and look at the staircase: anything that begins only after something else finished is the actual bug.
@@ -736,7 +748,7 @@ Same work, same payload, four times the wait — and no amount of shrinking resp
 
 #### The order to work in
 
-**1. Unstack the waterfall.** Requests that do not feed each other run together. The usual cause is `await` in sequence out of habit; the subtler one is a request that cannot start until a component mounts, so it waits on bundle download, parse and hydration before it even begins.
+**1. Unstack the waterfall.** Requests that do not feed each other run together. The usual cause is writing `await` on each call in sequence out of habit; the subtler one is a request that cannot start until a component mounts, so it waits on bundle download, parse and hydration before it even begins.
 
 **2. Move the start line earlier.** The fastest request is one already in flight. Fetch in a route loader rather than in a leaf `useEffect`; `<link rel="preload">` the resource the LCP element needs; prefetch the next route on intent. In a client-rendered SPA the first request typically starts **after** JS has executed, which is why a fetch-on-mount page is slow even when the API is fast.
 
@@ -744,7 +756,7 @@ Same work, same payload, four times the wait — and no amount of shrinking resp
 
 **4. Stop blocking paint on all of it.** Split the page by what the user sees first. Render the shell and above-the-fold content on the one or two requests that matter, and suspend or stream the rest — a slow recommendations widget should never hold the header hostage.
 
-**5. Only now, collapse the calls.** When one screen genuinely needs eight resources, the honest fix is server-side: a BFF endpoint or a single GraphQL query that returns the screen's data in one round trip. Say this plainly in an interview — **the frontend can hide latency but it cannot remove a round trip**, and pretending otherwise is where these answers usually go wrong.
+**5. Only now, collapse the calls.** When one screen genuinely needs eight resources, the honest fix is server-side: a BFF endpoint (backend for frontend — a small server-side layer shaped around one screen's needs) or a single GraphQL query that returns the screen's data in one round trip. Say this plainly in an interview — **the frontend can hide latency but it cannot remove a round trip**, and pretending otherwise is where these answers usually go wrong.
 
 #### What to measure, and the trap
 

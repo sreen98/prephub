@@ -126,7 +126,7 @@ The allocation heuristic I'd defend: **test at the lowest level that can actuall
 | Config | reuses your `vite.config` | its own, plus a transform pipeline |
 | Speed | **much faster** (esbuild transform, native ESM) | slower; Babel/ts-jest transform |
 | ESM | native | historically painful |
-| Watch mode | HMR-like, near-instant | full re-run of affected files |
+| Watch mode | near-instant: re-runs only the tests that import the changed module, like HMR (hot module replacement) for tests | full re-run of affected files |
 | Ecosystem | large and growing | **largest**; every guide assumes it |
 | API | Jest-compatible (`describe`/`it`/`expect`) | the reference |
 | Browser mode | real-browser component testing | jsdom only |
@@ -135,7 +135,7 @@ The allocation heuristic I'd defend: **test at the lowest level that can actuall
 
 Two Vitest details worth knowing: the API is deliberately Jest-compatible so migration is mostly `jest.` → `vi.`, and **`vi.mock` is hoisted** just like `jest.mock`, which trips people up when a mock factory references a variable declared below it (use `vi.hoisted()`).
 
-And the jsdom caveat that applies to both: **jsdom is not a browser.** It has no layout engine, so `getBoundingClientRect` returns zeros, `IntersectionObserver` and `ResizeObserver` need polyfilling, and CSS-dependent behaviour is unobservable. Anything genuinely visual or layout-dependent needs a real browser — Vitest browser mode, or Playwright component testing.
+And the jsdom caveat that applies to both. jsdom is a JavaScript re-implementation of the DOM that runs inside Node, which is how component tests get a `document` without launching a browser. But **jsdom is not a browser.** It has no layout engine, so `getBoundingClientRect` returns zeros, `IntersectionObserver` and `ResizeObserver` need polyfilling, and CSS-dependent behaviour is unobservable. Anything genuinely visual or layout-dependent needs a real browser — Vitest browser mode, or Playwright component testing.
 
 ---
 
@@ -143,7 +143,7 @@ And the jsdom caveat that applies to both: **jsdom is not a browser.** It has no
 
 The single most consequential testing decision, and the one most suites get wrong.
 
-**Mock at the network boundary, not at your module boundaries.** MSW intercepts at the network layer, so your real fetch code, your real query client and your real error handling all execute:
+**Mock at the network boundary, not at your module boundaries.** MSW (Mock Service Worker, a library that answers HTTP requests with fake responses you define) intercepts at the network layer, so your real fetch code, your real query client and your real error handling all execute:
 
 ```ts
 // msw handlers — shared between tests, dev and E2E
@@ -325,7 +325,7 @@ await expect(page).toHaveScreenshot('checkout.png', { maxDiffPixelRatio: 0.01 })
 
 ## 9. Accessibility Testing
 
-Layered, and with an honest number attached — **automated tools catch roughly 30–40% of WCAG issues** (see the Accessibility guide).
+Layered, and with an honest number attached — **automated tools catch roughly 30–40% of WCAG issues** (WCAG is the Web Content Accessibility Guidelines, the standard audits are measured against; see the Accessibility guide).
 
 ```ts
 // Component level, in CI
@@ -607,12 +607,12 @@ The consumers change the calculus completely — a regression here breaks five p
 
 **Type tests.** For a TypeScript library the types *are* the contract, so I'd test them — `expect-type` or `tsd` — and assert that a wrong prop is a compile error. A type-level breaking change is invisible to runtime tests.
 
-**Test in a real consumer.** Publish a canary version and run one product's test suite against it in CI. That catches integration problems no amount of in-repo testing will: bundler resolution, peer dependency conflicts, CSS specificity collisions with the consumer's own styles.
+**Test in a real consumer.** Publish a canary version (a pre-release build, such as `2.4.0-canary.3`, that nobody installs by accident) and run one product's test suite against it in CI. That catches integration problems no amount of in-repo testing will: bundler resolution, peer dependency conflicts, CSS specificity collisions with the consumer's own styles.
 
 Then the **process** half, which matters at least as much as the tests:
 
 - **Codemods shipped with breaking changes**, and a deprecation period where both APIs work. Without a codemod, a breaking change doesn't get adopted — it gets forked.
-- **Changesets** so every PR declares its own semver impact and releases are derived rather than negotiated.
+- **Changesets** (a tool where each PR adds a small note declaring whether it is a patch, minor or major change under semantic versioning) so releases and changelogs are derived from the PRs rather than negotiated at release time.
 - **Adoption tracked as a number** — remaining old-API usages per product, from a lint rule. "Please migrate" without a count never finishes.
 
 And in a monorepo, the atomic path is the real advantage: change the component and all five consumers in one PR with one CI run. That's the clearest concrete argument for a monorepo in a design-system-heavy organisation (see the Frontend Architecture guide).
@@ -643,7 +643,7 @@ test('rejects an invalid email', async () => {
 
 This is the single most common false-green pattern in async testing, and it's insidious because the code looks careful. The `try`/`catch` shape means the assertion is *conditional on the failure happening* — so the test verifies "if it throws, the message is right," which is not what you wanted to assert.
 
-Worse, it also passes if `createUser` throws the *wrong* error for the wrong reason — a `TypeError` from a typo in your code would need `/invalid email/i` to match, but a bug that made the function throw a matching message for unrelated reasons would sail through.
+There is a smaller second gap. A `TypeError` from a typo would fail the regex and go red, which is what you want. But if the function throws an error whose message happens to match `/invalid email/i` for an unrelated reason, the test passes — the regex checks the words, not the cause. That is a reason to assert on an error class or code where you have one, not only on message text.
 
 Two correct forms:
 

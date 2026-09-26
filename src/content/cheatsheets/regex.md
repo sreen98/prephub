@@ -50,7 +50,7 @@ $   end of string (or line with /m)
 {2,}     2 or more
 {2,5}    2 to 5
 *? +? ?? {2,5}?   LAZY — match as few as possible
-*+ ++             POSSESSIVE (no backtracking)
+*+ ++             POSSESSIVE — PCRE/Java only; a SyntaxError in JS
 ```
 ```js
 '<a><b>'.match(/<.+>/)[0]    // '<a><b>'  greedy
@@ -115,7 +115,7 @@ A `/g` or `/y` regex is **stateful**. Fixes: create it inside the function, drop
 /^(a+)+$/.test('a'.repeat(30) + 'b');  // exponential — hangs
 /^(\w+\s?)*$/;                         // classic vulnerable shape
 ```
-Nested quantifiers over overlapping character sets explode. Fix by removing the nesting, using a possessive/atomic form, anchoring, or bounding input length. Never build a regex from untrusted input without `RegExp.escape`.
+ReDoS (regular-expression denial of service) comes from nested quantifiers over overlapping character sets: `(a+)+` can split a run of `a`s between the inner and outer loop in exponentially many ways, and when the match finally fails the engine tries every one. Fix by removing the nesting, anchoring, or bounding input length. JavaScript has **no** possessive quantifiers or atomic groups (the `*+`/`++` forms above are PCRE/Java syntax), so rewriting the pattern is the fix here. Never build a regex from untrusted input without `RegExp.escape`.
 
 ## Don't Use Regex For
 HTML/XML parsing · JSON parsing · CSV with quoted commas · balanced brackets · XSS sanitisation · full RFC 5322 email validation. Use a real parser.

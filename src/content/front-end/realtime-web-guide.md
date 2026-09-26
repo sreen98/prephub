@@ -183,12 +183,12 @@ app.get('/api/messages', (req, res) => {
 
 **Pros over short polling**
 
-- **Latency ≈ 0.** As soon as data is available, the response goes out.
+- **Near-instant delivery.** The server answers the moment data exists, so the delay is roughly one network trip rather than a wait for the next poll.
 - **Far fewer requests** when nothing's happening (one per ~30 seconds vs one per few seconds).
 
 **Cons**
 
-- **Half-duplex.** Client→server still requires a *new* request.
+- **Half-duplex** (only one direction at a time over the open request). Client→server still requires a *new* request.
 - **Server resources.** You now have hundreds or thousands of open connections, each tying up a thread/file descriptor in synchronous frameworks. Node/Go/Python-async handle this fine; classic blocking PHP/Rails per-request workers do not.
 - **Proxies and load balancers** may kill idle connections at 30/60/120 seconds — you have to time the poll-out to be slightly under that.
 - **Reconnection storm risk.** If the server restarts, every client immediately reconnects in lockstep.
@@ -229,7 +229,8 @@ es.addEventListener('typing', (event) => {
 });
 
 es.onerror = (err) => {
-  // EventSource auto-reconnects with exponential back-off.
+  // EventSource reconnects on its own after the server's retry: delay
+  // (a few seconds if unset); browsers may add back-off on repeated failures.
   // readyState is CONNECTING during retry.
   console.warn('SSE error, browser will retry', err);
 };
@@ -487,7 +488,7 @@ class ResilientWS {
 
 - **No native auto-reconnect.** Unlike SSE, you have to write the reconnection loop.
 - **No native message replay.** SSE has `Last-Event-ID`; you build your own resume token.
-- **Sticky sessions or pub-sub needed for scale.** A WebSocket is bound to one server process. Two clients on different servers can't see each other unless you wire up Redis pub/sub, NATS, or a similar fan-out.
+- **Sticky sessions or pub-sub needed for scale.** A WebSocket is bound to one server process. Sticky sessions route a user back to the same server; pub-sub (publish/subscribe) relays each message to every server. Two clients on different servers can't see each other unless you wire up Redis pub/sub, NATS, or a similar fan-out.
 - **Proxy hostility.** Some corporate proxies don't pass `Upgrade`. Most cloud LBs do (AWS ALB, Cloudflare, Nginx with `proxy_http_version 1.1`).
 - **State on the server.** Connection per user means each disconnect/reconnect storm is real load.
 
@@ -590,7 +591,7 @@ async function streamSSE(url, body) {
 
 ## 7. WebRTC DataChannels
 
-WebRTC is best known for video/audio (`getUserMedia` + peer connection), but it also exposes a **DataChannel** — an arbitrary message channel between two browsers, peer-to-peer, with sub-100ms latency. Built on UDP (via SCTP/DTLS), so unlike everything else in this guide, it doesn't go server-relay every packet.
+WebRTC is best known for video/audio (`getUserMedia` + peer connection), but it also exposes a **DataChannel** — an arbitrary message channel between two browsers, peer-to-peer, with sub-100ms latency. It runs over UDP rather than TCP (wrapped in SCTP, a message protocol that can be told to skip retransmits, inside DTLS, which is TLS adapted for UDP). The practical difference from everything else in this guide: packets go straight from one browser to the other instead of being relayed through your server.
 
 ```js
 // One peer — initiator
@@ -614,7 +615,7 @@ await pc.setLocalDescription(offer);
 // (exchange answer back)
 ```
 
-The signaling channel — how the two peers find each other and exchange SDPs/ICE candidates — is **not** part of WebRTC. You build it on a WebSocket.
+Before two browsers can talk directly, each must tell the other two things: an **SDP** (Session Description Protocol) blob describing what it wants to send (media and data channels, codecs, and security parameters such as its certificate fingerprint), and its **ICE candidates** — the list of network addresses it might be reachable at (local IP, the public IP a **STUN** server reports back, or a **TURN** relay address as a last resort). The channel that carries those messages — called **signaling** — is **not** part of WebRTC. The peers have no direct connection yet, so you need a server in the middle, and you usually build it on a WebSocket.
 
 ### Pros
 
@@ -642,7 +643,7 @@ The signaling channel — how the two peers find each other and exchange SDPs/IC
 
 Everything above requires the page to be **open**. The Push API is different: it lets the server wake the *browser*, deliver a payload to a background Service Worker, which can show a notification — even if the tab is closed, even if the browser isn't running (on most platforms).
 
-The path: app server → push provider (FCM for Chrome/Edge/Firefox; APNs for Safari) → user's browser → Service Worker.
+The path: app server → push provider (FCM for Chrome/Edge/Firefox; APNs for Safari) → user's browser → Service Worker. Your server never talks to the browser directly; it hands the message to the push service the browser vendor runs (FCM is Firebase Cloud Messaging, Google's; APNs is Apple Push Notification service), and that service delivers it when the device is reachable. **VAPID** (Voluntary Application Server Identification) is a key pair you generate once: the browser is given the public half when it subscribes, and your server signs each push with the private half, so the push service can check the message really comes from the app the user subscribed to.
 
 ### Client — subscribe
 
@@ -775,7 +776,7 @@ const SUB = gql`
 const { data } = useSubscription(SUB, { variables: { roomId } });
 ```
 
-**Reality check.** GraphQL Subscriptions are powerful but operationally expensive — you're maintaining a stateful WebSocket per subscriber, plus a pub/sub fanout (Redis, Kafka, etc.). Many teams find that **polling a normal query with a 2–5s interval** delivers 90% of the perceived value at 10% of the operational cost. Use subscriptions when you actually need the latency.
+**Reality check.** GraphQL Subscriptions are powerful but operationally expensive — you're maintaining a stateful WebSocket per subscriber, plus a pub/sub fanout (Redis, Kafka, etc.). Many teams find that **polling a normal query with a 2–5s interval** delivers most of the perceived value at a fraction of the operational cost, because each poll is an ordinary stateless request that any server can answer. Use subscriptions when you actually need the latency.
 
 ---
 
@@ -921,7 +922,7 @@ Use short polling for genuinely infrequent updates (dashboards every 30s); use l
 
 When you only need server→client. SSE is dramatically simpler:
 - Plain HTTP, goes through any proxy that allows long-lived connections.
-- Auto-reconnect with exponential back-off — the browser does it for you.
+- Auto-reconnect — the browser does it for you, waiting the delay the server set with `retry:`.
 - Resumable via `Last-Event-ID` — the server can replay missed events.
 - No upgrade handshake, no framing protocol, no ping/pong management.
 
@@ -1104,7 +1105,7 @@ The cost: you write the SSE parser yourself (split on `\n\n`, parse `data:` / `e
 
 For real-time data:
 
-- **WebSocket**: bidirectional, binary, but the browser limit doesn't apply (HTTP `Upgrade` exits the HTTP world). One persistent connection, both sides write any time.
+- **WebSocket**: bidirectional and binary-capable, and the ~6-per-origin HTTP connection limit doesn't apply, because after the `Upgrade` the socket is no longer an HTTP connection. One persistent connection, both sides write any time.
 - **SSE**: one-way (server→client), text-only, runs over plain HTTP, `EventSource` handles reconnect. Subject to HTTP/1.1's ~6-per-origin connection limit unless served over HTTP/2 or 3.
 - **fetch streaming**: same one-way push as SSE, but with full HTTP semantics (auth headers, POST). No `EventSource`-level helpers.
 
@@ -1266,7 +1267,7 @@ The architectural mistake is treating "real-time" as one problem with one soluti
 
 A few common causes, in order of likelihood:
 
-1. **Buffering at the proxy / origin / CDN.** Cloudflare buffers responses smaller than 1MB by default unless you set `Cache-Control: no-transform` and either hit a streaming-eligible content type or use a Worker. Nginx without `proxy_buffering off;` does the same. Safari's HTTP/2 implementation is more strict about flushing — sometimes it shows the bug Chrome's heuristic flushing hides.
+1. **Buffering at the proxy / origin / CDN.** Cloudflare's default response buffering setting lets it hold back the start of a response body to inspect it, and its Brotli/gzip compression can hold small chunks too. Send `Cache-Control: no-transform` so Cloudflare does not recompress the stream, and if events still arrive in batches, set response body buffering to None for that route. Nginx without `proxy_buffering off;` does the same. Safari's HTTP/2 implementation is more strict about flushing — sometimes it shows the bug Chrome's heuristic flushing hides.
 
 2. **`TextDecoder` not in streaming mode.** If you decode each chunk independently — `decoder.decode(value)` — and a multi-byte UTF-8 character (em-dash, emoji) spans two chunks, you get a replacement character or the chunk gets held back. Always pass `{ stream: true }`: `decoder.decode(value, { stream: true })`.
 
@@ -1280,7 +1281,7 @@ Diagnostic path: use `curl --no-buffer https://...` and time the bytes arriving.
 
 **Q7: Why is "exactly-once delivery" usually a lie, and what should you implement instead?**
 
-"Exactly-once" requires perfect coordination between sender and receiver across an unreliable network. In the general case, it's impossible — the Two Generals Problem. What you can build is **at-least-once delivery + idempotent processing**, which behaves like exactly-once from the user's perspective.
+"Exactly-once" requires perfect coordination between sender and receiver across an unreliable network. In the general case, it's impossible — the Two Generals Problem. The short version: if the receiver's acknowledgement can itself be lost, the sender can never tell "the message was lost" apart from "the message arrived but the ack was lost", so it must either retry (risking a duplicate) or not retry (risking a loss). What you can build is **at-least-once delivery + idempotent processing**, which behaves like exactly-once from the user's perspective.
 
 The pattern:
 
@@ -1297,7 +1298,7 @@ The interview signal: do you reach for "guaranteed delivery" (a marketing term) 
 
 **Q8: You build a video-call app with WebRTC for media. Why do you also need a WebSocket?**
 
-WebRTC media flows peer-to-peer (or via a TURN/SFU relay), but the **discovery/signaling** — how peers find each other and exchange the SDPs (Session Description Protocols) and ICE candidates needed to start the connection — is **not** part of WebRTC.
+WebRTC media flows peer-to-peer (or via a TURN/SFU relay), but the **discovery/signaling** — how peers find each other and exchange the SDP offers/answers (descriptions of what each side will send and how) and ICE candidates (the network addresses each side might be reachable at) needed to start the connection — is **not** part of WebRTC.
 
 Signaling needs:
 

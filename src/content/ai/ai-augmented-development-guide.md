@@ -32,7 +32,7 @@ This guide is about the engineering discipline around AI coding tools, not the t
 
 Three things changed at once, and each creates a question you will be asked.
 
-**Generation outpaced review.** The figures above are the whole story: more tasks and far more pull requests, but reviews taking nearly twice as long on changes half again as large. The industry name for this is the **verification tax** — the cognitive cost of reading, validating and taking responsibility for code you did not write. A team that adds AI without changing its review process converts a coding bottleneck into a review bottleneck and banks none of the gain.
+**Generation outpaced review.** The figures above are the whole story: more tasks and far more pull requests, but reviews taking nearly twice as long on changes about two and a half times as large. The industry name for this is the **verification tax** — the cognitive cost of reading, validating and taking responsibility for code you did not write. A team that adds AI without changing its review process converts a coding bottleneck into a review bottleneck and banks none of the gain.
 
 **The failure modes are new.** A model does not make typos; it produces plausible, well-formatted code with a subtly wrong assumption in it. It will confidently use an API that does not exist, drop a tenant filter, or "fix" a failing test by weakening the assertion. Reviewers trained on human mistakes look in the wrong places.
 
@@ -248,7 +248,7 @@ Interviewers ask this to hear whether you understand the categories, not to hear
 
 ## 12. The Tooling Ecosystem — Skills, Plugins and Third-Party Tools
 
-Claude Code is extensible in four ways, and a **plugin** is simply a bundle of them: **skills** (instructions for a kind of task), **subagents**, **hooks**, and **MCP servers**. `/plugin` browses the marketplaces; Anthropic's official directory is added automatically and holds a few hundred entries, and any git repository can serve as a marketplace with `/plugin marketplace add <owner>/<repo>`.
+Claude Code is extensible in four ways, and a **plugin** is simply a bundle of them: **skills** (instructions for a kind of task), **subagents**, **hooks**, and **MCP servers** (Model Context Protocol servers — separate programs that hand the model extra tools, such as access to a database or an issue tracker). `/plugin` browses the marketplaces; Anthropic's official directory is added automatically and holds a few hundred entries, and any git repository can serve as a marketplace with `/plugin marketplace add <owner>/<repo>`.
 
 **Skills are the mechanism worth understanding**, because they solve the `CLAUDE.md` length problem from §3. A skill is a directory with a `SKILL.md` that loads **only when its description matches what you are doing**. So a long procedure that applies to one kind of task — releasing, writing a migration, doing an accessibility pass — costs nothing on every other turn. The rule from §2 still decides: knowledge that applies sometimes is a skill, not another paragraph in the always-on file.
 
@@ -313,7 +313,7 @@ This is the part of the resume line that separates a user from someone who chang
 
 ## 14. Measuring Whether It Worked
 
-**DORA remains the foundation** — deployment frequency, lead time for changes, change failure rate, time to restore. But when a model writes a large share of the code, those four become misleading on their own: deployment frequency and lead time improve *because generation got faster*, while the cost lands somewhere they do not measure.
+**DORA remains the foundation** — the four delivery metrics from Google's DevOps Research and Assessment programme: deployment frequency, lead time for changes, change failure rate, time to restore. But when a model writes a large share of the code, those four become misleading on their own: deployment frequency and lead time improve *because generation got faster*, while the cost lands somewhere they do not measure.
 
 **Extend them with the things that actually move:**
 

@@ -1,6 +1,6 @@
 # Accessibility (a11y) — Complete Guide
 
-Accessibility stopped being a "nice to have" in June 2025, when the **European Accessibility Act** became enforceable. It is now a legal requirement for a large class of products sold in the EU, alongside long-standing obligations under the ADA in the US and equivalent laws elsewhere. That changed hiring: accessibility questions moved from "bonus points" to a standard part of frontend interviews, and a candidate who cannot explain the difference between `aria-label` and a visible label is now a liability rather than an incomplete hire.
+Accessibility stopped being a "nice to have" in June 2025, when the **European Accessibility Act** (EAA) became enforceable. It is now a legal requirement for a large class of products sold in the EU, alongside long-standing obligations under the ADA (Americans with Disabilities Act) in the US and equivalent laws elsewhere. That changed hiring: accessibility questions moved from "bonus points" to a standard part of frontend interviews, and a candidate who cannot explain the difference between `aria-label` and a visible label is now a liability rather than an incomplete hire.
 
 This guide covers what interviews actually ask: the standards and their legal weight, semantic HTML, the ARIA rules, keyboard and focus management, the component patterns that get built live in interviews, and how to test any of it.
 
@@ -41,7 +41,7 @@ This guide covers what interviews actually ask: the standards and their legal we
 
 Three practical consequences worth knowing for an interview:
 
-**The target is WCAG 2.x AA.** Almost every law references WCAG 2.0/2.1/2.2 at **Level AA**. AAA is not the compliance target — it's a stretch goal, and some AAA criteria are impossible to meet for certain content types.
+**The target is WCAG 2.x AA.** WCAG (Web Content Accessibility Guidelines) is the W3C's technical standard, and laws rarely spell out requirements themselves — they point at it. Almost every law references WCAG 2.0/2.1/2.2 at **Level AA**. AAA is not the compliance target — it's a stretch goal, and some AAA criteria are impossible to meet for certain content types.
 
 **Accessibility overlays don't work, legally or technically.** The "install one script and become compliant" widgets have repeatedly lost in court and are actively opposed by disability advocacy groups. If asked about them, say so: they cannot fix semantics, they often break existing assistive technology, and they create legal exposure rather than removing it.
 
@@ -175,7 +175,17 @@ The rules: `alt=""` (empty, but **present**) for decorative images — omitting 
 
 ### 4.3 The Elements People Reimplement Needlessly
 
-`<dialog>` (modal with a real focus trap), `<details>`/`<summary>` (disclosure), the `popover` attribute (top-layer with light dismiss), `<progress>`, `<meter>`, `<output>`, `<datalist>`, `<fieldset>`/`<legend>` for radio groups, `<table>` with `<caption>`/`<th scope>`, and `<input type="date|search|tel|email">` for the right mobile keyboard and native validation. Reaching for one of these instead of a custom widget is often the single highest-value accessibility decision in a component.
+Each element below already has the role, keyboard handling and screen-reader announcements that a custom widget has to rebuild by hand — and usually rebuilds incompletely. Reaching for one of these instead of a custom widget is often the single highest-value accessibility decision in a component.
+
+- **`<dialog>` with `showModal()`** — a modal. The browser traps focus, closes on Escape and makes the rest of the page `inert` (unreachable by keyboard and hidden from screen readers). See §6.3 for what you still have to add.
+- **`<details>`/`<summary>`** — a disclosure (show/hide) widget. The summary is a real button with an expanded/collapsed state that screen readers announce, and the hidden content is genuinely hidden.
+- **The `popover` attribute** — menus, tooltips-with-content, pickers. It puts the element in the top layer (above everything, so no `z-index` or `overflow` clipping) and gives "light dismiss": Escape or a click outside closes it.
+- **`<progress>` and `<meter>`** — a task's completion, and a value within a known range (disk usage, password strength). Both are announced with their value; a styled `div` bar is silent.
+- **`<output>`** — the result of a calculation. It is a live region by default, so the new value is announced when it changes.
+- **`<datalist>`** — suggestions for a text input with no JavaScript, keyboard navigation included.
+- **`<fieldset>`/`<legend>`** — groups radio buttons or checkboxes. The legend is read as the group's question ("Delivery speed, Standard, radio button"), which a heading above the group does not do.
+- **`<table>` with `<caption>` and `<th scope>`** — data tables. Screen readers use the headers to announce each cell's row and column as the user moves through the grid.
+- **`<input type="date|search|tel|email">`** — the right mobile keyboard, built-in validation and, for `date`, a native picker, instead of a text box plus a script.
 
 ---
 
@@ -250,7 +260,7 @@ The rule to state: **no ARIA is better than bad ARIA.** A plain unlabelled `div`
 
 ## 6. Keyboard and Focus Management
 
-Keyboard support is the highest-value accessibility work, because it serves screen-reader users, switch and sip-and-puff users, people with tremor or RSI who can't use a mouse precisely, and power users — all at once. And it's testable in thirty seconds: **unplug your mouse and use your own product.**
+Keyboard support is the highest-value accessibility work, because it serves screen-reader users, switch and sip-and-puff users, people with tremor or RSI (repetitive strain injury) who can't use a mouse precisely, and power users — all at once. And it's testable in thirty seconds: **unplug your mouse and use your own product.**
 
 ### 6.1 The Tab Order Rules
 
@@ -305,8 +315,26 @@ This is what SPAs get wrong most often, and it comes up in interviews constantly
 function Modal({ onClose }) {
   const opener = useRef(document.activeElement);
   useEffect(() => () => opener.current?.focus(), []);
-  // …
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Example dialog">
+      <p>Close me, and focus goes back to the button that opened me.</p>
+      <button autoFocus onClick={onClose}>Close</button>
+    </div>
+  );
 }
+
+// Demo so Try it has something to open and close
+function Demo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(true)}>Open modal</button>
+      {open && <Modal onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
 **Don't steal focus** for things the user didn't initiate. Auto-focusing a search box on page load is disorienting for a screen-reader user, who has been dropped past the page's structure. Focus movement should be a response to a user action.
@@ -481,6 +509,18 @@ A screen reader reads the page as it was when focus arrived. Content that change
 function Announcer({ message }) {
   return <div aria-live="polite" className="sr-only">{message}</div>;
 }
+// Demo: the region is already mounted, so each click is a real mutation
+function Demo() {
+  const [message, setMessage] = useState('');
+  return (
+    <>
+      <button onClick={() => setMessage(`Saved at ${new Date().toLocaleTimeString()}`)}>Save</button>
+      <Announcer message={message} />
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
 **SPA route changes** are the classic failure: the URL and DOM change, focus stays on the clicked link, and a screen-reader user has no idea anything happened. The fix is both halves:
@@ -822,7 +862,7 @@ Nine new success criteria and one removal. Three of them change real implementat
 
 The other six: **2.4.11 Focus Not Obscured (Minimum)** at AA — tab through your own site with a sticky header and watch focus disappear underneath it; `scroll-margin-top` is usually the fix. **2.4.12** and **2.4.13** (focus obscuring and appearance) are AAA. **3.2.6 Consistent Help** and **3.3.7 Redundant Entry** are Level A and mostly about not re-asking for information — `autocomplete` attributes do a lot of the work.
 
-**Removed: 4.1.1 Parsing**, as obsolete — modern parsers recover from malformed markup and AT works off the parsed DOM. Worth adding the caveat: duplicate IDs are still bugs, because they break `aria-labelledby` and `for`/`id` association; they're just no longer a 4.1.1 failure.
+**Removed: 4.1.1 Parsing**, as obsolete — modern parsers recover from malformed markup and assistive technology (AT — screen readers, voice control, switch devices) works off the parsed DOM. Worth adding the caveat: duplicate IDs are still bugs, because they break `aria-labelledby` and `for`/`id` association; they're just no longer a 4.1.1 failure.
 
 And if asked about **WCAG 3.0**: it's a working draft with a different outcome-and-scoring model, years from being a legal reference. Targeting 2.2 AA while watching 3.0 is the correct position; claiming to build to 3.0 today signals you haven't read it.
 
@@ -901,7 +941,7 @@ Only a specific set of mechanisms actually removes an element from the accessibi
 | `display: none` | ✓ |
 | `hidden` attribute | ✓ |
 | `content-visibility: hidden` | ✓ |
-| `inert` (on an ancestor) | ✓ (focus only; still in tree) |
+| `inert` (on an ancestor) | ✓ (removed from both, but stays visible on screen) |
 
 So the first four produce the worst possible state: **invisible but reachable.** A sighted keyboard user Tabs and focus vanishes — the focus ring is on an element clipped to zero height. A screen-reader user hears content that isn't on screen. This is the same failure mode as `aria-hidden` on a focusable element, arrived at from the other direction.
 
@@ -950,6 +990,18 @@ The fix is to mount a persistent, empty announcer at the app root and write into
 function Announcer({ message }) {
   return <div aria-live="polite" aria-atomic="true" className="sr-only">{message}</div>;
 }
+// Demo: the region is already mounted, so each click is a real mutation
+function Demo() {
+  const [message, setMessage] = useState('');
+  return (
+    <>
+      <button onClick={() => setMessage(`Saved at ${new Date().toLocaleTimeString()}`)}>Save</button>
+      <Announcer message={message} />
+    </>
+  );
+}
+
+render(<Demo />);
 ```
 
 Now the region is registered at page load and every message is a genuine mutation.
@@ -1104,7 +1156,8 @@ KEYBOARD & FOCUS
 
 HIDING — what actually removes from the a11y tree
 37. Removes: display:none, visibility:hidden, [hidden], aria-hidden,
-    content-visibility:hidden. inert removes from tab order only.
+    content-visibility:hidden, inert. (inert also blocks clicks but stays
+    visible; aria-hidden removes from the tree only, NOT the tab order.)
 38. Does NOT remove: height:0, opacity:0, clip-path, off-screen transform.
     → these create INVISIBLE BUT FOCUSABLE, the worst state.
 39. .sr-only = clip-path: inset(50%) + 1px size + absolute. Never display:none.

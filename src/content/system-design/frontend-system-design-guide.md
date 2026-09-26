@@ -58,8 +58,8 @@ A senior signal is asking the right questions FIRST. A junior signal is jumping 
 - Real-time or eventual-consistency okay?
 
 **Non-functional questions:**
-- Scale: how many DAU, requests per second, content size?
-- Latency budget: 200ms FCP? 1s LCP? p95 timeline?
+- Scale: how many DAU (daily active users), requests per second, content size?
+- Latency budget: 200ms FCP (First Contentful Paint — when anything first appears)? 1s LCP (Largest Contentful Paint — when the main content appears)? Measured at p95 (the time 95% of users beat), not the average?
 - Offline support needed?
 - Geographic distribution (CDN regions)?
 - Accessibility level (WCAG 2.1 AA?)
@@ -76,14 +76,14 @@ Spend 4–5 minutes here. Without these, you'll design the wrong system.
 
 ## 3. High-Level Architecture Pieces
 
-Every frontend system design touches some subset of:
+Every frontend system design touches some subset of the pieces below. Name the ones your design needs and say why; the "why" is what separates a design from a list.
 
-- **The app shell** — bundled JS/CSS served via CDN. Lazy-loaded routes.
-- **A state layer** — server state (cache) + client state (UI) + URL state.
-- **An API layer** — REST or GraphQL. May go through a BFF (Backend for Frontend) for client-specific aggregation.
-- **A real-time channel** — WebSocket, SSE, or polling for live updates.
-- **A CDN** — for static assets and (often) cached API responses.
-- **Service worker** — for offline, PWA, push notifications.
+- **The app shell** — bundled JS/CSS served via CDN, with lazy-loaded routes, so the first visit downloads only the code for the page it lands on.
+- **A state layer** — server state (cache) + client state (UI) + URL state. They are split because each has a different owner and lifetime (see §4).
+- **An API layer** — REST or GraphQL. May go through a BFF (Backend for Frontend — a thin server owned by the frontend team) that aggregates several backend calls into the one shape a screen needs, so the client makes one round trip instead of five.
+- **A real-time channel** — WebSocket (two-way), SSE (Server-Sent Events, one-way server-to-client over plain HTTP), or polling. Pick the simplest one that meets the latency and direction the feature needs (see §6).
+- **A CDN** — for static assets and (often) cached API responses, because serving from an edge server near the user cuts network round-trip time, which no amount of client code can reduce.
+- **Service worker** — a script the browser runs in the background, between your page and the network, so it can answer requests from a cache. It is what makes offline mode, installable PWAs (progressive web apps) and push notifications possible.
 - **Third-party services** — analytics, error tracking, A/B testing, feature flags, payments, video infrastructure.
 
 Draw these as boxes connecting to the client. Be specific about which transport sits between the client and each box.
@@ -105,10 +105,10 @@ The most important slide in any frontend system design. Five flavors:
 **Senior signal:** distinguishing server state from client state. Server state has a server source of truth, async fetches, staleness, retries, background refresh, dedup. Client state is just "is this modal open?" These belong in DIFFERENT systems. Putting server state in Redux (the 2017 stack) is what TanStack Query exists to fix.
 
 For most modern frontend system designs, the right answer is:
-- **TanStack Query** (or Apollo for GraphQL) for server state.
-- **Zustand** or component state for UI state.
-- **React Router** for URL state.
-- **React Hook Form** for forms.
+- **TanStack Query** (or Apollo for GraphQL) for server state — it gives you caching, request deduplication, background refetch and retries, which you would otherwise hand-write in a general store.
+- **Zustand** or component state for UI state — UI state is small and synchronous, so it needs no middleware, and Zustand's selectors re-render only the components that read the changed value (plain Context re-renders every consumer).
+- **React Router** for URL state — keeping filters and the active page in the URL makes them shareable, bookmarkable and survive a refresh for free.
+- **React Hook Form** for forms — it keeps inputs uncontrolled by default, so typing does not re-render the whole form on every keystroke.
 
 Redux is fine if existing infrastructure is heavily invested in it, but greenfield rarely justifies it.
 
@@ -122,12 +122,12 @@ Decide three things:
 
 - **REST** — simplest, cacheable at HTTP layer, well-tooled. Default choice.
 - **GraphQL** — when clients need many different shapes of the same data (mobile wants compact response, web wants nested). Solves over-fetching/under-fetching at the cost of operational complexity.
-- **gRPC-Web** — when latency is critical and you control both ends.
+- **gRPC-Web** — a browser version of gRPC, which sends compact binary messages defined by a shared schema instead of JSON. Worth it when payload size and latency are critical and you control both ends; the cost is that responses are no longer readable in the Network tab or cacheable by ordinary HTTP caches.
 
 ### 2. Strategy
 
 - **Fetch-on-render** — request when component mounts. Easy but causes waterfalls (parent fetches → renders child → child fetches).
-- **Fetch-then-render** — fetch all data first, then render. Slower TTI but no waterfalls.
+- **Fetch-then-render** — fetch all data first, then render. Slower TTI (Time to Interactive — when the page first responds to input), because nothing shows until the slowest request finishes, but no waterfalls.
 - **Render-as-you-fetch** — start fetching at navigation (Route loaders, React Router data API, Suspense). Best UX; aligns with React Server Components.
 
 ### 3. Optimistic UI
@@ -163,7 +163,7 @@ Five transports to know, when to pick each:
 | **WebSocket** | Bi-directional | Chat, multiplayer, real-time collaboration |
 | **WebRTC DataChannel** | P2P | Sub-100ms latency, no server hop (video conferencing, real-time games) |
 
-**Rule:** start with the simplest that fits. SSE is almost always preferred over WebSocket when communication is one-way server-to-client.
+**Rule:** start with the simplest that fits. (Short polling asks "anything new?" on a timer; long polling asks and the server holds the request open until it has something to say.) SSE is almost always preferred over WebSocket when communication is one-way server-to-client, because it is an ordinary HTTP response that stays open: the browser reconnects automatically, it passes through proxies and load balancers that already understand HTTP, and your existing cookie auth applies. A WebSocket buys two-way messaging at the price of handling reconnection, heartbeats and auth yourself.
 
 For chat-like fan-out at scale, the server has its own complexity (pub/sub fan-out, sticky sessions), but the client side is: open WebSocket → on message, update local cache → on disconnect, reconnect with exponential back-off + jitter → on reconnect, replay missed messages from a checkpoint.
 
@@ -173,15 +173,15 @@ See the Real-Time Web guide for the full transport comparison and reconnection p
 
 ## 7. Performance and Caching
 
-Performance is what separates "I built a working prototype" from "I built a production system." Hit these in every interview:
+Don't recite this whole list in an interview. Pick the three or four items that attack your design's actual bottleneck — for a feed that is virtualization and images, for a dashboard it is bundle size and data fetching — and say what each one costs. The list is here so you can find them:
 
 ### Asset performance
 
 - **Code splitting** — route-level and component-level. `React.lazy` + `Suspense`. Each route is its own chunk.
-- **Tree shaking** — ESM modules, dead-code elimination, no `lodash` (use `lodash-es` or per-method imports).
+- **Tree shaking** — the bundler drops code you import but never call. It only works on ES modules (`import`/`export`), because those can be analysed without running them; that is why plain `lodash` (CommonJS) ships whole while `lodash-es` or per-method imports ship only what you use.
 - **Image optimization** — WebP/AVIF, responsive `srcset`, lazy loading via `loading="lazy"`, image CDN (Cloudinary, Imgix).
-- **Font strategy** — `font-display: swap`, subsetting, preload critical fonts, variable fonts.
-- **Critical CSS** — inline above-the-fold CSS, defer the rest.
+- **Font strategy** — `font-display: swap` shows fallback text immediately instead of invisible text while the font loads; subsetting strips characters you never use; preload the fonts the first screen needs; a variable font replaces several weight files with one.
+- **Critical CSS** — inline the CSS needed for the first screen in the HTML and load the rest later, because a stylesheet `<link>` blocks rendering until it downloads.
 - **Bundle budget** — set explicit budgets (e.g., 170 KB JS gzipped at the route level).
 
 ### Runtime performance
@@ -196,7 +196,7 @@ Performance is what separates "I built a working prototype" from "I built a prod
 
 - **HTTP/2 or HTTP/3** — multiplexed requests over a single connection.
 - **CDN** — for static assets and (when applicable) API responses.
-- **Service Worker caching** — cache-first for assets, network-first for API, stale-while-revalidate for hybrid.
+- **Service Worker caching** — cache-first for build assets (when the filename carries a content hash, a new version gets a new name, so a cached copy is never out of date), network-first for API data (fresh when online, cached copy as the offline fallback), stale-while-revalidate for data where a slightly old answer now beats a fresh one later (serve the cache, update it in the background).
 - **Compression** — Brotli > gzip.
 - **Prefetch / preconnect** — `<link rel="prefetch">` for next-likely navigation, `<link rel="preconnect">` for third-party origins.
 
@@ -218,11 +218,11 @@ Each layer has different invalidation rules. The closer to the user, the faster 
 
 ## 8. Accessibility, i18n, Theming
 
-Senior interviews probe these. Be ready.
+Senior interviews probe these. Treat the list as a checklist to name in your design; the one-line reason after each item is what to say if asked "why".
 
-- **Accessibility (WCAG 2.1 AA):** semantic HTML, proper heading order, `alt` text, keyboard navigation (focus management, focus traps in modals), ARIA attributes (only when semantic HTML isn't enough), color contrast ≥4.5:1, screen reader testing.
-- **i18n:** `react-i18next` or `next-intl` for translations, locale-aware date/number formatting (`Intl.DateTimeFormat`, `Intl.NumberFormat`), RTL support via `dir="rtl"` + logical CSS properties (`margin-inline-start` instead of `margin-left`).
-- **Theming:** CSS variables for colors, `prefers-color-scheme` for OS-based theme, persistent user preference in localStorage.
+- **Accessibility (WCAG 2.1 AA):** semantic HTML, proper heading order, `alt` text, keyboard navigation (focus management, focus traps in modals), ARIA attributes (only when semantic HTML isn't enough), color contrast ≥4.5:1 for body text, screen reader testing. Automated tools catch only part of this, which is why manual keyboard and screen-reader passes stay on the list.
+- **i18n:** `react-i18next` or `next-intl` for translations, locale-aware date/number formatting (`Intl.DateTimeFormat`, `Intl.NumberFormat`), RTL support via `dir="rtl"` + logical CSS properties (`margin-inline-start` instead of `margin-left`), so one stylesheet flips correctly for right-to-left languages instead of needing a mirrored copy.
+- **Theming:** CSS variables for colors, `prefers-color-scheme` for OS-based theme, persistent user preference in localStorage. CSS variables are the key choice: switching theme changes a few values on the root element instead of re-rendering components.
 
 ---
 
@@ -284,7 +284,7 @@ Player:
   Drop down if buffer drains.
 ```
 
-**DRM (Digital Rights Management).** Netflix uses Widevine / FairPlay / PlayReady. The player obtains a license before decrypting segments. `MediaSource` API + EME (Encrypted Media Extensions).
+**DRM (Digital Rights Management).** The video segments are encrypted, and the player must fetch a license (the decryption key, issued only to an authorised user) before it can play them. Widevine, FairPlay and PlayReady are the DRM systems built into different browsers and devices (Google's, Apple's and Microsoft's respectively), so a service that plays everywhere supports all three. In the browser, the `MediaSource` API lets JavaScript feed segments to the `<video>` element, and EME (Encrypted Media Extensions) is the API that connects the player to the browser's built-in DRM module.
 
 **Image strategy.** Each video has ~10 thumbnail sizes for different rows / breakpoints. Image CDN with `srcset`. Preload thumbnails for the next visible row. Use `decoding="async"` on `<img>` to avoid blocking.
 
@@ -425,13 +425,13 @@ stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
 WebRTC doesn't define how peers find each other. You provide a signaling channel (WebSocket) that exchanges:
 - SDP (Session Description Protocol) offers and answers — what codecs each peer supports.
-- ICE candidates — possible network paths (direct, through NAT, through TURN relay).
+- ICE candidates — possible network paths between the two peers. Most devices sit behind a NAT (the router that shares one public IP address among a home or office network), so they don't know their own public address. A STUN server tells each peer what its public address looks like; when two NATs still refuse a direct connection, a TURN server relays the media instead, which always works but costs you server bandwidth.
 
 **SFU vs mesh.**
 
 For a 5-person meeting:
-- **Mesh:** every peer connects to every other peer. 5×4=20 connections. CPU bandwidth quadratically explodes — terrible past 4 participants.
-- **SFU (Selective Forwarding Unit):** each peer connects to a central server. Server forwards each peer's stream to all others. Linear scaling. **This is what Zoom, Meet, and most production apps use.**
+- **Mesh:** every peer connects to every other peer, so each person encodes and uploads their video once per other participant — 4 uploads each in a 5-person call — and the meeting as a whole carries 5×4=20 streams. Home upload bandwidth and laptop CPU run out first, which is why mesh is terrible past about 4 participants.
+- **SFU (Selective Forwarding Unit):** each peer connects to a central server and uploads its video once. The server forwards each peer's stream to all others. Each client's upload stays constant however big the call gets. **This is what Zoom, Meet, and most production apps use.**
 
 The frontend talks to ONE peer connection (the SFU); the SFU multiplexes streams. Open source SFUs: mediasoup, Janus, LiveKit, Jitsi.
 
@@ -477,7 +477,7 @@ Browser does these automatically when `getUserMedia` is called with `{ audio: tr
 **Trade-offs:**
 - P2P mesh is the simplest but doesn't scale past 4 participants.
 - SFU is the production answer but requires server infrastructure.
-- MCU (Multipoint Control Unit) transcodes all streams into one — minimizes bandwidth for receivers but is CPU-expensive and adds latency. Rarely used now (Zoom historically used MCU; modern apps prefer SFU).
+- MCU (Multipoint Control Unit) transcodes all streams into one — minimizes bandwidth for receivers but is CPU-expensive and adds latency. Rarely used now; modern apps, Zoom included, use an SFU, which forwards each stream without decoding it (see "SFU vs mesh" above). MCUs survive mainly for recording and for bridging legacy SIP/H.323 room systems.
 
 ---
 
@@ -603,7 +603,7 @@ Upload to presigned S3 URL. Send a message containing the URL (not the binary). 
 
 **End-to-end encryption (optional, WhatsApp-level).**
 
-Use the Signal Protocol. Each user has a long-term identity key + ephemeral session keys. Messages encrypted client-side before sending; server can't read content. Browser implementations: `libsignal-protocol-javascript`.
+Use the Signal Protocol. Each user has a long-term identity key + ephemeral session keys. Messages encrypted client-side before sending; server can't read content. Library: Signal's own `libsignal` (TypeScript binding `@signalapp/libsignal-client`). Note it ships as a native Node module, not a browser build — the old browser port, `libsignal-protocol-javascript`, was archived in 2021 — so a pure web client needs a WebAssembly build or a third-party implementation.
 
 **Trade-offs:**
 - WebSocket vs SSE+POST: WebSocket is bidirectional, more efficient at scale. SSE+POST is simpler but has more HTTP overhead per send.
@@ -860,6 +860,28 @@ function Tabs({ defaultValue, value, onChange, orientation = 'horizontal', child
     </TabsContext.Provider>
   );
 }
+
+// stand-ins so this example runs on its own (the full TabPanel is below)
+function Tab({ value, children }) {
+  const { activeValue, setActiveValue } = useContext(TabsContext);
+  return <button aria-selected={activeValue === value} onClick={() => setActiveValue(value)}>{children}</button>;
+}
+function TabPanel({ value, children }) {
+  return useContext(TabsContext).activeValue === value ? <div role="tabpanel">{children}</div> : null;
+}
+
+function Demo() {
+  return (
+    <Tabs defaultValue="overview" onChange={(v) => console.log('active:', v)}>
+      <Tab value="overview">Overview</Tab>
+      <Tab value="specs">Specs</Tab>
+      <TabPanel value="overview">Product overview</TabPanel>
+      <TabPanel value="specs">Tech specs</TabPanel>
+    </Tabs>
+  );
+}
+
+render(<Demo />);
 ```
 
 **Controlled vs uncontrolled.**
@@ -906,6 +928,32 @@ function TabPanel({ value, children }) {
     </div>
   );
 }
+
+// stand-ins so this example runs on its own (the full Tabs is above)
+const TabsContext = createContext(null);
+function Tabs({ defaultValue, keepMounted = false, children }) {
+  const [activeValue, setActiveValue] = useState(defaultValue);
+  const idPrefix = useId();
+  return (
+    <TabsContext.Provider value={{ activeValue, setActiveValue, keepMounted, idPrefix }}>
+      <div role="tablist">
+        {['overview', 'specs'].map((v) => <button key={v} onClick={() => setActiveValue(v)}>{v}</button>)}
+      </div>
+      {children}
+    </TabsContext.Provider>
+  );
+}
+
+function Demo() {
+  return (
+    <Tabs defaultValue="overview">
+      <TabPanel value="overview">Overview (type here, switch tabs, come back)<input /></TabPanel>
+      <TabPanel value="specs">Specs: not mounted until first opened</TabPanel>
+    </Tabs>
+  );
+}
+
+render(<Demo />);
 ```
 
 Three modes:
@@ -975,7 +1023,7 @@ GraphQL shines when:
 - Strongly-typed schema is high-value for the team.
 
 Trade-offs:
-- GraphQL adds server complexity (resolvers, N+1 prevention, query whitelisting in production).
+- GraphQL adds server complexity: resolvers (a function per field), N+1 prevention (fetching a list of 50 posts and then each post's author naively makes 1 + 50 database calls, so you need a batching layer such as DataLoader), and query whitelisting in production (only accepting pre-registered queries, because otherwise any client can send an arbitrarily deep, expensive query).
 - HTTP caching is harder (all GraphQL goes through one POST endpoint).
 - GraphQL clients are powerful but learning-curve heavy.
 
@@ -1071,7 +1119,7 @@ Use the **Signal Protocol** (open spec, used by Signal, WhatsApp, Skype).
 Concepts:
 - **Long-term identity key** — generated per user, stored locally. Public key uploaded to a key-server.
 - **Pre-keys** — short-lived public keys uploaded to the server so other users can initiate sessions while you're offline.
-- **Session keys** — derived per-conversation via Double Ratchet algorithm (a key changes every message for forward + backward secrecy).
+- **Session keys** — derived per-conversation via the Double Ratchet algorithm, which moves to a new key with every message. The point: a key stolen today cannot decrypt earlier messages (forward secrecy), and once the ratchet has moved on it cannot decrypt later ones either (backward, or post-compromise, secrecy).
 
 On send:
 1. Client fetches recipient's pre-keys from server.
@@ -1085,7 +1133,7 @@ On receive:
 1. Client decrypts with its session key.
 2. Ratchets forward for the next message.
 
-Implementation: `libsignal-protocol-javascript` (the official reference port).
+Implementation: Signal's `libsignal` (TypeScript binding `@signalapp/libsignal-client`). It is a native Node module, fine for an Electron app like Signal Desktop but not for a plain browser tab; the former browser port, `libsignal-protocol-javascript`, was archived in 2021 and is no longer maintained.
 
 Trade-offs:
 - Server can't search messages, generate notification previews, do abuse detection.
@@ -1178,11 +1226,11 @@ Each cursor position is a tiny event but they come at 60 Hz. Send all of them na
 
 Fixes:
 
-1. **Throttle send rate.** Cap at 20 events/sec. Use `throttle(send, 50)`. The human eye doesn't see >24 fps as smoother for cursor movement.
+1. **Throttle send rate.** Cap at 20 events/sec. Use `throttle(send, 50)`. Combined with interpolation on the receiving side (fix 2), 20 updates a second looks smooth, and it cuts the traffic to a third of the raw 60 Hz.
 
 2. **Interpolate on receive.** When a peer cursor moves, animate smoothly to the new position over the next 50ms rather than jumping. Smooths perception.
 
-3. **Send deltas, not absolutes.** If the protocol allows it, only send `(dx, dy)` and a sequence number.
+3. **Send deltas, not absolutes.** If the protocol allows it, only send `(dx, dy)` and a sequence number. Deltas only work on a reliable, ordered channel — one lost delta leaves the cursor permanently off — so if you adopt fix 5 and let updates drop, send absolute positions instead.
 
 4. **Coalesce server-side.** The server can drop stale updates if a newer one is queued for the same client.
 
@@ -1230,7 +1278,7 @@ What to audit first:
 
 5. **Routing.** React Router → file-based router (Next.js / Remix). Significant churn.
 
-6. **Bundle size.** SSR makes initial HTML larger; gzip / Brotli; defer non-critical scripts.
+6. **Bundle size.** SSR does not shrink the JavaScript — the browser still downloads the whole bundle to hydrate (attach event handlers to) the server HTML, and the HTML itself gets larger. So compression (gzip / Brotli) and deferring non-critical scripts still matter, or you trade a blank page for a page that looks ready but ignores clicks.
 
 Realistic incremental path:
 1. **Server-render only marketing/SEO pages first.** Keep the authenticated app SPA.
@@ -1238,7 +1286,7 @@ Realistic incremental path:
 3. **Migrate routes one at a time** with feature flags.
 4. **Measure.** First-byte, LCP, hydration time. SSR can actually HURT TTI if hydration is heavy.
 
-Estimate: 6–12 months for a 200k LOC codebase, not a sprint.
+Estimate in quarters, not sprints. The real figure depends on how many SSR-hostile patterns (direct `window`/`localStorage` access at module load, client-only libraries, fetches inside effects) an audit turns up, so do that audit before quoting a number.
 
 **Be honest in the interview** that this isn't a Friday afternoon job. Senior interviewers value realistic scoping.
 
@@ -1246,7 +1294,7 @@ Estimate: 6–12 months for a 200k LOC codebase, not a sprint.
 
 **Q5: Your video conferencing app works perfectly with 4 participants but degrades sharply at 8+. What's the architecture issue and what do you do?**
 
-The likely cause: **peer-to-peer mesh topology**. With N participants, each sends N-1 streams and receives N-1 streams. Upstream bandwidth and CPU explode quadratically.
+The likely cause: **peer-to-peer mesh topology**. With N participants, each sends N-1 streams and receives N-1 streams. Every added person raises every client's upload and encoding work, and the call as a whole carries N×(N-1) streams — so going from 4 to 8 people takes each laptop from 3 uploads to 7 and the total from 12 streams to 56.
 
 Switch to **SFU (Selective Forwarding Unit)**.
 
@@ -1301,7 +1349,7 @@ Several reasons.
 
 3. **Premature centralization.** Component-local state (modal open?) doesn't need to be global. Putting it in Redux makes refactoring harder (you can't simply remove a component).
 
-4. **Re-render performance.** Redux re-renders any subscribed component on any change unless you use `reselect` or precise selectors. Easy to get wrong.
+4. **Re-render performance.** Every store update runs every mounted `useSelector`, and a component re-renders whenever its selector returns a different reference. A selector that builds a new object or array (`state.items.filter(...)`) returns a new reference every time, so that component re-renders on every action anywhere in the app — including thousands of trivial UI actions once everything lives in the store. `reselect` (memoised selectors) fixes it, but it is easy to get wrong.
 
 5. **Debug noise.** The Redux DevTools history fills with thousands of trivial actions ("HOVER_CARD", "OPEN_DROPDOWN"). The meaningful state changes get lost.
 

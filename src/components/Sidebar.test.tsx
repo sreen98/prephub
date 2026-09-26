@@ -36,7 +36,7 @@ describe('Sidebar', () => {
   it('renders every tool link', () => {
     const html = at('/');
     for (const label of ['Quiz Mode', 'Daily Review', 'Interview Sim',
-                         'Code Playground', 'Bookmarks', 'Checkpoints']) {
+                         'JavaScript Playground', 'React Playground', 'Bookmarks', 'Checkpoints']) {
       expect(html).toContain(label);
     }
   });

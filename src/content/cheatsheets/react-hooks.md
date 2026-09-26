@@ -34,8 +34,14 @@ dispatch({ type: 'INCREMENT' });
 
 ## useContext
 ```jsx
-const ThemeCtx = createContext('light');
-const theme = useContext(ThemeCtx);
+const ThemeCtx = createContext('light');     // 'light' = value when no provider is above
+
+function Label() {
+  const theme = useContext(ThemeCtx);        // reads the nearest provider's value
+  return <p>theme: {theme}</p>;
+}
+
+render(<ThemeCtx value="dark"><Label /></ThemeCtx>);  // React 19: <Ctx> is the provider
 ```
 
 ## Custom Hook Pattern
@@ -80,12 +86,28 @@ const width = useSyncExternalStore(subscribe, () => window.innerWidth, () => 0);
 
 ## Layout, Refs & Debug
 ```jsx
-useLayoutEffect(() => { /* … */ }, [dep]);   // fires BEFORE paint — measuring only
-useImperativeHandle(ref, () => ({ focus: () => inputRef.current.focus() }), []);
-useDebugValue(value);                    // label for React DevTools
-
 // React 19: ref as a normal prop — no forwardRef needed
-function Input({ ref, ...props }) { return <input ref={ref} {...props} />; }
+function Input({ ref, ...props }) {
+  const inputRef = useRef(null);
+  // expose a narrow API to the parent instead of the raw DOM node
+  useImperativeHandle(ref, () => ({ focus: () => inputRef.current.focus() }), []);
+  // fires BEFORE paint — for measuring layout only
+  useLayoutEffect(() => { console.log('width:', inputRef.current.offsetWidth); }, []);
+  return <input ref={inputRef} {...props} />;
+}
+
+function useLabel(value) {
+  useDebugValue(value);                      // label for React DevTools (custom hooks only)
+  return value;
+}
+
+function Demo() {
+  const ref = useRef(null);
+  const label = useLabel('Name');
+  return <>{label}: <Input ref={ref} /> <button onClick={() => ref.current.focus()}>Focus</button></>;
+}
+
+render(<Demo />);
 ```
 
 ## Form & Action Hooks (React 19)
@@ -154,12 +176,12 @@ function usePrevious(value) {
 
 ## Gotchas
 - **Stale closures:** an effect or callback captures the values from its render. Missing deps means reading old values — use a functional update (`setX(p => ...)`) or `useEffectEvent`.
-- `useState` is **async-ish**: reading the variable right after setting it gives the old value.
-- Passing an object to `useState`/`useMemo` deps re-runs every render — `{}` !== `{}`.
+- `useState` values are a **snapshot per render**: `setX` schedules a re-render, it does not change `x` in the code that is already running, so reading `x` right after setting it gives the old value.
+- An object literal in a `useEffect`/`useMemo`/`useCallback` dependency array re-runs it every render — `{}` !== `{}`.
 - `useRef` mutations **do not trigger a re-render**; never store rendered data in a ref.
 - **StrictMode double-invokes** effects and renders in development to surface missing cleanup. It is not a bug.
 - `useCallback(fn, deps)` is exactly `useMemo(() => fn, deps)` — and memoizing without a `React.memo` child usually costs more than it saves.
 - `useLayoutEffect` blocks paint; it warns during SSR. Use `useEffect` unless you must measure before paint.
-- `useFormStatus` reads the **nearest parent** `<form>` — it returns nothing if called in the component rendering the form.
+- `useFormStatus` reads the **nearest parent** `<form>` — called in the component that renders the form, it never sees that form and `pending` stays `false`.
 - Calling hooks conditionally breaks the call-order invariant — that's why the lint rule is not optional.
 - Cleanup runs **before every re-run**, not just on unmount.

@@ -1,6 +1,6 @@
 # Ansible — Interview Guide
 
-Ansible is **agentless configuration management**: a control node connects over SSH (or WinRM), pushes small programs to the target, runs them, and removes them. There is nothing to install on the managed hosts beyond Python and SSH access.
+Ansible is **agentless configuration management**: a control node connects over SSH (or WinRM, Windows' built-in remote-management protocol), pushes small programs to the target, runs them, and removes them. There is nothing to install on the managed hosts beyond Python and SSH access.
 
 The concept everything hangs on is **idempotence** (§4) — and the most common real-world mistake is writing playbooks that aren't (§5).
 
@@ -43,7 +43,7 @@ Pairs with [Terraform](/devops/terraform): Terraform provisions infrastructure, 
 **Agentless and push-based.** Ansible copies a module (a small Python program) to the target, executes it, collects JSON output, and deletes it. Consequences:
 
 - **Nothing to install or patch on managed hosts** — a major operational advantage over Puppet/Chef agents.
-- **No continuous enforcement.** Config only converges when you *run* a playbook. Puppet's agent re-applies on a timer; Ansible does not, so drift persists between runs unless you schedule them (or use AWX/Ansible Automation Platform).
+- **No continuous enforcement.** Config only *converges* — gets brought back to what the playbook describes — when you *run* a playbook. Puppet's agent re-applies on a timer; Ansible does not, so *drift* (someone hand-editing a server so it no longer matches) persists between runs unless you schedule them (or use AWX/Ansible Automation Platform, a server with a web UI that stores, schedules and runs playbooks for you).
 - **The control node needs network reach and credentials** to every host, which makes it a high-value target.
 - Scale is bounded by SSH fan-out from one node (§14), not by an agent fleet.
 
@@ -529,43 +529,83 @@ And in a container world, much of Ansible's traditional job disappears: an immut
 
 **Q1: How does Ansible work, and what does "agentless" buy and cost you?**
 
-A control node connects to targets over SSH (or WinRM for Windows), copies a small module program, executes it, collects JSON output and deletes it — so managed hosts need only Python and SSH access. What that buys: **nothing to install, patch or monitor on the fleet**, which removes an entire operational surface compared with Puppet or Chef agents, and makes adoption on existing servers trivial. What it costs: **no continuous enforcement**, because configuration only converges when someone runs a playbook, so drift persists between runs unless you schedule them or use AWX; the control node needs credentials and network reach to everything, making it a high-value target; and scale is bounded by SSH fan-out from one machine rather than by an agent fleet. Ansible is also **stateless** — it records nothing between runs and reads live host state each time, which is why there's no `plan`/`apply` split.
+A control node connects to targets over SSH (or WinRM for Windows), copies a small module program, executes it, collects JSON output and deletes it — so managed hosts need only Python and SSH access.
+
+What that buys: **nothing to install, patch or monitor on the fleet**, which removes an entire operational surface compared with Puppet or Chef agents, and makes adoption on existing servers trivial.
+
+What it costs: **no continuous enforcement**, because configuration only converges when someone runs a playbook, so drift persists between runs unless you schedule them or use AWX; the control node needs credentials and network reach to everything, making it a high-value target; and scale is bounded by SSH fan-out from one machine rather than by an agent fleet.
+
+Ansible is also **stateless** — it records nothing between runs and reads live host state each time, which is why there's no `plan`/`apply` split.
 
 **Q2: What is idempotence and how does Ansible achieve it?**
 
-Idempotence means running the playbook repeatedly is safe: after the first convergent run, further runs change nothing and report `changed=0`. Ansible achieves it because modules take **desired state** and check before acting — `apt: state=present` inspects whether the package is installed and only installs if it isn't — which is also why every task reports `ok` versus `changed`. The things that quietly break it are worth naming: **`shell`/`command`** can't know whether the change is needed, so they run every time and always report `changed`; **`lineinfile`** with a loose regex can match different lines on successive runs; and anything writing a timestamp or freshly generated value into a managed file reports `changed` forever and, if it notifies a handler, restarts services on every run. I'd also flag **`state: latest`** as technically idempotent but non-deterministic, which is worse in production.
+Idempotence means running the playbook repeatedly is safe: after the first convergent run, further runs change nothing and report `changed=0`. Ansible achieves it because modules take **desired state** and check before acting — `apt: state=present` inspects whether the package is installed and only installs if it isn't — which is also why every task reports `ok` versus `changed`.
+
+The things that quietly break it are worth naming: **`shell`/`command`** can't know whether the change is needed, so they run every time and always report `changed`; **`lineinfile`** with a loose regex can match different lines on successive runs; and anything writing a timestamp or freshly generated value into a managed file reports `changed` forever and, if it notifies a handler, restarts services on every run. I'd also flag **`state: latest`** as technically idempotent but non-deterministic, which is worse in production.
 
 **Q3: Why prefer modules over `shell` and `command`, and how do you make a shell task well-behaved?**
 
-Modules are idempotent, report `changed` accurately, work in `--check` mode and return structured data; `shell` and `command` do none of that, so they execute unconditionally, always report `changed` — which breaks handlers by triggering restarts every run — and make check mode meaningless. When shelling out is genuinely necessary, make it honest: use **`creates`** or `removes` so it skips when the work is already done, **`changed_when`** to report truthfully based on return code or output, **`failed_when`** to define real failure, and `check_mode: false` if it's safe to skip during a dry run. Also prefer `command` over `shell`: `command` doesn't invoke a shell, so there are no pipes, globs or redirects and therefore no shell-injection risk — reach for `shell` only when you actually need shell features.
+Modules are idempotent, report `changed` accurately, work in `--check` mode and return structured data; `shell` and `command` do none of that, so they execute unconditionally, always report `changed` — which breaks handlers by triggering restarts every run — and make check mode meaningless.
+
+When shelling out is genuinely necessary, make it honest: use **`creates`** or `removes` so it skips when the work is already done, **`changed_when`** to report truthfully based on return code or output, **`failed_when`** to define real failure, and `check_mode: false` if it's safe to skip during a dry run.
+
+Also prefer `command` over `shell`: `command` doesn't invoke a shell, so there are no pipes, globs or redirects and therefore no shell-injection risk — reach for `shell` only when you actually need shell features.
 
 **Q4: Explain handlers, and the two ways they surprise people.**
 
-A handler is a task that runs **once at the end of the play**, only if notified, and only if the notifying task actually reported `changed`. That means ten tasks all touching nginx configuration produce a single restart instead of ten, which is exactly what you want. The first surprise is that handlers are matched **by name**, so a typo in `notify` silently does nothing at all — no error, no restart, and a service left running stale config. The second is that if a **later task in the play fails, pending handlers never run**, so a config change is written to disk but the service is never restarted, leaving the host in a half-applied state; `--force-handlers` or an explicit `meta: flush_handlers` at a chosen point addresses that. Worth adding that handlers can notify other handlers, and `listen:` lets several handlers subscribe to one topic.
+A handler is a task that runs **once at the end of the play**, only if notified, and only if the notifying task actually reported `changed`. That means ten tasks all touching nginx configuration produce a single restart instead of ten, which is exactly what you want.
+
+The first surprise is that handlers are matched **by name**, so a typo in `notify` silently does nothing at all — no error, no restart, and a service left running stale config. The second is that if a **later task in the play fails, pending handlers never run**, so a config change is written to disk but the service is never restarted, leaving the host in a half-applied state; `--force-handlers` or an explicit `meta: flush_handlers` at a chosen point addresses that.
+
+Worth adding that handlers can notify other handlers, and `listen:` lets several handlers subscribe to one topic.
 
 **Q5: How does variable precedence work, and where should defaults live?**
 
-There are 22 levels; the ones that matter, lowest to highest, are role `defaults/` → inventory `group_vars/all` → `group_vars/<group>` → `host_vars/<host>` → play vars → role `vars/` → task vars → `set_fact`/`include_vars` → **extra vars (`-e`)**, which always wins. The practical rule is that **`defaults/main.yml` is for values consumers are meant to override** — it's deliberately the lowest precedence — while `vars/main.yml` is for values internal to the role, and because it outranks inventory it's hard to override, so use it sparingly. `-e` beating everything makes it ideal for a one-off (`-e app_version=1.2.3`) and a bad habit in scripts, because it obscures where a value came from. When a value is unexpectedly wrong, `ansible-inventory --host <h>` and a `debug` task show what actually resolved.
+There are 22 levels; the ones that matter, lowest to highest, are role `defaults/` → inventory `group_vars/all` → `group_vars/<group>` → `host_vars/<host>` → play vars → role `vars/` → task vars → `set_fact`/`include_vars` → **extra vars (`-e`)**, which always wins.
+
+The practical rule is that **`defaults/main.yml` is for values consumers are meant to override** — it's deliberately the lowest precedence — while `vars/main.yml` is for values internal to the role, and because it outranks inventory it's hard to override, so use it sparingly. `-e` beating everything makes it ideal for a one-off (`-e app_version=1.2.3`) and a bad habit in scripts, because it obscures where a value came from.
+
+When a value is unexpectedly wrong, `ansible-inventory --host <h>` and a `debug` task show what actually resolved.
 
 **Q6: How do you manage secrets in Ansible?**
 
-With **Ansible Vault**, which encrypts files or individual strings with AES256 so they can live in git. The convention that makes it usable in practice is to keep encrypted values in a separate `vault.yml` with prefixed names — `vault_db_password` — and reference them from a plaintext `vars.yml` as `db_password: "{{ vault_db_password }}"`. The reason is code review: an encrypted file is an opaque blob, so you cannot see which variables changed, whereas this split keeps the structure reviewable and only the values encrypted. Use **separate vault IDs** for staging and production so one key doesn't unlock everything, never commit the vault password, and use `--vault-password-file` or an external secret manager in CI. Two limits to state: Vault protects **at rest only** — the secret still reaches the host — and any task handling it should carry `no_log: true`, or the value can appear in output and callback plugins.
+With **Ansible Vault**, which encrypts files or individual strings with AES256 so they can live in git. The convention that makes it usable in practice is to keep encrypted values in a separate `vault.yml` with prefixed names — `vault_db_password` — and reference them from a plaintext `vars.yml` as `db_password: "{{ vault_db_password }}"`. The reason is code review: an encrypted file is an opaque blob, so you cannot see which variables changed, whereas this split keeps the structure reviewable and only the values encrypted.
+
+Use **separate vault IDs** for staging and production so one key doesn't unlock everything, never commit the vault password, and use `--vault-password-file` or an external secret manager in CI.
+
+Two limits to state: Vault protects **at rest only** — the secret still reaches the host — and any task handling it should carry `no_log: true`, or the value can appear in output and callback plugins.
 
 **Q7: How do you roll out a change safely to a large fleet?**
 
-Layer the controls. Start with `--check --diff` for a dry run, then `--limit web-01` to prove it on a single canary, then a rolling wave with **`serial: 2`** (or a percentage) so only part of the fleet is touched at a time, with **`max_fail_percentage`** so a bad batch halts the play instead of marching through everything. Add readiness verification between batches — an `uri` task with `retries`/`until` against a health endpoint, or `wait_for` on a port — so you don't proceed past a host that came back broken. Use `validate:` on template tasks (`nginx -t -c %s`) so a syntactically invalid config is never installed. And be honest about `--check`'s limits: modules must implement it, `shell`/`command` are skipped, and results that depend on earlier real changes report inaccurately — so a clean check is reassurance, not proof.
+Layer the controls. Start with `--check --diff` for a dry run, then `--limit web-01` to prove it on a single canary, then a rolling wave with **`serial: 2`** (or a percentage) so only part of the fleet is touched at a time, with **`max_fail_percentage`** so a bad batch halts the play instead of marching through everything.
+
+Add readiness verification between batches — an `uri` task with `retries`/`until` against a health endpoint, or `wait_for` on a port — so you don't proceed past a host that came back broken. Use `validate:` on template tasks (`nginx -t -c %s`) so a syntactically invalid config is never installed.
+
+And be honest about `--check`'s limits: modules must implement it, `shell`/`command` are skipped, and results that depend on earlier real changes report inaccurately — so a clean check is reassurance, not proof.
 
 **Q8: How do you speed up a slow Ansible run?**
 
-Measure first with the `profile_tasks` callback, because the answer is usually one slow task or unnecessary fact gathering rather than Ansible itself. Then, in order of impact: raise **`forks`** from its default of 5, which is the single most common bottleneck on any sizeable inventory; enable **`pipelining`**, which removes an SSH round trip per task by not writing the module to a temp file; **cache facts** (`gathering = smart` plus `fact_caching`) or set `gather_facts: false` on plays that don't need them; and enable SSH `ControlPersist` for connection reuse. Beyond configuration, `strategy: free` lets each host progress independently instead of waiting for the slowest host at every task — appropriate for independent work, wrong when cross-host ordering matters. At a few thousand hosts a single control node's SSH fan-out becomes the ceiling, which is the point to adopt AWX with distributed execution nodes.
+Measure first with the `profile_tasks` callback, because the answer is usually one slow task or unnecessary fact gathering rather than Ansible itself.
+
+Then, in order of impact: raise **`forks`** from its default of 5, which is the single most common bottleneck on any sizeable inventory; enable **`pipelining`**, which removes an SSH round trip per task by not writing the module to a temp file; **cache facts** (`gathering = smart` plus `fact_caching`) or set `gather_facts: false` on plays that don't need them; and enable SSH `ControlPersist` for connection reuse.
+
+Beyond configuration, `strategy: free` lets each host progress independently instead of waiting for the slowest host at every task — appropriate for independent work, wrong when cross-host ordering matters. At a few thousand hosts a single control node's SSH fan-out becomes the ceiling, which is the point to adopt AWX with distributed execution nodes.
 
 **Q9: How do Ansible and Terraform fit together?**
 
-They solve adjacent problems and are complements. **Terraform provisions**: it is declarative, tracks state, builds a dependency graph, and knows how to destroy what it created — so it creates the VMs, networks, load balancers and managed databases. **Ansible configures**: it is procedural and stateless, connecting to hosts that already exist to install packages, template configuration files and restart services. The idiomatic pipeline is Terraform to create infrastructure, then Ansible (or a pre-baked image) to configure it, often driven by Ansible's dynamic inventory reading the cloud provider so it discovers whatever Terraform just built. I'd avoid the two anti-patterns: Terraform `provisioner` blocks for configuration, since they run only at create time, aren't tracked in state and taint the resource on failure; and using Ansible to create cloud infrastructure, which sacrifices the plan step, the dependency graph and clean teardown.
+They solve adjacent problems and are complements. **Terraform provisions**: it is declarative, tracks state, builds a dependency graph, and knows how to destroy what it created — so it creates the VMs, networks, load balancers and managed databases. **Ansible configures**: it is procedural and stateless, connecting to hosts that already exist to install packages, template configuration files and restart services.
+
+The idiomatic pipeline is Terraform to create infrastructure, then Ansible (or a pre-baked image) to configure it, often driven by Ansible's dynamic inventory reading the cloud provider so it discovers whatever Terraform just built.
+
+I'd avoid the two anti-patterns: Terraform `provisioner` blocks for configuration, since they run only at create time, aren't tracked in state and taint the resource on failure; and using Ansible to create cloud infrastructure, which sacrifices the plan step, the dependency graph and clean teardown.
 
 **Q10: Is Ansible still relevant with containers and Kubernetes?**
 
-Less than it was, and it's worth saying so directly. Immutable images built from a `Dockerfile` plus Kubernetes managing rollout replaces most traditional per-host configuration management: you no longer converge a long-lived server's state, you replace the whole artifact. Where Ansible remains genuinely useful is **provisioning the hosts underneath the cluster** (bootstrapping nodes, kernel and kubelet configuration), **network and appliance automation** where there is no container option — switches, routers, firewalls, load balancers all have Ansible collections — **legacy and on-premise fleets** that aren't containerised, and **orchestrating operational runbooks** such as patching waves, certificate rotation and controlled restarts. So the honest positioning is that Ansible has moved from "how you configure servers" to "how you automate the things that aren't containers", plus a very low-friction ad-hoc tool for fleet-wide operations.
+Less than it was, and it's worth saying so directly. Immutable images built from a `Dockerfile` plus Kubernetes managing rollout replaces most traditional per-host configuration management: you no longer converge a long-lived server's state, you replace the whole artifact.
+
+Where Ansible remains genuinely useful is **provisioning the hosts underneath the cluster** (bootstrapping nodes, kernel and kubelet configuration), **network and appliance automation** where there is no container option — switches, routers, firewalls, load balancers all have Ansible collections — **legacy and on-premise fleets** that aren't containerised, and **orchestrating operational runbooks** such as patching waves, certificate rotation and controlled restarts.
+
+So the honest positioning is that Ansible has moved from "how you configure servers" to "how you automate the things that aren't containers", plus a very low-friction ad-hoc tool for fleet-wide operations.
 
 ---
 
@@ -589,7 +629,7 @@ Less than it was, and it's worth saying so directly. Immutable images built from
 
 **Q5: You add a role to `roles:` and give it `when: install_nginx`, but the tasks run anyway on hosts where the variable is false. What's going on?**
 
-**`when` on a role in the `roles:` list is applied to each of the role's tasks individually, and any task that overrides or ignores the condition — or any `import_tasks` evaluated at parse time — can still execute.** More practically, the common version of this bug is the static-versus-dynamic distinction: `import_role` and `import_tasks` are processed at **parse** time, so tags and conditionals attach to the inner tasks rather than gating the inclusion, whereas `include_role`/`include_tasks` are resolved at **run** time and can genuinely be skipped or looped. So if you need a run-time condition or a loop around a whole role, use `include_role` with `when`, not `import_role`. Two related consequences worth knowing: you cannot `loop` over an `import_`, and tags behave differently between the two — `--tags` will match tasks inside an `import_` but the include itself must carry the tag for a dynamic include to be selected at all.
+**Short answer: a `when` on a role in `roles:` does not skip the role. The role is still loaded, and the condition is copied onto each task inside it, so each task decides separately — and any task that overrides or ignores the condition, or any `import_tasks` evaluated at parse time, can still execute.** (Also check the variable's type: if `install_nginx` is the string `"false"`, it is truthy — see Q3.) More practically, the common version of this bug is the static-versus-dynamic distinction: `import_role` and `import_tasks` are processed at **parse** time, so tags and conditionals attach to the inner tasks rather than gating the inclusion, whereas `include_role`/`include_tasks` are resolved at **run** time and can genuinely be skipped or looped. So if you need a run-time condition or a loop around a whole role, use `include_role` with `when`, not `import_role`. Two related consequences worth knowing: you cannot `loop` over an `import_`, and tags behave differently between the two — `--tags` will match tasks inside an `import_` but the include itself must carry the tag for a dynamic include to be selected at all.
 
 ---
 

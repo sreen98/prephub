@@ -29,7 +29,7 @@ Key characteristics:
 - **Non-blocking I/O** — async operations don't block the main thread
 - **V8 engine** — same engine that powers Chrome
 - **Cross-platform** — runs on Windows, macOS, Linux
-- **NPM** — largest package ecosystem in the world
+- **npm** — the package manager that ships with Node, and the registry most JavaScript libraries are published to
 
 ### When to use Node.js
 
@@ -42,13 +42,17 @@ Key characteristics:
 | CLI tools | |
 | Server-side rendering | |
 
+The split follows from one fact: all your JavaScript runs on **one thread**. That is cheap when the work is mostly *waiting* — for a database, a network call, a file — because Node hands the wait to the operating system and serves other requests meanwhile. It is expensive when the work is *computing*: while one request resizes an image or crunches numbers, that thread is busy and every other request waits behind it. (You can move heavy computation onto worker threads, §10.2, but then you are working against the default model rather than with it.)
+
 ---
 
 ## 2. Architecture
 
 ### 2.1 Event Loop
 
-The event loop is the core of Node.js. It allows non-blocking I/O despite JavaScript being single-threaded.
+The event loop is how one thread serves many requests at once. When your code starts a slow operation — reading a file, querying a database — Node hands it off (to the operating system or to libuv's thread pool, §2.2) and moves on instead of waiting. When the operation finishes, its callback is put in a queue, and the event loop is the loop that keeps picking the next ready callback and running it on the main thread.
+
+It goes round in fixed **phases**, each with its own queue: expired timers first, then I/O callbacks (the *poll* phase), then `setImmediate` callbacks (the *check* phase), then close handlers, and round again. The practical rule that follows: a callback that runs for a long time blocks the whole loop, so no other request makes progress until it returns.
 
 ```mermaid
 graph TD
@@ -105,6 +109,8 @@ console.log('6 - sync');
 // (setTimeout vs setImmediate order can vary outside I/O cycle)
 ```
 
+Why that order: synchronous code always finishes first (`1`, `6`). Then, before the event loop moves on, Node empties two priority queues — the `process.nextTick` queue first (`2`), then the Promise queue (`3`). Only then does the loop start its phases: timers (`4`) and later the check phase for `setImmediate` (`5`). Tricky Questions Q1–Q3 in §15 walk through each step, including why `4` and `5` can swap at the top level of a script.
+
 ---
 
 ## 3. Modules
@@ -151,7 +157,7 @@ import { readFile } from 'fs/promises';
 | Top-level await | No | Yes |
 | Tree-shaking | No | Yes |
 | `__dirname` / `__filename` | Available | Must use `import.meta.url` |
-| Default in Node | Yes (legacy) | Yes (modern, with `"type": "module"`) |
+| When Node uses it | `.cjs` files, and by default `.js` files when `package.json` has no `"type"` field | `.mjs` files, and `.js` files when `package.json` has `"type": "module"` (recent Node also runs a type-less `.js` file as ESM if it contains `import`/`export`) |
 
 ### 3.4 Built-in Modules
 
@@ -300,6 +306,8 @@ server.listen(3000, () => {
 
 ### 5.2 Handling Request Body
 
+Node does not hand you the request body as one value. It arrives over the network in pieces, so `req` is a readable stream (§6) and each piece is a Buffer of raw bytes. You collect the pieces, join them with `Buffer.concat`, and only then decode and parse. Converting each chunk to a string as it arrives is a bug: a multi-byte UTF-8 character can be split across two chunks. Frameworks such as Express do this collecting for you (`express.json()`), which is why you never see it there.
+
 ```js
 const server = http.createServer(async (req, res) => {
   if (req.method === 'POST') {
@@ -367,6 +375,8 @@ writable.on('finish', () => console.log('Done'));
 ```
 
 ### 6.3 Pipeline (Recommended over pipe)
+
+`pipe()` moves the data but not the failures: if one stream in a chain errors, the others are not closed, so you leak open file handles and have to attach an `'error'` listener to every stream yourself (as §6.2 does). `pipeline()` wires up the error handling for the whole chain, destroys every stream if any one fails, and gives you a single promise to `await` — so one `try`/`catch` covers the lot.
 
 ```js
 const { pipeline } = require('stream/promises');
@@ -502,11 +512,17 @@ process.stderr                             // writable stream
 
 ### 8.2 Signals and Graceful Shutdown
 
+A process manager or container orchestrator stops your server by sending `SIGTERM`; Ctrl+C in a terminal sends `SIGINT`. Handling them lets you finish in-flight requests and close connections before exiting, instead of cutting users off mid-request. Q15 walks through the full production version.
+
+The `uncaughtException` handler is different: it is a last chance to log, not a way to recover. The exception unwound the stack from somewhere unknown, so a half-finished operation may have left state inconsistent (a lock held, a counter half-updated). Carrying on means serving requests from a program you can no longer trust, so log and exit, and let the process manager start a clean one.
+
+Note that `server.close()` takes a callback and does not return a promise, so `await server.close()` would not wait for anything; wrap it in a `Promise` as below.
+
 ```js
 // Handle SIGTERM (from kill command or container orchestrator)
 process.on('SIGTERM', async () => {
   console.log('Received SIGTERM. Shutting down gracefully...');
-  await server.close();
+  await new Promise((resolve) => server.close(resolve)); // close() takes a callback, not a promise
   await database.disconnect();
   process.exit(0);
 });
@@ -526,6 +542,7 @@ process.on('uncaughtException', (err) => {
 // Unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled rejection:', reason);
+  process.exit(1);                         // registering this handler turns off Node's default crash
 });
 ```
 
@@ -533,7 +550,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 ## 9. Buffers
 
-Buffers handle raw binary data (before strings, after network/file I/O).
+A Buffer is a fixed-size block of raw bytes. Files and network sockets deliver bytes, not text, so that is what Node gives you first; it only becomes a string when you decode it with an encoding such as UTF-8. You work with the Buffer directly when the data is not text at all (an image, a zip file) or when you need to count or slice bytes rather than characters.
 
 ```js
 // Creating buffers
@@ -791,6 +808,8 @@ app.get('/fib/:n', (req, res) => {
 
 ### 13.2 Use Clustering
 
+This runs one server process per CPU core and replaces any worker that dies. Q9 explains why it helps (one Node process uses one core for JavaScript) and what it does not fix (a CPU-heavy request still blocks its worker, and in-memory state is not shared between workers).
+
 ```js
 const cluster = require('cluster');
 const os = require('os');
@@ -812,6 +831,8 @@ if (cluster.isPrimary) {
 ```
 
 ### 13.3 Memory Management
+
+Log `heapUsed` periodically and watch the low points: a healthy heap rises and falls back after each garbage collection, while a leak keeps raising the floor. Raising `--max-old-space-size` gives the heap more room, which helps a process that genuinely needs more memory but only delays the crash of one that leaks. Q11 explains how V8 collects memory, and Q13 walks through finding a leak with heap snapshots.
 
 ```js
 // Monitor memory
@@ -1015,9 +1036,11 @@ No, Node.js is not a programming language. It's a **runtime environment** that a
 
 **Q2: What is the event loop?**
 
-The event loop is the mechanism that allows Node.js to perform non-blocking I/O operations despite JavaScript being single-threaded. It continuously checks for pending callbacks and executes them when the call stack is empty.
+**Short answer:** it is the loop that lets one JavaScript thread handle many requests. Slow work (disk, network) is handed off, and when it finishes its callback is queued; the event loop runs queued callbacks one at a time whenever the call stack is empty.
 
 The loop has phases: timers -> pending callbacks -> poll (I/O) -> check (setImmediate) -> close callbacks. Between each phase, microtasks (process.nextTick, Promise callbacks) are processed.
+
+The consequence to volunteer: because callbacks run one at a time on one thread, a slow synchronous callback (a big `JSON.parse`, a CPU-heavy loop, `readFileSync`) stalls every other request until it returns. "Don't block the event loop" (§13.1) is the whole performance model of Node in one sentence.
 
 ---
 
@@ -1036,6 +1059,8 @@ const express = require('express');
 import express from 'express';
 ```
 
+"Static" is the difference that matters. An `import` must sit at the top level with a fixed string, so tools can see the whole dependency graph without running the code — which is what lets a bundler drop exports nobody uses (tree-shaking). A `require` is an ordinary function call that can appear inside an `if` or take a computed path, so nothing can be known about it until it runs.
+
 ESM is the modern standard. Use `"type": "module"` in package.json or `.mjs` extension.
 
 ---
@@ -1051,7 +1076,7 @@ process.nextTick(() => console.log('nextTick'));
 // Output: nextTick, immediate
 ```
 
-`process.nextTick` has higher priority. Overusing it can starve I/O.
+`process.nextTick` has higher priority. Overusing it can starve I/O: Node empties the whole nextTick queue before the event loop is allowed to move on, including ticks added while it is emptying it, so a callback that keeps scheduling another `nextTick` stops timers and I/O from ever running (tricky Q4 in §15 shows this). The names are backwards from what they suggest — `nextTick` runs sooner than `setImmediate`.
 
 ---
 
@@ -1064,7 +1089,7 @@ Streams are objects for handling reading/writing data continuously, chunk by chu
 3. **Duplex** — both (TCP socket)
 4. **Transform** — modifies data passing through (compression)
 
-Streams are essential for processing large files, HTTP responses, and real-time data without consuming excessive memory.
+Why it matters: memory use stays at roughly one chunk no matter how big the data is, so a server can send a 5 GB file without holding 5 GB in memory, and the first bytes reach the client before the last ones are read. Piping streams together with `pipeline` (§6.3) also handles backpressure, pausing a fast source when the destination cannot keep up (see Q17).
 
 ---
 
@@ -1105,6 +1130,8 @@ spawn('ls', ['-la']);                            // no shell, streamed
 fork('./worker.js');                             // Node.js process with IPC
 ```
 
+The shell is the column to look at. `exec` passes the whole command string to a shell, so if any part of it comes from user input, a value like `file.txt; rm -rf /` runs a second command (shell injection). `execFile` and `spawn` take the program and its arguments separately and run it without a shell, so an argument can never become a command. Buffered versus streamed matters for size: `exec` holds all output in memory and fails if it exceeds a size limit, while `spawn` hands it to you chunk by chunk. IPC (inter-process communication) in `fork` means parent and child can send each other messages with `.send()`.
+
 ---
 
 **Q8: How would you handle uncaught exceptions and unhandled promise rejections?**
@@ -1119,9 +1146,11 @@ process.on('uncaughtException', (err) => {
 // Unhandled rejections
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled rejection:', reason);
-  // In newer Node.js versions, this also crashes by default
+  process.exit(1);  // registering this handler turns off the default crash
 });
 ```
+
+Since Node 15, an unhandled rejection crashes the process by default. That default applies only when no `unhandledRejection` listener exists: registering one, as above, replaces the crash, so the process keeps running unless the handler exits itself. Exit for the same reason as with `uncaughtException`: you do not know what state the failed operation left behind.
 
 Best practice: Use a process manager (PM2, systemd) that auto-restarts on crash. Always handle errors at the source — these handlers are last resort.
 
@@ -1129,7 +1158,7 @@ Best practice: Use a process manager (PM2, systemd) that auto-restarts on crash.
 
 **Q9: What is the `cluster` module?**
 
-The cluster module allows running multiple instances of the same Node.js server, sharing the same port. The primary process forks worker processes (one per CPU core), and the OS load-balances connections across workers.
+The cluster module runs several copies of the same Node.js server, all listening on the same port. The primary process forks worker processes (usually one per CPU core) and spreads incoming connections across them — by default the primary hands them out in turn (round-robin), except on Windows, where the operating system decides.
 
 ```js
 if (cluster.isPrimary) {
@@ -1139,7 +1168,7 @@ if (cluster.isPrimary) {
 }
 ```
 
-This overcomes Node.js's single-threaded limitation for CPU-bound work and provides better utilization of multi-core systems.
+Why it helps: one Node process uses one CPU core for JavaScript, so on an 8-core machine a single process leaves seven idle. Eight workers use all eight. Be precise about what it does *not* fix — a CPU-heavy request still blocks the worker it lands on; you just have more workers. Workers are separate processes with separate memory, so in-memory state such as sessions or caches is not shared between them and has to live somewhere external (Redis, a database). In containers the same job is often done by running more replicas instead.
 
 ---
 
@@ -1160,7 +1189,7 @@ emoji.length;       // 6 bytes (emoji is 4 bytes in UTF-8)
 'Hi'.length;       // 3 characters (emoji counts as 2 in JS)
 ```
 
-Buffers are essential when working with binary protocols, file I/O, and streams.
+The point the example makes: a Buffer's `length` counts **bytes**, a string's `length` counts **UTF-16 code units** (roughly characters, but an emoji takes two). The two agree only for plain ASCII text. So when a limit is in bytes — a `Content-Length` header, a database column size, a protocol field — measure the Buffer (or use `Buffer.byteLength(str)`), not the string.
 
 ---
 
@@ -1170,15 +1199,17 @@ Buffers are essential when working with binary protocols, file I/O, and streams.
 
 **Q11: How does the V8 engine manage memory? Explain garbage collection.**
 
+**Short answer:** V8 frees memory automatically by finding objects that nothing can reach any more. It splits the heap by object age because most objects die young — a request's temporary objects are garbage milliseconds later — so checking new objects often and old objects rarely wastes the least effort.
+
 V8 divides the heap into generations:
 
-1. **Young generation** (new space): Short-lived objects. Collected frequently with **Scavenge** (semi-space copying GC). Fast (~1-2ms).
+1. **Young generation** (new space): Short-lived objects. Collected frequently with **Scavenge**: the space is split in two halves, surviving objects are copied into the empty half, and everything left behind is garbage. The cost depends only on how many objects *survive*, which is usually few, so it is fast (~1-2ms).
 
-2. **Old generation** (old space): Objects that survived multiple young-gen collections. Collected with **Mark-Sweep-Compact** (less frequently, more expensive).
+2. **Old generation** (old space): Objects that survived multiple young-gen collections. Collected with **Mark-Sweep-Compact**: mark everything reachable from the roots (globals, the stack), sweep away the rest, and occasionally compact survivors together to remove gaps. This walks the whole old space, so it runs less often and costs more.
 
 3. **Large object space**: Objects larger than a threshold. Never moved by GC.
 
-V8 uses **incremental marking** and **concurrent sweeping** to minimize GC pauses. You can tune with flags:
+A GC pause stops your JavaScript, and in a server that means every in-flight request waits. So V8 uses **incremental marking** (doing the marking in small slices between chunks of your code) and **concurrent sweeping** (doing the sweep on background threads) to keep those pauses short. You can tune with flags:
 ```bash
 node --max-old-space-size=4096 app.js    # 4GB heap
 node --expose-gc app.js                   # expose global.gc()
@@ -1188,7 +1219,9 @@ node --expose-gc app.js                   # expose global.gc()
 
 **Q12: What are Worker Threads? When would you use them over child processes?**
 
-Worker threads run JavaScript in parallel threads within the same process, sharing memory via `SharedArrayBuffer`.
+**Short answer:** worker threads run JavaScript in parallel inside the same process, so they are the tool for CPU-heavy JavaScript; child processes run a separate program with its own memory, so they are the tool for isolation and for running things that aren't your JavaScript.
+
+Each worker has its own V8 instance and its own event loop, so by default nothing is shared — you pass data with `postMessage`, which copies it. The exceptions are that an `ArrayBuffer` can be *transferred* (moved to the worker without a copy) and a `SharedArrayBuffer` can be genuinely shared by both threads. A child process can do neither: it is a whole separate program, so starting one costs more, and everything you send it is serialized over IPC (inter-process communication).
 
 Use worker threads when:
 - CPU-intensive computation (parsing, compression, number crunching)
@@ -1205,7 +1238,7 @@ Use child processes when:
 const { Worker } = require('worker_threads');
 const worker = new Worker('./compute.js');
 
-// Transferable objects (zero-copy)
+// Shared memory: both threads see the same bytes, nothing is copied
 const buffer = new SharedArrayBuffer(1024);
 worker.postMessage({ buffer });
 ```
@@ -1214,30 +1247,33 @@ worker.postMessage({ buffer });
 
 **Q13: How would you debug a memory leak in a Node.js application?**
 
-1. **Detect**: Monitor `process.memoryUsage().heapUsed` over time. If it grows continuously, there's a leak.
+**Short answer:** confirm the heap keeps growing, take a heap snapshot, exercise the suspect code path, take another, and compare the two to see which objects accumulated and what is still holding a reference to them. A leak in a garbage-collected language is never "memory nobody freed" — it is memory something still points to, so the goal is to find that something.
+
+1. **Detect**: Monitor `process.memoryUsage().heapUsed` over time. Normal usage is a sawtooth — it rises and drops back after each collection. If the low points keep climbing, there's a leak.
 
 2. **Heap snapshots**: Use `--inspect` flag and Chrome DevTools:
    ```bash
    node --inspect app.js
    # Open chrome://inspect, take heap snapshots, compare
    ```
+   In the comparison view, sort by objects added between the two snapshots, pick a type that grew, and look at its **retainers** — the chain of references keeping it alive. The top of that chain is usually your bug.
 
-3. **Programmatic**: Use `v8.writeHeapSnapshot()` or `heapdump` module to capture snapshots at specific times.
+3. **Programmatic**: Use the built-in `v8.writeHeapSnapshot()` to capture a snapshot at a chosen moment, or start Node with `--heapsnapshot-near-heap-limit=N` to have it write one automatically as the heap nears its limit. The older `heapdump` package did the same job before this was built in.
 
 4. **Common causes**:
    - Global variables accumulating data
    - Event listeners not removed
    - Closures holding references to large objects
-   - Caches without eviction (use LRU cache)
-   - Circular references in complex object graphs
+   - Caches without eviction (use an LRU — least-recently-used — cache that drops the oldest entries past a size limit)
+   - Not a cause, despite the folklore: circular references. V8's collector marks what is reachable from the roots, so a cycle that nothing outside points to is collected like anything else.
 
-5. **Tools**: Chrome DevTools (heap profiler), `clinic.js` (flamegraphs), `memwatch-next`.
+5. **Tools**: Chrome DevTools (heap profiler), `clinic.js` (flamegraphs). You may see `memwatch-next` recommended in older articles; it has not had a release since 2016.
 
 ---
 
 **Q14: Explain the N-API and native addons.**
 
-N-API (Node-API) is a stable C/C++ API for building native Node.js addons. It's ABI-stable — addons compiled for one Node.js version work on future versions without recompilation.
+A native addon is a module written in C or C++ and compiled to machine code, which your JavaScript loads with `require` like any other module. N-API (Node-API) is the stable C/C++ interface for writing them. Its selling point is that it is ABI-stable (ABI: application binary interface, the contract compiled code relies on) — addons compiled for one Node.js version work on future versions without recompilation. Addons written directly against V8's internals had to be rebuilt for every Node major version, which is why upgrading Node used to break `npm install` for packages with native code.
 
 Use cases:
 - Performance-critical code (image processing, cryptography)
@@ -1257,6 +1293,8 @@ Napi::Number Add(const Napi::CallbackInfo& info) {
 ---
 
 **Q15: How would you implement graceful shutdown in a production Node.js server?**
+
+**Short answer:** when the process is told to stop, finish what you started before exiting — stop taking new requests, let in-flight ones complete, close connections cleanly, and give up after a deadline. The trigger is `SIGTERM`, the signal a deploy or an orchestrator such as Kubernetes sends before replacing a process; if the process is still running after a grace period it is killed outright (Kubernetes' default grace period is 30 seconds). Exiting immediately on `SIGTERM` drops every request that was halfway through, which users see as random errors on every deploy.
 
 ```js
 const server = app.listen(3000);
@@ -1299,13 +1337,13 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 ```
 
-Key points: stop accepting connections, drain in-flight requests, close external resources, set a hard timeout.
+Key points: stop accepting connections, drain in-flight requests, close external resources, set a hard timeout. The order matters — close the database only after requests finish, or the draining requests fail on their last query. The hard timeout exists because one hung request would otherwise keep the process alive until it is killed anyway, skipping your cleanup.
 
 ---
 
 **Q16: Explain event-driven architecture patterns in Node.js.**
 
-Node.js naturally supports event-driven patterns:
+**Short answer:** instead of one component calling the next directly ("create the order, then send the email, then update inventory"), it announces that something happened ("order created") and whoever cares reacts. The code that raises the event doesn't need to know who is listening, so you can add a new reaction without touching it. The patterns below differ in how far the event travels — within one process, across services, or into storage.
 
 1. **Observer pattern** (EventEmitter): Components publish/subscribe to events
    ```js
@@ -1321,11 +1359,11 @@ Node.js naturally supports event-driven patterns:
    redis.subscribe('orders', (msg) => processOrder(JSON.parse(msg)));
    ```
 
-3. **Event sourcing**: Store state changes as events, rebuild state by replaying
+3. **Event sourcing**: Instead of storing the current state (a balance of 70), store the events that produced it (deposited 100, withdrew 30) and rebuild the state by replaying them. You get a full audit history for free and can answer "what was the state last Tuesday?"; the cost is that reads need a replay or a precomputed snapshot, and changing an event's shape later is hard because old events are permanent.
 
-4. **CQRS**: Separate read/write models, connected by events
+4. **CQRS** (Command Query Responsibility Segregation): use one model for writes and a separate one, shaped for fast queries, for reads, and keep the read side updated from the events the write side emits. It pays off when reads and writes have very different needs; the price is that the read side lags slightly behind (eventual consistency).
 
-These patterns enable loose coupling, scalability, and resilience in microservices architectures.
+What to say about the trade-off: decoupling is the benefit, and the cost is that the flow is no longer visible in one place. Nobody can read "what happens when an order is created" top to bottom, and an event with no listener fails silently. Remember too that `EventEmitter` runs listeners synchronously in the same process (tricky Q7) — it decouples code, not timing — while a message broker adds real asynchrony and durability.
 
 ---
 
@@ -1360,7 +1398,9 @@ readable.on('data', (chunk) => {
 
 **Q18: How does `libuv` work under the hood?**
 
-libuv is the C library that provides Node.js's event loop and async I/O:
+**Short answer:** libuv is the C library underneath Node that runs the event loop and does the waiting. Network I/O goes to the operating system's own async APIs, so it needs no threads; work the OS cannot do asynchronously (file system, `dns.lookup`, some crypto) runs on a small thread pool.
+
+In more detail:
 
 1. **Event loop**: Implements the main loop with its phases (timers, I/O poll, check, close)
 2. **Thread pool**: Default 4 threads (configurable via `UV_THREADPOOL_SIZE`) for:
@@ -1496,6 +1536,8 @@ console.log("5");
 
 First, the synchronous top-level script runs to completion: `"1"` prints, the timer is registered in the timer phase's queue, the resolved promise's `.then` callback is queued in the **microtask queue**, the `nextTick` callback is queued in the **nextTick queue**, and `"5"` prints. Once the script stack is empty, Node drains its two special queues **before** entering any event loop phase. The rule is: **nextTick queue drains first, then the microtask queue, then we enter the event loop**. So `"4"` (nextTick) prints before `"3"` (Promise microtask). Only after both special queues are empty does the loop enter its first iteration. It hits the timer phase, finds the due 0 ms timer, and prints `"2"`. The nextTick queue is a Node-specific construct that sits *outside* the event loop phases; the microtask queue is the V8 promise queue. Both are drained between every transition — but nextTick always wins when both are populated simultaneously.
 
+One caveat worth knowing: this is the output of a **CommonJS** script (`node file.js` with no `"type": "module"`). Save the same code as `file.mjs` and it prints `1 5 3 4 2` — an ES module is evaluated from inside a promise job, so the microtask queue is drained before control returns to Node's nextTick processing, and `3` jumps ahead of `4`. The same flip applies to Q5 (`D` before `E` under ESM).
+
 **Takeaway:** `process.nextTick` > Promise microtasks > any event loop phase (timers, I/O, setImmediate). The two "out-of-loop" queues drain completely between phases, with nextTick draining first.
 
 ---
@@ -1551,7 +1593,7 @@ C
 
 **Explanation:**
 
-Three logical things are happening here. First, the synchronous script queues three timers, one promise microtask, and one nextTick callback, then returns. Second, Node drains the nextTick queue — `"E"` prints. Third, Node drains the microtask queue — `"D"` prints. Now the event loop enters its first iteration and hits the timer phase. Internally, Node stores timers in a min-heap keyed by expiration time, but **all three timers share the same expiration (1 ms clamped)**, so they're grouped into a single linked list in **insertion order**. When the phase runs, it walks the list and fires them in the order they were scheduled: `"A"`, `"B"`, `"C"`. Crucially, Node does **not** re-drain microtasks or nextTicks between sibling callbacks in the **same timer phase** on older Node versions, but since Node 11 it does — though here that doesn't matter because we have no new microtasks being scheduled. FIFO for same-delay timers is a documented behavior of the timer phase, making this ordering reliable.
+Three logical things are happening here. First, the synchronous script queues three timers, one promise microtask, and one nextTick callback, then returns. Second, Node drains the nextTick queue — `"E"` prints. Third, Node drains the microtask queue — `"D"` prints. Now the event loop enters its first iteration and hits the timer phase. Internally, Node stores timers in a min-heap keyed by expiration time, but **all three timers share the same expiration (1 ms clamped)**, so they're grouped into a single linked list in **insertion order**. When the phase runs, it walks the list and fires them in the order they were scheduled: `"A"`, `"B"`, `"C"`. One version detail: since Node 11, Node drains the nextTick and microtask queues after *each* timer callback, not just at the end of the phase (older versions waited until the whole phase finished). It makes no difference here because none of `A`, `B` or `C` schedules new microtasks. FIFO for same-delay timers is a documented behavior of the timer phase, making this ordering reliable.
 
 **Takeaway:** nextTick → microtasks → timer phase (which fires same-delay timers in FIFO scheduling order).
 
@@ -1619,7 +1661,7 @@ after
 
 **Explanation:**
 
-Many developers assume that everything "event-driven" in Node is asynchronous, but `EventEmitter` is the opposite: it's a purely synchronous pub/sub implementation. When you call `emit('data')`, the emitter looks up its internal listener array for the `'data'` event and **invokes each listener in order on the current call stack**, via a plain function call. No microtask, no nextTick, no event loop involvement. That's why `"before"` prints, then `emit()` synchronously calls the listener which prints `"listener"`, then control returns to the caller and `"after"` prints — all in a single synchronous flow. This has important consequences: errors thrown inside a listener propagate back up to the `emit()` call site (so they can be caught with `try/catch` around `emit`), listeners block the emitting code until they return, and if you need async behavior you must explicitly schedule it inside the listener (e.g. wrap the body in `setImmediate` or `queueMicrotask`). The only exception is `'error'` events with no listener — those throw synchronously too, but many native emitters like streams emit `'error'` asynchronously via `process.nextTick` to give code time to attach a handler.
+Many developers assume that everything "event-driven" in Node is asynchronous, but `EventEmitter` is the opposite: it's a purely synchronous pub/sub implementation. When you call `emit('data')`, the emitter looks up its internal listener array for the `'data'` event and **invokes each listener in order on the current call stack**, via a plain function call. No microtask, no nextTick, no event loop involvement. That's why `"before"` prints, then `emit()` synchronously calls the listener which prints `"listener"`, then control returns to the caller and `"after"` prints — all in a single synchronous flow. This has important consequences: errors thrown inside a listener propagate back up to the `emit()` call site (so they can be caught with `try/catch` around `emit`), listeners block the emitting code until they return, and if you need async behavior you must explicitly schedule it inside the listener (e.g. wrap the body in `setImmediate` or `queueMicrotask`). A related case is an `'error'` event with no listener: `emit` itself throws, also synchronously (Q8). Note, though, that many native emitters like streams emit `'error'` asynchronously via `process.nextTick` to give code time to attach a handler.
 
 **Takeaway:** `EventEmitter.emit()` is synchronous — listeners run on the caller's stack in registration order, making `try/catch` around `emit()` work for listener errors.
 
@@ -1857,7 +1899,7 @@ This is not an oversight. `require` is synchronous by contract: it must return a
 ```ts
 // app.ts — run with: node app.ts   (Node 24+)
 function addTax(price: number): number {
-  return price * 1.2;
+  return price + price * 0.2;
 }
 
 const input: any = JSON.parse('"100"');   // a string, typed as any
@@ -1868,11 +1910,11 @@ enum Currency { USD, EUR }
 
 **Output:**
 ```
-SyntaxError: Node.js does not support enum in TypeScript files
+SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript enum is not supported in strip-only mode
 ```
 and if you delete the `enum` line:
 ```
-1.2000000000000002e+21
+10020
 ```
 
 **Explanation:**
@@ -1881,7 +1923,7 @@ Two separate lessons about what Node's type stripping actually is.
 
 **Why the `enum` is a hard error.** Node runs `.ts` files by **stripping** types — replacing annotations with whitespace, one file at a time, with no type information and no view of any other file. That works only for syntax that can be *deleted*. An `enum` is not deletable: it compiles into a real object with forward and reverse mappings (`Currency.USD === 0` and `Currency[0] === 'USD'`), so erasing the declaration would change what the program does. Rather than silently guess or quietly transpile, Node refuses. The same applies to `namespace` with runtime members, constructor parameter properties (`constructor(private x: string)`), and `import x = require('y')`. Setting `"erasableSyntaxOnly": true` in `tsconfig.json` (TS 5.8+) makes the type-checker flag all four in your editor instead.
 
-**Why the wrong number is not an error at all.** This is the more important half. Stripping is *not* type-checking. Node deleted `: number` and `: number` and ran the JavaScript underneath, where `"100" * 1.2` coerces the string to a number — except `JSON.parse('"100"')` returned the string `"100"`, `addTax` never validated anything, and the `any` annotation told the *compiler* to stop caring too. Node had no opinion because Node never looked. There is no runtime type enforcement anywhere in this pipeline.
+**Why the type mismatch is not an error at all.** This is the more important half. Stripping is *not* type-checking. `JSON.parse('"100"')` returns the **string** `"100"`, and the `any` annotation told the *compiler* to stop caring what it was. Node deleted both `: number` annotations and ran the JavaScript underneath, so `addTax` received a string despite declaring `price: number`, and nothing validated it. Inside `addTax`, `price * 0.2` coerces the string to a number and gives `20`, but `price + 20` sees a string on the left, so `+` concatenates: `"100" + 20` is `"10020"`. That is plain JavaScript coercion, and it is why the number is wrong. Node had no opinion because Node never looked. There is no runtime type enforcement anywhere in this pipeline.
 
 So `node app.ts` replaces your **bundler**, not your **type-checker**:
 

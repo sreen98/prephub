@@ -37,6 +37,8 @@ REST (Representational State Transfer) is an architectural style for designing n
 
 ### REST Constraints
 
+REST is a set of rules, not a protocol, and two of them do most of the work in practice. **Stateless** means the server keeps no memory of the client between requests — every request carries its own credentials and context. That is what lets you put any number of identical servers behind a load balancer, since any of them can answer any request. **Uniform interface** means every resource is handled the same way — a URL names the thing, the HTTP method says what to do with it — so a client that knows one endpoint can guess the rest. The list below is the full set.
+
 ```
 1. Client-Server:       Separation of concerns
 2. Stateless:           Each request contains all info needed
@@ -47,6 +49,8 @@ REST (Representational State Transfer) is an architectural style for designing n
 ```
 
 ### Richardson Maturity Model
+
+A four-step scale for how fully an API uses HTTP, from "one URL that takes commands" to "responses tell you what you can do next". Most real-world APIs sit at Level 2, and that is generally considered good enough; Level 3 is covered in §12.
 
 ```
 Level 0: The Swamp of POX
@@ -74,6 +78,8 @@ Level 3: Hypermedia Controls (HATEOAS)
 
 ### Resource Naming Conventions
 
+URLs name **things** (nouns); the HTTP method is already the verb. `POST /users` reads as "create a user", so `POST /createUser` says the verb twice and leaves you inventing a new URL for every operation. Plural names keep the collection (`/users`) and one member (`/users/123`) on the same path.
+
 ```
 GOOD (nouns, plural, kebab-case):
 GET    /api/v1/users
@@ -93,6 +99,8 @@ GET    /api/v1/Users               ← PascalCase
 
 ### Resource Hierarchy
 
+Nest a resource under its parent only as deep as you need to identify it. Once a child has its own id, the parents in front of it add nothing, and a deep path breaks the day the relationship changes (a candidate moves to a different job, a job to a different department).
+
 ```
 # Top-level resources
 /api/v1/users
@@ -110,6 +118,8 @@ BAD:  /api/v1/companies/1/departments/2/jobs/3/candidates/4
 ```
 
 ### Action Endpoints (When REST Doesn't Fit)
+
+Some operations are not a create, read, update or delete of one resource — cancelling an order triggers refunds, emails and stock changes. Forcing that into `PATCH /orders/456 { status: "cancelled" }` hides a big side effect behind what looks like a field edit. A `POST` to an action sub-resource says plainly that something happens.
 
 ```
 # When an operation isn't a standard CRUD action, use a verb sub-resource:
@@ -132,6 +142,8 @@ POST /api/v1/authentication/refresh-token
 
 ### Method Semantics
 
+Two properties recur below. **Safe** means the request changes nothing on the server (GET, HEAD, OPTIONS), so crawlers, prefetchers and caches may send it freely. **Idempotent** means sending it twice has the same effect as sending it once — explained next.
+
 ```
 GET     - Read a resource (idempotent, safe, cacheable)
 POST    - Create a new resource (not idempotent)
@@ -143,6 +155,8 @@ HEAD    - Same as GET but no body (check existence, headers only)
 ```
 
 ### Idempotency
+
+Idempotency matters because networks fail in the middle. If a request times out, the client cannot tell whether the server did the work, so it retries. Retrying an idempotent request (PUT, DELETE) is harmless; retrying a POST can charge a card twice. That is why payment APIs accept an idempotency key on POST — the server remembers the key and returns the first result instead of repeating the work. Note that PATCH is idempotent only if the body sets values rather than changing them relative to what is there:
 
 ```
 Idempotent = same request N times produces same result
@@ -248,6 +262,8 @@ export default router;
 
 ### Response Envelope Pattern
 
+An envelope wraps every response in the same outer shape, with the data under one key (`results` here) and fields such as `status`, `message` and `pagination` beside it. The point is predictability: a client can write one response handler for the whole API instead of learning a new shape per endpoint, and there is a fixed place to add metadata later without moving the data. The cost is some redundancy, since the HTTP status code already says success or failure. Many APIs skip the envelope and rely on status codes plus headers; either is fine, as long as every endpoint does the same thing.
+
 ```json
 // Success response
 {
@@ -311,6 +327,8 @@ router.get('/:id', async (req, res) => {
 
 ### Date & Time
 
+Send every timestamp as an ISO 8601 string in UTC, such as `2026-03-06T10:30:00.000Z` (the `Z` means UTC). ISO 8601 is the international standard date format; because it is always written biggest unit first, it sorts correctly as plain text, and every mainstream language can parse it. Using UTC everywhere means the server never has to guess which time zone a value is in: store UTC, and let the client convert to the viewer's local time for display.
+
 ```
 Always use ISO 8601 format in UTC:
 - "2026-03-06T10:30:00.000Z"
@@ -353,6 +371,8 @@ Do NOT use:
 ```
 
 ### Client Error Codes (4xx)
+
+The two pairs people mix up: **401** means "I don't know who you are" (no credentials, or bad ones — log in again), while **403** means "I know who you are, and you may not do this" (logging in again will not help). **400** means the request could not be read at all (malformed JSON, wrong types), while **422** means it was read fine but breaks a rule (end date before start date). Many APIs use 400 for both; what matters is picking one convention and sticking to it.
 
 ```
 400 Bad Request
@@ -423,6 +443,8 @@ Do NOT use:
 
 ### Offset-Based Pagination
 
+Offset pagination asks the database to skip N rows and return the next page. It has two weaknesses. The database still reads and discards all the skipped rows, so page 5,000 is much slower than page 1. And if a row is inserted or deleted while the user is paging, everything shifts — they see an item twice or miss one.
+
 ```javascript
 // GET /api/v1/users?page=2&limit=20
 
@@ -455,6 +477,8 @@ router.get('/', async (req, res) => {
 ```
 
 ### Cursor-Based Pagination
+
+Cursor pagination replaces "skip N rows" with "give me rows after this one". The cursor is an opaque token — here, the last row's id, base64-encoded so clients treat it as a black box — and the query becomes `_id > lastId`, which an index answers directly however deep you are. Inserts and deletes elsewhere do not shift the page. The cost: there is no "jump to page 37", only next.
 
 ```javascript
 // GET /api/v1/users?cursor=eyJpZCI6MTIzfQ&limit=20
@@ -499,11 +523,14 @@ router.get('/', async (req, res) => {
 
 ### Keyset Pagination (Best for Sorted Data)
 
+Keyset pagination is the same idea as a cursor, with the position passed as plain values instead of a token. It matters when you sort by something that is not unique, such as `createdAt`: two jobs created in the same millisecond would make "after this date" skip or repeat rows. Adding `_id` as a tie-breaker, and comparing on the pair, gives every row one exact position. (A cursor is often just this pair, encoded.)
+
 ```javascript
 // GET /api/v1/jobs?after_date=2026-03-01&after_id=job-100&limit=20
 
 router.get('/', async (req, res) => {
-  const { after_date, after_id, limit = 20 } = req.query;
+  const { after_date, after_id } = req.query;
+  const limit = Number.parseInt(req.query.limit, 10) || 20;  // query values are strings
 
   const query = after_date && after_id
     ? {
@@ -517,7 +544,7 @@ router.get('/', async (req, res) => {
   const jobs = await db.jobs
     .find(query)
     .sort({ createdAt: -1, _id: -1 })
-    .limit(parseInt(limit) + 1)
+    .limit(limit + 1)
     .toArray();
 
   const hasNext = jobs.length > limit;
@@ -591,6 +618,8 @@ router.get('/', async (req, res) => {
 
 ### Sorting
 
+The whitelist in this example is the important part. Letting clients sort on any field means one request can force a full scan on an unindexed field, or sort on an internal field you never meant to expose — the order of results leaks information about a value even when the value itself is hidden.
+
 ```javascript
 // GET /api/v1/jobs?sort=-createdAt,title
 // Prefix with - for descending
@@ -657,6 +686,8 @@ router.get('/', async (req, res) => {
 ## 8. Authentication & Authorization
 
 ### Token-Based Auth (JWT)
+
+The usual pattern issues two tokens. A short-lived **access token** (15 minutes here) is sent on every request and checked without a database lookup — if it leaks, it stops working soon. A long-lived **refresh token** lives in an `httpOnly` cookie, which page JavaScript cannot read, and is used only to get new access tokens. See the OAuth & SSO guide for rotation and storage in depth.
 
 ```javascript
 import jwt from 'jsonwebtoken';
@@ -769,10 +800,14 @@ router.delete('/users/:id', authenticate, authorize('admin'), deleteUser);
 
 ### API Key Authentication
 
+Store only a hash of each key, the same way you store passwords. Then a leaked database gives an attacker hashes, not working keys. Show the key to the customer once when it is created, and look it up later by hashing whatever they send.
+
+Accept the key only in a header, never in the query string (`?api_key=...`). A URL is written down in many places you do not control — server and proxy access logs, browser history, analytics tools — so a key in the URL leaks into all of them.
+
 ```javascript
 // For service-to-service or public API access
 async function apiKeyAuth(req, res, next) {
-  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+  const apiKey = req.headers['x-api-key'];         // header only: URLs end up in logs
 
   if (!apiKey) {
     return res.status(401).json({ status: 'error', message: 'API key required' });
@@ -803,6 +838,8 @@ async function apiKeyAuth(req, res, next) {
 
 ### URL Path Versioning (Most Common)
 
+The version is part of the address, so it is visible in every log line, bookmark and `curl` command, and each version can be routed to separate code (or a separate service) with a plain path rule. Caches also treat `/v1/users` and `/v2/users` as different resources automatically. The downside is that the version is baked into every URL a client has stored, so moving to v2 means changing all of them, and a team that bumps versions freely ends up running several at once.
+
 ```
 GET /api/v1/users
 GET /api/v2/users
@@ -813,6 +850,8 @@ Cons: URL changes, version proliferation
 
 ### Header Versioning
 
+The URL stays the same and the client asks for a version in the `Accept` header, using a custom media type (a content-type name such as `application/vnd.myapi.v2+json`). This is the most "pure" REST choice, because the URL names the resource and the header names the representation. In practice it is harder to work with: you cannot try a version by pasting a URL into a browser, and any cache in the path must be told to vary on that header (`Vary: Accept`) or it may serve a v1 response to a v2 client.
+
 ```
 GET /api/users
 Accept: application/vnd.myapi.v2+json
@@ -822,6 +861,8 @@ Cons: Less visible, harder to test in browser
 ```
 
 ### Query Parameter Versioning
+
+The version rides along as `?version=2`. It is the easiest to add to an existing API, but it is also the easiest to leave off: a client that forgets it silently gets whatever default the server picks, which may change under them.
 
 ```
 GET /api/users?version=2
@@ -837,16 +878,17 @@ Cons: Can be missed, less RESTful
 import v1Router from './routes/v1';
 import v2Router from './routes/v2';
 
-app.use('/api/v1', v1Router);
-app.use('/api/v2', v2Router);
-
-// Version sunset middleware
+// Version sunset middleware. It must be registered BEFORE the v1 router:
+// once a route in v1Router sends a response, later middleware never runs.
 app.use('/api/v1', (req, res, next) => {
-  res.set('Deprecation', 'true');
-  res.set('Sunset', 'Sat, 01 Jun 2026 00:00:00 GMT');
+  res.set('Deprecation', '@1767225600');              // deprecated since 1 Jan 2026 (Unix seconds, RFC 9745)
+  res.set('Sunset', 'Mon, 01 Jun 2026 00:00:00 GMT'); // switched off after this date (RFC 8594)
   res.set('Link', '</api/v2>; rel="successor-version"');
   next();
 });
+
+app.use('/api/v1', v1Router);
+app.use('/api/v2', v2Router);
 ```
 
 ### Breaking vs Non-Breaking Changes
@@ -899,6 +941,8 @@ Breaking (requires new version):
 ```
 
 ### Custom Error Classes
+
+The `isOperational` flag separates two kinds of error. **Operational** errors are expected situations — not found, validation failed, duplicate email — and the client should see the real message. **Programmer** errors are bugs — a null dereference, a typo in a query — and the client should see only a generic 500 while the details go to your logs. The global handler below uses the flag to decide which is which.
 
 ```javascript
 class AppError extends Error {
@@ -1017,6 +1061,8 @@ app.use(errorHandler);
 
 ### Implementation with Express
 
+The Redis store is what makes this work on more than one server. Without it, each server process keeps its own counter, so behind a load balancer with four instances a client effectively gets four times the limit. A shared store gives every instance the same count.
+
 ```javascript
 import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
@@ -1073,7 +1119,7 @@ RateLimit-Reset: 1709722800
 
 ### Concept
 
-HATEOAS (Hypermedia as the Engine of Application State) means API responses include links to related actions and resources.
+HATEOAS (Hypermedia as the Engine of Application State) means API responses include links to related actions and resources. The point is that the server, not the client, decides which actions are available right now: a pending order includes a `cancel` link and a shipped one does not, so the client does not hard-code the rule "you can only cancel before shipping". In practice few public APIs go this far, because clients are usually written against documentation anyway.
 
 ```json
 // GET /api/v1/orders/123
@@ -1112,6 +1158,8 @@ HATEOAS (Hypermedia as the Engine of Application State) means API responses incl
 ## 13. File Upload & Download
 
 ### Multipart Upload
+
+`multipart/form-data` is the encoding browsers use for file uploads: the body is split into parts, each with its own headers, so binary files and text fields travel in one request. `memoryStorage` holds each file in RAM, which is fine with a 10 MB limit; for large files, stream to disk or object storage instead.
 
 ```javascript
 import multer from 'multer';
@@ -1159,6 +1207,8 @@ router.post('/resumes', authenticate, upload.array('files', 50), async (req, res
 
 ### Mixed Payload (Files + JSON)
 
+Multipart fields are plain strings, so nested JSON cannot be sent as structured fields. The common workaround, shown here, is to put the whole JSON object in one text field and parse it on the server — then validate it like any other request body.
+
 ```javascript
 // POST /api/v2/roles
 // Content-Type: multipart/form-data
@@ -1184,6 +1234,8 @@ router.post('/roles', authenticate, upload.array('poolFiles', 50), async (req, r
 ---
 
 ## 14. Real-Time APIs
+
+Three ways to push updates, in order of complexity. **Long polling**: the client asks, and the server holds the request open until there is news or a timeout. **SSE** (Server-Sent Events): one long-lived HTTP response the server keeps writing events into; one-way, server to client, with automatic reconnection built into the browser. **WebSocket**: a persistent two-way connection, needed when the client also sends a stream of messages (chat, collaborative editing). Pick the simplest one that covers the direction of traffic you have.
 
 ### WebSocket API
 
@@ -1592,6 +1644,8 @@ function validate(schema) {
 
 ### Security Checklist
 
+Use this as a review list before an API goes public. Each line closes a different, common hole, so no single item is enough on its own; the groups follow the path a request takes, from how the caller is identified, through what they send, to how the response travels back and the infrastructure around it.
+
 ```
 Authentication & Authorization:
 □ Use HTTPS everywhere
@@ -1623,25 +1677,32 @@ Infrastructure:
 
 ### Request Sanitization Middleware
 
+This blocks NoSQL injection: a client sending an object where you expected a string. MongoDB treats keys that start with `$` as operators, so a login body of `{ "email": "a@b.com", "password": { "$ne": null } }` turns "password equals this value" into "password is not null" — true for every user. The middleware strips every `$`-prefixed key before any query sees the input. Validating input against a schema (Zod, Joi) is the stronger fix, because a schema that says `password` is a string rejects the object outright; this middleware is a safety net for routes that skip validation.
+
 ```javascript
 // Prevent NoSQL injection in MongoDB
 function sanitizeInput(req, res, next) {
-  const sanitize = (obj) => {
-    if (typeof obj !== 'object' || obj === null) return obj;
+  const sanitize = (value) => {
+    if (Array.isArray(value)) return value.map(sanitize);   // keep arrays as arrays
+    if (typeof value !== 'object' || value === null) return value;
     const clean = {};
-    for (const [key, value] of Object.entries(obj)) {
+    for (const [key, v] of Object.entries(value)) {
       // Block MongoDB operators in user input
       if (key.startsWith('$')) continue;
-      clean[key] = typeof value === 'object' ? sanitize(value) : value;
+      clean[key] = sanitize(v);
     }
     return clean;
   };
 
   req.body = sanitize(req.body);
-  req.query = sanitize(req.query);
+  // Express 5 makes req.query a read-only getter, so it cannot be
+  // reassigned; keep the cleaned copy on its own property instead.
+  req.cleanQuery = sanitize(req.query);
   next();
 }
 ```
+
+Two details in the code are easy to get wrong. Arrays need their own branch: `Object.entries` on an array returns index keys, so without it `tags: ['a', 'b']` would come out as the object `{ 0: 'a', 1: 'b' }`. And routes must read `req.cleanQuery`, not `req.query`, or the cleaning does nothing for query strings.
 
 ---
 
@@ -1737,6 +1798,8 @@ describe('POST /api/v1/users', () => {
 
 ### Contract Testing
 
+A contract test checks the *shape* of a response — which fields exist, their types, which are required — rather than specific values. It catches the change that breaks clients even though every functional test still passes, such as renaming `name` to `fullName`. `additionalProperties: false` also fails the test when a field is added, which forces the team to decide deliberately that the new field is safe to expose.
+
 ```javascript
 // Ensure API contract doesn't break
 import Ajv from 'ajv';
@@ -1780,6 +1843,8 @@ it('should match the API contract', async () => {
 
 ### Bulk Operations
 
+The status code here is **207 Multi-Status**: the request as a whole was processed, but items inside it succeeded or failed individually. Returning a per-item result with its index lets the client retry just the failures, instead of guessing which rows went in.
+
 ```javascript
 // Batch create
 // POST /api/v1/users/bulk
@@ -1808,6 +1873,8 @@ router.delete('/bulk', authenticate, authorize('admin'), async (req, res) => {
 ```
 
 ### Soft Delete
+
+Soft delete marks a row as deleted instead of removing it, so you can undo mistakes, keep audit history, and avoid breaking records that reference it. The cost is that every query must now filter out deleted rows, and forgetting that filter once shows "deleted" data to users — which is why the filter belongs in shared middleware or a data-access layer, not in each handler.
 
 ```javascript
 // Mark as deleted but keep in database
@@ -1867,6 +1934,8 @@ router.get('/status/:taskId', authenticate, async (req, res) => {
 
 ### Webhook Pattern
 
+A webhook is your API calling the customer's server when something happens, instead of making them poll. Because anyone can POST to their URL, each delivery is signed: you compute an HMAC (a hash keyed with a secret only you and the subscriber know) over the body, and the subscriber recomputes it to confirm the request came from you and was not altered.
+
 ```javascript
 // Register webhook
 // POST /api/v1/webhooks
@@ -1919,6 +1988,8 @@ async function deliverWebhook(event, payload) {
 
 ### Multi-Tenant APIs
 
+In a shared database, one missing `tenantId` in one query shows one customer's data to another. The defence is to make scoping automatic — a wrapper every query goes through — rather than relying on each developer to remember the filter.
+
 ```javascript
 // Tenant identification middleware
 function tenantMiddleware(req, res, next) {
@@ -1935,18 +2006,24 @@ function tenantMiddleware(req, res, next) {
   next();
 }
 
-// Ensure queries are scoped to tenant
-function scopeToTenant(collection) {
+// Ensure queries are scoped to tenant.
+// Usage in a route: const jobs = scopeToTenant(db.jobs, req.tenantId);
+function scopeToTenant(collection, tenantId) {
+  // Drop any tenantId the caller passed, so data cannot move a record
+  // to another tenant or claim to belong to one.
+  const withoutTenant = ({ tenantId: _ignored, ...rest }) => rest;
+
   return {
-    find: (filter = {}) => collection.find({ ...filter, tenantId: req.tenantId }),
-    create: (data) => collection.create({ ...data, tenantId: req.tenantId }),
+    find: (filter = {}) => collection.find({ ...filter, tenantId }),
+    create: (data) => collection.insertOne({ ...withoutTenant(data), tenantId }),
     update: (id, data) =>
-      collection.updateOne({ _id: id, tenantId: req.tenantId }, { $set: data }),
-    delete: (id) =>
-      collection.deleteOne({ _id: id, tenantId: req.tenantId }),
+      collection.updateOne({ _id: id, tenantId }, { $set: withoutTenant(data) }),
+    delete: (id) => collection.deleteOne({ _id: id, tenantId }),
   };
 }
 ```
+
+The tenant id is passed in per request, because the wrapper is created inside a route handler where `req` exists. Note the order in `find`: `tenantId` is spread *after* the caller's filter, so a filter that contains its own `tenantId` is overwritten rather than obeyed. `update` needs the same protection on the other side — without `withoutTenant`, a request body containing `tenantId` would be `$set` onto the record and move it into another customer's account.
 
 ---
 
@@ -1956,7 +2033,7 @@ function scopeToTenant(collection) {
 
 **Q1: What is REST and what are its key constraints?**
 
-REST (Representational State Transfer) is an architectural style for APIs based on six constraints:
+Short answer: REST (Representational State Transfer) is an architectural style — a set of constraints, not a protocol or a library — where you model your API as resources identified by URLs and act on them with standard HTTP methods. There are six constraints:
 
 1. **Client-Server**: Separate UI from data storage concerns
 2. **Stateless**: Each request contains all information needed; server stores no session state
@@ -1964,6 +2041,8 @@ REST (Representational State Transfer) is an architectural style for APIs based 
 4. **Uniform Interface**: Standardized way to interact using resources, HTTP methods, and representations
 5. **Layered System**: Client doesn't know if it's talking to the end server or an intermediary
 6. **Code on Demand** (optional): Server can send executable code to the client
+
+The one to explain if asked "why does it matter": **statelessness**. Because the server keeps no session memory between requests, any server can handle any request, so you scale by adding servers behind a load balancer. The price is that every request must carry its own authentication and context. **Cacheable** is the other one with a direct payoff: a response marked cacheable can be served by a browser or CDN without reaching your server at all.
 
 ---
 
@@ -1973,9 +2052,13 @@ REST (Representational State Transfer) is an architectural style for APIs based 
 
 **PATCH** partially updates a resource. You only send the fields you want to change. Other fields remain untouched. Use PATCH for single-field updates (like changing status) and PUT when you're replacing the whole entity (like editing a form with all fields).
 
+The trap with PUT: a client that sends only the fields it knows about wipes the rest. If a newer client added a `timezone` field and an older client PUTs the user without it, the timezone is gone. PATCH avoids that, which is why most APIs use it for edits. PATCH is not guaranteed idempotent — `{ "age": 30 }` is, but an operation like "add 1 to age" is not — so retries need more care.
+
 ---
 
 **Q3: What are the most common HTTP status codes and when do you use them?**
+
+Short answer: the first digit tells the client who has to act. 2xx means it worked, 4xx means the client sent something wrong and retrying the same request will not help, and 5xx means the server failed and a retry later might succeed. The pair interviewers probe is 401 vs 403: 401 means "we do not know who you are", 403 means "we know who you are, and you may not do this".
 
 - **200 OK**: Successful GET, PUT, PATCH
 - **201 Created**: Successful POST that creates a resource
@@ -1993,9 +2076,9 @@ REST (Representational State Transfer) is an architectural style for APIs based 
 
 **Q4: How do you handle pagination in REST APIs?**
 
-Two main approaches:
+Short answer: use offset pagination (`?page=2`) when users need numbered pages over a small, slow-changing dataset, and cursor pagination when the data is large or changes while people page through it (feeds, logs, infinite scroll).
 
-**Offset-based**: `GET /users?page=2&limit=20` — uses skip/offset to jump to a page. Simple and supports jumping to any page, but can give inconsistent results if data changes between requests and is slow for large offsets.
+**Offset-based**: `GET /users?page=2&limit=20` — uses skip/offset to jump to a page. Simple and supports jumping to any page, but slow for large offsets (the database still reads every skipped row) and inconsistent if data changes between requests (an insert shifts every later row, so the user sees an item twice or misses one).
 
 **Cursor-based**: `GET /users?cursor=abc123&limit=20` — uses an opaque token pointing to the last item. More performant for large datasets (uses indexed column, not skip) and gives consistent results, but can't jump to arbitrary pages.
 
@@ -2004,6 +2087,8 @@ Return pagination metadata in the response: `total`, `totalPages`, `hasNext`, `h
 ---
 
 **Q5: What's the difference between authentication and authorization?**
+
+Short answer: authentication proves who you are; authorization decides what you are allowed to do. Authentication always comes first, because you cannot check a user's permissions until you know which user it is. In HTTP terms, a failed authentication is a `401` and a failed authorization is a `403`.
 
 **Authentication** verifies *who* you are. It answers "Are you a valid user?" Methods: username/password, JWT, OAuth, API keys, cookies.
 
@@ -2015,7 +2100,9 @@ In a typical flow: the auth middleware authenticates the user (validates JWT/coo
 
 **Q6: How should you structure error responses in an API?**
 
-Use a consistent error envelope with: `status` ("error"), `message` (human-readable), `code` (machine-readable error code like "VALIDATION_ERROR"), and `errors` array (for field-level validation errors). Include a `requestId` for debugging.
+Short answer: the same shape for every error, with a stable machine-readable code for programs and a message for humans.
+
+Use a consistent error envelope with: `status` ("error"), `message` (human-readable), `code` (machine-readable error code like "VALIDATION_ERROR"), and `errors` array (for field-level validation errors). Include a `requestId` for debugging. The separate `code` matters because clients branch on it — "if `EMAIL_TAKEN`, highlight the email field" — and you will want to reword or translate `message` without breaking them. The `requestId` lets a user's bug report be matched to one line in your logs.
 
 Always use appropriate HTTP status codes. Never return 200 with an error body. Don't expose internal implementation details (stack traces, database errors) in production — log them server-side and return a generic message to the client.
 
@@ -2025,7 +2112,7 @@ Always use appropriate HTTP status codes. Never return 200 with an error body. D
 
 **Q7: How do you version an API? What are the trade-offs?**
 
-Three approaches:
+Short answer: put the major version in the URL path (`/v1/`) for most APIs, and work hard to need a new version rarely, by making changes additive.
 
 1. **URL path**: `/api/v1/users` vs `/api/v2/users` — most common, easy to route and cache, but URLs change
 2. **Header**: `Accept: application/vnd.api.v2+json` — clean URLs, supports content negotiation, but less visible
@@ -2037,9 +2124,12 @@ Key principles: avoid breaking changes when possible (additive-only), deprecate 
 
 **Q8: Explain rate limiting. Why is it important and how would you implement it?**
 
-Rate limiting controls how many requests a client can make in a time window. It protects against: DDoS attacks, abuse, resource exhaustion, and ensures fair usage.
+Short answer: rate limiting caps how many requests one client can make in a time window, so one misbehaving script or one heavy customer cannot use up capacity everyone else needs. It also makes brute-force attacks on login and scraping slow enough to be impractical.
 
-**Algorithms**: Token bucket (smooth, allows bursts), sliding window (precise, more memory), fixed window (simple, but burst at boundaries).
+**Algorithms** — the choice is about how bursts are treated:
+- **Fixed window**: count requests per clock window (say, per minute) and reset at the boundary. Simplest, but a client can send a full quota at 0:59 and another at 1:00, doubling the rate for a moment.
+- **Sliding window**: count requests in the last 60 seconds from *now*, which removes the boundary burst at the cost of storing more data (timestamps, or counts for two windows).
+- **Token bucket**: each client has a bucket that refills at a steady rate; each request spends a token. It allows short bursts up to the bucket size while holding the long-run average — usually what you want for real clients.
 
 **Implementation**: Use Redis for distributed rate limiting across multiple servers. Track request count per client (by IP, API key, or user ID) with TTL-based expiry. Return standard headers: `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`. Return `429 Too Many Requests` with `Retry-After` header when exceeded.
 
@@ -2049,10 +2139,10 @@ Apply different limits for different endpoints: stricter for auth (5/15min), mod
 
 **Q9: How do you handle long-running operations in a REST API?**
 
-Use the **async request pattern**:
+Short answer: don't hold the HTTP request open while the work runs. Accept the job, return immediately with somewhere to check on it, and let the client come back. Use the **async request pattern**:
 
 1. Client sends `POST /api/v1/reports/generate`
-2. Server queues the job and immediately returns `202 Accepted` with a `taskId` and status URL
+2. Server queues the job and immediately returns `202 Accepted` ("I have taken this, but it is not done") with a `taskId` and status URL
 3. Client polls `GET /api/v1/reports/status/:taskId` for progress
 4. When complete, the status response includes the result or download URL
 
@@ -2062,7 +2152,9 @@ Alternatives to polling: WebSockets for real-time updates, SSE for server push, 
 
 **Q10: What is CORS and how does it work?**
 
-CORS (Cross-Origin Resource Sharing) is a browser security mechanism that restricts requests from one origin to another. When a frontend at `https://app.example.com` calls an API at `https://api.example.com`, the browser enforces CORS.
+CORS (Cross-Origin Resource Sharing) is the mechanism by which a server tells the browser which other origins (scheme + host + port) may read its responses. By default the browser's same-origin policy stops JavaScript on one origin from reading responses from another; CORS headers are the server's way of relaxing that for chosen origins. When a frontend at `https://app.example.com` calls an API at `https://api.example.com`, those are different origins, so the browser enforces it.
+
+Note what CORS is *not*: it does not protect your API from other servers, curl or scripts — only browsers enforce it. It protects users, by stopping a malicious site from using the user's logged-in browser to read your API's responses.
 
 **Simple requests** (GET, POST with standard content types) include an `Origin` header. The server responds with `Access-Control-Allow-Origin`.
 
@@ -2074,12 +2166,14 @@ Configure CORS with specific origins (not `*`), allowed methods, and `credential
 
 **Q11: How would you design an API for a multi-tenant SaaS application?**
 
-Identify tenants via: subdomain (`tenant1.api.example.com`), header (`X-Tenant-ID`), or JWT claim.
+Short answer: decide where the tenant id comes from, decide how strongly tenants' data is separated, and then make tenant scoping automatic so no single query can forget it — a cross-tenant leak is the failure that ends a B2B business's trust.
+
+Identify tenants via: subdomain (`tenant1.api.example.com`), header (`X-Tenant-ID`), or JWT claim. Prefer the claim inside the verified token: a header or subdomain is only a hint, and must be checked against the tenants the authenticated user actually belongs to.
 
 **Data isolation strategies**:
 - **Database per tenant**: Strongest isolation, hardest to manage
 - **Schema per tenant**: Good isolation, moderate complexity
-- **Shared database with tenant column**: Easiest, but must ensure every query is scoped
+- **Shared database with tenant column**: Easiest and cheapest, and what most SaaS products start with — but every query must be scoped, because one forgotten `WHERE tenantId = ?` is a data leak
 
 Key concerns: ensure all queries are scoped to the tenant (middleware that adds `tenantId` to every query), prevent cross-tenant data leaks, per-tenant rate limiting and quotas, tenant-aware caching (namespace cache keys with tenant ID).
 
@@ -2089,7 +2183,7 @@ Key concerns: ensure all queries are scoped to the tenant (middleware that adds 
 
 **REST**: Multiple endpoints, server-defined response shapes, HTTP caching built-in, simpler to implement, better for public APIs. Best when: resources map cleanly to endpoints, caching is important, operations are straightforward CRUD.
 
-**GraphQL**: Single endpoint, client-defined response shapes, no over/under-fetching, built-in type system, introspection. Best when: multiple clients need different data shapes, deeply nested relational data, need to reduce API calls.
+**GraphQL**: Single endpoint, client-defined response shapes, no over/under-fetching, built-in type system, introspection (clients can query the schema itself, which powers autocomplete and generated docs). Over-fetching is getting fields you don't need (a mobile list screen receiving full user profiles); under-fetching is needing several round trips to assemble one screen (user, then their orders, then each order's items). In GraphQL the client names the fields it wants, nested, in one request. Best when: multiple clients need different data shapes, deeply nested relational data, need to reduce API calls.
 
 Downsides of GraphQL: complex caching (all POST requests), potential for expensive nested queries (need depth limiting), steeper learning curve, harder to implement rate limiting.
 
@@ -2101,22 +2195,26 @@ Many teams use both: REST for simple CRUD and file operations, GraphQL for compl
 
 **Q13: How would you design an API gateway for a microservices architecture?**
 
-The API gateway is the single entry point for all client requests. Key responsibilities:
+Short answer: an API gateway is a single front door in front of all your services. It exists so that concerns every request shares — checking who the caller is, rate limiting, routing to the right service — are done once, in one place, instead of being reimplemented (slightly differently) in every microservice. Key responsibilities:
 
 1. **Routing**: Map external URLs to internal service endpoints
 2. **Authentication**: Verify tokens/sessions, pass user context to services
 3. **Rate limiting**: Per-client and per-endpoint limits
 4. **Request aggregation**: Combine multiple service calls into one response (BFF pattern)
-5. **Circuit breaking**: Fail fast when downstream services are unhealthy
+5. **Circuit breaking**: Fail fast when downstream services are unhealthy — after repeated failures, stop sending requests to that service for a while and return an error immediately, so callers don't pile up waiting on timeouts and the struggling service gets room to recover
 6. **Transformation**: Convert between external API format and internal protocols
 7. **Caching**: Cache responses for read-heavy endpoints
 8. **Monitoring**: Centralized logging, metrics, distributed tracing
 
-Technologies: Kong, AWS API Gateway, Nginx, or custom (Express + http-proxy-middleware). Use BFF (Backend for Frontend) pattern when mobile and web need different response shapes.
+Technologies: Kong, AWS API Gateway, Nginx, or custom (Express + http-proxy-middleware). Use the BFF (Backend for Frontend: a separate small gateway per client type, owned by that client's team) pattern when mobile and web need different response shapes.
+
+The design risk to volunteer: the gateway is on every request, so it must stay thin. Once business logic creeps in, every team has to change and redeploy the gateway to ship features, and it becomes the bottleneck the microservices were meant to remove.
 
 ---
 
 **Q14: How do you ensure backward compatibility when evolving an API?**
+
+Short answer: existing clients must keep working without changing a line, so within a version you only ever *add* — never remove, rename or tighten. Anything else goes in a new version with a deprecation period.
 
 **Additive changes only** in existing versions: new optional fields, new endpoints, new enum values (if clients handle unknown values). Never remove or rename fields, change types, or add required fields.
 
@@ -2134,6 +2232,8 @@ For database migrations that affect the API: deploy code that handles both schem
 
 **Q15: How would you design a webhook system that guarantees delivery?**
 
+Short answer: you cannot guarantee the receiver is up, so you guarantee you will *keep trying*: store every event durably, retry with backoff until the receiver acknowledges it, and give each event an id so the receiver can ignore duplicates. That is at-least-once delivery.
+
 **Delivery guarantees**:
 1. Persist webhook events to a durable queue before attempting delivery
 2. Exponential backoff retry: 1min → 5min → 30min → 2h → 24h
@@ -2144,14 +2244,16 @@ For database migrations that affect the API: deploy code that handles both schem
 
 **Reliability**: Separate delivery workers from the main application. Track delivery status per subscriber per event. Provide a UI/API for subscribers to see delivery logs and replay failed events. Include a "test" endpoint to verify the subscriber's URL is reachable.
 
-**At-least-once semantics**: Don't wait for receiver acknowledgment before marking as delivered — use a confirmation model (receiver returns 2xx) with retries for non-2xx responses.
+**At-least-once semantics**: Mark an event delivered only when the receiver returns a 2xx; treat timeouts and non-2xx responses as failures and retry. This means a receiver can get the same event twice (it processed it, but its response was lost), which is exactly why the per-event idempotency key above is required, not optional.
 
 ---
 
 **Q16: How do you handle API security for a public-facing API at scale?**
 
+Short answer: assume any single control will fail, so put independent checks at every layer a request passes through — "defense in depth". Each layer stops a different kind of attack, and a request has to beat all of them.
+
 **Defense in depth**:
-1. **Edge**: CDN/WAF (CloudFlare, AWS WAF) blocks common attacks before reaching your servers
+1. **Edge**: CDN/WAF (web application firewall — CloudFlare, AWS WAF) blocks floods and known attack patterns before they reach your servers
 2. **Gateway**: Authentication, rate limiting, request validation, IP allowlisting for partners
 3. **Application**: Input sanitization, parameterized queries, authorization checks, business rule validation
 4. **Data**: Field-level encryption, audit logging, PII masking in logs
@@ -2161,10 +2263,6 @@ For database migrations that affect the API: deploy code that handles both schem
 **OAuth 2.0 for third-party access**: Authorization code flow for web apps, PKCE for SPAs/mobile, client credentials for service-to-service. Scope tokens to minimum necessary permissions.
 
 **Monitoring**: Anomaly detection on request patterns, alert on auth failure spikes, log all admin actions, implement request signing for sensitive operations.
-
----
-
-*This guide covers the essential patterns and practices for designing, building, and maintaining production APIs. Focus on consistency, simplicity, and security — a well-designed API should be intuitive for consumers while being robust and maintainable on the server side.*
 
 ---
 

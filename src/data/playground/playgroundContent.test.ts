@@ -20,14 +20,14 @@ import { isBuildExplanation } from './explanationKind';
  * number. If it fails after a refactor, something was lost.
  */
 const EXPECTED = {
-  templates: 198,
-  categories: 8,
+  templates: 218,
+  categories: 9,
   blankStarters: 3,
-  jsChallenges: 98,
-  reactChallenges: 39,
+  jsChallenges: 111,
+  reactChallenges: 46,
   referenceTemplates: 61,
-  solutions: 98,
-  explanations: 187,   // 148 algorithm steppers + 39 React build-order walkthroughs
+  solutions: 111,
+  explanations: 201,   // 155 algorithm steppers + 46 React build-order walkthroughs
 };
 
 const jsChallenges = fullTemplates.filter((t) => t.kind === 'challenge' && t.tag === 'JS');
@@ -265,7 +265,7 @@ describe('filter dimensions the modal depends on', () => {
     // The tutorial categories (JS Fundamentals, JS Interview Topics, React
     // Basics/Advanced) are reading material with no interview scale, so they
     // stay untagged on purpose.
-    const GRADED = ['Spec Polyfills', 'Utility Implementations', 'Coding Challenges'];
+    const GRADED = ['Spec Polyfills', 'Utility Implementations', 'Coding Challenges', 'TypeScript Challenges'];
     for (const cat of templateCategories) {
       if (!GRADED.includes(cat.label)) continue;
       for (const t of cat.templates) expect(t.difficulty, `${cat.label} / ${t.name}`).toBeDefined();
@@ -296,13 +296,21 @@ describe('filter dimensions the modal depends on', () => {
     'Spiral Matrix',
   ];
 
+  // TypeScript challenges are about types, not an algorithmic shape, so they
+  // carry no pattern by design (they have their own study track instead).
+  const algorithmChallenges = jsChallenges.filter((t) => t.lang !== 'ts');
+
+  it('TypeScript challenges carry no algorithmic pattern', () => {
+    expect(jsChallenges.filter((t) => t.lang === 'ts' && t.patterns).map((t) => t.name)).toEqual([]);
+  });
+
   it('no JS challenge lacks a pattern beyond the five known ones', () => {
-    const missing = jsChallenges.filter((t) => !t.patterns?.length).map((t) => t.name);
+    const missing = algorithmChallenges.filter((t) => !t.patterns?.length).map((t) => t.name);
     expect(missing.filter((n) => !KNOWN_PATTERNLESS.includes(n))).toEqual([]);
   });
 
   it('the known-patternless list has no stale entries', () => {
-    const missing = new Set(jsChallenges.filter((t) => !t.patterns?.length).map((t) => t.name));
+    const missing = new Set(algorithmChallenges.filter((t) => !t.patterns?.length).map((t) => t.name));
     expect(KNOWN_PATTERNLESS.filter((n) => !missing.has(n)),
       'these now have patterns — remove them from KNOWN_PATTERNLESS').toEqual([]);
   });
@@ -324,6 +332,9 @@ describe('language detection matches each template tag', () => {
   it('no plain-JS template is taken for JSX, and no React one is missed', () => {
     const wrong: string[] = [];
     for (const t of fullTemplates) {
+      // A declared TypeScript template is routed by its lang, not by
+      // detection: its generics (Equal<A, B>) look like component tags.
+      if (t.lang === 'ts') continue;
       const jsx = detectJSX(t.code);
       if (t.tag !== 'React' && jsx) wrong.push(`${t.name} (${t.tag}) detected as JSX`);
       if (t.tag === 'React' && !jsx) wrong.push(`${t.name} (React) NOT detected as JSX`);

@@ -22,13 +22,15 @@
 
 ## 1. What is S3?
 
-Amazon Simple Storage Service (S3) is an **object storage service** that offers virtually unlimited scalability, high availability (99.99%), and 11 9s (99.999999999%) of durability. It stores data as objects within buckets and is accessed via a REST API.
+Amazon Simple Storage Service (S3) is an **object storage service** that offers virtually unlimited scalability, high availability (99.99%), and 11 9s (99.999999999%) of durability. It stores data as objects within buckets and is accessed via a REST API — you send HTTP `PUT` to write a whole file and `GET` to read it, rather than mounting a disk.
+
+"Object storage" is the idea everything else follows from: an object is a whole file plus its metadata, stored and replaced **as a unit**. You cannot append to it or rewrite byte 500 in place the way you can on a disk; to change it you upload a new copy. That is what lets S3 spread data across many machines and scale without limit — and why it is a poor fit for a database or anything that makes small in-place edits.
 
 Key characteristics:
-- **Object storage** — stores files (objects) up to 5 TB each, not block or file storage
-- **Globally unique buckets** — bucket names are unique across ALL AWS accounts
+- **Object storage** — stores files (objects) up to 5 TB each, not block storage (a raw disk, like EBS) or file storage (a shared network filesystem, like EFS)
+- **Globally unique buckets** — bucket names are unique across ALL AWS accounts, because the name becomes part of a public DNS hostname (`my-bucket.s3.amazonaws.com`)
 - **Flat namespace** — no real directories; prefixes (folder/) simulate folder structure
-- **Eventually consistent for overwrites/deletes** — strong read-after-write consistency (since Dec 2020)
+- **Strongly consistent** — since December 2020, a read after a successful write, overwrite or delete always sees that change (before then, overwrites and deletes were only eventually consistent)
 - **Pay-per-use** — charged for storage, requests, and data transfer out
 - **Region-scoped** — buckets are created in a specific AWS region (data stays in that region unless replicated)
 
@@ -368,15 +370,18 @@ Real-world example (media company):
 S3 provides multiple mechanisms to control access: bucket policies (recommended), ACLs (legacy), and public access block settings. IAM policies can also grant S3 access to users and roles.
 
 ```
-Access control evaluation order:
-  1. Is there an explicit DENY? → DENIED
-  2. Is there an explicit ALLOW? → Check next
-  3. S3 Block Public Access settings → Can override ALLOW
-  4. Bucket policy → Evaluated
-  5. ACL → Evaluated (if not disabled)
-  6. IAM policy → Evaluated for IAM principals
-  If no explicit ALLOW found → DENIED (default deny)
+How S3 decides whether a request is allowed:
+  1. Start from DENY            — nothing is allowed by default
+  2. Any explicit DENY anywhere → DENIED (IAM policy, bucket policy, SCP, ...)
+  3. Otherwise, look for an ALLOW:
+       same account  → an ALLOW in the IAM policy OR the bucket policy is enough
+       cross-account → the IAM policy AND the bucket policy must both ALLOW
+       ACLs          → also grant access, unless ACLs are disabled (the default)
+  4. Block Public Access        → cancels any ALLOW that would make data public
+  No ALLOW found → DENIED
 ```
+
+These are rules, not a pipeline that runs in a fixed order. **An explicit `Deny` always wins**, so one deny statement beats any number of allows — which is why a bucket policy that denies non-HTTPS requests protects the bucket even if someone later attaches a broad IAM allow. The cross-account rule is stricter because each account controls only its own side: account B's IAM policy says what B's users *may try*, and your bucket policy says what you *accept*. Block Public Access is a safety net over all of it — it cancels any grant that would make data public, whatever the policies say.
 
 ### 4.1 Bucket Policy (JSON)
 
@@ -530,6 +535,8 @@ aws s3api get-public-access-block --bucket my-bucket
 
 Grant another AWS account access to your S3 bucket using bucket policies or IAM roles.
 
+The bucket policy is the quickest route: you name the other account as a principal and its users call your bucket directly. Note that a cross-account call needs an allow on *both* sides — your bucket policy and their IAM policy — which is a common source of "access denied" confusion. The role route has their users assume **a role in your account**, so the S3 permissions they get are defined in one place you own, and you revoke them by editing that role rather than hunting through bucket policies.
+
 ```json
 // Bucket policy: allow another AWS account to read objects
 {
@@ -613,7 +620,8 @@ Versioning states:
 
 Important:
   - Once enabled, versioning CANNOT be disabled — only suspended
-  - Each version is a full copy (not a diff) — doubles/triples storage cost
+  - Each version is a full copy (not a diff) and is billed as a separate object,
+    so a file overwritten twice costs about 3x its size until old versions expire
   - Delete on a versioned object creates a "delete marker" (soft delete)
   - To truly delete, you must delete a specific version ID
 ```
@@ -726,12 +734,19 @@ Lifecycle rules can:
   4. Expire previous versions (versioned buckets)
   5. Apply to the entire bucket or filtered by prefix/tag
 
-Transition constraints (can only go "down"):
-  Standard → Standard-IA → Intelligent-Tiering → One Zone-IA → Glacier Instant
-  → Glacier Flexible → Glacier Deep Archive
+Transition constraints (a "waterfall" — objects can only move to a colder class):
+  Standard        → any other class
+  Standard-IA     → Intelligent-Tiering, One Zone-IA, any Glacier class
+  Intelligent-Tiering → One Zone-IA, any Glacier class (fewer from its archive tiers)
+  One Zone-IA     → Glacier Flexible, Glacier Deep Archive
+  Glacier Instant → Glacier Flexible, Glacier Deep Archive
+  Glacier Flexible → Glacier Deep Archive only
+  Glacier Deep Archive → nothing (restore a copy, then copy it to another class)
 
-  Min 30 days before transitioning from Standard to IA classes
-  Min 30 days in each class before transitioning to the next
+  Min 30 days in Standard before a transition to Standard-IA or One Zone-IA
+  Minimum storage durations: IA classes 30 days, Glacier Instant and Flexible
+  90 days, Deep Archive 180 days. Leaving a class earlier is billed as if the
+  object had stayed the full minimum.
 ```
 
 ### 6.1 Transition Rules
@@ -1424,7 +1439,7 @@ When to use what:
 
 ## 11. Performance Optimization
 
-S3 automatically scales to high request rates: 3,500 PUT/COPY/POST/DELETE and 5,500 GET/HEAD requests per second per prefix. For extreme workloads, there are several optimization techniques.
+S3 automatically scales to high request rates: 3,500 PUT/COPY/POST/DELETE and 5,500 GET/HEAD requests per second per prefix. The limit is **per prefix** because S3 splits a bucket's key space into internal partitions by key prefix, and each partition handles a bounded request rate. Spread your keys across more prefixes and S3 can serve them from more partitions in parallel; put everything under one prefix and it all queues on the same partition. For extreme workloads, there are several optimization techniques.
 
 ```
 S3 performance baseline (per prefix):
@@ -1590,7 +1605,7 @@ async function parallelDownload(bucket, key, partSize = 10 * 1024 * 1024) {
 
 ### 11.4 S3 Select
 
-Run SQL-like queries directly on S3 objects (CSV, JSON, Parquet) to retrieve only the data you need. This reduces data transfer and processing time by up to 400%.
+Run SQL-like queries directly on S3 objects (CSV, JSON, Parquet) to retrieve only the data you need. The filtering happens inside S3, so only the matching rows and columns cross the network — your application no longer downloads a whole file just to throw most of it away. Note that AWS has stopped offering S3 Select to new customers and points them to Athena instead, so treat this section as something you may meet in existing systems rather than a tool to adopt.
 
 ```bash
 # Query a CSV file stored in S3 using SQL
@@ -1833,7 +1848,8 @@ S3 Object Lock prevents objects from being deleted or overwritten for a fixed pe
 ```
 Object Lock requires:
   - Versioning enabled on the bucket
-  - Object Lock enabled at bucket creation (cannot be added later)
+  - Object Lock enabled on the bucket — at creation, or later on an existing
+    versioned bucket; once enabled it can never be turned off
 
 Two retention modes:
   1. Governance mode — users with special permissions (s3:BypassGovernanceRetention)
@@ -1848,7 +1864,7 @@ Legal Hold:
 ```
 
 ```bash
-# Create a bucket with Object Lock enabled (must be done at creation time)
+# Create a bucket with Object Lock enabled (it can also be enabled later on an existing bucket)
 aws s3api create-bucket \
   --bucket compliance-bucket \
   --object-lock-enabled-for-bucket
@@ -1933,21 +1949,25 @@ Governance mode use case:
 
 **Q1: What is Amazon S3 and what are its key features?**
 
-Amazon S3 (Simple Storage Service) is an object storage service that provides:
+Short answer: S3 is AWS's object store — you put whole files ("objects", up to 5 TB each) into named containers ("buckets") over HTTP, and AWS keeps them safe and available without you managing any disks.
 
-1. **Virtually unlimited storage** — no limit on the number of objects or total storage
-2. **11 9s durability** (99.999999999%) — designed to sustain loss of 2 facilities
-3. **High availability** — 99.99% for S3 Standard
-4. **Multiple storage classes** — optimize cost based on access patterns
-5. **Built-in security** — encryption, bucket policies, ACLs, VPC endpoints
-6. **Event-driven** — triggers Lambda, SQS, SNS on object operations
-7. **Versioning** — keep multiple versions of objects for protection
+The features worth naming, and why each matters:
 
-S3 stores data as objects (up to 5 TB each) in buckets (globally unique containers). It is region-scoped, accessed via REST API, and supports strong read-after-write consistency.
+1. **Virtually unlimited storage** — no capacity to provision; you pay for what you store, so it never fills up.
+2. **11 9s durability** (99.999999999%) — every object is copied across several data centres (Availability Zones) in the region, designed to survive losing two of them. Losing data to hardware failure is effectively not your problem any more.
+3. **High availability** — 99.99% for S3 Standard. Note this is a different promise from durability: durability is "not lost", availability is "reachable right now".
+4. **Multiple storage classes** — you trade a lower storage price for slower or costlier retrieval, so cold data can cost a fraction of hot data.
+5. **Built-in security** — encryption at rest by default, plus bucket policies and VPC endpoints (private network routes from your VPC to S3) to control who can reach it.
+6. **Event-driven** — an upload can trigger Lambda, SQS or SNS, which is how "process a file when it arrives" pipelines are built without polling.
+7. **Versioning** — keeps old copies on overwrite or delete, so a mistake is recoverable.
+
+It is region-scoped (data stays in the region you pick unless you replicate it) and strongly consistent: once a write succeeds, every subsequent read sees it.
 
 ---
 
 **Q2: What is the difference between S3 and EBS and EFS?**
+
+Short answer: they differ in *how you talk to them*. S3 is files over HTTP; EBS (Elastic Block Store) is a virtual hard disk attached to one EC2 server; EFS (Elastic File System) is a shared network drive many servers mount at once.
 
 | Feature | S3 (Object) | EBS (Block) | EFS (File) |
 |---------|-------------|-------------|------------|
@@ -1959,22 +1979,22 @@ S3 stores data as objects (up to 5 TB each) in buckets (globally unique containe
 | Use case | Static files, backups, data lakes | Databases, boot volumes | Shared file system, CMS |
 | Pricing | Pay per GB stored + requests | Pay per GB provisioned | Pay per GB used |
 
-Use S3 for objects accessed via API. Use EBS for a single EC2's disk. Use EFS for shared filesystem across multiple instances.
+Use S3 for objects accessed via API — whole files written once and read many times. Use EBS for a single EC2's disk: a database needs to rewrite small blocks in place with low latency, which only a block device gives you. Use EFS when several instances need the same files through normal filesystem calls (`open`, `read`, file locks), which S3 cannot offer because it has no in-place edits or locking.
 
 ---
 
 **Q3: What are S3 storage classes and when would you use each?**
 
-S3 offers six main storage classes optimized for different access patterns:
+Short answer: every class trades a cheaper monthly storage price for a cost somewhere else — a per-GB retrieval fee, slower retrieval, a minimum billed duration, or less redundancy. You pick the class by asking how often the data is read and how fast you need it back.
 
-1. **S3 Standard** — frequently accessed data (websites, active content) — $0.023/GB
-2. **S3 Intelligent-Tiering** — unknown or changing patterns (auto-moves between tiers) — monitoring fee
-3. **S3 Standard-IA** — infrequent but needs fast access (backups) — $0.0125/GB + retrieval fee
-4. **S3 One Zone-IA** — infrequent, re-creatable data (thumbnails) — $0.01/GB, single AZ
-5. **S3 Glacier (3 tiers)** — archival (minutes to hours retrieval) — $0.004-$0.00099/GB
-6. **S3 Glacier Deep Archive** — regulatory archives (12-48 hour retrieval) — $0.00099/GB
+1. **S3 Standard** — frequently accessed data (websites, active content) — $0.023/GB. No retrieval fee, so it is cheapest for anything read often.
+2. **S3 Intelligent-Tiering** — unknown or changing patterns. S3 watches access and moves each object to a cheaper tier after it goes unread, for a small per-object monitoring fee. Use it when you cannot predict access.
+3. **S3 Standard-IA** (Infrequent Access) — read rarely but needed in milliseconds when it is (backups) — $0.0125/GB + a retrieval fee, with a 30-day minimum. If you read it often, the retrieval fees wipe out the saving.
+4. **S3 One Zone-IA** — like Standard-IA but kept in a single Availability Zone — $0.01/GB. Only for data you could re-create, because losing that one zone loses the data.
+5. **S3 Glacier** — archival. *Instant Retrieval* still returns in milliseconds; *Flexible Retrieval* takes minutes to hours because the object must be restored before you can read it.
+6. **S3 Glacier Deep Archive** — the cheapest ($0.00099/GB), for regulatory archives you hope never to read; retrieval takes 12–48 hours.
 
-Use lifecycle rules to automatically transition objects between classes as they age.
+Use lifecycle rules to automatically transition objects between classes as they age, since most data is read heavily when new and rarely afterwards.
 
 ---
 
@@ -1995,11 +2015,11 @@ Enable versioning for data protection, audit trails, and compliance. It is also 
 
 **Q5: What is a pre-signed URL and when would you use it?**
 
-A pre-signed URL grants temporary, time-limited access to a private S3 object. It includes the operation (GET/PUT), expiration time, and a cryptographic signature derived from the creator's AWS credentials.
+A pre-signed URL grants temporary, time-limited access to a private S3 object. It includes the operation (GET/PUT), expiration time, and a cryptographic signature derived from the creator's AWS credentials. Your server signs the URL with its own credentials, hands it to the browser, and the browser talks to S3 directly — the bucket stays private and the client never holds AWS credentials.
 
 Use cases:
-1. **Download private files** — generate a GET pre-signed URL for authenticated users
-2. **Direct browser uploads** — generate a PUT pre-signed URL so clients upload directly to S3 (bypassing your server)
+1. **Download private files** — generate a GET pre-signed URL for authenticated users, after your own code has checked they are allowed to see that file
+2. **Direct browser uploads** — generate a PUT pre-signed URL so clients upload directly to S3 (bypassing your server). This is the main reason to use them: a 2 GB video no longer streams through your API servers, tying up memory and bandwidth
 3. **Temporary sharing** — share a file link that expires after a set time
 
 Maximum expiration is 7 days (with IAM user credentials). The URL inherits the permissions of the creator — if their permissions are revoked, the URL stops working.
@@ -2021,17 +2041,21 @@ S3 offers four encryption approaches:
 | **SSE-C** | Customer provides key per request | None (you track) | Full key control, BYOK |
 | **Client-side** | Customer encrypts before upload | None (you track) | Zero-trust, end-to-end encryption |
 
-SSE-S3 is the default since January 2023. Use SSE-KMS when you need audit trails, key rotation control, or cross-account key sharing. Use SSE-C when regulation requires you to manage keys. Use client-side when S3 must never see unencrypted data.
+SSE means server-side encryption: S3 encrypts the object as it writes it to disk and decrypts it when you read it. The four options differ in **who holds the key**, and that decides what you can prove and who can read the data.
 
-For SSE-KMS at high throughput, enable **S3 Bucket Keys** to reduce KMS API calls by up to 99%.
+SSE-S3 is the default since January 2023. Use SSE-KMS (KMS is AWS Key Management Service) when you need audit trails, key rotation control, or cross-account key sharing — every decrypt is a KMS call logged in CloudTrail, and a KMS key policy is a second permission check on top of S3's, so someone with S3 read access still cannot read the object without permission to use the key. Use SSE-C when regulation requires you to manage keys (BYOK, "bring your own key"): you send the key with each request and AWS never stores it, so losing it loses the data. Use client-side when S3 must never see unencrypted data.
+
+For SSE-KMS at high throughput, enable **S3 Bucket Keys** to reduce KMS API calls by up to 99%. Without them, every object read or write calls KMS, and KMS has a per-region request quota you can exhaust; a bucket key is generated once and reused for many objects.
 
 ---
 
 **Q7: How would you set up S3 Cross-Region Replication (CRR)?**
 
+Short answer: turn on versioning on both buckets, give S3 an IAM role that can read the source and write the destination, and add a replication rule. S3 then copies each new object version to the destination asynchronously.
+
 Steps to set up CRR:
 
-1. **Enable versioning** on both source and destination buckets
+1. **Enable versioning** on both source and destination buckets — replication works by copying object *versions*, so it needs version IDs to track what has already been copied
 2. **Create an IAM role** with permissions to read from source and write to destination
 3. **Configure replication rules** specifying which objects to replicate, the destination bucket, and the storage class
 4. **Optional**: Enable Replication Time Control (RTC) for 99.99% SLA on 15-minute replication
@@ -2047,24 +2071,26 @@ Important considerations:
 
 **Q8: How do you secure an S3 bucket that stores sensitive data?**
 
-A defense-in-depth approach for securing an S3 bucket:
+Short answer: layer the controls so no single mistake exposes the data — stop public access outright, limit who and which network can reach the bucket, make stolen bytes useless without a second permission, make deletion recoverable, and log everything so you can tell what happened. That layering is what "defence in depth" means.
 
-1. **Block Public Access** — enable all four settings at the account and bucket level
-2. **Bucket Policy** — restrict access by IP, VPC endpoint, or specific IAM principals; deny HTTP (enforce HTTPS)
-3. **Encryption** — SSE-KMS with a customer-managed key for audit trail; enforce encryption via bucket policy
-4. **Versioning + MFA Delete** — protect against accidental or malicious deletion
-5. **Object Lock (Compliance)** — WORM protection for regulatory data
-6. **Access logging** — enable S3 Server Access Logging or CloudTrail data events
-7. **VPC Endpoint** — use a Gateway VPC endpoint so traffic never leaves the AWS network
-8. **IAM least-privilege** — grant only the specific S3 actions needed (avoid `s3:*`)
-9. **Disable ACLs** — use BucketOwnerEnforced to prevent ACL-based access grants
-10. **Monitoring** — use Amazon Macie for PII detection, GuardDuty for threat detection
+1. **Block Public Access** — enable all four settings at the account and bucket level. It overrides any policy or ACL that would make data public, so a careless policy edit cannot leak the bucket.
+2. **Bucket Policy** — restrict access by IP, VPC endpoint, or specific IAM principals; deny HTTP (enforce HTTPS) so data is never sent unencrypted over the wire.
+3. **Encryption** — SSE-KMS with a customer-managed key. Reading an object then also needs permission to use the key, and every use is logged. Enforce it with a bucket policy that denies unencrypted uploads.
+4. **Versioning + MFA Delete** — an overwrite or delete keeps the old version, and permanently deleting a version needs a one-time code from an MFA device, so stolen credentials alone cannot wipe history.
+5. **Object Lock (Compliance)** — WORM (write once, read many): nobody, including the root account, can delete or change the object until its retention date. Use it for regulatory data.
+6. **Access logging** — enable S3 Server Access Logging or CloudTrail data events, so you can answer "who read this file, and when?" after an incident.
+7. **VPC Endpoint** — use a Gateway VPC endpoint so traffic from your servers reaches S3 without crossing the public internet, and pair it with a policy that denies requests not coming through it.
+8. **IAM least-privilege** — grant only the specific S3 actions needed (avoid `s3:*`), so a compromised service can do only what it was meant to do.
+9. **Disable ACLs** — use BucketOwnerEnforced. ACLs are a second, older permission system; turning them off means policies are the only place access can be granted, so there is one thing to audit.
+10. **Monitoring** — Amazon Macie scans objects for PII (personally identifiable information) you did not know was there; GuardDuty flags suspicious access patterns such as a sudden bulk download.
 
 ---
 
 **Q9: Explain S3 lifecycle rules and design a cost-optimized strategy for a media company.**
 
 Lifecycle rules automatically transition objects between storage classes and expire them based on age. You can filter by prefix, tags, or object size.
+
+The idea behind any lifecycle design: data is read most when it is new, so move it to cheaper classes as it ages — but watch the fine print. The IA classes bill small objects as if they were larger, the IA and Glacier classes bill a minimum storage duration, and they charge per GB retrieved, so moving tiny files or files that are still read often can cost *more* than leaving them in Standard. That is why the design below treats each content type differently.
 
 Media company strategy:
 
@@ -2091,13 +2117,15 @@ Incomplete multipart uploads:
   Day 1:       Abort                 (prevent storage waste)
 ```
 
-This strategy can reduce storage costs by 60-80% compared to keeping everything in S3 Standard.
+The saving comes mostly from the videos: they are the bulk of the bytes and are rarely touched after the first month, so moving them down the classes is where the money is. Thumbnails stay in Standard because at 50 KB they fall under the IA classes' 128 KB billing minimum — you would pay for storage you are not using.
 
 ---
 
 **Q10: What are S3 Access Points and how do they simplify access management?**
 
-S3 Access Points are named network endpoints attached to a bucket, each with its own access policy and network controls. They solve the problem of managing one massive, complex bucket policy for a bucket shared by many teams.
+Short answer: an access point is a separate doorway into one bucket, with its own name and its own policy. Instead of one huge bucket policy that tries to describe every team's access, each team gets its own doorway with a small policy that describes only that team.
+
+In more detail, S3 Access Points are named network endpoints attached to a bucket, each with its own access policy and network controls. They solve the problem of managing one massive, complex bucket policy for a bucket shared by many teams.
 
 Without access points: one bucket policy with dozens of statements for different teams and prefixes. Hard to read, easy to misconfigure, risky to update.
 
@@ -2123,6 +2151,8 @@ The bucket policy is simplified to a single "delegate to access points" statemen
 
 **Q11: How does S3 achieve 11 9s of durability and what are the failure scenarios?**
 
+Short answer: by storing redundant pieces of every object across several separate data centres and constantly checking and repairing them. But durability only protects you from AWS losing your data — not from you (or an attacker) deleting it, which is the failure that actually happens.
+
 S3 achieves 99.999999999% durability by:
 
 1. **Redundant storage** — objects are automatically stored across a minimum of 3 Availability Zones (except One Zone-IA)
@@ -2144,6 +2174,8 @@ S3 durability is NOT the same as availability. Durability = data not lost. Avail
 ---
 
 **Q12: Design a high-performance S3 architecture for a data lake processing 10 TB/day.**
+
+Short answer: the design rests on the key layout. Put the date and source in the key (`year=/month=/day=/`) so writes spread across many prefixes — S3's throughput limit is per prefix — and so query engines like Athena can skip every folder outside the date range asked for. Store data in a columnar format (Parquet or ORC, which store each column together) so a query reading three columns does not scan the other forty. Everything else is ingestion mechanics and cost tiering.
 
 ```
 Architecture for 10 TB/day data lake:
@@ -2187,6 +2219,8 @@ Cost optimization:
 ---
 
 **Q13: Explain S3 consistency model and its implications for distributed systems.**
+
+Short answer: once a write to S3 succeeds, every later read and list sees it. That guarantee is per object, though — S3 has no transactions across several objects and no locks, so coordinating related writes is still your job.
 
 Since December 2020, S3 provides **strong read-after-write consistency** for all operations:
 
@@ -2289,6 +2323,8 @@ Access pattern:
 
 **Q15: Compare S3 event notifications, EventBridge, and S3 Object Lambda. When would you use each?**
 
+Short answer: event notifications and EventBridge both react *after* something changes in the bucket — notifications for a simple "file landed, call this" trigger, EventBridge when you need rich filtering, several targets, or replay. Object Lambda is different in kind: it runs *during* a read and changes what the caller gets back. (AWS closed Object Lambda to new customers on 7 November 2025, so treat it as a concept you may meet in existing systems; AWS's suggested replacements are a Lambda function invoked through CloudFront, API Gateway or a function URL, or doing the transform in the client.)
+
 | Feature | S3 Event Notifications | EventBridge | S3 Object Lambda |
 |---------|----------------------|-------------|-----------------|
 | Targets | Lambda, SQS, SNS | 18+ AWS services | Transforms data on GET |
@@ -2313,6 +2349,8 @@ S3 Object Lambda sits between the client and S3 — the GET request goes through
 ---
 
 **Q16: How does S3 handle throttling and what strategies prevent 503 Slow Down errors?**
+
+Short answer: a 503 Slow Down means you sent more requests to one part of the key space than S3 has capacity for *right now*. S3 splits hot prefixes into more internal partitions as load grows, but that takes time, so the fixes are to spread keys across prefixes, ramp up gradually, and retry with backoff while it catches up.
 
 S3 automatically scales to handle high request rates, but aggressive ramp-ups or hotspot prefixes can trigger 503 Slow Down errors. S3 supports 3,500 writes and 5,500 reads per second per prefix.
 
@@ -2349,6 +2387,8 @@ Prevention strategies:
 ---
 
 **Q17: What is S3 Object Lambda and how does it differ from a Lambda triggered by S3 events?**
+
+Short answer: an event-triggered Lambda runs *after* a write and usually produces a new object; Object Lambda runs *inside* a read and changes the response without ever changing what is stored. Note that since 7 November 2025 Object Lambda is available only to accounts that already used it (plus select AWS partners), so for a new system you would build the same "transform on read" behaviour yourself in front of S3.
 
 They serve fundamentally different purposes:
 

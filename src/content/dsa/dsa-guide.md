@@ -140,6 +140,8 @@ Arrays and strings are the most common data structures in interviews. Most probl
 
 The two-pointer technique uses two indices that move toward each other (or in the same direction) to reduce a nested loop to a single pass. Typically used on **sorted** arrays or when working from both ends.
 
+Why it is safe to skip pairs: in a sorted array, if `arr[left] + arr[right]` is too small, pairing `arr[left]` with anything left of `right` would be even smaller, so `left` can never be part of the answer and you move past it. Each step rules out one element for good, which is why one pass is enough.
+
 ```js
 // Pair with target sum in a sorted array — O(n) time, O(1) space
 function twoSumSorted(arr, target) {
@@ -212,6 +214,8 @@ console.log(lengthOfLongestSubstring("bbbbb"));    // 1 ("b")
 ### 2.3 Prefix Sum
 
 A prefix sum array stores cumulative sums so that the sum of any subarray `[i, j]` can be computed in O(1) after O(n) preprocessing.
+
+The second example below (subarray sum equals k) turns the idea around. The sum of a subarray that ends at the current position is "running total now" minus "running total at some earlier point". So a subarray ending here sums to `k` exactly when some earlier running total equalled `sum - k`. Keeping a count of every running total seen so far turns "how many subarrays sum to k?" into one hash-map lookup per element. This also works with negative numbers, where a sliding window does not.
 
 ```js
 // Build prefix sum and query range sums — O(n) build, O(1) per query
@@ -398,7 +402,7 @@ console.log(containsDuplicate([1, 2, 3, 4])); // false
 
 ### 3.3 Grouping & Lookup
 
-Hash maps are powerful for grouping items by a key or building quick lookup tables.
+Grouping works by computing a key that is identical for items that belong together (for anagrams, the sorted letters) and using it as the map key. Each item then lands in its group with one lookup instead of being compared against every other item.
 
 ```js
 // Group anagrams — O(n * k log k) time where k = max string length
@@ -544,6 +548,14 @@ console.log(list.size);      // 3
 ### 4.2 Common Operations
 
 ```js
+// Same node class as §4.1, repeated so this block runs on its own.
+class ListNode {
+  constructor(val, next = null) {
+    this.val = val;
+    this.next = next;
+  }
+}
+
 // Helper: build a linked list from an array
 function buildList(arr) {
   let head = null;
@@ -639,7 +651,7 @@ console.log(toArray(mergeTwoLists(list1, list2))); // [1, 2, 3, 4, 5, 6]
 
 ## 5. Stacks & Queues
 
-A **stack** is a Last-In-First-Out (LIFO) structure, and a **queue** is a First-In-First-Out (FIFO) structure. Both are fundamental building blocks for more complex algorithms.
+A **stack** is a Last-In-First-Out (LIFO) structure: the last item you add is the first you take out, like a pile of plates. A **queue** is a First-In-First-Out (FIFO) structure: items come out in the order they went in, like a checkout line. A stack is what you reach for when the most recent unfinished thing must be dealt with first (matching brackets, undo, depth-first search); a queue is what you reach for when things must be handled in arrival order (breadth-first search, task scheduling).
 
 ### 5.1 Stack Implementation & Use Cases
 
@@ -667,7 +679,17 @@ console.log(stack.size()); // 2
 
 ### 5.2 Queue Implementation
 
+Why not just use an array? `arr.shift()` removes the first element and then moves every remaining element down one slot, so it costs O(n). A linked list with `head` and `tail` pointers removes from the front in O(1). The BFS examples later in this guide use `shift()` for brevity, which is fine in an interview as long as you mention the cost.
+
 ```js
+// Same node class as §4.1, repeated so this block runs on its own.
+class ListNode {
+  constructor(val, next = null) {
+    this.val = val;
+    this.next = next;
+  }
+}
+
 // Queue using a linked list — all operations O(1)
 class Queue {
   constructor() {
@@ -711,6 +733,12 @@ console.log(queue.size());    // 2
 ```
 
 ### 5.3 Common Problems
+
+Three classics, each showing one reason to reach for a stack:
+
+- **Valid Parentheses**: a closing bracket must match the *most recent* unclosed opening one, and "most recent first" is exactly what a stack gives you.
+- **Min Stack**: a second stack stores the minimum *at each depth*, so popping restores the previous minimum for free instead of rescanning.
+- **Queue from two stacks**: pushing onto `inStack` and popping from `outStack` reverses the order twice, which turns last-in-first-out into first-in-first-out. A single `dequeue` can be O(n) when it has to move everything across, so why is it called O(1)? **Amortized** cost means the average over a whole sequence of operations, not the worst single call. Each element is pushed onto `inStack` once, moved to `outStack` once and popped once, so *n* operations do at most about 3*n* units of work in total, which averages to O(1) each. The expensive transfer only happens when `outStack` is empty, and it pays for every element it moves.
 
 ```js
 // Valid Parentheses — O(n) time, O(n) space
@@ -824,6 +852,8 @@ A tree is a hierarchical data structure with a root node and child nodes forming
 
 A binary tree is a tree where each node has at most two children (left and right). There are two main traversal strategies: Breadth-First Search (BFS, level by level) and Depth-First Search (DFS, as deep as possible first).
 
+BFS visits nodes in the order it discovers them, so it uses a queue. DFS always continues from the most recently discovered node, so it uses a stack, usually the call stack via recursion. The three DFS orders (inorder, preorder, postorder) differ only in when the node itself is recorded relative to its children. Complexities below use `h` for the tree's height (the number of levels on the longest root-to-leaf path), because recursion keeps one stack frame per level.
+
 ```js
 class TreeNode {
   constructor(val, left = null, right = null) {
@@ -910,6 +940,8 @@ console.log(inorderIterative(tree)); // [4, 2, 5, 1, 3, 6]
 ### 6.2 Binary Search Tree (BST)
 
 A BST is a binary tree where for each node, all values in its left subtree are less and all values in its right subtree are greater. This property enables O(log n) search, insert, and delete on average (O(n) worst case for skewed trees).
+
+The reason is that every comparison discards one whole subtree, so the work is the tree's height `h`. A balanced tree has about log n levels. A skewed tree does not: insert `1, 2, 3, 4, 5` in order and every node becomes the right child of the previous one, so the "tree" is really a linked list with n levels. Self-balancing trees (AVL, red-black) exist to prevent exactly that.
 
 ```js
 // Insert into BST — O(h) time
@@ -1090,6 +1122,8 @@ console.log(matrix);
 
 ### 7.2 BFS and DFS on Graphs
 
+These are the tree traversals from §6.1 with one addition: a `visited` set. A tree has no cycles, but a graph can (A → B → A), and without remembering where you have been the traversal would loop forever. BFS reaches nodes in order of how many edges away they are, which is why it finds the shortest path when every edge counts the same.
+
 ```js
 // BFS on a graph — O(V + E) time, O(V) space
 function graphBFS(graph, start) {
@@ -1148,6 +1182,10 @@ console.log(graphDFSRecursive(g, 'A')); // ['A', 'B', 'D', 'C', 'E']
 ```
 
 ### 7.3 Common Problems
+
+**Number of Islands** treats the grid as a graph where each land cell connects to its four neighbours. Every time the scan finds unvisited land it has found a new island, and a DFS from that cell "sinks" the whole island so it is never counted twice.
+
+**Course Schedule** and **Topological Sort** use **Kahn's algorithm**. A course's **in-degree** is the number of prerequisites it still waits on (the number of edges pointing *into* it). Any course with in-degree 0 can be taken now, so it goes in a queue. Taking a course removes its outgoing edges, which lowers the in-degree of every course that depended on it, and any that reach 0 join the queue. The order in which courses leave the queue is a valid topological order. If the queue empties before every course has been taken, the courses left over are all waiting on each other: that is a cycle, and no valid order exists.
 
 ```js
 // Number of Islands — O(rows * cols) time and space
@@ -1252,11 +1290,11 @@ console.log(topologicalSort(4, [[1,0],[2,0],[3,1],[3,2]])); // [0, 1, 2, 3]
 
 ## 8. Sorting
 
-Sorting is fundamental to computer science and a frequent interview topic. Understanding the trade-offs between different sorting algorithms is essential.
+In an interview you will rarely be asked to hand-write a sort for its own sake. What gets tested is whether you know the trade-offs: how fast each algorithm is in the best and worst case, how much extra memory it needs, and whether it is stable (equal elements keep their original order, which matters when you sort by one field and then by another). Sorting is also often the first step that makes another technique possible, such as two pointers in 3Sum.
 
 ### 8.1 Bubble Sort, Selection Sort, Insertion Sort
 
-These are simple O(n^2) algorithms. They are rarely used in production but are important to understand conceptually and are common interview questions.
+These are simple O(n^2) algorithms. They are rarely used on their own in production, but insertion sort is worth knowing properly: on an array that is already nearly sorted it does close to O(n) work, which is why hybrid sorts such as TimSort switch to it for small chunks.
 
 ```js
 // Bubble Sort — O(n^2) time, O(1) space
@@ -1385,10 +1423,10 @@ console.log(quickSort([10, 7, 8, 9, 1, 5])); // [1, 5, 7, 8, 9, 10]
 | Insertion Sort | O(n)       | O(n^2)     | O(n^2)     | O(1)   | Yes    |
 | Merge Sort     | O(n log n) | O(n log n) | O(n log n) | O(n)   | Yes    |
 | Quick Sort     | O(n log n) | O(n log n) | O(n^2)     | O(logn)| No     |
-| JS .sort()     | O(n log n) | O(n log n) | O(n log n) | O(logn)| Yes*   |
+| JS .sort()     | O(n)       | O(n log n) | O(n log n) | O(n)   | Yes*   |
 ```
 
-*JavaScript's `Array.prototype.sort()` uses TimSort (hybrid of merge sort and insertion sort) in V8, which is stable as of ES2019.
+*JavaScript's `Array.prototype.sort()` uses TimSort (hybrid of merge sort and insertion sort) in V8, which is stable as of ES2019. TimSort's best case is O(n) because it detects already-sorted runs and merely merges them, and its merge step needs a temporary buffer of up to n/2 elements, so its extra space is O(n). The spec itself only requires stability, not a particular algorithm, so other engines may differ.
 
 ---
 
@@ -1425,6 +1463,10 @@ console.log(binarySearchRecursive([2, 4, 6, 8, 10], 6)); // 2
 ```
 
 ### 9.2 Binary Search Variations
+
+**First and last occurrence** change one thing: on a match they record the index and keep searching instead of returning, moving `right` left to find an earlier copy or `left` right to find a later one.
+
+**Search in a rotated sorted array** relies on one fact. A sorted array rotated at some point, such as `[4,5,6,7,0,1,2]`, has a single "drop" (7 to 0). Any midpoint splits the range into two halves, and the drop can only be in one of them, so **at least one half is always fully sorted**. Checking `nums[left] <= nums[mid]` tells you which. In the sorted half you can test with two comparisons whether the target lies inside its range: if it does, search there, otherwise search the other half. Either way half the range is discarded each step, so it stays O(log n).
 
 ```js
 // Find first occurrence of target — O(log n)
@@ -1493,7 +1535,7 @@ console.log(searchRotated([1], 0));                      // -1
 
 ## 10. Dynamic Programming
 
-Dynamic programming (DP) solves problems by breaking them into overlapping subproblems and storing results to avoid redundant computation. There are two approaches: **memoization** (top-down, recursive) and **tabulation** (bottom-up, iterative).
+Dynamic programming (DP) solves problems by breaking them into overlapping subproblems and storing results to avoid redundant computation. "Overlapping" means the same smaller question gets asked many times: the naive `fibNaive(5)` in §1.1 computes `fib(3)` twice and `fib(2)` three times, and the repetition grows exponentially with n. Store each answer the first time and every repeat becomes a lookup. DP applies when the problem also has optimal substructure: the best answer can be built from the best answers to its subproblems. There are two approaches: **memoization** (top-down, recursive) and **tabulation** (bottom-up, iterative).
 
 ### 10.1 Memoization (Top-Down)
 
@@ -1671,8 +1713,8 @@ A **priority queue** is the abstract data type; a heap is the standard implement
 - **Top-K problems** — k most frequent elements, k closest points, k-th largest. Heap of size k beats sorting (`O(n log k)` vs `O(n log n)`).
 - **Streaming median** — two heaps (max-heap of lower half, min-heap of upper half).
 - **Merge K sorted lists** — pull the smallest current head from a min-heap of `k` heads.
-- **Dijkstra's shortest path** — already used in the Graphs section.
-- **Task scheduling** with priorities, event simulation, A* search.
+- **Dijkstra's shortest path** — the heap always hands back the closest unvisited node next (see Q13 for a full implementation).
+- **Task scheduling** with priorities, event simulation, and A* search (a shortest-path search that also uses an estimate of the remaining distance to decide what to try next).
 
 ### 11.1 Min-Heap Implementation
 
@@ -1732,23 +1774,67 @@ class MinHeap {
 
 ### 11.2 Top-K Frequent Elements (canonical heap problem)
 
+The idea: count each value with a hash map, then keep a min-heap of at most k `[count, value]` pairs. Whenever the heap grows past k, pop the root, which is the least frequent of the candidates. What is left at the end is the k most frequent, at O(n log k) instead of the O(n log n) of sorting every count. The heap here needs to order `[count, value]` pairs by `count`, not compare raw numbers, so the block uses a variant of §11.1's `MinHeap` that takes a `compare(a, b)` function, the same contract as `Array.prototype.sort`. It is repeated in each block that needs it so every example runs on its own.
+
 ```js
+// Small min-heap that takes a compare(a, b) function, like Array.prototype.sort.
+class MinHeap {
+  constructor(compare = (a, b) => a - b) {
+    this.heap = [];
+    this.compare = compare;
+  }
+  size() { return this.heap.length; }
+  peek() { return this.heap[0]; }
+  push(val) {
+    const h = this.heap;
+    h.push(val);
+    let i = h.length - 1;
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (this.compare(h[parent], h[i]) <= 0) break;
+      [h[parent], h[i]] = [h[i], h[parent]];
+      i = parent;
+    }
+  }
+  pop() {
+    const h = this.heap;
+    if (h.length === 0) return undefined;
+    const root = h[0];
+    const last = h.pop();
+    if (h.length > 0) {
+      h[0] = last;
+      let i = 0;
+      while (true) {
+        const left = 2 * i + 1, right = 2 * i + 2;
+        let smallest = i;
+        if (left < h.length && this.compare(h[left], h[smallest]) < 0) smallest = left;
+        if (right < h.length && this.compare(h[right], h[smallest]) < 0) smallest = right;
+        if (smallest === i) break;
+        [h[smallest], h[i]] = [h[i], h[smallest]];
+        i = smallest;
+      }
+    }
+    return root;
+  }
+}
 // Given an array, return the k most frequent elements.
-// Hash-map count + min-heap of size k = O(n log k) time.
+// Hash-map count + min-heap of size k = O(n log k) time, O(n) space.
 function topKFrequent(nums, k) {
   const freq = new Map();
   for (const n of nums) freq.set(n, (freq.get(n) || 0) + 1);
 
-  // Heap stores [freq, value]; min-heap by freq so we can pop the smallest
-  // when size exceeds k.
-  const heap = new MinHeap();
-  heap.push = function(item) {
-    this.heap.push(item);
-    this._bubbleUp(this.heap.length - 1);
-  };
-  // ... a real implementation would parameterize comparator. For brevity:
-  const arr = [...freq.entries()].sort((a, b) => b[1] - a[1]);
-  return arr.slice(0, k).map(([num]) => num);
+  // Heap of [count, value], ordered by count. The root is the LEAST frequent
+  // candidate, which is exactly the one to evict when the heap grows past k.
+  const heap = new MinHeap((a, b) => a[0] - b[0]);
+  for (const [value, count] of freq) {
+    heap.push([count, value]);
+    if (heap.size() > k) heap.pop();
+  }
+
+  // Pops come out least frequent first, so fill the result from the back.
+  const result = new Array(heap.size());
+  for (let i = result.length - 1; i >= 0; i--) result[i] = heap.pop()[1];
+  return result;
 }
 
 console.log(topKFrequent([1, 1, 1, 2, 2, 3], 2));  // [1, 2]
@@ -1757,6 +1843,46 @@ console.log(topKFrequent([1, 1, 1, 2, 2, 3], 2));  // [1, 2]
 ### 11.3 K-th Largest in a Stream
 
 ```js
+// Small min-heap that takes a compare(a, b) function, like Array.prototype.sort.
+class MinHeap {
+  constructor(compare = (a, b) => a - b) {
+    this.heap = [];
+    this.compare = compare;
+  }
+  size() { return this.heap.length; }
+  peek() { return this.heap[0]; }
+  push(val) {
+    const h = this.heap;
+    h.push(val);
+    let i = h.length - 1;
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (this.compare(h[parent], h[i]) <= 0) break;
+      [h[parent], h[i]] = [h[i], h[parent]];
+      i = parent;
+    }
+  }
+  pop() {
+    const h = this.heap;
+    if (h.length === 0) return undefined;
+    const root = h[0];
+    const last = h.pop();
+    if (h.length > 0) {
+      h[0] = last;
+      let i = 0;
+      while (true) {
+        const left = 2 * i + 1, right = 2 * i + 2;
+        let smallest = i;
+        if (left < h.length && this.compare(h[left], h[smallest]) < 0) smallest = left;
+        if (right < h.length && this.compare(h[right], h[smallest]) < 0) smallest = right;
+        if (smallest === i) break;
+        [h[smallest], h[i]] = [h[i], h[smallest]];
+        i = smallest;
+      }
+    }
+    return root;
+  }
+}
 // Maintain a min-heap of size k. The root is always the k-th largest.
 // add(val) is O(log k).
 class KthLargest {
@@ -1799,7 +1925,7 @@ console.log(kth.add(9));   // 8
 
 A **trie** (pronounced "try") is a tree-shaped dictionary where each path from root to a terminal node spells out a key. The classic use case is **prefix-based lookup** — autocomplete, spell-check, IP routing tables.
 
-Why a trie beats a hash set for prefix queries: a hash set tells you "is this exact word stored?" in O(1); a trie tells you "what words start with these letters?" in O(prefix length), regardless of how many words are stored. For autocomplete on millions of words, a hash set forces you to scan every key.
+Why a trie beats a hash set for prefix queries: a hash set tells you "is this exact word stored?" in O(1), but it has no idea which words share a prefix. A trie walks to the node for a prefix in O(prefix length), regardless of how many words are stored, and every word below that node starts with it. For autocomplete on millions of words, a hash set forces you to scan every key.
 
 ### 12.1 Implementation
 
@@ -1860,6 +1986,34 @@ console.log(t.startsWith("xyz"));     // false
 ### 12.2 Autocomplete
 
 ```js
+// The Trie from §12.1, trimmed to the two methods autocomplete needs,
+// so this block runs on its own.
+class TrieNode {
+  constructor() {
+    this.children = new Map();   // char → TrieNode
+    this.isEnd = false;
+  }
+}
+class Trie {
+  constructor() { this.root = new TrieNode(); }
+  insert(word) {
+    let node = this.root;
+    for (const ch of word) {
+      if (!node.children.has(ch)) node.children.set(ch, new TrieNode());
+      node = node.children.get(ch);
+    }
+    node.isEnd = true;
+  }
+  _find(s) {
+    let node = this.root;
+    for (const ch of s) {
+      if (!node.children.has(ch)) return null;
+      node = node.children.get(ch);
+    }
+    return node;
+  }
+}
+
 // Return all words in the trie with the given prefix.
 function autocomplete(trie, prefix) {
   const node = trie._find(prefix);
@@ -2075,7 +2229,7 @@ function exist(board, word) {
 | Palindrome Partitioning          | Split string at every position, check palindrome        |
 ```
 
-**Performance note:** without pruning, backtracking is exponential — N-Queens is 8! permutations brute force, but pruning by attack-set cuts it to ~92. The pruning is what makes backtracking practical; design the `isValid` check first, then the branching.
+**Performance note:** without pruning, backtracking is exponential. For 8-Queens, trying every placement of one queen per row is 8^8 (about 16.7 million) boards; even one queen per row and column is 8! = 40,320. Pruning with the attack sets abandons a partial board the moment two queens clash, so most of those boards are never built, and the search ends with the 92 valid solutions. The pruning is what makes backtracking practical; design the `isValid` check first, then the branching.
 
 ---
 
@@ -2102,6 +2256,14 @@ A quick reference mapping common interview patterns to the types of problems the
 | Backtracking       | Generate all combinations/permutations, constraint | N-Queens, Sudoku solver, subsets, combinations |
 | Monotonic Stack    | Next greater/smaller element                       | Daily temperatures, largest rectangle histogram|
 ```
+
+Most rows have their own section earlier in this guide (two pointers §2.1, sliding window §2.2, prefix sum §2.3, frequency counter §3.1, fast and slow pointers §4.2, BFS/DFS §6–§7, binary search §9, DP §10, backtracking §13). Three terms appear only here:
+
+- **Greedy**: at each step take the choice that looks best right now and never revisit it. It is only correct when you can argue that a locally best choice never blocks a better overall answer. Activity selection is the classic case: always pick the meeting that *ends* earliest, because that leaves the most room for the rest. When that argument fails (coin change with coins 1, 3, 4 and amount 6: greedy takes 4+1+1, the best is 3+3), you need DP instead.
+- **Monotonic stack**: a stack kept in increasing or decreasing order. Before pushing a new element you pop everything it "beats", and each pop is the moment you learn that popped element's answer. In Daily Temperatures, a warmer day pops every cooler day still waiting, and that is exactly the day each of them was waiting for. Every element is pushed and popped at most once, so the whole pass is O(n).
+- **Divide and conquer**: split the input into independent parts, solve each recursively, then combine. It differs from DP in that the parts do not overlap, so there is nothing to cache. Merge sort (§8.2) is the standard example.
+
+A few example names that are not covered elsewhere: *happy number* repeatedly replaces a number by the sum of its digits' squares, and detecting whether that sequence loops is a fast-and-slow-pointer cycle check; *word ladder* is shortest-path BFS where each word is a node and words one letter apart are neighbours; *LCS* is the longest common subsequence of two strings, a two-dimensional DP.
 
 **How to pick a pattern in an interview:**
 
@@ -2141,7 +2303,9 @@ Choose arrays when you need random access. Choose linked lists when you need fre
 
 **Q2: Explain time complexity. What does O(n log n) mean?**
 
-Time complexity describes how an algorithm's running time grows as the input size `n` increases. **O(n log n)** means that for each of the `n` elements, the algorithm performs approximately `log n` work. This is characteristic of efficient divide-and-conquer sorting algorithms like merge sort: it divides the array in half `log n` times, and at each level it processes all `n` elements during the merge step.
+Short answer: time complexity describes how an algorithm's running time grows as the input size `n` increases, and O(n log n) means "about n units of work, repeated log n times".
+
+`log n` (base 2) is the number of times you can halve `n` before reaching 1: 8 → 4 → 2 → 1 is 3 halvings, and a million elements take only about 20. So **O(n log n)** means that for each of the `n` elements, the algorithm performs approximately `log n` work. This is characteristic of efficient divide-and-conquer sorting algorithms like merge sort: it divides the array in half `log n` times, and at each level it processes all `n` elements during the merge step.
 
 ```js
 // O(n log n) example — merge sort
@@ -2225,6 +2389,8 @@ function dfsExample(root) {
 
 Given an array of heights, find two lines that together with the x-axis form a container that holds the most water. Use two pointers starting from both ends. The area is `min(height[left], height[right]) * (right - left)`. Move the pointer with the shorter height inward, since moving the taller one could never increase the area.
 
+Why that is safe: the water level is capped by the shorter line. If you move the taller pointer instead, the width shrinks by one and the height is still capped by that same short line (or something shorter), so the area can only stay equal or drop. Every container that uses the short line has therefore already been beaten by the one you just measured, and you can discard it. That is what lets one O(n) pass replace checking all O(n^2) pairs.
+
 ```js
 // O(n) time, O(1) space
 function maxArea(height) {
@@ -2246,7 +2412,11 @@ console.log(maxArea([1,8,6,2,5,4,8,3,7])); // 49 (between index 1 and 8)
 
 **Q7: How would you detect and remove a cycle in a linked list?**
 
-Use **Floyd's cycle detection** (tortoise and hare). If slow and fast pointers meet, a cycle exists. To find the cycle start: reset one pointer to the head and advance both one step at a time — they meet at the cycle entry. To remove: find the node just before the cycle entry and set its `next` to `null`.
+Use **Floyd's cycle detection** (tortoise and hare): a slow pointer moves one node per step and a fast pointer moves two. If there is no cycle, the fast pointer falls off the end. If there is one, both end up circling it, and the fast pointer closes the gap by exactly one node per step, so it cannot jump over the slow one; they must meet.
+
+To find the cycle start: reset one pointer to the head and advance both one step at a time — they meet at the cycle entry. The reason: call the distance from head to the entry `a`, and the distance from the entry to the meeting point `b`. The fast pointer travelled twice as far as the slow one, and the extra distance is some whole number of laps, which works out to `a` being equal to "whole laps minus `b`". So a pointer walking `a` steps from the head and a pointer walking `a` steps from the meeting point arrive at the entry together.
+
+To remove: find the node just before the cycle entry and set its `next` to `null`. Both steps use O(1) extra space, which is the point of the technique; a `Set` of visited nodes also works but costs O(n).
 
 ```js
 // Detect cycle start — O(n) time, O(1) space
@@ -2333,6 +2503,8 @@ console.log(climbTab(30));  // 1346269
 
 A valid BST requires that for every node, all nodes in its left subtree have values strictly less than the node, and all in its right subtree have values strictly greater. Pass down min/max boundaries as you recurse to enforce this constraint.
 
+The trap is checking only each node against its direct children. In the invalid tree below, `9` is a perfectly good right child of `3`, but it sits in the left subtree of `5` and is larger than `5`. A child-only check passes it. Carrying the allowed range down the tree catches it, because by the time you reach `9` its range is `(3, 5)`.
+
 ```js
 // O(n) time, O(h) space
 function isValidBST(root, min = -Infinity, max = Infinity) {
@@ -2364,7 +2536,9 @@ console.log(isValidBST(invalidBST)); // false
 
 **Q10: Solve the "3Sum" problem — find all triplets that sum to zero.**
 
-Sort the array, then for each element, use two pointers on the remaining subarray to find pairs that complete the sum. Skip duplicates to avoid redundant triplets.
+Short answer: sort, fix one number, then solve Two Sum on the rest with two pointers. That turns the O(n^3) try-every-triplet approach into O(n^2).
+
+Sort the array, then for each element, use two pointers on the remaining subarray to find pairs that complete the sum. Sorting is what makes the pointers work (too small → move `left` up, too big → move `right` down; see §2.1). It also puts equal values next to each other, so you can skip duplicates by comparing with the neighbour, which is how the result avoids repeating the same triplet.
 
 ```js
 // O(n^2) time, O(1) space (ignoring output)
@@ -2402,6 +2576,8 @@ console.log(threeSum([-1, 0, 1, 2, -1, -4])); // [[-1, -1, 2], [-1, 0, 1]]
 **Q11: Design and implement an LRU (Least Recently Used) Cache.**
 
 An LRU cache evicts the least recently accessed item when it reaches capacity. Use a **doubly linked list** (for O(1) removal and insertion at both ends) combined with a **hash map** (for O(1) key lookups). Every `get` and `put` operation makes the accessed item the most recent.
+
+Why both: a hash map alone finds a key in O(1) but knows nothing about order, so finding the oldest item would mean scanning. A list alone keeps order but finding a key means walking it. Together, the map jumps straight to a node, and the doubly linked list (each node points to both neighbours) lets you unlink that node and move it to the front without a scan. Each node also stores its `key`, so when you evict the tail node you know which map entry to delete. In JavaScript you can also build an LRU on a single `Map`, because it iterates in insertion order: delete and re-set a key to mark it recent, and the first key is the oldest. Interviewers often ask for the list version anyway, because it shows you understand the mechanism.
 
 ```js
 class LRUNode {
@@ -2479,6 +2655,8 @@ console.log(cache.get(4));  // 4
 
 Given a string `s` and a dictionary of words, determine if `s` can be segmented into space-separated words from the dictionary. Use DP where `dp[i]` represents whether `s[0..i-1]` can be segmented.
 
+Why DP: a plain recursive solution tries every split point, and different splits keep asking the same question ("can the rest of the string from position j be segmented?"). Storing that answer once per position removes the repeats. The rule is: the first `i` characters can be segmented if there is some split point `j` where the first `j` characters can be segmented (`dp[j]`) and the piece from `j` to `i` is a dictionary word.
+
 ```js
 // O(n^2 * k) time where k = avg word length for substring comparison, O(n) space
 function wordBreak(s, wordDict) {
@@ -2509,6 +2687,8 @@ console.log(wordBreak("catsandog", ["cats","dog","sand","and","cat"])); // false
 **Q13: Implement Dijkstra's shortest path algorithm.**
 
 Dijkstra's algorithm finds the shortest path from a source node to all other nodes in a **weighted graph with non-negative edges**. It uses a priority queue (min-heap) to always process the node with the smallest known distance first.
+
+Why that works: when a node comes off the heap with the smallest distance of anything still waiting, no other route can reach it more cheaply, because every other route would have to pass through a node that is already at least as far away and then add a non-negative edge. That argument is also why negative edges break it: a later negative edge could make a "finished" node cheaper. (Use Bellman-Ford, which relaxes every edge repeatedly, when weights can be negative.) The `if (d > dist[u]) continue` line exists because this version pushes a node again whenever it finds a shorter path instead of updating the old heap entry, so stale entries have to be skipped when they surface.
 
 ```js
 // O((V + E) log V) time with a priority queue, O(V) space
@@ -2596,10 +2776,62 @@ console.log(dijkstra(wGraph, 'A'));
 
 Given `k` sorted linked lists, merge them into one sorted list. Use a min-heap (priority queue) of size `k` to always extract the smallest current head across all lists. Time: O(N log k) where N is the total number of nodes.
 
+Why a heap: the next node in the output is always the smallest of the k current heads. Scanning all k heads for every node costs O(N·k); merging the lists into one pair at a time also ends up around O(N·k). A heap of the k heads gives you the smallest in O(log k), and after you take it you push that list's next node. The block carries its own copies of the comparator `MinHeap` from §11.2 (ordered here by the first element of each `[val, listIndex, node]` entry) and of the `ListNode`, `buildList` and `toArray` helpers from §4, so it runs on its own.
+
 ```js
+// Small min-heap that takes a compare(a, b) function, like Array.prototype.sort.
+class MinHeap {
+  constructor(compare = (a, b) => a - b) {
+    this.heap = [];
+    this.compare = compare;
+  }
+  size() { return this.heap.length; }
+  peek() { return this.heap[0]; }
+  push(val) {
+    const h = this.heap;
+    h.push(val);
+    let i = h.length - 1;
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (this.compare(h[parent], h[i]) <= 0) break;
+      [h[parent], h[i]] = [h[i], h[parent]];
+      i = parent;
+    }
+  }
+  pop() {
+    const h = this.heap;
+    if (h.length === 0) return undefined;
+    const root = h[0];
+    const last = h.pop();
+    if (h.length > 0) {
+      h[0] = last;
+      let i = 0;
+      while (true) {
+        const left = 2 * i + 1, right = 2 * i + 2;
+        let smallest = i;
+        if (left < h.length && this.compare(h[left], h[smallest]) < 0) smallest = left;
+        if (right < h.length && this.compare(h[right], h[smallest]) < 0) smallest = right;
+        if (smallest === i) break;
+        [h[smallest], h[i]] = [h[i], h[smallest]];
+        i = smallest;
+      }
+    }
+    return root;
+  }
+}
+class ListNode {
+  constructor(val, next = null) { this.val = val; this.next = next; }
+}
+const buildList = (arr) => arr.reduceRight((next, val) => new ListNode(val, next), null);
+function toArray(head) {
+  const out = [];
+  for (let n = head; n; n = n.next) out.push(n.val);
+  return out;
+}
+
 // O(N log k) time, O(k) space
 function mergeKLists(lists) {
-  const pq = new MinHeap();
+  const pq = new MinHeap((a, b) => a[0] - b[0]); // ordered by node value
   // Push the head of each list into the heap
   for (let i = 0; i < lists.length; i++) {
     if (lists[i]) pq.push([lists[i].val, i, lists[i]]); // [val, listIndex, node]
@@ -2608,7 +2840,7 @@ function mergeKLists(lists) {
   const dummy = new ListNode(0);
   let curr = dummy;
 
-  while (pq.size > 0) {
+  while (pq.size() > 0) {
     const [val, idx, node] = pq.pop();
     curr.next = node;
     curr = curr.next;

@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { safeSet } from '../../lib/storage';
+import { canRunInPlayground } from '../../lib/tryItEligibility';
+import { getTextContent } from '../../data';
 import { Check, Copy, Play, Timer } from 'lucide-react';
 
 
@@ -15,7 +17,11 @@ export const PreBlock = ({ children }: { children: React.ReactNode }) => {
     }
   });
 
-  const isRunnable = ['js', 'javascript', 'jsx', 'ts', 'typescript', 'tsx'].includes(language);
+  // A runnable language is necessary but not sufficient: React Native, other
+  // packages and async Server Components cannot run in the browser playground,
+  // and a Try it button that is guaranteed to fail is worse than none.
+  const isRunnable = ['js', 'javascript', 'jsx', 'ts', 'typescript', 'tsx'].includes(language)
+    && canRunInPlayground(getTextContent(children));
 
   const handleCopy = async () => {
     const text = ref.current?.textContent || '';
@@ -56,7 +62,9 @@ export const PreBlock = ({ children }: { children: React.ReactNode }) => {
       }
     }
     safeSet('playground-code', text, 'session');
-    window.open(`${import.meta.env.BASE_URL}playground`, '_blank');
+    // React snippets open in the React playground, everything else in the
+    // JavaScript one. Both can run either; this only picks the right catalogue.
+    window.open(`${import.meta.env.BASE_URL}${hasJSX || hasRender ? 'playground/react' : 'playground'}`, '_blank');
   };
 
   return (

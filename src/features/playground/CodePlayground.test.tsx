@@ -20,7 +20,18 @@ describe('CodePlayground after decomposition', () => {
       </MemoryRouter>,
     );
     expect(html).toBeTruthy();
-    expect(html).toContain('Code Playground');
+    expect(html).toContain('JavaScript Playground');
+  });
+
+  // The two playgrounds are one component; the flavor picks the catalogue.
+  it('the React playground is titled and opens a React template', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter initialEntries={['/playground/react']}>
+        <CodePlayground flavor="react" />
+      </MemoryRouter>,
+    );
+    expect(html).toContain('React Playground');
+    expect(html).toContain('aria-current="page"');
   });
 
   it('shows the Run control and the editor language label', () => {

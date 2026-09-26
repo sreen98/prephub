@@ -64,7 +64,7 @@ Key knobs:
 - **Environment image** — an AWS-managed standard image (`aws/codebuild/standard:7.0`) or your own from ECR. A custom image is how you stop reinstalling toolchains on every build.
 - **`privilegedMode: true`** — required to run Docker inside the build (docker-in-docker). Understand that this is effectively root on the build host.
 - **Caching** — local (layer/source/custom) or S3. Without it every build re-downloads all dependencies.
-- **VPC configuration** — put the build in your VPC to reach a private RDS or an internal registry. Requires private subnets **plus a NAT gateway or VPC endpoints**, or the build loses internet access and hangs on package downloads.
+- **VPC configuration** — put the build in your VPC to reach a private RDS or an internal registry. Requires private subnets **plus a NAT gateway** (a managed router that lets private subnets make outbound internet calls) **or VPC endpoints** (private connections straight to specific AWS services), or the build loses internet access and hangs on package downloads.
 - **Timeout** (default 60 min, max 8 h) and **queue timeout**.
 - **Reports** — surface test and coverage results in the console.
 - **Batch builds** — fan out into parallel builds (matrix, or graph with dependencies).
@@ -146,7 +146,7 @@ Source ──▶ Build ──▶ Test ──▶ Approve ──▶ Deploy-Staging
 
 Action categories: `Source`, `Build`, `Test`, `Deploy`, `Approval`, `Invoke`.
 
-**Artifacts are the data plane.** Every action declares input and output artifacts, which CodePipeline stores in an **S3 artifact bucket** (encrypted with KMS) and passes between stages. So a build's output only reaches the deploy stage if the buildspec declared it in `artifacts:` — a missing `artifacts` block is the most common "my deploy stage can't find the file" cause.
+**Artifacts are the data plane.** Every action declares input and output artifacts, which CodePipeline stores in an **S3 artifact bucket** (encrypted with KMS, AWS Key Management Service) and passes between stages. So a build's output only reaches the deploy stage if the buildspec declared it in `artifacts:` — a missing `artifacts` block is the most common "my deploy stage can't find the file" cause.
 
 ```yaml
 # a Source action's trigger
@@ -168,7 +168,7 @@ CodeDeploy handles the release itself, with health checks and automatic rollback
 
 | Platform | Styles |
 |---|---|
-| **EC2 / on-premise** | in-place, or blue/green with a new ASG |
+| **EC2 / on-premise** | in-place, or blue/green with a new ASG (Auto Scaling group) |
 | **ECS** | blue/green via a load-balancer target-group swap; canary/linear |
 | **Lambda** | shift alias traffic: canary, linear, all-at-once |
 
@@ -241,7 +241,7 @@ Rules that get probed:
 - **Fork pull requests are untrusted code.** If a webhook builds PRs from forks with a privileged role, that is remote code execution with your credentials. Filter the webhook, or require approval.
 - **KMS grants matter for cross-account**: the artifact bucket and its KMS key must be readable by the target account's role, or the deploy stage fails with an opaque access error.
 - **`sts:AssumeRole` into the target account** is the pattern for cross-account deploys (§9) — never long-lived keys.
-- **From GitHub Actions into AWS, use OIDC**, not access keys: GitHub's OIDC provider federates into an IAM role with a trust policy scoped to your repo and branch.
+- **From GitHub Actions into AWS, use OIDC** (OpenID Connect), not access keys: GitHub signs a short-lived identity token for each workflow run, and AWS exchanges it for temporary credentials on an IAM role whose trust policy accepts only your repo and branch. There is no long-lived key to leak or rotate.
 
 ---
 
@@ -389,7 +389,7 @@ Never click them together in the console — console-built pipelines drift, can'
 
 **Q2: A CodeBuild project works fine, then you attach it to a VPC to reach a private RDS instance and every build hangs on `npm ci`. Why?**
 
-**Putting CodeBuild in a VPC removes its default internet access.** Outside a VPC, builds run in an AWS-managed network with outbound internet. Once you attach it to your VPC, the build gets an ENI in the subnets you chose and follows your routing — so if those are private subnets with no **NAT gateway** and no **VPC endpoints**, outbound calls to the npm registry, Docker Hub and even AWS APIs have nowhere to go, and the build hangs until it times out rather than failing fast. Fixes: place the build in **private** subnets with a NAT gateway, or add **VPC endpoints** for the AWS services it needs (S3, ECR, Secrets Manager, CloudWatch Logs) plus a mirror or CodeArtifact upstream for public packages. Note you must use private subnets — a public subnet doesn't work for CodeBuild ENIs — and the build's security group needs egress. Also make sure the service role can create and delete ENIs, or the build fails before it starts.
+**Putting CodeBuild in a VPC removes its default internet access.** Outside a VPC, builds run in an AWS-managed network with outbound internet. Once you attach it to your VPC, the build gets an ENI (elastic network interface — a virtual network card) in the subnets you chose and follows your routing — so if those are private subnets with no **NAT gateway** and no **VPC endpoints**, outbound calls to the npm registry, Docker Hub and even AWS APIs have nowhere to go, and the build hangs until it times out rather than failing fast. Fixes: place the build in **private** subnets with a NAT gateway, or add **VPC endpoints** for the AWS services it needs (S3, ECR, Secrets Manager, CloudWatch Logs) plus a mirror or CodeArtifact upstream for public packages. Note you must use private subnets — a public subnet doesn't work for CodeBuild ENIs — and the build's security group needs egress. Also make sure the service role can create and delete ENIs, or the build fails before it starts.
 
 **Q3: A CodeDeploy deployment to EC2 fails at `ApplicationStop` every single time, even after you fix and push the script. Why won't your fix take effect?**
 

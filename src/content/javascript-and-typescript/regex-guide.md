@@ -2,7 +2,7 @@
 
 Regular expressions (regex) are a tiny domain-specific language for **describing patterns in text**. You write a pattern, you ask "does this string contain it / where / replace it with what", and the regex engine answers in microseconds. They're in every language; this guide focuses on the JavaScript flavor — `RegExp` literals, `String` methods, the eight flags, and the gotchas that bite real codebases.
 
-Regex shows up everywhere you read user input, transform text, or do any sort of "is this string shaped like X" check. Form validation, URL parsing, slug generation, search highlighting, file globs, Markdown rendering, log parsing — all regex underneath. Knowing the language well separates engineers who guess-and-check until tests pass from engineers who write a pattern, look at it once, and ship.
+Regex shows up everywhere you read user input, transform text, or check whether a string "is shaped like X". Form validation, URL parsing, slug generation, search highlighting, file globs, Markdown rendering and log parsing all use it. Knowing how the engine actually reads a pattern lets you write one that is right the first time, instead of tweaking it until the tests pass.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ Regex shows up everywhere you read user input, transform text, or do any sort of
 
 ## 1. What Regex Is and Isn't
 
-A regex is a *finite-state machine* dressed up as text. The engine walks the input string left-to-right, trying to match the pattern character by character. Some of those characters are literal ("match an `a`"), some are special and mean "any digit" or "one or more of the previous thing".
+A regex is a small program written as a string of characters. The engine walks the input left to right, trying to match the pattern character by character; when a path fails, it backs up and tries another way (this "backing up" is called backtracking, and §13 is about when it goes wrong). Some pattern characters are literal ("match an `a`"), others are special and mean "any digit" or "one or more of the previous thing".
 
 **What regex is good for:**
 - Validating input shape (`/^\d{4}$/` — exactly four digits)
@@ -41,7 +41,7 @@ A regex is a *finite-state machine* dressed up as text. The engine walks the inp
 - Token extraction (URLs, hashtags, mentions)
 
 **What regex is NOT good for:**
-- Parsing recursive structures: HTML, JSON, code with nested brackets. Regex is *regular* — by definition it can't count balanced braces. People still try; people still get burned.
+- Parsing recursive structures: HTML, JSON, code with nested brackets. A regex has no memory of how deep it is, so it cannot check that every `{` has a matching `}` at any nesting depth — that needs a counter or a stack, which is what a parser has. People still try; people still get burned.
 - Parsing email addresses to RFC 5322 perfection. The standard regex for this is ~6,000 characters.
 - Anything where readability matters more than terseness. Regex compresses a lot into a little; that's its blessing and its curse.
 
@@ -99,11 +99,12 @@ JavaScript regex supports eight flags, written after the closing `/`:
 **The most-used trio: `g`, `i`, `m`.** Stack them: `/foo/gim`.
 
 ```js
-'Hello hello HELLO'.match(/hello/);    // ['Hello'] — first match only
-'Hello hello HELLO'.match(/hello/g);   // ['Hello', 'hello', 'HELLO'] WAIT — no, default is case sensitive
-'Hello hello HELLO'.match(/hello/g);   // ['hello']
+'Hello hello HELLO'.match(/hello/);    // ['hello'] — first match only
+'Hello hello HELLO'.match(/hello/g);   // ['hello'] — every match, still case-sensitive
 'Hello hello HELLO'.match(/hello/gi);  // ['Hello', 'hello', 'HELLO']
 ```
+
+The common wrong guess is that `/hello/g` returns all three words. It does not: `g` finds *every* match but is still case-sensitive, so only the lowercase `hello` matches (and without `g`, the first match is that same lowercase `hello` at index 6, not the leading `Hello`). You need `i` as well to get all three.
 
 **`g` vs `y` — easy to confuse:**
 - `g` (global): scans forward from `lastIndex` looking for the next match.
@@ -378,7 +379,7 @@ Inside `[]`, fewer escapes are needed (most special chars are literal):
 
 ## 10. Unicode in Regex
 
-Without the `u` flag, JavaScript regex thinks each UTF-16 code unit is a character. That's wrong for emoji and supplementary-plane characters (which use surrogate pairs).
+JavaScript strings are stored as UTF-16 code units (16-bit chunks), and without the `u` flag a regex treats each chunk as one character. That's wrong for emoji and other characters outside the first 65,536 code points, which are stored as two chunks (a "surrogate pair") — so `.` matches half an emoji.
 
 ```js
 '😀'.length;                // 2 — it's two UTF-16 units
@@ -528,7 +529,7 @@ What's happening: after the first `test('a1')` succeeds, `lastIndex` is 2. The s
    re.lastIndex = 0;
    ```
 
-Even worse: passing the same regex to multiple calls in parallel (e.g., from concurrent async handlers) can race on `lastIndex`. **`g`-flagged regexes are not safe to share across async contexts.**
+Even worse: a single `test()` call is synchronous, so two callers cannot interrupt each other mid-call, but a module-level `g` regex is shared by every caller. Whoever used it last leaves `lastIndex` wherever their match ended, and the next caller — a different request handler, a different component — silently starts from there. And an `exec` loop that `await`s between iterations can be interleaved with another caller's loop on the same regex. **Don't share `g`-flagged regexes between unrelated callers.**
 
 ---
 
@@ -547,21 +548,21 @@ The regex engine tries all 2^n ways to split the `a`s between the inner `a+` and
 
 ### ReDoS — Regular expression Denial of Service
 
-If user input feeds into a regex with this shape, an attacker can post a small string that hangs your server. Real CVEs exist (e.g., the [Cloudflare 2019 outage](https://blog.cloudflare.com/details-of-the-cloudflare-outage-on-july-2-2019/) was a regex with `.*.*=.*`).
+If user input feeds into a regex with this shape, an attacker can post a small string that hangs your server — and in Node, a regex runs on the single main thread, so one hung match stalls every other request. Real incidents exist (e.g., the [Cloudflare 2019 outage](https://blog.cloudflare.com/details-of-the-cloudflare-outage-on-july-2-2019/) was a regex with `.*.*=.*`).
 
 ### Patterns to avoid
 
 - **Nested quantifiers:** `(a+)+`, `(a*)+`, `(.+)+` — same alternative, multiple ways to match.
 - **Overlapping alternations with quantifier:** `(a|aa)+`, `(\w|\d)+`.
-- **Greedy `.*` followed by literal:** `^.*$` is fine; `^.*foo$` on a string without `foo` does the worst-case backtrack.
+- **Unanchored `.*` followed by a literal:** `.*foo$` on a long string without `foo` is slow. The engine retries the whole scan from every start position, so the work grows with the square of the input length — not exponential like `(a+)+`, but enough to stall on large input. Anchoring it as `^.*foo$` fixes this: the match can only start at position 0, so the engine scans once and gives up.
 
 ### Defensive patterns
 
 - **Use specific character classes** instead of `.`: `[^>]+` instead of `.+?`.
 - **Anchor patterns**: `^` and `$` cut down the search space.
-- **Use possessive quantifiers** (Java/PHP have them; JS doesn't, sadly) or atomic groups (also not in JS).
+- **Know what JS is missing.** Other flavors (Java, PHP) have *possessive quantifiers* and *atomic groups* — syntax that tells the engine "once you've matched this, never backtrack into it", which removes the exponential retrying. JavaScript has neither, so in JS the fix has to be a pattern that has only one way to match.
 - **Bound user-driven input length** before matching.
-- **Use `RE2`** (a non-backtracking engine) for hostile input. `re2` exists for Node via the `re2` package.
+- **Use `RE2`** (a non-backtracking engine) for hostile input. It guarantees matching time grows linearly with input length, so no pattern can hang it; the price is that it drops the features that need backtracking, such as backreferences (`\1`) and lookarounds. `re2` exists for Node via the `re2` package.
 
 ```js
 // SAFE for user input: specific class, no nested quantifiers
@@ -862,7 +863,7 @@ Quoted fields containing commas break this. Use [Papa Parse](https://www.papapar
 
 ### ❌ Counting balanced brackets
 
-Regex is, by definition, not powerful enough to match arbitrary nesting (it's a regular language; balanced brackets need context-free grammar). PCRE's recursive regex extension exists but JS doesn't have it. Use a stack.
+A regex cannot match arbitrary nesting, because it has no way to remember how many brackets are still open. Balanced brackets need that memory — push on `(`, pop on `)` — which is exactly a stack. PCRE (the regex library used by PHP and others) has a recursion extension that works around this, but JS doesn't. Use a stack.
 
 ### ❌ Sanitizing HTML for XSS prevention
 
@@ -870,7 +871,7 @@ Use `DOMPurify`. Hand-rolled regex sanitizers have lost to XSS attacks for 20 ye
 
 ### ❌ Long single regex
 
-If your pattern exceeds ~80 chars, split it into named groups, use the `x` flag (not in JS — use template literals to compose):
+If your pattern exceeds ~80 chars, nobody (including you next month) can review it. Other languages solve this with an `x` flag ("extended" mode, which lets you spread a pattern over several lines with comments). JS has no `x` flag, so the equivalent is to build the pattern from small named pieces and join them with a template literal:
 
 ```js
 // Hard to read
@@ -958,7 +959,7 @@ GOTCHAS
 
 **Q1: What is a regular expression and what is it used for?**
 
-A regex is a pattern-matching DSL. You describe the shape of a string with a small set of metacharacters and the engine answers four questions: (a) does this string contain the pattern? (b) where? (c) what was matched? (d) replace matches with what?
+A regex is a pattern-matching DSL (domain-specific language — a small language built for one job). You describe the shape of a string with a small set of metacharacters and the engine answers four questions: (a) does this string contain the pattern? (b) where? (c) what was matched? (d) replace matches with what?
 
 Common uses: input validation, search-and-replace, tokenization, log parsing, slug generation. Limits: regex can't parse arbitrarily nested structures (HTML, JSON), and overly clever patterns become unreadable. Reach for regex when the problem is "shaped like X" and reach for a real parser when the structure is recursive.
 
@@ -993,6 +994,8 @@ When using the constructor with user input, **escape the input first** to preven
 ---
 
 **Q5: How do `\d`, `\w`, `\s` differ from `[0-9]`, `[A-Za-z0-9_]`, `[ \t\n\r]`?**
+
+Short answer: `\d` and `\w` match the same ASCII characters as `[0-9]` and `[A-Za-z0-9_]`, but `\s` is wider than `[ \t\n\r]`.
 
 In **ASCII** mode (no `u` flag), they are essentially equivalent — though `\s` actually includes more whitespace types than `[ \t\n\r]` (form feed, vertical tab, non-breaking space). In **Unicode** mode (`u` flag), `\d` and `\w` still match only ASCII digits/word chars by default (a deliberate choice for backward compatibility), so `[0-9]` and `\d` are the same. Use `\p{Number}` if you want non-Latin digits matched too.
 
@@ -1057,7 +1060,7 @@ The lookahead asserts "KB follows" but doesn't include "KB" in the match. Withou
 A common interview pattern: "password must contain a digit, an uppercase letter, and a special char, 8+ chars total":
 
 ```js
-/^(?=.*\d)(?=.*[A-Z])(?=.*[!@#$])^.{8,}$/
+/^(?=.*\d)(?=.*[A-Z])(?=.*[!@#$]).{8,}$/
 ```
 
 Each `(?=.*X)` is an independent "must-contain" assertion. They all check from the same position (start of string) without consuming anything.
@@ -1075,7 +1078,7 @@ re.test('a1');   // true
 
 After a successful `test` or `exec` on a `g`-flagged regex, the engine sets `re.lastIndex` to the position right after the match. The next call resumes from there. With the same input string, the search starts past the match position, fails, and resets `lastIndex` to 0. The third call starts over and finds the match again.
 
-This causes intermittent bugs in shared-regex code, especially in async/concurrent contexts where two callers race on `lastIndex`.
+This causes intermittent bugs whenever one regex object is shared: a module-level `const re = /.../g` used by several functions carries `lastIndex` from one caller into the next, so the result depends on who ran before you.
 
 **Fixes:**
 1. Don't use `g` with `test`/`replace` if you only need a single check.
@@ -1216,7 +1219,9 @@ Always prefer `matchAll` for new code that needs all matches with capture detail
 
 **Q16: Explain the `u` and `v` flags. When do you need them?**
 
-Without these flags, JavaScript treats each UTF-16 code unit as a character. Most BMP code points fit in one unit, but emoji and supplementary-plane characters use surrogate pairs (two units).
+Short answer: use `u` (or its newer superset `v`) whenever the text might contain emoji or you need Unicode property classes like `\p{Letter}`, because without it the regex sees some characters as two and does not understand `\p{...}` at all.
+
+JavaScript strings are stored as UTF-16 code units (16-bit chunks). Without these flags, a regex treats each chunk as a character. Most characters — everything in the BMP (Basic Multilingual Plane, the first 65,536 code points, covering almost all living scripts) — fit in one chunk, but emoji and other characters beyond it take two chunks, called a surrogate pair.
 
 ```js
 '😀'.length;          // 2
@@ -1257,7 +1262,7 @@ The `g` flag causes `lastIndex` to persist on the regex object across calls. Aft
 2. Inline a fresh regex each call: `s => /\d/g.test(s)` (works because each call gets a new regex literal — though in tight loops this allocates).
 3. Manually reset before each call: `isDigit.lastIndex = 0;` (ugly and error-prone).
 
-The bug is especially insidious in async code where multiple callers share the regex. The right answer is almost always (1).
+The bug is especially insidious when the regex lives at module level and several functions share it, because the result then depends on which caller ran last. The right answer is almost always (1).
 
 ---
 

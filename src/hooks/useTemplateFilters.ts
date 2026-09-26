@@ -32,7 +32,7 @@ export type TemplateFilterAction =
   | { type: 'category'; value: string }
   | { type: 'pattern'; value: Pattern | 'all' }
   | { type: 'difficulty'; value: Difficulty | 'all' }
-  | { type: 'reset' };
+  | { type: 'reset'; tag?: string };
 
 /**
  * The whole reason this is a reducer and not six `useState` calls:
@@ -71,8 +71,9 @@ export function templateFilterReducer(
 
     // Opening the modal starts clean — the previous session's filters should
     // not survive a close/reopen.
+    // A playground locked to one tag (JS or React) passes it, and keeps it.
     case 'reset':
-      return INITIAL;
+      return { ...INITIAL, tag: action.tag ?? INITIAL.tag };
   }
 }
 
@@ -86,8 +87,9 @@ export interface UseTemplateFiltersReturn extends TemplateFilterState {
   resetFilters: () => void;
 }
 
-export function useTemplateFilters(): UseTemplateFiltersReturn {
-  const [state, dispatch] = useReducer(templateFilterReducer, INITIAL);
+/** `lockedTag` ('js' or 'react') scopes the whole picker to one playground. */
+export function useTemplateFilters(lockedTag = 'all'): UseTemplateFiltersReturn {
+  const [state, dispatch] = useReducer(templateFilterReducer, lockedTag, (tag) => ({ ...INITIAL, tag }));
   return {
     ...state,
     setSearch: useCallback((value: string) => dispatch({ type: 'search', value }), []),
@@ -96,6 +98,6 @@ export function useTemplateFilters(): UseTemplateFiltersReturn {
     setCategory: useCallback((value: string) => dispatch({ type: 'category', value }), []),
     setPattern: useCallback((value: Pattern | 'all') => dispatch({ type: 'pattern', value }), []),
     setDifficulty: useCallback((value: Difficulty | 'all') => dispatch({ type: 'difficulty', value }), []),
-    resetFilters: useCallback(() => dispatch({ type: 'reset' }), []),
+    resetFilters: useCallback(() => dispatch({ type: 'reset', tag: lockedTag }), [lockedTag]),
   };
 }
