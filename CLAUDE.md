@@ -1,2638 +1,303 @@
-# CLAUDE.md - Project Context for Claude Code
+# CLAUDE.md — PrepHub
 
-## What is this project?
-PrepHub is an interview preparation web app. It renders markdown study guides as a modern React site with interactive features (quiz, playground, spaced repetition, interview simulator). Hosted on GitHub Pages as a static PWA — no backend, all state in localStorage.
+PrepHub is an interview-prep web app: markdown study guides rendered as a React site, with
+Quiz, Code Playground, Query Playground, spaced repetition and an interview simulator. It is a
+static PWA on GitHub Pages under `/prephub/`. There is **no backend**; all state lives in
+localStorage.
 
-## Repository layout
-- `/src/` — React app source code (components, hooks, content, styles)
-- `/scripts/` — build scripts (`prepare-content.js`, `generate-sitemap.js`)
-- `/public/` — static assets (icons, favicon, robots.txt)
-- `/src/content/` — markdown study guides loaded at build time
-- `.github/workflows/deploy.yml` — CI/CD to GitHub Pages
-- `.githooks/` — versioned git hooks (pre-commit count check); enabled via `core.hooksPath`
+> **Why is each rule here?** The incident, audit or measurement behind every rule is in
+> `docs/engineering-notes.md` (the full former CLAUDE.md). Grep it when you need the reason
+> before relaxing something. It is not loaded automatically.
 
-## Build & run
+## Commands
 ```bash
-npm install
-npm run dev          # local dev server at localhost:5173
-npm run build        # production build → dist/
-npm run verify       # all six gates, in order — run this before you call a task done
+npm install          # also sets core.hooksPath=.githooks via `prepare`
+npm run dev          # localhost:5173 (regenerates content-meta + playground index)
+npm run build        # → dist/, then writes route shells + sitemap
+npm run verify       # THE GATE. Run it before calling any task done.
+npm run content:meta      # after adding/removing a **QN:** marker or a guide
+npm run playground:index  # after changing playground templates
 ```
+`verify` runs six checks in order, and the pre-push hook and the deploy workflow run the same six:
+`typecheck` (tsc) → `lint` (type-aware ESLint over all of `src/`) → `test` (Vitest) →
+`verify:counts` (figures in prose + in-page anchors) → `verify:arch` (repo invariants ESLint
+cannot express) → `verify:blocks` (every runnable guide code block parses).
+Pre-commit runs only `verify:counts` (~40 ms). If a gate blocks you, fix the code. Do **not**
+disable the rule, widen a ratchet or add a cast.
 
-**The gate is `npm run verify`.** It runs six checks in order, and the pre-push hook and the
-deploy workflow run the same six:
+## Git: things you must never do
+- **Never commit, tag or push unless the user explicitly asks.** The working tree *is* the work.
+- **Never** run `git stash`, `git checkout -- <file>` (naming the file does not make it safe),
+  `git checkout -- .`, `git reset --hard` or `git clean`. To compare with HEAD use
+  `git show HEAD:path`. To undo a temporary probe edit, capture the original text first and
+  write it back.
+- Commits carry no Claude co-author trailer. This is a public portfolio repo.
+- Re-run `npm run typecheck` after `eslint --fix`. It has removed a load-bearing type before.
 
-| | what it covers |
-|---|---|
-| `npm run typecheck` | `tsc --noEmit`, every file in `src/` |
-| `npm run lint` | ESLint, **type-aware, all 100 `src/**/*.{ts,tsx}` files** |
-| `npm run test` | Vitest — 535 tests in 22 files |
-| `npm run verify:counts` | every figure stated in prose matches the code, and in-page anchors resolve |
-| `npm run verify:arch` | repo invariants ESLint cannot express (see rule 8) |
-| `npm run verify:blocks` | no new runnable code block that fails to parse |
-
-Counts and blocks sit before the build in CI so a stale figure fails in seconds rather than
-after a full bundle.
-
-A **pre-push hook** (`.githooks/pre-push`) blocks `git push` unless all six pass. It skips
-cleanly on a branch-deletion push, and `--no-verify` overrides it. A lighter **pre-commit
-hook** runs only the count check, so drift is caught locally in ~40 ms rather than as a red
-deploy — typecheck is too slow (~2.5 s) to pay on every commit. Hooks are wired via
-`core.hooksPath=.githooks`, set by the `prepare` npm script, so `npm install` on a fresh clone
-configures them and the hooks are versioned in the repo instead of hiding in `.git/hooks`.
-Override with `git commit --no-verify`. The pre-commit hook reads the working tree, not the
-staged index, and warns when the two differ for files the counts derive from; CI remains the
-authoritative gate.
-
-## Enforced code rules — READ BEFORE WRITING CODE
-
-**These are not style preferences. Every rule below is mechanically enforced and every one exists because something in this repo actually broke.** `npm run verify` runs all five gates; the pre-push hook and CI run the same. If a rule blocks you, fix the code — do not disable the rule, widen the ratchet, or reach for a cast.
-
-### The five gates
-```bash
-npm run typecheck     # tsc --noEmit
-npm run lint          # eslint — TYPE-AWARE, covers every src/**/*.{ts,tsx}
-npm run test          # vitest run — 535 tests
-npm run verify:counts # prose figures + in-page anchors
-npm run verify:arch   # repo invariants ESLint cannot express
-npm run verify        # all five, in that order
+## Layout and layering
 ```
-
-### 1. No casts around the type system
-`@typescript-eslint/no-explicit-any` is an error, and `no-restricted-syntax` bans **`as any`** and **`as unknown as X`** outright. The Review page shipped a blank screen because `getDueQuestions(getAllQuestions() as any)` handed a Promise to something that calls `.filter()`, and **`tsc` reported zero errors** because the cast laundered it. When the types fight you: make the function generic (see `useSpacedRepetition`'s `<T extends Question>`), narrow with a type guard, or model the data properly (see `Bookmark`, now a discriminated union instead of a bag with `[key: string]: unknown` — that index signature was what made the cast *look* necessary).
-
-### 2. Async is checked
-`no-floating-promises`, `no-misused-promises`, `await-thenable` and `require-await` are errors. Content is lazy-loaded, so the data layer is async: `getAllQuestions()`, `loadContent()` and `loadAllContent()` all return Promises. **A `.then()` with no `.catch()` is a defect, not a shortcut** — eight of them were leaving the guide skeleton spinning forever when a chunk 404'd after a deploy. Every one now sets a terminal state.
-
-### 3. Hooks rules are errors, not warnings
-`react-hooks/rules-of-hooks`, `react-hooks/exhaustive-deps` and `react-hooks/set-state-in-effect` are all `error`. The dep-array rule found three real bugs on its first run (a ref read in cleanup, a missing `statsHook`, a missing `currentTemplate`). `set-state-in-effect` has **8 pre-existing justified disables**, each with a one-line reason; they are tracked debt. **Do not add a ninth without reading the reason on the others** — prefer `key`-based reset or deriving during render.
-
-### 4. Files and functions stay comprehensible
-`max-lines` 400 per file, `max-lines-per-function` 300, `complexity` 20, `max-depth` 5. `CodePlayground.tsx` reached 1,975 lines with 30 `useState` and a 782-line `return`, at which point nothing in it could be tested. **`LEGACY_LARGE_FILES` in `eslint.config.js` is a ratchet: the numbers may shrink, never grow.** A new file must come in under the limit.
-
-### 5. Web storage only through `src/lib/storage.ts`
-`no-restricted-properties` bans `localStorage.*` and `sessionStorage.*` everywhere else, and `verify:arch` re-checks it. **The accessor itself throws** in a private window or with site data blocked — not returns null — and several hooks read storage inside a `useState` initialiser, which runs *during render*. One throw there unmounts the tree. Use `safeGet`/`safeSet`/`getJSON`/`setJSON`/`getEnum`; all are total and never throw. **The key names are a compatibility contract** — they are the user's saved progress, and `src/lib/storageKeys.test.ts` pins them. Renaming one orphans that data; keep the old key or write a migration.
-
-### 6. Dependencies point downward
-```
-src/pages/        one per route — the composition layer
-src/features/     content/ and playground/ — feature-owned components
-src/components/   genuinely shared UI only (Toast, MermaidBlock, RouteErrorBoundary, StreakCelebration)
+src/pages/        one per route (the composition layer)
+src/features/     content/, playground/, queryPlayground/ (feature-owned UI)
+src/components/   genuinely shared UI only (Toast, MermaidBlock, RouteErrorBoundary, Sidebar…)
 src/hooks/        stateful logic
-src/lib/          pure helpers (storage, cn, editorHighlight, playgroundRunner, playgroundFormat)
-src/data/         content + the playground data modules
+src/lib/          pure helpers (storage, playgroundRunner, editorHighlight, challengeJudge…)
+src/data/         content, playground data, query data
+src/content/      markdown guides + cheat sheets; src/content/README.md is the `/` Introduction
+src/generated/    content-meta.json, playground-index.json (generated, gitignored)
+scripts/          verify-*, generate-*, lib/routes.js (single route list), dev/ authoring tools
 ```
-**Imports only ever point down this list.** `verify:arch` enforces every edge: `data/`, `lib/` and `hooks/` may not import any UI; `components/` may not import a feature or a page; `features/` may not import a page; nothing but `main.tsx` may import `App`. All four directions are probe-tested. A component that two features need moves *down* into `components/`; it does not get imported sideways.
-
-### 7. Bulk content data lives in `src/data/`, never in the UI folders
-The three playground data modules (templates, solutions, explanations — 22,551 lines, ~1 MB) are in `src/data/playground/`. `verify:arch` fails if a `.ts` file over 1,200 lines appears under `components/`, `features/` or `pages/`.
-
-### 8. `verify:arch` guards the guards
-`scripts/verify-architecture.js` asserts things a linter cannot check about itself, because **this repo shipped for months with an ESLint glob of `**/*.{js,jsx}` while every file in `src/` was `.ts`/`.tsx` — so `npm run lint` passed while linting zero files, and `eslint-plugin-react-hooks` never ran despite being installed.** A rule that can be silently switched off is not a rule. It also pins: type-aware linting stays on, `exhaustive-deps` stays `error`, the pre-push hook keeps all its gates, the content glob never becomes `eager`, vendor chunks keep the `vendor-*` prefix, `injectRegister` stays `null`, and `prepare-content.js` never clobbers the Introduction page.
-
-### 9b. A solution must not use an API the user's browser might not have
-`Array Intersection & Union` called `Set.prototype.intersection` in its own test
-and **failed CI on a release commit**. Those Set methods are Node 22+ and Chrome
-122 / Safari 17 / Firefox 127 (2024), so a slightly older browser throws a
-`TypeError` the instant the user presses Run. Nothing upstream catches it: it is
-not a parse error, so `verify:blocks` passes, and `tsc` types it happily against
-modern lib defs.
-
-**It was caught by luck** — CI happens to run Node 20, where the methods are
-absent. Bump the CI image and that protection silently disappears. So it is
-pinned explicitly instead: `playgroundExecutable.test.ts` deletes the seven new
-`Set` methods, re-runs every solution, and restores them in a `finally`.
-Probe-tested by reintroducing the bug.
-
-The rule for solutions is **feature-detect, don't assume** — the guarded form
-keeps the modern API as a teaching approach while the tested path stays
-portable. Guide prose is different and deliberately exempt: a section *about*
-`Object.groupBy` should show `Object.groupBy`.
-
-### 9a. An async test that reads its result synchronously passes vacuously
-`playgroundExecutable.test.ts` runs every JS solution and asserts the output holds no `❌`.
-Several solutions are **async** — they end in `run()` where `run` is an async function, or put
-assertions inside `setTimeout`. Reading the captured log array straight after
-`new Function(...)()` returns therefore sees an **empty array** and the test passes having
-checked nothing. That is worse than no test, because it reports a gate that is not running.
-The fix drains the macrotask queue until output stops growing, and **fails a solution that
-printed nothing at all**. Two things it caught the moment it was added: `Throttle` had been
-silently checking nothing for months, and a genuine ordering bug in a new solution. Note the
-minimum-tick floor is load-bearing — Throttle's only assertion fires 200 ms out, so a pure
-"stop once quiet" rule gave up at 150 ms having seen nothing and called that a pass.
-
-### 9g. A React template that parses can still be broken — mount it
-`verify:blocks` proves a block PARSES. It says nothing about what happens when
-it runs. The `Protected Route (Auth + RBAC)` template called the parent's
-setState from inside the gate's render, so React logged **"Cannot update a
-component (`App`) while rendering a different component (`Protected`)"** the
-moment a reader clicked through to the admin page — reported by a user, invisible
-to every gate.
-
-`reactTemplates.test.tsx` now mounts **every** React Machine Coding template in
-jsdom and fails on any `console.error`. It is the React counterpart of
-`playgroundExecutable.test.ts`, which does the same for JS solutions.
-
-- **jsdom gaps are stubbed, not tolerated.** `scrollIntoView` and
-  `IntersectionObserver` do not exist there, and three templates throw for
-  reasons that say nothing about the template. `fetch` is stubbed too, so the
-  suite never touches the network.
-- **The fix is worth copying:** a redirect is a side effect, so it must be
-  *rendered*, not performed during render — which is precisely why react-router
-  ships `<Navigate />` as a component instead of a `navigate()` you call inline.
-  The template now includes a `Redirect` component with a fire-once ref, and the
-  ref matters: `onRedirect` is a new function on every parent render, so without
-  it a redirect that does not immediately unmount loops forever.
-- **Probe-tested by reversing the fix in memory** (never on disk), driving the
-  click that reaches the gate, and asserting the warning comes back. The first
-  attempt asserted on mount alone and passed vacuously — the gate is only
-  reached after the fake session resolves and the user navigates.
-
-### 9. Tests are the gate for anything `tsc` cannot see
-Three defects reached production through a clean typecheck: the Promise-to-`.filter()` blank screen, 344 colliding question ids, and 180 broken in-page anchors. **`import.meta.glob` only resolves under Vite, so the data layer cannot be imported into plain Node** — Vitest runs through Vite, which is why `src/data.test.ts` can execute it. Write a test for: anything in `src/lib/`, anything pure in `src/data.ts`, and any editor/text-manipulation rule (see `playgroundAutoClose.test.ts`, which replays real keystrokes rather than testing helpers in isolation). The old ritual of hand-building a throwaway SSR probe is replaced by `npm test`.
-
-### 9c. Nothing on the first-paint path may load the whole corpus
-The sidebar's Daily Review badge called `getAllQuestions()` → `loadAllContent()`,
-which downloads **every guide**. Lighthouse caught the **home page** pulling
-**64 guide chunks, 1.6 MB, all at High priority**, to size one number — text
-that page never renders. On the simulated 1.5 Mbps mobile link that saturated
-the connection and pushed LCP to **12.8 s** against a 685 ms observed value.
-
-**It was invisible locally, and the mitigation was the reason.** The call was
-already deferred to `requestIdleCallback` — which delays *when the fetch
-starts*, not *what it costs*. On a fast connection it finishes in 200 ms and
-nothing looks wrong.
-
-`getDueCount` only ever reads `q.id`, so the badge needed a **total, not a
-corpus**. `generate-content-meta.js` now emits a per-file `questions` count and
-`data.ts` exposes `totalQuestionCount`, summed over `menuStructure` exactly as
-`getAllQuestions()` iterates. The badge is now a synchronous localStorage read
-with no network and no effect at all.
-
-- **The generator re-implements the two regexes from `extractQuestions`**, which
-  is the usual drift hazard — pinned by the `totalQuestionCount` parity block in
-  `src/data.test.ts`, which compares both the total and the per-guide counts
-  against the real extractor so a mismatch names the file that caused it.
-- `getDueCountFromTotal` is inexact in one direction: a schedule entry for a
-  question that no longer exists still counts as not-due, so the badge can
-  under-report after content is removed. Bounded, self-correcting, and the
-  Review page still computes the exact set from the corpus it loads anyway.
-- Enforced by **check #12 in `verify-architecture.js`**: `App.tsx`, `main.tsx`
-  and `Sidebar.tsx` may not call `loadAllContent`/`getAllQuestions`. Legitimate
-  callers (Search, Quiz, Review, Interview Simulator) are all lazy routes or
-  gated on the user opening them — `SearchModal` fetches only when `isOpen`.
-  Probe-tested.
-
-### 9d. The contrast rule is SYMMETRIC — an unprefixed utility applies in both themes
-The first version of check #11 banned only `text-slate-200/300/400`, the shades
-that fail on white, and therefore **explicitly permitted a bare
-`text-slate-500`** — which is 4.76:1 on white but only **3.07–4.15:1 on the dark
-grounds**. Lighthouse found 30 of those still failing in dark mode *after* the
-light-mode sweep had "fixed" the theme. No single slate shade clears AA on both
-grounds, so any bare `text-slate-*` on a light-themed surface needs a `dark:`
-counterpart. The check now asserts both directions.
-
-Code chrome had the same problem, from the vendored `github-dark-dimmed` theme:
-`.code-lang`/`.copy-btn` at `#768390` were 3.29:1 on `#2d333b`, `.hljs-comment`
-3.88:1 on `#22272e`, and `.try-btn` green 4.48:1 — all just under the floor.
-Now `#adbac7` (6.45:1), an override for `.hljs-comment` at `#a0a8b0` (6.24:1),
-and `#6bc46d` (5.91:1). **When raising a base colour, check its `:hover` still
-differs** — the copy button's hover was already `#adbac7`, so lifting the base
-to match silently removed the hover affordance; it moved to `#cdd9e5`.
-
-### 9e. Icon-only buttons need an `aria-label` — enforced, after two failed attempts
-Lighthouse found 6 buttons announcing as just "button": both theme toggles,
-search, font size, the mobile hamburger, the sidebar close — plus the streak
-dismiss, copy-code, template-picker close/clear, quiz bookmark and
-remove-bookmark. **Labels that depend on state must flip with it**
-(`theme === 'light' ? 'Switch to dark theme' : …`); announcing "Dark mode" while
-already dark is worse than silence.
-
-Check #13 in `verify-architecture.js` enforces it, and **the two wrong turns on
-the way are the useful part**:
-
-1. **Too loose.** Asking "does this button have any text?" gave 3 false
-   positives out of 6 — `{isRunning ? 'Running…' : 'Run'}` reads as textless
-   once tags are stripped — *and* missed the hamburger. Abandoned; a rule that
-   cries wolf is worse than none.
-2. **Right question, broken parser.** The narrow form — "after removing JSX
-   comments, self-closing elements and whitespace, is there nothing left?" — is
-   exact. But finding the end of the opening tag with `indexOf('>')` **stops at
-   the `>` inside `onClick={() => …}`**, so `openTag` was truncated and the
-   `aria-label` test read the wrong slice. **The probe caught it: removing a
-   label left the check passing.** It now walks the tag tracking brace depth and
-   quote state. Fixing that immediately surfaced a genuine miss in
-   `BookmarksPage`.
-
-Known blind spot, accepted: `{cond ? <A /> : <B />}` leaves `{cond?:}` behind and
-is not flagged, because a regex cannot tell a string used as a CONDITION from one
-used as CONTENT. Zero noise, some misses; axe via Lighthouse is the backstop.
-
-**Always probe a new guard by breaking the thing it guards.** This one passed
-its own green run while being structurally unable to fail.
-
-### 10. Playground data: metadata eager, code bodies lazy
-`src/generated/playground-index.json` (13 KB, **generated + gitignored**, rebuilt by `npm run dev` / `npm run build` / `npm run playground:index`) holds every template's name, tag, kind, category, patterns and difficulty — everything the modal lists and filters on. The 360 KB of `code` bodies load on demand via `src/data/playground/templateIndex.ts` (`getTemplateCode` / `peekTemplateCode` / `prefetchTemplateCode`). **`CodePlayground` must import values from `templateIndex`, never from `playgroundTemplates`** — a value import drags all 360 KB back into the route chunk, and `verify:arch` fails if it does.
-- The generator works by esbuild-transpiling `playgroundTemplates.ts` and **executing** it, which is safe only because that module has **zero imports**. Keep it that way. The crucial consequence: the generator never parses or rewrites the 180 template literals, whose backtick escaping has silently broken before in a way `tsc` does not catch.
-- A saved draft resolves synchronously from localStorage, so a returning user sees their own work with no fetch. Only a pristine stub needs the download.
-- **A saved draft must not outrank a CORRECTED template.** The autosave fires
-  800 ms after a template loads, so merely opening a challenge stores a copy —
-  and that copy then won forever. When `Protected Route` was fixed, the reader
-  who had opened it before the fix kept seeing the bug, with no signal at all;
-  the editor said 130 lines while the file on disk said 159. `ProgressEntry`
-  now carries **`baseHash`**, an FNV-1a fingerprint of the template the draft
-  started from, pinned on first save and never moved. `resolveOpenCode()`
-  decides: draft unmodified (`hash(code) === baseHash`) *and* the template has
-  since changed → take the new template, because there is nothing to lose;
-  modified → keep their work and say the challenge has been updated. Entries
-  written before `baseHash` existed cannot be told apart from edited ones, so
-  they keep priority and Reset remains the way out. Pure and tested in
-  `usePlaygroundProgress.test.ts`.
-- `blankStarters` (3 tiny snippets) stay eager so the editor always has something runnable on first paint.
-- `templateIndex.test.ts` is the parity check: same count, same names, same order, same patterns/difficulty, and every name resolves to a body.
-
-### 11. The playground preview must never fail silently
-`PreviewErrorBoundary` wraps whatever the user's `render()` mounts, and `createRoot` is given `onUncaughtError`; both report into the console panel. Without them a throw after mount unmounted the preview and left a white pane with **nothing** in the console — the error never passes through `console.error`, so the patched console never sees it. The most common trigger is a snippet pasted from a guide that calls a helper it does not define (`fetchResults`, `api.get`). Separately, a throw inside `setTimeout`/`setInterval` or an unhandled rejection escapes boundaries entirely, so `CodePlayground` also installs `window` `error`/`unhandledrejection` listeners while a preview is live. **If you touch the preview mount path, keep all three.**
-
-### 12. Editor internals live in `src/lib/`
-`playgroundScope.ts` holds **the names a snippet may use without importing anything**. The playground runs user code through `new Function(...names, src)`, so a name missing from that map is a `ReferenceError` behind a **"Try it"** button on a guide block that looks perfectly correct.
-
-**It is DERIVED from `Object.entries(React)`, not hand-listed, and that is the whole point.** The hand-written version held eleven names and shipped for months while the guide taught `<Activity>`, `useEffectEvent`, `use`, `useOptimistic` and `useActionState` — every one of those examples was unrunnable, and they surfaced one reader report at a time. Patching `Activity` alone would have left `useEffectEvent` broken for the next reader; deriving closes the class and means a React upgrade adds new APIs automatically. `__`-prefixed internals and `version` are excluded (`version` would shadow a plausible user variable); `createPortal` and `flushSync` are added from `react-dom`. **The warning shown when `import` statements are stripped is derived from the same map** (`scopeNames()`) rather than being a second hand-written list — the two had already drifted. `playgroundScope.test.ts` pins it, including that **every public React export is present**, so the derivation cannot quietly become a list again.
-
-`editorHighlight.ts` (highlighting + rainbow/match bracket decoration), `playgroundRunner.ts` (Worker sandbox, Babel transpile, `stripModuleSyntax`, `detectJSX`/`detectTS`), `playgroundFormat.ts` (lazy Prettier). All pure or near-pure, all tested — they were previously buried in a 1,988-line component where none of it could be exercised. Filter state is `useTemplateFilters` (a reducer: tag/mode changes clear pattern+difficulty *as part of the transition*, so the "No templates found" bug is inexpressible) and persisted prefs are `useEditorPrefs`. **Everything the picker *displays* is derived by `src/hooks/useTemplateCatalog.ts`** — the filtered categories, tag options, and the scoped pattern/difficulty counts. It is split into a pure `buildTemplateCatalog(filters)` plus a thin `useMemo` wrapper, the same shape as `templateFilterReducer`, so the derivation is testable in plain Node **without adding a DOM testing library** (the repo has no `@testing-library/react`; component tests use `renderToStaticMarkup`). The scope-awareness it encodes — `patterns`/`difficulty` exist only on JS challenges, so counts and controls are scoped to the active tag — is what stopped React-tag users seeing JS counts that matched nothing on screen.
-
-### 13. Explain has TWO shapes, and the split is the point
-The modal's data model was algorithm-shaped — `complexity {time, space}`,
-`pseudocode[]`, and `steps[]` carrying array/map/stack/callStack snapshots. A
-React machine-coding template has none of those: no Big-O to compare, no data
-structure to animate. So **all 36 React Machine Coding templates shipped with no
-Explain button at all**, and their teaching content stayed as a wall of comments
-inside a 100–250 line editor.
-
-`BuildExplanation` (in `playgroundExplanations.ts`) is the second shape:
-**brief → ordered build steps, each with only ITS snippet plus the trap it
-avoids → what an interviewer grades.** `playgroundBuildExplanations.ts` holds all
-36. `ExplanationModal` is a thin dispatcher over `AlgorithmExplanationModal` and
-`BuildExplanationModal` — splitting it was forced by the complexity limit and is
-the right shape anyway, since neither body carries the other's branches.
-
-- **A step QUOTES its template by anchor — it never restates the code.** The
-  first version carried hand-written `code` strings and an audit found **360 of
-  454 lines did not exist in the template the reader had open**: they described
-  an idealised implementation instead of the one on screen, which is worse than
-  no snippet, because the reader cannot map what they are told onto what they
-  can see. `BuildStep.excerpt = { from, lines }` now points into the template and
-  `sliceExcerpt()` slices the real lines at render time, so the two cannot drift.
-  `buildExplanationAnchors.test.ts` fails the build if an anchor stops matching,
-  or starts matching more than two lines (a vague anchor silently quotes the
-  wrong region after the next edit). Probe-tested.
-- **24 steps are deliberately prose-only.** They describe an alternative or a gap
-  — `<details>` instead of a custom accordion, `useId` the template does not
-  have — and inventing an excerpt for those would be the original bug again. The
-  test requires their `detail` to carry the whole point (≥ 120 chars), and their
-  prose says plainly that the template does *not* do this.
-- `playgroundContent.test.ts` pins that every React Machine Coding template has
-  a walkthrough, and that each is substantive (brief ≥ 80 chars, ≥ 3 build
-  steps, ≥ 3 graded points, each detail/why ≥ 60 chars). **A thin walkthrough is
-  worse than none** — the reader opened a modal to be told less than the editor
-  already showed them. Probe-tested by deleting one entry.
-- **The guard `isBuildExplanation` lives in `explanationKind.ts`, NOT in
-  `playgroundExplanations.ts`.** Importing it from the latter makes
-  `ExplanationModal` a static consumer of the 10,600-line module and took the
-  playground chunk **100 KB → 635 KB**; the only signal was a Rollup warning in
-  the middle of the build log. Check **#9f** in `verify-architecture.js` pins it
-  and is probe-tested. This is the **fourth** instance of a heavy module leaking
-  into a chunk meant to stay small (`react-*`/`react-guide-*`,
-  `assets/index-*`/PGlite, the `playgroundTemplates` value import). Type imports
-  are safe — they erase.
-
-### Known exceptions, all deliberate
-- `src/data/**` is exempt from `max-lines` and `no-console` — the playground templates are giant literals that contain `console.log` inside teaching code strings.
-- `src/**/*.test.ts` may use casts and run long.
-- `CodePlayground.tsx` has one `no-implied-eval` disable: running user code via `new Function` is the component's entire purpose. The plain-JS path is sandboxed in a Web Worker with a timeout.
-- `CodePlayground.tsx` disables `no-console` across the console-patch block, which is how playground output is captured; it re-enables immediately after the restore.
-
-**When lifting JSX out of a component, check what it read from the enclosing scope — `tsc` will not always tell you.** Extracting `Sidebar` from `App.tsx` dropped the `useLocation()` call, and the bare `location` in the moved markup silently resolved to the **global `window.location`**, which typechecks perfectly. The app is served under a `/prephub/` basename, so `window.location.pathname` is `/prephub/quiz` and never equals `/quiz` — every active-state highlight in the sidebar would have been dead in production while looking fine locally. `src/components/Sidebar.test.tsx` now pins this. The globals to watch for are `location`, `history`, `name`, `status`, `length`, `top`, `parent`, `origin` and `event`.
-
-**`git checkout -- <file>` is in that same forbidden set, and the file argument does NOT make it safe.** It restores the file to HEAD, discarding *every* uncommitted change to it — not just the line you were undoing. This happened while probe-testing the code-block gate: a scratch block was appended to `regex.md`, and `git checkout -- src/content/cheatsheets/regex.md` removed the probe **and** four real fixes made minutes earlier. **To undo a temporary edit, capture the original text first and write it back** (read the file, append, test, restore in a `finally`), which is what the probe does now.
-
-**NEVER run `git stash` in this repo.** Work here stays uncommitted until the user explicitly asks to commit, so the working tree *is* the work. `git stash` silently reverted an entire session's changes to every tracked file; `git stash pop` then restored a mid-edit broken state, and an untracked file deleted in between was gone for good. To compare against the committed version, use **`git show HEAD:path/to/file`** — it is read-only and cannot lose anything. The same applies to `git checkout -- .`, `git reset --hard`, and `git clean`.
-
-**A note on `eslint --fix`:** it is not always safe. It removed a load-bearing `as Record<string, string>` from an `import.meta.glob` call in `AdminPage.tsx` (fixed properly with the generic form `import.meta.glob<string>`). Re-run `npm run typecheck` after any `--fix`.
-
-## Architecture decisions
-
-### Single-file vs multi-file
-- `App.tsx` is large (~1200 lines) because it contains the layout, sidebar, ContentPage, HomePage, and several inline components (ReadingProgress, PreBlock, TableOfContents, MobileToc, SearchModal, BackToTop). Larger features get their own files in `components/`.
-- Hooks follow a consistent pattern: useState + localStorage read/write + callback functions. See `useDarkMode.ts` as the canonical example.
-
-### Data flow
-- `data.ts` exports `menuStructure` (defines all guide categories/items), `contentFiles` (eager glob of all markdown), and utility functions. This is the single source of truth for content structure.
-- Current counts: 10 categories (Front End 25, JS & TS 4, Back End 17, AI Engineering 6, AI-Augmented Development 1, DevOps 15, Git 2, DSA 1, Behavioral 1, System Design 4) = 76 guides, plus an Introduction entry. 14 cheat sheets, each ~120–210 lines in a code-first house style (`## Section` + dense fenced blocks, no prose paragraphs) and closing with a **Gotchas** section; `git-workflows.md` and `comparison-tables.md` are deliberately longer reference docs. The `colors` map in `CheatSheetsIndex.tsx` must contain an entry for every `color` used in the `cheatSheets` array — unknown values silently fall back to blue, which is how `teal` and `indigo` went unstyled.
-- `cheatSheets` array in `data.ts` defines cheat sheet routes separately from guide categories.
-- **The Mobile group** in Front End holds 5 guides: React Native, Play Store Deployment, iOS & App Store Deployment, Mobile Accessibility, Mobile App Security. `play-store-launch` was renamed to **`play-store-deployment`** in the path *and* the filename (the user approved the URL change), so any external link to the old path is dead — this is the one place a route was deliberately changed rather than preserved.
-- **Sidebar sub-headings**: `MenuItem.group?: string` renders an uppercase label above the items sharing it, grouped by first appearance (`groupSidebarItems()` in `App.tsx`). **Every category with 4+ items is grouped**: Front End (React & State / **Global State Management** / Styling & Accessibility / Browser, Real-Time & Performance / Architecture & Code Quality / Testing & Tooling / Mobile), Back End (Runtimes & Frameworks / APIs & Integrations / Databases / Security & Auth / Architecture & AI), DevOps (Linux & Networking / AWS / Containers & Orchestration / Infrastructure as Code / CI/CD / Observability & SRE), JS & TS (Languages / Reference), System Design (Design / Reference). Git, DSA and Behavioral have 1–2 items and are deliberately left ungrouped — a heading per single item is worse than none, and they render exactly as before. **Heading order follows first appearance of each label**, so the item order inside `items: [...]` also fixes the heading order; items of one group need not be contiguous (the helper buckets them), but keeping them together makes the file readable.
-- **The AWS category was renamed to DevOps** (icon `Infinity as InfinityIcon`). The AWS guides deliberately **kept their `/aws/*` paths**, and Docker/K8s kept `/backend/docker-kubernetes`, because changing routes would break the Introduction's deep links, saved bookmarks and checkpoints, and SEO. Category membership and URL are independent here.
-- All question extraction happens via `extractQuestions()` which parses two markdown patterns:
-  1. **JS output-style** (`## QN` + ` ```…``` ` + `### ✅ Output` + `### 💡 Explanation`) — used only by the JavaScript guide.
-  2. **Standard** (`**QN: text**` followed by an answer block, terminated by the next `**Q{N+1}:` marker **or a standalone `---` line**). Everything between the marker and that terminator becomes the Quiz-mode answer — so the explanation for a question must live BEFORE the `---` separator, not after it.
-- "Tricky Output Questions" sections live in **53 guides — 441 questions total**: React 26, TypeScript 31, JavaScript 53, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, SQL 4, Web Performance 4, Design Patterns 4, Next.js & RSC 4, Web Security 4, Docker/K8s/CI-CD 3, Testing Strategy 3, Low-Level Design 3, Python 8, GraphQL 6, PostgreSQL 5, MySQL 5, FastAPI 5, Terraform 5, Jenkins 5, Ansible 5, AWS CI/CD 5, iOS Deployment 5, Mobile Accessibility 5, Mobile App Security 5, SSH & Linux 5, Observability & SRE 4, Helm & GitOps 5, Generative AI 6, RAG 6, Agentic AI 6, MCP 6, LangChain & LangGraph 6, AI-Augmented Development 6. All use the standard `**QN: ...**` pattern except the JS guide, which uses both the JS output-style and the `**QN:**` format. Recount with: `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
-- **Question ids must be unique — `dedupeIds()` in `data.ts` enforces it.** Ids are `` `${guideName}-q${N}` `` taken from the `**QN:**` marker, but most guides hold **two independent Q sequences** (the interview section and "Tricky Output Questions", each restarting at Q1), so that number is not unique within a file. **344 of 1,298 questions collided.** Ids are the localStorage keys for spaced-repetition state, so a collision made two different questions share one SM-2 record — reviewing one rescheduled the other, and both appeared in the same review queue. `dedupeIds()` runs at both `extractQuestions` return points and suffixes only the **second and later** occurrences (`-2`, `-3`), so first occurrences keep their original id and existing review history stays attached. Don't "simplify" this by renumbering all of them; that would silently reset every user's progress.
-- **`npm run verify:counts` guards every number stated in prose.** `scripts/verify-counts.js` derives the ground truth from `data.ts`, `playgroundTemplates.ts` and `playgroundSolutions.ts`, then asserts that README.md, CLAUDE.md and `src/content/README.md` (the app's Introduction page) literally contain the right figures — and checks that `playgroundSolutionKeys.ts` is in sync with `playgroundSolutions.ts`. **Run it after any content change**; it exits non-zero on drift, and the deploy workflow runs it before the build, so drift blocks the deploy rather than shipping a wrong number. Note the UI itself is safe — every on-screen count is derived (`allGuides.length`, `cat.templates.length`, `solvedCount / totalJsChallenges`), so only the prose can go stale. To register a new claim, add a line to the `claims` array in that script.
-- **Re-count rather than trust these numbers when editing.** The README/CLAUDE counts drifted before (they said "143 across 12 guides" while 8 more guides already had tricky sections). To recount guide items, count `{ name: '` occurrences inside each category's `items: [ … ]` array in `data.ts` — `grep -c "file: './content/" src/data.ts` over-counts because it includes cheat sheets and the Introduction entry.
-
-### Content
-- **Markdown is lazy-loaded, one chunk per guide.** `contentLoaders` in `data.ts` is a **non-eager** `import.meta.glob<string>`, so each guide becomes its own chunk fetched when opened. It used to be `eager: true`, which inlined 4.6 MB of markdown into the main chunk — ~90% of a 4.9 MB bundle, so every visitor downloaded all 70 guides to read one. **Never reintroduce `eager: true` here.**
-  - Use **`readMinFor(file)`** (from `src/generated/content-meta.json`) wherever you only have a path — HomePage cards, category totals, the related-guides strip. Never `estimateReadingTime(content)` for a guide you haven't loaded, or you pull it into the bundle.
-  - **Loading UI is driven by a real signal, not a timer.** `loadContent` increments a counter exposed via
-    `subscribePendingLoads`/`getPendingLoads`, and `TopProgressBar` reads it with `useSyncExternalStore`. It skips the
-    counter on a cache hit, so a revisit shows no bar. `peekContent(file)` is the sync cache peek that lets
-    `ContentPage` initialise from cache and avoid a one-frame skeleton flash. `GuideSkeleton` replaces the markdown body
-    while `rawContent === null`; search, Quiz and Interview Simulator each have their own loading state so a pending
-    fetch never reads as "no results". Header reading time uses `readMinFor(filePath)`, not
-    `estimateReadingTime(content)`, which would say "~1 min" while loading.
-  - `loadContent(file)` for one guide (cached); **`loadAllContent()`** for features that genuinely need the whole corpus — search, Quiz, Interview Simulator — and its promise is memoised so it downloads once per session. Each of those has a loading state.
-  - **`getAllQuestions()` is async.** The sidebar's Daily Review badge computes on `requestIdleCallback` after first paint rather than during render, because `getDueCount` counts unseen questions as due and therefore needs the full corpus.
-  - `content-meta.json` is **generated, gitignored**, and regenerated by `npm run dev`, `npm run build` and a CI step before the typecheck (data.ts imports it). Regenerate with `npm run content:meta`. Its `readingTime()` mirrors `estimateReadingTime()` in data.ts — keep them in step.
-- **Service worker precaches the shell only** (~1 MB, 18 entries; it was 14.5 MB). Guide chunks and the heavy lazy libs are runtime-cached `CacheFirst` since filenames are content-hashed. Vendor chunks are named **`vendor-*`** specifically so the precache glob can match them without also matching content chunks — a bare `react` key produced `react-<hash>.js`, which `react-*` could not distinguish from `react-guide-<hash>.js`, and that silently precached the 281 KB React guide.
-- **The theme is resolved by a blocking inline script in `index.html`**, before first paint. `body` is `bg-slate-50 dark:bg-[#0a0a0f]` and the `dark` class used to be added only by `useDarkMode`'s effect — i.e. after the bundle mounted — so slow connections showed a white page for seconds. `useDarkMode` now reads that class rather than re-deciding. Keep the script inline, synchronous and in `<head>`.
-- Mermaid diagrams use ` ```mermaid ` code blocks in markdown. The `MermaidBlock` component lazy-loads the mermaid library.
-- The `prepare-content.js` script can copy root-level markdown folders to `src/content/` with directory name transforms (e.g., "Back End" → "back-end"). Those root folders no longer exist (the repo was flattened), so the script is effectively a no-op today.
-- **`src/content/README.md` is the `/` Introduction page and is edited directly.** `prepare-content.js` used to copy the root `README.md` over it on every build — which meant the deployed Introduction was actually the repo README, project structure and all, silently discarding the real Introduction. That copy has been removed; do not reinstate it. It also broke `verify:counts` in CI, because the claims checked against `src/content/README.md` were being checked against the wrong file.
-
-### Styling
-- Tailwind CSS with custom prose styles in `index.css` (not the @tailwindcss/typography plugin).
-- Code blocks always use dark theme (`#22272e` background) regardless of light/dark mode.
-- The Code Playground uses a fully dark IDE theme in both modes.
-- **A Tailwind text colour with no `dark:` prefix applies in BOTH themes** — that is the trap. `text-slate-400` is 7.7:1 on the dark ground but only **2.56:1 on white**, well under the 4.5:1 AA floor, so writing it bare ships unreadable light-mode text. 36 of these had accumulated (sidebar group headings, "ON THIS PAGE", card captions, "Tap to reveal answer", the version line, several icon buttons). **The house pair is `text-slate-500 dark:text-slate-400`**, or `text-slate-600 dark:text-slate-400` for small uppercase labels. Two instances were written *backwards* — `text-slate-400 dark:text-slate-600` gives the lighter value to the light theme and the darker to the dark theme, failing at both ends (2.56:1 and 2.61:1); if a pair looks like that, it is inverted. Enforced by check #11 in `verify-architecture.js`, which exempts `size={…}` lucide glyphs (decorative) and the always-dark playground/query-playground surfaces, where light greys are correct.
-
-### Key patterns
-- **Content is lazy-loaded, so the question bank is async.** `getAllQuestions()`, `loadAllContent()` and `loadContent()` all return Promises (`import.meta.glob` without `eager`). Every consumer must `await`/`.then()` and render a loading state — `ReviewPage`, `QuizMode`, `InterviewSimulator` and the search corpus all do. **Never cast your way past this:** `getDueQuestions(getAllQuestions() as any)` typechecked cleanly, handed a Promise to something that calls `.filter()`, threw during render and blanked the page. `useSpacedRepetition`'s `Question` is deliberately **generic** (`<T extends Question>`) so filtering preserves the caller's richer `data.ts` type and no return cast is needed.
-- **`RouteErrorBoundary` wraps the route outlet** (`src/components/RouteErrorBoundary.tsx`, inside `<main>`, outside `<Suspense>`). Without it a render throw unmounts the whole tree and the user sees a black page with no way forward. It special-cases `ChunkLoadError`/`Failed to fetch dynamically imported module` — the normal consequence of a deploy replacing hashed chunks under an open tab — and offers Reload, which fixes that outright. `resetKey={location.pathname}` clears the error on navigation.
-- **Sidebar version indicator**: the sidebar footer shows `v{APP_VERSION}`, imported as `import { version as APP_VERSION } from '../package.json'` in `App.tsx`. It tells you which build is actually being served — useful when a cached service worker is still handing out an older bundle than the latest deploy. Rollup tree-shakes the named import, so only the version string is bundled (verified: package.json-only probe strings appear 0 times in `dist/`).
-- **Don't use Vite `define` for this.** `define` was tried first and is silently broken in dev with Vite 6 here: the identifier is left completely unreplaced in the served module and is not injected as a global anywhere (checked `index.html` and `@vite/client`), so `npm run dev` hits a `ReferenceError` while `npm run build` works fine. A production build passing is not evidence that `define` works — probe the dev server too.
-- **Heading IDs**: `createHeading` in ContentPage generates IDs via `slugify(getTextContent(children))`. Used by TOC, deep links, and bookmarks.
-- **Code blocks**: `PreBlock` wraps all `<pre>` elements, adds copy/try-it buttons. Mermaid blocks are detected by `language-mermaid` class and routed to `MermaidBlock`. The "Try it" handler auto-appends `render(<Component />)` when it finds JSX with no render call, so snippets from React guides are runnable without manual edits.
-- **Playground auto-close lives in `src/components/playgroundAutoClose.ts`**, not inline in the key handler, because the handler needs a real textarea + React state and therefore cannot be tested. The two exported pure functions are `closingTagFor(before, isJSX)` and `shouldClosePair(code, start, end, key)`; `handleEditorKeyDown` just calls them. **Asserted via a Vite SSR probe** — both unit cases for the three helpers and a `type()` keystroke replay that re-implements the handler's rules and checks the resulting buffer (`<div>` → `<div></div>`, `if (i < n) {` → `if (i < n) {}`, `useState<Props>(` → `useState<Props>()`, and typing `const [count, setCount] = useState(0);` verbatim) (see the runtime-verification recipe below) — keep that harness in mind when touching either rule.
-  - **JSX tag auto-close** fires on `>`. The hard part is everything it must *not* do: void elements (`<br>`), self-closing (`<Foo />`), closing tags, and **TypeScript generics** — `useState<Props>` also ends in `>`. What separates a generic or a comparison from a tag is that its `<` **follows an identifier**, which is never true of JSX, so that's the guard. `{...}` groups are collapsed before matching so an arrow function in a prop (`onClick={() => x}`) doesn't read as a stray `>`. A nameless tag (fragment) must be *exactly* `<` with nothing after it, or `if (a < b` matches and closes to `</>` — that was a real bug caught by the probe, not by tsc.
-  - **A tag only closes once its opening tag is *finished*.** `hasUnclosedBracket(seg)` rejects the completion while any `{`, `(` or `[` is still open inside the tag, because then the caret is mid-prop-expression and the `>` being typed is an arrow, not the tag terminator. Without it, `<button onClick={()=>` produced `<button onClick={()></button>}>` — a reported corruption. Collapsing balanced `{...}` in `flat` is **not** sufficient on its own: an *unbalanced* `{` leaves nothing to collapse, and the `\s[^<>]*` branch then happily matched the half-typed prop.
-  - **`<` pairs with `>` via `shouldCloseAngle(before, isJSX)`, which decides from the token *before* the `<`.** Three constructs start with `<` and only one wants a `>`: a JSX tag (`<div`), a comparison (`count < max`) and a TS generic (`useState<Props`). A comparison or generic always follows a **value** — identifier, `)`, `]`, string or property access — and a tag never does, so that's the discriminator. The `>` handler then consumes a `>` already sitting at the caret (the one inserted when `<` was typed) before adding a closing tag, or `<div|>` + `>` would yield `<div>></div>`.
-  - **Bracket auto-close must not fire when the caret is directly before a word character.** Typing `[` in front of existing text inserted the pair and shoved that text inside it, turning `const [count, setCount] = useState(0)` into `count[(count, setCount)]` — a user-reported corruption. A non-empty selection is exempt, since wrapping a selection is deliberate.
-- **The playground Reset button is gated on `currentTemplate`, not on saved progress.** It was originally `getEntry(selectedName) && …`, so it was hidden until the 800 ms autosave debounce had fired — i.e. missing exactly when someone had just mangled their code. It restores `currentTemplate.code`, resets `currentLang`, and clears notes, output, preview, run summary, the saved draft and `showingSolution`; it only confirms when `code !== currentTemplate.code`.
-- **Playground strips ESM syntax**: `stripModuleSyntax()` in `CodePlayground.tsx` removes `import`/`export` statements before transpiling, because the runner uses `new Function` (a *script*), so an `import` is a hard `SyntaxError: Cannot use import statement outside a module`. Babel's typescript/react presets strip types and compile JSX but leave module syntax alone, so pasting real-world React code (`import React from 'react'`) used to fail. Everything a snippet would import is already injected into scope, and a console warning lists what's available when anything was stripped. The regexes are line-anchored so dynamic `import()`, and `import` inside comments or strings, are left alone (15 edge cases tested; all 175 templates unaffected).
-- **JSX in Playground**: Detected via `/<[A-Z]/.test(code) || /render\s*\(/.test(code)`. Transpiled by lazy-loaded `@babel/standalone`. React scope injected via `new Function(...keys, code)(...values)`.
-- **Playground console capture**: `console.log/warn/error` are patched once on mount (not per-run) and write into a ref. A flush interval copies the ref into state while a React preview is live, so async logs from intervals/effects keep streaming. The patch is restored on unmount.
-- **Playground modal filters are scope-aware.** `patterns` and `difficulty` exist only on JS coding challenges, never on React machine-coding templates. `scopeChallengeTemplates` narrows by the active tag, and `scopeHasPatterns`/`scopeHasDifficulty` gate whether the pattern sidebar and difficulty chips render at all — the counts are derived from the same scoped list so they match the list on screen. **Changing tag or mode resets `patternFilter` and `difficultyFilter`, and so does `openDrawer`**: previously a pattern chosen under JS stayed applied when you switched to React, excluded every React template, and showed "No templates found" that survived closing the modal. If you add a filter dimension, reset it in all three places.
-- **Playground sidebar toggle**: Playground emits a `prephub:show-sidebar` window event; `App` listens and opens/uncollapses the sidebar. The floating expand button is hidden on `/playground` to avoid overlapping the editor — the playground header has its own inline toggle.
-- **Spaced Repetition**: SM-2 algorithm in `useSpacedRepetition.ts`. Quality 4 = "Got It", 1 = "Study Again".
-
-### localStorage schema
-All persistence is in localStorage. Key schemas are documented in README.md. Important: never store sensitive data — this is a public study tool.
-
-### What NOT to do
-- Don't add a backend. Everything must work as a static site on GitHub Pages.
-- Don't use `@tailwindcss/typography` — prose styles are custom in `index.css`.
-- Don't import `Github` from lucide-react (it doesn't exist in this version) — use the inline `GithubIcon` SVG component.
-- Don't make the Code Playground light-themed — it's intentionally always dark like an IDE.
-- Don't add new dependencies without considering bundle size. Lazy-load heavy libs (mermaid, babel) via dynamic `import()`.
-
-### Deployment
-- Base path is `/prephub/` (configured in `vite.config.js` and BrowserRouter basename).
-- PWA configured via `vite-plugin-pwa` with `autoUpdate` registration. **The worker is registered by `src/pwa.ts` (imported from `main.tsx`), not by the plugin's auto-injected script** — `injectRegister: null` in `vite.config.js` turns that off. This matters: the auto-injected `registerSW.js` is a bare `navigator.serviceWorker.register()` call, so although `sw.js` uses `skipWaiting`/`clientsClaim` the page kept running its already-loaded bundle and **every release needed a hard reload**. Calling `registerSW()` from the virtual module registers through `workbox-window`, which in `autoUpdate` mode adds an `activated` listener that reloads the page. `src/pwa.ts` also polls `registration.update()` every 60s and on tab focus, because otherwise a long-lived tab never checks. Note `onNeedRefresh` and `updateSW(true)` are **inert** in `autoUpdate` mode (they belong to `registerType: 'prompt'`) — don't add them expecting them to fire.
-- Icons in `public/` (pwa-192x192.png, pwa-512x512.png).
-
-### Testing
-**`npm test` (Vitest) is the gate — 535 tests across 22 files.** Vitest runs through Vite, which
-is why it can import the data layer at all: `import.meta.glob` only resolves under Vite, so
-`data.ts` cannot be imported into plain Node. That limitation is what let the Promise-to-
-`.filter()` blank screen and the 344 colliding question ids survive a clean typecheck.
-
-**This replaces the old throwaway-SSR-probe ritual.** Earlier revisions of this file described
-building a one-off `vite build --ssr` bundle to execute `data.ts`; don't. `src/data.test.ts`
-does it properly and permanently.
-
-Write a test for:
-- anything in `src/lib/`
-- anything pure in `src/data.ts`
-- any editor or text-manipulation rule — see `playgroundAutoClose.test.ts`, which replays real
-  keystrokes rather than testing helpers in isolation
-- any invariant a reference solution depends on — see `src/data/queries/solutions.test.ts`,
-  which executes every query solution *and* asserts the checker rejects the classic wrong answer
-
-Then still check by hand what a test cannot see:
-1. `npm run dev` and exercise the affected feature
-2. both light and dark mode
-3. mobile responsive layout
-
-## After making changes — MANDATORY
-**Every change, no matter how small, MUST check and update these three files before finishing. Do NOT wait for the user to remind you. This is a blocking requirement — do it automatically as the final step of every task.**
-
-1. **`CLAUDE.md`** — Update if the change affects architecture, patterns, content structure, or instructions (e.g., new categories, new components, new conventions, repo structure).
-2. **`README.md`** — Update if the change is user-facing (new features, new guides, updated counts, tech stack changes, project structure, dev commands).
-3. **`src/content/changelog.md`** — Update if the change is something the end user should see (new content, new features, UI changes, bug fixes). This powers the in-app "What's New" modal.
-
-## Architecture debt — CLOSED (audited & fixed 11 Sep 2026)
-(The original audit write-up lived in a Claude artifact that no longer exists — don't go looking for it. The findings and their outcomes are recorded in full below, and the enforcement lives in `eslint.config.js` + `scripts/verify-architecture.js`.)
-**All seven findings are fixed.** "Enforced code rules" above is now the operative document — it describes the state of the repo, not a plan. Outcomes at the time of the audit: ESLint covers every `src` file type-aware (121 violations found and fixed on the first real run); a real test suite where there had been none; eager payload 898 → 525 KB; playground chunk 428 → 95 KB; `App.tsx` 1,608 → 833 lines; `ContentPage` extracted, split and now **under the standard 400-line limit with no ratchet exemption**; `CodePlayground` 1,988 → 1,253 with its internals in tested `lib/` modules; feature folders in place with every layering edge probe-tested.
-
-**`LEGACY_LARGE_FILES` in `eslint.config.js` is down to a single entry** — `CodePlayground.tsx` (**780**, lowered from 1,010 as `useTemplateCatalog`, `playgroundScope`, the toolbar/banner/notes extraction, `resolveInitialPlaygroundState` and then `usePreviewMount` came out). Everything else now passes the standard 400-line / 300-function / complexity-20 limits with no exemption: `App.tsx` (456 lines, after `Sidebar` and `SearchModal` came out), `ContentPage`, `ExplanationModal`, `QuizMode` and `data.ts`. **The ceiling may shrink, never grow.** The remaining job is `CodePlayground`'s 1,300-line render — the template modal is the obvious next extraction.
-
-**Three refactors produced real fixes rather than just smaller files**, which is the pattern to repeat:
-- `useTemplateFilters` — a reducer where changing tag or mode clears `pattern`/`difficulty` **as part of the transition**, so the "No templates found" bug is no longer expressible.
-- `StepCanvas` — the ten snapshot renderers became a table, so the "nothing to show" fallback is *derived* from the same list instead of a twelve-clause negation that had to be hand-updated whenever a snapshot kind was added.
-- `Sidebar`'s Tools list — seven near-identical `<Link>` blocks became one table; adding a tool is one row.
-
-Original findings, for context:
-1. **`eslint.config.js` lints 0 of 34 app files** (`files: ['**/*.{js,jsx}']`, all of `src/` is `.ts`/`.tsx`, and no TS parser is installed). `eslint-plugin-react-hooks` is a devDependency but has never run, so `exhaustive-deps`/`rules-of-hooks` have never checked this codebase and the pre-push lint gate passes vacuously. Fix: `npm i -D typescript-eslint`, widen the glob, land rules as `warn` then ratchet to `error`.
-2. **No tests, no `test` script**, while the Review-page blank screen, the 344 duplicate ids and two auto-close bugs all passed `tsc`. Start with Vitest over the pure modules that already have assertions (`playgroundAutoClose`, `data.ts`, `useSpacedRepetition`); Vitest reuses the Vite config so `import.meta.glob` resolves without the SSR-probe workaround.
-3. **`App.tsx` (1,565 lines, 13 inline components) statically imports `react-markdown`**, so `vendor-markdown` (327 KB) is eager even though `/` renders `HomePage`, which never renders markdown. Extracting `ContentPage` (~451 lines) + `PreBlock`/`TableOfContents`/`MobileToc`/`OfficialDocsBar` behind `React.lazy` takes the eager payload ~898 → ~570 KB. Blocker: `ContentPage` shares sidebar/checkpoint state with `App`.
-4. **`CodePlayground.tsx`: 1,975 lines, 30 `useState`, one 782-line `return`.** The documented "reset the filter in all three places" bug is a direct symptom. Split into `TemplateModal`/`EditorToolbar`/`EditorPane`/`NotesPanel`; the tag/mode/pattern/difficulty cluster belongs in one `useReducer`.
-5. **74% of `src/` (22,551 of 30,306 lines) is playground content data under `components/`.** Solutions and explanations are already lazy; **`playgroundTemplates.ts` (360 KB) is the static outlier** and is why the playground chunk is 427 KB. Move all three to `src/data/playground/`, then lazy-load templates behind a static index like `playgroundSolutionKeys.ts` already does.
-6. **17 direct `localStorage.` calls outside `hooks/`** with inconsistent try/catch — the accessor *throws* in private mode, so an unguarded read during render is the same blank-screen shape as the Review bug. Consolidate into `src/lib/storage.ts`.
-7. **Flat `components/` mixes routes, shared UI, pure logic and data.** Do this last or files move twice.
-
-**Deliberately NOT problems** — don't "fix" these: the 18 `key={index}` uses are all positional visualisation cells or append-only log rows where the index *is* the identity; the 6 remaining casts only narrow the `menuStructure` union; code splitting, the hooks convention, `RouteErrorBoundary` and the SW registration are sound and intentional.
-
-## Two Try-it bugs were in the APP, not the guides — and one explains three sightings
-A reader pressing **Try it** on React Q17 got `TypeError: Cannot read properties of undefined (reading 'map')` plus bare `%o` / `%s` lines in the console. Both were app defects.
-
-- **`PreBlock` auto-rendered the wrong component.** It concatenated three
-  `matchAll` results — `function X(`, `const X =`, `class X extends` — and took
-  the **last element of the concatenated array**, which is the last *const*
-  match, not the last component **in source order**. For
-  `const Child = React.memo(function Child(…))` above `function Parent()`, the
-  matches are `[Child(fn), Parent(fn), Child(const)]`, so it rendered
-  `<Child />` with no props and crashed on `data.map`. Fixed by sorting on
-  `m.index`. **This is the root cause of the whole "no props" class** — the 9
-  flagged blocks were a symptom of picking the inner component.
-- **The console panel did not apply format specifiers.** `args.map(formatValue).join(' ')`
-  leaves `%s`/`%o` literal, and React logs component stacks with format strings
-  — so a real error arrived flanked by meaningless `%o` and `%s` lines that read
-  as though the playground were broken. `formatConsoleArgs` in
-  `playgroundRunner.ts` now handles `%s %d %i %f %o %O %c %%`, with 9 tests.
-
-**The lesson worth keeping:** when a guide example misbehaves, check the harness
-before rewriting the example. Two of the three "bad block" reports were the
-player, not the content.
-
-## Show the FIXED code, not just prose describing the fix
-A reader asked for this directly, and Q18 shows why it is not cosmetic: the
-guide listed "fixes in order of escalation" starting with `useMemo`, which reads
-as though it addresses the symptom. **Measured on React 19, it does not.**
-
-| | theme-only consumer re-renders when `user` changes |
-|---|---|
-| inline object (buggy) | 1 |
-| `useMemo` on the combined value | **1 — no improvement** |
-| split contexts + `memo` on the consumer | **0** |
-
-`useMemo` fixes a *different* problem — re-renders caused by the provider's
-**parent** re-rendering when the value's contents are unchanged. Only splitting
-by change-frequency fixes "everything re-renders when one field changes", and
-**`React.memo` on the consumer is part of that fix, not an extra**: splitting
-stops the context notifying it, but the provider still re-renders its children.
-Split alone measured 1; split plus `memo` measured 0.
-
-Q17 got the same treatment — the `useCallback` fix, plus the two conditions that
-decide whether it works at all (`memo` compares *every* prop, so one unstable
-prop defeats it; and a dishonest `[]` dep array buys a stale closure, not speed).
-
-## A "Tricky Output" answer is a CLAIM, and the Try-it button now checks it in public
-Two were found wrong by a reader simply pressing **Try it** and comparing the
-console with the stated answer. This is a defect class the code-block gate cannot
-see: the block parses, runs, and prints something that **contradicts the guide**.
-
-- **React Q14 (conditional hook).** The answer said "runtime error when
-  `showName` toggles". The block only *defined* `App`, so the Try-it handler
-  auto-appended `render(<App />)` — with **no props**. `showName` was
-  `undefined`, the conditional hook never ran, and it printed `0 25` with no
-  error, forever. Fixed by adding a `Demo` harness that actually toggles, plus
-  an explicit `render()`. Verified for real: React throws
-  `Rendered fewer hooks than expected`.
-- **React Q12 (`setCount(0)` on state `0`).** The answer claimed the **first
-  click** logs `rendered` and later clicks do not, with a long explanation about
-  a "verification render". **That does not happen.** Measured on React 19.2.4:
-  `plain mount=1, 1st click adds 0, next 2 add 0` — clicking never re-renders.
-  The `rendered` in the console is the *mount*. React's **eager** bail-out in
-  `dispatchSetState` computes the next state at dispatch time when the fiber has
-  no pending work and returns without scheduling anything. The documented "React
-  may still render before bailing out" caveat belongs to the *lazy* path, which
-  needs pending work on the fiber. Rewritten to distinguish the two.
-
-**The rules that follow:**
-1. **Never state an output you have not executed.** These are the guide's most
-   confidently-worded sections and they are read as fact.
-2. **Check what the Try-it button will actually run.** `PreBlock` auto-appends
-   `render(<Component />)` when it finds JSX with no render call — **with no
-   props**. A component whose behaviour depends on a prop therefore demonstrates
-   the wrong thing. 9 blocks match that shape; Q14 was one.
-3. **The playground preview does NOT use StrictMode** (`createRoot` in
-   `CodePlayground.tsx`, no wrapper), so mount renders once. An output claim that
-   assumes double-invocation will be wrong on screen.
-4. Prefer a block that is **self-demonstrating** — a harness plus an explicit
-   `render()` — over one that needs the reader to imagine the trigger.
-
-**The props-less auto-render is a MEASURED backlog, not a hunch.** Re-measured
-Sept 2026 across the grown corpus: **67 blocks auto-render a component that takes
-props**, and in **21** of those the prop is dereferenced (`.map`, `.length`, a
-call), so Try-it throws rather than rendering something odd. By guide: react 33,
-nextjs-rsc 9, react-native 5, react-router 5, accessibility 4, design-patterns 3,
-tanstack-query 3, frontend-system-design 2, stripe 1, web-security 1. (The older
-figures here were 38/12; the detector was also narrower. Re-measure rather than
-trusting either number.)
-
-**A harness-level fix was evaluated and rejected with data.** "Prefer the last
-component that takes NO props" sounds like it would fix the class, but only
-**8 of 67** blocks even contain a props-less candidate, and the switch is wrong
-in several of those (`<Stopwatch />` → `<SearchField />`). So this stays a
-per-block content fix: **add a `Demo` harness plus an explicit `render()`**, the
-way React Q14, Q24 and Q25 now do — not a `PreBlock` change, and not by deleting
-the button. React Native blocks cannot run here at all and need a different
-answer.
-
-**Unverified scope, measured:** there are **132 `**Output:**` claims** in tricky
-sections across the corpus — React 20, JavaScript 16, React Native 15, Express
-14, Node 14. Two have now been checked. The rest are unverified, and React
-Native blocks cannot run in this playground at all, so their Try-it buttons are
-misleading by construction.
-
-## Sections that are pure code with no explanation — a measured backlog
-A user reading §16.4 `use()` and §16.5 `useOptimistic` found both were a heading
-followed straight by a code block, with nothing saying what the API is for. Both
-now open with prose and close with the pitfall, matching §16.6's shape
-(what it does → code → why it is not the obvious alternative → what bites).
-`### 11.1 Creating and Using Context` had the same defect and was fixed too.
-**The React guide now has zero numbered subsections that are pure code.**
-
-Two things worth writing down from the rewrite:
-
-- **`use()`'s exemption from the rules of hooks is explainable, not arbitrary.**
-  The rules exist because `useState` is matched to its stored state *by call
-  order*, so a conditional hook shifts every later slot (Q47). `use` reserves
-  no slot — a promise identifies itself, a context is read off the fiber — so
-  there is no ordering to corrupt. Explaining that is far more useful than
-  saying "it can be called conditionally".
-- **The `useOptimistic` example had a real bug.** It rendered `key={todo.id}`
-  while the optimistic item was built from form data with no `id`, so the new
-  row had `key={undefined}`. Fixed with a temporary id, and the reason is now
-  in the prose, because it is the mistake everyone makes with optimistic lists.
-
-**Corpus-wide there are ~302 numbered subsections that open with code and carry
-no prose** — measured, not estimated. **Do not bulk-fix these.** Many are
-legitimately code-first reference (`### 3.1 call — Call a Function`,
-`### 13.1 On-Demand`, the Jest matcher lists), where prose would be padding and
-padding is worse than nothing. The worst offenders by count are
-`jest-react-testing-library` (37), `redux-saga` (30), `aws-lambda` (28),
-`storybook` (23), `mongodb` (22) and `nodejs` (22). Fix them per guide, on
-demand, judging each section on whether the code alone actually answers *why*.
-
-**No guard for this.** "Every section must have prose" is the wrong rule — it
-would be wrong for the reference sections and would reward padding.
-
-## React guide — custom hooks (§6.3) and the interview-question map
-- **§6.3 is one-hook-per-subsection: the CORRECT version only, then how to consume it.** The user explicitly asked for the naive/bad versions to be removed — **do not reintroduce a "here is the wrong way first" structure.** The reasoning behind each correct line stays as short notes (why the cleanup *is* the debounce, why `useFetch` guards on `aborted` instead of using `.finally`, why every storage access is wrapped). Hooks covered: `useToggle`, `useDebounce`, `useFetch`, `useLocalStorage`, `useMediaQuery`.
-- **These constraints are load-bearing — do not "simplify" them away:** `useFetch` must not use `.finally` (it runs on abort, so `loading` lies and stale `data` renders as fresh); it must reset `data`/`error` on url change; and `useLocalStorage` must wrap every storage access in `try`/`catch` because **the accessor throws in private mode and the read is in a `useState` initialiser, i.e. during render** — the same bug class that was fixed in this app's own `src/lib/storage.ts`.
-- **Interview Q total: 55** (Q46–Q53 added for useRef, rules of hooks, Fragments, custom hooks, external-store subscription, client vs server routing, the event system, and localization; **Q54–Q55** for the debounced-value custom hook and CSR/SSR/SSG/ISR). A user-supplied 16-question checklist is fully covered; verify with a regex map over `^\*\*Q(\d+):` rather than by eye.
-- **Every runnable code block must parse — enforced by `npm run verify:blocks`.** Each block tagged `tsx/jsx/ts/js` gets a **"Try it"** button (`isRunnable` in `src/features/content/PreBlock.tsx`) that loads it into the playground, so a block that cannot parse ships a button guaranteed to fail.
-  - **`scripts/verify-code-blocks.js` is now a CLEAN GATE — `code-block-baseline.json` is `{}` and all 1,670 runnable blocks parse** (it started at 188 broken across 41 guides). The ratchet machinery is kept as the escape valve for a future bulk import; because a file absent from the baseline must be at zero, an empty baseline means any newly-broken block fails the build. Probe-tested in both directions. **A file's count may fall, never rise, and a file absent from the baseline must be at zero** — so new content cannot add broken blocks. Lower a number (or delete the entry) when you fix some; `--update-baseline` rewrites it after a deliberate sweep. Probe-tested in both directions.
-  - **The 188 → 0 sweep: eleven fix classes, 1 prose line changed** (a sentence deliberately added when moving a SQL statement out of a JS block). Worth copying, because each class is a real content defect rather than a formatting nit. Verified with a prose-multiset diff (strip every fenced block, compare the remaining lines as a multiset against `git show HEAD:`) — the index-by-index version reports false drift as soon as a block is split, because every later line shifts.
-    1. **Duplicate declarations in BAD-vs-GOOD pairs (50).** Rename one. **Rename the BAD one, not the second** — CLAUDE.md used to say "rename the second", but when the good version comes second that hands the ugly name to the snippet people copy. Detect the bad half from a `✗`/`❌`/`BAD`/`Avoid` comment above it and suffix it `Broken`; fall back to the second only when neither half is marked.
-    2. **Orphaned function bodies (26).** Top-level `yield` and top-level `return` are *outright invalid JavaScript*, so these blocks were teaching something that cannot compile. Wrap in `function* saga()` / `async function run()`, hoisting real `import` lines outside (imports must stay top-level).
-    3. **Data shapes mis-tagged as code (25).** API payloads, MongoDB documents and event objects tagged `js`. Retag to **`json`** — `rehype-highlight` bundles it, so highlighting improves *and* the false "Try it" button disappears. Classifier: after stripping comments the body starts with `{`/`[` and contains no statement keyword (`const|let|var|function|return|import|export|class|if|for|while|await|=>`).
-    4. **Alternatives sharing one block (18).** `// CJS` … `// ESM`, or a module beside its consumer. Split into one fenced block per alternative at a standalone top-level comment preceded by a blank line, and **only accept the split when every resulting piece parses**.
-    5. **Adjacent JSX roots (13).** Contrastive snippets, so a bare fragment is wrong — wrap in `function Example() { return (<>…</>); }` and convert the separating `//` lines to `{/* … */}`, since `//` is not a comment in JSX children.
-    6. **`{ ... }` elision (10).** Not valid JS — spread needs an operand. Replace with `{ /* … */ }`. Guard the regex so real spread (`{...props}`, which has an identifier after the dots) is untouched.
-    7. **Wrong fence tag (9).** A block whose content is TypeScript or JSX under a `js`/`ts` fence. Try the more capable tag and retag if it parses — but note the error does NOT mention JSX: in a non-TSX TypeScript file `<Primary />` parses as a *type assertion*, so it surfaces as `Unexpected token, expected ","`.
-    8. **Decorators (2) — this one was a GATE bug, not a content bug.** `@Component({…}) class Foo {}` is ordinary TypeScript, but Babel needs `proposal-decorators` switched on explicitly. The gate rejected valid code *and* the playground would have too. Fixed in **both** `src/lib/playgroundRunner.ts` and `scripts/verify-code-blocks.js` — **a gate that compiles differently from the runtime is not measuring anything**, so keep those two in step. `legacy` is the version `experimentalDecorators` compiles, which is what Angular/NestJS/TypeORM examples need.
-    9. **Statement-terminator listings (10).** Cheat sheets are one expression per line. `NaN === NaN` followed by a line starting `[` is parsed as `NaN === NaN[…]`, and two expressions sharing a line have nothing between them at all. Terminate each statement. **The self-contained-line check must strip regex literals before counting brackets** — `{2,}` and `[^\s@]` otherwise read as unbalanced and the block is misjudged.
-    10. **Bare object literals (7).** `{ _id: …, title: … }` at statement position is a **block**, not an object — hence the baffling "Missing semicolon" on a perfectly good document. Name it (`const emailNotification = {…};`) or, for a one-line operator reference, parenthesise it (`({ $toUpper: "$name" });`). Auto-generated names need a human pass: the script produced `playwrightconfigConfig` and `calculatingEveryRead`, and framed a *class method* as an object property.
-    11. **Object-body and method fragments (8).** `retries: …, trace: …` or `async park(v: Vehicle) { … }` printed without the object or class around them. Wrap in the thing they belong to.
-  - **The React guide is fully clean: 191/191.** The 26 that were broken fell into five classes, and the fixes are worth copying: bare class-method bodies → wrapped in a minimal self-contained `class` (clearer *and* runnable); BAD-vs-GOOD pairs redeclaring one identifier → rename the second; `dependencies?` / `getServerSnapshot?` optional-arg notation → a real `declare function` signature; `const x = ...;` elision → complete the code; adjacent JSX roots or a top-level `return` → wrap in a component or assign to named consts.
-  - **Prefer a runnable stub over `declare`.** `declare const Foo: React.FC` is erased by the TS preset, so Try-it fails with a `ReferenceError` naming it. `const Foo = () => <p>Foo</p>;` is barely longer and actually runs. Only the three `declare function` blocks remain, where the signature *is* the content.
-  - Verified by diffing prose against the pre-edit file: **0 prose lines changed, question count unchanged at 79** — the sweep touched only code blocks.
-
-## Frontend Tooling — the webpack-vs-Vite answer is a DECISION, not a feature table
-The guide's §4 comparison table and §10 Q&A used to answer "which would you pick?"
-with "Vite, without hesitation" — which is the **greenfield** answer, and only
-half the question. The interesting case is an existing webpack app, and the
-strong answer there is *don't migrate by default*.
-
-- **§4 "Choosing Between Them"** now splits the two cases, names the three
-  triggers that justify migrating (measurable lost developer time, a config
-  nobody understands, an upgrade already absorbing churn), and offers **Rspack**
-  as the cheaper middle path — config-compatible, so loaders and plugins survive.
-  The framing to keep: **Vite is the better destination; Rspack is the cheaper
-  move.** An upgrade is not a rewrite.
-- **§5.6 Rspack** added (comparison summary renumbered 5.6 → 5.7; the TOC lists
-  only top-level sections here, and nothing links to §5.x anchors, so the
-  renumber was free). Rspack had existed only in `frontend-architecture-guide.md`
-  as a Module Federation aside.
-- **§10 Q20 split into Q20 (greenfield) + Q21 (existing codebase)**, and old
-  Q21–Q24 shifted to Q22–Q25. Safe here because this guide has a **single** Q
-  sequence and no Tricky section — check that before renumbering any other guide.
-  Q20 also now volunteers the gotcha that **`vite build` succeeds on code with
-  type errors**, since esbuild/Rolldown strip types without checking them.
-- `**Q20b:`** was the first attempt and is **wrong** — `extractQuestions` matches
-  `\*\*Q(\d+):`, so a letter suffix never becomes a question and would silently
-  vanish from Quiz mode. Numbered questions must be plain integers.
-- **The `totalQuestionCount` parity test earned its keep immediately**: adding
-  the question failed it with `Frontend Tooling: generator 24 vs extractor 25`
-  until `npm run content:meta` was re-run. It names the guide and the delta.
-
-## Interview-round audits: check coverage BEFORE writing, and record what was skipped
-A user-supplied list of round-by-round questions is the recurring request. The
-method that has worked twice now: extract every `**Qn:**` in the corpus, regex
-each candidate against the question TEXT (not the prose — topic mentions are
-everywhere and prove nothing), and split the list into covered / gap before
-writing a word.
-
-**Second audit — 16 questions over 3 rounds, 9 gaps closed, 7 already covered.**
-- **Added:** React **Q54** (custom hook that debounces a VALUE — the cleanup *is*
-  the debounce; why not to debounce the input itself; why it does not fix
-  out-of-order responses), React **Q55** (CSR/SSR/SSG/ISR as one axis — when the
-  HTML is built — plus "SSR does not make your app fast" and RSC being a
-  different axis entirely); Frontend Architecture **Q14** (100+ page dashboard —
-  feature layering, route manifest, server-state-is-not-app-state, build-time as
-  a first-class concern, and why NOT micro-frontends), **Q15** (frontend rate
-  limits — `Retry-After` vs self-imposed backoff, full jitter, retry only
-  idempotent verbs, and the honest "the frontend can only survive a rate limit"
-  framing), **Q16** (1M+ users/day — reframed as delivery, cache invalidation,
-  field measurement and blast radius rather than throughput), **Q17** (dropdown
-  with search + multi-select — an API-design question, with `aria-activedescendant`
-  as the graded detail); Behavioral **Q19** (tech debt as a throughput number,
-  the ratchet, why a rewrite sprint loses), **Q20** (cross-functional conflict —
-  design and backend have different shapes), **Q21** (non-technical stakeholders
-  — lead with the decision, end sentences in revenue/risk/speed/cost).
-- **Already covered, deliberately NOT duplicated:** event loop (JavaScript Q6,
-  Node Q2), controlled vs uncontrolled (React Q5), hydration mismatch (React
-  Q35), code splitting (React Q25 + Tooling Q11 + Web Perf Q4), component
-  library across teams (FE-Arch Q10 + Testing Q7 + Modern CSS Q8), large lists
-  at 10k+ rows (FE-Arch Q11 + React §13.4), production bug broke the UI
-  (Behavioral §9.9).
-- Totals after: React **55**, Frontend Architecture **17**, Behavioral **21**.
-
-## A block can parse perfectly and still throw the moment it runs
-Browser APIs §3.3 listed the WebSocket send overloads as top-level statements
-after the constructor:
-
-```
-const ws = new WebSocket(url);
-ws.addEventListener('open', …);
-ws.send('text');        // ← InvalidStateError: still in CONNECTING state
-```
-
-Pressing **Try it** produced `InvalidStateError` immediately, because the
-handshake has not finished when those lines run. `new Blob([buf])` in the same
-block referenced an undefined `buf`. Real-Time Web §5 had the same shape under a
-`// Send:` comment.
-
-**No gate could see it**: it is valid JavaScript, so `verify:blocks` passes, and
-it is guide prose rather than a playground template, so the executable suites do
-not touch it. This is the same blind spot as the misindented fence (#17) —
-parsing is not running.
-
-Both now put every send inside the `open` handler or behind a
-`readyState === WebSocket.OPEN` guard, which is also the correct production
-pattern: after a drop, `send` throws again. **Check #18** in
-`verify-architecture.js` fails any `ws.send(...)` at the top level of a block
-that constructs a WebSocket, and is probe-tested.
-
-## A nested code fence must be indented to match its list item
-TanStack Query **Q13** rendered as an *empty* `ts` block, followed by the code as
-a bare paragraph, followed by the remaining three bullets swallowed into a second
-block. The cause: the fence was indented two spaces inside a list item while its
-body sat at column 0, so the un-indented line terminated the item.
-
-**No existing gate could see it.** `verify:blocks` extracts fenced blocks and
-tries to parse them — an empty block parses perfectly, and the leaked code was no
-longer inside a fence at all, so there was nothing to check. `verify:counts`
-looks at figures and anchors. It was only visible by reading the rendered page.
-
-Check **#17** in `verify-architecture.js` now fails any fence whose body is less
-indented than the fence itself, and is probe-tested by reintroducing the bug.
-Verified the fix through the real pipeline (react-markdown + remarkGfm): four
-`<li>`s, the `useQuery` example inside a code block, no empty `<code>`.
-
-## React Router guide — the app pins v6, the world is on v7
-`src/content/front-end/react-router-guide.md` at `/frontend/react-router`
-(20 sections, **12 interview Qs + 6 tricky Qs**), in the `React & State` group
-beside the React guide. It was a real gap: routing appeared only as React
-**Q51** (client vs server routing, the concept) and scattered mentions — nothing
-on nesting, loaders, or why deep links 404 on static hosting.
-
-- **This repo runs `react-router-dom` 6.30.3**, so the guide is written on the
-  v6/v7 shared surface with §14 covering the migration. The honest framing for
-  v7 is that it is undramatic: the package became `react-router`, and the late-v6
-  `future` flags became defaults — so the migration advice is to enable
-  `v7_startTransition`, `v7_relativeSplatPath`, `v7_fetcherPersist`,
-  `v7_normalizeFormMethod` and `v7_partialHydration` one at a time *before*
-  bumping the major.
-- **§2 leads with the three modes** — declarative / data / framework — because
-  "how do you fetch data with React Router?" is really asking which one you have
-  used, and the answer differs completely between them.
-- **Two tricky questions come from this codebase's own bugs**: reading
-  `window.location` instead of `useLocation()` under the `/prephub/` basename
-  (the Sidebar extraction bug), and the GitHub Pages deep-link redirect that
-  route shells fixed. §13 documents the hosting problem with the same numbers.
-- Four blocks failed `verify:blocks` on the first write, all standard classes
-  from the sweep: a bare object literal at statement position, a lone opening
-  tag, a top-level `return`, and adjacent JSX roots in the reference card.
-
-## Global State Management is its own sidebar group
-Redux Toolkit and Redux Saga moved out of `React & State` into a **Global State
-Management** group, joined by a new **Zustand** guide
-(`src/content/front-end/zustand-guide.md`, `/frontend/zustand`, 12 interview Qs
-+ 6 tricky Qs). **Routes were NOT changed** — `/frontend/redux-toolkit` and
-`/frontend/redux-saga` are unchanged, so bookmarks, checkpoints and SEO survive;
-only the heading above them moved. Group order follows first appearance, so the
-new heading sits where the Redux entries now sit in `items: [...]`.
-
-**TanStack Query lives here too, by the user's explicit call.** The first pass
-kept it under `React & State`, reasoning that several guides teach server state
-is not app state. The user overruled that: readers looking for "how do I manage
-state" expect to find all four options in one place, and the server-vs-client
-distinction is taught *inside* the guides — which is where it belongs, rather
-than being encoded in a sidebar heading nobody reads as an argument.
-
-**Sidebar group headings need more than one cue.** `GLOBAL STATE MANAGEMENT`
-originally sat at the same left edge, size and weight as `Redux Toolkit` beneath
-it, so it read as a sibling rather than a heading. It now has a rule above the
-group, wider letter-spacing and bolder weight, and the links under a labelled
-group are indented (`pl-5` vs the heading's `px-3`). `Sidebar.test.tsx` pins all
-three and is probe-tested by removing the indent.
-
-The Zustand guide's thesis is the one interviewers probe: **Context has no
-partial subscription**, so every consumer re-renders on any change — Zustand
-makes the selector the unit of subscription via `useSyncExternalStore`. The
-tricky section is built from the failure modes that follow: `useStore()` with no
-selector, an object-literal selector defeating `Object.is`, `set` merging only
-one level deep, `get()` inside an async action, the module singleton leaking
-across tests and SSR requests, and a `persist` shape change breaking returning
-users.
-
-**Third audit — 10 production-flavoured questions, 4 gaps closed, 6 already covered.**
-- **Added:** React **Q56** (why an error boundary does not catch an async failure —
-  the mechanism is an ordinary `try`/`catch` around the render phase, so the fix is
-  to capture the rejection in state and `throw` it during render; plus the window
-  listeners for what escapes React entirely); Next.js & RSC **Q9** (Server Action
-  vs Route Handler, and that a Server Action **is a public HTTP endpoint**, so
-  "only the admin page imports it" authorises nothing); Browser APIs **Q17**
-  (multi-tab logout — `BroadcastChannel` vs the `storage` event's
-  fires-only-in-other-tabs asymmetry, and why a 401 handler is the real
-  guarantee); Web Performance **Q10** (fast on a laptop, slow on a real Android —
-  segment the field data by device class first, then decide CPU vs network from a
-  trace on real hardware).
-- **Already covered:** bundle growth (React Q25 + Tooling Q18), the 1%-of-users
-  rendering bug (FE-Arch Q5), thousands of events/sec (FE-Arch Q8), the four
-  caching layers (FE-Arch Q3), the RSC client boundary (Next.js Q2), WebSocket
-  message ordering (Real-Time Web Q16).
-- Totals after: React **56**, Next.js & RSC **9**, Browser APIs **17**,
-  Web Performance **10**.
-
-**Fourth audit — JS/TS guides against 2026 interview-question sources (web-checked Sept 2026).**
-LinkedIn posts themselves are login-walled and not fetchable; the sources used were
-GreatFrontend's senior/tech-lead TypeScript lists, frontendinterviews.dev's JS
-problem index, Scrimba's 2026 prep guide and the frontend interview handbook.
-**5 gaps closed, and the recurring theme in all of them is that 2026 lists push
-past the definition into application** — because the definition is now something a
-model answers instantly.
-- **JavaScript Q25** — what a closure actually *retains* (the variable environment,
-  not the values it reads) and the four SPA shapes that leak: listener, interval,
-  subscription, detached node. The named follow-up in the sources is exactly this:
-  "show me a case where a closure causes a memory leak".
-- **JavaScript Q26** — `once(fn)`, and why it is asked: closure privacy, `this`
-  forwarding via `apply` (an arrow here is a bug), caching the *result* not just the
-  call, and nulling `fn` to release what it held.
-- **TypeScript Q25** — three booleans describe eight states where the domain has
-  four; refactor to a discriminated union so illegal states are unrepresentable,
-  with a `never` exhaustiveness check. This is the single most-cited senior TS
-  scenario across the sources.
-- **TypeScript Q26** — mutually exclusive props (`href` XOR `onClick`) via
-  optional-`never` arms, plus why `never` beats omitting the key, and the caveat
-  that a hand-written pair beats an `XOR` helper for one case.
-- **TypeScript Q27** — `JSON.parse` returns `any`; annotate `unknown`, narrow with a
-  predicate, and treat storage as a **boundary**. `as Settings` compiles and lies.
-- **Already covered, not duplicated:** generic `pick` (Q4 + Q9), `Omit` patch
-  payloads (Q7), `infer`/`Awaited` (Q11), template-literal event maps (Q16, Q17),
-  `satisfies` for variants (Q20), enum vs union (§13.3), promise timeout via
-  `Promise.race` (§8.7), retry/backoff and bounded concurrency (playground).
-- **Noted, not built:** the DOM-traversal family from frontendinterviews.dev — tree
-  height, level-order traversal, virtualising a DOM tree — has no equivalent
-  anywhere here. It is playground-challenge material rather than guide questions.
-- Totals after: JavaScript **26**, TypeScript **28** (Q28 added later — `Pick`/`Omit` vs `Extract`/`Exclude`).
-
-## AI-Augmented Development is a SEPARATE category from AI Engineering
-Tenth category (icon `Bot`, cyan), one guide: **Using Claude Code Efficiently**
-at `/ai-dev/claude-code`. The split is deliberate and worth keeping: **AI
-Engineering is about building AI features** (RAG, agents, MCP, LLM plumbing);
-**AI-Augmented Development is about using AI tools to build anything**, and
-applies to a team shipping a payments service with no AI in it. Filing the
-second under the first implies you need one to care about the other.
-
-**The route was changed** from `/ai/augmented-development` to `/ai-dev/claude-code`
-— normally forbidden, and allowed here only because the guide was created in the
-same uncommitted session and no link to it had ever existed. The standing rule
-still holds for anything shipped: category membership and URL are independent.
-
-Adding a category means editing the hard-coded category number in **three claim
-templates** in `verify-counts.js` (README, CLAUDE.md, Introduction) plus a new
-per-category claim. `scripts/lib/routes.js` picks the new path up automatically —
-verified that `/ai-dev/claude-code` appears in `getAllRoutes()`, so it gets a
-route shell and a sitemap entry.
-
-## AI-Augmented Development guide — grounded in a real workspace, not a feature tour
-`src/content/ai/ai-augmented-development-guide.md` at `/ai-dev/claude-code`
-(19 sections, **9 interview Qs + 6 tricky Qs**). Written to make a resume line
-defensible — "Claude Code, GitHub Copilot, agentic coding workflows, prompt and
-context scoping, review standards for AI-generated code, team-level workflow
-rollout" — so every section answers "what did you change about how the team
-works", never "what can the tool do".
-
-**The material came from a real multi-repo setup** the user runs (a four-hook
-guard set, three review subagents, per-path rule files, a hashed governance
-manifest verified in CI), supplemented with published 2026 practice. The
-patterns are described generically — no internal ticket prefixes, repo names,
-domains or proprietary code — because the guide is public and the transferable
-part is the design reasoning, not the implementation.
-
-**The spine of the guide, and the thing to preserve if it is ever edited:**
-*instructions versus guarantees*. `CLAUDE.md` and rules are requests; hooks and
-permissions are the only mechanisms that enforce. Every line demoted from prose
-to enforcement makes the prose shorter **and** the guarantee stronger.
-
-**Three claims that make it credible, all worth keeping exact:**
-- The industry numbers: 10,000+ developers / 1,255 teams — **+21% tasks, +98%
-  PRs merged, +91% review time, +154% PR size, +9% bugs**. That asymmetry is the
-  guide's premise, and it is what turns "I use AI" into an engineering problem.
-- **Guards must allow by default** on anything they cannot evaluate, and a
-  turn-end hook must **never run the test suite** (compare mtimes against a
-  green marker). Both exist because a guard that is switched off guards nothing.
-- **Governance CI is detection, not prevention.** A determined author edits that
-  file too; what changes is that disabling a guard becomes a visible line in the
-  diff. Overclaiming this is the seam an interviewer will find, so the guide
-  states the limit explicitly and says it is only load-bearing once it is a
-  required status check.
-
-**§12 covers the tooling ecosystem**, and the reason `caveman` is in there is
-not the tool — it is the arithmetic. Its headline "65–75% fewer output tokens"
-is true of the *discursive prose it acts on*, which is about a quarter of a
-session; over a whole session the saving is **4–10%**. Both numbers are honest
-and have different denominators. That is the transferable lesson and the section
-says so: **a percentage means nothing until you know what it is a percentage
-of.** Also states that a plugin can carry hooks and MCP servers, so installing
-one is a supply-chain decision, not a preference.
-
-Counts: guides 75 → **76**, categories 9 → **10**, tricky 386 → **392** across
-**53** guides.
-
-## Full polyfill correctness audit — 243 scenarios, 10 more defects
-The earlier pass compared polyfills against native on ~110 cases and found four
-bugs. A deliberately exhaustive matrix — every scenario that distinguishes a
-method from a naive reimplementation — found **ten more**, which says the first
-pass was not thorough, not that the polyfills were nearly right.
-
-| Polyfill | Defect |
-|---|---|
-| `reduce` | no-initial-value accumulator was `this[0]`, not the first **present** element; `[ , , 3].reduce(fn)` → `NaN`. All-holes array returned `undefined` instead of throwing |
-| `indexOf` / `lastIndexOf` | matched **holes**: `[ , 1].indexOf(undefined)` → `0`, should be `-1` |
-| `splice()` | no-argument call threw `RangeError` (`this.length = NaN`) instead of returning `[]` |
-| `Object.create(null)` | `new F()` with `F.prototype = null` falls back to `Object.prototype`, so it returned an ordinary object |
-| `JSON.stringify` | escaped only `\` and `"` — a raw newline or tab is **illegal in JSON**, so output failed to re-parse |
-| `JSON.parse` | ignored `\uXXXX`, `\r`, `\b`, `\f` |
-| `map` | re-read `this.length` each iteration, so mutation during iteration changed the walk |
-| `slice` | `push`ed, filling holes instead of preserving them |
-
-**The matrix is the method.** Per polyfill: normal, empty, single, sparse,
-`thisArg`, callback `(value, index, array)` args, negative / out-of-range /
-`NaN` indices, `-0` vs `0`, missing arguments, mutation during iteration,
-short-circuit counts, array-likes via `.call`, and the error type each should
-throw. `audit.mjs` in the scratchpad generates and runs it; the cases now live
-in `polyfillParity.test.ts` so they gate every build. All five structural fixes
-are probe-tested.
-
-**Run each polyfill in its OWN worker.** They patch prototypes, so one
-template's changes leak into the next one's results if they share a realm —
-and a polyfill that clobbers a built-in breaks the harness itself, which is
-what happened the first time.
-
-## A backtick in a template comment is now a mechanical check
-I broke `playgroundTemplates.ts` **four times in one session** by writing
-`` `inline code` `` in a comment inside a `code:` template literal. The literal
-ends at the stray backtick; the remainder reparses as TypeScript, producing an
-error hundreds of lines away — or, when the leftovers happen to parse, a
-silently truncated template with no error at all.
-
-Documenting it was not enough, so `verify-architecture.js` now checks it: inside
-a template body, an unescaped backtick fails the build, and it names the line.
-Probe-tested. **Write template comments with no backticks at all.**
-
-## detectJSX read COMMENTS, so prose could change the execution path
-A reader hit "No render() call detected" on the **Array.map polyfill**. Cause: a
-teaching comment I had just added said `[2, <hole>, 6]`, and
-`/<[a-z][a-z0-9]*...>/` matched it. The snippet was therefore routed to the
-**main-thread React path** instead of the sandboxed Worker — losing the
-infinite-loop timeout — and then reported a missing `render()`.
-
-**`detectJSX` now strips comments first.** That is the real fix: in a corpus
-this full of teaching prose, a detector that reads comments is a detector that
-reads English, and `<div>`, `<App />` or "call render() at the end" appear in
-explanations constantly.
-
-**Second false positive, pre-existing:** `Implement useState (Basic)` is a
-plain-JS challenge that builds `useState` from a closure, and the hook-name
-heuristic fired on its own function. The rule now skips a hook the snippet
-**defines itself** (`function useState` / `const useState =`).
-
-Two guards, both probe-tested: `playgroundRunner.test.ts` covers comments
-containing tags, components and `render()`, plus the self-defined-hook case;
-`playgroundContent.test.ts` asserts **corpus-wide** that no non-React template
-is detected as JSX and no React one is missed — 183 templates, 0 either way.
-
-**Note on probe outcomes:** re-adding `<hole>` to the comment no longer fails
-anything, and that is correct — the root cause is fixed, so the comment is now
-harmless. Fixing the symptom (rewording the comment) would have left the class
-open; the reworded comment is kept only as belt-and-braces.
-
-**Why this matters beyond one template:** misdetection is not cosmetic. A plain-JS
-snippet on the React path runs on the main thread, so `while(true){}` hangs the
-tab instead of being terminated at 3s.
-
-## Parsing is not running — reference templates had NO execution gate
-`playgroundExecutable.test.ts` checked that every template **compiles**, executed
-every **JS solution**, and `reactTemplates.test.tsx` mounts the **JSX** ones. The
-45 plain-JS *reference* templates — including all 32 polyfills — fell between
-those and were only ever parsed. A parse check cannot see a call to something
-that was never defined, so three templates threw the moment a reader pressed Run:
-
-- **`Array.filter`** ended with `users.myFilter(...).myMap(...)`, and `myMap` is
-  defined in the **Array.map** template. Every snippet runs standalone.
-- **`Array.flat & flatMap`** had the same cross-template dependency *inside its
-  own implementation* (`this.myMap(cb).myFlat(1)`).
-- **`How to Write a Polyfill` contained `Array.prototype.map = function () {};`
-  as a live line**, labelled "❌ breaks every library". It did exactly that —
-  destroying native `map` for the rest of the realm and corrupting its own
-  remaining output. The bad examples are now shown rather than executed.
-
-**That third one also broke the test suite itself**, and the debugging is worth
-recording. Adding the new gate made vitest hang indefinitely with no output, and
-none of the obvious suspects held up: the templates all ran clean in a worker
-harness (which called `process.exit`, so it never noticed), no template leaked a
-timer, and vitest was fine on other files. The cause was that executing the
-template **clobbered `Array.prototype.map` inside vitest's own worker**, so
-everything downstream — including the reporter — broke. My first harness had
-died the same way (`a.map(String).join is not a function`) and I had blamed the
-harness. **When a test runner hangs after you add code that runs user code in
--process, suspect prototype pollution before anything else.**
-
-Also: a stray vitest from an earlier background run sat at **103% CPU** and made
-every subsequent command crawl, which masked the real problem for several
-attempts. Check `ps` for runaway test processes before concluding a suite is slow.
-
-**Drain only what needs draining.** The first version waited up to 1s for any
-template whose source merely *mentioned* `Promise` — which is most polyfills, in
-comments — and took the suite past a minute. It now waits only for templates that
-printed nothing synchronously, which is the three Promise ones, and the whole
-file runs in ~3.5s.
-
-## The picker counted progress the UI could not record
-`TemplateFilterSidebar` renders a `done / total` pill beside **every** category,
-reference categories included, but `CompleteToggle` returned `null` unless
-`kind === 'challenge'`. So JS Polyfills showed **0/32 permanently** — a promise
-of progress with no mechanism behind it, reported by a user as "no mark as
-complete or completion numbers for basic templates".
-
-**The fix is that completion is not a challenge-only idea.** The toggle now
-renders for any open template and says *Mark read* rather than *Mark complete*
-for reference material, because there is nothing to solve. `SolvedChip` gained
-`referenceNames` and the currently-open template so it counts **the set you are
-looking at** — mixing 51 reference templates into the challenge denominator
-would have made both numbers meaningless.
-
-- `usePlaygroundProgress` needed no change; `setSolved` was always name-agnostic.
-  Only the UI was gating.
-- **Count over a NAMED set, never over the progress map.** The autosave writes an
-  entry the moment a template is opened, so counting entries would report
-  anything ever clicked as finished — and a renamed or deleted template would let
-  the chip read higher than its own denominator. `ChallengeProgress.test.tsx`
-  pins that, and both halves of the fix are probe-tested.
-- `CodePlayground.tsx` is on a line ratchet (now 780) that may shrink and never grow, so
-  the new prop had to go on one line at the call site. Watch for that when adding
-  anything to that file.
-
-## The polyfill section is TWO families, and the split is the point
-`JS Polyfills` held 32 entries and every one was a **spec method** — a
-re-implementation of something the language already ships. The second family,
-**utilities that are not in the standard library**, is where most interview
-questions actually live, and it had no home here. The category is now split:
-
-- **`Spec Polyfills`** (32) — `Array.map`, `Function.bind`, `Promise.all`, …
-- **`Utility Implementations`** (9, new) — `once`, `curry`, `deepEqual`,
-  `promisify`, `Promise.prototype.finally`, `myInstanceof (prototype chain)`,
-  `myNew (the new operator)`, `retry with exponential backoff`,
-  `Promise from scratch`
-
-**Before adding to the utility family, check Coding Challenges first.** The
-obvious candidates are already there as challenges with stubs, tests,
-multi-approach solutions and Explain walkthroughs — `Debounce`, `Throttle`,
-`Memoize`, `EventEmitter`, `Deep Clone`, `Compose & Pipe`, `Sum Curry`,
-`Auto-Retry for Promises`, `Batch Promises by Concurrency`, `Task Runner with
-Concurrency Control`, `Async Tasks in Series`. The app splits content by
-**interaction mode** (solve-it vs read-it), not by family, so "it is not in the
-polyfill list" does not mean "it is missing". A list-by-name over every
-category settles it in one command; guessing produces duplicates.
-
-`retry with exponential backoff` is the one deliberate overlap: the challenge
-version is the stub you solve, this is the reference implementation carrying
-the production notes (full jitter, why a fixed delay rebuilds the spike you
-backed off from, retry only idempotent verbs). The template says so in a
-comment so the duplication reads as intentional.
-
-**Difficulty is now on reference templates too, and that changed two things.**
-A section of 32 untagged entries gave no signal about what to attempt next, so
-every template in `Spec Polyfills`, `Utility Implementations` and `Coding
-Challenges` now carries Easy/Medium/Hard. Consequences:
-- `buildTemplateCatalog`'s `inScope` follows **`wantedKind`** rather than always
-  meaning "challenges", so the difficulty counts describe the set actually on
-  screen. The old hard-coded `'challenge'` would have shown challenge counts
-  above a list of polyfills.
-- The chips in `TemplateGrid` are no longer gated on `modalMode === 'challenges'`
-  — `scopeHasDifficulty` already answers that question, and correctly, now that
-  it is mode-scoped.
-- `patterns` stay **JS-challenge-only**: they describe an algorithmic shape and
-  mean nothing on a reference template. The old single invariant "pattern and
-  difficulty appear only on JS challenges" is now two tests, because the two
-  fields no longer have the same scope.
-- The tutorial categories (`JS Fundamentals`, `JS Interview Topics`, React
-  Basics/Advanced) stay untagged on purpose — they are reading material with no
-  interview scale. The test allowlists the three graded categories rather than
-  asserting over every JS template.
-
-Counts: templates 186 → **195**, categories 7 → **8**, reference templates
-51 → **60**.
-
-**All nine utility implementations were executed before being written in**,
-including the `Promise from scratch` state machine (chaining, thenable
-adoption, microtask ordering, pass-through `then`) and the `deepEqual` cycle,
-`NaN`, `+0`/`-0` and prototype cases.
-
-## The missing-number family — three variants, and why each is a different question
-`Find Missing Number` (one value absent from [0, n]) had been the only member.
-A reader asked whether the other variants existed; none did. All three are now
-JS Coding Challenges, which took templates 183 → **186**, JS challenges 94 →
-**97**, challenges 132 → **135**, solutions and explanations likewise.
-
-They are not restatements of each other — each removes a different guarantee,
-and that is the reason to carry all three:
-
-| Challenge | What it removes | The idea being graded |
-|---|---|---|
-| `Find All Missing Numbers` (Medium) | one missing → many | sign marking: a value in [1, n] has a home at index v - 1, and every slot has a spare bit — its sign |
-| `First Missing Positive` (Hard) | the range guarantee entirely | the answer is bounded by n + 1, which is what makes O(1) space possible at all |
-| `Missing Term in Arithmetic Sequence` (Medium) | consecutive integers → any constant step | the intactness test is monotonic, so binary search applies |
-
-**The load-bearing detail in each, worth keeping if these are edited:**
-- **All Missing Numbers** — `Math.abs` is not decoration: by the time you read
-  `nums[i]` an earlier mark may already have flipped it. And the solution
-  **mutates the caller's array**; the note saying so is the honest half of the
-  O(1)-space claim.
-- **First Missing Positive** — the loop guard `nums[nums[i]-1] !== nums[i]` is
-  what stops `[1, 1]` hanging forever, and dropping it is the single most common
-  way to fail this question. The nested `while` is not quadratic: each swap puts
-  one value in its final home permanently, so there are at most n swaps.
-- **Arithmetic Sequence** — the first and last terms **must** be present or the
-  step is unrecoverable, because `[2, 5, 8]` is simultaneously a complete
-  sequence and a broken one. That clarifying question is most of the answer.
-  The binary-search approach also compares two computed floats, so a fractional
-  step makes it lie; the sum approach has no such comparison and is the safer
-  default off the integers.
-
-**All nine implementations (three per challenge) were executed against their
-test cases before being written into the file**, per the standing rule that a
-typecheck is not sufficient for `playgroundTemplates.ts` / `playgroundSolutions.ts`.
-
-**Adding a JS Coding Challenge is a NINE-file change** — one more than the
-React list above records, and the extra one is easy to miss because no other
-gate names it:
-1. `playgroundTemplates.ts` (template, with `patterns` + `difficulty`)
-2. `playgroundSolutions.ts` (multi-approach solution)
-3. `playgroundSolutionKeys.ts`
-4. `playgroundExplanations.ts` (the `Explanation` **and** its registry entry)
-5. `playgroundExplanationKeys.ts`
-6. `playgroundContent.test.ts` — `EXPECTED.templates` / `jsChallenges` /
-   `solutions` / `explanations`
-7. **`useTemplateCatalog.test.ts`** — a second hard-coded `totalJsChallenges`
-   that `EXPECTED` does not cover. This is the one that bites.
-8. `README.md` and `src/content/README.md` (`verify:counts` names the exact
-   strings, so run it rather than hunting)
-9. `src/content/changelog.md`
-
-Then `npm run playground:index` and `npm run content:meta`.
-
-**Every step of an `Explanation` must carry at least one visual key**
-(`array`, `map`, `set`, `computation`, `result`, `note`, …) or
-`DEPTH_DEBT.stepsWithoutVisual` rises and the ratchet fails — it is a
-`toBeLessThanOrEqual`, so new content cannot add to it. Two approaches minimum,
-for the same reason.
-
-## Tenth audit — an IT-services frontend loop, 25 questions, 9 additions
-Technical + managerial rounds. 11 covered, 9 near-misses, 3 total blanks. **The
-blank theme was Agile/delivery: "sprint" never appeared in a single question**
-— only inside example STAR answers. Added Behavioral **Q22–Q26** (mid-sprint
-requirement change, not finishing in a sprint, prioritising several tasks,
-cross-team dependencies, "why do you want to join us" with a services-firm
-section), React **Q63** (hooks overview as a table, linking to §6.2), JavaScript
-**Q28** (map vs filter vs reduce, output executed both as a module and under
-`new Function`), and the **`Clean Mixed Array`** JS challenge (Easy, next to
-Remove Duplicates).
-
-- **The challenge's tests are built around the traps, not the happy path**:
-  `NaN` (`typeof` says number), `"7"` (a character by the stated rules), booleans
-  and `null` (which `Number()` converts to 1 and 0), `[10, 9, 1, 100]` (default
-  sort is lexicographic), and an input-not-mutated check (`sort` is in-place).
-  The filter is `Number.isFinite`, which never coerces — that is the whole answer.
-- **A React demo must not write `ref.current` during render**, even to show a
-  render counter. The first draft of Q63 did, which is exactly what react.dev
-  says not to do; it also wrapped `toUpperCase()` in `useMemo`, contradicting the
-  guide's own don't-memoize-cheap-work advice. Both removed.
-
-Counts: templates 197 → **198**, JS challenges 97 → **98**, challenges 136 →
-**137**, solutions 97 → **98**, explanations 186 → **187**. Totals after:
-Behavioral **26**, React **63**, JavaScript **28**.
-
-## Twelfth audit — 4 user-requested questions, all partial gaps
-Redux Toolkit **Q18** (`configureStore` — §5.1 had the code, no question and no
-explanation), Behavioral **Q27** (mentoring *approach* and measurable outcomes;
-Q8 in §5 is a single STAR story, which is a different answer), Frontend
-Architecture **Q18** (component library end to end; the pieces existed as
-Modern CSS Q8, Storybook Q12, Testing Q7 and FE-Arch Q10, and the answer links
-to them rather than restating them), React **Q65** (SSR vs CSR for SEO and
-performance; Q55 mentions SEO once and never covers crawlers or link previews).
-
-- **"SSE and CSE" was read as SSR/CSR.** SSE usually means Server-Sent Events,
-  which has nothing to do with SEO; the question's "affects SEO and performance"
-  settles it.
-- **The RTK facts were checked against redux-toolkit.js.org, and one assumption
-  was wrong:** RTK 2 does not *require* the `middleware` callback — it is
-  recommended, and a plain array still works in JavaScript. The docs also
-  confirm that supplying `middleware` or `enhancers` replaces the defaults
-  entirely, dev middleware is `actionCreatorInvariant, immutableStateInvariant,
-  thunk, serializableStateInvariant` while production is `[thunk]`, and
-  `autoBatchEnhancer` is a default enhancer.
-- **React Q65 uses this app as its example**, honestly: route shells remove the
-  deep-link 404 but are the same empty HTML for every guide, so a crawler or a
-  link-preview bot sees one page. That is the SSG gap noted under "Deep links
-  must not 404".
-- **Heredocs that contain backticks must be quoted (`<<'EOF'`).** An unquoted one
-  ran `` `sort` `` as a command substitution, which blocked on stdin and hung the
-  session; once killed, the edit completed with the two words silently deleted.
-
-Totals after: Redux Toolkit **18**, Behavioral **27**, Frontend Architecture
-**18**, React **65**.
-
-## React Q74–Q82 — the everyday "why does this happen" set
-Open-ended request ("add more React questions"), so the method was: list all 73
-question texts, grep the whole corpus per candidate topic, and pick topics with a
-reference SECTION but no QUESTION (Portals §15.7, StrictMode §15.9, forms §16.2–3)
-or with no coverage at all. Added under `### Rendering, Patterns and Everyday
-Pitfalls`: StrictMode double effects, batching + `flushSync`, portal event
-bubbling, `&&` rendering `0`, forms (controlled vs RHF vs actions), TypeScript
-with React, reusable-component patterns, stale closures, the
-component-defined-inside-a-component remount. **Skipped as already covered:** XSS in
-React (Web Security tricky Q1), lazy `useState` init (tricky Q16).
-- **The playground scope has `createPortal` and `flushSync` as bare names but NO
-  `ReactDOM`.** The first Q75 draft called `ReactDOM.flushSync` — valid in a real
-  app, a ReferenceError on Try it. Blocks show the real `react-dom` import as a
-  comment and call the bare name.
-- **The playground runs React's PRODUCTION build**, so StrictMode's double
-  invocation never shows there. Q74 says so explicitly; the test (dev build) pins
-  the three-line dev output instead.
-- TypeScript claims in Q79 were compiled against the repo's `@types/react` 19.2
-  (a temp file inside the repo, deleted after — a scratchpad file cannot resolve
-  `react`). Confirmed: generic inference catches `u.nme`, a variant union rejects
-  `"danger"`, `React.FC` no longer adds `children`.
-- React 19's reset of uncontrolled fields after a successful action is pinned in
-  `reactApiScenarioDemos.test.tsx` via `form.requestSubmit()` in jsdom; all nine
-  demos are pinned and two were probe-tested.
-
-Totals after: React interview **82**.
-
-## Fourteenth audit — 37 "real-time" React questions, 23 covered
-Same method: every `**Qn:**` in the corpus plus every template name, regex per
-candidate, then read the borderline answers. **Covered and left alone:**
-enterprise design + folder structure (FE-Arch Q14), useMemo/useCallback (Q7),
-useEffect vs useLayoutEffect (Q10), retries/timeouts (FE-Arch Q12), JWT storage +
-RBAC (FE-Arch Q4, Web Security Q3, Protected Route template), protected routes
-(Router Q7), debounce (Q54 + template), pagination (Data Table template),
-dependent/independent calls (Web Perf Q11), Context vs Redux (Redux Q10), duplicate
-submits (Rate-Limited Button), 100k list (FSD Q3), VDOM/reconciliation (Q1, Q8),
-slow page (Q25 + Web Perf), 50 renders (Q26, Q61).
-- **Rewritten in place, ids unchanged:** React Q2 (+context), React Q11 (thin list
-  → ordered fixes + a runnable children-as-props demo; this also answers "parent
-  changes frequently"), Redux Q1 (the problem Redux solves).
-- **Added:** React **Q66–Q73** under `### Real-World API & Data Scenarios` (memo,
-  sharing data, four API states, 10-second API, navigate away, 401 single-flight
-  refresh, React ↔ Spring Boot, CSV/PDF download); Redux **Q19** (the flow, with a
-  15-line store). Templates **Shopping Cart (reducer + derived totals)** and **File
-  Upload (progress + cancel)** — React Machine Coding 44 → **46**, templates 204 →
-  **206**, challenges 143 → **145**, explanations 193 → **195**.
-- **Spring facts were web-verified (Sept 2026), and one would have been wrong from
-  memory:** Boot's default error body is `{timestamp, status, error, path}` —
-  `message` is omitted since Boot 2.3 unless `server.error.include-message` is set —
-  so the client must not depend on it. Also verified: Spring Data `Pageable` is
-  0-based, 3.3+ warns on serialising `PageImpl` and `VIA_DTO` gives
-  `{content, page: {size, number, totalElements, totalPages}}`; ProblemDetail is
-  RFC 9457 `{type, title, status, detail, instance}`; multipart defaults are 1 MB
-  per file / 10 MB per request.
-- **`reactApiScenarioDemos.test.tsx` pins every new runnable block**, JSX ones
-  mounted in jsdom with fake timers. Advancing time needs **small steps, each in
-  its own `act`** — one big `advanceTimersByTimeAsync` runs only the first timer,
-  because React commits and schedules the next effect between them. Probe-tested
-  (single-flight refresh removed; `filename*` preference removed).
-- Test files are under the storage rule too: use `safeSet`/`safeRemove`, not
-  `localStorage.*`.
-
-Totals after: React interview **73**, Redux Toolkit **19**.
-
-## Thirteenth audit — 9 React machine-coding questions, 5 new templates, 4 rebuilt
-Matched against template NAMES and question text first. Accordion was covered in
-prose (FE-Arch Q9, a11y Q2) but its template had no ARIA or animation; Toast, Tabs
-and Chat templates existed but were shallow (no global store/queue, no keyboard
-or animation, no message status/typing); comments, sidebar, data table, like
-button and button rate-limiting had nothing. **Rebuilt in place, names unchanged**
-(Toast / Snackbar, Tabs, Accordion, Chat App) so saved progress keys survive —
-`baseHash` hands a pristine draft the new code. **New:** Nested Comments
-(recursive replies), Sidebar Navigation (responsive + submenus), Data Table
-(sort + filter + paginate), Like Button (optimistic + rollback), Rate-Limited
-Button (throttle vs lock). React Machine Coding 39 → **44**, templates 199 →
-**204**, challenges 138 → **143**, explanations 188 → **193**.
-
-- **`machineCodingBehaviour.test.tsx` is new and is the gate that matters here.**
-  `reactTemplates.test.tsx` only proves a template mounts; this one drives each
-  TASK line with real events and fake timers (queue beyond three, hover pause,
-  two-renders-per-reply, drawer Escape, arrow keys, aria-sort cycle, page reset,
-  like coalescing, same-tick lock, chat ack/retry, single-open). Probe-tested by
-  breaking the ref lock, the toast slice and the single-open `clear()`.
-- **Two ideas recur across these and are worth reusing:** an external store read
-  with `useSyncExternalStore` (toast queue callable outside React; per-comment
-  subscriptions so a reply re-renders two nodes), and `grid-template-rows: 0fr →
-  1fr` plus `visibility: hidden` for height animation that also removes closed
-  content from the Tab order.
-- **The same-tick double click is the test that matters for the lock.** A guard on
-  `busy` state passes every manual test; only two `click()` calls inside one
-  `act` expose it.
-- The first behaviour-test draft expected a second burst of like-clicks to send 0
-  requests. The design sends the first click immediately and one catch-up, so 2 —
-  the test was wrong, not the template. Read the template's own claim before
-  asserting.
-- A backtick in a comment (`` `ms` ``) was caught by the splice script's guard
-  before anything was written — keep that guard in any script that embeds code
-  into `playgroundTemplates.ts`.
-
-## Playground: Templates vs Challenges split, study tracks, problem panel
-- **Two entry points** in the header (`PlaygroundActions.tsx`): Templates opens
-  `TemplateModal` (its Challenges tab is hidden; the mode still exists internally,
-  and `TemplateModal.test.tsx` renders it directly), Challenges opens the new
-  `ChallengeBrowser`. The old bug: `openDrawer` resets the filter reducer to
-  `INITIAL` (mode `templates`), so the picker always opened on Templates even
-  mid-challenge.
-- **`src/data/playground/challengeTracks.ts`**: JS tracks are DERIVED from each
-  challenge's `patterns` (one per pattern, Easy→Hard, stable), plus an
-  "Array & String Walks" track for pattern-less challenges (5 had none). React
-  tracks are 7 hand-listed themes. `challengeTracks.test.ts` requires every JS
-  challenge in ≥1 track and every React challenge in exactly one.
-- **Problem statements**: `challengeProblems.ts` (227 KB source, ~62 KB gz, its own
-  lazy chunk via `challengeProblemIndex.ts`; read with `useChallengeProblems`,
-  a `useSyncExternalStore` hook, so no setState-in-effect). Written by a workflow
-  (14 batches + reviewers). **Every JS example carries a hidden `run` snippet;
-  `challengeProblems.test.ts` runs the reference solution then the snippet in a
-  `vm` context and requires the printed text to equal `output`** (290 examples).
-  The snippet gets its own captured console as a PARAMETER: capturing via a flag
-  also caught the solution's own delayed ✅ logs (the Debounce solution's timers).
-  Adding a challenge now also needs a `challengeProblems` entry, or that test fails.
-- **Found by the statement work:** the Merge Sorted Arrays solution defined
-  `merge(a, b)` while the challenge asks for `mergeSorted(arr1, arr2)`. Renamed.
-- **`CodePlayground.tsx` 920 → 805 counted lines, ratchet lowered to 805.** The
-  toolbar, resume banner and notes panel moved to `PlaygroundActions`,
-  `ResumeBanner` and `NotesPanel`. The `varsIgnorePattern` gap meant 12 unused
-  lucide imports (and `AnimatePresence`) were sitting there unreported; removed.
-- `ChallengeBrowser` is remounted per open (`key` on `browserOpen`) so it opens on
-  the current challenge's tab and active track; `useChallengeTrack` derives the
-  active track during render (active only while the open challenge is in it).
-- JS guide: interview **Q40** (why closures) and tricky **Q52–Q53** (shared counter
-  across timer/promise/await, from a real interview). Tricky 439 → **441**.
-
-## Two playgrounds: `/playground` (JavaScript) and `/playground/react`
-One component, two routes. `src/lib/playgroundFlavor.ts` holds `FLAVORS`
-(`path`, `tag`, `title`, `lastSessionKey`, `starters`) and
-`resolveInitialPlaygroundState(flavor)` (the handoff → last-session → first-
-template IIFE that used to live inline in CodePlayground, now tested in plain
-Node). **Only the catalogue is split:** each flavor locks the template filter
-(`useTemplateFilters(lockedTag)`; `reset` carries the tag so `openDrawer` keeps
-it), the Challenges browser (`lockedTag`, no JS/React switch) and the blank
-starters; the runner is untouched, so JSX pasted into the JS playground still runs.
-- **The routes need `key="js"`/`key="react"` in App.tsx.** Both render
-  `CodePlayground` at the same tree position, so without a key React Router's
-  switch between them is an UPDATE, not a remount: every `useState` initialiser
-  (initial template, filters, last session) would keep the other flavor's value.
-- **Resume is per flavor:** `playground-last-session` stays the JS key (existing
-  users keep their resume point) and `playground-last-session-react` is new.
-  `lastSessionFor('react')` falls back to the old key when it names a React
-  template, which is how pre-split React users keep theirs. Drafts and solved state
-  stay in the one shared `playground-progress` map, since a template belongs to one
-  flavor anyway. Both keys are pinned in `storageKeys.test.ts`.
-- **Counts are per playground.** TemplateModal's header and tab counts and the
-  ChallengeBrowser total follow the locked tag; the "N of 145" test became "of 46".
-- `PreBlock` opens `playground/react` when the snippet is JSX (its own `hasJSX` /
-  `hasRender`), NOT via `playgroundFlavor` — importing that module would pull the
-  playground index into the ContentPage chunk.
-- The collapsed-sidebar expand button is hidden on both routes
-  (`startsWith('/playground')`, which does not match `/query-playground`).
-
-## Redux Toolkit §11.4 + React §13 additions from an external article
-Source: anshurajsingh.com/blog/react-performance-optimization, a client-rendered
-Vite SPA. **WebFetch and curl both see only the `<title>`**; the post is a data
-object inside the site's JS bundle, extracted by finding `{slug:\`react-performance-optimization\``
-in `assets/index-*.js`. Written in our own words, with the article linked in the
-References of both guides, not copied.
-- Most of it was already covered (React §13.1–13.13, RTK §6.2, tricky Q5). Added:
-  RTK **§11.4** (the `===`-after-every-dispatch mechanism, bounded `lruMemoize` for
-  ever-changing arguments, `shallowEqual`, RTK Query sharing / `keepUnusedDataFor` /
-  per-item tags / `selectFromResult`) and **Q20**; React §13.6 profiling routine,
-  §13.4 "when not to virtualise", `Intl` instead of moment, rule 11 → per-PR analyzer + CI budget.
-- **One of its claims is outdated and was not propagated:** "createSelector only
-  caches the last inputs, so use a selector per component" is Reselect 4 / RTK 1.
-  Reselect 5 (RTK 2) defaults to `weakMapMemoize`, effectively unbounded (verified
-  on reselect.js.org), which is why §11.4 recommends `lruMemoize` with `maxSize`
-  for the opposite problem. `keepUnusedDataFor` default 60 s verified on the RTK docs.
-- Its before/after metrics (LCP 4.2 s → 2.1 s, 25,000 → 400 DOM nodes) are the
-  author's own measurements and were not reused as facts.
-
-## Fifteenth audit — 11 senior questions, 7 added, 1 rewritten, 3 covered
-Covered and left alone: error boundaries + async (React Q18, Q56), Server Action vs
-API route (Next.js Q9), `Promise.all` from scratch (JS Q10 + the Spec Polyfills
-template). **Rewritten in place, id unchanged:** React Q12 (Fiber internals, and
-that it makes rendering interruptible and prioritised, not faster; the benefit
-only applies to concurrent updates). **Added:** React §15.12 (CI/CD with GitHub
-Actions + required checks via rulesets; §15 has no TOC sub-entries, so none was
-needed), React Q84 (CI/CD pipeline) and Q85 (bundle 500 KB → 5 MB, framed as a
-regression to bisect, not an optimisation project) under `### Delivery and
-Scale`; Next.js Q10 (`revalidate` vs `cache`), Q11 (Server vs Client), Q12
-(streaming); Frontend Architecture Q20 (reusable Data Table) and Q21 (web + mobile reuse).
-- **Web-verified Sept 2026:** `actions/checkout` and `actions/setup-node` are at
-  **v7** (checked via the GitHub API, not a fetched page, which reported the wrong
-  years). With Cache Components on, `export const revalidate`/`dynamic`/`fetchCache`
-  **error** and are replaced by `use cache` + `cacheLife`; `revalidateTag` needs a
-  profile as its second argument; and a `use cache` entry is **in memory, per
-  deployment**, while the old `fetch` Data Cache persisted across deployments.
-- This repo's own `deploy.yml` still pins checkout/setup-node **@v4**; the guide
-  shows v7. Bumping the workflow is a separate decision.
-- The "share 80–90% of logic" figure in the first Q21 draft was removed: an
-  unsourced percentage reads as data.
-
-## Playground grading: hidden tests, React checks, TS type checks, interview mode, compare
-Six additions in one round; the shared rule is **solved means every visible test,
-every hidden test and (TS challenges) the type check passed**, and it lives in one
-place, `src/lib/challengeJudge.ts` (`prepareJudge` before the run, `finishJudge`
-after), tested in `challengeJudge.test.ts`.
-
-- **Hidden tests** (`src/lib/hiddenTests.ts`, data `src/data/playground/challengeHiddenTests.ts`,
-  lazy). A snippet per case, APPENDED to the reader's code so it sees their
-  declarations, but each case's `console` is a parameter, so its output never
-  mixes with the visible tests. `output` is never hand-written: it is what the
-  REFERENCE prints. `challengeHiddenTests.test.ts` re-derives every output through
-  the same harness and requires every test to FAIL on the stub (a test the stub
-  passes proves nothing). Probe-tested by corrupting one output.
-  - Authoring loop: write `{label, run, waitMs?}` JSON → `node scripts/dev/verify-hidden-tests.cjs in.json out.json`
-    (fills `output`, flags reference throws / prints nothing / stub already passes)
-    → `node scripts/dev/build-hidden-tests.cjs out*.json` regenerates the data file.
-  - Timer challenges need `waitMs`: the harness only auto-waits when the SNIPPET
-    mentions timers/promises, and a debounce snippet usually does not.
-  - `runInWorker` gained `waitFor: { marker, maxMs }`: the worker stays alive until
-    the harness's result line arrives instead of the usual 400 ms drain.
-  - The result line uses no ✅/❌, so the visible tally is untouched; the pill shows
-    `3/3 passed · 🔒 5/7 hidden`.
-  - The verifier needs `process.on('unhandledRejection')`: an async stub's own
-    visible tests reject with nobody listening and used to kill the process.
-- **React behaviour checks** (`src/lib/reactChecks.ts` runner, types in
-  `src/data/playground/reactCheckTypes.ts` so data/ never imports lib/, scripts in
-  `reactChecks.ts`). Steps target by role / accessible name / visible text /
-  label, never class names, so a reader's own markup passes if it behaves. Every
-  step retries for 1.5 s; the preview is REMOUNTED before each check
-  (`usePreviewMount().remount`, fresh `key`), so checks cannot leak state.
-  `click` fires pointerdown/mousedown/focus/pointerup/mouseup/click because
-  Auto-Complete selects on `onMouseDown`. Every script runs against its reference
-  template in jsdom with REAL timers, via `reactChallengeChecks.harness.tsx` split
-  into four shard files (`reactChallengeChecks.{1..4}.test.tsx`): one file took
-  125 s, four in parallel take ~35 s, and the checks cannot run concurrently in one
-  file because they share `document.body` and focus. `REACT_CHECKS_FILE=<json>`
-  runs a draft set; `node scripts/dev/build-react-checks.cjs <json>...` writes
-  `reactChecks.ts`. Coverage: ≥3 checks per React challenge (**216 checks, 46 templates**).
-  - Steps: click, fill, typeKeys, press (Tab / Shift+Tab move focus unless the
-    handler prevents default, from a non-tabbable focused element to the NEXT
-    focusable after it, as a browser does), hover, focus, blur, paste, drag,
-    scrollTo, wait, and the expectations. A check may declare `fetch` (one canned
-    response or a sequence) installed BEFORE mount and restored after, so loading /
-    error / Retry are testable without the network, in the test and the playground.
-  - `drag` spaces its events by a settle delay: a component that stores the dragged
-    item in state on dragstart only sees it at drop after a re-render, and firing
-    everything in one tick silently moved nothing.
-  - `visibleText` joins inline text with NO separator (React splits `+{n} waiting`
-    into three text nodes), treats a closed `<details>` as hidden, and searches
-    portal containers in `<body>` as well as the preview.
-  - The jsdom IntersectionObserver stub fires when `scrollTo` scrolls an observed
-    element (or its container) into view; it does not fire on `observe()`, so a
-    check that scrolls right after a re-created observer must wait for it.
-- **TypeScript challenges** are graded by the real compiler: `src/lib/typeCheck.ts`
-  (pure, `typeCheckSource(ts, source, libs)`), run in `typeCheck.worker.ts` via
-  `typeCheckClient.ts`. The worker is **4.2 MB / 1.1 MB gzip**, lazy, and not
-  precached (the precache glob only matches `app-*`/`vendor-*`). The ES2022 lib
-  files are an eager `import.meta.glob` over `/node_modules/typescript/lib/` (the
-  compiler host is synchronous). There is **no DOM lib**, on purpose: the JS
-  sandbox is a Worker, so a snippet must not type-check against `document`; a
-  prelude declares `console` and timers. Verified the BUILT worker, not just the
-  source: with `process` removed (as in a browser worker) it reports TS2322 and
-  passes clean code. In Node the bundle fails on `os` stubs because it sees
-  `process` and tries to build `ts.sys`; that is a Node-only artefact.
-- **Interview mode** (`useInterviewMode`, `InterviewControl`): 15/30/45 min, the
-  session is stored (`playground-interview-active`) so a reload cannot reset the
-  clock, attempts in `playground-interview-history`; the Challenges list shows the
-  best solved time. While it runs on the open challenge, `PlaygroundActions` renders
-  no Explain / Compare / Show Solution (`AnswerButtons`).
-- **Compare** (`CompareModal`, `src/lib/lineDiff.ts`): the reader's code beside the
-  reference solution (or the original template when there is none), LCS over
-  lines ignoring indentation, changed runs paired onto one row.
-- **Writing the checks found four template bugs no gate could see**, three of them
-  breaking Run outright in the playground:
-  - `Client Cache` declared `const cache`, which collides with React's own `cache`
-    export in the scope, so it was a SyntaxError on Run. `reactTemplates.test.tsx`
-    missed it because it built a HAND-WRITTEN scope; it now uses the real
-    `buildReactScope`, and failed on exactly this until the rename (`queryCache`).
-    **A test that re-implements the thing it tests is testing its own copy.**
-  - `Modal (Portal + Focus Trap)` called `ReactDOM.createPortal`; the scope has
-    `createPortal` as a bare name and no `ReactDOM`, so opening it blanked the preview.
-  - `Optimistic UI Updates` passed an event handler to `<form action>`: a React 19
-    action receives FormData, so the first Add threw.
-  - `Carousel` had no accessible signal for the current slide; `Pagination`, `Modal
-    Component`, `Responsive Navbar` and `Responsive Images` got the a11y their own
-    requirements claimed (aria-current, dialog semantics, `inert` closed menu,
-    `loading="eager"` + `fetchPriority="high"` on the hero).
-- **Check re-runs the whole program before each check**
-  (`usePreviewMount().setProgram`), not just a re-mount: templates keep stores,
-  Maps and lazy resources at module level, and with only a re-mount one check's
-  state leaked into the next. The console lines those re-runs print are dropped
-  (`appendLines(lines, keep)`).
-- **`detectJSX` treats TypeScript generics as JSX** (`Equal<A, B>` matches `<[A-Z]`),
-  so a `lang: 'ts'` template would run on the main-thread React path. CodePlayground
-  skips `detectJSX` when `currentLang === 'ts'`; a `.tsx` template still works.
-- **Adding a JS challenge now also needs** a `challengeProblems.ts` entry and 4+
-  hidden tests (`scripts/dev/verify-hidden-tests.cjs`); a TypeScript challenge
-  instead needs its stub to have ≥1 diagnostic and its solution 0
-  (`typeChallenges.test.ts`), and `verify-counts.js` counts it as a JS challenge.
-- Counts after: templates 206 → **218**, categories 8 → **9**, JS challenges 99 → **111**
-  (6 tree/DOM + 6 TypeScript), challenges 145 → **157**, solutions 99 → **111**,
-  explanations 195 → **201**, JS study tracks 15 → **17**.
-- `CodePlayground` 789 → **780**: the preview mount moved to `usePreviewMount`, the
-  lazy data caches to `lazyPlaygroundData.ts` (added to the verify:arch
-  explanations-import check's file list), and `PlaygroundActions` was split
-  (`SummaryPill`, `AnswerButtons`) when complexity hit 31.
-
-## Challenge code no longer restates the problem
-Every challenge template opened with a comment block (`// ===== CHALLENGE: X =====`,
-description, `Example:`, `Constraints:`) that the Problem panel now shows, so the
-statement existed twice and the stub started 10–20 lines down. Removed from all
-99 JS challenges (two header glyph styles: `=====` and `═════`, which is why the
-first pass matched only 57). **React templates kept their design notes**
-(`SINGLE OR MULTIPLE?`, `CONTEXT, REDUX OR AN EVENT SYSTEM?`, …): only the intro
-paragraph and the `// TASK` list went, because those duplicate the panel's
-requirements and the rest is teaching the panel does not carry. Approach hints
-in JS headers ("use the sum trick", "Map preserves insertion order") went too:
-they spoiled the problem, and Explain / Show Solution carry them.
-`challengeProblems.test.ts` fails if a challenge template reintroduces a
-`CHALLENGE:`/`MACHINE CODING:` header or a `// TASK` block.
-- **Saved drafts are stripped too.** An edited draft outranks the template (the
-  `baseHash` rule), so a reader who had worked on a challenge still saw the old
-  header — reported within minutes. `src/lib/challengeHeader.ts`
-  (`stripChallengeHeader`) applies the same rules to a draft on read, in
-  `usePlaygroundProgress`'s `load()` and in `resolveInitialPlaygroundState`, and
-  acts only when the code STARTS with the old header, so a reader's own comments
-  are never touched; the next autosave persists the result. Verified once against
-  the pre-change template file: all 145 old challenge templates strip to exactly
-  today's templates, so a never-edited draft becomes byte-identical to the stub.
-  (That check is a one-off, not a test: it needs the old file, and a test reading
-  `git show HEAD:` would stop meaning anything after the next commit.)
-- **The Problem panel height is draggable** (`ChallengeProblemPanel`, its own
-  `useResizableHeight`, key `playground-problem-height`, pinned in
-  `storageKeys.test.ts`). It lives in the panel rather than `useEditorPrefs` so
-  CodePlayground's line ratchet is untouched. The handle is a focusable
-  `role="separator"` with arrow-key steps and double-click reset; pointer capture
-  keeps the drag alive outside the handle.
-
-## Try it is now CORRECT for every guide block — measured, not estimated
-The old "67 props-less blocks, 21 throw" figure was an undercount. A mechanical
-scan that reproduces `PreBlock`'s transform exactly (last component in source order,
-auto-appended `render(<X />)`), then `stripModuleSyntax` → `transpileSource` →
-`buildReactScope`, mounted in jsdom, found **199 auto-rendered blocks, 152 broken or
-degenerate**. After this round: **0**.
-- **`src/lib/tryItEligibility.ts` (`canRunInPlayground`) now gates the button** in
-  `PreBlock`, alongside the language check. No button for: an import from any package
-  other than `react`/`react-dom`/`react-dom/client` (type-only imports and CSS
-  side-effect imports are ignored), relative imports, React Native primitives, and
-  async Server Components / `'use server'`. About 50 blocks lost a button that could
-  never work. The preferred content fix for a library-dependent block is therefore
-  to add the REAL import line: it makes the example honest and removes the button.
-- **About 100 were fixed in content** by a workflow (one agent per guide plus a
-  reviewer), each fix proven by re-running the scan: marked stand-ins
-  (`// stand-in so this example runs on its own`), Demo harnesses with realistic
-  props, and deliberately broken examples retagged `text`.
-- **`useFormStatus` is added to the playground scope by hand**: it is a hook, but it
-  lives in `react-dom`, so the React-derived scope never saw it.
-- The scan itself is kept OUTSIDE `src/` (scratchpad `tryit-scan.test.tsx.keep`),
-  because as a `.test.tsx` under `src/` it would join `npm test` and write a file.
-  Copy it in to run it; `SCAN_FILES` and `SCAN_OUT` filter and redirect it.
-- **Output claims:** a scanner (`outscan.cjs`, scratchpad) runs every js/ts block
-  followed by an `**Output:**` block. Its FIRST version matched lazily across code
-  fences, so a block with no claim got paired with a claim thousands of lines later;
-  an agent caught it. The code group must exclude ``` (fixed). Framework claims
-  (Express 4/5, Redux Saga, Redux Toolkit, MongoDB, Node CJS vs ESM ordering) were
-  verified by installing the packages in a scratch directory and running them. One
-  real error: Express 4 Q5 said an async throw leaves the request hanging, but on
-  Node 24 the process crashes (exit 1). The 25 remaining scanner "differences" are
-  all harness limits (no db, no saga middleware, CJS/ESM ordering, compile-time
-  claims, `Temporal`), each individually verified.
-- **`npm audit fix` (no `--force`): 27 → 2.** The 2 left need React Router 7
-  (a breaking migration): an open-redirect in `<Link>`/`useNavigate` with
-  user-controlled paths, and an SSR hydration issue. Neither applies to this app (static
-  link targets, no SSR), so the migration is left as a decision.
-- Also fixed: the Behavioral guide's §4 had subsections numbered `3.1`/`3.2` (renamed
-  4.1/4.2; nothing linked to the old anchors), and the Introduction's stale
-  "120 challenges" figure was removed rather than replaced, since no count check tracks it.
-
-## JS tricky Q41–Q51 and TS tricky Q20–Q31 — and the ✗ convention for TS errors
-Audit of both output sections for missing topics. JS added: `finally` overriding
-`return`, class field init order, `#private`, `-0`/`NaN` equality, `arguments`,
-holes/`length`, `valueOf`/`toString`, the synchronous executor, `?.`
-short-circuit, named function expressions, Symbol/Map keys. TS added the
-types-vs-runtime family plus narrowing edges (listed in the cheat sheet, rules
-11–21). Interview Q14 already covers declaration merging, so it was **not**
-duplicated as a tricky question.
-- **The TS convention, to keep for any new TS tricky question:** a compile error is a
-  COMMENTED line ending `// ✗ TSnnnn: <message>`, so Try it runs the block and shows
-  the real output. `typescriptGuideTypes.test.ts` checks three things per block:
-  clean as written, each ✗ line uncommented gives exactly that code, and the
-  transpiled block prints exactly the following `text` block. Probe-tested by
-  changing an error code and an output line.
-- **TS tricky Q1–Q19 now follow the ✗ convention too.** A line that would THROW at
-  runtime is commented with its ✗ message (Q13's `a.foo.bar`/`b.foo.bar`, Q3's
-  call); an error line that runs harmlessly stays active with a trailing `// ✗`
-  (Q5, Q7, Q11). Q3's second block had a `{ /* … */ }` placeholder (itself a type
-  error) and called a `start()` defined only in the block above, so Try it threw a
-  ReferenceError; it is now self-contained. The pinning test runs every Q1–Q19
-  block through `stripModuleSyntax` + `transpileModule` (exactly what Try it does)
-  and requires it not to throw, and requires the compile errors to equal the active
-  ✗ annotations. Five blocks are allow-listed as harness artefacts, each with a
-  reason (continuations, and deliberate re-declarations of `Required`/`Readonly`/
-  `Event`). Its "finds the blocks" guard caught a vacuous first run: the region
-  slice ended at the INTERVIEW section's `**Q20:`, which comes first in the file.
-- **Two of my own draft claims were wrong and were caught before shipping:** "C#
-  initialises subclass fields like JavaScript" (it initialises them BEFORE the base
-  constructor; only Java matches), and a pointer to a hole-behaviour list in §7.3 that
-  does not exist. Verify cross-language and cross-reference claims too, not only outputs.
-- Q50 is strict-mode dependent (assigning to a named function expression's name
-  throws in strict code, is silently ignored in sloppy), so the demo uses
-  `'use strict'` + `try/catch` to print the same everywhere.
-
-## React upgraded to 19.3; BFF topic; JS §1.8 + Q35–Q39; tricky Q27–Q40
-- **`react`/`react-dom`/`@types/react`/`@types/react-dom` are now `^19.3.0`.** The
-  playground scope picks up `ViewTransition` and `addTransitionType` automatically
-  (it is derived from React's exports); `browser` from `react-dom` was added by
-  hand next to `createPortal`/`flushSync`. React §16.11's examples were turned from
-  `text` into runnable `tsx` blocks and are pinned in `reactApiScenarioDemos.test.tsx`,
-  which now builds its scope with the playground's own `buildReactScope`, so a test
-  sees exactly what Try it provides. **jsdom has no `CSS.escape`**, which
-  `<ViewTransition>` calls; it is stubbed in that one test (browsers all have it).
-  The superseded note below ("this app runs React 19.2.4") no longer applies.
-- **BFF lives in Frontend Architecture §2.3** (a `###` under Multi-Product
-  Architecture, so no top-level section was renumbered and no anchor moved) plus
-  interview Q19. Its aggregation demo is pinned in `frontendArchitectureDemos.test.ts`
-  and probe-tested (`allSettled` → `all` fails it). The shallow System Design §8 BFF
-  sketch and OAuth Q6 are left as they are; §2.3 is the full treatment.
-- **JS §1.8 "Why JavaScript Is Everywhere"** plus `### About the Language Itself`
-  Q35–Q39. The Stack Overflow figure (66%, #1, 2025 survey) was checked against
-  survey.stackoverflow.co/2025/technology.
-- **Tricky Q27–Q40** fill the classic gaps (var/let loop, hoisting, TDZ, closure
-  liveness, `this`, float precision, `typeof`, `+` coercion, sort/parseInt, catch
-  recovery, `return await`, generator `next(value)`, defaults vs `null`, ASI).
-  Outputs were generated by running each block, not written by hand. Two demos had
-  to change first: Q28 is a `SyntaxError` at module top level (a `var` and a
-  function with the same name), so it runs inside a function; and Q35 printed
-  `NaN` as `null` via `JSON.stringify`, so it uses `join`.
-- **`interviewAnswerDemos.test.ts`'s `block()` now rejects a non-unique marker.**
-  Adding it immediately exposed two EXISTING tests (interview Q30, §1.2) whose
-  markers now also matched new tricky blocks. They still passed only because the
-  intended block happened to come first. Both got more specific markers.
-
-## React 19.3 shipped on 9 September 2026 — the old "Canary-only" notes are superseded
-Web-verified against react.dev/blog/2026/09/09/react-19-3. `<ViewTransition>`,
-`addTransitionType` and Fragment Refs are **stable in 19.3**; 19.3 also adds
-`use(browser())` (react-dom) and Trusted Types support, with no removals. The
-v1.1.0 note further down ("`<ViewTransition>` and Fragment Refs are still
-Canary-only — latest stable is 19.2.x, there is no 19.3") was true when written
-and is **now wrong** — do not propagate it. React guide §16.10 (status table) was
-corrected, **§16.11 "React 19.3 — What's New"** and interview **Q83** were added,
-and the same stale claim was fixed in Modern CSS §13.3/gotchas/cheat-sheet rule 53
-and Next.js §"Next 16". The 19.3 examples are `text` blocks because **this app runs
-React 19.2.4**, so a `tsx` block using `ViewTransition` would throw on Try it.
-Bumping the app's own `react` is a dependency decision left to the user.
-- **React Compiler §16.1 rewritten**: shows the compiled output (`_c(n)` cache),
-  memoizing after an early return, the **Vite 8 setup** (`@vitejs/plugin-react` v6
-  no longer runs Babel — use `reactCompilerPreset()` with `@rolldown/plugin-babel`;
-  the old `react({ babel: … })` form is v5 and earlier), the "Memo ✨" DevTools
-  badge, `"use no memo"`, React 17/18 via `react-compiler-runtime` + `target`, and
-  why to `--save-exact`. `eslint-plugin-react-hooks` is **7.x** now (this repo has
-  7.0.1); references to "v6" were updated.
-
-## Full clarity audit — 91 files, 21 batches, audit agent + reviewer agent each
-User opted into a multi-agent workflow ("All guides, parallel agents"). Method worth
-reusing:
-- **Snapshot first** (`scratchpad/audit-snapshot/`), and diff against the snapshot,
-  not `git` — the working tree already held uncommitted session work, so a git diff
-  would have mixed the two.
-- **Hard constraints the agents were given, then checked mechanically** by
-  `audit-check.py` (compares every file with its snapshot): fenced code blocks
-  byte-identical, heading lines identical (they are anchor ids for TOC, deep links,
-  bookmarks and checkpoints), question-marker lines identical (ids = review
-  history, counts pinned by a test), the Introduction's numbers unchanged, no empty
-  first table header. Probe-tested by breaking a copy of the snapshot. Result: 79
-  files changed, **0 violations**.
-- Outcome: ~794 prose fixes, ~110 of them factual corrections. **Every
-  output-changing correction was executed before accepting it**: Python tricky Q3
-  (`257 is 257` → True/True in one file, confirmed on CPython 3.13), Redux Toolkit
-  tricky Q1/Q3 against real Immer 10.2 (`return state` is allowed; only mutate +
-  return a NEW object throws; writing an identical primitive keeps the reference).
-- **One deliberate code-block change afterwards:** RTK tricky Q1's Pattern C was
-  `return state`, which does not throw, so the answer had to say the question's
-  premise was wrong. Changed the example to `return { ...state }`, which does, so
-  the question and answer agree again. That is the only code block the audit touched.
-- **Open items** (145 flagged-but-unchanged factual concerns, 124 weak sections left)
-  were collected per guide in `scratchpad/audit-open-items.md`. Many of the concerns
-  are inside code blocks the agents were forbidden to edit, such as a lazy-loaded
-  hero image in React §13.8 and `UI rendering` listed as a macrotask in JS §11's
-  diagram. Work through them per guide rather than in bulk.
-
-## JavaScript §1 is now "how JavaScript works" — Q31–Q34 point at it
-The user asked for §1 (five bullets) to explain single-threaded, non-blocking, the
-event loop and workers, and for the under-the-hood Q&A to move up. **Applied the
-standing rule "a deep topic lives in its numbered section; the interview answer
-points at it":** the Q31–Q34 bodies became **§1.1–§1.3 and §1.7** (with
-"Short answer:" leads turned into plain openings and "(Q32)"-style refs rewritten
-to "§1.2"), three new subsections were written (**§1.4 single-threaded, §1.5
-non-blocking, §1.6 event loop**, each with a pinned demo), and Q31–Q34 in §15
-were rewritten as ~4-sentence answers ending "Full explanation: §1.x". **Their ids
-are unchanged**, so Quiz mode and review history keep them. Q6's "simple
-version" opener (with the coffee demo) moved to §1.5 and Q6 now opens with a
-three-sentence recap pointing at §1.4–§1.6. §11 stays as the reference diagram.
-- The guide's TOC lists top-level sections only, so the new `### 1.x` headings
-  needed no TOC entries.
-- Test markers in `interviewAnswerDemos.test.ts` are content-based, so the moved
-  blocks kept passing; the test names were relabelled to §1.x.
-
-(The note below describes the original Q31–Q34 before the move.)
-
-## JavaScript Q31–Q34 — How JavaScript Works Under the Hood
-User asked for engine / function-reference / event-loop / worker questions with
-**easy** explanations. Audit first: the event loop was already JavaScript Q6
-(thorough but dense) and Node Q2; Node Q12 and Browser APIs Q11 covered workers
-narrowly. So: **Q6 got a "simple version first" opening in place** (id unchanged),
-and four new questions went under a new `### How JavaScript Works Under the Hood`
-heading after Q30 — Q31 engine vs runtime + parse/interpret/JIT/deopt, Q32
-execution context + call stack + hoisting as the creation phase, Q33 `fn` vs
-`fn()` and the three reference bugs, Q34 Web Workers (plus Node `worker_threads`).
-- **The shape that reads as "easy":** a bolded one-sentence short answer, one
-  everyday analogy, then small runnable demos with their output. Keep it.
-- **Two-file worker examples are tagged `text`** — a `js` tag would ship a Try-it
-  button pointing at a `worker.js` that does not exist.
-- Q33's detached-method demo starts with `'use strict'`: in the sloppy playground
-  script `this` would be `globalThis`, and `name` means different things in a
-  window, a worker and Node.
-- All demos (8) are pinned in `interviewAnswerDemos.test.ts`; probe-tested.
-- **Noticed, not fixed:** Node Q12's snippet comments a `SharedArrayBuffer` as a
-  "Transferable (zero-copy)" — it is shared, not transferred. Worth a rewrite.
-
-Totals after: JavaScript interview **34**.
-
-## JavaScript tricky Q18–Q26 — Objects & References
-A user asked for "deep object" output questions. Nine were appended **after Q17**
-under `### Objects & References (Deep Dive)` (never inserted mid-sequence, so no
-existing id moves): object-as-key collision, integer-like key ordering, shallow
-spread, pass-by-sharing, `fill({})` shared reference, JSON round-trip losses,
-`structuredClone` cycles/`DataCloneError`, shallow `freeze`, spread running
-getters. Each output was run as a module **and** under `new Function`, and all
-nine are pinned in `interviewAnswerDemos.test.ts` (probe-tested).
-- **Q25 starts with `'use strict'` on purpose.** The playground runs a sloppy
-  script, where a write to a frozen property fails silently; the directive makes
-  the throw — and therefore the printed `true` — identical in both modes.
-- Test markers must be unique in the whole guide: `const config = Object.freeze(`
-  already appeared twice earlier, so the first pin silently tested the wrong block.
-
-Counts: tricky 393 → **402** (JavaScript 17 → **26**).
-
-## A solution must obey its own challenge's constraints
-`Remove Duplicates` says "Do NOT use `new Set()`" and its BEST approach used a
-`Set`, under the comment "BEST when 'no Set' allowed" — reported by a reader
-pressing Show Solution. Every gate passed: the solution runs and prints only ✅,
-which is all `playgroundExecutable.test.ts` checks. **The executable suite proves
-a solution is correct, not that it answers the question asked.** Approach 1 is
-now a `Map` (not `{}`: object keys stringify, so `1` and `"1"` collide), and the
-`Set` one-liner is kept as the production answer, labelled as not allowed here.
-
-A sweep of every template with a "do not / without" line against its Approach 1
-found no other case — **but the same bug turned up an hour later one level down**:
-`Clean Mixed Array`'s Approach 3 was labelled "interviewer bans built-ins" and
-ended in `result.sort(...)`. So check EVERY approach whose label claims a
-constraint, not just Approach 1. It is now insertion into a sorted result, where
-the duplicate check falls out of the position search (verified against the
-reference on 5,000 random mixed arrays). When writing a challenge with a ban, re-read Approach 1
-against the ban before anything else. **In `playgroundSolutions.ts`, a `\n`
-inside a string in solution code must be written `\\n`** — the `code` value is
-a template literal, and a single backslash becomes a real newline inside a `""`
-string, which is a parse error that only the executable suite reports.
-
-## Eleventh audit — 10 senior "why does it break" questions, 6 additions
-4 covered by an exact-match question (Browser APIs tricky Q5, Web Perf Q12+Q10,
-CORS Q8, Web Security Q3/Q7). The other 6 had the material in **prose or a thin
-answer** — the recurring shape in senior lists, which ask the failure rather
-than the definition. Added JavaScript **Q29** (stale closure vs retention —
-same mechanism, opposite symptoms), **Q30** (async error escaping try/catch),
-**tricky Q17** under a new `### Async Performance` heading (resolved-promise
-chain freezes the UI; microtask queue drains fully before paint), React **Q64**
-(memoization slower + more memory), and **rewrote JavaScript Q7 and Q9 in
-place** — ids unchanged, so review history survives.
-
-- **Tricky Q17 is appended after Q16, not placed beside the other event-loop
-  questions (Q7–Q11)**, because inserting it there would renumber Q12–Q16 and
-  change their ids, orphaning review state. Put a new tricky question at the end.
-- **The broken forms in Q30 are tagged `text`**: a runnable `setTimeout(() => {
-  throw })` would raise a real uncaught error on Try it. Only the correct
-  handling patterns are `js`.
-- **All six demos are pinned in `interviewAnswerDemos.test.ts`** and were run as a
-  module and under `new Function` before being written. Probe-tested by removing
-  the yield in the tricky-Q17 fix and by un-path-copying Q9's `next`: 2 failures.
-- The harness only drains 50–400 ms, so demos that measure time use busy-waits
-  with **boolean** output (`>= 200`, `< 50`), never raw millisecond numbers.
-
-Counts: tricky 392 → **393** (JavaScript 16 → **17**). Totals after: JavaScript
-**30**, React **64**.
-
-## Ninth audit — a second real debrief, 23 topics over two rounds, 5 gaps closed
-Round 1 fundamentals plus a round-2 HLD list, run through the standing method:
-match each candidate against question **TEXT** and template **names** before
-writing a word. 18 of 23 were already covered — the five that were not are now:
-
-- **`Button (variants + sizes)`** — React Machine Coding template. It reads as a
-  CSS question and is not one: what is graded is the **prop API**. Closed
-  `VARIANTS`/`SIZES` lookups rather than an if-chain, `...rest` + `ref` so it
-  substitutes for a native `<button>`, `loading` kept distinct from `disabled`
-  (`aria-busy`, and both blocked), `type="button"` as the default, and an `as`
-  escape hatch so navigation stays a real link.
-- **`React from Scratch (createElement + useState)`** — Utility Implementations
-  reference template. `createElement` → a vnode, a recursive walk that calls
-  function components, and a hook **slot array with a cursor**. The payoff is
-  that the rules of hooks stop being a lint rule and become data: the template
-  ends by taking a hook behind an `if`, and slot 0 silently hands one
-  variable's state to another (`name is: a title`).
-- **JavaScript Q27** — arrow vs normal functions. Five differences, but only
-  one is real: an arrow has no `this` of its own, and the other four follow.
-- **React Q62** — the class lifecycle → hooks map, and the four places it
-  breaks (paint timing, no `prevProps`, error boundaries are still class-only,
-  one method splitting into several effects).
-- **Web Performance Q12** — reflow vs repaint vs composite, and why
-  `transform`/`opacity` are the only two that skip to the last stage: not
-  because they are cheap, but because **they cannot affect anything else**.
-
-**Two traps specific to writing a plain-JS reference template**, both of which
-would have shipped a broken Try-it button and neither of which any gate catches:
-
-1. **`detectJSX` matches the substring `render(`, with no word boundary.** A
-   mini-React that defines its own `render()` — or even a `rerender()` helper —
-   is therefore routed to the **main-thread React path**, losing the Worker's
-   3 s infinite-loop timeout, and then reports "No render() call detected". The
-   template uses `toHTML`/`mount`/`redraw` and renders to a **string**; a
-   plain-JS template must avoid `render(`, `<[A-Z]`, and the word `rerender`.
-2. **A demo verified in Node as a module can disagree with what the playground
-   runs as a script.** The first arrow-function demo asserted
-   `typeof this === "undefined"` at top level, which is true in an ES module and
-   **false** under `new Function` (sloppy-mode script → `this` is `globalThis`),
-   so the guide would have claimed an output the Try-it button contradicts. The
-   demo was rewritten to compare against the object instead, and **verified both
-   ways** — `node file.mjs` and `new Function(src)()` — before being written in.
-   Do both whenever a claim touches `this`, `arguments` or strictness.
-
-The React Q62 demo was mount-verified in jsdom rather than asserted: switching
-rooms logs `close general` then `connect random`, which is the point of the
-question. The Button template was mount-verified the same way, driving real
-clicks to confirm `disabled` blocks the handler, `ref` focuses, `loading` sets
-`aria-busy`, and `as="a"` emits an anchor with no `type` attribute.
-
-Counts: templates 195 → **197**, React Machine Coding 38 → **39**, reference
-templates 60 → **61**, challenges 135 → **136**, explanations 185 → **186**.
-Totals after: JavaScript **27**, React **62**, Web Performance **12**.
-
-## Eighth audit — a real interview debrief, 18 topics, 4 gaps closed
-A user-supplied list of what an interviewer actually asked, run through the
-standing method: extract every question TEXT in the corpus (1,464 across 70
-guides), regex each candidate against it, and split covered/gap before writing.
-
-**Two of the first-pass "gaps" were false**, and both are the failure the method
-exists to prevent — a loose regex reported zero because it was looking for the
-wrong phrasing:
-- **Stale closure with `setTimeout`** is covered: React tricky has
-  "`setCount(5)` and then schedules a `setTimeout` that logs `count`".
-- **`setCount(count+1)` three times** is covered *three ways* — the direct form,
-  the functional form, and an interleaved variant — plus Redux Toolkit's
-  dispatch-batching sibling.
-
-The inverse noise is just as bad: a bare `batch` matched an **aws-ec2 Spot
-Fleet** question and a bare `keys` matched TypeScript `keyof`. Tighten the
-pattern and read the hit before believing either direction.
-
-**Four genuine gaps, now closed:**
-
-| Added | Guide | Why it was invisible |
-|---|---|---|
-| **Q11** `position: sticky` | Modern CSS | Seven prose mentions, a whole stacking-context section, and **zero questions** — the canonical section-without-a-question case |
-| **Q13** 404 / Page Not Found | React Router | The guide covers the *hosting* 404 (GitHub Pages deep links, §13) at length and shows `path="*"` in one code block, but never asks about the catch-all route |
-| **Q61** infinite re-render | React | Prose in three guides, no Q&A anywhere, on one of the most-asked React questions there is |
-| **Q11** many API calls | Web Performance | "Request waterfall" appeared only in prose; FE-Arch has caching questions but nothing framed as "this page fires eight requests, fix it" |
-
-**The React Q61 hazard is the reusable lesson: an infinite-render example must
-NOT be tagged `tsx`.** `isRunnable` gives every `tsx/jsx/ts/js` block a Try-it
-button, and `PreBlock` auto-appends `render(<Component />)` when it finds JSX
-with no render call — so a buggy component would mount and genuinely lock the
-reader's tab. The React preview runs on the **main thread**, so the playground's
-3 s Worker timeout cannot rescue it. All three broken shapes are tagged `text`;
-only the derive-instead-of-effect fix is runnable `tsx`, and the guide says why
-inline so nobody "helpfully" retags them.
-
-**The Web Performance answer's output claim was executed before it was written**
-— serial 800 ms vs parallel 200 ms over four 200 ms tasks, a 4× difference — per
-the standing rule that an `**Output:**` block is a claim, not a description. It
-uses timer-backed fake requests rather than `fetch`, which keeps it runnable with
-no network and no undefined helper.
-
-Totals after: Modern CSS **11**, React Router **13**, React **61**,
-Web Performance **11**.
-
-## Seventh audit — 2 HLD round-2 questions, both were gaps
-**Pinterest-style masonry grid: zero hits corpus-wide** for masonry/Pinterest/image
-grid outside one CSS cheat-sheet row. The closest existing material — the Twitter
-feed design (§10) and "make a 10,000-item list performant" (Q3) — assumes
-**uniform-height rows in one column**, which is precisely the assumption the
-Pinterest question removes. Added as **§14**, a full worked design in the same
-shape as the other seven, and the sections after it renumbered (Tabs 14 → 15,
-Interview Qs 15 → 16, Tricky 16 → 17) with the TOC updated.
-
-The load-bearing idea, and the thing to keep if this is ever edited: **the server
-must supply each image's dimensions.** Without them the client cannot compute
-layout, cannot virtualise, and cannot reserve space — so the aspect ratio in the
-payload is what makes all three possible at once. Everything else (greedy
-shortest-column packing, restoring scroll by item id rather than `scrollTop`) is
-downstream of it.
-
-**"Walk me through the HLD of a system you have built": also zero hits.** There
-were 17 Frontend Architecture questions about *designing* things and a framework
-for designing a *given* product, but nothing on narrating a system you actually
-built. It is a distinct skill and the most common round-2 opener. Added as
-Frontend System Design **Q9**, structured as a fixed speaking order (modules →
-component hierarchy → API contracts → caching → performance → NFRs) rather than
-as a design to work through, because that is what the question is.
-
-**Method note:** both gaps were invisible to a topic-word search. "Grid",
-"performance" and "architecture" all return hundreds of hits; what settled it was
-searching for the *distinctive mechanism* (masonry, variable-height
-virtualisation) and the *framing* ("your current project", "walk me through
-your"). Search for what makes the question different, not for its subject.
-
-## A polyfill is a CLAIM — run it against the built-in
-All 32 JS Polyfill templates were executed side by side with the native methods
-across ~110 edge cases. **Four were wrong**, and none of them could be caught by
-any existing gate: they are valid JavaScript that parses, runs, and returns the
-wrong answer.
-
-1. **`JSON.parse` looped FOREVER on malformed input.** `parseArray`/`parseObject`
-   were `while (true)` loops that only exited on `,` or the closing bracket, so
-   running off the end of the string meant every test compared against
-   `undefined`, nothing matched, `i` never advanced. `{oops}` and `[1,` hung; `''`
-   returned **0**, because `parseValue` fell through to `parseNumber` and
-   `Number('')` is 0. Now has a `fail()` helper, an end-of-input check, a
-   no-digits-consumed check, loop guards, and a trailing-characters check.
-2. **`Array.map` dropped holes** — it had the `i in this` guard but used
-   `result.push()`, which collapses the output. `[1, , 3].myMap(x => x * 2)`
-   returned **length 2**. Now `new Array(this.length)` + indexed assignment.
-3. **`Array.find`/`findIndex` skipped holes.** Those two are exactly the methods
-   that do **not** skip them — they visit every index and pass `undefined`. The
-   `i in this` guard was copy-pasted from `map` where it belongs.
-4. **`Function.bind` ignored `new`.** JavaScript guide §4.3 states that `new`
-   overriding the bound `this` "is the detail a bind polyfill has to reproduce",
-   and the polyfill did not. Now uses `this instanceof bound` and inherits
-   `fn.prototype` so `instanceof` holds.
-
-**Deliberate simplifications, left alone because the template says so:** sort is
-not stable (native has been since ES2019), `Object.assign` skips symbols. **Two
-that were undocumented are now labelled:** `myCall` boxes a primitive `this`
-(inherent to the assign-a-property technique) and turns `null` into `globalThis`
-(sloppy-mode behaviour), and `myConcat` reads holes as `undefined` and ignores
-`Symbol.isConcatSpreadable`.
-
-`polyfillParity.test.ts` keeps this honest — it loads each template and diffs
-against the built-in. Probe-tested by reintroducing all four bugs.
-
-**Two process lessons.**
-- **A synchronous infinite loop cannot be caught by a test timeout.** Probing the
-  `JSON.parse` fix by restoring the original hung vitest for 180 s despite
-  `--testTimeout=5000`, because the loop blocks the event loop and the runner
-  never gets to fire. That is exactly why the playground runs plain JS in a
-  **Worker it can `terminate()`** rather than trusting a timer. When probing a
-  hang, run it in a worker or with an external kill.
-- **A backtick in a comment silently truncates a `code:` template literal.** Four
-  of my own added comments used backticks for inline code and broke the file;
-  `tsc` caught it here only because the truncation happened to produce invalid
-  syntax downstream. Write template comments with no backticks at all.
-
-## Sixth audit — 16 core React topics, 3 gaps closed
-**Already covered (13):** Node/Element/Component (Q31), keys (Q4), controlled vs
-uncontrolled (Q5), Fragments (Q48 + §15.8), `useLayoutEffect` (Q10),
-reconciliation (Q8, Q12, §14), hydration (Q35), `useMemo`/`useCallback` (Q7,
-Q11, Q27), never mutate state (Q32), code splitting (Q21, Q25, Tooling Q11),
-testing (Q36 + two whole guides), `useReducer` (Q39).
-
-**Gaps closed — React Q58, Q59, Q60:** `createElement` vs `cloneElement` (**zero
-hits corpus-wide**, the only total blank), higher-order components (§15.4
-existed but no question), and `useImperativeHandle` (a §6.2 subsection but no
-question). **Q4 was also rewritten**: "why are array indices bad keys" had one
-sentence, and it is the half of the keys question interviews actually ask.
-
-**Two method notes.** A topic having a *section* is not the same as having a
-*question* — three of these had prose and no Q&A, which is invisible unless you
-check both. And match on question **text**, not prose: greping the corpus for
-"HOC" or "fragment" returns dozens of incidental mentions, while
-`^\*\*Q\d+: .*higher-order` returns the truth. Watch for the inverse too — my
-regex for topic 1 missed Q31 because the question words it as "React Component,
-a React Element, and a React Node" rather than the order in the source list, so
-**confirm a "gap" by reading before writing.**
-
-React interview Q total: **62**.
-
-## Fifth audit — 7 React LLD questions, 3 gaps closed
-Same method as the earlier interview-round audits: match each candidate against
-question TEXT and template names across the corpus *before* writing anything.
-
-**Already covered, deliberately not duplicated:** infinite scrolling (`Infinite
-Scroll` template with IntersectionObserver + error/retry, Browser APIs Q16 and
-Q9, React §13.4 virtualisation); live search filtering (`Search with Debounce +
-Cancel` — debounce *and* AbortController for the out-of-order race — plus
-`Search Filter`, `Auto-Complete (ARIA combobox)`, React Q20 on a 50k-row list
-and Q54 on a debounced-value hook); `useFetch` (React §6.3 is the full
-implementation, with the no-`.finally` and reset-on-url-change constraints);
-auth and protected routes (`Protected Route (Auth + RBAC)` template, Frontend
-Architecture Q4 and Q7, and the whole OAuth & SSO guide).
-
-**Gaps, now closed:** `Form with Dynamic Fields` and `Multi-Step Form (Wizard)`
-templates (React Machine Coding 36 → **38**, templates 181 → **183**,
-challenges 130 → **132**), both with build walkthroughs, and **React Q57** on
-reorderable drag-and-drop — the `Drag and Drop` template existed but **no
-question anywhere in the corpus mentioned dragging**, and the template has no
-keyboard path, which is the part interviews grade.
-
-**Adding a React Machine Coding template is a five-file change**, and the tests
-name each one if you miss it: the template in `playgroundTemplates.ts`, a
-walkthrough in `playgroundBuildExplanations.ts` (every React template must have
-one), the name in `playgroundExplanationKeys.ts`, the `EXPECTED` counts in
-`playgroundContent.test.ts`, and the prose counts in README + Introduction. Then
-`npm run playground:index` and `npm run content:meta`. `reactTemplates.test.tsx`
-mounts the new template in jsdom and fails on any `console.error`, which is the
-gate that matters.
-
-**Write template code without backticks.** The `code:` values are template
-literals, so an unescaped backtick inside silently truncates the template and
-`tsc` does not catch it. Both new templates use string concatenation for
-dynamic styles instead, which sidesteps the hazard entirely.
-
-## An explanation should carry the idea and the clever bit, not every step
-Q16 (the typed event emitter) was a bare code dump. The first rewrite walked
-through each mechanism in turn — the map type, the `keyof` constraint, the
-conditional handler, the conditional rest tuple, the runtime bits, the
-follow-ups. The user's correction: *"the explanation is scattered, dont require
-explanation for each step, only important ones and one paragraph about the
-question answer"*.
-
-**The shape to use: one paragraph naming the idea the design rests on, then the
-single non-obvious mechanism, then what to volunteer.** Q16 went 6,400 → 2,800
-chars and reads better: the paragraph is "it all rests on a map from event name
-to payload type, so every method is a lookup", the mechanism is the
-conditional **tuple** in rest position (arity depending on the event name, and
-why `payload?:` cannot do it), and the volunteer points are the `Set<Function>`
-boundary and `off` needing the same reference. Everything a competent reader
-infers from the code itself was cut.
-
-**Three fragments had to be retagged `text`.** Pulling a lone signature out for
-discussion (`...args: Events[K] extends undefined ? [] : [Events[K]]`) does not
-parse, and `verify:blocks` rightly failed it — an isolated signature is prose,
-not runnable code, and tagging it `ts` ships a Try-it button that cannot work.
-
-**Probe lesson, and it caught me twice.** The first version of the pinning test
-passed while `emit<K extends keyof Events>` was widened to `K extends string`
-*and* while the conditional handler type was deleted — it asserted the wrong
-things. `emit('nope')` fails on **arity** either way, so it discriminates
-nothing; `emit('nope', { x: 1 })` is what exercises the `keyof` constraint. And
-a zero-argument arrow is assignable to `(payload: undefined) => void`, so only
-`on('load', (p: number) => …)` — a handler that *declares* a parameter —
-observes the conditional. All four mechanisms are now probe-tested individually.
-
-## The playground cannot show a TYPE error, and the TS guide has to say so
-A reader pressed **Try it** on the `as const` example, wrote `configV2.port = 4000`,
-and it printed `{ port: 4000, … }` — then asked what `readonly` means. Entirely
-reasonable: the guide said `as const` "makes everything readonly" and the app
-appeared to disprove it.
-
-**Both were right.** `readonly` is a compile-time constraint; `tsc` reports
-**TS2540** on that line, and the emitted JavaScript is
-`const cfg = { port: 3000, host: "localhost" };` — the assertion is gone and no
-runtime guard replaces it. The playground transpiles with Babel and **never type
-checks** (see "Playground transpilation — TypeScript is ALWAYS on"), so *no* type
-error can ever surface there.
-
-**The rule for the TypeScript guide specifically: any block whose teaching point
-is a compile error must say that Try it will not show it.** Everywhere else in
-the corpus a runnable block demonstrates its claim; here the button actively
-demonstrates the opposite. Q10 now states this inline, which turns the confusing
-result into the lesson — types are erased, so `Object.freeze` is the runtime
-equivalent.
-
-Verified and pinned in `typescriptGuideTypes.test.ts`: the TS2540 diagnostic, and
-that `ts.transpileModule` output contains neither `as const` nor a `freeze` call.
-Also pinned, because they are the next two questions a reader asks: **`as const`
-is deep** (nested properties error) while **`Readonly<T>` is shallow** (they do
-not), and readonly does not survive an alias to a mutable type.
-
-## Reference sections stay reference; Q&A goes in the Q&A section
-Asked "can't we use `Pick`/`Omit` instead of `Extract`/`Exclude`?", the first
-answer was written as a `####` subsection inside **§8.2 Union Utility Types**.
-The user's correction: *"Add this as an interview question rather than dirtying
-the guide."*
-
-**The rule that follows:** §1–§14 are **reference** — signature, what it does,
-the pitfall, move on. A "why not X instead of Y", "which would you choose", or
-"walk me through debugging this" answer is **§15 Interview Questions**, however
-good it is. A reference section that grows a 2,300-character comparison stops
-being scannable, which is the one job it has. This is the same principle as the
-JavaScript guide's Q4 restructure, applied in the other direction: there, depth
-moved *out* of an answer into a numbered section because it was reference
-material; here, depth moved *out* of a numbered section into an answer because
-it was an interview question. **Sort by the shape of the content, not by where
-the question was asked.**
-
-Now TypeScript **Q28**. Note the practical consequence of adding a `**QN:**`
-marker: it changes the extractor's count, so `npm run content:meta` must be
-re-run or the `totalQuestionCount` parity test fails naming the guide.
-
-## Fact-check a TypeScript guide WITH the TypeScript compiler
-A claim about what `tsc` does is mechanically checkable, so none of this needed
-review by eye. Method, worth reusing: extract all 122 `ts`/`tsx` blocks, compile
-each in isolation (`tsc --strict --ignoreConfig`), and cross-reference the result
-against the guide's own `// Error:` annotations. Then express every *type* claim
-as a compiler-checked equality:
-
-```ts
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
-type Expect<T extends true> = T;
-type _ = Expect<Equal<keyof { [k: string]: number }, string | number>>;
-```
-
-A wrong claim becomes a compile error. All 19 tricky questions, the utility
-types, narrowing, conditional distribution, template-literal expansion,
-`satisfies`, contravariance, `erasableSyntaxOnly` and the enum emit **passed**.
-
-**The one real defect: both `NoInfer` examples (§10.7 and tricky Q18) claimed an
-error that never occurred.** Written as `function f<T>(initial: T, options: NoInfer<T>[])`,
-`T` inferred from `'dark'` **widens to `string`**, so `['light', 'dark']` is an
-ordinary `string[]` and nothing errors — `NoInfer` appears to be a no-op. The
-constraint `T extends string` is what makes TypeScript preserve the literal, and
-only then is there something narrower for `NoInfer` to protect. Both now carry it,
-and both say why, since the omission is the natural way to "disprove" `NoInfer`.
-The same widening also made the guide's stated `T = 'dark' | 'light'` wrong
-(it was `string`); with the constraint it is correct.
-
-**Two detector lessons.** (1) An error annotation on a **commented-out** line is
-intentional — `// value.toFixed(); // Error: …` is the correct way to show a
-failure without breaking the block. Flag only annotations on *active* lines, or
-you get 10 false positives out of 11. (2) Compiling a block in isolation makes it
-a **script**, so blocks that legitimately redefine `Readonly`, `ReturnType`,
-`Required`, `Event`, `Response`, `name` or `origin` collide with lib/DOM globals.
-Those TS2300/TS2451 hits are artifacts of the harness, not guide defects — the
-same global-shadowing trap this file documents for `location` in `Sidebar`.
-
-`src/content/typescriptGuideTypes.test.ts` pins the two corrected examples using
-the **TypeScript compiler API in-process** (no subprocess, ~0.6 s): it extracts
-the blocks from the markdown, type-checks them in memory, and asserts the exact
-diagnostic. It also asserts the *unconstrained* form produces no diagnostic, so
-the test documents the bug it guards. Probe-tested by removing each constraint.
-
-**Version claims re-verified against Microsoft's release notes** (Sept 2026):
-7.0 on 8 Jul 2026, 6.0 on 23 Mar 2026 as the final JavaScript-based release,
-8–12× (7.7–11.9× measured), the VS Code 17.5 s → 1.3 s benchmark, and codename
-*Corsa* all correct. **Sharpened:** 7.0 ships **no** programmatic API at all —
-the release notes say a new and different one is expected in 7.1 — and 6.0 is
-published as `@typescript/typescript6` with a `tsc6` binary so both can be
-installed side by side. The guide previously said only "not stable in 7.0".
-
-## Corpus audit, Sept 2026 — what a full sweep actually found
-90 markdown files, 103,570 lines, 1,650 runnable blocks. Five mechanical sweeps;
-the useful part is which ones paid off.
-
-**1. Executed every `**Output:**` claim.** 67 claims pair with a source block; 53
-are plain JS/TS. Result after fixes: **zero mismatches**. One real error found —
-JavaScript tricky **Q5** showed `console.log({} + [])` and claimed `0`. It prints
-`"[object Object]"`. The `0` is real but only at **statement** position, where
-`{}` parses as a block and `+` is unary; inside `console.log(...)` the `{}` is an
-argument, i.e. an expression. The block now demonstrates both, with `eval('{} + []')`
-for the statement case, and the claimed asymmetry between `[] + {}` and `{} + []`
-is correctly re-framed as a **parsing** artefact rather than a coercion one.
-
-**2. Checked all 551 external links.** 11 were dead (404) and 2 domains had moved.
-Fixed: Cloudflare durable-objects (slug changed), Apple Dynamic Type, Python GC
-(devguide page gone → `docs.python.org/3/library/gc.html`), Play Console policy,
-React Router `/upgrading/v5` and `/upgrading/v6` (now `/upgrading/future`,
-`/component-routes`, `/router-provider` — also fixed in `data.ts` officialDocs),
-Socket.IO `/docs/v4/`, TanStack `useQuery` (moved under
-`framework/react/reference/functions/`), web.dev fetch-streaming (moved to
-developer.chrome.com), Zustand v5 migration page, `uuid7.com` (dead → RFC 9562),
-Partytown (`builder.io` → `qwik.dev`), and **Starlette moved `starlette.io` →
-`starlette.dev`**. One fabricated-looking citation was among them:
-`github.com/nicholasgasior/gofr-benchmark` did not exist → `fastify/benchmarks`.
-**403/418 responses are bot-blocking, not dead links** — MySQL docs, LeetCode,
-Medium, MIT Press, freedesktop all return them and are fine. Re-run the check
-before believing any "dead link" report.
-
-**3. Web-verified the volatile facts.** All confirmed against primary sources:
-CVE-2025-29927, CVE-2026-45109 and CVE-2026-64642 are all real Next.js
-middleware/proxy bypasses; TypeScript 7.0 shipped 8 Jul 2026; ESLint 10 removed
-eslintrc in Feb 2026; React Compiler 1.0 on 7 Oct 2025; Vite 8 on 12 Mar 2026 with
-Rolldown 1.0 on 7 May 2026; Next 16 has Turbopack default for dev **and**
-production; CRA was sunset 14 Feb 2025. **Nothing was hallucinated.**
-
-**4. Found stale point-in-time claims — all in `frontend-tooling-guide.md`.** §3–§7
-still said "Vite 6 (as of late 2024)", "npm 10", "pnpm 9", "Turbopack is dev mode
-only", and used `create-react-app` as the canonical `npx` example, while §9 ("The
-2026 Toolchain") correctly described Vite 8, Rolldown and Turbopack-by-default.
-**The guide contradicted itself** because §9 was added later and the earlier
-sections were never reconciled. All refreshed. **Lesson: when you add a "what's
-new" section, sweep the guide for the claims it supersedes** — a grep for
-`as of 20\d\d|current (stable|version)|latest version` finds them.
-
-**5. Q numbering across all 90 files: zero gaps or duplicates.**
-
-**What the sweep could NOT check**, and is worth stating: `using` and `Temporal`
-examples (not in Node 24), React/JSX output claims (need a DOM), and anything
-requiring a framework at runtime (Express, Mongo shell, Redux Toolkit) — those
-throw for environment reasons, not content reasons, and were classified as such
-rather than counted as defects.
-
-## Top-level await broke 129 Try-it buttons, and no gate could see it
-`new Function` builds a **script**, where top-level `await` is a hard
-`SyntaxError`. Both playground paths used it, so every guide block with top-level
-await failed *before running a line* — **129 blocks across 26 guides** (mongodb 20,
-stripe 16, browser-apis 11, jest-rtl 11, react-native 11, javascript 11, nodejs 8…).
-
-**`verify:blocks` is structurally blind to this**: it parses with Babel in *module*
-mode, where top-level await is legal. The block parses, the button ships, the
-runtime rejects it. Same shape as the `ws.send()` and misindented-fence findings —
-**parsing is not running**.
-
-`compileUserFunction` in `playgroundRunner.ts` now retries as an `AsyncFunction`
-**only** when compilation fails with that specific `await is only valid` error, so
-every other snippet stays on the original path and nothing else changes semantics.
-`runUserFunction` wraps it and reports an async rejection through the existing
-`reportPreviewError`, so a rejected promise surfaces in the console panel instead
-of vanishing. The worker carries the same fallback inline (it is a source string
-and cannot import).
-
-- **The infinite-loop guard is unaffected.** The 3 s timeout is enforced by the
-  main thread calling `terminate()`; a synchronous `while(true){}` never reaches
-  an `await`, so it still never posts `sync-done` and is still killed.
-- `playgroundTopLevelAwait.test.ts` pins it, including that a plain `new Function`
-  still rejects top-level await (so the test cannot pass vacuously), that a
-  synchronous body does **not** become a promise, that a genuine `SyntaxError`
-  still throws, and that the JavaScript guide's Q16 block now produces its claimed
-  output exactly.
-
-## A tricky question about an unfamiliar API needs the API explained first
-A reader reported "I didn't understand the question or the answer" for tricky **Q13, Q14 and
-Q15** and "no explanation of why this is 2" for **Q12**. All four ask something subtle about an
-API the reader may never have used — `Object.groupBy`, iterator helpers, `using`, `Temporal` —
-and each dived straight into the subtlety. The explanations were *long*; they were not
-*legible*.
-
-**The two fixes, both reusable:**
-1. **Open with what the API is**, in two sentences, before the puzzle. Same lesson as the
-   `once(fn)` rewrite.
-2. **A line-by-line table mapping each printed line to its reason**, immediately under the
-   output. The complaint about Q12 was that the answer to "why is this `2`?" was buried in
-   paragraph one and "why is this `undefined`?" in paragraph three — both were present and
-   neither was findable. A table makes each output line answerable at a glance, and the prose
-   below it becomes the *depth*, not the only path to the answer.
-
-**Executing them found a real error.** Q13 claimed a second `chain.toArray()` returns the
-remaining `[6]`. It returns **`[]`**: `take(1)` does not merely stop pulling — on reaching its
-limit it **closes** the upstream iterator. (Closing propagates because iterator helpers
-implement `return()`; a bare array iterator does not, so `[1,2,3].values()` survives the same
-treatment — verified both ways.) Pinned in `interviewAnswerDemos.test.ts` and probe-tested.
-
-`using` and `Temporal` cannot be executed on Node 24, so Q14 and Q15 remain unpinned — they
-are documented behaviour rather than measured, and that is worth knowing when editing them.
-
-## AI Engineering is its own category — and the AI guide kept its old route
-Nine categories now. `AI Engineering` (icon `Sparkles`, fuchsia) holds six guides in three
-groups — Foundations / Retrieval & Context / Agents & Frameworks — under `/ai/*`, **except
-`AI & LLM Engineering`, which stayed at `/backend/ai-llm-engineering`**. Same precedent as the
-AWS → DevOps rename: category membership and URL are independent, and moving the route would
-break the Introduction's deep links, saved bookmarks and checkpoints for no user benefit.
-
-New guides: `generative-ai-guide.md` (the foundations — tokens, transformers, embeddings,
-sampling, context, reasoning models, hallucination, diffusion, the adaptation ladder,
-inference economics), `rag-guide.md`, `agentic-ai-guide.md`, `mcp-guide.md`,
-`langchain-langgraph-guide.md`. All in `src/content/ai/`.
-
-**Deliberate non-duplication with `back-end/ai-llm-engineering-guide.md`.** That guide already
-covers RAG (§9), agents (§8) and MCP (§7.3) at overview depth and **stays as it is** — the new
-guides are the deep versions and each is scoped so the two do not restate each other. Do not
-"consolidate" them; the overview guide is the one-sitting read, the dedicated guides are
-reference depth. The same split as SOLID across two guides.
-
-**Volatile facts were web-verified (Sept 2026) rather than recalled**, because this subject
-ages fastest of anything in the repo:
-- **MCP 2026-07-28** is the current revision and it is a large break: `initialize` handshake
-  and `Mcp-Session-Id` removed, `_meta` carries version and capabilities, `Mcp-Method` /
-  `Mcp-Name` headers for gateway routing, list results cacheable via `ttlMs`/`cacheScope`,
-  Multi Round-Trip Requests replacing server-initiated requests, an extensions framework
-  (Tasks, MCP Apps, EMA), OAuth hardening (RFC 9207, CIMD replacing Dynamic Client
-  Registration), and **Roots, Sampling and Logging deprecated** with a 12-month window.
-  Anything written about MCP before this describes a different protocol.
-- **LangChain/LangGraph 1.0 (Oct 2025)**: `create_agent` replaced `initialize_agent` /
-  `AgentExecutor` / `create_react_agent`; **middleware** replaced callbacks and subclassing;
-  legacy chains moved to **`langchain-classic`**; standard content blocks normalise provider
-  response shapes. Most tutorial content online predates this.
-- The `interrupt()` **replay** behaviour — resuming re-runs the node from the top, so side
-  effects before the interrupt execute twice — is the single most useful gotcha in that guide
-  and is load-bearing in two questions.
-
-**Counts that moved:** Back End 18 → 17, total 70 → **75**, categories 8 → **9**, tricky
-**386 across 52 guides**, anchors 1,289 → 1,381. `verify-counts.js` hard-codes the category
-number in three claim templates (`README.md`, `CLAUDE.md`, `src/content/README.md`) — adding a
-category means editing those strings, and a new `AI Engineering` per-category claim was added
-alongside the Front End / Back End / System Design ones.
-
-**Code blocks are Python**, deliberately: `isRunnable` in `PreBlock.tsx` only tags
-`tsx/jsx/ts/js`, so Python blocks get no "Try it" button and `verify:blocks` does not parse
-them — which is correct, since none of this runs in a browser playground.
-
-## A deep topic lives in its numbered section; the interview answer points at it
-Q4 "Explain event bubbling and capturing" had grown to **15,470 chars / 302 lines / 11 code
-blocks** while its siblings were 400–1,100 — every follow-up request added another passage in
-place, so the three phases were described three times, there were two diagrams, and the
-`stopPropagation` caution appeared twice. One insert had also produced a malformed
-`#### #### Where you actually use them` heading that swallowed the `target` vs `currentTarget`
-one.
-
-The reference material now lives in **§13.1 The Event Path**, **§13.2 Stopping Things — Three
-Different Verbs** and **§13.3 Delegation, and What Does Not Bubble**, deduplicated and in
-order, and **Q4 is a ~1,600-char interview answer that cross-references them**. This mirrors
-how closures are already handled — §5.2–§5.4 deep, tricky Q2 short.
-
-**The rule: when a reader asks for more depth on a question, add it to the numbered section
-and link from the answer.** An interview answer is read in one sitting; a reference section is
-read with a scroll bar. Growing the answer in place is how you get three copies of the same
-paragraph.
-
-- The guide's TOC lists **top-level sections only**, so new `###` subsections here needed no
-  TOC entry — check that per guide before renumbering, since several list every `###`.
-- `src/content/eventPropagation.test.ts` pins the phase demo: it pulls the five
-  `addEventListener` lines **and** the claimed `text` output out of the markdown and checks
-  one against the other in jsdom, so the documented order cannot drift from the code that
-  produces it. Probe-tested in both directions (reorder the claim → fail; delete a listener →
-  fail).
-- jsdom fires capture-registered listeners before bubble-registered ones **at the target**,
-  which the spec leaves as registration order. The demo deliberately has only one listener on
-  the target so nothing depends on that, and the guide says not to rely on it.
-
-## An answer must engage the thing the QUESTION names
-Q21 asks "why is `Object.groupBy` not a drop-in replacement for **Lodash's** `groupBy`" and
-the answer never mentioned Lodash once — it compared `Object.groupBy` with `Map.groupBy`
-instead, which is the second half of the question. The reader's complaint was exactly that.
-
-**Check that every proper noun in a question appears in its answer.** Here the missing
-half was the four real migration breakages, all verified by execution: no iteratee
-shorthand (`Object.groupBy(users, 'role')` → `TypeError: role is not a function`), the
-callback also gets the index, the `null`-prototype result has no `.hasOwnProperty`, and
-Lodash tolerates `null` and plain objects where the native version throws. Lodash is a
-**transitive** dependency here, not a declared one, so the Lodash side is shown in a
-non-runnable `text` block (no Try it button) and the test asserts only the native side —
-depending on an undeclared package in a test would be a silent liability.
-
-The demo worth keeping: the obvious hand-rolled grouper — `(acc[key] ||= []).push(x)` —
-**throws** on a key of `'__proto__'`, because the lookup returns `Object.prototype` rather
-than `undefined`, so `||=` never assigns and `.push` does not exist. That is a concrete
-reason the spec chose `Object.create(null)`, and far better than asserting "it is safer".
-
-## Two of the JS guide's interview answers shipped code that threw on Try it
-Q8, Q13, Q14, Q16 and Q17 were expanded from bullet lists to full answers on user
-request. Two of them were **broken**, and the shape of the breakage is the reusable part:
-
-- **Q13** did `registry.register(someObj, 'my-object')` — `someObj` was never defined
-  anywhere in the block, so Try it threw `ReferenceError` immediately. Q16's usage lines
-  referenced `fetchResults` and `handler`, the same way.
-- Neither is a parse error, so `verify:blocks` passed. This is the failure mode rule 11 in
-  this file predicts ("a snippet pasted from a guide that calls a helper it does not
-  define") — it was in the guide itself.
-
-**A demo block that continues an earlier block is the same defect.** Q16's demo used the
-`debounce` from the implementation block above it, which reads fine on the page and throws
-when Try it opens only that block. Fixed by repeating a comment-free copy of the
-implementation inside the demo block — the annotated version above stays the teaching
-artifact. Prefer that to a continuation whenever the block carries a Try it button.
-
-`src/content/interviewAnswerDemos.test.ts` extracts each of these blocks from the markdown
-and executes it, asserting the exact console output (the debounce one drains timers for
-400 ms). Probe-tested three ways: double-binding in Q8, swapping `forEach` for `for...of`
-in Q14, and downgrading `seal` to `preventExtensions` in Q17 — each fails the suite.
-
-Facts verified by execution rather than asserted, since each is easy to state backwards:
-`bound.call(other)` ignores `other`; `describe.bind(a) !== describe.bind(a)`; a sloppy-mode
-`thisArg` of `'text'` arrives as an **object** and `null` arrives as `globalThis`, while under
-strict mode both pass through untouched; `ref.deref()` still returns the object after the last
-strong reference is dropped; `forEach` returns before any async callback finishes; a frozen
-array's `push` throws a `TypeError` **even in sloppy mode** (it defines a property rather than
-assigning one) while a sealed array still accepts `arr[0] = 9`; and `Object.freeze` does not
-stop a setter running or a `Map`'s contents changing.
-
-## SOLID lives in TWO guides, deliberately — do not merge or duplicate them
-- **`low-level-design-guide.md` §3 "SOLID, Usefully"** is the *design-interview* framing: each principle plus **the smell that identifies the violation**, then worked through four full designs (parking lot, rate limiter, elevator, vending machine).
-- **`design-patterns-guide.md` §2 "SOLID — The Principles the Patterns Serve"** is the *catalogue* framing: each principle plus **which GoF patterns it leads you to**, with a table mapping principle → tension → patterns. It exists because that guide covered all 23 GoF patterns with **zero** mention of SOLID, which is the hole — the principles are what motivate the patterns.
-- They share the subject and almost no prose. **The Design Patterns section cross-links to the LLD guide for the worked designs rather than repeating them**; keep it that way, because two copies of the same worked example will drift.
-- Adding §2 meant renumbering §2–§9 → §3–§10 in that guide, plus all 31 TOC entries. **Anchors must be generated with the same rules as `slugify()` in `src/data.ts`** — in particular it collapses runs of dashes (`/-+/g → '-'`), so an em-dash title like "SOLID — The Principles…" slugs to `#2-solid-the-principles-the-patterns-serve` with a SINGLE dash. `verify:counts` catches this (it checks all 1,254 in-page anchors); getting it wrong is otherwise invisible until a reader clicks the TOC.
+**Imports only point down this list.** `verify:arch` enforces every edge. `data/`, `lib/` and
+`hooks/` import no UI. `components/` imports no feature or page. `features/` imports no page.
+Only `main.tsx` imports `App`. If two features need a component, move it *down*, never sideways.
+
+## Enforced code rules
+The numbering is referenced from code comments, so keep it stable.
+
+1. **No casts around the type system.** `any`, `as any` and `as unknown as X` are banned. When
+   the types fight you, make the function generic, narrow with a guard, or model the data as a
+   discriminated union.
+2. **Async is checked** (`no-floating-promises`, `no-misused-promises`, `await-thenable`,
+   `require-await`). `getAllQuestions()`, `loadContent()` and `loadAllContent()` return
+   Promises. Every `.then()` needs a `.catch()` that sets a terminal UI state.
+3. **Hooks rules are errors**, including `exhaustive-deps` and `set-state-in-effect`. There are
+   8 justified `set-state-in-effect` disables. Don't add a ninth; prefer `key`-based reset or
+   deriving during render.
+4. **Size limits:** `max-lines` 400, `max-lines-per-function` 300, `complexity` 20,
+   `max-depth` 5. `LEGACY_LARGE_FILES` in `eslint.config.js` has one entry,
+   `CodePlayground.tsx` at **780**. It may shrink, never grow, so new props there go on one line.
+5. **Web storage only through `src/lib/storage.ts`** (`safeGet`/`safeSet`/`getJSON`/`setJSON`/
+   `getEnum`/`safeRemove`), tests included. The accessor *throws* in private mode, often during
+   render. **Key names are a compatibility contract** (user progress), pinned by
+   `storageKeys.test.ts`. Renaming one needs a migration.
+6. **Layering** as above.
+7. **Bulk data lives in `src/data/`.** `verify:arch` fails on a `.ts` file over 1,200 lines under
+   `components/`, `features/` or `pages/`.
+8. **`verify:arch` guards the guards.** It pins that the lint glob covers `.ts/.tsx`,
+   type-aware linting and `exhaustive-deps: error` stay on, the pre-push hook keeps every gate,
+   the content glob is never `eager`, vendor chunks keep the `vendor-*` prefix, the app entry
+   stays `app-*`, `injectRegister` stays `null`, and `prepare-content.js` never overwrites the
+   Introduction. **Probe every new guard by reintroducing the bug it guards.** Several guards
+   here passed green while being unable to fail.
+9. **Tests are the gate for anything `tsc` cannot see.** `import.meta.glob` only resolves
+   under Vite, so data-layer tests run in Vitest. Write a test for anything in `src/lib/`,
+   anything pure in `data.ts`, every editor/text rule (replay keystrokes, as in
+   `playgroundAutoClose.test.ts`), and every invariant a reference solution relies on.
+   Component tests use `renderToStaticMarkup` or jsdom. There is no `@testing-library/react`.
+   - **9a.** Async tests must drain timers before reading output, and must fail a run that
+     printed nothing. Otherwise they pass having checked nothing.
+   - **9b.** Solutions must feature-detect APIs newer than ~2023 (e.g. the ES2025 `Set` methods).
+     `playgroundExecutable.test.ts` deletes those methods and re-runs every solution. Guide
+     prose is exempt.
+   - **9c.** Nothing on the first-paint path (`App.tsx`, `main.tsx`, `Sidebar.tsx`) may call
+     `loadAllContent`/`getAllQuestions`. The badge uses `totalQuestionCount` from content-meta.
+   - **9d. Contrast is symmetric.** A bare `text-slate-*` applies in both themes, and no single
+     shade passes AA on both. House pairs: `text-slate-500 dark:text-slate-400` and
+     `text-slate-600 dark:text-slate-400` (small labels). `text-slate-400 dark:text-slate-600`
+     is inverted. The playground surfaces are always dark and exempt.
+   - **9e.** Icon-only buttons need an `aria-label`. State-dependent labels must flip with the
+     state.
+   - **9f.** `isBuildExplanation` lives in `explanationKind.ts`. Importing it from
+     `playgroundExplanations.ts` pulls 10k lines into the playground chunk. Type imports are
+     fine.
+   - **9g.** Every React Machine Coding template is mounted in jsdom
+     (`reactTemplates.test.tsx`, which uses the real `buildReactScope`) and fails on any
+     `console.error`. A redirect must be *rendered* (a `<Redirect>`-style component with a
+     fire-once ref), never performed during render.
+10. **Playground data: metadata eager, code bodies lazy.** `CodePlayground` imports values from
+    `templateIndex.ts`, never `playgroundTemplates.ts`. `playgroundTemplates.ts` must keep
+    **zero imports**, because the index generator executes it. A saved draft outranks the
+    template only when it was edited: `ProgressEntry.baseHash` + `resolveOpenCode()`.
+11. **The playground preview must never fail silently.** Keep all three: `PreviewErrorBoundary`,
+    `createRoot({ onUncaughtError })`, and the window `error`/`unhandledrejection` listeners
+    while a preview is live (`usePreviewMount`).
+12. **Editor internals live in `src/lib/`.** `playgroundScope.ts` is *derived* from
+    `Object.entries(React)` plus `createPortal`/`flushSync`/`browser`/`useFormStatus` from
+    react-dom. Never hand-list it. There is no `ReactDOM` in scope, so guide blocks call the
+    bare names. Filter state lives in the `useTemplateFilters` reducer. Tag/mode changes clear
+    pattern and difficulty *inside the transition*, and `reset` does too. Picker display is
+    derived by `buildTemplateCatalog`.
+13. **Explain has two shapes.** `Explanation` (algorithm: complexity, pseudocode, visual steps)
+    and `BuildExplanation` (React: brief → build steps → graded points). A build step
+    **quotes its template by anchor** (`excerpt: { from, lines }`) and never restates code.
+    `buildExplanationAnchors.test.ts` enforces this.
+
+**Deliberate exceptions:** `src/data/**` is exempt from `max-lines`/`no-console`. `*.test.ts`
+may cast and run long. `CodePlayground.tsx` has one `no-implied-eval` disable (`new Function`
+is its purpose) and a scoped `no-console` disable around the console patch.
+**Known lint gap:** `varsIgnorePattern: '^[A-Z_]'` hides unused PascalCase imports.
+
+**When lifting JSX out of a component, check what it read from enclosing scope.** A bare
+`location`, `history`, `name`, `status`, `length`, `top`, `parent`, `origin` or `event`
+silently resolves to a `window` global and typechecks.
+
+## Content and data
+- **`data.ts` is the source of truth.** It holds `menuStructure` (categories → items), the
+  `cheatSheets` array, and the loaders. Current counts: 10 categories (Front End 25, JS & TS 4,
+  Back End 17, AI Engineering 6, AI-Augmented Development 1, DevOps 15, Git 2, DSA 1,
+  Behavioral 1, System Design 4) = 76 guides, plus the Introduction, plus 14 cheat sheets.
+  Recount guides by counting `{ name: '` inside each `items: [...]`.
+- **Routes are a compatibility contract** (deep links, bookmarks, checkpoints, SEO). Category
+  membership and URL are independent. AWS guides stay at `/aws/*` under DevOps, Docker/K8s at
+  `/backend/docker-kubernetes`, and the AI & LLM guide at `/backend/ai-llm-engineering`.
+  Don't move a shipped route.
+- **Sidebar groups:** `MenuItem.group` makes a heading. Every category with 4+ items is
+  grouped, and heading order follows first appearance in `items`. When a guide set changes,
+  update that category's `description` too, because homepage cards don't derive it.
+- **Adding a category** means editing the hard-coded category number in three claim templates
+  in `verify-counts.js` and adding a per-category claim. `scripts/lib/routes.js` picks up the
+  route automatically.
+- **Markdown is lazy-loaded, one chunk per guide.** Never set `eager: true` on
+  `contentLoaders`. For a guide you haven't loaded, use `readMinFor(file)` /
+  `estimatedHeightFor(file)` from content-meta, never `estimateReadingTime(content)`.
+  `loadAllContent()` is memoised and only for Search, Quiz, Review and Interview Simulator,
+  each of which has a loading state.
+- `CheatSheetsIndex.tsx`'s `colors` map needs every `color` used in `cheatSheets`.
+- Don't reinstate the README → Introduction copy in `prepare-content.js`.
+
+### Questions (`extractQuestions`)
+- Two patterns. The JS guide's output style is `## QN` + fence + `### ✅ Output` +
+  `### 💡 Explanation`. The standard pattern is `**QN: text**` followed by an answer that ends
+  at the next `**Q{N+1}:` or a standalone `---`, so **the explanation goes before the `---`**.
+- **N must be a plain integer.** `**Q20b:` silently vanishes from Quiz.
+- Ids are `${guide}-q${N}`, and most guides have two sequences (interview + Tricky).
+  `dedupeIds()` suffixes the 2nd+ occurrences. **Never renumber**: ids key SM-2 review
+  history. Append new questions at the *end* of a sequence, and rewrite existing ones in place
+  so the id is unchanged.
+- Tricky Output sections: 53 guides, 441 questions total. Recount with:
+  `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
+- After adding a `**QN:**` marker, run `npm run content:meta`, or the `totalQuestionCount`
+  parity test fails and names the guide.
+
+### Writing guide content (house rules)
+- **Every `js/jsx/ts/tsx` block gets a Try it button** (`isRunnable` + `canRunInPlayground` in
+  `PreBlock`), so a block must **parse and run standalone**. A block must not continue an
+  earlier one (repeat the code instead), must not call helpers it never defines (add a marked
+  stand-in), and must not use top-level `ws.send` before `open`.
+  - A block that would hang or crash the tab (an infinite render, a deliberate throw) or that is
+    a lone signature or fragment gets the tag **`text`**. Data shapes get `json`. Two-file
+    examples get `text`.
+  - `PreBlock` auto-appends `render(<LastComponent />)` **with no props**. Give prop-taking
+    components a `Demo` harness plus an explicit `render()`.
+  - The playground runs a **sloppy script**, not a module, on React's **production** build
+    **without StrictMode**. For claims about `this`, `arguments` or strictness, verify both as a
+    module and under `new Function`, or use `'use strict'`.
+  - A block that imports anything other than `react`/`react-dom` loses its button. That is the
+    honest fix for a library-dependent example.
+  - In BAD-vs-GOOD pairs, rename the **bad** one (`…Broken`) so the copyable name stays clean.
+- **An `**Output:**` claim must be executed, never written by hand.** Pin it in a test
+  (`interviewAnswerDemos.test.ts`, `reactApiScenarioDemos.test.tsx`, `typescriptGuideTypes.test.ts`,
+  etc.). Test markers must be unique in the whole guide.
+- **TypeScript guide:** Try it cannot show type errors. A compile error is a commented line
+  ending `// ✗ TSnnnn: message`, checked by the compiler in `typescriptGuideTypes.test.ts`.
+  Verify type claims with the compiler, not by eye.
+- **A nested fence must be indented to match its list item** (check #17).
+- **Tables need a first-column header**, never `| |` (check #14).
+- **Anchors** follow `slugify()` in `data.ts`, which collapses runs of dashes, so `A — B`
+  becomes `a-b`. `verify:counts` checks every in-page anchor.
+- **Style:** define jargon inline at first use, never in a glossary table. Reference sections
+  (§1–§N) stay scannable, and "why X not Y"/"which would you pick" goes in the Q&A section. When
+  a reader wants more depth on a question, add it to the numbered section and link from the
+  answer. An answer must engage every proper noun the question names. Open a tricky question on
+  an unfamiliar API with two sentences on what the API is, then a line-by-line output table.
+  Explanations carry the core idea plus the one non-obvious mechanism, not every step. Show the
+  fixed code, not just prose about the fix.
+- **Interview-question audits:** first extract every `**Qn:**` and template name, then regex each
+  candidate against question *text* (not prose), read the borderline hits, and split into
+  covered / gap before writing. Search for the distinctive mechanism, not the topic word.
+- **Volatile facts** (versions, dates, specs, CVEs) are web-verified against primary sources,
+  not recalled. When adding a "what's new" section, sweep the guide for claims it supersedes
+  (`as of 20\d\d|latest version`).
+- Don't bulk-add prose to code-first reference sections. Judge each section separately.
+
+## Playground
+- **Routes:** `/playground` (JS) and `/playground/react` share one `CodePlayground`, split by
+  `src/lib/playgroundFlavor.ts`. The routes need `key="js"`/`key="react"`. Resume keys are per
+  flavour, while drafts and solved state share `playground-progress`.
+- **Runner** (`playgroundRunner.ts`): plain JS runs in a Worker with a 3 s timeout, and
+  JSX/React runs on the main thread. TypeScript is **always** on in the Babel transpile, so
+  don't reintroduce TS detection there. `stripModuleSyntax` removes import/export. Top-level
+  `await` retries as an `AsyncFunction`. `detectJSX` strips comments first and ignores
+  self-defined hooks, and is skipped for `lang: 'ts'`. **Keep `playgroundRunner.ts` and
+  `scripts/verify-code-blocks.js` compiling identically** (e.g. legacy decorators).
+- **Grading:** "solved" means all visible tests + all hidden tests + (for TS challenges) the type
+  check pass. The logic lives in one place, `src/lib/challengeJudge.ts`. Hidden-test outputs are
+  generated by the reference solution (`scripts/dev/verify-hidden-tests.cjs` →
+  `build-hidden-tests.cjs`), and every hidden test must fail on the stub. React checks target
+  role, name or text, never class names (`scripts/dev/build-react-checks.cjs`). They run in four
+  jsdom shards.
+- **Template authoring hazards:**
+  - `code:` values are template literals. **Write no backticks in template comments.**
+    `verify:arch` catches an unescaped backtick. Inside the literal, escape `` \` `` and `\${`
+    with ONE backslash, and write a `\n` inside a string as `\\n`.
+  - Plain-JS templates must avoid `render(`, `<[A-Z]` and `rerender`, which route them to the
+    React path.
+  - Every snippet runs standalone, so never call a method defined in another template.
+  - Never execute code that clobbers a built-in (it poisons the Vitest worker). If a test run
+    hangs, suspect prototype pollution, and check `ps` for runaway vitest processes.
+  - A solution must obey its own challenge's bans in **every** approach labelled as satisfying
+    them.
+  - Don't name things `cache`, which collides with React's `cache` in scope.
+  - Challenge templates carry no `CHALLENGE:` header or `// TASK` block, because the Problem
+    panel shows the statement.
+  - **Typecheck is not enough.** Extract and run after editing templates or solutions.
+- **Adding a JS Coding Challenge:** template (`patterns` + `difficulty`), solution (2+
+  approaches), `playgroundSolutionKeys.ts`, explanation + registry entry (2+ approaches, a visual
+  key on every step, because `DEPTH_DEBT` is a ratchet), `playgroundExplanationKeys.ts`, a
+  `challengeProblems.ts` entry (every example has a `run` snippet), 4+ hidden tests, `EXPECTED`
+  in `playgroundContent.test.ts`, **`totalJsChallenges` in `useTemplateCatalog.test.ts`**,
+  README + Introduction counts, and the changelog. A TypeScript challenge instead needs its stub
+  to have ≥1 diagnostic and its solution 0.
+- **Adding a React Machine Coding template:** template, a `playgroundBuildExplanations.ts`
+  walkthrough, `playgroundExplanationKeys.ts`, ≥3 checks in `reactChecks.ts`, the challenge
+  track (`challengeTracks.ts`), `EXPECTED` counts, and prose counts. Rebuild existing templates
+  in place (same name) so progress keys survive.
+- Then run `npm run playground:index && npm run content:meta && npm run verify`.
+- Editor behaviours (auto-close, bracket rules, Reset gating) live in
+  `playgroundAutoClose.ts` and are tested by keystroke replay. Read that test before changing
+  them.
 
 ## Query Playground (`/query-playground`)
-Write-and-check SQL / MongoDB interview questions. `src/pages/QueryPlayground.tsx` (route) + `src/features/queryPlayground/` + `src/data/queries/`.
+Real PostgreSQL (PGlite, ~5 MB, dynamically imported) and mingo for MongoDB. The engine must
+never reach the eager payload. `checkAnswer.ts` ignores column order and treats numeric strings
+as numbers. `solutions.test.ts` runs every reference solution and asserts that the classic
+wrong answer is rejected. **When adding a question, add the dataset row that makes the wrong
+answer wrong.** Every SQL question has a `mysqlNote`.
 
-- **Real engines, both dynamically imported.** `@electric-sql/pglite` is **actual PostgreSQL in WASM** — ~5 MB gzipped (9.6 MB wasm + 6 MB data + 0.4 MB initdb). `mingo` (~100 KB) runs real aggregation pipelines. **The size was a deliberate call:** SQLite via `sql.js` is 17× smaller but silently fails on `DISTINCT ON`, `FILTER`, `ILIKE` and array types, and a tool that teaches those then cannot run them is worse than a large one. Measured before choosing.
-- **The engine must never reach the eager payload.** It is behind a lazy route *and* a dynamic `import()` inside `engines/postgres.ts`, so it downloads only when someone runs a Postgres query. Eager payload grew 524.5 → 528.0 KB for the whole feature.
-- **`entryFileNames: 'assets/app-[hash].js'` is load-bearing.** PGlite's internal modules are named `index.js`, so they emit as `index-<hash>.js` and the old `assets/index-*.js` precache glob swept **627 KB of WASM loader into the service worker precache** (1,032 → 1,663 KB). Renaming the app entry to `app-*` and narrowing the glob fixed it. **This is the third instance of the same bug** — `react-*` matching `react-guide-*` was the first. `verify:arch` now pins it and is probe-tested.
-- **Answer checking is in `checkAnswer.ts`, and its leniency is deliberate.** Column order never matters; row order only when `orderMatters` is set; and `normaliseCell` treats PGlite's numeric-as-string (`"150000"`) as equal to `150000`, because failing a correct query over that would make the feature untrustworthy. 19 tests cover it.
-- **`solutions.test.ts` executes every reference solution.** The expected result is *derived* by running the solution, so a solution that errors would make its question unanswerable — a user could write a perfect query and be told they were wrong. That suite also asserts the checker **discriminates**: it rejects the no-`DISTINCT` second-highest, the `LEFT JOIN`-with-`WHERE` mistake and the missing-`$elemMatch` query, and accepts `NOT EXISTS` as equivalent to `LEFT JOIN … IS NULL`.
-- **Two dataset bugs were found by those tests, not by review.** The salary tie was at 150000 (3rd place), so `ORDER BY salary DESC OFFSET 1` accidentally gave the right answer and the question tested nothing — the tie had to move to the *top* salary. And no order had a low-qty `CB` beside a high-qty different item, so the naive `$elemMatch`-less query also passed. **When adding a question, add the row that makes the wrong answer wrong**, and assert it.
-- **34 questions: 20 PostgreSQL, 14 MongoDB.** Coverage was audited against the canonical interview set; the additions closed real gaps (LAG/LEAD, RANK-vs-DENSE_RANK-vs-ROW_NUMBER, pivot, date grouping, STRING_AGG, COALESCE, UNION, earning-more-than-manager; and `$sortByCount`, `$addToSet`, `$dateToString`, `$cond`, `$bucket`, `$graphLookup`).
-- **Every SQL question carries a `mysqlNote`**, and the UI has a "Why PostgreSQL and not MySQL?" panel (`DialectNote.tsx`). The honest answer: PGlite is the only production-grade SQL engine that compiles to WASM, and with no backend there is nothing else to run against. Since MySQL 8.0 added window functions and CTEs the dialects agree on most interview SQL; the notes flag the real gaps (`DISTINCT ON`, `FILTER`, `STRING_AGG` vs `GROUP_CONCAT` and its silent 1024-byte truncation, `to_char` vs `DATE_FORMAT`, `ON CONFLICT` vs `ON DUPLICATE KEY UPDATE`, `RETURNING`).
-- **Collection resolution uses mingo's `collectionResolver` option**, not a hand-rolled `$lookup.from` substitution — the ad-hoc version silently missed `$graphLookup` (and would have missed `$out`/`$merge`). Caught by `solutions.test.ts`.
-- **A third dataset flaw was caught by the tests:** "employees earning more than their manager" returned zero rows because nobody did. Mary Jackson's salary was raised above her manager's, with the reason recorded in the dataset. **The rule holds: when adding a question, add the row that makes the wrong answer wrong, and let `solutions.test.ts` prove it.**
-- Progress and drafts persist via `src/lib/storage.ts` under `query-playground-solved`, `query-playground-drafts`, `query-playground-engine`.
+## Styling
+Tailwind with custom prose styles in `index.css`. No `@tailwindcss/typography`. Code blocks are
+always dark (`#22272e`), and the Code Playground is always dark like an IDE. When raising a base
+colour, check that its `:hover` still differs. There is no `Github` icon in this lucide version,
+so use the inline `GithubIcon`.
 
-## Playground transpilation — TypeScript is ALWAYS on
-`transpileSource` applies the TypeScript Babel preset **unconditionally**; `isTSX` tracks `detectJSX` only because `<div>x</div>` parses as a type assertion in a non-TSX TS file. **Do not reintroduce TS detection for the transpile path.** The old `detectTS` matched a fixed list of builtin type names after a colon, so `(e: React.FormEvent)` — a pattern in nearly every real React component — was not recognised, compiled as plain JSX, and failed with `Unexpected token, expected ","`. TypeScript is a superset of JavaScript, so there is nothing to detect and nothing to lose; verified that all 180 templates and every plain-JS construct compile identically with it always on. `detectTS` still exists and was broadened, but only to pick Prettier's parser in `playgroundFormat.ts`.
+## Performance and deployment
+- Base path `/prephub/`. `scripts/generate-route-shells.js` writes `dist/<route>/index.html`
+  for every route so deep links return 200. `/admin` is excluded. `public/404.html` stays.
+- The service worker precaches the shell only (`app-*`, `vendor-*`). Guide chunks are
+  runtime-cached. It is registered by `src/pwa.ts` (`injectRegister: null`), which polls for
+  updates. `onNeedRefresh` is inert in `autoUpdate` mode.
+- The theme is resolved by a blocking inline script in `index.html`. Keep it inline and
+  synchronous.
+- The sidebar shows `v{APP_VERSION}` from `package.json`. Don't use Vite `define` for it,
+  because it breaks in dev.
+- Don't add `content-visibility: auto` to guides, because it breaks anchor scroll targets.
+- Lazy-load heavy libraries (mermaid, babel, prettier, the TS worker) with `import()`, and weigh
+  bundle size before adding any dependency. A heavy module leaking into a small chunk has
+  happened four times, so watch Rollup's warnings.
+- CI runs Node 24, and `engines.node` is `>=22`. When a version pin is doing safety work by
+  accident, make the safety explicit before changing the pin.
 
-## The changelog mis-attribution is now mechanically prevented
-Notes for work done after a release kept getting appended under the heading of
-the version that **already shipped** — so the notes claim to be part of a build
-that never contained them. It has happened **five times**, and it is invisible in
-review because the diff looks like ordinary changelog additions.
+## Releases and the changelog
+Semantic versioning, from `package.json`. **Bump `package.json` and add the new `## vX.Y.Z`
+heading to `src/content/changelog.md` before writing any notes.** Check #15 fails if a released
+(tagged) section changes. The changelog feeds the in-app "What's New" modal, so it holds
+user-facing notes only (content, features, fixes). Put sizes, refactors and internals here or in
+`docs/engineering-notes.md`.
 
-**Check #15 in `verify-architecture.js`**: any changelog section whose version
-has a git tag must be byte-identical to `git show v<version>:src/content/changelog.md`.
-New notes therefore require a new heading, which requires bumping
-`package.json` — the two can no longer drift apart.
-
-- **It is a ratchet.** `ALREADY_DIVERGED` holds `1.5.0`, `1.2.0`, `1.0.9`,
-  `1.0.7` — sections that were repaired after the fact, before the check
-  existed. The list may shrink, never grow.
-- **My first version of this check was broken and the probe proved it.** It only
-  compared the *newest* section, so an edit to any older released section passed
-  silently — and the first probe run exited 0 with the bug present. A second
-  probe mistake is worth recording too: removing the new heading orphaned the
-  entries *above* the old one rather than inside it, which is not the bug being
-  tested. **Probe by reproducing the exact mistake, not an approximation of it.**
-
-**Release ordering that avoids all of this:** bump `package.json` and add the new
-`## vX.Y.Z` heading *first*, before writing any notes. Then there is no released
-section to write into.
-
-## Deep links must not 404 — `dist/` carries a shell at every route
-GitHub Pages has no server-side rewrite, so `/prephub/frontend/react` hit a real
-404 and `public/404.html` bounced it to `/prephub/?/frontend/react`. Lighthouse
-measured that at **978 ms on mobile / 224 ms on desktop**, and the 404 also
-logged the console error that was the *only* Best-Practices failure. Every link
-from search, a bookmark or a share paid it; the home page never did, which is
-why it stayed invisible for so long.
-
-`scripts/generate-route-shells.js` writes `dist/<route>/index.html` for all 92
-routes after `vite build`. The server now finds a file, and the router takes
-over client-side exactly as before. Verified: every route returns **200 with 0
-redirects**.
-
-- **This is NOT pre-rendering.** The HTML is the same empty shell, so it removes
-  the redirect and nothing else — no FCP or SEO-content win. Real pre-rendering
-  needs an SSR build plus hydration, which is a much larger change.
-- **`public/404.html` stays**, and is still correct for paths that genuinely do
-  not exist.
-- **`scripts/lib/routes.js` is the single route list**, read by both the shell
-  generator and the sitemap. Content routes come from `src/data.ts`, tool routes
-  from the JSX in `App.tsx` — reading both is deliberate. Hard-coding one list is
-  how `/query-playground` and `/checkpoints` came to be missing from the sitemap.
-  **`/admin` is excluded**: giving it a file on disk would advertise it.
-
-## CLS: reserve the guide's height while it loads
-`.prose-container` went from skeleton-sized (~600 px) to the real height the
-instant markdown arrived — **259,253 px on the React guide** — which Lighthouse
-scored as a single **0.72** layout shift against a 0.1 "good" threshold.
-`estimatedHeightFor(file)` in `data.ts` reserves the space from the build-time
-byte count (~0.8 px per byte, measured), clamped to 8,000 px because **CLS only
-counts movement inside the viewport** — past a few screens more precision buys
-nothing and an over-long scrollbar looks broken. The reservation is dropped the
-moment content arrives so it can never constrain the real layout.
-
-## TBT on a large guide is the markdown parse, and it is only PARTLY fixed
-Mobile TBT was **1,360 ms, of which 1,089 ms was a single task**. Measured the
-pipeline directly rather than guessing (render react-guide.md, 325 K chars):
-
-| | cost |
-|---|---|
-| markdown parse alone | 188 ms |
-| + `remarkGfm` | 260 ms |
-| + `rehypeHighlight` | 370 ms |
-
-At Lighthouse's 4× CPU slowdown that is ~1,480 ms — it *is* the task. The lesson
-is what the numbers rule out: **syntax highlighting is only 30% of it**, so
-deferring it would not fix this. The floor is parsing and mounting a 6,000-line
-document as one synchronous React tree, and that needs progressive rendering —
-an architectural change, scoped separately.
-
-What WAS done: `ContentPage` no longer uses framer-motion. Two `motion.div`
-mount animations became CSS keyframes, which run on the compositor and cost the
-main thread nothing — and unlike the framer-motion version they honour
-`prefers-reduced-motion`. Note the `vendor-motion` chunk still loads, because
-the app shell (`Sidebar`, `SearchModal`, `StreakCelebration`) uses it on every
-route; the win is the animation work removed from the heaviest render, not the
-download.
-
-**`content-visibility: auto` is the obvious tool here and was deliberately NOT
-used.** It would cut the 659 ms of Style & Layout, but off-screen blocks take
-their `contain-intrinsic-size` estimate instead of a real height — so a first
-load with a hash (`#props-vs-state`, the common path from search) scrolls to a
-position computed from estimates and lands wrong. This app has **1,254 in-page
-anchors**, plus checkpoints and bookmarks that deep-link into guides; trading
-that for a layout win is the wrong trade. Revisit only with a way to keep anchor
-targets exact.
-
-## Markdown tables must label their first column
-`| | Webpack | Vite |` renders an empty `<th>`, so every cell in that column has
-no header — axe's `td-has-header` on tables over 3×3, and 3 failures on the
-deployed React guide. **43 across the corpus**, all comparison tables. Labelled
-"Aspect" where the rows are criteria, and named specifically where the rows are
-the options themselves ("Approach", "Method type", "Callback form", "OWASP ID").
-Enforced by check #14 in `verify-architecture.js`, probe-tested.
-
-## Known lint gap: `varsIgnorePattern: '^[A-Z_]'` hides unused component imports
-The rule was presumably meant to exempt SCREAMING_CASE constants, but `^[A-Z_]`
-matches **every PascalCase identifier** — so an unused React component or icon
-import is never reported. `AnimatePresence` sat unused in `ContentPage` behind
-exactly this. Removing the pattern surfaces **97 unused identifiers across 65
-names**, nearly all dead `lucide-react` icon imports left behind when components
-were extracted from `App.tsx`. Tree-shaking means the bundle cost is ~nil, so
-this is hygiene rather than performance — but the rule gap is real, and fixing
-it means cleaning all 97 in one sweep to keep the gate green.
-
-## Node version — CI pins 24, and the floor is declared
-- **CI runs Node 24** (`.github/workflows/deploy.yml`). Node 20 reached end of
-  life in **April 2026**, so it was taking no further security patches; 22 has
-  been in maintenance since October 2025. 24 is the current Active LTS and has
-  the longest runway.
-- `package.json` declares `engines.node: ">=22"` — the real floor Vite 6 allows
-  (`^18 || ^20 || >=22`), minus the EOL branches. `.nvmrc` pins 24 so a local
-  checkout matches CI.
-- **What the bump gave up, and why that is now safe.** CI on Node 20 had been
-  *accidentally* protecting against solutions that use ES2025 `Set` methods,
-  because those landed in Node 22 — that is how the `Array Intersection & Union`
-  failure was caught on a release commit. Bumping the image would have silently
-  removed that. It does not, because the protection was made explicit first:
-  `playgroundExecutable.test.ts` deletes the seven new `Set` methods, re-runs
-  every solution and restores them in a `finally`, so it holds on **any** Node.
-  Re-probed on Node 24 after the bump — reintroducing the bug still fails.
-- **The general lesson:** when a version pin is doing safety work by accident,
-  make the safety explicit *before* changing the pin, not after.
-
-## Versioning
-- Uses semantic versioning. Current version is in `package.json`.
-- Version `1.0.0` marks the first stable release with the repo rename to `prephub`.
-
-## What's New (Latest Changes)
-- **v1.6.0 — Frontend Architecture guide: de-jargoning pass (987 → 1,045 lines).** The guide leaned on ~42 unexplained abbreviations and ~41 assumed jargon terms. **First attempt added a glossary section with two lookup tables; the user rejected it** — "now I have to learn the tables first" — and asked for `BFF (Backend for Frontend)`-style expansion at the point of use instead. That is the pattern to follow for any future guide: **define inline at first use, never in a lookup table the reader must read first.** The tables were removed (including the TOC entry) and replaced with ~55 inline definitions. Two guide-specific notes worth keeping: `@acme` is now stated to be a placeholder for the reader's own company (it reads as a real package otherwise), and **`RTL` is explicitly flagged as right-to-left, not React Testing Library** — this is the only guide where both readings are plausible. The glossary section was deliberately *unnumbered* while it existed so no section had to be renumbered; removing it left all anchors intact (1,247, back to the pre-glossary count).
-  - **Verification lesson: every fenced block in a guide gets a "Try it" playground button, so illustrative pseudo-code is a real defect.** The closure rewrite's first draft used bare `increment() { … }` method shorthand at top level — a `SyntaxError` when run. All 5 blocks in that answer were then extracted and executed, confirming each prints what its comment claims. A block that *continues* an earlier one (tricky Q1's second snippet uses the question's own `createCounter`) must be tested with that earlier block prepended, or you get a false failure.
-- **v1.6.0 — Review page blank-screen fix, duplicate question ids, app-level error boundary.** Three related defects, all downstream of the v1.4.0 change that made content lazy-loaded.
-  - **`ReviewPage` rendered a black, stuck page.** `getAllQuestions()` became async, but the call site was `getDueQuestions(getAllQuestions() as any) as unknown as Question[]`. `getDueQuestions` calls `.filter()`; a Promise has none, so it threw during render and React unmounted the tree. **The two casts are why `npm run typecheck` reported 0 errors.** Fixed with an async `useEffect` + `allQuestions: Question[] | null` state, a `useMemo` guarded on it, and a spinner branch before the "All Caught Up!" branch. Removing the casts surfaced 5 genuine errors; the root one was **two different `Question` interfaces** (`useSpacedRepetition.ts` declared its own minimal `{ id; [key]: unknown }`), fixed by making the hook's consumers **generic** rather than adding another cast.
-  - **344 of 1,298 questions shared an id with another question** — found by executing the data layer, not by typechecking. See the `dedupeIds()` note above; top colliders were React Guide (26), React Native (20), TypeScript (19), JavaScript (16), Node (14), which maps exactly onto the Tricky-section counts.
-  - **`RouteErrorBoundary` added** — the app *taught* error boundaries in three guides but didn't use one, so any render throw blanked the screen. Also converts post-deploy `ChunkLoadError` into an actionable "Reload" prompt.
-  - **Changelog headings repaired.** v1.5.0's notes had been appended under the `## v1.4.0` heading (the third time this has happened). Split by diffing the section against `git show v1.4.0:` and `git show v1.5.0:` — worth doing before any tag. Also: **tag `v1.5.0` contains `package.json` 1.4.0**, so production's sidebar under-reports its version.
-  - Eager payload 898 KB incl. CSS (main chunk 297 → 301 KB for the boundary); precache unchanged at 1,079 KB.
-- **v1.2.0 — Playground release: 18 new array/string JS challenges + React Machine Coding brought to LLD depth (20 → 26).** Two audits: existing array/string coverage vs commonly-asked questions, and React Machine Coding vs a user-supplied list of 8 LLD components. **Totals: 180 templates, 129 challenges (94 JS + 35 React), 88 solutions.**
-  - **Interview-round question audit (3 rounds, 15 questions) — 7 gaps closed, 8 already covered.** Added: Frontend Architecture **Q11–Q13** (large data tables + real-time updates; caching/retries/error boundaries as one system; global state across multiple teams), React guide **Q43** (heap-snapshot memory-leak workflow — snapshot/exercise/GC/snapshot, the Retainers panel, Detached HTMLElement, and the React-specific causes ranked), Modern CSS **Q10** (cross-browser/device consistency — leads by rejecting pixel-identical as the goal; `browserslist` as the spec; the device axis as a separate problem), Web Performance **Q9** (explaining FCP/TTI/CLS to non-technical stakeholders — translation table, the three-promises framing, why not to lead with a Lighthouse score), Behavioral **§9.9** ("your release broke production" — rollback-before-root-cause is the graded moment; frontend-specific failure modes listed). **Already covered, deliberately not duplicated:** Fiber internals (React §14 + Q12), reducing initial load (React Q25 + Web Performance guide), large-scale codebase (Frontend Architecture), dynamic theming (Modern CSS Q8 + the Theme Switcher playground template), dashboard filter lag (React tricky Q20 + Q26), a11y/WCAG (Accessibility guide), tight-deadline delivery and designer disagreement (Behavioral §5 — the STAR bank already has a designer-animation-deadline story). Question totals now: Frontend Architecture 18, React 69, Modern CSS 16, Web Performance 13, Behavioral 18.
-  - **React Machine Coding 21 → 26.** Audited against a user-supplied list of 8 commonly-asked React LLD components. **2 were entirely absent** (`validate`/`required` and `prefers-color-scheme` were 0 hits file-wide), 4 existed only shallowly (`Search Filter` had no debounce at all; `Modal Component` had Escape but no `createPortal`, no focus management, no `aria-modal`).
-  - **New:** `Counter (optimized re-renders)` (functional updates + useCallback + memo + a live render counter + the setInterval stale-closure demo), `Search with Debounce + Cancel` (`useDebouncedValue` hook + AbortController; the out-of-order-response race is the graded part), `Modal (Portal + Focus Trap)` (createPortal, Tab/Shift+Tab trap, focus return on close, Escape, aria-modal, scroll lock, stopPropagation; rendered inside a transformed/overflow-hidden ancestor to show what the portal escapes; plus the `<dialog>` alternative), `Form with Validation` (blur-then-live timing, derived errors via useMemo, aria-invalid/aria-describedby/role=alert, focus first invalid on submit), `Theme Switcher (dark/light)` (three states incl. `system`, CSS variables on `:root[data-theme]`, live `prefers-color-scheme` listener, try/catch around localStorage, and the FOUC-fixing blocking inline script documented in-template).
-  - **Upgraded:** `Auto-suggest` → **`Auto-Complete (ARIA combobox)`** — full rewrite adding debounce, AbortController and the complete combobox ARIA (`aria-activedescendant` keeping DOM focus in the input while virtual focus moves, `role=listbox/option`, `aria-expanded`, Home/End, two-stage Escape, `onMouseDown` not `onClick`). `Todo List (optimized re-renders)` → **`Todo List (localStorage + memo)`** — lazy initialiser, shape validation on load, disabled-storage warning, multi-tab notes. `Infinite Scroll` — error state + retry + aria-live, and the observer is unmounted while erroring to prevent a retry storm.
-  - **Playground totals: 180 templates, 129 challenges (94 JS + 35 React), 88 solutions.**
-  - **VERIFICATION — the sweep script matters, and so does how it unescapes.** A whole-file sweep now extracts all 171 templates and validates each (Babel for JSX, `new Function` for plain JS). Two escaping lessons. **(1)** Inside these `code:` template literals, a backtick must be escaped with ONE backslash and an interpolation with ONE backslash before the dollar sign. Writing two backslashes before the backtick instead of one silently truncates the template — and **`tsc --noEmit` does NOT catch it**, because the truncated remainder still parses. **(2)** A naive extractor that unescapes only the backtick and dollar-brace sequences produces a **false positive** on the `JSON.parse` polyfill, whose regex is written with a doubled backslash (`[0-9eE+` backslash-backslash `-.]`) and therefore looks like an out-of-order character range until the doubling is resolved. The correct unescape is to let JavaScript do it: build `new Function('return ' + backtick + literal + backtick)()` and call it, which applies exactly the same rules the bundler will. Current state: **170/171 templates valid, 176/176 solution assertions pass.**
-  - **JS Coding Challenges 76 → 94, +1 Todo machine-coding template, +1 Modern CSS question.** **JS Coding Challenges 76 → 94; React Machine Coding 20 → 21; total templates 148 → 166; solutions 70 → 88.** Difficulty now **38 Easy / 51 Medium / 5 Hard**. Driven by a gap audit against common interview array/string questions plus two user-supplied lists (a "top 10 Senior React/Tech Lead questions" list and a frontend-questions screenshot).
-  - **New JS challenges (18), all with a multi-approach solution + a Time/Space/Verdict table:** *arrays* — Merge Intervals, Minimum Size Subarray Sum, Sliding Window Maximum (monotonic deque), Longest Consecutive Sequence, Next Permutation, Rotate Matrix 90°, Shuffle Array (Fisher-Yates), Array Intersection & Union, Chunk Array; *strings* — String Compression (RLE), Integer to Roman, Reverse Integer, Isomorphic Strings, Longest Repeating Char Replacement, Minimum Window Substring, Case Converter (camel/snake/kebab); *from the user's lists* — First Repeating Character, Sum Without Loops.
-  - **Pattern distribution materially improved.** **Sliding Window went 1 → 5** (it was the biggest gap — a top-5 interview pattern with a single challenge). Also In-Place 6 → 9, Hash Map / Set 17 → 20, Sorting 7 → 9. Current: Hash Map/Set 20, Two Pointer 19, Recursion/D&C 12, Math/Bit 11, Closure/State 11, Greedy 10, Sorting 9, In-Place 9, DP 6, Sliding Window 5, Stack 4, Linked List 4, Backtracking 4, Binary Search 3.
-  - **Each solution teaches the trap, not just the algorithm.** Fisher-Yates explains why `sort(() => Math.random() - 0.5)` is non-uniform *and* includes Sattolo's off-by-one as a runnable demo; Sum Without Loops proves V8 has no tail-call optimisation with a `RangeError` assertion; Longest Repeating Char Replacement explains why the stale `maxCount` is safe; First Repeating Character disambiguates the two readings of "first repeating" (`"success"` → `'c'` vs `'s'`) because picking the wrong one is the real failure mode; Chunk Array's guard prevents a `size: 0` infinite loop.
-  - **`Todo List (optimized re-renders)`** added to React Machine Coding — a complete reference implementation demonstrating the four techniques (isolate input state, `React.memo` rows, stable `useCallback` identity, functional `setState` so deps stay empty) with a live per-row render counter so the effect is visible in the Profiler. Includes a `<details>` block on scaling (virtualization, React Compiler, server state, why derived state isn't stored).
-  - **Modern CSS guide**: new interview **Q4** ("lay out five divs in a row with no flex/grid/margin/padding") covering `inline-block` and the whitespace-gap bug, plus `table-cell` and `float` alternatives. Existing Q4–Q8 renumbered to Q5–Q9; the Tricky section's Q1–Q6 were deliberately left untouched (renumbering must be scoped to the interview section — the file has two independent Q sequences).
-  - **VERIFICATION APPROACH — worth reusing.** `tsc --noEmit` passed while a template was silently broken: a nested template literal written as `` \\\` `` instead of `` \` `` terminated the outer literal early, and TS still parsed the result. The escaping inside these `code:` template literals is `` \` `` for a backtick and `\${` for an interpolation — **not** double-escaped. What caught it was extracting every template and running it: all 18 solutions were executed in Node (**176/176 assertions pass**), all 18 stubs were run to confirm they parse and fail appropriately, and the Todo List JSX was transpiled through `@babel/standalone` and smoke-executed against a stub React. **Always extract-and-run after editing `playgroundTemplates.ts` or `playgroundSolutions.ts`; a typecheck is not sufficient.**
-- **v1.1.0 — 11 new guides + a full 2026 freshness pass. The largest content release so far.** **Guide count 42 → 53** (Front End 14 → 20, JS & TS 4, Back End 10 → 14, System Design 3 → 4). **Tricky-question total 196 → 261 across 30 guides.** Content grew to ~85,300 lines across 53 guides. Built in three batches inside one release (freshness pass → 5 structural-gap guides → 5 more from an approved audit), which is why the changelog groups it as new-guides-then-expansions rather than chronologically. All new content was web-verified against primary sources in Sept 2026 (nextjs.org/blog/next-16, react.dev, w3.org/WAI, modelcontextprotocol.io, postgresql.org, kubernetes.io, web.dev, MDN). **GraphQL was audited as a real gap and deliberately NOT built** — it is the top open item (69 scattered mentions, deepest is a comparison table, no dedicated guide). Counts were recounted rather than carried forward, because the pre-existing README/CLAUDE numbers had drifted (they claimed "143 tricky questions across 12 guides" when 8 more guides already had tricky sections).
-  - **New guide: `src/content/back-end/ai-llm-engineering-guide.md`** (~1240 lines, 17 sections). Registered in `data.ts` after Microservices at `/backend/ai-llm-engineering`; Back End category `description` updated. Written for the *application* engineer, not the ML engineer — no maths, no training. Sections: tokens/context-window/sampling/model tiers; cost & latency budgets (routing, prompt caching prefix layout, TTFT vs total); prompting as engineering; structured output; **streaming to the UI** (full server `ReadableStream` route + client buffered-reader code, cancellation propagation, chunk-boundary handling, mid-stream in-band errors, buffering proxies); tool calling (the loop, authorize-inside-the-tool); agents (pipeline-vs-agent table, four budgets); RAG (chunking, hybrid search, reranking, grounding + escape hatch, the RAG triad, RAG vs fine-tuning vs long context); evaluation (golden sets, grading layers, LLM-as-judge biases, offline gate vs online metrics); security (prompt injection, the lethal trifecta, markdown-image exfiltration); production concerns (failure matrix, observability, 3 caching layers); architecture patterns (BFF shape, sync vs queued, reference "chat with our docs" design). **14 interview Q&A + 8 tricky Qs + 40-rule cheat sheet.** All facts web-verified Sept 2026.
-  - **New: `src/content/front-end/frontend-architecture-guide.md`** (881 lines, 13 sections) at `/frontend/architecture`. Covers the Platform UI interview round: 4-layer product/feature/shared/foundation layering with mechanically-enforced downward dependencies; monorepo-vs-multi-repo 5-question decision framework + mandatory tooling; micro-frontends (6 integration approaches, Module Federation `singleton`/`strictVersion`, when *not* to); design-system versioning + the add→deprecate→**codemod**→migrate-biggest-consumer→track→remove rollout; the 5 caching layers each with an invalidation story; real-time UI at 1000s of events/sec (buffer in a ref → flush on rAF → coalesce by key → virtualise → Worker → **server-side aggregation removes the problem**); debugging the 1% (segment before theorising). **10 interview Q&A** — these ARE the 10 Platform UI round-3 questions the user supplied (multi-product architecture, monorepo vs multi-repo, caching strategy, SSO/OAuth/JWT-rotation/RBAC, debugging 1%, frontend security architecture, Next.js App Router auth, real-time at scale, scalable Accordion API design, design-system breaking-change rollout) — **+ 5 tricky Qs** (the `createCounter` closure output question from the same set, Module Federation duplicate-React, ChunkLoadError after deploy, monorepo affected-graph rebuilding everything, real-time jank despite buffering) **+ 49-rule cheat sheet**.
-  - **New: `src/content/front-end/nextjs-rsc-guide.md`** (1122 lines, 17 sections) at `/frontend/nextjs-rsc`. Leads with **RSC ≠ SSR**. Client boundary as an *entry point to the client graph*; serialisation rules + the payload-leak consequence; App Router file conventions (layout vs template, route groups, parallel/intercepting, async `params`); 7 rendering strategies compared; the caching history (13–14 cached by default → 15 stopped → 16 opt-in) + Cache Components `"use cache"`/`cacheLife`/`cacheTag` + the 3 invalidation APIs (`revalidateTag` SWR / `updateTag` read-your-writes / `refresh` uncached); Server Actions as **public HTTP endpoints**; streaming; **auth defence-in-depth grounded in CVE-2025-29927 / CVE-2026-45109 / CVE-2026-64642**; `proxy.ts`; full Next 16 change + breaking-change list; when NOT to use it. **8 interview Q&A + 4 tricky Qs + 52-rule cheat sheet.**
-  - **New: `src/content/front-end/modern-css-guide.md`** (1290 lines, 20 sections) at `/frontend/modern-css`. Previously **zero** CSS guide existed (only a Flexbox/Grid cheat sheet). Cascade/specificity-as-tuple/`:is()` vs `:where()`; `@layer` (incl. unlayered-beats-layered and `!important` reverse order); nesting + `@scope` donut scope + "what replaced BEM"; Flexbox vs Grid + `flex:1` vs `flex:auto` + the `min-width:auto` bug in 4 costumes + subgrid; container queries; `:has()` + `:nth-child(n of S)`; `@property` (why untyped custom properties can't animate); OKLCH + `color-mix()`; `clamp()` + the WCAG pure-`vw` rule + `dvh`/`svh`/`lvh` + logical properties; stacking contexts & containing blocks + the ancestor-chain diagnostic; anchor positioning + `popover` + `<dialog>`; view transitions; motion + `prefers-reduced-motion`; styling architecture (why runtime CSS-in-JS conflicts with RSC); performance. **8 interview Q&A + 6 tricky Qs + 64-rule cheat sheet.**
-  - **New: `src/content/front-end/accessibility-guide.md`** (1170 lines, 17 sections) at `/frontend/accessibility`. Legal landscape (EAA enforceable 28 Jun 2025, ADA Title II, EN 301 549, why overlays lose in court); POUR + the SC numbers cited in audits; **all 9 WCAG 2.2 criteria with exact SC numbers and levels** (verified against w3.org) + the 4.1.1 Parsing removal; semantic HTML + the 5 ARIA rules + name-priority-order; keyboard/focus (roving tabindex, `:focus-visible`, focus-destination table); the accessibility tree + what actually removes from it; forms; contrast; live regions (the empty-region-must-exist-first rule); 7 component patterns; React a11y; testing (**automated catches ~30–40%**). **8 interview Q&A + 5 tricky Qs + 65-rule cheat sheet.**
-  - **New: `src/content/back-end/web-security-guide.md`** (994 lines, 15 sections) at `/backend/web-security`. 3-class threat model (confused identity / data-code / trust); XSS (3 types, contextual encoding, the `javascript:` URL bug React doesn't catch, DOMPurify vs regex, modern sinks incl. LLM output); CSP nonce + `strict-dynamic` + Trusted Types + the **static-SPA-can't-do-per-response-nonces** problem; CSRF (`SameSite` insufficient, subdomain gap); tokens/sessions (BFF, `__Host-` prefix, rotation + reuse detection, IDOR); clickjacking; supply chain (attack shapes + `--ignore-scripts` + provenance + separated CI privileges); injection beyond XSS (SQL/NoSQL/command/SSRF/path/prototype-pollution/ReDoS/open-redirect/mass-assignment); secrets; auth hardening; headers reference. **8 interview Q&A + 4 tricky Qs + 58-rule cheat sheet.**
-  - **New: `src/content/back-end/sql-relational-databases-guide.md`** (1163 lines, 18 sections) at `/backend/sql`. Motivated by an audit showing `INNER JOIN`/`GROUP BY`/`deadlock`/`isolation level`/`N+1` all at **0 hits** — `database-schema-guide.md` is ~60% MongoDB. Covers: keys (surrogate vs natural, UUIDv4-destroys-index-locality vs v7), logical order of evaluation, `NULL` three-valued logic, keyset vs OFFSET pagination, JOINs (the `WHERE`-vs-`ON` LEFT JOIN bug + row multiplication), window functions + `DISTINCT ON`, CTEs (PG v12 inlining) + recursive with a depth guard, **indexes** (B-tree, leftmost-prefix, covering/INCLUDE, partial, expression, non-sargable predicates), **reading `EXPLAIN (ANALYZE, BUFFERS)`** (estimated-vs-actual rows as the root-cause signal), ACID, the 4 anomalies + **write skew** + PG-vs-MySQL default divergence, optimistic vs pessimistic + `FOR UPDATE SKIP LOCKED`, deadlocks, lock-free migrations, `UNIQUE` > check-then-insert, **N+1 + ORM pathologies**, expand/contract migrations, the scaling order, Postgres vs MySQL. **8 interview Q&A + 4 tricky Qs + 63-rule cheat sheet.**
-  - **New: `src/content/back-end/docker-kubernetes-cicd-guide.md`** (1119 lines, 16 sections) at `/backend/docker-kubernetes`. `Dockerfile` had **0 hits** library-wide before this. Covers: namespaces/cgroups/unionfs vs VMs, **layers are additive** (so `rm` only hides files — and secrets stay in history), the canonical multi-stage Node Dockerfile line-by-line, the frontend/nginx variant + the build-time-env-var trap, **PID 1 / exec-form `CMD` / SIGTERM**, base-image trade-offs (Alpine musl caveat, distroless), `.dockerignore`, BuildKit cache + secret mounts, Compose (`depends_on` ≠ ready), K8s object model + declarative reconciliation, **the three probes** (liveness-checks-DB → cluster-wide restart storm), requests vs limits (CPU throttles / memory OOMKills), HPA measures against the *request*, K8s Secrets are base64 not encrypted, GitHub Actions workflow (OIDC, pinned actions, explicit permissions, concurrency), deployment strategies + feature flags, secrets in CI, 12-factor, IaC, **when NOT to use K8s**. **8 interview Q&A + 3 tricky Qs + 58-rule cheat sheet.**
-  - **New: `src/content/front-end/web-performance-guide.md`** (953 lines, 17 sections) at `/frontend/web-performance`. Complements React guide §13 (which stays React-specific). Covers: CWV thresholds + **why INP replaced FID (Mar 2024)**, **the LCP 4-part decomposition** (TTFB / load delay / load time / render delay) and the INP 3-phase split as the core diagnostic, lab-vs-field (Lighthouse structurally *cannot* measure INP; CrUX is opted-in Chrome only), the loading pipeline + **preload scanner** (why CSS-background and JS-inserted heroes are bad LCP elements), resource hints and how each backfires (**font preload needs `crossorigin` or it downloads twice**), images (`sizes` is the part people get wrong), fonts (`font-display` trade-off table + metric overrides), JS payload/execution/hydration, INP and the main thread (`scheduler.yield`, layout thrash, `content-visibility`), CLS, network/caching, rendering-strategy ceiling table, budgets in CI. **8 interview Q&A + 4 tricky Qs + 57-rule cheat sheet.**
-  - **New: `src/content/front-end/testing-strategy-guide.md`** (893 lines, 17 sections) at `/frontend/testing-strategy`. Deliberately *complements* `jest-react-testing-library-guide.md` (which is deep on Jest/RTL mechanics) — this is strategy, Playwright, flake and CI. Covers: the value/price framing, pyramid vs trophy vs ice-cream-cone, what to test at each level ("test at the lowest level that can catch the bug"), Vitest vs Jest + jsdom-is-not-a-browser, **mock at the network boundary not your module boundaries** (MSW), Playwright (auto-waiting, web-first assertions, locator priority as an a11y smoke test, `storageState`, `page.route`, trace viewer), **flake as the real enemy** (cause/fix table + quarantine policy), visual regression, a11y testing (~30-40% automated), **contract testing** (the FE-mocks/BE-tests gap), factories over fixtures + Testcontainers, why 100% coverage is the wrong goal + mutation testing, CI sharding and the <10-minute target. **7 interview Q&A + 3 tricky Qs + 51-rule cheat sheet.**
-  - **New: `src/content/system-design/low-level-design-guide.md`** (1212 lines, 15 sections) at `/system-design/low-level-design`. `low-level design` had **0 hits** before this. Framing: **the mid-interview requirement change is the exam.** Covers: the 6-step method (clarify → nouns/verbs → responsibilities → interfaces at the axes of variation → sketch → attack your own design), SOLID with the *smell* that identifies each violation, composition over inheritance + the Liskov tells, the 9 patterns that actually appear, and **four worked designs**: parking lot (with a requirement-change absorption table), rate limiter (5 algorithms compared, lazy-refill token bucket, inject the clock), elevator (SCAN via two sorted sets, dispatch as the seam), vending machine (State making illegal transitions inexpressible). Plus concurrency in LLD (incl. the JS-specific point that races live across `await` boundaries, not between threads) and 11 common mistakes. **5 interview Q&A + 3 tricky Qs + 44-rule cheat sheet.**
-  - **AI & LLM guide expanded** 1242 → 1665 lines. Section 7 renamed **"Tool Calling & MCP"** (anchor `#7-tool-calling-mcp`), section 8 renamed **"Agents & Multi-Agent Systems"** (anchor `#8-agents-multi-agent-systems`) — TOC updated to match. New §7.3 **MCP** (3 primitives + who decides, stdio/HTTP transports, the **2026-07-28 stateless spec** and why it matters operationally, minimal server, tool poisoning + confused deputy, when it's over-engineering); §8.3 **Multi-Agent Patterns** (opens with the Princeton NLP counter-evidence — single agent wins ~64%; 6 topologies; context loss compounding at handoffs); §8.4 **Frameworks** (LangChain `create_agent` runs ON the LangGraph runtime — not competitors; "linear vs cyclic"; what LangGraph actually buys); §9.7 **Beyond Naive RAG** (query decomposition, contextual retrieval, agentic RAG, GraphRAG, multimodal, each framed as fixing a specific failure + an ordered what-to-try-first list). Interview Qs Q15–Q18, tricky Qs Q9–Q10 under a new "Tools, MCP & Agents" subsection. Cheat sheet 40 → 50 rules.
-  - **React guide** (3883 → ~4345 lines). §16.1 React Compiler rewritten from a 1-line stub to a full section (1.0 stable Oct 2025, HIR + data-flow analysis, purity/immutability rules, **silent bail-out** failure mode, `eslint-plugin-react-hooks` v6 as the rollout gate, what it does *not* solve, migration guidance). New §16.6 `<Activity />` (state preserved / effects destroyed / still re-renders at low priority / `display: none` mechanics / `useLayoutEffect` cleanup for visual teardown), §16.7 `useEffectEvent` (stable-and-fresh, effect-only call restriction), §16.8 React 19.2 rendering + SSR (Partial Pre-rendering `prerender`/`resume`, batched SSR Suspense reveals, Web Streams in Node, `cacheSignal`, Performance Tracks, `useId` prefix `:r:` → `_r_`), §16.9 version/experimental status table. §7.4 got a cross-ref to §16.7. **Important correction baked in: `<ViewTransition>` and Fragment Refs are still Canary-only** — latest stable is 19.2.x, there is no 19.3. Interview Qs Q27–Q30; tricky Qs Q23–Q26 under a new "React 19.2 APIs" subsection.
-  - **React guide** 4341 → 4805 lines. **Fixed pre-existing mis-numbered subsections** (§15 contained `### 14.1/14.2/14.3` from an earlier renumber → now 15.1–15.3). New §15.4–15.11: HOCs, Presentational vs Container (incl. why Abramov walked the prescription back), **Flux & one-way data flow**, **Portals** (what follows the React tree vs the DOM tree), **Fragments + Node vs Element vs Component**, **StrictMode**, **i18n**, **event delegation & the synthetic system**. New §17 subsection **"Rapid-Fire Fundamentals" Q31–Q42** (Node/Element/Component, never mutate state, Context pitfalls + reducing re-renders, reset state with `key`, hydration mismatches, testing strategy, data-fetching pitfalls, `forwardRef` in React 19, `useReducer` vs `useState`, `useId`, what re-rendering means, debugging). React interview Q total now 42.
-  - **TypeScript guide** (2592 → ~2950 lines). New §10.7 controlling inference (`const` type parameters vs `as const` vs `satisfies`; `NoInfer<T>` as an inference-site marker; TS 5.5 inferred type predicates with the four conditions — the `: boolean` annotation trap). New §13.2 the 2026 compiler landscape (6.0 = last JS-based release, Mar 2026; **7.0 Go-native shipped 8 Jul 2026**, 8–12× faster; why Go: native code + real structs + shared-memory parallelism Node's workers can't do; **programmatic API not stable in 7.0** so Vue/Svelte/Astro/MDX tooling stays on 6.0). New §13.3 flags that matter (`erasableSyntaxOnly`, `verbatimModuleSyntax`, `isolatedDeclarations`, `noUncheckedIndexedAccess`, `module: preserve`). Interview Qs Q21–Q24; tricky Qs Q17–Q19 under "Modern TypeScript (5.x–7.0)".
-  - **JavaScript guide** (2030 → ~2595 lines). §9 renamed `ES6+ Features` → **`ES6+ and Modern JavaScript`** (TOC anchor changed to `#9-es6-and-modern-javascript`). New §9.6 edition baseline table (ES2022→ES2026), §9.7 `Object.groupBy`/`Map.groupBy` + 7 Set methods, §9.8 iterator helpers, §9.9 explicit resource management (`using`/`await using`, reverse disposal, `DisposableStack`), §9.10 Temporal (full type table, type-choice-as-business-decision framing), §9.11 smaller additions (`Promise.withResolvers`, `Array.fromAsync`, `Promise.try`, `Error.isError`, `RegExp.escape`, `Object.hasOwn`, static blocks, private brand checks, import attributes). Interview Qs Q21–Q24; tricky Qs Q12–Q16 under "Modern JavaScript (ES2022–ES2026)".
-  - **JavaScript guide** 2594 → 2828 lines. Audited against a user-supplied "20 JS interview questions for frontend developers in 2026" list; 13 of 20 were already covered (several in *other* guides), 7 had real gaps. New **§8.5** mixing `async`/`await` with `.then()`/`.catch()` (the forgotten `await` escaping `try`/`catch`; `.catch()` returning a value converting a rejection to a silently-wrong resolution; `forEach` with an async callback; `return await` vs `return` inside `try`), **§8.6** top-level `await` (async modules; `require()` still throws on Node 24), **§8.7** retry with jitter / `AbortController` / bounded-concurrency pool, **§10.1** global error handling (the 4 browser hooks; `error` vs `unhandledrejection` are separate; resource failures need the capture phase; cross-origin `"Script error."`; how this relates to React error boundaries), **§10.2** testing async code with `node:test`/`assert.rejects`.
-  - **Node.js guide** (1677 → ~1915 lines). New §13.5 the 2026 runtime: release table (22 / 24 Active LTS / 26 → LTS Oct 2026, last 6-month release before annual cadence); `require(esm)` stable in 24 with its two limits (top-level `await` throws, default lands on `.default`); running `.ts` directly (**strips without checking** — `tsc --noEmit` still mandatory, only erasable syntax allowed, pairs with `erasableSyntaxOnly`); `node:sqlite`, global `WebSocket` (client only), `node --run`, `--permission`, Temporal global in 26. Interview Qs Q19–Q20; tricky Qs Q13–Q14 under "Modern Node (24 / 26)".
-  - **Frontend Tooling guide** (1786 → ~1950 lines). New **§9 "The 2026 Toolchain"**; Interview Questions renumbered §9 → **§10** (TOC updated). Covers Vite 8 + Rolldown (one bundler replacing esbuild-in-dev/Rollup-in-prod, 10–30×, unlocks full bundle mode + persistent caching + Module Federation; `@vitejs/plugin-react` v6 dropped Babel), Turbopack default in Next 16, **ESLint 10 removed `eslintrc` entirely** (Feb 2026) + flat-config concepts + per-file config resolution, oxlint vs Biome vs ESLint comparison table (oxlint's type-aware rules delegate to **tsgo**), TS 7 cross-ref, and a what-to-pick decision list. Q20's stale "in 2024" framing and its now-closed Module Federation exception were fixed. Interview Qs Q22–Q24.
-  - **Behavioral guide** (1163 → ~1272 lines). New **§14 "The AI-Assisted Interview"**; Interview Q&A renumbered §14 → §15 and References §15 → §16 (TOC updated). Covers what changed and why; a table of what Google / Meta / Canva / Anthropic actually do; the four graded signals (direction vs passive acceptance, verification, requirement clarification, communication under divided attention); a practical playbook; anti-patterns; five behavioural questions about AI use with model answers; and what got *harder*. Interview Qs Q16–Q18.
-  - **`src/content/README.md` (the `/` Introduction) fully rewritten** — was badly stale (referenced the pre-flatten `Back%20End/...` folder paths and listed ~12 guides). Now opens with **"The 20 Topics That Actually Come Up"** (a prioritised roadmap from a user-supplied interviewer list: JS core, React mastery, performance, essential concepts) with each row deep-linking into the relevant guide section, then a themed map of all 48 guides, the interactive tools, and 3 study plans. **All 51 internal links were programmatically verified against the routes in `data.ts` + `App.tsx`** — worth re-running that check after any route rename:
-    `python3 -c "import re;r=set(re.findall(r\"path: '(/[^']*)'\",open('src/data.ts').read()))|{'/quiz','/review','/interview','/playground','/cheatsheets','/bookmarks','/checkpoints','/changelog','/admin','/'};print(sorted(l for l in set(re.findall(r'\]\((/[^)#]*)',open('src/content/README.md').read())) if l not in r))"`
-  - **`src/content/README.md` (Introduction)** counts and themed map updated; **all 56 internal links re-verified** against `data.ts` + `App.tsx` routes with the command recorded above.
-- **New theory guides — OAuth & SSO, Microservices, Frontend System Design (v1.0.9)** — three substantial new guides added, total 39 → **42**. **OAuth & SSO** (`src/content/back-end/oauth-sso-guide.md`, ~1100 lines): 17 sections covering OAuth 2.0 grant types, Authorization Code with PKCE, OpenID Connect, JWT validation, SSO patterns, SAML comparisons, token storage strategies (BFF pattern), refresh rotation + theft detection, logout complexity, security pitfalls, Node + SPA implementation recipes. 12 interview Q&A + 8 tricky Q&A. **Microservices** (`src/content/back-end/microservices-guide.md`): when to choose them and when not to, modular monolith middle path, bounded contexts + data ownership, sync vs async communication, API gateway + BFF, service discovery, distributed transactions and the saga pattern (choreography vs orchestration), the outbox pattern, resilience (circuit breakers, retries, timeouts), observability (logs/metrics/traces with OpenTelemetry), auth across services, deployment strategies, the distributed-monolith anti-pattern. 12 interview Q&A + 8 tricky Q&A. **Frontend System Design** (`src/content/system-design/frontend-system-design-guide.md`): the framework, then 7 canonical designs — Netflix (ABR, HLS/DASH, DRM), Twitter feed (virtualized infinite scroll, cursor pagination, optimistic UI), Zoom (WebRTC SFU vs mesh, simulcast), WhatsApp chat (WebSocket + IndexedDB local-first, offline outbox), streaming under poor network, reusable Tabs HLD (compound components + ARIA + keyboard nav). 8 interview Q&A + 8 tricky Q&A. **Back End count 8 → 10, System Design 2 → 3.** Registered in `data.ts` after Stripe Integration and System Design Guide respectively.
-- **Polyfill explanations — line-by-line walkthroughs (v1.0.9)** — the `polyfillExplanation()` helper in `playgroundExplanations.ts` now auto-generates one step per pseudocode line, so the Explain modal walks through each line individually instead of a generic "walk the body" summary. Helper also prepends a generalized "Why polyfills matter + the four parts of every polyfill" intuition block (validate inputs → walk the data → apply callback with canonical signature → return the right shape). Optional `lineNotes: Record<lineIndex, string>` argument lets specific polyfills override the auto-generated step title with a deeper, semantic explanation of that line. Added detailed `lineNotes` for canonical polyfills: `Array.prototype.map` (sparse-array `i in this` check, `new Array(n)` preallocation reasoning), `Array.prototype.filter` (truthy coercion notes), `Array.prototype.reduce` (the `arguments.length < 2` detection trick), `Function.prototype.bind` (closure + partial application), `Promise.all` (closure-index for order preservation, fail-fast via second `.then()` arg). The other ~25 polyfills still benefit from the auto-generated per-line steps even without explicit annotations.
-- **Playground — 6 async/runtime challenges + "How to Write a Polyfill" meta-template (v1.0.9)** — covers gaps surfaced by an interview-prep checklist. Added 6 new JS challenges (69 → **75**): **Auto-Retry for Promises** (exponential back-off; throws when retries exhausted), **Batch Promises by Concurrency** (always-N-in-flight pool, preserves result order — the "throttle promises" pattern), **Async Tasks in Series** (for-of + await; contrasts Promise.all/forEach pitfalls), **Implement useState (Basic)** (closure + render callback; functional update form; per-call-site state), **JSON Prettifier** (recursive descent matching `JSON.stringify(value, null, indent)`), **Task Runner with Concurrency Control** (class-based queue + cap, late-add support). New polyfill template at the TOP of the JS Polyfills section: **How to Write a Polyfill** — 5-step recipe (read spec → pick prototype → handle `this` → edge cases → never overwrite native), patterns for instance/static/Promise polyfills, sparse-array + NaN + bind-with-new gotchas. Distribution: 30 Easy / 38 Medium / **3 Hard** (Task Runner added to Hard).
-- **Playground — Web Worker sandbox catches infinite loops (v1.0.9)** — plain-JS code now runs in a Web Worker with a 3-second sync timeout. If user code hangs (e.g., `while(true){}`), the worker is `terminate()`d, the tab stays responsive, and the console shows a clear "Execution timed out — likely an infinite loop" message plus a toast. Implementation: `WORKER_SOURCE` string in `CodePlayground.tsx` (~30 lines, includes a console-patch that posts log/warn/error via `postMessage`). `runInWorker(code, syncTimeoutMs)` creates a Worker from a Blob URL, listens for `log`/`sync-done` messages, and gives a 400ms async-drain window after sync completion to capture trailing setTimeout/Promise callbacks (debounce demos work). React/JSX path is unchanged — runs on main thread because the preview needs DOM access; React's own "Too many re-renders" guard catches its loop case. Bundle: ~80 lines added to the playground chunk, no new dependencies.
-- **Playground — "find largest" family of challenges (v1.0.9)** — 5 more JS Coding Challenges added (64 → **69**) rounding out the "find highest / lowest" progression: **Find Maximum in Array** (Easy, Greedy — single-pass running max), **Find Min and Max** (Easy, Greedy — both in one pass, 3n/2 comparisons trick), **Third Largest Number** (Easy, Greedy — extends the existing Second Largest pattern with three sentinel variables), **Kth Largest Element** (Medium, Sorting — generalization with three classic approaches: sort+index, heap of size k, quickselect), **Find Peak Element** (Medium, Binary Search — O(log n) trick using the -∞ boundary). New distribution: **30 Easy / 37 Medium / 2 Hard**.
-- **Playground — 14 more string + array challenges, default difficulty sort (v1.0.9)** — added 14 new JS Coding Challenges, taking the total from 50 → **64**: **Rotate Array Left** (mirror of Rotate Array, three-reversal in flipped order), **Reverse Words in a String** (extends Reverse String with word boundaries), **Longest Common Prefix** (vertical scan), **Longest Palindromic Substring** (expand-around-center, Two Pointer + DP), **Reverse Vowels of a String** (Two Pointer), **String to Integer (atoi)** (edge-case heavy: whitespace, sign, overflow clamp to INT32 bounds), **Letter Combinations of Phone Number** (Backtracking), **Single Number** (Math/Bit, XOR), **Majority Element** (Math/Bit, Boyer-Moore voting), **Product of Array Except Self** (two-pass left/right product, no division), **Plus One** (carry walk right-to-left), **Subarray Sum Equals K** (Hash Map / Set, prefix-sum + frequency map), **Search in Rotated Sorted Array** (Binary Search variant — one half is always sorted), **Spiral Matrix** (four-boundary directional traversal). All tagged with patterns + difficulty. **Default difficulty sort**: when `difficultyFilter === 'all'` AND `modalMode === 'challenges'`, the filtered templates now sort Easy → Medium → Hard within each category (rank map `{ Easy: 1, Medium: 2, Hard: 3 }`); other modes preserve insertion order. New distribution: 27 Easy / 35 Medium / 2 Hard.
-- **Playground — difficulty tagging + filter (v1.0.9)** — added `Difficulty: 'Easy' | 'Medium' | 'Hard'` type to `playgroundTemplates.ts` and a `difficulty?: Difficulty` field on `Template`. All 50 JS Coding Challenges tagged via Python script. Distribution: **22 Easy** (Two Sum, Reverse String, Valid Palindrome, FizzBuzz, Max Profit, Valid Parens, Merge Sorted Arrays, Find Duplicates, Remove Duplicates, Find Missing, Move Zeros, Anagram Check, First Non-Repeating, Climbing Stairs, Binary Search, Balanced Brackets, Second Largest, Reverse Linked List, Merge Two Sorted Lists, Detect Cycle, Bubble Sort, Roman to Integer), **26 Medium** (Debounce/Throttle/Memoize/Deep Clone/Compose & Pipe/EventEmitter, Group Anagrams, Rotate Array, Quick/Merge Sort, Longest Substring, Sum Curry, Container With Most Water, 3Sum, Generate Parens, Subsets, Permutations, Min Stack, Daily Temps, Coin Change, House Robber, Jump Game, Sort Colors, Top K, Maximum Subarray, Flatten Array), **2 Hard** (LRU Cache, Trapping Rain Water). UI: difficulty filter chips above the cards in challenges mode (color-coded: Easy emerald, Medium amber, Hard red), each with count; click to filter. Difficulty badge also shown inline on every card next to pattern chips. Filter state lives in `difficultyFilter: Difficulty | 'all'`.
-- **Playground — pattern tagging on coding challenges + grouped filter UI (v1.0.9)** — every JS Coding Challenge is now tagged with one or more `Pattern` strings (declared in `playgroundTemplates.ts` as a string-literal union: `'Two Pointer' | 'Sliding Window' | 'Hash Map / Set' | 'Stack' | 'Recursion / D&C' | 'Dynamic Programming' | 'Greedy' | 'Binary Search' | 'Backtracking' | 'Math / Bit' | 'Sorting' | 'Linked List' | 'Closure / State' | 'In-Place'`). All 50 challenges tagged via Python script — distribution: Hash Map / Set 11, Two Pointer 10, Recursion / D&C 9, Closure / State 6, Sorting 6, Dynamic Programming 5, Greedy 5, Stack 3, Math / Bit 4, Linked List 4, Backtracking 3, In-Place 3, Sliding Window 1, Binary Search 1. **UI:** pattern chips render under each template name in the modal card. **In challenges mode, the modal's left sidebar swaps from category-list to pattern-list**: "All patterns" + 5 super-category sections (`PATTERN_GROUPS` exported from `playgroundTemplates.ts`) with patterns and counts nested under each — Linear scans (Two Pointer, Sliding Window, In-Place), Lookup (Hash Map / Set, Stack), Recursive (Recursion / D&C, Backtracking), Optimization (DP, Greedy, Binary Search), Data + Misc (Sorting, Linked List, Closure / State, Math / Bit). Click a pattern in the sidebar → right pane filters to that pattern's challenges. Click again or click "All patterns" → clear. In templates/blank mode the sidebar reverts to the category-list (original behavior). State lives in `patternFilter` (`Pattern | 'all'`).
-- **Explanation depth is a RATCHET, and the old "all of them" claim was stale.** The house standard is 2+ approaches per explanation with a visual on every step. That held for the original 35 challenges; the ~50 added since mostly came in with a single approach, and nobody re-ran the audit. Real state, pinned by `DEPTH_DEBT` in `playgroundContent.test.ts`: **144 explanations, 83 with only one approach, 328 steps with no visual snapshot** (those render the modal's italic "No visual change this step" fallback, so they are cosmetic debt, not breakage). **The numbers may only go DOWN.** New explanations must meet the standard; lowering an entry is how you record deepening an old one.
-- **All 35 challenge explanations now have 2+ approaches with elaborate intuition (v1.0.9)** — every Coding Challenge in the Explain modal now has at least two approaches with a `badge: best | alternative | baseline` distinction. Each approach has a multi-paragraph `intuition` that walks through the algorithm step by step, and where regex is involved (Valid Palindrome's `/[^a-z0-9]/gi`) the regex is broken down piece by piece (`[^...]` negation, `a-z` range, `0-9` range, `g`/`i` flag meanings). Coverage of new second approaches by pattern: built-in chains (Reverse String split-reverse-join, Anagram Check sort-and-compare, Remove Duplicates Set spread), brute-force baselines (Max Profit, Container With Most Water), recursive variants (Binary Search, Reverse Linked List, Climbing Stairs memoized), iterative variants (Merge Sort bottom-up, Flatten Array stack), structure swaps (EventEmitter Map<event, Array> vs Set, LRU DLL+Map vs Map insertion-order trick, Memoize WeakMap vs JSON-key), algorithm tweaks (Quick Sort 3-way partition, Bubble Sort cocktail), regex/string approaches (Valid Palindrome strip-and-compare, Valid Parentheses replace-pairs), state strategies (Throttle trailing-edge vs leading-edge, Debounce leading-edge variant, Sum Curry valueOf trick), math identities (Find Missing Number XOR, Group Anagrams char-count signature), readability picks (Rotate Array slice+concat, Second Largest Set+sort, FizzBuzz string concat). Total: ~1700 lines of new explanation content. Audit script confirms 0 challenges with <2 approaches.
-- **New JS & TS guide — Regex (v1.0.9)** — `src/content/javascript-and-typescript/regex-guide.md` (~1100 lines). Registered in `data.ts` after TypeScript Guide. Comprehensive walkthrough: what regex is and isn't, the two creation forms (literal vs constructor with double-escape gotcha), all 8 flags (`g i m s u y d v`), character classes (built-in shortcuts + custom + Unicode `\p{}`), anchors and word boundaries, quantifiers with greedy-vs-lazy explained on a tag-extraction example, capturing/non-capturing/named groups + backreferences, all 4 lookarounds with worked examples, alternation and escaping, Unicode (u/v flags, surrogate-pair handling), full JS API (test/exec/match/matchAll/replace/replaceAll/search/split), the `lastIndex` gotcha with three fixes, catastrophic backtracking + ReDoS, **commonly used patterns section** (email/URL/phone/IPv4/ISO date/time/HEX color/strong password/username/UUID v4/credit card/slug/whitespace/markdown/HTML), real-world JS use cases (form validation, slug generation, search highlighting, query string parsing, sensitive-data masking, URL extraction, HTML stripping, camelCase↔kebab-case, template token replacement), anti-patterns (HTML/JSON parsing, RFC 5322 email, CSV split, balanced brackets, XSS sanitization, long single regex), full cheat sheet, **8 interview Qs** + **8 tricky Qs** including the `lastIndex` bug, the catastrophic-backtracking pattern, the alternation-anchor precedence trap, the split-with-capture-group surprise, and the HTML-escape-order subtlety. **JS & TS section count 3 → 4. Total guides 38 → 39.**
-- **Playground — explanation step audit + blank-step fallback (v1.0.9)** — Valid Palindrome step 4 was missing its visual snapshot (only had `title` + `pseudoLine`), rendering an empty right panel. Filled in `array` + `computation` for that step and the final "pointers meet" step. Audited all 35 explanations (210+ steps) via a Python script that flags any step lacking ALL of: `array`, `map`, `stack`, `set`, `dualArray`, `callStack`, `linkedList`, `timeline`, `computation`, `lookupOutcome`, `result`, `note`. Zero remaining blanks after the fix. Added a fallback in `ExplanationModal.tsx` visual block: when a step has no visual data, renders italic "No visual change this step — read the title and the highlighted pseudocode line." instead of an empty box, so any future-added blank step can't surprise users. **Final template counts** (verified via Python audit of `playgroundTemplates.ts`): JavaScript Fundamentals 6, JS Interview Topics 7, React Basics 3, React Advanced 3, JS Polyfills **31**, Coding Challenges **50** (JS), React Machine Coding **20**. **Total: 120 templates**, **70 challenges** (50 JS + 20 React). README + this file synchronized to match.
-- **Playground — polyfill cross-links in Explain modal + 7 new polyfills (v1.0.9)** — extended `Approach` in `playgroundExplanations.ts` with optional `usesPolyfills?: PolyfillRef[]` (each entry has `builtin`, `templateName`, optional `why`). The Explain modal now renders an amber "Built-ins used (peek under the hood)" panel above the tradeoffs section listing each referenced built-in as a clickable chip. Clicking a chip calls the new `onLoadTemplate` callback (passed from `CodePlayground` and wired to `handleTemplate`), which opens the corresponding polyfill template and closes the modal — turning every algorithmic challenge into a teaching gateway to JS internals. Tagged 5 explanations: Flatten Array (reduce, concat, flat), Group Anagrams (sort, join), Rotate Array (reverse, slice, concat), Anagram Check (sort, join), Deep Clone (JSON.stringify, JSON.parse), Compose & Pipe (reduce). **7 new polyfill templates** added to fill commonly-asked gaps: **JSON.parse** (recursive descent parser pairing with stringify), **Array.isArray** (with the iframe gotcha), **Object.create** (4-line classic + descriptors variant + null-prototype use case), **Object.freeze + deepFreeze** (recursive variant + WeakSet cycle protection), **Array.prototype.fill** (with the shared-reference gotcha), **String.prototype.repeat** (O(log n) doubling trick), **Array.prototype.join** (with null/undefined/sparse handling). Polyfill count 24 → **31**.
-- **Playground — auto-save progress + 15 new challenges + UX bundle (v1.0.9)** — major playground enhancement. **(1) Auto-save progress per challenge:** new hook `src/hooks/usePlaygroundProgress.ts` writes to localStorage key `'playground-progress'` (map keyed by template name → `{code, notes?, status: 'in-progress' | 'solved', updatedAt, solvedAt?}`). Auto-saves debounced 800ms while editing. Restores on template load with toast `"Resumed your saved work in 'X'"`. Show Solution still confirms-before-overwrite. New **Reset Code** button in toolbar (only renders when an entry exists) reverts to the original challenge stub and clears the entry. Auto-flips status to `'solved'` when a Run produces all ✅ markers and `currentTemplate.kind === 'challenge' && tag === 'JS'` (React Machine Coding excluded — no test outcome to detect). **(2) Word-wrap toggle pill** — `'playground-wrap'` localStorage key, default ON. Adds `.wrap-on` class to `.playground-editor-wrap`; CSS in `index.css` overrides the default `white-space: pre` with `pre-wrap` + `word-break: break-word`. **(3) Test pass/fail summary pill** — green `"3/3 passed"` or red `"2/3 — 1 failed"` near Run, computed by scanning `output` for ✅/❌. **(4) X / Y solved chip** in playground header (top-right of title row) shows `${solvedCount} / ${totalJsChallenges} solved`, derived from `allTemplates.filter(t => t.kind === 'challenge' && t.tag === 'JS').length`. **(5) Status dots in templates modal** — 8px green (solved) / amber (in-progress) / none (untouched) on each template card. **(6) Continue last session pill** — appears at top of editor when `lastSessionName` !== current and that entry is in-progress. Reads from `'playground-last-session'` (separate localStorage key), set by `handleTemplate`. Has × to dismiss for the page-view session. **(7) Random Challenge button** in templates modal (challenges-mode only) — picks a non-solved JS challenge at random; toast "All challenges solved 🎉" when nothing left. **(8) Notes scratchpad** — collapsible panel below the editor (only when a template is selected). Bound to `notes` state, auto-saved into the same `ProgressEntry`. **(9) 15 new JS Coding Challenges** added to `playgroundTemplates.ts`: Maximum Subarray (Kadane's), Trapping Rain Water, 3Sum, Generate Parentheses, Subsets, Permutations, Min Stack (class), Daily Temperatures (monotonic stack), Coin Change (DP), House Robber (DP), Jump Game (greedy), Detect Cycle in Linked List (Floyd's, with ListNode helper), Sort Colors (Dutch flag), Top K Frequent Elements, Merge Two Sorted Lists (with ListNode helper). Total challenge count now **50** (35 → 50). New templates have stubs + tests but no Show Solution / Explain entries yet (will be follow-up). **localStorage schema additions:** `'playground-progress'` (map), `'playground-wrap'` ('1'/'0'), `'playground-last-session'` (string).
-- **Playground — Explain modal extended to all 35 JS coding challenges (v1.0.9)** — followup to the Two Sum proof-of-concept. Every JavaScript Coding Challenge now has a registered explanation; the **Explain** button appears for all 35 (none for the 17 React Machine Coding templates — explicit user decision). Extended the data model with new visualization primitives in `playgroundExplanations.ts`: `StackSnapshot` (vertical with top marker; for Valid Parentheses), `SetSnapshot` (chip cloud with new/hit highlights; for Find/Remove Duplicates, Longest Substring), `DualArraySnapshot` (two arrays side-by-side + result; for Merge Sorted Arrays, Merge Sort), `CallStackSnapshot` (recursion frames with active/pending/returned states; for Flatten Array, Quick/Merge Sort, Sum Curry, Deep Clone, Compose & Pipe), `LinkedListSnapshot` (nodes with → arrows; for Reverse Linked List), `TimelineSnapshot` (horizontal time axis with input/fire/skip/pending dots; for Debounce, Throttle), plus optional `note` callouts. `ExplanationModal.tsx` extended with corresponding view components (`StackView`, `SetView`, `DualArrayView`, `CallStackView`, `LinkedListView`, `TimelineView`). Coverage by category: arrays/pointers (Reverse String, Valid Palindrome, Max Profit, Move Zeros, Rotate Array, Container With Most Water), modulo (FizzBuzz), stack (Valid Parentheses), dual-array (Merge Sorted Arrays), recursion (Flatten Array, Quick Sort, Merge Sort, Sum Curry, Deep Clone, Compose & Pipe), timeline (Debounce, Throttle), hash maps (Group Anagrams, Anagram Check, First Non-Repeating, Memoize, EventEmitter, LRU Cache, Balanced Brackets Count), set (Find/Remove Duplicates, Longest Substring), binary search, Roman to Integer, linked list (Reverse Linked List), DP (Climbing Stairs), single-pass (Find Missing Number, Second Largest Number), bubble sort. **Bundle hygiene:** extracted `playgroundExplanationKeys.ts` (~1 KB sync manifest, mirrors solutions pattern) so the Explain button can decide whether to render without pulling the ~62 KB explanations module. Module loads lazily on first Explain click, cached after that. Final chunks: CodePlayground 214 KB (51 KB gzip), playgroundExplanations 61 KB (separate, loads on demand).
-- **Playground — draggable editor/output splitter + step-by-step Explain modal (v1.0.9)** — two playground UX upgrades. **(1) Resizable split:** the vertical bar between the editor and Console Output is now draggable on md+ screens. State lives in `editorPct` (0–100, clamped 20–80) and persists to `localStorage['playground-split-pct']`. Implementation: `splitContainerRef` on the flex parent, mouse/touch handlers attached to a slim `w-1.5` divider element, listeners moved to `document` so the drag continues even when the cursor leaves the bar. Width applied via Tailwind arbitrary `md:w-[var(--editor-pct)]` so mobile (column flex) is unaffected. **(2) Explain modal:** new `Explain` button (Sparkles icon, indigo accent) in the playground toolbar — appears alongside Show Solution but only for templates with a registered explanation. Architecture: `src/components/playgroundExplanations.ts` defines the data model (`Approach[]` with `intuition`, `complexity`, `pseudocode[]`, `steps[]` of `{title, detail, pseudoLine, array, map, computation, lookupOutcome, result}`); `src/components/ExplanationModal.tsx` (~280 lines) renders tabs per approach, prev/next/play step navigator, side-by-side pseudocode (with current line highlighted) + visual canvas (array cells with i/j/found/hit/new highlights, hash-map entries with new/hit highlights, computation blocks, lookup outcomes, result banner). Keyboard shortcuts: ←/→ to step, Space to autoplay, Esc to close. Explanation data is lazy-loaded (`loadExplanations()` cache) — only fetched on first Explain click.
-- **Checkpoints — "where I left off reading" per guide (v1.0.9)** — new feature that complements (does not replace) bookmarks. **One** checkpoint per guide, set explicitly via a floating "Save Checkpoint" FAB that auto-detects the nearest heading above the user's viewport (`findNearestHeadingAbove(threshold=100)` queries `.prose-container h1[id], h2[id], h3[id], h4[id]` and walks until the last one whose `top <= threshold`; falls back to the first heading if scroll=0). Storage at localStorage key `'checkpoints'` is a `Record<guidePath, Checkpoint>` map (not an array — lookup is always per guide and saves overwrite). Checkpoint shape: `{ headingId, headingText, guideName, createdAt }`. New hook at `src/hooks/useCheckpoints.ts` mirrors `useBookmarks.ts` shape. **Inline banner** in ContentPage between OfficialDocsBar and MobileToc shows "Continue from 'X'" with a click-to-scroll handler + ✕ to clear; only renders when `getCheckpoint(guidePath)` is non-null. **`/checkpoints` global route** lazy-loaded as a new chunk (`CheckpointsPage` in `src/components/CheckpointsPage.tsx`, ~80 lines, modeled on `BookmarksPage`); sorted most-recent-first; each card has a "Continue →" link to `${guidePath}#${headingId}`. Sidebar entry added in TOOLS section between Bookmarks and What's New (Flag icon, indigo accent). **Hash-scroll-on-mount** effect added to ContentPage (was missing entirely) — uses a `requestAnimationFrame` poll up to 60 frames so it works even when ReactMarkdown hasn't yet rendered the target heading. Toast confirmation reuses the existing `Toast` component already wired into ContentPage.
-- **New Front End guide — Real-Time Web (v1.0.9)** — `src/content/front-end/realtime-web-guide.md` (~1400 lines). Front End count 13→14, total guides 37→38. Covers all 9 server-push transport patterns: short polling, long polling, SSE (`EventSource` + frame format + `Last-Event-ID` resume + 6-conn limit), WebSockets (handshake with `Sec-WebSocket-Accept` derivation, frame anatomy, masking rationale, close codes, half-open detection, full reconnection-with-jitter implementation, `ws` Node example, Socket.IO with rooms+acks), `fetch` + `ReadableStream` streaming (the AI-chat pattern, SSE-over-fetch when `Authorization` headers needed), WebRTC DataChannels (signaling-via-WebSocket, peer-to-peer with sub-100ms latency), Push API + Service Workers (VAPID, `web-push`), GraphQL Subscriptions (`graphql-ws` + Apollo Client). Production concerns section: auth strategies (URL token vs subprotocol vs cookie vs auth-after-open), reconnection (exponential back-off + full jitter + visibility-aware), message ordering & replay (sequence numbers, outbox pattern), backpressure (`bufferedAmount` / `drain`), scaling (sticky sessions + Redis pub/sub fan-out diagram), monitoring metrics, fallback chain. Decision table comparing all 9 patterns + 6-question decision tree. **16 interview Qs** + **8 tricky Qs**. Tricky-question total app-wide: 135 → 143. Registered in `data.ts` after Browser APIs; Front End category description updated.
-- **React guide — Built-in Hooks Reference §6.2 expanded with theory (v1.0.9)** — replaced the single-code-block hook signature dump with a per-hook walkthrough covering all 14 React 19 built-in hooks. Each gets: signature, **what it does**, **when to use it**, and **most common pitfall**, plus a focused 5-10 line example for the non-trivial ones. Hooks covered: `useState`, `useReducer`, `useEffect` (brief w/ §7 pointer), `useContext`, `useRef`, `useMemo`, `useCallback`, `useImperativeHandle`, `useLayoutEffect`, `useDebugValue`, `useSyncExternalStore`, `useId`, `useTransition`, `useDeferredValue`. Opens with a 7-row mental-model table grouping into State / Side effects / Context / Refs / Memoization / Concurrent / External data / Misc. References §16 for the action/forms hooks. Section grew from ~40 lines to ~250 lines.
-- **Playground — rainbow brackets + match-on-caret + Prettier format (v1.0.9)** — the editor's `highlight` callback now post-processes hljs HTML through `decorateBrackets()` (in `CodePlayground.tsx`): walks the rendered DOM, skips text inside `.hljs-string` / `.hljs-comment` / `.hljs-regexp`, and wraps every `( [ {` / `) ] }` in a `<span class="bd-N">` where N is `depth % 3` (gold / orchid / azure CSS in `index.css`). Caret position is tracked via a `selectionchange` document listener that reads `selectionStart` of `#playground-editor` while focused; the bracket on the caret + its match get an additional `.bd-match` class (soft outline + light bg). Bracket pairs are pre-computed via `buildBracketMatches()` — single forward scan with string/comment/regex awareness, builds a `Map<openPos, closePos>` (and reverse) so the highlight pass is O(1) per bracket. Also: Format button uses Prettier `typescript` parser when `detectTS()` matches OR `currentLang` is `ts`/`tsx` (the older `babel-ts` parser in standalone Prettier 3 chokes on JSX-with-generics like `<Props, State>`); `prettier/plugins/typescript` ships as its own ~125 KB gzipped lazy chunk. Auto-indent on Enter + bracket auto-close (toggleable, persisted to `playground-bracket-autoclose`) live in `handleEditorKeyDown`.
-- **Playground perf — solutions chunk lazy-loaded** — split `playgroundSolutions.ts` (131 KB raw, 30.7 KB gzip — was the biggest single payload in `/playground`) into a dynamic-import chunk that only fetches on first "Show Solution" click. Result: **CodePlayground-*.js dropped 301.76 KB → 171.72 KB (-43%, -130 KB raw / ~25 KB gzip)**. Implementation: extracted a tiny sync-imported manifest (`playgroundSolutionKeys.ts` — 35 strings, ~1 KB) so the toolbar can decide synchronously whether to show the "Show Solution" button; the actual solution bodies load via `await import(...)` on click and cache in module-level `solutionsCache`. The button shows a `Loader2` spinner + "Loading…" label during the one-time fetch. Subsequent toggles are instant from cache. Babel + Mermaid were already separate chunks; templates are NOT lazy-loaded because the modal is the primary playground UX (templates needed eagerly for default-code + modal browsing).
-- **Full playground audit — multi-approach solutions for all 35 challenges (v1.0.5)** — every Coding Challenge solution now shows multiple approaches with a Time/Space/Verdict comparison table and a "When to pick which" footer. Solutions file grew 978 → 2799 lines (~2.9x). Coverage: Two Sum, Reverse String, Valid Palindrome, FizzBuzz, Max Profit, Valid Parentheses, Merge Sorted Arrays, Flatten Array, Debounce (4 variants — leading/trailing/both/cancellable), Group Anagrams (sorted-key vs char-count vs prime-product), Find Duplicates, Remove Duplicates, Find Missing Number (sum/XOR/Set/sort), Move Zeros, Rotate Array (slice / reverse-3x / cyclic), Bubble Sort (basic vs early-exit vs cocktail), Quick Sort (three-way / Lomuto / random pivot), Merge Sort (top-down vs bottom-up), Anagram Check, Longest Substring (index-map vs Set+shrink), First Non-Repeating Char, Sum Curry (empty-call vs valueOf trick), Memoize (4 strategies incl. WeakMap), Deep Clone (recursion vs structuredClone vs JSON), Throttle (3 variants), EventEmitter (Map<Set> vs Map<Array>), LRU Cache (Map insertion-order trick vs DLL+Map textbook), Compose & Pipe, Roman to Integer (peek / right-to-left / replace-pairs), Reverse Linked List, Binary Search, Container With Most Water, Climbing Stairs (5 approaches incl. Binet's), Balanced Brackets (Count), Second Largest Number. Each solution explains *why* a given approach is used (sliding window, DLL+Map, etc.) and the trade-offs (perf vs readability vs space).
-- **Multi-approach playground solutions + 2 new templates (v1.0.5)** — added two Coding Challenges: **Balanced Brackets (Count)** (count-based parity check — different from the existing Valid Parentheses which checks nesting order) and **Second Largest Number** (without `sort()`). Total templates 96 → 98; solutions 33 → 35. Each new solution shows 4 approaches with a comparison table (counters / hash map / stack / regex for brackets; single-pass / two-pass / Set / heap for second largest), and trailing comments on which approach to pick when. Also enhanced **6 existing solutions** with multi-approach commentary: **Two Sum** (hash map vs brute force), **Reverse String** (two-pointer vs split-reverse-join vs recursion vs concat), **Find Missing Number** (sum vs XOR vs Set vs sort), **Find Duplicates** (two sets vs frequency map vs sort vs filter), **Anagram Check** (frequency map vs sort vs char-code array), **Climbing Stairs** (5 approaches: O(1) DP, dp array, memoized recursion, naive recursion, Binet's formula), **Container With Most Water** (two-pointer vs brute force), **Binary Search** (iterative vs recursive vs linear). Each shows a Time/Space/Verdict table and "When to pick which" commentary.
-- **Admin (private) section (v1.0.5)** — added a hidden `/admin` route gated by passcode `5713`. The bundled markdown is at `src/content/private/admin-prep.md` (1891 lines, 151 questions — personal interview prep). Unlock state persists in `sessionStorage` (`admin-unlocked=1`); "Lock" button clears it. Sidebar footer has a discreet "Admin" link below the GitHub link. The route is excluded from the sitemap (sitemap script only iterates `menuStructure`+`cheatSheets`). The lazy-loaded chunk (`AdminPage-*.js`) is only fetched when someone visits `/admin`. **Important security note:** this is obscurity, not security — passcode and content both ship in the JS bundle. Don't put genuinely sensitive material there.
-- **Stripe Integration guide (v1.0.5)** — new Back End guide (Back End 7 → 8, total guides 36 → 37). Covers keys (publishable / secret / restricted / webhook), client-server split + PCI scope, Elements vs Checkout vs Payment Element, PaymentIntent state machine, webhooks (signature, idempotency, replay attacks), idempotency keys, Customers + saved methods (`off_session`), Subscriptions lifecycle + dunning, Coupons + Promotion Codes (with the **coupon race-condition deep dive** — covering Stripe's atomic `max_redemptions`, app-side reservations with TTL + UNIQUE constraint, and idempotency keys as defense-in-depth), Refunds + Disputes, SCA / 3DS, Connect for marketplaces, PCI scope, testing with Stripe CLI. **16 interview Qs** + **6 tricky scenario Qs** (coupon race, double-click idempotency, dunning revoke timing, DB/Stripe state divergence, transactional webhook handlers + outbox pattern, dispute response strategy). Tricky-question total app-wide: 129 → 135.
-- **App-wide perf: route-level code splitting + vendor chunks (v1.0.5)** — main `index.js` bundle dropped from **3.43 MB → 2.67 MB (-22%)** and vendor code is now cached across deploys. Three changes: (1) **Route-level lazy loading** — `HomePage`, `QuizMode`, `CodePlayground`, `BookmarksPage`, `ReviewPage`, `InterviewSimulator`, `CheatSheetsIndex` now use `React.lazy()` + `<Suspense fallback={<RouteFallback/>}/>`; each route emits its own chunk (`CodePlayground` is 200 kB on its own — biggest single win). (2) **HomePage extracted from App.tsx** to `src/components/HomePage.tsx` (~205 lines moved out); App.tsx down 1394 → 1199 lines. (3) **Vite `manualChunks`** in `vite.config.js` splits vendor libs: `react` (33 kB), `motion` (128 kB), `icons` (22 kB), `markdown` (335 kB) into separate cached chunks. Net effect: users hitting `/` only load HomePage.js + the four small vendor chunks; CodePlayground (200 kB) only downloads when they click Playground. Vendor chunks survive across deploys since their hashes only change when dependencies update.
-- **DSA guide — three new topic sections (v1.0.5)** — guide grew from 2297 → 2722 lines (+18%). Audited for missing canonical interview topics; added three full sections between current §10 (Dynamic Programming) and §11 (Common Patterns Summary): **§11 Heaps & Priority Queues** (full MinHeap implementation, top-K frequent elements, k-th largest in stream, comparison table of 7 canonical heap problems), **§12 Tries (Prefix Trees)** (TrieNode/Trie classes, autocomplete via DFS over trie, comparison table of 6 trie problems incl. Word Search II + Maximum XOR), **§13 Backtracking** (general template + 5 worked problems: permutations, combinations, subsets, N-Queens with attack-set pruning, Word Search with in-place visited mark; closes with a 9-row table of canonical backtracking problems and the pruning-is-what-makes-it-practical caveat). Renumbered 11 → 14 (Common Patterns) and 12 → 15 (Interview Q&A); TOC updated.
-- **Playground polyfills expansion (v1.0.5)** — JS Polyfills category grew from 15 → **24** templates (87 → **96** total). Added: **Array.sort** (with the classic default-string-compare gotcha plus comparator examples), **Array.indexOf / lastIndexOf** (strict equality, NaN gotcha), **Array.reverse** (two-pointer in-place), **Array.slice** (negative indices, shallow-copy semantics), **Array.splice** (the three-jobs-in-one method: remove + insert + return), **Array.concat** (one-level flattening, mixed array/non-array args), **String.padStart / padEnd** (time-formatting use case), **JSON.stringify** (recursive serialization with the undefined/NaN/function-drop quirks), **Object.keys / values / entries** (enumerable-own-string-keyed contract).
-- **Playground refactor + 15 more templates (v1.0.5)** — split the 4127-line `CodePlayground.tsx` into focused files: **`playgroundTemplates.ts`** (all 87 templates, 4270 lines), **`playgroundSolutions.ts`** (33 solutions, 978 lines, already extracted), **`OutputPanel.tsx`** (72 lines, memoized so editor keystrokes no longer re-render the output list), and `CodePlayground.tsx` itself (627 lines, 85% smaller). Perf: handlers wrapped in `useCallback` for stable references; output rows wrapped in `React.memo` so the visible list doesn't recompute when state unrelated to output changes; inline `setIsDrawerOpen(false)` swapped for a memoized `closeDrawer`. Added **15 new templates** (72 → 87): JS Fundamentals — Map & Set, Spread & Rest; JS Polyfills — Array.includes, Object.assign, Array.from; Coding Challenges — Binary Search, Roman to Integer, Reverse Linked List, Container With Most Water, Climbing Stairs (all with matching Show-Solution entries); React Machine Coding — Stopwatch, Calculator, Auto-suggest, Toast/Snackbar, Carousel/Slider.
-- **Playground "Show Solution" feature (v1.0.5)** — added a Lightbulb-icon toggle in the playground toolbar that reveals the canonical solution for any Coding Challenges template. Click once to swap the function-stub code for the working implementation; click again ("Hide Solution") to restore the challenge stub. If the user has typed code that differs from the stub, a confirm dialog prevents accidental loss. Solutions for all **28 Coding Challenges** live in a separate `src/components/playgroundSolutions.ts` keyed by template name (Two Sum, FizzBuzz, Bubble/Quick/Merge Sort, Find Duplicates, Throttle, EventEmitter, LRU Cache, Deep Clone, etc.). The button only renders when the loaded template has a matching solution; React Machine Coding and Polyfill templates intentionally don't have one (those aren't single-answer challenges).
-- **Playground templates — 22 new (49 → 72) (v1.0.5)** — audited the playground for missing common-interview coding asks. Added **17 to Coding Challenges**: Find Duplicates, Remove Duplicates (no Set), Find Missing Number, Move Zeros, Rotate Array, Bubble Sort, Quick Sort, Merge Sort, Anagram Check, Longest Substring Without Repeating, First Non-Repeating Character, Sum Curry (`sum(1)(2)(3)()`), Memoize, Deep Clone, Throttle, EventEmitter, LRU Cache, Compose & Pipe — all in the existing pattern: challenge description + constraints + function stub + 4–5 test cases with ✅/❌ output. Added **5 to React Machine Coding**: Star Rating (with hover preview), Tabs (compound component pattern), Accordion (single-open and multi-open modes), OTP Input (auto-advance + paste support), Tic-Tac-Toe (winner detection + draw). Total templates now 72 across 7 categories.
-- **Cross-guide audit — 2026 modern-feature gaps closed (v1.0.5)** — systematic audit across all 36 guides found three real gaps; rest were already strong. Fixed: **JavaScript guide §7.1** added ES2022/2023 array helpers (`at()`, `findLast`, `findLastIndex`) plus the ES2023 immutable methods (`toSorted`, `toReversed`, `toSpliced`, `with`) — the latter directly solves the React/Redux mutation-bug pattern. **Node.js guide §13.4 "Modern Node Built-Ins"** (NEW subsection) — native `fetch` (Node 18+), `node:test` (the native test runner that replaces Jest/Mocha for backend code), `node --watch` (replaces nodemon), `node --env-file` (replaces dotenv), and `--inspect-brk` for Chrome DevTools. Establishes the "what does the platform give me first" mental model. **TypeScript guide §10.6 `satisfies` operator** (NEW subsection) — promoted from interview-Q-only to a full reference subsection with the "validates AND preserves shape" framing, contrasting against `:` annotation widening and `as` casting silent-bypass. Other guides (Express, MongoDB, AWS IAM, Database Schema, API Design, System Design, Git, DSA) audited and confirmed already-comprehensive — no additions needed.
-- **React guide — 2026 priority-map gaps closed (v1.0.5)** — audited React guide against the "React.js Priority Map for Jobs in 2026" topic list and patched the gaps. Added §7.4 **"When NOT to Use useEffect"** (the senior-level signal — derive instead of useEffect, fetch with TanStack Query not useEffect, event handlers not "effect-as-listener", `key`-based reset instead of useEffect-reset). Added §11.3 **"Server State vs Client State — The Most Important Distinction"** with comparison table and the modern stack guidance (TanStack Query + Zustand replacing Redux for greenfield). Added §16.3 **`useFormStatus`** alongside the existing useActionState/useOptimistic — the form-state triad. Added the **`useCallback(fn, deps) === useMemo(() => fn, deps)`** identity to §13.2 plus "when NOT to memoize" senior-signal block. Expanded §6.3 **Custom Hooks** with `useFetch` (with AbortController cleanup) and `useToggle` — the canonical "build one live" interview asks. Renumbered React 19 subsections to 16.1–16.5.
-- **Behavioral guide major expansion (v1.0.5)** — guide grew from 781 to 1163 lines (~49%). Added 3 new sections — **§3 Alternative Frameworks Beyond STAR** (CAR, SOAR, PARLA, BAR — when each one fits), **§7 Company-Specific Behavioral Cultures** (per-company rubric breakdowns for Amazon / Google / Meta / Microsoft / Apple / Netflix / startups, plus a cross-company "top signals graded" comparison table), **§9 Handling Tough Questions** (why are you leaving, weakness, résumé gap, conflict, failure, salary expectations early-round, current salary, 5-year outlook), and **§10 Salary Negotiation** (market data sources, negotiation timeline, total-comp components, leverage analysis, the script, 7 mistakes to avoid, when NOT to negotiate). Section 1 expanded with the empirical research foundation (Janz/Hellervik/Gilmore 1986, Project Oxygen/Aristotle). Sections renumbered: 3→4, 4→5, 5→6, 6→8, 7→11, 8→12, 9→13, 10→14, 11→15, with TOC updated.
-- **CORS guide expansion (v1.0.5)** — Section 1 (Same-Origin Policy) added concrete threat-model section ("Why SOP Exists" — bank.com cookie-leak attack) and a History timeline (1995 Netscape → 2009 CORS spec → 2020+ COOP/COEP).
-- **Storybook guide expansion (v1.0.5)** — Section 1 added Component-Driven Development theory (the three structural problems CDD solves) and a 4-layer testing-stack comparison table (Unit / Component / Visual Regression / E2E) showing where Storybook fits.
-- **Design Patterns + Refactoring & Code Review guides (v1.0.5)** — Two new Front End guides. **Design Patterns** covers all 23 GoF patterns (Creational/Structural/Behavioral) with JS/TS examples and idiomatic-JS alternatives, plus React-specific patterns (HOC, Render Props, Custom Hooks, Compound Components, Provider, Reducer), anti-patterns, a "which pattern when" comparison table, 13 interview Qs and 4 tricky Qs. **Refactoring & Code Review** covers the full refactoring.guru catalog (5 smell families: Bloaters / OO Abusers / Change Preventers / Dispensables / Couplers; refactoring techniques in 5 categories: Composing Methods / Moving Features / Simplifying Conditionals / Simplifying Method Calls / Dealing with Generalization), React-specific refactorings, code review goals + checklist + tone guidance, PR hygiene, anti-patterns, 12 interview Qs, 7 tricky Qs.
-- **React guide — Reconciliation + Rendering Models expansion (v1.0.5)** — Added a new Section 14 "Reconciliation and Fiber" deep-dive: render→reconcile→commit pipeline, the three-rule diffing algorithm, type matching (re-render vs remount), why list keys matter at the algorithm level, Fiber data structure (linked list, double-buffering with `alternate`, lanes bitmap), the work loop with 5ms time-slicing yields, and practical implications. Renumbered 14→15, 15→16, 16→17, 17→18 with updated TOC. Section 13 expanded: 13.4 (Virtualization) got the windowing math + library landscape (react-window vs @tanstack/react-virtual vs react-virtuoso); 13.5 (Concurrent Features) got lanes (31-bit bitmap), time-slicing, double-buffering, useOptimistic, tearing + useSyncExternalStore; 13.12 got Selective Hydration, Progressive Hydration, Islands Architecture (Astro/Marko/Fresh/Qwik), ISR (Next.js getStaticProps + revalidate), and a 7-row CSR/SSR/SSG/ISR/Streaming/RSC/Islands comparison table.
-- **Browser APIs guide (v1.0.5)** — New Front End guide covering DOM/EventTarget, Storage APIs (cookies, localStorage, sessionStorage, IndexedDB, Cache API + comparison table), Network (fetch, XHR, AbortController, WebSockets, SSE + WS/SSE/Polling comparison), Workers (Web/Shared/Service + comparison), Observers (Intersection, Mutation, Resize, Performance), History API + bfcache, Performance API, Scheduling (setTimeout / queueMicrotask / rAF / rIC), File/Blob/Streams, Geolocation/Notifications/Clipboard, Web Crypto, Cross-tab messaging (postMessage / BroadcastChannel / MessageChannel), Page Lifecycle, Permissions, URL/URLSearchParams. Closes with **16 interview questions** (Beginner/Intermediate/Advanced) and **12 tricky questions** (storage/lifecycle, network/async, workers/threading, DOM/events, lifecycle/perf), plus a 15-rule cheat sheet. Total tricky questions across the app: 117 → 129.
-- **React Performance & Build-Tooling expansion (v1.0.5)** — React guide section 13 grew from 5 short subsections (memo, useMemo/useCallback, lazy, virtualization, rules) to a 13-subsection deep dive: added Concurrent Features (useTransition/useDeferredValue), Profiling & Measurement (DevTools Profiler + Core Web Vitals + `web-vitals` library), Common Re-render Causes table, Image/Asset Optimization, Webpack vs Vite comparison, Bundle Analyzers (`rollup-plugin-visualizer`, `webpack-bundle-analyzer`, `source-map-explorer`), Tree Shaking + Code Splitting strategies, Server Components / SSR / Streaming, plus an expanded 14-rule cheat sheet. Added **8 interview Qs (Q19–Q26)** and **6 tricky Qs (Q17–Q22, "Performance Pitfalls")** in the standard `**Q{N}: ...**` + answer-before-`---` format.
-- **React guide lifecycle section rewritten** (§3, `#### Lifecycle Methods`) — was a single code block with one-line comments and no explanation. Now a **per-method walkthrough** in the same shape as §6.2's hooks reference: signature → what it does → when to use it → **most common pitfall** → hook equivalent, for all nine methods plus the error-boundary pair. Opens with the mount/update/unmount/error ordering and the **render-phase vs commit-phase** table, which is the fact that explains why some methods are `static` and why the `UNSAFE_*` three are unsafe. Apply this same shape to any other reference-style section that is currently a code dump.
-- **React guide §16.9 "What React 19 Changed"** documents the *removals* (`findDOMNode`, string refs, legacy context, `propTypes`, `defaultProps` on function components, `ReactDOM.render`/`hydrate`/`unmountComponentAtNode`, `react-test-utils`), the deprecate-by-replacement pairs (`forwardRef` → `ref` as a prop, `<Context.Provider>` → `<Context>`), ref cleanup functions and the TypeScript implicit-return break, the behavioural improvements (metadata hoisting, stylesheet precedence, preload APIs, hydration diffs, `useDeferredValue` initialValue) and an upgrade order. **All of it was verified against react.dev** — §16.1–16.8 cover the additions, so don't duplicate them there. Key facts to preserve: **no lifecycle methods were removed in 19**, classes are discouraged but not deprecated, `propTypes` fails *silently*, and `defaultProps` still works on classes.
-- **Play Store Launch guide expansion (v1.0.5)** — Beyond the original launch playbook, the guide now includes a deep-dive "Android Build Internals" section (AAB vs APK, the build pipeline, R8 shrinking/obfuscation with keep rules, signature schemes V1–V4, upload key vs app signing key, key recovery/upgrade/rotation, manifest merger, Hermes + baseline profiles, Dynamic Delivery, OTA boundaries), a "React Native and Expo Build Concerns" section (JSI/Fabric/TurboModules/Bridgeless, Managed vs Bare workflow, EAS vs local Gradle, sourcemaps, expo-doctor), and a "Bundletool / Pre-Launch Report / Internal App Sharing" section. Closed with **24 interview questions** (Beginner/Intermediate/Advanced) and **10 tricky scenario questions** in the standard `**Q{N}: ...**` + answer + `---` format so Quiz Mode picks them up. Final 20-rule cheat sheet section at the end.
-- **Tricky-section rewrite (v1.0.5)** — All 111 Tricky Output Questions across 9 guides were rewritten to state the question clearly in one sentence and follow with a detailed teaching-style explanation (not the previous 2-3 line summaries). Parser contract preserved: each Q stays in the `**Q{N}: text**` + answer-block + `---` format, with the full explanation placed BEFORE the `---` separator so Quiz mode still captures it.
-- **Playground fixes (v1.0.4)** — Console output now splits space evenly with the React preview (no more collapsed sliver). Console patch is persistent so async logs from intervals/effects keep flowing. "Try it" from React guides auto-appends `render(<Component />)`. Templates UI redesigned as a centered 2-pane modal (categories + snippet cards) instead of the cluttered drawer. On `/playground`, the floating sidebar expand button is hidden and replaced by an inline toggle in the playground header to stop it overlapping the editor.
-- **React Native & Apps guide** — New Front End guide covering core components, Flexbox (platform differences), `FlatList`/`SectionList` perf, React Navigation + Expo Router, platform APIs, SafeArea/Keyboard, storage (AsyncStorage/MMKV/SecureStore/SQLite), animations (Animated + Reanimated), gestures, native modules, New Architecture (JSI/Fabric/TurboModules/Hermes), push notifications, deep linking, OTA updates (EAS Update / CodePush), accessibility, i18n. 30 interview Qs (split by difficulty) + 16 tricky output/conceptual questions with a cheat sheet.
-- **Tricky Output Questions** — "Guess the Output" sections added to 7 guides: React (16Q), TypeScript (16Q), Node.js (12Q), Redux Saga (10Q), Express.js (10Q), MongoDB (10Q), Redux Toolkit (10Q). Each follows the `**QN: text**` + `**Output:**` format with a cheat sheet at the end. JS guide already had this section.
-- **v1.0.0** — Repo renamed from `interview-prep` to `prephub`. Base path updated to `/prephub/` across all configs.
-- **CORS guide** — New Back End guide covering Same-Origin Policy, CORS headers, preflight, credentialed requests, Express.js configuration, debugging, and 15 interview Q&A
-- **Flattened repo structure** — Moved app from `web/` subfolder to root. All configs, `src/`, `scripts/`, `public/` now live at the repo root.
-- **Frontend Tooling guide** — New Front End guide covering Webpack, Vite, npm/yarn/pnpm, bundler comparisons, package.json, npx, and 20 interview Q&A
-- **React Machine Coding challenges** — 10 new playground templates: Pagination, Search Filter, Chat App, Modal, Image Gallery + Lazy Load, Drag-and-Drop, Product List Sort & Filter, Responsive Navbar, Infinite Scroll, Notifications
-- **TypeScript migration** — All `.jsx`/`.js` files converted to `.tsx`/`.ts` with type annotations and `tsconfig.json`
-- **Git category** — New sidebar section with Git Guide (internals, branching, rebasing, workflows) and Git Comparisons
-- **Jest & React Testing Library guide** — Added to Front End section covering Jest, RTL patterns, hooks, Redux, forms, routing
-- **Git Workflows cheat sheet** — Interactive rebase, cherry-pick, bisect, reflog, Git Flow, GitHub Flow
-- **Mermaid rendering fixes** — `suppressErrorRendering`, off-screen container ref, DOM cleanup for orphaned elements
-- **"Try it" opens in new tab** — Code playground button uses `window.open()` instead of `navigate()` to preserve reading context
+## After every change (mandatory, do it without being asked)
+1. **`CLAUDE.md`**: update it if architecture, conventions or instructions changed. Keep it
+   operative: record the rule here and the incident or measurement in
+   `docs/engineering-notes.md`.
+2. **`README.md`**: update it for user-facing changes (features, guides, counts, commands).
+3. **`src/content/changelog.md`**: add a user-visible note.
+4. `npm run verify`, then check by hand what tests can't see: `npm run dev`, light and dark
+   mode, mobile width.

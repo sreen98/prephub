@@ -8,7 +8,7 @@
  *
  * **This is now a CLEAN GATE: the baseline is empty and every one of the 1,670
  * runnable blocks parses.** It began as a ratchet over ~188 pre-existing broken
- * blocks; those were swept in six mechanical classes (see CLAUDE.md), and
+ * blocks; those were swept in six mechanical classes (see docs/engineering-notes.md), and
  * because a file absent from the baseline must be at zero, an empty baseline
  * means any newly-broken block fails the build.
  *

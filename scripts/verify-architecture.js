@@ -612,7 +612,7 @@ check('no released changelog section has been edited', () => {
   //
   // RATCHET. These four diverged before the check existed — they are the
   // historical mis-attributions that were repaired after the fact (see the
-  // v1.5.0 note in CLAUDE.md). The list may shrink, never grow.
+  // v1.5.0 note in docs/engineering-notes.md). The list may shrink, never grow.
   const ALREADY_DIVERGED = new Set(['1.5.0', '1.2.0', '1.0.9', '1.0.7']);
 
   const changelog = read('src/content/changelog.md');
