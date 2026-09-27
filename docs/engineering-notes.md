@@ -2654,3 +2654,23 @@ files. Fixed with a `!src/features/playground/ResumeBanner.tsx` exception, and
 **verify:arch #19** now fails if `git ls-files --others --ignored` finds anything under
 `src/` or `scripts/` (bar `src/generated/` and `.DS_Store`). Probe-tested by removing
 the exception.
+
+### Explain walkthroughs that skipped iterations (Sept 2026)
+A learner found the 3Sum Explain panel impossible to follow: 4 steps, one of which covered a
+whole pass of the loop and ended "Continue...". An audit of all 155 algorithm/polyfill
+walkthroughs and 46 React build walkthroughs found the same pattern widely. It also found
+7 out-of-range `pseudoLine`s, pseudocode that disagreed with the reference solution (leading
+debounce was a throttle, the sort polyfill showed insertion sort for a quicksort template),
+a walkthrough for the wrong problem (Sum Without Loops), wrong outputs (String Compression
+"a2b1c5a3"), and build walkthroughs describing code the templates don't contain. Everything was
+rewritten against executed traces. Steps without a visual fell from 328 to 285; the rest are
+polyfill line-by-line code tours. Two tests in `playgroundContent.test.ts` now pin
+`pseudoLine` range and ban skip phrases; both were probe-tested by planting the bug.
+
+Checking the rewrite in a real browser found that the Explain modals printed every text field
+as one plain string, so the walkthroughs' `**bold**`, `` `code` `` and `\n\n` paragraphs showed
+as raw markup. The old content already used that markup, so the bug predates the rewrite; the
+rewrite just made it obvious. Fixed with `RichText`. The same pass found two phone-width bugs:
+pointer labels were a separate wrapping row, so they drifted under the wrong cell, and ~20
+step dots pushed the footer controls off screen.
+

@@ -4,6 +4,7 @@ import { X, ChevronLeft, ChevronRight, AlertTriangle, ClipboardList, CheckCircle
 import type { BuildExplanation } from '../../data/playground/playgroundExplanations';
 import { highlightCode } from '../../lib/editorHighlight';
 import { sliceExcerpt } from '../../lib/buildExcerpt';
+import RichText, { InlineText } from './explanationViews/RichText';
 
 interface Props {
   open: boolean;
@@ -90,7 +91,7 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1.5">
                   <ClipboardList size={13} /> The brief
                 </div>
-                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{explanation.problemStatement}</p>
+                <RichText text={explanation.problemStatement} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed" />
               </div>
 
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
@@ -118,7 +119,7 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    <span className="text-indigo-600 dark:text-indigo-400">{stepIdx + 1}.</span> {step.title}
+                    <span className="text-indigo-600 dark:text-indigo-400">{stepIdx + 1}.</span> <InlineText text={step.title} />
                   </h3>
                 </div>
 
@@ -134,11 +135,11 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
                 )}
 
                 <div className="p-4 space-y-3">
-                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{step.detail}</p>
+                  <RichText text={step.detail} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed" />
                   {step.pitfall && (
                     <div className="flex gap-2.5 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-900/40">
                       <AlertTriangle size={15} className="text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
-                      <p className="text-[13px] text-amber-900 dark:text-amber-200 leading-relaxed">{step.pitfall}</p>
+                      <RichText text={step.pitfall} className="text-[13px] text-amber-900 dark:text-amber-200 leading-relaxed" />
                     </div>
                   )}
                 </div>
@@ -151,8 +152,8 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
                 <ul className="space-y-2.5">
                   {explanation.graded.map(g => (
                     <li key={g.point} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                      <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{g.point}</div>
-                      <p className="text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed mt-0.5">{g.why}</p>
+                      <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100"><InlineText text={g.point} /></div>
+                      <RichText text={g.why} className="text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed mt-0.5" />
                     </li>
                   ))}
                 </ul>

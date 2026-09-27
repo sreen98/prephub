@@ -60,15 +60,17 @@ function TrackList({ tracks, activeId, onSelect, solvedIn }: {
   onSelect: (id: string | null) => void;
   solvedIn: (names: string[]) => number;
 }) {
+  // Below sm the tracks are a horizontal, scrollable strip of chips above the
+  // list; a 240px sidebar would leave a phone ~120px for the challenges.
   const row = (selected: boolean) =>
-    'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ' +
+    'shrink-0 sm:w-full whitespace-nowrap text-left px-3 py-2 rounded-lg text-sm transition-colors ' +
     (selected ? 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60');
   return (
-    <nav aria-label="Study tracks" className="w-60 shrink-0 border-r border-slate-100 dark:border-slate-800 overflow-y-auto p-2 space-y-0.5">
+    <nav aria-label="Study tracks" className="shrink-0 flex gap-1 overflow-x-auto border-b border-slate-100 dark:border-slate-800 p-2 sm:block sm:w-60 sm:overflow-x-visible sm:overflow-y-auto sm:border-b-0 sm:border-r sm:space-y-0.5">
       <button onClick={() => onSelect(null)} className={row(activeId === null)} aria-current={activeId === null ? 'true' : undefined}>
         All challenges
       </button>
-      <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">Study tracks</p>
+      <p className="hidden sm:block px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">Study tracks</p>
       {tracks.map((t) => {
         const done = solvedIn(t.names);
         return (
@@ -125,6 +127,7 @@ export default function ChallengeBrowser({ open, onClose, selectedName, getEntry
   const [tag, setTag] = useState<Tag>(() => lockedTag ?? (byName.get(selectedName ?? '')?.tag === 'React' ? 'React' : 'JS'));
   const [trackId, setTrackId] = useState<string | null>(initialTrackId);
   const [search, setSearch] = useState('');
+  const [focusSearch] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(min-width: 640px)').matches);
   const problems = useChallengeProblems();
   // Read once per open (the component remounts each time it opens).
   const [history] = useState(readHistory);
@@ -167,25 +170,25 @@ export default function ChallengeBrowser({ open, onClose, selectedName, getEntry
             onKeyDown={(e) => e.key === 'Escape' && onClose()}
             className="fixed inset-0 m-auto w-[min(1040px,95vw)] h-[min(680px,90vh)] bg-white dark:bg-[#0f0f1a] text-slate-900 dark:text-slate-100 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[90] flex flex-col overflow-hidden"
           >
-            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3 min-w-0">
+            <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex flex-1 items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0"><Target size={16} className="text-white" /></div>
                 <div className="min-w-0">
                   <h2 className="font-bold text-base leading-tight">Challenges</h2>
                   <p className="text-xs text-slate-600 dark:text-slate-400">{solvedTotal} of {inScope.length} solved · grouped by technique, easiest first</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <label className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 w-[240px]">
+              {/* On a phone the search drops to its own full-width row under the title. */}
+              <label className="order-last basis-full sm:order-none sm:basis-auto flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 sm:w-[240px]">
                   <Search size={13} className="text-slate-500 dark:text-slate-400 shrink-0" />
-                  <input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search challenges…" aria-label="Search challenges"
-                    className="flex-1 bg-transparent outline-none text-sm placeholder:text-slate-500 dark:placeholder:text-slate-400" />
-                </label>
-                <button onClick={onClose} aria-label="Close challenges" className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"><X size={16} /></button>
-              </div>
+                  {/* No autofocus on a phone: the keyboard would cover the list. */}
+                  <input autoFocus={focusSearch} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search challenges…" aria-label="Search challenges"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-sm placeholder:text-slate-500 dark:placeholder:text-slate-400" />
+              </label>
+              <button onClick={onClose} aria-label="Close challenges" className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"><X size={16} /></button>
             </div>
 
-            <div className="flex items-center gap-1 px-5 py-2 border-b border-slate-100 dark:border-slate-800" role="group" aria-label="Challenge type">
+            <div className="flex items-center gap-1 px-4 sm:px-5 py-2 border-b border-slate-100 dark:border-slate-800" role="group" aria-label="Challenge type">
               {/* The JS and React playgrounds each lock this to their own tag. */}
               {(lockedTag ? [] : (['JS', 'React'] as const)).map((t) => (
                 <button key={t} onClick={() => switchTag(t)} aria-pressed={tag === t}
@@ -198,11 +201,11 @@ export default function ChallengeBrowser({ open, onClose, selectedName, getEntry
               </button>
             </div>
 
-            <div className="flex-1 flex min-h-0">
+            <div className="flex-1 flex flex-col sm:flex-row min-h-0">
               <TrackList tracks={tracks} activeId={trackId} onSelect={setTrackId} solvedIn={solvedIn} />
               <div className="flex-1 overflow-y-auto">
                 {track && (
-                  <div className="px-5 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h3 className="font-semibold text-base">{track.title}</h3>

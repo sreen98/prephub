@@ -254,6 +254,16 @@ silently resolves to a `window` global and typechecks.
   track (`challengeTracks.ts`), `EXPECTED` counts, and prose counts. Rebuild existing templates
   in place (same name) so progress keys survive.
 - Then run `npm run playground:index && npm run content:meta && npm run verify`.
+- **Explain walkthroughs trace the example one iteration per step** (or one call, pop, tick,
+  render). Never merge iterations or write "Continue...", and give every step a visual frame.
+  If the trace is too long, shrink the example. Take every value from running the code.
+  `playgroundContent.test.ts` fails on an out-of-range `pseudoLine` and on skip phrases.
+  `computation` renders `lhs op rhs = result`, so don't put `=` in `op`. `result: { found:
+  false }` renders its `value` (or "No solution found") as a warning. Polyfill walkthroughs
+  pass a `trace` (9th arg of `polyfillExplanation`). Explanation prose is rendered through
+  `explanationViews/RichText.tsx` (blank-line paragraphs, `•`/`-`/`1.` lists, `**bold**`,
+  `*italic*`, `` `code` ``). Put any new text field in the Explain modals through `RichText` or
+  `InlineText`, never a bare `{string}`.
 - Editor behaviours (auto-close, bracket rules, Reset gating) live in
   `playgroundAutoClose.ts` and are tested by keystroke replay. Read that test before changing
   them.

@@ -23,35 +23,34 @@ export function ComplexityRow({ label, value }: { label: string; value: string }
   );
 }
 
+const POINTER_COLOR = {
+  red: 'text-red-500', amber: 'text-amber-500', emerald: 'text-emerald-500', indigo: 'text-indigo-500',
+} as const;
+
 export function ArrayView({ array }: { array: NonNullable<ExplanationStep['array']> }) {
+  const pointers = array.pointers ?? [];
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Array</div>
+      {/* Each pointer sits in its cell's own column, so on a narrow screen it
+          wraps with the cell instead of drifting under a different one. */}
       <div className="flex gap-1.5 flex-wrap">
-        {array.cells.map((cell, i) => (
-          <CellView key={i} index={i} cell={cell} />
-        ))}
+        {array.cells.map((cell, i) => {
+          const ps = pointers.filter(p => p.index === i);
+          return (
+            <div key={i} className="flex flex-col items-center">
+              <CellView index={i} cell={cell} />
+              {pointers.length > 0 && (
+                <div className="w-12 flex flex-col items-center gap-0.5 min-h-[1.5rem] mt-1" aria-hidden>
+                  {ps.map((p, k) => (
+                    <span key={k} className={`text-[10px] font-bold ${POINTER_COLOR[p.color]}`}>↑ {p.label}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      {array.pointers && array.pointers.length > 0 && (
-        <div className="flex gap-1.5 mt-1 flex-wrap" aria-hidden>
-          {array.cells.map((_, i) => {
-            const ps = array.pointers!.filter(p => p.index === i);
-            return (
-              <div key={i} className="w-12 flex flex-col items-center gap-0.5 min-h-[1.5rem]">
-                {ps.map((p, k) => (
-                  <span key={k} className={
-                    'text-[10px] font-bold ' +
-                    (p.color === 'red' ? 'text-red-500'
-                      : p.color === 'amber' ? 'text-amber-500'
-                      : p.color === 'emerald' ? 'text-emerald-500'
-                      : 'text-indigo-500')
-                  }>↑ {p.label}</span>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -265,8 +264,10 @@ export function TimelineView({ snapshot }: { snapshot: TimelineSnapshot }) {
       <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">
         Timeline {snapshot.windowMs && <span className="ml-1 text-indigo-500">· window {snapshot.windowMs}ms</span>}
       </div>
-      <div className="relative h-12 bg-white dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800">
-        <div className="absolute inset-x-2 top-1/2 h-px bg-slate-300 dark:bg-slate-700" />
+      <div className="relative h-14 bg-white dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800">
+        <div className="absolute inset-x-2 top-5 h-px bg-slate-300 dark:bg-slate-700" />
+        {/* Markers sit in an inset box so one at t=0 or t=max is not cut in half by the edge. */}
+        <div className="absolute inset-y-0 left-10 right-10">
         {snapshot.events.map((e, i) => {
           const x = `${(e.t / maxT) * 100}%`;
           const colorCls = e.kind === 'fire'
@@ -277,31 +278,37 @@ export function TimelineView({ snapshot }: { snapshot: TimelineSnapshot }) {
             ? 'bg-slate-300 dark:bg-slate-700 text-slate-500'
             : 'bg-amber-400 text-white';
           return (
-            <div
-              key={i}
-              style={{ left: x }}
-              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] font-bold ${colorCls} whitespace-nowrap`}
-            >
-              {e.label}
+            <div key={i} style={{ left: x }} className="absolute top-5 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center">
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${colorCls} whitespace-nowrap`}>{e.label}</span>
+              <span className="mt-0.5 text-[9px] font-mono text-slate-500 dark:text-slate-400">{e.t}ms</span>
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
+}
+
+/** `at` is either an index ("0") or a short phrase ("WeakMap", "so 100 starts a run"). */
+function LookupAt({ at }: { at?: string }) {
+  if (at === undefined) return null;
+  return /^\d+$/.test(at)
+    ? <> (at index <code className="font-mono">{at}</code>)</>
+    : <> — {at}</>;
 }
 
 export function LookupView({ outcome }: { outcome: NonNullable<ExplanationStep['lookupOutcome']> }) {
   if (outcome.kind === 'hit') {
     return (
       <div className="px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 font-medium">
-        ✓ <code className="font-mono mx-1">{outcome.key}</code> is in the map (at index <code className="font-mono">{outcome.at}</code>)
+        ✓ <code className="font-mono mx-1">{outcome.key}</code> is in the map<LookupAt at={outcome.at} />
       </div>
     );
   }
   return (
     <div className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 font-medium">
-      ✕ <code className="font-mono mx-1">{outcome.key}</code> is not in the map — store the current number and continue
+      ✕ <code className="font-mono mx-1">{outcome.key}</code> is not in the map<LookupAt at={outcome.at} />
     </div>
   );
 }

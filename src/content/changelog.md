@@ -1,5 +1,33 @@
 # What's New
 
+## v1.7.5 (September 2026)
+
+**Every Explain walkthrough rewritten so you can follow it.** Explain used to jump over parts of the algorithm: a whole pass of 3Sum's loop was one step ending "Continue...". Now every algorithm, concept and polyfill walkthrough traces its example one loop pass, recursive call or event-loop tick at a time. Each step draws the state at that moment: pointers on the array, the map or stack contents, and the sum or comparison being made. Where a full trace would be too long, the example is smaller instead of skipped. Every value was checked by running the code. Intuitions now lead with the core idea and explain jargon where it first appears.
+
+- **Polyfills** explain every line of code in plain words, then run the example through the loop.
+- **React Machine Coding** walkthroughs cover every part of the build, and each one describes the code in its own template.
+- **Easier to read:** Explain text now shows bold lead-ins, code and bullet lists properly instead of raw asterisks run together into one block.
+- **On a phone:** each pointer (i, l, r) stays under its own cell when the array wraps, and the step controls fit the screen, with a "3 / 12" counter in place of the dots.
+- **Timelines** show each event's time under it and no longer cut off the first and last markers.
+
+**Challenges and Templates on a phone.** Both pickers used to squeeze their list into a narrow column beside a fixed sidebar, and Challenges had no search box on small screens. On a phone, tracks and categories are now a row of chips you can scroll sideways above a full-width list, and the search box is always there.
+
+**Fixed along the way:**
+
+- Pseudocode that disagreed with the solution. The leading-edge debounce was really a throttle, the sort polyfill showed a different algorithm from its template, and several highlighted pseudocode lines didn't exist.
+- Sum Without Loops explained a different problem, and String Compression gave the wrong output ("a2b1c5a3" instead of "a2bc5a3").
+- Rotate Array asks you not to change the input, but its hints pointed to an in-place trick. The hint, walkthrough and solution now copy the array first.
+- Detect Cycle's first example now says exactly which node the last one points back to.
+
+**Template fixes:**
+
+- **Nested Comments:** memoisation now reaches the replies, so opening a reply box re-renders one comment instead of the whole thread.
+- **Auto-Complete:** a second Escape now clears the input, as its comment always promised.
+- **Form with Validation:** pressing Create account twice while it is submitting no longer submits twice.
+- **Notifications:** the simulated feed no longer calls `add()` inside a state updater, which would show each notification twice under StrictMode.
+- **useReducer Todo:** the reducer is now pure, because the new todo's id is made in the click handler.
+- **React Compiler Patterns:** the playground doesn't run the compiler, so the demo's "Count won't re-render the list" was untrue. A "Simulate the compiler" checkbox now applies the compiler's caching by hand, so you can watch the difference in the console.
+
 ## v1.7.4 (September 2026)
 
 **Performance: Redux Toolkit and React.** The Redux Toolkit guide has a new section, 11.4, on finding and fixing over-rendering, and a new interview question, Q20, walks through diagnosing a sluggish Redux app. They cover:

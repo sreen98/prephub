@@ -543,7 +543,9 @@ render(<App />);`,
         code: `function todosReducer(state, action) {
   switch (action.type) {
     case "add":
-      return [...state, { id: Date.now(), text: action.text, done: false }];
+      // The id arrives in the action. Calling Date.now() here would make the
+      // reducer impure: the same state and action would give different results.
+      return [...state, { id: action.id, text: action.text, done: false }];
     case "toggle":
       return state.map(t => t.id === action.id ? { ...t, done: !t.done } : t);
     case "delete":
@@ -559,7 +561,7 @@ function TodoApp() {
 
   const handleAdd = () => {
     if (text.trim()) {
-      dispatch({ type: "add", text });
+      dispatch({ type: "add", id: Date.now(), text });
       setText("");
     }
   };
@@ -658,16 +660,22 @@ render(
       {
         name: 'React Compiler Patterns',
         jsx: true,
-        code: `// React Compiler automatically memoizes computations
-// that you'd manually wrap with useMemo/useCallback/React.memo.
+        code: `// React Compiler rewrites components at build time so that values whose
+// inputs did not change are reused from the last render. You stop writing
+// useMemo / useCallback / React.memo by hand.
 //
 // WITHOUT compiler:
 //   const filtered = useMemo(() => items.filter(...), [items, query]);
 //
-// WITH compiler \u2014 just write plain code:
+// WITH compiler \u2014 just write plain code, as ExpensiveList does.
+//
+// This playground runs your code WITHOUT the compiler, so on its own
+// ExpensiveList re-renders on every Count click. Tick "Simulate the
+// compiler" to apply, by hand, the two things the compiled App does:
+// keep the items array and cache the <ExpensiveList> element itself.
+// Then click Count and watch the console go quiet.
 
 function ExpensiveList({ items, query }) {
-  // Compiler auto-memoizes this computation
   const filtered = items.filter(item =>
     item.toLowerCase().includes(query.toLowerCase())
   );
@@ -676,8 +684,8 @@ function ExpensiveList({ items, query }) {
 
   return (
     <ul style={{ listStyle: "none", padding: 0 }}>
-      {filtered.map((item, i) => (
-        <li key={i} style={{ padding: "4px 0", borderBottom: "1px solid #eee" }}>{item}</li>
+      {filtered.map((item) => (
+        <li key={item} style={{ padding: "4px 0", borderBottom: "1px solid #eee" }}>{item}</li>
       ))}
       {filtered.length === 0 && <li style={{ color: "#999" }}>No matches</li>}
     </ul>
@@ -687,25 +695,41 @@ function ExpensiveList({ items, query }) {
 function App() {
   const [query, setQuery] = React.useState("");
   const [count, setCount] = React.useState(0);
+  const [simulate, setSimulate] = React.useState(true);
 
-  // Compiler knows this array is stable
-  const items = [
+  // The compiler builds this array once and keeps it in its cache.
+  const items = React.useMemo(() => [
     "React", "Redux", "Router", "TanStack Query",
     "Next.js", "Remix", "Vite", "TypeScript",
     "Node.js", "Express", "MongoDB", "PostgreSQL",
-  ];
+  ], []);
+
+  // The compiler also caches the JSX element. When App returns the SAME
+  // element object as last render, React skips ExpensiveList entirely,
+  // with no React.memo anywhere.
+  const cachedList = React.useMemo(
+    () => <ExpensiveList items={items} query={query} />,
+    [items, query]
+  );
+  const list = simulate ? cachedList : <ExpensiveList items={items} query={query} />;
 
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 400 }}>
       <h3 style={{ marginTop: 0 }}>React Compiler Demo</h3>
+      <label style={{ display: "flex", gap: 6, fontSize: 13, marginBottom: 8 }}>
+        <input type="checkbox" checked={simulate} onChange={e => setSimulate(e.target.checked)} />
+        Simulate the compiler (cache the list element)
+      </label>
       <p style={{ color: "#888", fontSize: 13 }}>
-        Compiler auto-memoizes the filtered list.
-        Clicking "Count" won't re-filter. Check console!
+        {simulate
+          ? "Clicking Count won't re-render the list. Typing will. Check the console!"
+          : "No compiler: every Count click re-renders and re-filters the list."}
       </p>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
+          aria-label="Filter technologies"
           placeholder="Filter technologies..."
           style={{ flex: 1, padding: 8, borderRadius: 8, border: "1px solid #ddd" }}
         />
@@ -713,7 +737,7 @@ function App() {
           Count: {count}
         </button>
       </div>
-      <ExpensiveList items={items} query={query} />
+      {list}
     </div>
   );
 }
@@ -8191,7 +8215,6 @@ function Toast({ notification, onDismiss }) {
 
 function App() {
   const { notifications, add, dismiss } = useNotifications();
-  const [autoCount, setAutoCount] = React.useState(0);
 
   // Simulate real-time notifications
   React.useEffect(() => {
@@ -8201,17 +8224,19 @@ function App() {
       { msg: "High memory usage detected", type: "warning" },
       { msg: "Build failed on main branch", type: "error" },
     ];
+    // The tick count lives in the effect, not in state. Calling add() inside
+    // a state updater would be a side effect in a function React expects to
+    // be pure, and StrictMode calls updaters twice.
+    let tick = 0;
     const interval = setInterval(() => {
-      setAutoCount(c => {
-        if (c < 3) {
-          const evt = events[c % events.length];
-          add(evt.msg, evt.type);
-        }
-        return c + 1;
-      });
+      if (tick < 3) {
+        const evt = events[tick];
+        add(evt.msg, evt.type);
+      }
+      tick += 1;
     }, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [add]);
 
   return (
     <div style={{ padding: 20, fontFamily: "system-ui" }}>
@@ -9034,6 +9059,9 @@ function AutoComplete() {
     if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
       if (options.length) { setOpen(true); return; }
     }
+    // The first Esc closed the list, so an Esc on a closed list clears the
+    // input. It has to be handled here, before the early return below.
+    if (!open && e.key === "Escape") { setQuery(""); return; }
     if (!open) return;
 
     switch (e.key) {
@@ -9051,9 +9079,7 @@ function AutoComplete() {
         if (active >= 0) { e.preventDefault(); commit(active); }
         break;
       case "Escape":
-        // First Esc closes the list; a second clears the input.
-        if (open) setOpen(false);
-        else setQuery("");
+        setOpen(false);   // first Esc closes the list; a second clears the input (above)
         break;
       case "Tab":
         setOpen(false);   // Tab accepts and moves on — never traps focus
@@ -10285,6 +10311,9 @@ function SignupForm() {
 
   async function onSubmit(e) {
     e.preventDefault();
+    // aria-disabled only announces the button as unavailable; it does not
+    // stop a second press, so the handler has to ignore it.
+    if (f.submitting) return;
 
     if (!f.isValid) {
       // Mark everything touched so all errors appear at once…
@@ -11125,8 +11154,10 @@ const MAX_INDENT_DEPTH = 4;   // deeper replies stop indenting so text never get
 
 // Recursive: a Comment renders its children as Comments.
 // memo + a single string prop means a comment only re-renders when its own
-// entry in the store changes.
-const Comment = React.memo(function Comment({ id, depth }) {
+// entry in the store changes. The inner function is named CommentItem, not
+// Comment: inside a function named Comment, the name Comment would mean that
+// inner function, so the children below would skip the memo wrapper.
+const Comment = React.memo(function CommentItem({ id, depth }) {
   const comment = useComment(id);
   const [collapsed, setCollapsed] = React.useState(false);
   const [replying, setReplying] = React.useState(false);

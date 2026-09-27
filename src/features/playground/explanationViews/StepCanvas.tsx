@@ -1,6 +1,7 @@
 import React, { Fragment } from 'react';
 import { Award, AlertCircle } from 'lucide-react';
 import type { ExplanationStep } from '../../../data/playground/playgroundExplanations';
+import RichText from './RichText';
 import {
   ArrayView, MapView, ComputationView, StackView, SetView,
   DualArrayView, CallStackView, LinkedListView, TimelineView, LookupView,
@@ -48,7 +49,7 @@ function ResultBanner({ result }: { result: NonNullable<ExplanationStep['result'
     <div className={`mt-1 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${tone}`}>
       {result.found
         ? <><Award size={14} /> Result: <code className="font-mono">{result.value}</code></>
-        : <><AlertCircle size={14} /> No solution found</>}
+        : <><AlertCircle size={14} /> {result.value || 'No solution found'}</>}
     </div>
   );
 }
@@ -64,7 +65,7 @@ export default function StepCanvas({ step }: { step: ExplanationStep }) {
 
       {step.note && (
         <div className="px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/40 text-xs text-blue-700 dark:text-blue-300">
-          {step.note}
+          <RichText text={step.note} />
         </div>
       )}
 

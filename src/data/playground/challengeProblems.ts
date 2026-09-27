@@ -543,7 +543,7 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
     "constraints": [
       "k can be 0 or larger than nums.length.",
       "Do not mutate the input; return a new array.",
-      "Try slice + concat, or the reverse-three-times trick."
+      "Try slice + concat, or copy the input first and apply the reverse-three-times trick to the copy."
     ]
   },
   "Bubble Sort": {
@@ -1404,7 +1404,7 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
     "statement": "You are given head, the first node of a singly linked list (each node has a val and a next pointer). A cycle exists when following next pointers eventually brings you back to a node you have already visited, so the walk never reaches null. Write hasCycle(head) that returns true if the list has a cycle and false otherwise. Aim for O(1) extra space: two pointers moving at different speeds (Floyd's tortoise and hare) will meet only if there is a loop.",
     "examples": [
       {
-        "input": "head = 3 → 2 → 0 → -4, and -4 points back to the node 2",
+        "input": "head = 3 → 2 → 0 → -4, and -4.next points back to the second node (the one holding 2, at index 1)",
         "output": "true",
         "explanation": "After -4 the walk returns to 2, so it loops forever.",
         "run": "console.log(hasCycle(fromArray([3, 2, 0, -4], 1)))"

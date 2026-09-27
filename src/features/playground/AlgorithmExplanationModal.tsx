@@ -8,6 +8,7 @@ import type {
 } from '../../data/playground/playgroundExplanations';
 import { ComplexityRow } from './explanationViews';
 import StepCanvas from './explanationViews/StepCanvas';
+import RichText, { InlineText } from './explanationViews/RichText';
 
 interface Props {
   open: boolean;
@@ -88,7 +89,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
               <div>
                 <h2 className="text-xl font-bold">{explanation.problem} — Explained</h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
-                  {explanation.problemStatement}
+                  <InlineText text={explanation.problemStatement} />
                 </p>
               </div>
               <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0" aria-label="Close">
@@ -121,7 +122,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
               <div className="grid md:grid-cols-3 gap-4 mb-5">
                 <div className="md:col-span-2 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/40">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1.5">Intuition</div>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{approach.intuition}</p>
+                  <RichText text={approach.intuition} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed" />
                 </div>
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Complexity</div>
@@ -219,8 +220,8 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Step {stepIdx + 1} of {totalSteps}</span>
                 </div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{step.title}</p>
-                {step.detail && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">{step.detail}</p>}
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100"><InlineText text={step.title} /></p>
+                {step.detail && <RichText text={step.detail} className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed" />}
               </div>
 
               {/* Polyfill references — built-ins this approach uses that have a polyfill template */}
@@ -265,12 +266,12 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                 <summary className="px-4 py-2.5 text-xs font-semibold cursor-pointer text-slate-700 dark:text-slate-300">
                   When to pick this approach
                 </summary>
-                <p className="px-4 pb-3 pt-1 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{approach.tradeoffs}</p>
+                <RichText text={approach.tradeoffs} className="px-4 pb-3 pt-1 text-xs text-slate-600 dark:text-slate-400 leading-relaxed" />
               </details>
             </div>
 
             {/* Footer — step navigator */}
-            <div className="flex items-center justify-between gap-3 px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 shrink-0">
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 shrink-0">
               <button
                 onClick={reset}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
@@ -287,8 +288,12 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {/* Dot indicator */}
-                <div className="flex gap-1.5 px-2">
+                {/* Dot indicator. Walkthroughs run to ~20 steps, which is too many
+                    dots for a phone, so narrow screens get a "3 / 12" counter. */}
+                <span className="sm:hidden px-1 text-xs font-medium tabular-nums text-slate-600 dark:text-slate-400">
+                  {stepIdx + 1} / {totalSteps}
+                </span>
+                <div className="hidden sm:flex gap-1.5 px-2">
                   {approach.steps.map((_, i) => (
                     <button
                       key={i}

@@ -44,12 +44,14 @@ export default function TemplateFilterSidebar({
   } = filters;
   const filteredCategories = categories;
   return (
-    <div className="w-[220px] shrink-0 border-r border-slate-100 dark:border-slate-800 py-3 overflow-y-auto sidebar-scroll bg-slate-50/60 dark:bg-slate-900/40">
+    // Below sm this is a horizontal, scrollable strip of chips above the grid;
+    // a 220px sidebar would leave a phone ~130px for the templates.
+    <div className="shrink-0 flex items-center gap-2 overflow-x-auto border-b border-slate-100 dark:border-slate-800 py-2 sm:block sm:w-[220px] sm:py-3 sm:overflow-x-visible sm:overflow-y-auto sm:border-b-0 sm:border-r sidebar-scroll bg-slate-50/60 dark:bg-slate-900/40">
       {/* Tag pills at top of category list — counts respect the
           current modal mode (templates vs challenges) so they
           reflect what the user is actually browsing. */}
       {/* A playground locked to one language passes no options: nothing to switch. */}
-      <div className={tagOptions.length > 1 ? 'px-3 pb-3 flex gap-1.5 flex-wrap' : 'hidden'}>
+      <div className={tagOptions.length > 1 ? 'shrink-0 pl-3 sm:px-3 sm:pb-3 flex gap-1.5 sm:flex-wrap' : 'hidden'}>
         {tagOptions.map((tag: string) => {
           const wantedKind = modalMode === 'challenges' ? 'challenge' : 'template';
           const inMode = allTemplates.filter(t => (t.kind ?? 'template') === wantedKind);
@@ -74,7 +76,7 @@ export default function TemplateFilterSidebar({
         })}
       </div>
 
-      <div className="px-2">
+      <div className="px-2 flex gap-1 sm:block">
         {/* In challenges mode, the sidebar lists PATTERNS grouped
             by super-category. In templates/blank mode, it lists
             CATEGORIES (the original behavior). */}
@@ -83,7 +85,7 @@ export default function TemplateFilterSidebar({
             <button
               onClick={() => setPatternFilter('all')}
               className={[
-                "w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors flex items-center justify-between",
+                "shrink-0 whitespace-nowrap sm:w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors flex items-center justify-between gap-2",
                 patternFilter === 'all'
                   ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
                   : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
@@ -108,8 +110,8 @@ export default function TemplateFilterSidebar({
               const visible = group.patterns.filter(p => patternCounts[p] > 0);
               if (visible.length === 0) return null;
               return (
-                <div key={group.label} className="mt-3">
-                  <div className="px-3 mb-1 text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">
+                <div key={group.label} className="flex gap-1 sm:block sm:mt-3">
+                  <div className="hidden sm:block px-3 mb-1 text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">
                     {group.label}
                   </div>
                   {visible.map(p => {
@@ -119,7 +121,7 @@ export default function TemplateFilterSidebar({
                         key={p}
                         onClick={() => setPatternFilter(isActive ? 'all' : p)}
                         className={[
-                          "w-full text-left px-3 py-1.5 mt-0.5 rounded-lg text-[12.5px] transition-colors flex items-center justify-between gap-2",
+                          "shrink-0 whitespace-nowrap sm:w-full text-left px-3 py-1.5 mt-0.5 rounded-lg text-[12.5px] transition-colors flex items-center justify-between gap-2",
                           isActive
                             ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
                             : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
@@ -143,7 +145,7 @@ export default function TemplateFilterSidebar({
             <button
               onClick={() => setActiveCategory('all')}
               className={[
-                "w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors flex items-center justify-between",
+                "shrink-0 whitespace-nowrap sm:w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors flex items-center justify-between gap-2",
                 activeCategory === 'all'
                   ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
                   : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
@@ -162,7 +164,7 @@ export default function TemplateFilterSidebar({
                   key={cat.label}
                   onClick={() => setActiveCategory(cat.label)}
                   className={[
-                    "w-full text-left px-3 py-2 mt-0.5 rounded-lg text-[13px] transition-colors flex items-center justify-between gap-2",
+                    "shrink-0 whitespace-nowrap sm:w-full text-left px-3 py-2 mt-0.5 rounded-lg text-[13px] transition-colors flex items-center justify-between gap-2",
                     isActive
                       ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
                       : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"

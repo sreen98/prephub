@@ -152,7 +152,7 @@ describe('solutions and explanations still line up with the challenges', () => {
    * They may FALL, never rise: new content must meet the standard, and each of
    * these is a concrete backlog item. Lower the number when you deepen one.
    */
-  const DEPTH_DEBT = { singleApproach: 83, stepsWithoutVisual: 328 };
+  const DEPTH_DEBT = { singleApproach: 82, stepsWithoutVisual: 285 };
 
   it('explanation depth debt does not grow', async () => {
     const explanations = (await import('./playgroundExplanations')).playgroundExplanations;
@@ -190,6 +190,49 @@ describe('solutions and explanations still line up with the challenges', () => {
       }
     }
     expect(thin).toEqual([]);
+  });
+
+  /**
+   * A walkthrough step points at the pseudocode line it is executing. An index
+   * past the end highlights nothing, and the learner loses the thread. Seven
+   * walkthroughs shipped with one.
+   */
+  it('every step highlights a pseudocode line that exists', async () => {
+    const explanations = (await import('./playgroundExplanations')).playgroundExplanations;
+    const outOfRange: string[] = [];
+    for (const [name, ex] of Object.entries(explanations)) {
+      if (isBuildExplanation(ex)) continue;
+      for (const a of ex.approaches) {
+        for (const step of a.steps) {
+          if (step.pseudoLine !== undefined && (step.pseudoLine < 0 || step.pseudoLine >= a.pseudocode.length)) {
+            outOfRange.push(`${name}/${a.id}: "${step.title}" → line ${step.pseudoLine} of ${a.pseudocode.length}`);
+          }
+        }
+      }
+    }
+    expect(outOfRange).toEqual([]);
+  });
+
+  /**
+   * A walkthrough traces its example one loop iteration (or call, or tick) per
+   * step. A learner reported the 3Sum one as impossible to follow: a whole pass
+   * of the loop was one step ending "Continue...". These phrases are how a
+   * step summarises iterations instead of showing them. Make the example
+   * smaller rather than skipping.
+   */
+  it('no walkthrough step summarises iterations it skips', async () => {
+    const explanations = (await import('./playgroundExplanations')).playgroundExplanations;
+    const SKIPPING = /\bcontinue\s*(\.\.\.|…)|\band so on\b|\betc\.?(\s|$)|\bsimilarly\b|\brepeat(s|ed)? until\b/i;
+    const skipping: string[] = [];
+    for (const [name, ex] of Object.entries(explanations)) {
+      if (isBuildExplanation(ex)) continue;
+      for (const a of ex.approaches) {
+        for (const step of a.steps) {
+          if (SKIPPING.test(`${step.title} ${step.detail ?? ''}`)) skipping.push(`${name}/${a.id}: "${step.title}"`);
+        }
+      }
+    }
+    expect(skipping).toEqual([]);
   });
 
   /**

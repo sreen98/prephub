@@ -2554,10 +2554,13 @@ test("Swap: mixed", moveZerosSwap([0, 1, 0, 3, 12]), [1, 3, 12, 0, 0]);
 // │ Approach                             │ Time  │ Space │ Verdict    │
 // ├──────────────────────────────────────┼───────┼───────┼────────────┤
 // │ 1. Slice + concat (returns new)      │ O(n)  │ O(n)  │ BEST clear │
-// │ 2. Reverse three times (in-place)    │ O(n)  │ O(1)  │ BEST space │
-// │ 3. Cyclic replacement                │ O(n)  │ O(1)  │ Tricky     │
-// │ 4. Pop + unshift in loop             │ O(n·k)│ O(1)  │ Don't ship │
+// │ 2. Copy, then reverse three times    │ O(n)  │ O(n)* │ BEST trick │
+// │ 3. Copy, then cyclic replacement     │ O(n)  │ O(n)* │ Tricky     │
+// │ 4. Copy, then pop + unshift in loop  │ O(n·k)│ O(n)* │ Don't ship │
 // └──────────────────────────────────────┴───────┴───────┴────────────┘
+// * This challenge forbids mutating the input, so 2-4 copy it first and the
+//   O(n) is the copy. Drop the copy and they are O(1) extra space, which is
+//   what LeetCode 189 (rotate in place) asks for.
 
 // ----- Approach 1: Slice + concat (BEST clarity) -----
 // Normalize k by mod n first (k can be larger than length).
@@ -2568,28 +2571,30 @@ function rotate(nums, k) {
   return [...nums.slice(n - shift), ...nums.slice(0, n - shift)];
 }
 
-// ----- Approach 2: Reverse three times (BEST space — in-place, O(1) extra) -----
+// ----- Approach 2: Copy, then reverse three times (the interviewer's favorite) -----
+// The reversals run in place, so they work on a copy: nums must not change.
 // (a) Reverse the whole array.
 // (b) Reverse the first k elements.
 // (c) Reverse the rest.
-// Classic in-place rotation trick. The interviewer's favorite.
 function rotateReverse(nums, k) {
   const n = nums.length;
   if (n === 0) return [];
   k = k % n;
+  const out = nums.slice(); // copy: the reversals below mutate
   const reverse = (a, l, r) => { while (l < r) { [a[l], a[r]] = [a[r], a[l]]; l++; r--; } };
-  reverse(nums, 0, n - 1);
-  reverse(nums, 0, k - 1);
-  reverse(nums, k, n - 1);
-  return nums;
+  reverse(out, 0, n - 1);
+  reverse(out, 0, k - 1);
+  reverse(out, k, n - 1);
+  return out;
 }
 
-// ----- Approach 3: Cyclic replacement (in-place, single pass — tricky to write) -----
+// ----- Approach 3: Copy, then cyclic replacement (single pass — tricky to write) -----
 // Walk through cycles of size gcd(n, k). Hardest to get right but elegant.
-function rotateCyclic(nums, k) {
-  const n = nums.length;
+function rotateCyclic(input, k) {
+  const n = input.length;
   if (n === 0) return [];
   k = k % n;
+  const nums = input.slice(); // copy: the swaps below mutate
   let count = 0;
   for (let start = 0; count < n; start++) {
     let current = start;
@@ -2604,9 +2609,10 @@ function rotateCyclic(nums, k) {
   return nums;
 }
 
-// ----- Approach 4: pop + unshift (DON'T SHIP — O(n·k)) -----
-function rotateNaive(nums, k) {
-  k = k % nums.length;
+// ----- Approach 4: Copy, then pop + unshift (DON'T SHIP — O(n·k)) -----
+function rotateNaive(input, k) {
+  const nums = input.slice(); // copy: pop/unshift mutate
+  k = k % (nums.length || 1);
   for (let i = 0; i < k; i++) nums.unshift(nums.pop());
   return nums;
 }
@@ -2624,12 +2630,16 @@ test("k = 0",        rotate([1, 2, 3], 0), [1, 2, 3]);
 test("k = length",   rotate([1, 2, 3], 3), [1, 2, 3]);
 test("Single",       rotate([1], 5), [1]);
 
-console.log("\\n--- Approach 2 (reverse 3x) — BEST space ---");
+console.log("\\n--- Approach 2 (copy, then reverse 3x) ---");
 test("Reverse: 2", rotateReverse([1, 2, 3, 4, 5], 2), [4, 5, 1, 2, 3]);
+const original = [1, 2, 3];
+rotateReverse(original, 1);
+test("Reverse: input not mutated", original, [1, 2, 3]);
 
 // ===== When to pick which =====
-// - Producing a new array is fine → Approach 1.
-// - Mutating in place required (LeetCode 189) → Approach 2 (reverse-three).
+// - This challenge (return a new array) → Approach 1, or Approach 2 on a copy.
+// - Mutating in place required (LeetCode 189) → Approach 2 without the copy
+//   (see the Rotate Array Left challenge, which is the in-place version).
 // - Approach 3 is a fun trick but harder to debug; rarely worth it.
 // - Approach 4 is the "obvious" baseline; bad when k is large.
 //
