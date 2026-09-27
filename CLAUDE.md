@@ -292,6 +292,9 @@ so use the inline `GithubIcon`.
 - The sidebar shows `v{APP_VERSION}` from `package.json`. Don't use Vite `define` for it,
   because it breaks in dev.
 - Don't add `content-visibility: auto` to guides, because it breaks anchor scroll targets.
+- `ContentPage` memoises the rendered `<ReactMarkdown>` body on `[content, markdownComponents]`.
+  Parsing a long guide takes ~900 ms, so keep that memo, and keep everything that feeds
+  `markdownComponents` stable (a new function per render re-parses the guide on every click).
 - Lazy-load heavy libraries (mermaid, babel, prettier, the TS worker) with `import()`, and weigh
   bundle size before adding any dependency. A heavy module leaking into a small chunk has
   happened four times, so watch Rollup's warnings.

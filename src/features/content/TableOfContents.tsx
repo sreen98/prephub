@@ -55,7 +55,9 @@ export const TableOfContents = ({ content, isCollapsed, onToggle }: { content: s
   }
 
   return (
-    <aside className="hidden xl:block w-60 fixed top-0 right-0 h-screen overflow-y-auto pt-8 pb-8 pl-5 pr-4 sidebar-scroll bg-slate-50 dark:bg-[#0a0a0f] border-l border-slate-200/50 dark:border-slate-800/50">
+    // pb-40: the Save Checkpoint and back-to-top buttons float over the bottom
+    // ~140px of this column, so the last entries must be able to scroll above them.
+    <aside className="hidden xl:block w-60 fixed top-0 right-0 h-screen overflow-y-auto pt-8 pb-40 pl-5 pr-4 sidebar-scroll bg-slate-50 dark:bg-[#0a0a0f] border-l border-slate-200/50 dark:border-slate-800/50">
       <div className="border-l-2 border-slate-200 dark:border-slate-800 pl-4">
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">

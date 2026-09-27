@@ -1,5 +1,11 @@
 # What's New
 
+## v1.7.6 (September 2026)
+
+**Faster sidebar on long guides.** Opening or closing a sidebar section on a long guide such as React used to freeze the page for about a second while the whole guide was redrawn. It now responds straight away, and so do the theme and text-size buttons.
+
+**On this page list.** The last few entries could sit under the floating Save Checkpoint and back-to-top buttons, with no way to scroll them clear. The list now scrolls far enough that every entry can be clicked.
+
 ## v1.7.5 (September 2026)
 
 **Every Explain walkthrough rewritten so you can follow it.** Explain used to jump over parts of the algorithm: a whole pass of 3Sum's loop was one step ending "Continue...". Now every algorithm, concept and polyfill walkthrough traces its example one loop pass, recursive call or event-loop tick at a time. Each step draws the state at that moment: pointers on the array, the map or stack contents, and the sum or comparison being made. Where a full trace would be too long, the example is smaller instead of skipped. Every value was checked by running the code. Intuitions now lead with the core idea and explain jargon where it first appears.

@@ -2674,3 +2674,11 @@ rewrite just made it obvious. Fixed with `RichText`. The same pass found two pho
 pointer labels were a separate wrapping row, so they drifted under the wrong cell, and ~20
 step dots pushed the footer controls off screen.
 
+### Sidebar toggle froze long guides (Sept 2026)
+Opening a sidebar section on `/frontend/react` took ~900 ms per click (a single long task,
+measured with a `longtask` PerformanceObserver in headless Chrome, dev build). The expanded
+state lives in `App`, so every toggle re-rendered the route, and `ContentPage` re-ran
+ReactMarkdown + remark-gfm + rehype-highlight over the whole guide. Memoising the rendered body
+on `[content, markdownComponents]` took it to ~50 ms with no long tasks. Search highlighting,
+heading bookmarks, theme toggle and anchor scroll were re-checked in the browser.
+

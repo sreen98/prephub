@@ -275,6 +275,23 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
     [guidePath, guideName, isBookmarked, toggleBookmark],
   );
 
+  // Parsing and highlighting a guide takes ~900 ms for the React guide in dev,
+  // and ReactMarkdown redoes it on every render. Without this memo, anything
+  // that re-renders the page (opening a sidebar section, the theme or font
+  // toggle, a toast) froze the tab for that long.
+  const body = useMemo(
+    () => (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={markdownComponents}
+      >
+        {content}
+      </ReactMarkdown>
+    ),
+    [content, markdownComponents],
+  );
+
   return (
     <>
       <div
@@ -354,14 +371,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
           className="prose-container"
           style={rawContent === null ? { minHeight: estimatedHeightFor(filePath) } : undefined}
         >
-          {rawContent === null ? <GuideSkeleton /> : (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeHighlight]}
-            components={markdownComponents}
-          >
-            {content}
-          </ReactMarkdown>)}
+          {rawContent === null ? <GuideSkeleton /> : body}
         </div>
 
         <RelatedGuides guides={relatedGuides} />
