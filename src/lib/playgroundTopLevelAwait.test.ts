@@ -55,7 +55,7 @@ describe('playground execution handles top-level await', () => {
       }
       const t = Date.now();
       const out = await Array.fromAsync(gen());
-      console.log(out, Date.now() - t >= 60);
+      console.log(out, Date.now() - t >= 50);
     `;
     const fn = compileUserFunction(['console'], src);
     await fn({ log: (...a: unknown[]) => logs.push(a.map(String).join(' ')) });

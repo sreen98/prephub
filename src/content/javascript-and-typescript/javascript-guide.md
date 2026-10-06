@@ -5334,7 +5334,9 @@ async function* gen() {
 
 const t = Date.now();
 const out = await Array.fromAsync(gen());
-console.log(out, Date.now() - t >= 60);
+// Well above the ~30 ms a parallel run would take. Not ">= 60": a timer can
+// fire a millisecond early by Date.now(), which makes an exact bound flaky.
+console.log(out, Date.now() - t >= 50);
 ```
 
 **Output:**

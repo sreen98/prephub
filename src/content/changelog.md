@@ -1,5 +1,9 @@
 # What's New
 
+## v1.7.8 (October 2026)
+
+**Fixed:** the JavaScript guide's `Array.fromAsync` question (Q16) could print `false` when you clicked Try it, because it checked for exactly 60 ms and timers can run a millisecond early. It now checks for 50 ms, which still shows the steps run one after another (a parallel run takes about 30 ms).
+
 ## v1.7.7 (October 2026)
 
 **Two new interview questions.** React has "Explain how code splitting and lazy loading improve performance". It covers why the gain is mostly parse and run time, not download size, and the costs that come with it: request waterfalls, a wait on first use, too many small chunks, and `ChunkLoadError` after a deploy. A runnable demo shows prefetching on hover. Behavioral has "Tell me about a time a critical production bug broke the UI", with a worked STAR answer: contain it, communicate, diagnose and fix, then prevent it happening again.
