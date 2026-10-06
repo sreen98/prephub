@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { accessibleName, findAll, roleOf, runReactChecks, visibleText } from './reactChecks';
+import { accessibleName, findAll, roleOf, runReactChecks, setReactCheckTimeout, visibleText } from './reactChecks';
 
 function dom(html: string): HTMLElement {
   document.body.innerHTML = `<div id="root">${html}</div>`;
@@ -50,4 +50,18 @@ describe('runReactChecks', () => {
     const [r] = await runReactChecks(root, [{ label: 'tab into panel', steps: [{ press: 'Tab' }, { expect: { label: 'Inside' }, focused: true }] }], reset);
     expect(r.passed).toBe(true);
   });
+
+  it('waits up to the configured limit for slow content, and no longer', async () => {
+    const root = dom('');
+    // The text appears 2 s after mounting: later than the in-app 1.5 s limit
+    const reset = () => { root.innerHTML = ''; setTimeout(() => { root.innerHTML = '<p>Slow result</p>'; }, 2000); return Promise.resolve(); };
+    const check = [{ label: 'slow', steps: [{ expectText: 'Slow result' }] }];
+    try {
+      expect((await runReactChecks(root, check, reset))[0].passed).toBe(false);
+      setReactCheckTimeout(4000);
+      expect((await runReactChecks(root, check, reset))[0].passed).toBe(true);
+    } finally {
+      setReactCheckTimeout(1500);
+    }
+  }, 15000);
 });

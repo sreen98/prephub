@@ -263,15 +263,15 @@ export const challengeHiddenTests: Record<string, HiddenTestData[]> = {
     },
     {
       "label": "calls at 20 ms intervals keep resetting",
-      "run": "let hits = 0; const d = debounce(() => hits++, 50); d(); setTimeout(d, 20); setTimeout(d, 40); setTimeout(d, 60); let at90 = -1; setTimeout(() => { at90 = hits; }, 90); setTimeout(() => console.log(\"at 90ms\", at90, \"at 160ms\", hits), 160);",
-      "output": "at 90ms 0 at 160ms 1",
-      "waitMs": 250
+      "run": "let hits = 0; const d = debounce(() => hits++, 50); d(); setTimeout(d, 20); setTimeout(d, 40); setTimeout(d, 60); let at90 = -1; setTimeout(() => { at90 = hits; }, 90); setTimeout(() => console.log(\"at 90ms\", at90, \"at 250ms\", hits), 250);",
+      "output": "at 90ms 0 at 250ms 1",
+      "waitMs": 400
     },
     {
       "label": "two debounced functions are independent",
-      "run": "const out = []; const a = debounce(() => out.push(\"a\"), 30); const b = debounce(() => out.push(\"b\"), 30); a(); b(); setTimeout(() => console.log(out.sort()), 80);",
+      "run": "const out = []; const a = debounce(() => out.push(\"a\"), 30); const b = debounce(() => out.push(\"b\"), 30); a(); b(); setTimeout(() => console.log(out.sort()), 150);",
       "output": "[\"a\",\"b\"]",
-      "waitMs": 150
+      "waitMs": 300
     }
   ],
   "Group Anagrams": [

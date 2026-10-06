@@ -8,7 +8,7 @@ import { templateCategories } from './playgroundTemplates';
 import { reactChecks } from './reactChecks';
 import type { ReactCheck } from './reactCheckTypes';
 import { buildReactScope } from '../../lib/playgroundScope';
-import { runReactChecks } from '../../lib/reactChecks';
+import { runReactChecks, setReactCheckTimeout } from '../../lib/reactChecks';
 
 /**
  * Every React challenge's behaviour checks must pass against its reference
@@ -28,15 +28,19 @@ export function installJsdomStubs(): void {
 beforeAll(() => {
   // @ts-expect-error test flag
   globalThis.IS_REACT_ACT_ENVIRONMENT = false;
+  // Under full-suite load a render can take longer than the in-app 1.5 s limit.
+  setReactCheckTimeout(6000);
   // jsdom has no layout, so IntersectionObserver never fires on its own. This
   // stub fires it the way a browser would when an element scrolls into view:
   // the `scrollTo` step calls scrollIntoView on its target.
   const observers = new Set<{ cb: IntersectionObserverCallback; els: Set<Element>; self: IntersectionObserver }>();
-  // Elements scrolled into view. A browser reports an element that is already
-  // visible when observe() is called, so a template that starts observing in an
-  // effect AFTER the scroll still sees it. Without this, a busy machine that ran
-  // the effect late made Image Gallery + Lazy Load fail now and then.
-  const inView = new Set<Element>();
+  // A scroll that no observer was watching yet. A browser reports an element
+  // that is already visible when observe() is called, so a template that starts
+  // observing in an effect AFTER the scroll still sees it; without this, a busy
+  // machine that ran the effect late made Image Gallery + Lazy Load fail now and
+  // then. It is delivered ONCE and then forgotten: a browser would not keep
+  // reporting an infinite-scroll sentinel that new rows have pushed off screen.
+  const pendingScrolls = new Set<Element>();
   const related = (a: Element, b: Element) => a === b || a.contains(b) || b.contains(a);
   class StubObserver implements IntersectionObserver {
     readonly root = null;
@@ -47,7 +51,9 @@ beforeAll(() => {
     constructor(cb: IntersectionObserverCallback) { this.entry = { cb, els: new Set(), self: this }; observers.add(this.entry); }
     observe(el: Element) {
       this.entry.els.add(el);
-      if (![...inView].some((v) => related(v, el))) return;
+      const scrolled = [...pendingScrolls].find((v) => related(v, el));
+      if (!scrolled) return;
+      pendingScrolls.delete(scrolled);
       // Asynchronous, like the browser's initial notification
       setTimeout(() => { if (this.entry.els.has(el)) this.entry.cb([hit(el)], this); }, 0);
     }
@@ -61,11 +67,12 @@ beforeAll(() => {
     return { target, isIntersecting: true, intersectionRatio: 1, time: 0, boundingClientRect: rect, intersectionRect: rect, rootBounds: null };
   };
   Element.prototype.scrollIntoView = function (this: Element) {
-    inView.add(this);
+    let delivered = false;
     for (const o of observers) {
       const hits = [...o.els].filter((el) => related(el, this));
-      if (hits.length) o.cb(hits.map(hit), o.self);
+      if (hits.length) { o.cb(hits.map(hit), o.self); delivered = true; }
     }
+    if (!delivered) pendingScrolls.add(this);
   };
   vi.stubGlobal('fetch', () => Promise.resolve({
     ok: true, status: 200, json: () => Promise.resolve([]), text: () => Promise.resolve(''),

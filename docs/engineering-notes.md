@@ -2725,8 +2725,19 @@ Removed with `git config --local --unset core.autocrlf`; the files had to be re-
 `Image Gallery + Lazy Load` failed intermittently under load. The jsdom
 `IntersectionObserver` stub only notified elements already observed when `scrollIntoView`
 ran, and the template observes in an effect, which can run after the scroll on a busy
-machine. The stub now remembers scrolled elements and reports one asynchronously when it
-is observed later, as a browser does. Probe-tested by cutting the post-mount settle to 0 ms:
-the old stub fails with the reported message, the new one passes. Other real-timer checks
-(the Debounce hidden tests, Infinite Scroll's error alert) can still miss under full-suite
-load on a laptop; they are timing-sensitive, not broken.
+machine. The stub now keeps a scroll that no observer was watching and reports it ONCE,
+asynchronously, to the next matching observe() call, as a browser does. (A first version
+remembered every scrolled element forever. That broke Infinite Scroll, which re-observes
+its sentinel after each page: the stub kept reporting it as visible, so it loaded page
+after page and replaced the error alert the check waits for.) Probe-tested by cutting the
+post-mount settle to 0 ms: the old stub fails with the reported message, the new one passes
+Image Gallery and Infinite Scroll.
+
+The rest was load. With a worker per core, a 12-thread laptop ran 11 jsdom workers at once
+and real-timer tests failed at random: a different one on most runs (Debounce hidden tests,
+Infinite Scroll, Carousel, Batch Promises, the compiler-backed TypeScript tests at the 5 s
+limit). Fixes: `maxWorkers: '50%'` locally (CI keeps the default), which also cut the run
+from ~100 s to ~50–65 s; `testTimeout: 15000`; the React-check wait limit raised to 6 s in
+the jsdom harness only (`setReactCheckTimeout`; the in-app limit stays 1.5 s, and waiting
+ends as soon as the element appears); and the two Debounce hidden tests with 50 ms of slack
+now read their result with 140 ms or more. Three consecutive full runs then passed.

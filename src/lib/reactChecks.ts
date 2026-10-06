@@ -192,8 +192,19 @@ function setValue(el: Element, value: string): void {
 }
 
 type Act = (root: Element) => Promise<string | null>;
-const TIMEOUT = 1500;
+// How long a step waits for what it is looking for. Waiting ends as soon as it
+// appears, so a longer limit only slows down a check that is failing anyway.
+let TIMEOUT = 1500;
 const SETTLE = 40;
+
+/**
+ * Raise the wait limit for the jsdom test harness. A laptop running every test
+ * file in parallel can take longer than 1.5 s to render what a browser shows
+ * instantly, which made these checks fail at random under load.
+ */
+export function setReactCheckTimeout(ms: number): void {
+  TIMEOUT = ms;
+}
 
 function locate(root: Element, t: Target): Element | null {
   return findAll(root, t)[t.nth ?? 0] ?? null;
