@@ -1,0 +1,5 @@
+# Store text files with LF in the repository, whatever core.autocrlf is set to.
+# A commit made with autocrlf=false once stored 11 files with CRLF, turning a
+# small change into a 17,000-line diff. Windows checkouts may still use CRLF on
+# disk; the verify scripts and tests normalise line endings when they read.
+* text=auto

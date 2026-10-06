@@ -28,6 +28,7 @@ disable the rule, widen a ratchet or add a cast.
 paths). A script or test that reads a file normalises it with `.replace(/\r\n/g, '\n')`,
 and a path walker normalises `\` to `/` before matching prefixes. Never run `git config` in
 a temporary worktree: worktrees share `.git/config`, so it changes the main checkout.
+`.gitattributes` (`* text=auto`) keeps the repository itself LF; don't remove it.
 
 ## Git: things you must never do
 - **Never commit, tag or push unless the user explicitly asks.** The working tree *is* the work.

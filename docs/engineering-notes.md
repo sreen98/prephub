@@ -2741,3 +2741,12 @@ from ~100 s to ~50–65 s; `testTimeout: 15000`; the React-check wait limit rais
 the jsdom harness only (`setReactCheckTimeout`; the in-app limit stays 1.5 s, and waiting
 ends as soon as the element appears); and the two Debounce hidden tests with 50 ms of slack
 now read their result with 140 ms or more. Three consecutive full runs then passed.
+
+The first v1.7.7 commit (`b070b2b`) was made while those files were staged with CRLF, so
+11 files were stored with CRLF (17,223 insertions for a few hundred real lines). It was
+pushed before anyone noticed, so it was fixed forward rather than rewritten: a
+`.gitattributes` with `* text=auto` now stores text as LF whatever `core.autocrlf` says,
+and `git add --renormalize .` converted the 11 files back. The tagged v1.7.7 changelog is
+CRLF for good, so the changelog check (#15) now normalises the tagged copy as well as the
+working copy; without that, every later push (CI included) would have failed once the tag
+existed.

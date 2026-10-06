@@ -639,8 +639,10 @@ check('no released changelog section has been edited', () => {
     if (ALREADY_DIVERGED.has(v)) continue;
     let tagged;
     try {
+      // Normalised like read(): v1.7.7 was committed with CRLF line endings,
+      // and the words, not the line endings, are what this check protects.
       tagged = execSync(`git show v${v}:src/content/changelog.md`,
-        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).replace(/\r\n/g, '\n');
     } catch {
       continue;                       // untagged: the version being worked on
     }
