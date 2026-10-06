@@ -22,8 +22,12 @@ npm run playground:index  # after changing playground templates
 `typecheck` (tsc) → `lint` (type-aware ESLint over all of `src/`) → `test` (Vitest) →
 `verify:counts` (figures in prose + in-page anchors) → `verify:arch` (repo invariants ESLint
 cannot express) → `verify:blocks` (every runnable guide code block parses).
-Pre-commit runs only `verify:counts` (~40 ms). If a gate blocks you, fix the code. Do **not**
+Pre-commit runs `verify:arch` and `verify:counts` (a second or two). If a gate blocks you, fix the code. Do **not**
 disable the rule, widen a ratchet or add a cast.
+**Gates must pass on a Windows checkout too** (`core.autocrlf=true` gives CRLF files and `\`
+paths). A script or test that reads a file normalises it with `.replace(/\r\n/g, '\n')`,
+and a path walker normalises `\` to `/` before matching prefixes. Never run `git config` in
+a temporary worktree: worktrees share `.git/config`, so it changes the main checkout.
 
 ## Git: things you must never do
 - **Never commit, tag or push unless the user explicitly asks.** The working tree *is* the work.
@@ -77,7 +81,8 @@ The numbering is referenced from code comments, so keep it stable.
    the content glob is never `eager`, vendor chunks keep the `vendor-*` prefix, the app entry
    stays `app-*`, `injectRegister` stays `null`, and `prepare-content.js` never overwrites the
    Introduction, and that no file under `src/`/`scripts/` is gitignored (check #19; the
-   personal-document patterns `*resume*`/`*Resume*` once hid `ResumeBanner.tsx` from CI).
+   personal-document patterns `*resume*`/`*Resume*` once hid `ResumeBanner.tsx` from CI),
+   and that the admin document ships only encrypted (check #20).
    **Probe every new guard by reintroducing the bug it guards.** Several guards
    here passed green while being unable to fail.
 9. **Tests are the gate for anything `tsc` cannot see.** `import.meta.glob` only resolves
@@ -284,6 +289,13 @@ so use the inline `GithubIcon`.
 ## Performance and deployment
 - Base path `/prephub/`. `scripts/generate-route-shells.js` writes `dist/<route>/index.html`
   for every route so deep links return 200. `/admin` is excluded. `public/404.html` stays.
+- **`/admin` is encrypted, not passcode-gated.** A check in the browser hides nothing on a
+  static site. The plain document is the gitignored `private/admin-prep.md`, and only
+  `public/admin-prep.enc.json` ships (AES-GCM, key from the passphrase by PBKDF2). After
+  editing the document, run `ADMIN_PASSPHRASE=… npm run admin:encrypt` and commit the
+  `.enc.json`. Never import `private/` from `src/` (a local build would bundle it), and never
+  put the passphrase in the repo. `src/lib/adminCrypto.ts` and
+  `scripts/encrypt-admin-prep.js` must stay format-compatible (`adminCrypto.test.ts`).
 - The service worker precaches the shell only (`app-*`, `vendor-*`). Guide chunks are
   runtime-cached. It is registered by `src/pwa.ts` (`injectRegister: null`), which polls for
   updates. `onNeedRefresh` is inert in `autoUpdate` mode.

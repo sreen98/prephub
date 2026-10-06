@@ -31,15 +31,18 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
+// Checks must behave the same on every checkout. A Windows clone with
+// core.autocrlf=true has CRLF files and `\` paths, which made the changelog
+// check flag every tagged release and the exemption prefixes below never match.
 function read(p) {
-  return readFileSync(p, 'utf8');
+  return readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 }
 
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
-    else out.push(full);
+    else out.push(full.replace(/\\/g, '/'));
   }
   return out;
 }
@@ -755,6 +758,48 @@ check('no file under src/ is gitignored', () => {
       + 'Add a `!path` exception after the pattern that matches them.',
   );
   return 'every source file is trackable';
+});
+
+// ---------------------------------------------------------------------------
+// 20. The admin document is published only as ciphertext
+// ---------------------------------------------------------------------------
+// The repo and the site are public, and a passcode checked in the browser hides
+// nothing. The plain document must stay untracked and unimported; only
+// public/admin-prep.enc.json (from `npm run admin:encrypt`) may ship.
+check('the admin document ships only encrypted', () => {
+  let ignored = true;
+  try {
+    execSync('git check-ignore -q private/admin-prep.md', { stdio: 'ignore' });
+  } catch {
+    ignored = false;
+  }
+  assert(ignored, '.gitignore must ignore private/ — the plain admin document would be committed to a public repo');
+
+  const tracked = execSync('git ls-files private', { encoding: 'utf8' }).trim();
+  assert(!tracked, `files under private/ are tracked by git: ${tracked.replace(/\n/g, ', ')}`);
+
+  // A path string that starts at private/ ('/private/', '../../private/'),
+  // inside a glob or an import. A negated glob ('!./content/private/**') is fine.
+  const privatePath = String.raw`['"](?:\.{0,2}\/)*private\/`;
+  const globRe = new RegExp(String.raw`import\.meta\.glob[\s\S]{0,200}?` + privatePath);
+  const importRe = new RegExp(String.raw`(?:from\s+|import\(\s*)` + privatePath);
+  const importers = srcFiles.filter((f) => {
+    const body = read(f);
+    return globRe.test(body) || importRe.test(body);
+  });
+  assert(importers.length === 0, `src/ must not import from private/ (a local build would bundle it): ${importers.join(', ')}`);
+
+  const enc = 'public/admin-prep.enc.json';
+  let exists = true;
+  try { statSync(enc); } catch { exists = false; }
+  if (!exists) return 'plain text untracked; nothing published yet';
+  let doc;
+  try { doc = JSON.parse(read(enc)); } catch { doc = null; }
+  assert(
+    doc && doc.v === 1 && typeof doc.data === 'string' && typeof doc.salt === 'string' && typeof doc.iv === 'string',
+    `${enc} is not in the encrypted format — regenerate it with npm run admin:encrypt`,
+  );
+  return 'plain text untracked; published copy is ciphertext';
 });
 
 // ---------------------------------------------------------------------------

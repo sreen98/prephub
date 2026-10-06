@@ -1,74 +1,76 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { Lock, KeyRound, LogOut } from 'lucide-react';
-import { safeGet, safeSet, safeRemove } from '../lib/storage';
+import { decryptText, isEncryptedDoc } from '../lib/adminCrypto';
 
-// Passcode-gated personal section, available in LOCAL DEVELOPMENT ONLY.
+// Passphrase-protected personal section.
 //
-// The document lives at `private/admin-prep.md` — outside src/, and gitignored.
-// The deploy workflow builds from `actions/checkout`, so CI never has the file
-// and this glob resolves to an empty object in any published build. The route
-// itself is also dev-gated in App.tsx, so neither the passcode nor the content
-// reaches a production bundle.
+// This is a static site with no backend, so ANY content it ships is public, and
+// a passcode checked in the browser cannot gate it. The document is therefore
+// published only as AES-GCM ciphertext: `npm run admin:encrypt` turns the
+// gitignored `private/admin-prep.md` into `public/admin-prep.enc.json`. This page
+// fetches that file and decrypts it in the browser with the passphrase the
+// reader types. The passphrase is in no code or config, and the plain text
+// exists only in memory while the page is open, so a reload or Lock asks again.
 //
-// Why it's arranged this way: this is a static site with no backend, so ANY
-// content reachable by the bundler is served to every visitor in plain text.
-// A passcode cannot gate content — only absence from the build can.
-// Do not move this file back under src/content/.
+// Never import anything from `private/` here: a local `npm run build` would
+// bundle the plain text into dist/.
 
-const privateDocs = import.meta.glob<string>('/private/*.md', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-});
+const ENCRYPTED_URL = `${import.meta.env.BASE_URL}admin-prep.enc.json`;
+const NOT_PUBLISHED = 'The admin document has not been published yet.';
 
-const PASSCODE = '5713';
-const SESSION_KEY = 'admin-unlocked';
-const PRIVATE_DOC = '/private/admin-prep.md';
+/** Resolves to the document, or `null` when the passphrase is wrong. */
+async function unlock(passphrase: string): Promise<string | null> {
+  const res = await fetch(ENCRYPTED_URL, { cache: 'no-cache' });
+  if (res.status === 404) throw new Error(NOT_PUBLISHED);
+  if (!res.ok) throw new Error(`Could not load the document (HTTP ${res.status}).`);
+  let doc: unknown;
+  try {
+    doc = JSON.parse(await res.text());
+  } catch {
+    // The dev server answers a missing file with index.html, not a 404.
+    throw new Error(NOT_PUBLISHED);
+  }
+  if (!isEncryptedDoc(doc)) throw new Error('The published document is in an unexpected format.');
+  return decryptText(doc, passphrase);
+}
 
 export default function AdminPage() {
-  const [unlocked, setUnlocked] = useState<boolean>(() =>
-    safeGet(SESSION_KEY, 'session') === '1'
-  );
+  const [content, setContent] = useState<string | null>(null);
   const [input, setInput] = useState<string>('');
   const [error, setError] = useState<string>('');
-
-  const content = useMemo(
-    () =>
-      privateDocs[PRIVATE_DOC] ||
-      '_Not available in this build — `private/admin-prep.md` is untracked and local-only._',
-    [],
-  );
+  const [checking, setChecking] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   function attempt(e: React.FormEvent) {
     e.preventDefault();
-    if (input === PASSCODE) {
-      safeSet(SESSION_KEY, '1', 'session');
-      setUnlocked(true);
-      setError('');
-      setInput('');
-    } else {
-      setError('Incorrect passcode');
-      setInput('');
-    }
+    if (checking || !input) return;
+    setChecking(true);
+    setError('');
+    unlock(input)
+      .then((text) => {
+        if (text === null) setError('Incorrect passphrase');
+        else setContent(text);
+        setInput('');
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Could not open the document.');
+      })
+      .finally(() => setChecking(false));
   }
 
   function lock() {
-    safeRemove(SESSION_KEY, 'session');
-    setUnlocked(false);
+    setContent(null);
   }
 
-  // Auto-focus the passcode input when locked
+  // Focus the passphrase input whenever the page is locked
   useEffect(() => {
-    if (!unlocked) {
-      const el = document.getElementById('admin-passcode-input') as HTMLInputElement | null;
-      el?.focus();
-    }
-  }, [unlocked]);
+    if (content === null) inputRef.current?.focus();
+  }, [content]);
 
-  if (!unlocked) {
+  if (content === null) {
     return (
       <div className="flex items-center justify-center min-h-[80vh] px-6">
         <div className="w-full max-w-sm">
@@ -78,7 +80,7 @@ export default function AdminPage() {
             </div>
             <h1 className="text-xl font-bold mb-1">Admin Area</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Enter the passcode to view this section.
+              Enter the passphrase to view this section.
             </p>
           </div>
           <form onSubmit={attempt} className="space-y-3">
@@ -88,24 +90,25 @@ export default function AdminPage() {
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none"
               />
               <input
-                id="admin-passcode-input"
+                ref={inputRef}
                 type="password"
-                inputMode="numeric"
-                autoComplete="off"
+                autoComplete="current-password"
+                aria-label="Passphrase"
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setError(''); }}
-                placeholder="Passcode"
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-indigo-400 dark:focus:border-indigo-600 transition-colors text-base tracking-widest"
+                placeholder="Passphrase"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-indigo-400 dark:focus:border-indigo-600 transition-colors text-base"
               />
             </div>
             {error && (
-              <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
             )}
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+              disabled={checking}
+              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors"
             >
-              Unlock
+              {checking ? 'Unlocking…' : 'Unlock'}
             </button>
           </form>
         </div>
@@ -126,7 +129,7 @@ export default function AdminPage() {
         <button
           onClick={lock}
           className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-          title="Lock and clear session"
+          title="Lock and clear the document from memory"
         >
           <LogOut size={13} />
           Lock

@@ -281,21 +281,19 @@ export default function Sidebar({
               <GithubIcon size={16} />
               <span>View on GitHub</span>
             </a>
-            {/* Local-development only — see AdminPage.tsx. Never ships. */}
-            {import.meta.env.DEV && (
-              <Link
-                to="/admin"
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all",
-                  location.pathname === '/admin'
-                    ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900"
-                )}
-              >
-                <Lock size={14} />
-                <span>Admin</span>
-              </Link>
-            )}
+            {/* Passphrase-protected; the page ships only ciphertext. See AdminPage.tsx. */}
+            <Link
+              to="/admin"
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all",
+                location.pathname === '/admin'
+                  ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900"
+              )}
+            >
+              <Lock size={14} />
+              <span>Admin</span>
+            </Link>
 
             {/* Which build is being served. Useful when a cached service worker
                 is still handing out an older bundle than the latest deploy. */}

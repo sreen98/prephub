@@ -32,6 +32,12 @@ beforeAll(() => {
   // stub fires it the way a browser would when an element scrolls into view:
   // the `scrollTo` step calls scrollIntoView on its target.
   const observers = new Set<{ cb: IntersectionObserverCallback; els: Set<Element>; self: IntersectionObserver }>();
+  // Elements scrolled into view. A browser reports an element that is already
+  // visible when observe() is called, so a template that starts observing in an
+  // effect AFTER the scroll still sees it. Without this, a busy machine that ran
+  // the effect late made Image Gallery + Lazy Load fail now and then.
+  const inView = new Set<Element>();
+  const related = (a: Element, b: Element) => a === b || a.contains(b) || b.contains(a);
   class StubObserver implements IntersectionObserver {
     readonly root = null;
     readonly rootMargin = '';
@@ -39,7 +45,12 @@ beforeAll(() => {
     readonly thresholds: readonly number[] = [];
     private entry: { cb: IntersectionObserverCallback; els: Set<Element>; self: IntersectionObserver };
     constructor(cb: IntersectionObserverCallback) { this.entry = { cb, els: new Set(), self: this }; observers.add(this.entry); }
-    observe(el: Element) { this.entry.els.add(el); }
+    observe(el: Element) {
+      this.entry.els.add(el);
+      if (![...inView].some((v) => related(v, el))) return;
+      // Asynchronous, like the browser's initial notification
+      setTimeout(() => { if (this.entry.els.has(el)) this.entry.cb([hit(el)], this); }, 0);
+    }
     unobserve(el: Element) { this.entry.els.delete(el); }
     disconnect() { this.entry.els.clear(); observers.delete(this.entry); }
     takeRecords(): IntersectionObserverEntry[] { return []; }
@@ -50,8 +61,9 @@ beforeAll(() => {
     return { target, isIntersecting: true, intersectionRatio: 1, time: 0, boundingClientRect: rect, intersectionRect: rect, rootBounds: null };
   };
   Element.prototype.scrollIntoView = function (this: Element) {
+    inView.add(this);
     for (const o of observers) {
-      const hits = [...o.els].filter((el) => el === this || this.contains(el) || el.contains(this));
+      const hits = [...o.els].filter((el) => related(el, this));
       if (hits.length) o.cb(hits.map(hit), o.self);
     }
   };

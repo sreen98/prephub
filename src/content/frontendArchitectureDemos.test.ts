@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
  * aggregation demo. Run the block from the markdown and hold it to that claim,
  * so the example the reader presses Try it on cannot drift from the text.
  */
-const md = readFileSync('src/content/front-end/frontend-architecture-guide.md', 'utf8');
+const md = readFileSync('src/content/front-end/frontend-architecture-guide.md', 'utf8').replace(/\r\n/g, '\n');
 
 function block(marker: string): string {
   const i = md.indexOf(marker);

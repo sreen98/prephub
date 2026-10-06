@@ -21,7 +21,8 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (p) => readFileSync(join(root, p), 'utf8');
+// Normalise CRLF so a Windows checkout (core.autocrlf=true) counts the same as CI.
+const read = (p) => readFileSync(join(root, p), 'utf8').replace(/\r\n/g, '\n');
 
 // ---------------------------------------------------------------- ground truth
 const dataTs = read('src/data.ts');
@@ -163,7 +164,7 @@ function mdFiles(dir) {
 let anchorTotal = 0;
 const deadAnchors = [];
 for (const file of mdFiles(join(root, 'src/content'))) {
-  const body = readFileSync(file, 'utf8');
+  const body = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
   const heads = new Set(
     [...body.matchAll(/^#{1,6} (.+)$/gm)].map((m) => slugify(m[1])));
   for (const m of body.matchAll(/\]\(#([^)]+)\)/g)) {

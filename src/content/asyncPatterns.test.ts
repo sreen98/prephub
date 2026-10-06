@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
  * series, that a pool keeps exactly N in flight, and that it preserves input
  * order. Claims like those are worth executing rather than asserting.
  */
-const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8');
+const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8').replace(/\r\n/g, '\n');
 const block = (marker: string) => {
   const i = md.indexOf(marker);
   const start = md.lastIndexOf('```js\n', i) + 6;

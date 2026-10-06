@@ -15,8 +15,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
  * Never emit a shell or a sitemap entry for these.
- * `/admin` is local-development only and deliberately undiscoverable — giving it
- * a real URL on disk would advertise it. `*` is the catch-all.
+ * `/admin` is a passphrase-protected personal page, kept out of search results
+ * (deep links still work through public/404.html). `*` is the catch-all.
  */
 const EXCLUDED = new Set(['/admin', '*']);
 

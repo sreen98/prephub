@@ -5192,14 +5192,51 @@ Fixes: use named ESM imports (`import { debounce } from 'lodash-es'`), set `"sid
 
 ---
 
-**Q24: What's the difference between `useTransition` and `useDeferredValue` from a performance perspective?**
+**Q24: You added `useDeferredValue` (or `startTransition`) to a slow search list, and typing still lags. Why?**
 
-Both schedule work as non-urgent so urgent updates (like a controlled input) stay responsive. The difference is **what you wrap**:
+**Short answer:** neither hook makes work faster. They make **rendering** interruptible and low priority, so they only help when the slow part is a render that React can pause and that the urgent update skips. Q15 covers which hook to pick. These are the four reasons it does nothing:
 
-- `useTransition` wraps a **state setter call**. You own the slow update and you mark it as non-urgent: `startTransition(() => setQuery(value))`.
-- `useDeferredValue` wraps a **value**. You don't control where the slow consumer is — you just hand it a stale-but-recent version of the value, and React will re-render the consumer with the latest value when it has spare time.
+1. **The slow child is not memoised.** With `useDeferredValue`, React renders twice: first an urgent render that still passes the *old* deferred value, then a background render with the new one. The slow child gets the same prop in the urgent render, but without `memo` it re-renders anyway, so the urgent render is as slow as before. The same happens with a transition if the slow component also reads the urgent state directly.
+2. **The slow work is not in render.** Only rendering can be interrupted. Filtering 50,000 items inside the `onChange` handler, or before calling `startTransition`, runs synchronously and blocks the keystroke.
+3. **One component does all the work.** React yields to the browser between components, about every 5 ms, never in the middle of one. A single component that loops for 300 ms blocks for 300 ms. Split the work into child components, or do less of it: `useMemo` the filter, or virtualise the list (§13.4).
+4. **The cost is not React rendering.** The commit (writing to the DOM) is synchronous, so inserting 10,000 DOM nodes blocks however the render was scheduled. A request per keystroke is not helped either. Virtualise the list, and debounce network calls (Q54).
 
-Rule of thumb: if the slow work is *your* `setState`, use `useTransition`. If it's a derived computation in a child you can't easily change, pass `useDeferredValue(input)` to it. Both also expose an `isPending` signal (directly from `useTransition`, indirectly via `value !== deferredValue` for `useDeferredValue`) so you can show a spinner without blocking the input.
+Both rules running: the list is memoised, and its cost is spread across 250 row components so React can yield between them. Type quickly and the input keeps up while the results dim and catch up. Remove the `memo` and the lag comes back.
+
+```jsx
+import { memo, useDeferredValue, useState } from 'react';
+
+// Each row burns about 1 ms, so the whole list costs about 250 ms to render
+function SlowRow({ text }) {
+  const start = performance.now();
+  while (performance.now() - start < 1) {
+    // busy-wait to simulate an expensive row
+  }
+  return <li>{text}</li>;
+}
+
+const SlowList = memo(function SlowList({ query }) {
+  const rows = [];
+  for (let i = 0; i < 250; i++) rows.push(<SlowRow key={i} text={`${query} #${i}`} />);
+  return <ul>{rows}</ul>;
+});
+
+function Search() {
+  const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
+  const isStale = query !== deferredQuery;
+  return (
+    <div>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type quickly" />
+      <div style={{ opacity: isStale ? 0.5 : 1 }}>
+        <SlowList query={deferredQuery} />
+      </div>
+    </div>
+  );
+}
+```
+
+`query !== deferredQuery` is the pending signal for `useDeferredValue`, the same job `isPending` does for `useTransition`. Total CPU work goes **up**, not down, because the list renders again for every value React gets to. What you gain is that the keystroke is never stuck behind it.
 
 ---
 
@@ -5330,9 +5367,9 @@ It also has a hard restriction: effect events may only be called **from inside e
 
 ---
 
-**Q30: What is Partial Pre-rendering and what problem does it solve?**
+**Q30: What do React 19.2's `prerender` and `resume` APIs do, and what problem do they solve?**
 
-Before it, a page had to be *entirely* static or *entirely* dynamic. If one component needed per-request data — a user's name in the header, a personalised price — the whole route dropped out of static generation and every visitor paid for a full server render, even though 95% of the markup was identical for everyone.
+They are React's building blocks for Partial Pre-rendering (PPR): render the static part of a page ahead of time and the dynamic part per request. Before them, a page had to be *entirely* static or *entirely* dynamic. If one component needed per-request data — a user's name in the header, a personalised price — the whole route dropped out of static generation and every visitor paid for a full server render, even though 95% of the markup was identical for everyone.
 
 React 19.2 added the primitives that break that all-or-nothing choice. You `prerender()` with an `AbortController`; rendering stops at the dynamic boundaries and returns both the static HTML **and** a serialisable "postponed" state describing where it stopped:
 
@@ -5347,7 +5384,7 @@ const stream = await resume(<App />, postponed);
 
 `resume()` / `resumeToPipeableStream()` finish the render on a server per request; `resumeAndPrerender()` / `resumeAndPrerenderToNodeStream()` finish it in a later build for SSG.
 
-The user-visible payoff: the static shell ships from a CDN edge immediately — great LCP and no server round trip for the layout — and the personalised holes stream in as `Suspense` boundaries resolve. You get static-site latency with dynamic-page capability. This is the primitive that Next.js's PPR is built on, which is why the framework question and the React question have the same answer underneath.
+The user-visible payoff: the static shell ships from a CDN edge immediately — great LCP and no server round trip for the layout — and the personalised holes stream in as `Suspense` boundaries resolve. You get static-site latency with dynamic-page capability. This is the primitive that Next.js's PPR is built on. How you opt in to it in Next.js 16 is covered in the [Next.js & RSC guide](/frontend/nextjs-rsc) (Q5).
 
 Related 19.2 change worth pairing it with: server-rendered `Suspense` boundaries now **batch** their reveals to match client behaviour. Previously each boundary revealed as its HTML arrived, causing visible layout thrash on streamed pages; batching means fewer, larger paint steps.
 
@@ -7666,6 +7703,58 @@ The answer that shows you follow the ecosystem closely: before 19.3, `<ViewTrans
 | Server-only code in the client bundle | a database or PDF library in a client chunk | keep it on the server (`import 'server-only'` in Next.js) |
 
 **4. Then prevent it happening again, which is the part most answers skip.** Add a size budget to CI that fails the pull request when the initial bundle grows by more than an agreed amount, and publish the analyzer report on each PR. The jump from 500 KB to 5 MB happened because nothing measured the bundle on each change; a budget turns it into a red check on the one PR that caused it (§15.12).
+
+---
+
+**Q86: Explain how code splitting and lazy loading improve performance.**
+
+Code splitting is a build-time step: the bundler turns every dynamic `import()` into its own file (a chunk). Lazy loading is the run-time half: the chunk is fetched only when something first needs it. In React that is `React.lazy`, and `<Suspense>` shows a fallback while it downloads (§13.3). The gain is not mainly in download size. It comes from four places:
+
+1. **Less JavaScript to parse and run before the first screen works.** On a mid-range phone, parsing and executing JavaScript usually costs more than downloading it. The main thread is busy with that work, so the page is visible but doesn't respond to taps. Shipping only the code for the current route improves LCP (largest contentful paint, when the main content appears) and makes the page interactive sooner.
+2. **Better caching across deploys.** With one bundle, changing a single line invalidates the whole file. With route and vendor chunks, a deploy changes only the chunks whose code changed, and returning users keep the rest of their cache (§13.11).
+3. **Code for features nobody opens is never downloaded.** A rich-text editor, a chart library or an admin page costs nothing for the users who never open them.
+4. **Less memory and less startup work** on the low-end devices where both matter most.
+
+The costs, which an interviewer will ask about next:
+
+- **A wait at the moment of use.** The first click on a lazy feature now waits for a network round trip. Prefetch on intent (hover, focus or an idle callback) so the chunk is usually cached before the click.
+- **Request waterfalls.** If a lazy page lazily imports a component that imports another chunk, the browser discovers each file only after the previous one has run. Split at route and big-widget boundaries, not at every component. Let the bundler emit `modulepreload` hints for chunks it knows are needed together.
+- **Too many small chunks** can make navigation feel slower, because every route change is now a fetch (see the [Web Performance guide](/frontend/web-performance), Tricky Q4). Splitting above the fold makes LCP worse (Tricky Q21 below).
+- **`ChunkLoadError` after a deploy**, when an open tab asks for a hashed file that no longer exists. Catch it in an error boundary and offer a reload.
+
+Prefetching on intent, with the fallback showing only when the chunk isn't cached yet. `loadChart` stands in for `import('./Chart')`:
+
+```jsx
+import { lazy, Suspense, useState } from 'react';
+
+// Stand-in for import('./Chart'): resolves after 800 ms, like a network fetch
+const loadChart = () =>
+  new Promise((resolve) =>
+    setTimeout(() => resolve({ default: () => <p>Chart loaded</p> }), 800)
+  );
+
+// Share one promise, so a hover followed by a click fetches the chunk once
+let chartPromise = null;
+const prefetchChart = () => {
+  if (!chartPromise) chartPromise = loadChart();
+  return chartPromise;
+};
+const Chart = lazy(prefetchChart);
+
+function Dashboard() {
+  const [show, setShow] = useState(false);
+  return (
+    <div>
+      <button onMouseEnter={prefetchChart} onFocus={prefetchChart} onClick={() => setShow(true)}>
+        Show chart
+      </button>
+      <Suspense fallback={<p>Loading chart…</p>}>{show && <Chart />}</Suspense>
+    </div>
+  );
+}
+```
+
+Hover for a second and then click: the chart appears at once. Click straight away and you see the fallback for the rest of the 800 ms. Always measure before and after. The number that matters is LCP and INP (interaction to next paint, how quickly the page responds to a tap or click) on a real device, not kilobytes saved.
 
 ---
 

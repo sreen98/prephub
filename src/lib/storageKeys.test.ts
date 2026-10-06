@@ -33,7 +33,7 @@ const EXPECTED_KEYS = [
 ].sort();
 
 /** Session-scoped keys: transient, but a rename still breaks a flow mid-use. */
-const EXPECTED_SESSION_KEYS = ['admin-unlocked', 'playground-code'].sort();
+const EXPECTED_SESSION_KEYS = ['playground-code'].sort();
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const e of readdirSync(dir, { withFileTypes: true })) {

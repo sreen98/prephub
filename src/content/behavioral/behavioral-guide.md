@@ -1412,6 +1412,26 @@ These questions are about the behavioral interview process itself — understand
 
 ---
 
+**Q28: Tell me about a time when a critical production bug broke the UI. How did you handle it?**
+
+> The interviewer is checking the **order** you worked in more than the bug itself. First you contain it, then you tell people, then you diagnose, and last you prevent it happening again. Candidates who start by debugging are showing the wrong instinct. §9.9 covers the version where your own release caused it. This is the version where it broke under you.
+>
+> **Situation.** "On a Tuesday morning our order-history page went completely blank for about 15% of logged-in users. Error monitoring showed a spike in `TypeError: Cannot read properties of null (reading 'city')`. The backend had started returning `address: null` for customers with no saved address. Our component read `order.address.city`, and the only error boundary was at the root of the app, so one bad field blanked the whole screen."
+>
+> **Task.** "I was the on-call frontend engineer. The job was to get those users a working page first and find the root cause second."
+>
+> **Action.**
+> - **Contain.** "The address panel was already behind a feature flag. I turned it off, and within two minutes the page loaded again for everyone, just without the address. That was a better state than a blank screen, and it needed no deploy."
+> - **Communicate.** "I posted in the incident channel what was broken, who was affected, what I had done and when the next update would be. That stopped support from escalating the same thing five times. I also told the backend team the exact payload, without blaming anyone."
+> - **Diagnose and fix.** "The backend change was valid. A customer really can have no address, and our type said they always had one. So the fix was on our side: handle `null` in the component, and correct the TypeScript type so the compiler flags every other place that read it."
+> - **Prevent.** "I added an error boundary around each page section, so one broken widget shows a small error message instead of blanking the page. I added validation of the response at the API layer, so a contract mismatch is logged as a clear error rather than a crash deep in a component. And I added a contract test with the backend for that endpoint."
+>
+> **Result.** "Users saw a blank page for about 20 minutes and a page without the address for an hour. No orders were affected. Over the next quarter, section-level boundaries contained two more bad payloads that would otherwise have been full outages."
+>
+> **What earns credit:** containing it before diagnosing it, with the specific lever you used (rollback, feature flag or kill switch); numbers for who was affected and for how long; communication while the incident was still happening, not only afterwards; a fix for the whole class of bug (error boundaries, response validation, a test), not just that line; and no blame on the other team. Have the frontend failure modes ready, because a good interviewer will ask what else can blank a page: a stale `index.html` pointing at deleted chunks, a service worker serving an old shell, or an environment variable baked into the build with the wrong value (§9.9).
+
+---
+
 ## 16. References
 
 ### Books

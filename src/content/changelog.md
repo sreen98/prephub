@@ -1,5 +1,13 @@
 # What's New
 
+## v1.7.7 (October 2026)
+
+**Two new interview questions.** React has "Explain how code splitting and lazy loading improve performance". It covers why the gain is mostly parse and run time, not download size, and the costs that come with it: request waterfalls, a wait on first use, too many small chunks, and `ChunkLoadError` after a deploy. A runnable demo shows prefetching on hover. Behavioral has "Tell me about a time a critical production bug broke the UI", with a worked STAR answer: contain it, communicate, diagnose and fix, then prevent it happening again.
+
+**Fewer repeated React questions.** React Q24 asked the same thing as Q15 (`useTransition` vs `useDeferredValue`). It now asks why typing still lags after adding one of them, with a runnable demo of the fix. React Q30 asked the same question as Next.js Q5, so it now covers React's own `prerender` and `resume` APIs, and Next.js Q5 covers how the framework uses them.
+
+**Admin section protected by encryption.** The Admin page is now on the live site, and it is encrypted: its content can only be read with the passphrase. Without it, there is nothing readable to find, not even in the site's code.
+
 ## v1.7.6 (September 2026)
 
 **Faster sidebar on long guides.** Opening or closing a sidebar section on a long guide such as React used to freeze the page for about a second while the whole guide was redrawn. It now responds straight away, and so do the theme and text-size buttons.

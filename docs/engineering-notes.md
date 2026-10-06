@@ -2682,3 +2682,51 @@ ReactMarkdown + remark-gfm + rehype-highlight over the whole guide. Memoising th
 on `[content, markdownComponents]` took it to ~50 ms with no long tasks. Search highlighting,
 heading bookmarks, theme toggle and anchor scroll were re-checked in the browser.
 
+
+## The admin page is encrypted, because a passcode on a static site hides nothing (Oct 2026)
+The `/admin` page used to compare the input with a passcode (`5713`) in the browser. That
+gates nothing: the passcode sat in public source, and the document was either in the JS
+bundle (v1.0.5–v1.1.0) or not shipped at all (v1.1.1 made the route dev-only and the file
+gitignored). To let other people read it on the live site, the document is now published as
+ciphertext only. `npm run admin:encrypt` reads the gitignored `private/admin-prep.md` and the
+passphrase from `ADMIN_PASSPHRASE`, and writes `public/admin-prep.enc.json`: PBKDF2-SHA256
+(600,000 iterations, random 16-byte salt) derives an AES-256-GCM key (random 12-byte IV). The
+page fetches the file and decrypts it in the browser with WebCrypto; GCM authentication
+makes a wrong passphrase fail instead of producing garbage. The plain text lives only in
+React state, so a reload asks again (the old `admin-unlocked` session key is gone).
+
+The ciphertext is public, so it can be attacked offline: the passphrase has to be long and
+random, and the script refuses anything under 12 characters. A 4-digit PIN would fall in
+seconds whatever the iteration count. `AdminPage` must never import `private/`, because a
+local `npm run build` would then bundle the plain text. **verify:arch #20** fails if
+`private/` stops being ignored, if anything under `private/` is tracked, if `src/` globs or
+imports a `private/` path, or if `public/admin-prep.enc.json` is not in the encrypted format.
+Probe-tested by planting each. `adminCrypto.test.ts` pins that the Node script and the
+browser code agree on the format. The script and `src/lib/adminCrypto.ts` duplicate about
+20 lines on purpose: `engines.node` is `>=22`, and Node only runs `.ts` imports unflagged
+from 22.18.
+
+## The gates failed on a Windows checkout, and a worktree changed the repo's git config (Oct 2026)
+On Windows with `core.autocrlf=true`, files are CRLF on disk and paths use `\`. That broke
+the local gates while CI (Linux, LF) stayed green: five content tests searched for
+"```js\n" and found nothing (119 failures), `verify:counts` counted 0 guides, the
+changelog check flagged every tagged release, and the `src/data/` and always-dark
+playground exemptions in `verify:arch` never matched `src\data\...`. Two checks (nested
+fences and top-level `ws.send`) were also silently checking nothing on Windows. The
+pre-commit hook (which runs `verify:arch` too, not only counts) then blocked every commit.
+Fixed by normalising CRLF in `read()` in both scripts and in the five tests, and `\` to `/`
+in the architecture walker.
+
+While testing this, `git config core.autocrlf false` was run inside a temporary
+`git worktree`. Worktrees share `.git/config`, so it switched conversion off for the main
+checkout, and the next `git add` staged CRLF files (a 17,000-line diff for 19 files).
+Removed with `git config --local --unset core.autocrlf`; the files had to be re-staged.
+
+`Image Gallery + Lazy Load` failed intermittently under load. The jsdom
+`IntersectionObserver` stub only notified elements already observed when `scrollIntoView`
+ran, and the template observes in an effect, which can run after the scroll on a busy
+machine. The stub now remembers scrolled elements and reports one asynchronously when it
+is observed later, as a browser does. Probe-tested by cutting the post-mount settle to 0 ms:
+the old stub fails with the reported message, the new one passes. Other real-timer checks
+(the Debounce hidden tests, Infinite Scroll's error alert) can still miss under full-suite
+load on a laptop; they are timing-sensitive, not broken.

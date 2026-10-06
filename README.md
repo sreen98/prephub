@@ -72,7 +72,7 @@ prephub/
       BookmarksPage.tsx        # Saved bookmarks listing
       CheckpointsPage.tsx      # Per-guide "where I left off" listing
       CheatSheetsIndex.tsx     # Cheat sheet card grid
-      AdminPage.tsx            # Passcode-gated, dev-only
+      AdminPage.tsx            # Passphrase-protected; decrypts public/admin-prep.enc.json
     features/
       content/                 # Guide-reading pieces (TOC, PreBlock, markdown map, checkpoint FAB)
       playground/              # CodePlayground, output panel, auto-close rules, explanation views

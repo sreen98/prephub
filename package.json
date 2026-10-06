@@ -1,7 +1,7 @@
 {
   "name": "prephub",
   "private": true,
-  "version": "1.7.6",
+  "version": "1.7.7",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -20,7 +20,8 @@
     "verify:arch": "node scripts/verify-architecture.js",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run verify:counts && npm run verify:arch && npm run verify:blocks",
     "playground:index": "node scripts/generate-playground-index.js",
-    "verify:blocks": "node scripts/verify-code-blocks.js"
+    "verify:blocks": "node scripts/verify-code-blocks.js",
+    "admin:encrypt": "node scripts/encrypt-admin-prep.js"
   },
   "dependencies": {
     "@babel/standalone": "^7.29.2",

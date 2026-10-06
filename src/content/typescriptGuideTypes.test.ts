@@ -36,7 +36,7 @@ function diagnose(source: string): string[] {
 }
 
 describe('TypeScript guide — type-level claims, checked by the compiler', () => {
-  const md = readFileSync(GUIDE, 'utf8');
+  const md = readFileSync(GUIDE, 'utf8').replace(/\r\n/g, '\n');
   /** The fenced `ts` block containing `marker`. */
   const block = (marker: string) => {
     const at = md.indexOf(marker);
@@ -208,7 +208,7 @@ emitter.on('click', (p) => { void p.x; void p.y; });`)).toEqual([]);
  *   3. compiled and run, it prints exactly the Output block that follows it.
  */
 describe('TypeScript guide tricky Q20–Q31 — errors and outputs, checked', () => {
-  const md = readFileSync(GUIDE, 'utf8');
+  const md = readFileSync(GUIDE, 'utf8').replace(/\r\n/g, '\n');
   const DOM_LIB = ['lib.es2023.d.ts', 'lib.dom.d.ts'];
 
   function codes(source: string): number[] {
@@ -284,7 +284,7 @@ describe('TypeScript guide tricky Q20–Q31 — errors and outputs, checked', ()
  *   - each COMMENTED ✗ line produces its code when uncommented.
  */
 describe('TypeScript guide tricky Q1–Q19 — runnable, with every error annotated', () => {
-  const md = readFileSync(GUIDE, 'utf8');
+  const md = readFileSync(GUIDE, 'utf8').replace(/\r\n/g, '\n');
   const trickyStart = md.indexOf('## 16. Tricky Output Questions');
   const region = md.slice(trickyStart, md.indexOf('**Q20:', trickyStart));
 

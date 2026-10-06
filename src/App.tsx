@@ -50,13 +50,9 @@ const QueryPlayground    = lazy(() => import('./pages/QueryPlayground'));
 // who opened just the home page — which renders no markdown — still paid
 // ~327 KB for the renderer.
 const ContentPage        = lazy(() => import('./pages/ContentPage'));
-// Local-development only. `import.meta.env.DEV` is a compile-time constant, so
-// this dynamic import is dead-code-eliminated in a production build and the
-// AdminPage chunk is never emitted — which is what keeps `private/` out of
-// dist/ even when the build runs on a machine that has the file. See AdminPage.tsx.
-const AdminPage = (import.meta.env.DEV
-  ? lazy(() => import('./pages/AdminPage'))
-  : () => null) as React.ComponentType;
+// Passphrase-protected. The page ships only ciphertext and decrypts it in the
+// browser, so it is safe in production. See AdminPage.tsx.
+const AdminPage          = lazy(() => import('./pages/AdminPage'));
 
 // Loader shown while a lazy route chunk is being fetched.
 // Pulse-skeleton hints at the upcoming page shape so the transition
@@ -436,7 +432,7 @@ export default function App() {
             <Route path="/checkpoints" element={<CheckpointsPage />} />
             <Route path="/changelog" element={<ContentPage filePath="./content/changelog.md" />} />
             <Route path="/cheatsheets" element={<CheatSheetsIndex />} />
-            {import.meta.env.DEV && <Route path="/admin" element={<AdminPage />} />}
+            <Route path="/admin" element={<AdminPage />} />
             {cheatSheets.map(cs => (
               <Route key={cs.path} path={cs.path} element={<ContentPage filePath={cs.file} />} />
             ))}

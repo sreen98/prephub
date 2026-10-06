@@ -4,7 +4,7 @@ import { inspect } from 'node:util';
 
 /** Run the four repaired demo blocks and check they print what they claim. */
 describe('repaired JavaScript guide demos actually print', () => {
-  const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8');
+  const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8').replace(/\r\n/g, '\n');
   const run = (snippet: string) => {
     const logs: string[] = [];
     /* eslint-disable @typescript-eslint/no-implied-eval -- executing the guide's
