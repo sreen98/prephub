@@ -20,8 +20,8 @@ export default defineConfig({
         theme_color: '#6366f1',
         background_color: '#0a0a0f',
         display: 'standalone',
-        scope: '/prephub/',
-        start_url: '/prephub/',
+        scope: '/',
+        start_url: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -71,7 +71,7 @@ export default defineConfig({
             // Lazily-loaded JS: guide content, the playground, Babel, Mermaid.
             // CacheFirst because every filename is content-hashed, so a given
             // URL is immutable — a new build produces a new name.
-            urlPattern: ({ url }) => url.pathname.startsWith('/prephub/assets/') && url.pathname.endsWith('.js'),
+            urlPattern: ({ url }) => url.pathname.startsWith('/assets/') && url.pathname.endsWith('.js'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'app-chunks',
@@ -101,7 +101,7 @@ export default defineConfig({
       },
     }),
   ],
-  base: '/prephub/',
+  base: '/',
   build: {
     rollupOptions: {
       output: {

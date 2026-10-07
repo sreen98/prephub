@@ -1,5 +1,9 @@
 # What's New
 
+## v1.7.9 (October 2026)
+
+**PrepHub has a new address: [prephub.sreenathp.com](https://prephub.sreenathp.com/).** Old `sreen98.github.io/prephub` links, bookmarks and shared URLs redirect there automatically. Progress you saved on the old address (solved challenges, bookmarks, review schedule) stays with the old address and doesn't carry over, so the new site starts fresh. If you installed PrepHub as an app, install it again from the new address.
+
 ## v1.7.8 (October 2026)
 
 **Fixed:** the JavaScript guide's `Array.fromAsync` question (Q16) could print `false` when you clicked Try it, because it checked for exactly 60 ms and timers can run a millisecond early. It now checks for 50 ms, which still shows the steps run one after another (a parallel run takes about 30 ms).

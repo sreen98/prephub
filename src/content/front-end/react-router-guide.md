@@ -425,7 +425,7 @@ render(
 
 For data mode, build a router in the test with `createMemoryRouter(routes, { initialEntries })` and render a `RouterProvider`, which lets you assert on loader behaviour too.
 
-**The bug this catches, and it is a real one from this codebase:** a component that reads the global `window.location` instead of `useLocation()` typechecks perfectly and works in development. Under a basename — this app is served from `/prephub/` — `window.location.pathname` is `/prephub/quiz` and never equals `/quiz`, so every active-link highlight is silently dead in production. `MemoryRouter` catches it because there is no `window.location` to accidentally read.
+**The bug this catches, and it is a real one from this codebase:** a component that reads the global `window.location` instead of `useLocation()` typechecks perfectly and works in development. Under a basename — this app was served from `/prephub/` on GitHub Pages before it moved to its own domain — `window.location.pathname` is `/prephub/quiz` and never equals `/quiz`, so every active-link highlight is silently dead in production. `MemoryRouter` catches it because there is no `window.location` to accidentally read.
 
 ---
 

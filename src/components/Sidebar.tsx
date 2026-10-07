@@ -88,9 +88,10 @@ export default function Sidebar({
   bookmarksCount, hasUnreadChangelog, theme, toggleTheme, cycleFontSize,
   fontSize, sizeLabel, appVersion,
 }: SidebarProps) {
-  // MUST come from the router, not `window.location`: the app is served under
-  // a /prephub/ basename, so window.location.pathname is '/prephub/quiz' and
-  // would never equal '/quiz' — every active-state highlight would be dead.
+  // MUST come from the router, not `window.location`: under a basename (the app
+  // was served from /prephub/ on GitHub Pages until v1.7.9), window.location.pathname
+  // is '/prephub/quiz' and never equals '/quiz', so every active-state highlight
+  // would be dead. The site is at the domain root now, which would only hide the bug.
   const location = useLocation();
   const counts: ToolCounts = { dueCount, bookmarksCount, checkpointsCount, hasUnreadChangelog };
 

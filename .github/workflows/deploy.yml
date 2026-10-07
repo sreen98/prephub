@@ -79,8 +79,13 @@ jobs:
       - name: Build 🏗️
         run: npm run build
 
+      # `cname` writes a CNAME file into gh-pages on every deploy. Each deploy
+      # replaces the branch, so without it GitHub would drop the custom domain
+      # and the site would fall back to sreen98.github.io/prephub/, where the
+      # root-based asset paths no longer resolve.
       - name: Deploy 🚀
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
+          cname: prephub.sreenathp.com

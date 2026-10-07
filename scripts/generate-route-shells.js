@@ -5,8 +5,8 @@
  * WHY
  * ---
  * GitHub Pages has no server-side rewrite, so a deep link like
- * /prephub/frontend/react hits a genuine 404. `public/404.html` catches it and
- * bounces to /prephub/?/frontend/react, which index.html unpacks back into a
+ * /frontend/react hits a genuine 404. `public/404.html` catches it and
+ * bounces to /?/frontend/react, which index.html unpacks back into a
  * route. It works, but it costs a full extra round trip on the very first byte:
  * Lighthouse measured **978 ms on mobile / 224 ms on desktop**, and the 404 also
  * logs a console error that fails the Best Practices audit.

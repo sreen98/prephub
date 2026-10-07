@@ -2750,3 +2750,23 @@ and `git add --renormalize .` converted the 11 files back. The tagged v1.7.7 cha
 CRLF for good, so the changelog check (#15) now normalises the tagged copy as well as the
 working copy; without that, every later push (CI included) would have failed once the tag
 existed.
+
+## Moved from sreen98.github.io/prephub/ to prephub.sreenathp.com (v1.7.9, Oct 2026)
+The site moved to a subdomain of the owner's Cloudflare-managed domain. The portfolio at
+`sreenathp.com` is a separate Cloudflare-hosted SPA that answers every unknown path with its
+own page, so `sreenathp.com/prephub` would have needed a proxying Worker. A subdomain needs
+only a DNS record. Hosting stays on GitHub Pages: Cloudflare DNS has `CNAME prephub →
+sreen98.github.io`, the deploy step publishes a `CNAME` file (`cname:` input of
+peaceiris/actions-gh-pages), and GitHub then 301-redirects `sreen98.github.io/prephub/*` to
+the new domain.
+
+The base path changed from `/prephub/` to `/`: `base` in vite.config.js (now the single
+source; the router reads `import.meta.env.BASE_URL`), the PWA `scope`/`start_url`, the
+runtime-cache `urlPattern`, `pathSegmentsToKeep` 1 → 0 in `public/404.html` (the redirect
+round trip was simulated for paths, query strings and fragments), the apple-touch-icon,
+and the absolute URLs in `index.html`, `robots.txt` and the sitemap generator.
+
+Trade-off accepted by the owner: localStorage is per origin, and the old origin never runs
+the app again once GitHub redirects it, so readers' saved progress does not carry over. The
+alternative (a `/prephub` path on the main domain, with a client-side redirect that copies
+progress) needed a Cloudflare Worker and was judged not worth it for the current audience.

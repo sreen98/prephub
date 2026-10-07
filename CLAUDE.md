@@ -2,7 +2,7 @@
 
 PrepHub is an interview-prep web app: markdown study guides rendered as a React site, with
 Quiz, Code Playground, Query Playground, spaced repetition and an interview simulator. It is a
-static PWA on GitHub Pages under `/prephub/`. There is **no backend**; all state lives in
+static PWA on GitHub Pages at `https://prephub.sreenathp.com/` (domain root). There is **no backend**; all state lives in
 localStorage.
 
 > **Why is each rule here?** The incident, audit or measurement behind every rule is in
@@ -288,7 +288,16 @@ colour, check that its `:hover` still differs. There is no `Github` icon in this
 so use the inline `GithubIcon`.
 
 ## Performance and deployment
-- Base path `/prephub/`. `scripts/generate-route-shells.js` writes `dist/<route>/index.html`
+- **Domain:** `prephub.sreenathp.com`, a Cloudflare DNS `CNAME` to `sreen98.github.io`, set as
+  the repo's GitHub Pages custom domain. The deploy step's `cname:` input writes the `CNAME`
+  file on every deploy; never remove it, or the domain is dropped and the root-based asset
+  paths 404 on `sreen98.github.io/prephub/`. GitHub 301-redirects the old address.
+- **Base path `/`** is set once, as `base` in `vite.config.js`. The router reads it through
+  `import.meta.env.BASE_URL`, and `AdminPage` builds its fetch URL from it. If the base ever
+  changes, also change the PWA `scope`/`start_url`, the runtime-cache `urlPattern`,
+  `pathSegmentsToKeep` in `public/404.html`, and the absolute URLs (`index.html` meta,
+  `robots.txt`, `SITE_URL` in `generate-sitemap.js`).
+- `scripts/generate-route-shells.js` writes `dist/<route>/index.html`
   for every route so deep links return 200. `/admin` is excluded. `public/404.html` stays.
 - **`/admin` is encrypted, not passcode-gated.** A check in the browser hides nothing on a
   static site. The plain document is the gitignored `private/admin-prep.md`, and only

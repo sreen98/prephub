@@ -48,10 +48,11 @@ describe('Sidebar', () => {
   /**
    * This is the regression this file exists for. Extracting the sidebar out of
    * App.tsx dropped the `useLocation()` call, and `location` silently resolved
-   * to the GLOBAL `window.location` instead — which typechecks fine. Because
-   * the app is served under a /prephub/ basename, window.location.pathname is
-   * '/prephub/quiz' and never equals '/quiz', so every active highlight would
-   * have been dead in production while looking correct in a dev build.
+   * to the GLOBAL `window.location` instead — which typechecks fine. The app
+   * was then served under a /prephub/ basename, so window.location.pathname was
+   * '/prephub/quiz' and never equalled '/quiz', and every active highlight would
+   * have been dead in production while looking correct in a dev build. It now
+   * lives at the domain root, where the bug would hide until a basename returns.
    */
   it('marks the active tool from the ROUTER location, not window.location', () => {
     const onQuiz = at('/quiz');

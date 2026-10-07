@@ -1,8 +1,8 @@
 # PrepHub - Interview Preparation Platform
 
-A comprehensive, modern web app for full-stack developer interview preparation. Built with React 19, deployed on GitHub Pages as a PWA.
+A comprehensive, modern web app for full-stack developer interview preparation. Built with React 19, deployed on GitHub Pages (custom domain prephub.sreenathp.com) as a PWA.
 
-**Live site: [sreen98.github.io/prephub](https://sreen98.github.io/prephub/)**
+**Live site: [prephub.sreenathp.com](https://prephub.sreenathp.com/)**
 
 ## Features
 
@@ -51,7 +51,7 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 | JSX Runtime | @babel/standalone (lazy-loaded) |
 | Icons | Lucide React |
 | PWA | vite-plugin-pwa + Workbox |
-| Deployment | GitHub Pages |
+| Deployment | GitHub Pages, custom domain via Cloudflare DNS |
 
 ## Project Structure
 

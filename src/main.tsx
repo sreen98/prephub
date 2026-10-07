@@ -11,7 +11,8 @@ if (!rootElement) throw new Error('Root element #root not found');
 
 createRoot(rootElement).render(
   <StrictMode>
-    <BrowserRouter basename="/prephub/">
+    {/* One source of truth for the base path: `base` in vite.config.js */}
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <App />
     </BrowserRouter>
   </StrictMode>,
