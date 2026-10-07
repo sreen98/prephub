@@ -6,7 +6,9 @@
     <script>
       // GitHub Pages SPA redirect: converts the path to a query string
       // so the SPA can handle routing client-side
-      var pathSegmentsToKeep = 1; // '/prephub' base
+      // 0: the site is served from the domain root (prephub.sreenathp.com).
+      // It was 1 while the site lived under /prephub/ on sreen98.github.io.
+      var pathSegmentsToKeep = 0;
       var l = window.location;
       l.replace(
         l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +

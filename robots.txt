@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://sreen98.github.io/prephub/sitemap.xml
+Sitemap: https://prephub.sreenathp.com/sitemap.xml
