@@ -1,5 +1,11 @@
 # What's New
 
+## v1.7.11 (October 2026)
+
+**React Playground previews are readable again.** The preview pane is white, but about 20 React challenges were styled for a dark page, so their headings, hints and labels were white or light grey on white and almost invisible. They include Accordion, Tabs, Auto-Complete, File Upload, Shopping Cart, Data Table, Chat App, Calculator and Stopwatch. They now sit on their own dark panel and look as they were designed. The new Dropdown challenge is restyled for the white pane.
+
+**Better contrast everywhere in the React previews.** Pale grey hints and captions (such as "Loading…" and "No products match your filters") are darker, and white text on blue, green and amber buttons and badges now sits on deeper shades. Every piece of text in every React template and in the React blank starter now meets the WCAG AA contrast minimum, and a test checks this on every build.
+
 ## v1.7.10 (October 2026)
 
 **New React Machine Coding challenge: Dropdown (keyboard + click outside).** Getting a dropdown to open and pick a value takes ten minutes; the interview is about what happens when someone tries to break it. This one is graded on exactly that: it must work with the keyboard alone (open with Enter, Space or the down arrow, move with the arrows, Home and End, type a letter to jump, choose with Enter, back out with Escape, leave with Tab), close when you click outside, skip an option that is out of stock, keep a 45-item list scrolled to the highlight, and say so when there is nothing to pick. Check runs eight of these behaviours against your build, and Explain walks through the reference one decision at a time. It sits in the Overlays & Disclosure track.

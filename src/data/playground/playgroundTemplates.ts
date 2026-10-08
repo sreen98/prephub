@@ -478,7 +478,7 @@ render(<Counter />);`,
       <button onClick={() => setRunning(r => !r)} style={{ marginTop: 16 }}>
         {running ? "\u23F8 Pause" : "\u25B6 Resume"}
       </button>
-      <p style={{ color: "#888", fontSize: 13, marginTop: 8 }}>Check console for lifecycle logs</p>
+      <p style={{ color: "#666", fontSize: 13, marginTop: 8 }}>Check console for lifecycle logs</p>
     </div>
   );
 }
@@ -504,7 +504,7 @@ function useLocalStorage(key, initial) {
 
 function App() {
   const [name, setName] = useLocalStorage("playground-demo-name", "");
-  const [color, setColor] = useLocalStorage("playground-demo-color", "#6366f1");
+  const [color, setColor] = useLocalStorage("playground-demo-color", "#4f46e5");
 
   return (
     <div style={{ padding: 24, fontFamily: "system-ui" }}>
@@ -521,7 +521,7 @@ function App() {
           <span style={{ color }}>Favorite color</span>
         </div>
       </div>
-      <p style={{ color: "#888", fontSize: 12, marginTop: 16 }}>
+      <p style={{ color: "#666", fontSize: 12, marginTop: 16 }}>
         Values persist in localStorage \u2014 try re-running!
       </p>
     </div>
@@ -592,7 +592,7 @@ function TodoApp() {
           </li>
         ))}
       </ul>
-      {todos.length === 0 && <p style={{ color: "#999", textAlign: "center" }}>No todos yet</p>}
+      {todos.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No todos yet</p>}
     </div>
   );
 }
@@ -636,7 +636,7 @@ function Content() {
   return (
     <div style={{ padding: 16 }}>
       <p>Theme is: <strong>{theme.dark ? "Dark" : "Light"}</strong></p>
-      <p style={{ color: "#888", fontSize: 13 }}>Header and Content both read from ThemeContext \u2014 no props passed!</p>
+      <p style={{ color: "#666", fontSize: 13 }}>Header and Content both read from ThemeContext \u2014 no props passed!</p>
     </div>
   );
 }
@@ -687,7 +687,7 @@ function ExpensiveList({ items, query }) {
       {filtered.map((item) => (
         <li key={item} style={{ padding: "4px 0", borderBottom: "1px solid #eee" }}>{item}</li>
       ))}
-      {filtered.length === 0 && <li style={{ color: "#999" }}>No matches</li>}
+      {filtered.length === 0 && <li style={{ color: "#666" }}>No matches</li>}
     </ul>
   );
 }
@@ -720,7 +720,7 @@ function App() {
         <input type="checkbox" checked={simulate} onChange={e => setSimulate(e.target.checked)} />
         Simulate the compiler (cache the list element)
       </label>
-      <p style={{ color: "#888", fontSize: 13 }}>
+      <p style={{ color: "#666", fontSize: 13 }}>
         {simulate
           ? "Clicking Count won't re-render the list. Typing will. Check the console!"
           : "No compiler: every Count click re-renders and re-filters the list."}
@@ -5866,7 +5866,7 @@ test("path to an array", get(settings, "tags"), ["a", "b"]);`,
         height={450}
         style={{ width: '100%', height: 'auto', borderRadius: 8, background: '#222' }}
       />
-      <figcaption style={{ fontSize: 12, color: '#888' }}>
+      <figcaption style={{ fontSize: 12, color: '#666' }}>
         srcset + sizes — resolution switching, same image
       </figcaption>
     </figure>
@@ -5891,7 +5891,7 @@ function FormatNegotiation() {
           style={{ width: '100%', height: 'auto', borderRadius: 8, background: '#222' }}
         />
       </picture>
-      <figcaption style={{ fontSize: 12, color: '#888' }}>
+      <figcaption style={{ fontSize: 12, color: '#666' }}>
         picture + type — format negotiation with fallback
       </figcaption>
     </figure>
@@ -5904,9 +5904,9 @@ function AspectRatioBox() {
       {/* aspect-ratio reserves the box before the bytes arrive, so nothing
           below jumps when the image loads. This is the CLS fix. */}
       <div style={{ aspectRatio: '16 / 9', background: '#222', borderRadius: 8, display: 'grid', placeItems: 'center' }}>
-        <span style={{ color: '#666', fontSize: 12 }}>space reserved via aspect-ratio</span>
+        <span style={{ color: '#aaa', fontSize: 12 }}>space reserved via aspect-ratio</span>
       </div>
-      <figcaption style={{ fontSize: 12, color: '#888' }}>
+      <figcaption style={{ fontSize: 12, color: '#666' }}>
         width/height attrs or aspect-ratio — prevents layout shift
       </figcaption>
     </figure>
@@ -5921,7 +5921,7 @@ function App() {
       <ResolutionSwitching />
       <FormatNegotiation />
       <AspectRatioBox />
-      <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>
+      <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>
         <strong>For the LCP image specifically:</strong> loading="eager",
         fetchpriority="high", and NO lazy attribute. Lazy-loading your hero
         delays the very metric you are measured on.
@@ -6008,7 +6008,7 @@ function Redirect({ to, onRedirect }) {
     onRedirect(to);
   }, [to, onRedirect]);
 
-  return <p style={{ color: '#888' }}>Redirecting…</p>;
+  return <p style={{ color: '#666' }}>Redirecting…</p>;
 }
 
 // ---------- the gate ----------
@@ -6017,7 +6017,7 @@ function Protected({ requireRole, onRedirect, children }) {
 
   // 1. Session unknown — render nothing decisive. Redirecting here logs out
   //    every user on every refresh, which is the bug this state prevents.
-  if (status === 'loading') return <p style={{ color: '#888' }}>Checking session…</p>;
+  if (status === 'loading') return <p style={{ color: '#666' }}>Checking session…</p>;
 
   // 2. Not authenticated → send to login, remembering the destination.
   //    Rendered, not called: see the note on Redirect above.
@@ -6030,7 +6030,7 @@ function Protected({ requireRole, onRedirect, children }) {
     return (
       <div style={{ color: '#f87171' }}>
         <strong>403 — Forbidden.</strong>
-        <p style={{ fontSize: 13, color: '#aaa' }}>
+        <p style={{ fontSize: 13, color: '#666' }}>
           Signed in as {user.name} ({user.role}); this page needs "{requireRole}".
         </p>
       </div>
@@ -6053,7 +6053,7 @@ function App() {
         <button onClick={() => go('home')}>Home</button>
         <button onClick={() => go('dashboard')}>Dashboard (auth)</button>
         <button onClick={() => go('admin')}>Admin (role)</button>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#888' }}>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#666' }}>
           {status === 'loading' ? '…' : user ? user.name + ' (' + user.role + ')' : 'signed out'}
         </span>
         {user && <button onClick={logout}>Sign out</button>}
@@ -6179,7 +6179,7 @@ function Counter() {
     <p style={{ margin: '0 0 8px' }}>
       count: <strong>{count}</strong>{' '}
       <button onClick={() => dispatch({ type: 'increment' })}>+1</button>
-      <span style={{ color: '#888', fontSize: 12 }}>  renders: {counterRenders}</span>
+      <span style={{ color: '#666', fontSize: 12 }}>  renders: {counterRenders}</span>
     </p>
   );
 }
@@ -6192,7 +6192,7 @@ function TodoCount() {
     <p style={{ margin: '0 0 8px' }}>
       todos: <strong>{n}</strong>{' '}
       <button onClick={() => dispatch({ type: 'addTodo', payload: 'item ' + (n + 1) })}>add</button>
-      <span style={{ color: '#888', fontSize: 12 }}>  renders: {todoRenders}</span>
+      <span style={{ color: '#666', fontSize: 12 }}>  renders: {todoRenders}</span>
     </p>
   );
 }
@@ -6203,7 +6203,7 @@ function App() {
       <div style={{ fontFamily: 'system-ui', padding: 16, maxWidth: 460 }}>
         <Counter />
         <TodoCount />
-        <p style={{ fontSize: 12, color: '#888', marginTop: 10 }}>
+        <p style={{ fontSize: 12, color: '#666', marginTop: 10 }}>
           Click +1 and watch: only Counter's render count moves. That selector
           isolation is what Context alone does NOT give you.
         </p>
@@ -6292,11 +6292,11 @@ function useCachedUser(id) {
 function UserPanel({ id }) {
   const { data, isRevalidating, error } = useCachedUser(id);
   if (error) return <p style={{ color: '#f87171' }}>{error}</p>;
-  if (!data) return <p style={{ color: '#888' }}>Loading user {id}…</p>;
+  if (!data) return <p style={{ color: '#555' }}>Loading user {id}…</p>;
   return (
     <p style={{ margin: 0 }}>
       <strong>{data.name}</strong>
-      <span style={{ color: '#888', fontSize: 12 }}> · fetched {data.fetchedAt}</span>
+      <span style={{ color: '#555', fontSize: 12 }}> · fetched {data.fetchedAt}</span>
       {isRevalidating && <span style={{ color: '#fbbf24', fontSize: 12 }}>  refreshing…</span>}
     </p>
   );
@@ -6314,8 +6314,8 @@ function App() {
       </div>
       <UserPanel id={id} />
       {/* Mounted twice on purpose: proves the two share ONE request */}
-      <div style={{ marginTop: 12, opacity: 0.7 }}><UserPanel id={id} /></div>
-      <p style={{ fontSize: 12, color: '#888', marginTop: 14 }}>
+      <div style={{ marginTop: 12, opacity: 0.85 }}><UserPanel id={id} /></div>
+      <p style={{ fontSize: 12, color: '#555', marginTop: 14 }}>
         Switch users, then switch back within 5s — instant, no request.
         After 5s the entry is stale: cached data shows immediately and refreshes behind it.
       </p>
@@ -6436,11 +6436,11 @@ function App() {
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
         {messages.map(m => (
           <li key={m.id} style={{ padding: '4px 0', borderBottom: '1px solid #333', fontSize: 13 }}>
-            #{m.id} — {m.price} <span style={{ color: '#888' }}>{m.at}</span>
+            #{m.id} — {m.price} <span style={{ color: '#666' }}>{m.at}</span>
           </li>
         ))}
       </ul>
-      <p style={{ fontSize: 12, color: '#888', marginTop: 12 }}>
+      <p style={{ fontSize: 12, color: '#666', marginTop: 12 }}>
         The feed drops after 6 messages on purpose — watch it reconnect.
       </p>
     </div>
@@ -6610,7 +6610,7 @@ function HeavyPanel() {
   return (
     <div style={{ padding: 12, border: '1px solid #444', borderRadius: 8 }}>
       <strong>Heavy panel loaded.</strong>
-      <p style={{ fontSize: 13, color: '#aaa', margin: '6px 0 0' }}>
+      <p style={{ fontSize: 13, color: '#666', margin: '6px 0 0' }}>
         In a real app this component and its dependencies live in their own chunk.
       </p>
     </div>
@@ -6673,7 +6673,7 @@ function App() {
         <div style={{ marginTop: 10 }}>
           {show && (
             <LoadErrorBoundary>
-              <React.Suspense fallback={<p style={{ color: '#888' }}>Loading panel…</p>}>
+              <React.Suspense fallback={<p style={{ color: '#666' }}>Loading panel…</p>}>
                 <LazyPanel />
               </React.Suspense>
             </LoadErrorBoundary>
@@ -6684,7 +6684,7 @@ function App() {
       <section>
         <h4 style={{ margin: '0 0 8px' }}>Suspense for data</h4>
         <LoadErrorBoundary>
-          <React.Suspense fallback={<p style={{ color: '#888' }}>Loading user…</p>}>
+          <React.Suspense fallback={<p style={{ color: '#666' }}>Loading user…</p>}>
             <UserCard />
           </React.Suspense>
         </LoadErrorBoundary>
@@ -6732,13 +6732,13 @@ function TeamDirectory({ data }) {
   const members = data?.members ?? [];
 
   if (members.length === 0) {
-    return <p style={{ color: '#888' }}>No team members to show.</p>;
+    return <p style={{ color: '#666' }}>No team members to show.</p>;
   }
 
   return (
     <section>
       <h3 style={{ margin: '0 0 4px' }}>{data.team} team</h3>
-      <p style={{ margin: '0 0 12px', color: '#888', fontSize: 13 }}>
+      <p style={{ margin: '0 0 12px', color: '#666', fontSize: 13 }}>
         {members.length} {members.length === 1 ? 'member' : 'members'}
       </p>
 
@@ -6747,7 +6747,7 @@ function TeamDirectory({ data }) {
           // key = a stable id from the data, never the array index
           <li key={id} style={{ padding: '8px 0', borderBottom: '1px solid #333' }}>
             <strong>{name}</strong>
-            <div style={{ fontSize: 13, color: '#aaa' }}>{role} · {location}</div>
+            <div style={{ fontSize: 13, color: '#666' }}>{role} · {location}</div>
           </li>
         ))}
       </ul>
@@ -6855,16 +6855,16 @@ function useJobs() {
 function JobList() {
   const { status, data, error } = useJobs();
 
-  if (status === 'loading') return <p style={{ color: '#888' }}>Loading jobs…</p>;
+  if (status === 'loading') return <p style={{ color: '#666' }}>Loading jobs…</p>;
   if (status === 'error')   return <p style={{ color: '#f87171' }}>Failed: {error}</p>;
-  if (!data.length)         return <p style={{ color: '#888' }}>No jobs found.</p>;
+  if (!data.length)         return <p style={{ color: '#666' }}>No jobs found.</p>;
 
   return (
     <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
       {data.map(job => (
         <li key={job.id} style={{ padding: '8px 0', borderBottom: '1px solid #333' }}>
           <strong>{job.title}</strong>
-          <div style={{ fontSize: 13, color: '#aaa' }}>{job.company} · {job.location}</div>
+          <div style={{ fontSize: 13, color: '#666' }}>{job.company} · {job.location}</div>
         </li>
       ))}
     </ul>
@@ -7057,7 +7057,7 @@ function Pagination() {
     <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 420 }}>
       <h3 style={{ marginTop: 0 }}>Paginated List</h3>
       {loading ? (
-        <p style={{ color: "#888" }}>Loading...</p>
+        <p style={{ color: "#666" }}>Loading...</p>
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {items.map(item => (
@@ -7093,7 +7093,7 @@ function Pagination() {
           Next
         </button>
       </div>
-      <p style={{ color: "#999", fontSize: 12, marginTop: 8 }}>
+      <p style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
         Page {page} of {totalPages} ({ALL_ITEMS.length} items)
       </p>
     </div>
@@ -7211,7 +7211,7 @@ function Panel({ title, subtitle, query, onChange, keystrokes, runs, filtered, s
   return (
     <div style={{ flex: 1, minWidth: 300, fontFamily: "system-ui" }}>
       <h3 style={{ margin: "0 0 2px" }}>{title}</h3>
-      <p style={{ margin: "0 0 10px", fontSize: 12, color: "#888" }}>{subtitle}</p>
+      <p style={{ margin: "0 0 10px", fontSize: 12, color: "#666" }}>{subtitle}</p>
 
       <input
         value={query}
@@ -7223,17 +7223,17 @@ function Panel({ title, subtitle, query, onChange, keystrokes, runs, filtered, s
         }}
       />
 
-      <p style={{ fontSize: 12, color: "#888", margin: "8px 0" }}>
+      <p style={{ fontSize: 12, color: "#666", margin: "8px 0" }}>
         keystrokes <b>{keystrokes}</b> · filters run <b>{runs}</b>
         {stale && <span style={{ color: "#d97706" }}> · waiting…</span>}
       </p>
 
-      <p style={{ fontSize: 13, color: "#888", margin: "8px 0" }}>
+      <p style={{ fontSize: 13, color: "#666", margin: "8px 0" }}>
         Showing {filtered.length} of {PRODUCTS.length} products
       </p>
 
       {filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 24, color: "#999" }}>
+        <div style={{ textAlign: "center", padding: 24, color: "#666" }}>
           No products match "{query}"
         </div>
       ) : (
@@ -7245,7 +7245,7 @@ function Panel({ title, subtitle, query, onChange, keystrokes, runs, filtered, s
             }}>
               <div>
                 <strong>{p.name}</strong>
-                <div style={{ fontSize: 12, color: "#888" }}>{p.category}</div>
+                <div style={{ fontSize: 12, color: "#666" }}>{p.category}</div>
               </div>
               <span style={{ fontWeight: 600, color: "#4f46e5" }}>\${p.price}</span>
             </div>
@@ -7506,7 +7506,7 @@ function ChatApp() {
 
 function App() {
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <h2>Live chat</h2>
       <ChatApp />
     </div>
@@ -7552,7 +7552,7 @@ render(<App />);
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h3 style={{ margin: 0 }}>{title}</h3>
           <button onClick={onClose} aria-label="Close"
-            style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#999", padding: 4 }}>
+            style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#666", padding: 4 }}>
             x
           </button>
         </div>
@@ -7581,7 +7581,7 @@ function App() {
           Info Modal
         </button>
         <button onClick={() => setActiveModal("form")}
-          style={{ padding: "8px 16px", borderRadius: 8, background: "#059669", color: "#fff", border: "none", cursor: "pointer" }}>
+          style={{ padding: "8px 16px", borderRadius: 8, background: "#047857", color: "#fff", border: "none", cursor: "pointer" }}>
           Form Modal
         </button>
         <button onClick={() => setActiveModal("confirm")}
@@ -7589,7 +7589,7 @@ function App() {
           Confirm Modal
         </button>
       </div>
-      <p style={{ color: "#888", fontSize: 13 }}>Press Escape or click backdrop to close</p>
+      <p style={{ color: "#666", fontSize: 13 }}>Press Escape or click backdrop to close</p>
 
       {/* Info Modal */}
       <Modal isOpen={activeModal === "info"} onClose={close} title="Information">
@@ -7613,7 +7613,7 @@ function App() {
             onChange={e => setFormData(f => ({ ...f, email: e.target.value }))}
             style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }} />
           <button onClick={() => { console.log("Submitted:", formData); close(); }}
-            style={{ padding: "10px 20px", borderRadius: 8, background: "#059669", color: "#fff", border: "none", cursor: "pointer" }}>
+            style={{ padding: "10px 20px", borderRadius: 8, background: "#047857", color: "#fff", border: "none", cursor: "pointer" }}>
             Submit
           </button>
         </div>
@@ -7665,7 +7665,7 @@ render(<App />);`,
       overflow: "hidden", position: "relative",
     }}>
       {!loaded && (
-        <div style={{ color: "#999", fontSize: 13 }}>Loading...</div>
+        <div style={{ color: "#555", fontSize: 13 }}>Loading...</div>
       )}
       {inView && (
         <img
@@ -7697,7 +7697,7 @@ function ImageGallery() {
   return (
     <div style={{ padding: 16, fontFamily: "system-ui" }}>
       <h3 style={{ marginTop: 0 }}>Lazy-Loaded Image Gallery</h3>
-      <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>
+      <p style={{ color: "#555", fontSize: 13, marginBottom: 16 }}>
         Scroll down to see images load as they enter the viewport
       </p>
       <div style={{
@@ -7810,12 +7810,12 @@ render(<ImageGallery />);`,
   return (
     <div style={{ padding: 20, fontFamily: "system-ui" }}>
       <h3 style={{ marginTop: 0 }}>Drag & Drop Lists</h3>
-      <p style={{ color: "#888", fontSize: 13, marginBottom: 12 }}>
+      <p style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>
         Drag items between the two lists
       </p>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        {renderList(todo, "todo", "To Do", "#d97706")}
-        {renderList(done, "done", "Done", "#059669")}
+        {renderList(todo, "todo", "To Do", "#b45309")}
+        {renderList(done, "done", "Done", "#047857")}
       </div>
     </div>
   );
@@ -7908,7 +7908,7 @@ function ProductList() {
       {/* Product cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {filtered.length === 0 ? (
-          <p style={{ textAlign: "center", color: "#999", padding: 20 }}>No products match your filters</p>
+          <p style={{ textAlign: "center", color: "#666", padding: 20 }}>No products match your filters</p>
         ) : filtered.map(p => (
           <div key={p.id} style={{
             padding: "10px 14px", background: "#f8f8f8", borderRadius: 8,
@@ -7916,16 +7916,16 @@ function ProductList() {
           }}>
             <div>
               <strong>{p.name}</strong>
-              <div style={{ fontSize: 12, color: "#888" }}>{p.category}</div>
+              <div style={{ fontSize: 12, color: "#666" }}>{p.category}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontWeight: 600, color: "#4f46e5" }}>\${p.price}</div>
-              <div style={{ fontSize: 12, color: "#f59e0b" }}>{"\\u2605".repeat(Math.round(p.rating))} {p.rating}</div>
+              <div style={{ fontSize: 12, color: "#b45309" }}>{"\\u2605".repeat(Math.round(p.rating))} {p.rating}</div>
             </div>
           </div>
         ))}
       </div>
-      <p style={{ fontSize: 12, color: "#999", marginTop: 8 }}>{filtered.length} products shown</p>
+      <p style={{ fontSize: 12, color: "#666", marginTop: 8 }}>{filtered.length} products shown</p>
     </div>
   );
 }
@@ -7946,7 +7946,7 @@ render(<ProductList />);`,
 
   return (
     <div style={{ fontFamily: "system-ui" }}>
-      <p style={{ fontSize: 13, color: "#888", margin: "0 0 8px", padding: "0 8px" }}>
+      <p style={{ fontSize: 13, color: "#666", margin: "0 0 8px", padding: "0 8px" }}>
         Drag slider to simulate viewport: {width}px
       </p>
       <input type="range" min={280} max={700} value={width}
@@ -8018,7 +8018,7 @@ render(<ProductList />);`,
         {/* Page content */}
         <div style={{ padding: 24, background: "#fff", minHeight: 120 }}>
           <h2 style={{ margin: "0 0 8px", color: "#1a1a2e" }}>{active}</h2>
-          <p style={{ color: "#888", fontSize: 14, margin: 0 }}>
+          <p style={{ color: "#666", fontSize: 14, margin: 0 }}>
             This is the {active.toLowerCase()} page content. Resize the viewport above to see the navbar adapt.
           </p>
         </div>
@@ -8096,12 +8096,12 @@ function InfiniteScroll() {
     return () => observer.disconnect();
   }, [loadMore]);
 
-  const colors = { Alice: "#4f46e5", Bob: "#059669", Charlie: "#d97706", Diana: "#dc2626" };
+  const colors = { Alice: "#4f46e5", Bob: "#047857", Charlie: "#92400e", Diana: "#b91c1c" };
 
   return (
     <div style={{ padding: 20, fontFamily: "system-ui", maxWidth: 440 }}>
       <h3 style={{ marginTop: 0 }}>Infinite Scroll Feed</h3>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>
+      <p style={{ fontSize: 13, color: "#666", marginBottom: 12 }}>
         {items.length} items loaded. {hasMore ? "Scroll down for more." : "All items loaded!"}
       </p>
       <div style={{ maxHeight: 400, overflowY: "auto", borderRadius: 12, border: "1px solid #e0e0e0" }}>
@@ -8146,13 +8146,13 @@ function InfiniteScroll() {
           <div ref={sentinelRef} style={{ padding: 20, textAlign: "center" }}>
             {/* aria-live so a screen-reader user hears that more arrived */}
             <span aria-live="polite">
-              {loading && <span style={{ color: "#888" }}>Loading more...</span>}
+              {loading && <span style={{ color: "#666" }}>Loading more...</span>}
             </span>
           </div>
         )}
 
         {!hasMore && items.length > 0 && (
-          <div style={{ padding: 16, textAlign: "center", color: "#999", fontSize: 13 }}>
+          <div style={{ padding: 16, textAlign: "center", color: "#666", fontSize: 13 }}>
             You've reached the end!
           </div>
         )}
@@ -8188,10 +8188,10 @@ render(<InfiniteScroll />);`,
 
 function Toast({ notification, onDismiss }) {
   const colors = {
-    success: { bg: "#ecfdf5", border: "#059669", icon: "\\u2705" },
+    success: { bg: "#ecfdf5", border: "#047857", icon: "\\u2705" },
     error:   { bg: "#fef2f2", border: "#dc2626", icon: "\\u274C" },
-    warning: { bg: "#fffbeb", border: "#d97706", icon: "\\u26A0\\uFE0F" },
-    info:    { bg: "#eff6ff", border: "#3b82f6", icon: "\\u2139\\uFE0F" },
+    warning: { bg: "#fffbeb", border: "#b45309", icon: "\\u26A0\\uFE0F" },
+    info:    { bg: "#eff6ff", border: "#2563eb", icon: "\\u2139\\uFE0F" },
   };
   const c = colors[notification.type] || colors.info;
 
@@ -8206,7 +8206,7 @@ function Toast({ notification, onDismiss }) {
       <span style={{ fontSize: 16 }}>{c.icon}</span>
       <span style={{ flex: 1, fontSize: 13, color: "#333" }}>{notification.message}</span>
       <button onClick={() => onDismiss(notification.id)}
-        style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 16, padding: 2 }}>
+        style={{ background: "none", border: "none", cursor: "pointer", color: "#666", fontSize: 16, padding: 2 }}>
         x
       </button>
     </div>
@@ -8248,13 +8248,13 @@ function App() {
       \`}</style>
 
       <h3 style={{ marginTop: 0 }}>Notification System</h3>
-      <p style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>
+      <p style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
         Click buttons or wait for auto-notifications. They dismiss after 3s.
       </p>
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
         <button onClick={() => add("Operation completed!", "success")}
-          style={{ padding: "6px 14px", borderRadius: 6, background: "#059669", color: "#fff", border: "none", cursor: "pointer" }}>
+          style={{ padding: "6px 14px", borderRadius: 6, background: "#047857", color: "#fff", border: "none", cursor: "pointer" }}>
           Success
         </button>
         <button onClick={() => add("Something went wrong!", "error")}
@@ -8262,11 +8262,11 @@ function App() {
           Error
         </button>
         <button onClick={() => add("Please check your input", "warning")}
-          style={{ padding: "6px 14px", borderRadius: 6, background: "#d97706", color: "#fff", border: "none", cursor: "pointer" }}>
+          style={{ padding: "6px 14px", borderRadius: 6, background: "#b45309", color: "#fff", border: "none", cursor: "pointer" }}>
           Warning
         </button>
         <button onClick={() => add("You have 3 new updates", "info")}
-          style={{ padding: "6px 14px", borderRadius: 6, background: "#3b82f6", color: "#fff", border: "none", cursor: "pointer" }}>
+          style={{ padding: "6px 14px", borderRadius: 6, background: "#2563eb", color: "#fff", border: "none", cursor: "pointer" }}>
           Info
         </button>
         <button onClick={() => add("This one stays! Click x to dismiss.", "info", 0)}
@@ -8278,7 +8278,7 @@ function App() {
       {/* Notification container */}
       <div style={{ position: "relative" }}>
         {notifications.length === 0 ? (
-          <p style={{ color: "#ccc", fontSize: 13 }}>No notifications. Click a button or wait...</p>
+          <p style={{ color: "#666", fontSize: 13 }}>No notifications. Click a button or wait...</p>
         ) : (
           notifications.map(n => <Toast key={n.id} notification={n} onDismiss={dismiss} />)
         )}
@@ -8315,7 +8315,7 @@ render(<App />);`,
             style={{
               background: "none", border: "none", cursor: "pointer",
               fontSize: 32, padding: 0, lineHeight: 1,
-              color: filled ? "#fbbf24" : "#444",
+              color: filled ? "#fbbf24" : "#64748b",
               transition: "color 0.15s",
             }}
             aria-label={\`Rate \${value} of \${totalStars}\`}
@@ -8331,7 +8331,7 @@ render(<App />);`,
 function App() {
   const [rating, setRating] = React.useState(0);
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <h2>Star Rating</h2>
       <StarRating onChange={setRating} />
       <p style={{ marginTop: 16, color: "#aaa" }}>
@@ -8466,7 +8466,7 @@ function App() {
   const btn = { padding: "6px 12px", borderRadius: 6, border: "1px solid #475569", background: "#334155", color: "#fff", cursor: "pointer" };
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <style>{
         "@keyframes tab-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }" +
         ".tab-panel { animation: tab-fade 0.2s ease-out; }" +
@@ -8604,7 +8604,7 @@ function App() {
     { id: "recon", title: "What is reconciliation?", content: "How React compares the new element tree with the old one to decide the smallest set of DOM changes." },
   ];
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <style>{"@media (prefers-reduced-motion: reduce) { .acc-anim { transition: none !important; } }"}</style>
       <h2>Accordion (single-open)</h2>
       <Accordion items={items} defaultOpenIds={["react"]} />
@@ -8688,7 +8688,7 @@ render(<App />);
 function App() {
   const [otp, setOtp] = React.useState("");
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <h2>OTP Input</h2>
       <p style={{ color: "#aaa", marginBottom: 16 }}>
         Enter the 6-digit code (or paste it):
@@ -8768,7 +8768,7 @@ function App() {
     : \`Turn: \${xIsNext ? "X" : "O"}\`;
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff", textAlign: "center" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff", textAlign: "center" }}>
       <h2>Tic-Tac-Toe</h2>
       <p style={{ fontSize: 18, color: winner ? "#10b981" : "#aaa", margin: "12px 0 20px" }}>
         {status}
@@ -8789,7 +8789,7 @@ function App() {
       <button
         onClick={reset}
         style={{
-          padding: "10px 20px", background: "#3b82f6", color: "#fff",
+          padding: "10px 20px", background: "#2563eb", color: "#fff",
           border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600,
         }}
       >
@@ -8851,7 +8851,7 @@ function App() {
   });
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff", textAlign: "center" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff", textAlign: "center" }}>
       <h2>Stopwatch</h2>
       <div style={{
         fontSize: 48, fontFamily: "monospace", margin: "24px 0",
@@ -8861,7 +8861,7 @@ function App() {
         {formatTime(elapsed)}
       </div>
       {!running ? (
-        <button onClick={start} style={btnStyle("#10b981")}>
+        <button onClick={start} style={btnStyle("#047857")}>
           {elapsed > 0 ? "Resume" : "Start"}
         </button>
       ) : (
@@ -8946,7 +8946,7 @@ render(<App />);`,
   );
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <h2>Calculator</h2>
       <div style={{
         background: "#0f172a", padding: 20, borderRadius: 12,
@@ -8957,13 +8957,13 @@ render(<App />);`,
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
         {btn("C", clear, "#dc2626")}
-        {btn("/", () => chooseOp("/"), "#f59e0b")}
-        {btn("*", () => chooseOp("*"), "#f59e0b")}
-        {btn("-", () => chooseOp("-"), "#f59e0b")}
+        {btn("/", () => chooseOp("/"), "#b45309")}
+        {btn("*", () => chooseOp("*"), "#b45309")}
+        {btn("-", () => chooseOp("-"), "#b45309")}
         {btn("7", () => inputDigit("7"))}{btn("8", () => inputDigit("8"))}{btn("9", () => inputDigit("9"))}
-        {btn("+", () => chooseOp("+"), "#f59e0b")}
+        {btn("+", () => chooseOp("+"), "#b45309")}
         {btn("4", () => inputDigit("4"))}{btn("5", () => inputDigit("5"))}{btn("6", () => inputDigit("6"))}
-        {btn("=", equals, "#10b981")}
+        {btn("=", equals, "#047857")}
         {btn("1", () => inputDigit("1"))}{btn("2", () => inputDigit("2"))}{btn("3", () => inputDigit("3"))}
         {btn(".", inputDot)}
         {btn("0", () => inputDigit("0"))}
@@ -9095,7 +9095,7 @@ function AutoComplete() {
   }, [active]);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 420 }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#e2e8f0", maxWidth: 420 }}>
       <h2 style={{ marginTop: 0 }}>Auto-Complete</h2>
 
       <label htmlFor="ac-input" style={{ display: "block", fontSize: 14, marginBottom: 6 }}>
@@ -9348,7 +9348,7 @@ function App() {
   const btn = { padding: "8px 14px", borderRadius: 6, border: "1px solid #475569", background: "#334155", color: "#fff", cursor: "pointer" };
 
   return (
-    <div style={{ position: "relative", minHeight: 340, padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ position: "relative", minHeight: 340, padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <style>{
         "@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }" +
         ".toast-in { animation: toast-in 0.2s ease-out; }" +
@@ -9383,11 +9383,11 @@ render(<App />);
         name: 'Carousel / Slider',
         jsx: true,
         code: `const SLIDES = [
-  { color: "#3b82f6", title: "Slide 1", subtitle: "Blue ocean" },
-  { color: "#10b981", title: "Slide 2", subtitle: "Green meadow" },
-  { color: "#f59e0b", title: "Slide 3", subtitle: "Golden sunset" },
-  { color: "#ef4444", title: "Slide 4", subtitle: "Red sunrise" },
-  { color: "#8b5cf6", title: "Slide 5", subtitle: "Purple dusk" },
+  { color: "#2563eb", title: "Slide 1", subtitle: "Blue ocean" },
+  { color: "#047857", title: "Slide 2", subtitle: "Green meadow" },
+  { color: "#b45309", title: "Slide 3", subtitle: "Golden sunset" },
+  { color: "#b91c1c", title: "Slide 4", subtitle: "Red sunrise" },
+  { color: "#6d28d9", title: "Slide 5", subtitle: "Purple dusk" },
 ];
 
 function App() {
@@ -9414,7 +9414,7 @@ function App() {
   }, [next, prev]);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <h2>Carousel</h2>
       {/* A labelled region, and each slide says which one it is: without these a
           screen reader hears five slides at once and no way to tell the current one. */}
@@ -9434,7 +9434,7 @@ function App() {
               background: s.color, color: "#fff",
             }}>
               <div style={{ fontSize: 32, fontWeight: 700 }}>{s.title}</div>
-              <div style={{ fontSize: 16, opacity: 0.85, marginTop: 4 }}>{s.subtitle}</div>
+              <div style={{ fontSize: 16, opacity: 0.95, marginTop: 4 }}>{s.subtitle}</div>
             </div>
           ))}
         </div>
@@ -9546,11 +9546,11 @@ const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete }) {
       <span style={{
         flex: 1,
         textDecoration: todo.done ? "line-through" : "none",
-        opacity: todo.done ? 0.5 : 1,
+        opacity: todo.done ? 0.6 : 1,
       }}>
         {todo.text}
       </span>
-      <span style={{ fontSize: 11, color: "#64748b" }}>
+      <span style={{ fontSize: 11, color: "#94a3b8" }}>
         renders: {renders.current}
       </span>
       <button onClick={() => onDelete(todo.id)} style={{ ...btn, background: "#7f1d1d" }}>
@@ -9645,7 +9645,7 @@ function TodoApp() {
   );
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 520 }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#e2e8f0", maxWidth: 520 }}>
       <h2 style={{ marginTop: 0 }}>Todo List</h2>
       <p style={{ fontSize: 13, color: "#94a3b8" }}>
         Type in the input — no row re-renders. Toggle one — only that row does.
@@ -9669,7 +9669,7 @@ function TodoApp() {
             key={f}
             onClick={() => setFilter(f)}
             aria-pressed={filter === f}
-            style={{ ...btn, background: filter === f ? "#3b82f6" : "#334155" }}
+            style={{ ...btn, background: filter === f ? "#2563eb" : "#334155" }}
           >
             {f}
           </button>
@@ -9680,7 +9680,7 @@ function TodoApp() {
       </div>
 
       {visible.length === 0 ? (
-        <p style={{ color: "#64748b", fontStyle: "italic" }}>Nothing here.</p>
+        <p style={{ color: "#94a3b8", fontStyle: "italic" }}>Nothing here.</p>
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {visible.map((todo) => (
@@ -9786,7 +9786,7 @@ function Counter({ initial = 0, step = 1, min = -10, max = 10 }) {
   const reset = React.useCallback(() => setCount(initial), [initial]);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 460 }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#e2e8f0", maxWidth: 460 }}>
       <h2 style={{ marginTop: 0 }}>Counter</h2>
 
       <p style={{ fontSize: 48, margin: "8px 0", fontVariantNumeric: "tabular-nums" }}
@@ -9853,10 +9853,10 @@ function AutoCounter() {
 }
 
 const btn = {
-  padding: "10px 18px", borderRadius: 6, border: "none", background: "#3b82f6",
+  padding: "10px 18px", borderRadius: 6, border: "none", background: "#2563eb",
   color: "#fff", cursor: "pointer", fontSize: 15, minWidth: 44,
 };
-const hint = { fontSize: 12, color: "#64748b", margin: "6px 0 0" };
+const hint = { fontSize: 12, color: "#94a3b8", margin: "6px 0 0" };
 
 render(<Counter initial={0} step={1} min={-10} max={10} />);`,
       },
@@ -9947,7 +9947,7 @@ function SearchBox() {
   }, [debouncedQuery]);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 480 }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#e2e8f0", maxWidth: 480 }}>
       <h2 style={{ marginTop: 0 }}>Search</h2>
 
       <input
@@ -9970,7 +9970,7 @@ function SearchBox() {
         {status === "loading" && <p style={{ color: "#94a3b8" }}>Searching…</p>}
         {status === "error"   && <p role="alert" style={{ color: "#f87171" }}>{error}</p>}
         {status === "empty"   && <p style={{ color: "#94a3b8" }}>No results for “{debouncedQuery}”.</p>}
-        {status === "idle"    && <p style={{ color: "#64748b" }}>Start typing to search.</p>}
+        {status === "idle"    && <p style={{ color: "#94a3b8" }}>Start typing to search.</p>}
         {status === "success" && (
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {results.map((r) => (
@@ -10005,7 +10005,7 @@ function SearchBox() {
   );
 }
 
-const hint = { fontSize: 12, color: "#64748b", margin: "8px 0 0" };
+const hint = { fontSize: 12, color: "#94a3b8", margin: "8px 0 0" };
 
 render(<SearchBox />);`,
       },
@@ -10102,7 +10102,7 @@ function Modal({ isOpen, onClose, title, children }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "#1e293b", color: "#e2e8f0", padding: 24, borderRadius: 10,
-          minWidth: 320, maxWidth: 480, outline: "2px solid #3b82f6",
+          minWidth: 320, maxWidth: 480, outline: "2px solid #2563eb",
         }}
       >
         <h3 id="modal-title" style={{ margin: "0 0 12px" }}>{title}</h3>
@@ -10151,7 +10151,7 @@ function App() {
   const [open, setOpen] = React.useState(false);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#e2e8f0" }}>
       <h2 style={{ marginTop: 0 }}>Modal</h2>
 
       {/* Deliberately inside a transformed ancestor — with position:fixed
@@ -10206,7 +10206,7 @@ function App() {
 }
 
 const btn = {
-  padding: "9px 16px", borderRadius: 6, border: "none", background: "#3b82f6",
+  padding: "9px 16px", borderRadius: 6, border: "none", background: "#2563eb",
   color: "#fff", cursor: "pointer", fontSize: 14,
 };
 
@@ -10401,9 +10401,9 @@ function SignupForm() {
   );
 }
 
-const wrap = { padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 420 };
+const wrap = { padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#e2e8f0", maxWidth: 420 };
 const btn = {
-  padding: "11px 18px", borderRadius: 6, border: "none", background: "#3b82f6",
+  padding: "11px 18px", borderRadius: 6, border: "none", background: "#2563eb",
   color: "#fff", cursor: "pointer", fontSize: 15,
 };
 
@@ -10688,8 +10688,8 @@ const wrap = { padding: 20, fontFamily: "system-ui", maxWidth: 460 };
 const bar = { display: "flex", gap: 8, listStyle: "none", padding: 0, margin: "0 0 20px" };
 const pill = (i, step) => ({
   flex: 1, textAlign: "center", fontSize: 13, padding: "6px 4px", borderRadius: 999,
-  background: i === step ? "#3b82f6" : i < step ? "#dbeafe" : "#f4f4f5",
-  color: i === step ? "#fff" : i < step ? "#1d4ed8" : "#9ca3af",
+  background: i === step ? "#2563eb" : i < step ? "#dbeafe" : "#f4f4f5",
+  color: i === step ? "#fff" : i < step ? "#1d4ed8" : "#52525b",
 });
 const lbl = { display: "block", fontSize: 13, marginBottom: 4, color: "#374151" };
 const input = (bad) => ({
@@ -10699,7 +10699,7 @@ const input = (bad) => ({
 const err = { color: "#ef4444", fontSize: 12, margin: "4px 0 0" };
 const btn = (on) => ({
   padding: "9px 16px", borderRadius: 6, border: "none", fontSize: 14,
-  background: on ? "#3b82f6" : "#cbd5e1", color: "#fff",
+  background: on ? "#2563eb" : "#cbd5e1", color: "#fff",
   cursor: on ? "pointer" : "not-allowed",
 });
 const pre = { background: "#f4f4f5", padding: 12, borderRadius: 8, fontSize: 12, overflowX: "auto" };
@@ -11231,7 +11231,7 @@ function Thread() {
 
 function App() {
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff", maxWidth: 560 }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff", maxWidth: 560 }}>
       <h2>Comments</h2>
       <Thread />
     </div>
@@ -11477,7 +11477,7 @@ function App() {
   const isDesktop = preview === "auto" ? wideScreen : preview === "desktop";
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <style>{"@media (prefers-reduced-motion: reduce) { .nav-anim { transition: none !important; } }"}</style>
       <h2>Sidebar navigation</h2>
       <div role="group" aria-label="Preview layout" style={{ display: "flex", gap: 6, marginBottom: 12 }}>
@@ -11689,7 +11689,7 @@ function DataTable({ rows, columns }) {
 
 function App() {
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <h2>Team members</h2>
       <DataTable rows={ROWS} columns={COLUMNS} />
     </div>
@@ -11813,7 +11813,7 @@ function LikeButton() {
 
 function App() {
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <h2>Like button</h2>
       <p style={{ color: "#94a3b8", fontSize: 14 }}>
         Click fast, several times: the heart follows every click, but only one or two requests go out.
@@ -11954,7 +11954,7 @@ function Row({ button, counter }) {
 
 function App() {
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff" }}>
       <h2>Rapid clicks vs the API</h2>
       <p style={{ color: "#94a3b8", fontSize: 14 }}>Click each button five times, fast.</p>
       <NaiveButton />
@@ -12162,7 +12162,7 @@ function CartView() {
 function App() {
   return (
     <CartProvider>
-      <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff", maxWidth: 560 }}>
+      <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff", maxWidth: 560 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2>Shop</h2>
           <HeaderBadge />
@@ -12379,7 +12379,7 @@ function Uploader() {
 
 function App() {
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff", maxWidth: 520 }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", background: "#0f172a", borderRadius: 8, color: "#fff", maxWidth: 520 }}>
       <h2>File upload</h2>
       <Uploader />
     </div>
@@ -12590,7 +12590,7 @@ function Dropdown({ label, options, value, onChange, placeholder = "Select…" }
 
   return (
     <div ref={rootRef} style={{ marginBottom: 18, maxWidth: 320 }}>
-      <div id={labelId} onClick={() => comboRef.current.focus()} style={{ fontSize: 14, marginBottom: 6 }}>
+      <div id={labelId} onClick={() => comboRef.current.focus()} style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>
         {label}
       </div>
       <div style={{ position: "relative" }}>
@@ -12609,14 +12609,14 @@ function Dropdown({ label, options, value, onChange, placeholder = "Select…" }
           style={{
             display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
             padding: "9px 12px", borderRadius: 6, cursor: "pointer", fontSize: 15,
-            border: "1px solid " + (open ? "#3b82f6" : "#334155"), background: "#1e293b",
+            border: "1px solid " + (open ? "#2563eb" : "#cbd5e1"), background: "#fff",
           }}
         >
           {/* A long label is cut with an ellipsis instead of stretching the trigger. */}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: selected ? "#fff" : "#94a3b8" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: selected ? "#0f172a" : "#64748b" }}>
             {selected ? selected.label : placeholder}
           </span>
-          <span aria-hidden="true" style={{ fontSize: 11, color: "#94a3b8" }}>{open ? "▲" : "▼"}</span>
+          <span aria-hidden="true" style={{ fontSize: 11, color: "#64748b" }}>{open ? "▲" : "▼"}</span>
         </div>
 
         {open && (
@@ -12627,11 +12627,12 @@ function Dropdown({ label, options, value, onChange, placeholder = "Select…" }
             style={{
               position: "absolute", left: 0, right: 0, zIndex: 10, margin: "4px 0",
               [placement === "above" ? "bottom" : "top"]: "100%",
-              background: "#0f172a", border: "1px solid #334155", borderRadius: 6,
+              background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6,
+              boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)",
             }}
           >
             {options.length === 0 ? (
-              <p role="status" style={{ margin: 0, padding: "10px 12px", fontSize: 14, color: "#94a3b8" }}>
+              <p role="status" style={{ margin: 0, padding: "10px 12px", fontSize: 14, color: "#64748b" }}>
                 No options available
               </p>
             ) : (
@@ -12655,7 +12656,7 @@ function Dropdown({ label, options, value, onChange, placeholder = "Select…" }
                     style={{
                       padding: "7px 10px", borderRadius: 4, fontSize: 14,
                       cursor: option.disabled ? "not-allowed" : "pointer",
-                      color: option.disabled ? "#64748b" : i === active ? "#fff" : "#e2e8f0",
+                      color: option.disabled ? "#94a3b8" : i === active ? "#fff" : "#0f172a",
                       background: i === active ? "#2563eb" : "transparent",
                     }}
                   >
@@ -12680,9 +12681,9 @@ function App() {
   const [assignee, setAssignee] = React.useState(null);
 
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 420 }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#0f172a", maxWidth: 420 }}>
       <h2 style={{ marginTop: 0 }}>Dropdown</h2>
-      <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 0, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 13, color: "#475569", marginTop: 0, lineHeight: 1.5 }}>
         Put the mouse away. Tab to a dropdown, open it with Enter, Space or ↓, move with the
         arrows, Home and End, type a letter to jump, choose with Enter, back out with Escape.
       </p>
@@ -12782,14 +12783,14 @@ console.log(greet(ana));`,
 function App() {
   const [count, setCount] = React.useState(0);
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", color: "#fff" }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#0f172a" }}>
       <h2>Hello, React!</h2>
       <p>You clicked {count} times.</p>
       <button
         onClick={() => setCount(count + 1)}
         style={{
           padding: "8px 16px", borderRadius: 6, border: "none",
-          background: "#3b82f6", color: "#fff", cursor: "pointer",
+          background: "#2563eb", color: "#fff", cursor: "pointer",
         }}
       >
         Click me

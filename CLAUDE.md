@@ -245,6 +245,11 @@ silently resolves to a `window` global and typechecks.
   - A solution must obey its own challenge's bans in **every** approach labelled as satisfying
     them.
   - Don't name things `cache`, which collides with React's `cache` in scope.
+  - **The React preview pane is white**, even though the editor is dark. A template that
+    sets light text on its root must also set its own dark background.
+    `previewContrast.test.tsx` mounts every React template and the blank starter and fails on
+    any visible text under WCAG AA (4.5:1, 3:1 for large text). It models what jsdom can't:
+    buttons and inputs reset text to black, and `var()` colours are skipped.
   - Challenge templates carry no `CHALLENGE:` header or `// TASK` block, because the Problem
     panel shows the statement.
   - **Typecheck is not enough.** Extract and run after editing templates or solutions.

@@ -2776,3 +2776,33 @@ Trade-off accepted by the owner: localStorage is per origin, and the old origin 
 the app again once GitHub redirects it, so readers' saved progress does not carry over. The
 alternative (a `/prephub` path on the main domain, with a client-side redirect that copies
 progress) needed a Cloudflare Worker and was judged not worth it for the current audience.
+
+## Unreadable React previews: the pane is white, many templates assumed dark (v1.7.11)
+The React preview pane has been `bg-white text-slate-900` since April 2026, while the
+editor beside it is always dark. 22 React Machine Coding templates were written as if the
+page were dark: `color: "#fff"` on the root and no background, so their headings and hints
+were white or light grey on white (1:1 to 2.6:1). Nothing measured colour, so every test
+passed. A reader spotted it on the new Dropdown template.
+
+A jsdom contrast audit (`src/data/playground/previewContrast.test.tsx`) found **101 failing
+text/background pairs across about 50 templates plus the React blank starter**, in three groups:
+- **Dark-designed roots on white (22 templates):** fixed by giving the root the background its
+  palette was designed for (`background: "#0f172a", borderRadius: 8`), not by restyling.
+- **Light greys on white:** `#888`/`#999`/`#aaa`/`#ccc` at 1.6 to 3.5:1, now `#666` (or `#555`
+  where the text also sits on a grey or translucent panel).
+- **White on Tailwind 500-weight fills:** `#3b82f6` → `#2563eb`, `#10b981`/`#059669` →
+  `#047857`, `#f59e0b`/`#d97706` → `#b45309`. No template has a `:hover` style, so no
+  hover state ends up identical to its base.
+
+What the audit models, because jsdom does not: a `<button>`/`<input>`/`<select>`/`<textarea>`
+resets text to black and paints its own background (ButtonFace `#efefef` for buttons), and h1-h3
+count as large text. jsdom does inherit `color` and applies `<style>` sheets. It cannot resolve
+`var()`, so CSS-variable colours (Theme Switcher) are skipped rather than guessed. It checks the
+first render only, so a state reached by clicking is not measured. Guide "Try it" blocks use the
+same white pane and are not covered yet.
+
+Two script hazards met while patching templates in bulk: `\n      },\n` occurs *inside*
+template code, so it is not a template's end; and template code contains escaped backticks, so
+the end is the first **unescaped** backtick followed by `,`. A bash heredoc also collapsed
+a doubled backslash to a single one in a Node script, which silently changed two regexes;
+write such scripts with the Write tool instead.
