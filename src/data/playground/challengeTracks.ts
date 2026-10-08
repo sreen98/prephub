@@ -75,7 +75,7 @@ const REACT_TRACKS: Omit<ChallengeTrack, 'tag'>[] = [
     id: 'react-overlays',
     title: 'Overlays & Disclosure',
     idea: 'UI that shows and hides content: focus management, keyboard support and the ARIA roles a screen reader needs.',
-    names: ['Accordion', 'Tabs', 'Carousel / Slider', 'Modal Component', 'Modal (Portal + Focus Trap)', 'Toast / Snackbar', 'Notifications'],
+    names: ['Accordion', 'Tabs', 'Carousel / Slider', 'Modal Component', 'Modal (Portal + Focus Trap)', 'Dropdown (keyboard + click outside)', 'Toast / Snackbar', 'Notifications'],
   },
   {
     id: 'react-navigation',

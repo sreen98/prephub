@@ -437,3 +437,33 @@ describe('File Upload (progress + cancel)', () => {
     expect(row('will-fail.pdf').querySelector('button')!.textContent).toBe('Retry');
   });
 });
+
+describe('Dropdown (keyboard + click outside)', () => {
+  const combo = (name: string) => [...host.querySelectorAll('[role="combobox"]')]
+    .find((el) => document.getElementById(el.getAttribute('aria-labelledby') ?? '')?.textContent === name)!;
+  const highlighted = (el: Element) => document.getElementById(el.getAttribute('aria-activedescendant') ?? '')?.textContent ?? '';
+
+  it('scrolls the highlighted option into view as the arrows move through a long list', async () => {
+    await mount('Dropdown (keyboard + click outside)');
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this.textContent ?? ''); };
+    const country = combo('Country');
+    await key(country, 'ArrowDown');
+    await key(country, 'ArrowDown');
+    await key(country, 'ArrowDown');
+    expect(highlighted(country)).toBe('Austria');
+    expect(scrolled).toEqual(['Argentina', 'Australia', 'Austria']);
+  });
+
+  it('typeahead cycles on a repeated letter and forgets the search after 500 ms', async () => {
+    await mount('Dropdown (keyboard + click outside)');
+    const country = combo('Country');
+    await key(country, 'i');
+    expect(highlighted(country)).toBe('India');
+    await key(country, 'i');
+    expect(highlighted(country)).toBe('Indonesia');
+    await tick(600);
+    await key(country, 'n');   // a fresh search for "n", not "iin"
+    expect(highlighted(country)).toBe('Netherlands');
+  });
+});

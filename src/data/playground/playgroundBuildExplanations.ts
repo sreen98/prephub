@@ -1986,6 +1986,105 @@ const fileUpload: BuildExplanation = {
   ],
 };
 
+const dropdown: BuildExplanation = {
+  kind: 'build',
+  problem: 'Dropdown (keyboard + click outside)',
+  problemStatement:
+    'Build a custom select. Most candidates have one opening and picking a value in ten minutes, and that part is not what is graded. The interviewer then puts the mouse away and asks: can I use this with only a keyboard? Does it close when I click outside? What if the list is empty, very long, or has an option I cannot pick? A component interview is really a test of whether you think about the person using it.',
+  buildOrder: [
+    {
+      title: 'Describe the options as data, with a disabled flag',
+      excerpt: { from: 'function findEnabled(options, start, dir) {', lines: 6 },
+      detail:
+        'Each option is { value, label, disabled? }, so the same Dropdown serves every list. findEnabled walks from an index in one direction and returns the first option that can be picked, or -1. Every keyboard move goes through it, which is how disabled options are skipped in one place instead of in every key handler.',
+    },
+    {
+      title: 'Keep a highlight that is separate from the value',
+      excerpt: { from: 'const [active, setActive] = React.useState(-1);', lines: 1 },
+      detail:
+        '`value` is what has been chosen and belongs to the parent (a controlled component). `active` is the option the arrow keys have highlighted but not chosen yet, with -1 meaning none. Keeping them apart is what lets Escape back out without changing anything.',
+    },
+    {
+      title: 'Keep real focus on the trigger, and point at the highlighted option',
+      excerpt: { from: 'role="combobox"', lines: 7 },
+      detail:
+        'This is the WAI-ARIA "select-only combobox" pattern (the published recipe of roles and keys that screen readers expect). tabIndex={0} puts the trigger in the Tab order, aria-expanded says whether the list is open, and aria-activedescendant holds the id of the highlighted option. The browser\'s focus never moves into the list, yet a screen reader announces each option as the highlight moves.',
+      pitfall: 'Calling .focus() on each option instead works for sighted mouse users and confuses everything else: focus can be lost when the list unmounts, and Tab no longer leaves the component predictably.',
+    },
+    {
+      title: 'Open from the keyboard, on the current value',
+      excerpt: { from: 'if (key === "ArrowDown" || key === "ArrowUp" || key === "Enter" || key === " ") {', lines: 3 },
+      detail:
+        'A closed dropdown opens on Enter, Space, Down or Up, and Home and End open it on the first or last option. startIndex opens it on the value already chosen (or the first enabled option), so a user who reopens it sees where they are instead of starting again at the top.',
+      pitfall: 'Without preventDefault, Space and the arrow keys also scroll the page behind the dropdown.',
+    },
+    {
+      title: 'Move the highlight, and stop at the ends',
+      excerpt: { from: 'case "ArrowDown": {', lines: 12 },
+      detail:
+        'Down and Up ask findEnabled for the next option that can be picked, so Durian (out of stock) is stepped over. At the last option Down does nothing, which is how a native select behaves; wrapping round to the top is a choice too, but say which one you made and why.',
+    },
+    {
+      title: 'Choose with Enter, back out with Escape, leave with Tab',
+      excerpt: { from: 'case "Enter":', lines: 14 },
+      detail:
+        'Enter and Space choose the highlighted option. Escape closes without touching the value, and stopPropagation means that inside a modal the first Escape closes only the dropdown, not the whole dialog. Tab closes the list without preventDefault, so focus moves to the next control as usual and the keyboard is never trapped.',
+    },
+    {
+      title: 'Jump by typing',
+      excerpt: { from: 'function typeahead(char) {', lines: 17 },
+      detail:
+        'Typed characters build up a search string that clears after 500 ms without typing. A single letter moves to the NEXT option starting with it, so pressing "i" twice goes India, then Indonesia; several letters typed quickly match the whole prefix, so "united s" lands on United States. On a 45-item list this is the difference between usable and not.',
+      pitfall: 'Space normally opens or chooses. In the middle of typing "united s" it is part of the search, which is why the keydown handler checks whether a search is in progress before treating Space as a command.',
+    },
+    {
+      title: 'Close when the user clicks anywhere else',
+      excerpt: { from: 'function onPointerDown(e) {', lines: 5 },
+      detail:
+        'While the list is open, a pointerdown listener on the document closes it if the press landed outside this dropdown. pointerdown covers mouse, touch and pen. It listens in the capture phase (the `true` argument), so it still runs when some other component stops the event from bubbling. The effect only subscribes while the list is open, and its cleanup removes the listener.',
+      pitfall: 'Relying on blur alone misses clicks on things that cannot take focus, and a listener added without cleanup keeps closing (and re-rendering) every dropdown on the page on every click.',
+    },
+    {
+      title: 'Do not let a click inside the list close it first',
+      excerpt: { from: 'onMouseDown={(e) => e.preventDefault()}', lines: 1 },
+      detail:
+        'Pressing the mouse on an option, or on the list\'s scrollbar, would normally move focus away from the trigger, and the onBlur handler would close the list before the click arrived. preventDefault on mousedown keeps focus where it is, so the click lands and dragging the scrollbar works.',
+    },
+    {
+      title: 'Make a disabled option a no-op, not just grey',
+      excerpt: { from: 'if (!option || option.disabled) return;', lines: 1 },
+      detail:
+        'aria-disabled tells a screen reader the option is unavailable, the styling shows it, and choose refuses it, so clicking Durian changes nothing and the list stays open. Styling alone is the common miss: the option looks disabled and can still be picked.',
+    },
+    {
+      title: 'Keep a long list usable',
+      excerpt: { from: 'document.getElementById(id + "-option-" + active)?.scrollIntoView?.({ block: "nearest" });', lines: 1 },
+      detail:
+        'The list is capped at 220px and scrolls. Whenever the highlight changes, scrollIntoView with block: "nearest" brings it into view while moving the list as little as possible. Options follow the pointer on mousemove rather than mouseenter, because when the keyboard scrolls the list under a resting pointer, mouseenter fires and steals the highlight back.',
+      pitfall: 'Without the scroll, arrowing past the sixth country moves a highlight nobody can see.',
+    },
+    {
+      title: 'Open upwards when there is no room below',
+      excerpt: { from: 'const spaceBelow = window.innerHeight - trigger.bottom;', lines: 3 },
+      detail:
+        'After the list renders, a layout effect (which runs before the browser paints, so nothing flickers) compares the space below the trigger with the list\'s height and flips it above when it would run off the screen and there is more room above.',
+    },
+    {
+      title: 'Say why an empty list is empty',
+      excerpt: { from: '<p role="status"', lines: 3 },
+      detail:
+        'Assignee has no options. Opening it shows "No options available" in a status region, which a screen reader reads out. An empty box, or a dropdown that silently does nothing, makes the user think it is broken.',
+    },
+  ],
+  graded: [
+    { point: 'It works with the keyboard alone', why: 'This is the first thing interviewers try, and most candidates have not thought about it. Enter, Space and the arrows to open, arrows with Home and End to move, Enter to choose, Escape to back out and Tab to leave cover what a user expects.' },
+    { point: 'Focus stays on the trigger, with aria-activedescendant and the right roles', why: 'combobox, listbox and option with aria-expanded and aria-disabled are what make the component usable with a screen reader, and naming the WAI-ARIA pattern shows you know there is a standard.' },
+    { point: 'It closes on an outside click, and the listener is cleaned up', why: 'An open dropdown that will not close is the most visible bug, and adding a document listener without removing it is the most common leak in this question.' },
+    { point: 'The edge cases have answers: empty, long, disabled, near the bottom of the screen', why: 'These are the "what if" questions the interviewer asks next. Having handled them before being asked is what turns a working component into a good answer.' },
+    { point: 'You know when not to build one', why: 'A native select is accessible, works in forms and gives phones their own picker. Saying you would build a custom one only for what a select cannot do, or use Radix or React Aria in production, is the senior answer.' },
+  ],
+};
+
 export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Form with Dynamic Fields': dynamicFields,
   'Multi-Step Form (Wizard)': multiStepForm,
@@ -2033,4 +2132,5 @@ export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Rate-Limited Button (throttle vs lock)': rateLimitedButton,
   'Shopping Cart (reducer + derived totals)': shoppingCart,
   'File Upload (progress + cancel)': fileUpload,
+  'Dropdown (keyboard + click outside)': dropdown,
 };

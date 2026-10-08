@@ -2426,6 +2426,12 @@ New notes therefore require a new heading, which requires bumping
   probe mistake is worth recording too: removing the new heading orphaned the
   entries *above* the old one rather than inside it, which is not the bug being
   tested. **Probe by reproducing the exact mistake, not an approximation of it.**
+- **The first two-digit patch number broke it (v1.7.10).** `sectionFor` found a
+  heading with `startsWith('## v1.7.1')`, which also matches `## v1.7.10`, so the
+  new, untagged section was compared against tagged v1.7.1 and the gate failed
+  on a pure insertion. The heading regex now requires the version to end there
+  (`(?![\d.])`). Probed both ways: v1.7.10 above v1.7.1 passes, and an edit
+  inside the real v1.7.1 section still fails.
 
 **Release ordering that avoids all of this:** bump `package.json` and add the new
 `## vX.Y.Z` heading *first*, before writing any notes. Then there is no released

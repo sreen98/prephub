@@ -218,4 +218,5 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'Rate-Limited Button (throttle vs lock)',
   'Shopping Cart (reducer + derived totals)',
   'File Upload (progress + cancel)',
+  'Dropdown (keyboard + click outside)',
 ]);

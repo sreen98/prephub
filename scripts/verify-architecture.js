@@ -621,7 +621,10 @@ check('no released changelog section has been edited', () => {
   const changelog = read('src/content/changelog.md');
   const sectionFor = (text, v) => {
     const lines = text.split('\n');
-    const start = lines.findIndex((l) => l.startsWith(`## v${v}`));
+    // The version must end there: a bare startsWith('## v1.7.1') also matched
+    // '## v1.7.10' and compared the new section against the tagged v1.7.1 one.
+    const heading = new RegExp(`^## v${v.replace(/\./g, '\\.')}(?![\\d.])`);
+    const start = lines.findIndex((l) => heading.test(l));
     if (start === -1) return null;
     let end = lines.length;
     for (let i = start + 1; i < lines.length; i++) {

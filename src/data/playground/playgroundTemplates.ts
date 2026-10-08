@@ -12401,6 +12401,327 @@ render(<App />);
 //   - Progress reaching 100% means the bytes were SENT, not that the server
 //     finished processing them. Show "Processing…" until the response arrives.`,
       },
+      {
+        name: 'Dropdown (keyboard + click outside)',
+        jsx: true,
+        code: `// A DROPDOWN THAT OPENS AND PICKS A VALUE IS THE EASY HALF. The interview is
+// everything around it: can I use it with only a keyboard? Does it close when
+// I click outside? What if the list is empty, or 45 items long, or one option
+// is unavailable? Build it, then try to break it the way a user would.
+//
+// The pattern is the WAI-ARIA "select-only combobox". DOM focus never leaves
+// the trigger. aria-activedescendant names the highlighted option, so a screen
+// reader announces it while the keyboard keeps working on the trigger.
+
+const FRUITS = [
+  { value: "apple", label: "Apple" },
+  { value: "banana", label: "Banana" },
+  { value: "cherry", label: "Cherry" },
+  { value: "durian", label: "Durian (out of stock)", disabled: true },
+  { value: "elderberry", label: "Elderberry" },
+  { value: "fig", label: "Fig" },
+];
+
+const COUNTRIES = ["Argentina", "Australia", "Austria", "Bangladesh", "Belgium", "Brazil",
+  "Canada", "Chile", "China", "Colombia", "Denmark", "Egypt", "Finland", "France", "Germany",
+  "Ghana", "Greece", "India", "Indonesia", "Ireland", "Italy", "Japan", "Kenya", "Mexico",
+  "Netherlands", "New Zealand", "Nigeria", "Norway", "Pakistan", "Peru", "Poland", "Portugal",
+  "Saint Vincent and the Grenadines", "Singapore", "South Africa", "Spain", "Sweden",
+  "Switzerland", "Thailand", "Turkey", "Uganda", "United Arab Emirates", "United Kingdom",
+  "United States", "Vietnam"].map((name) => ({ value: name, label: name }));
+
+// The first option at or after start (dir 1), or at or before it (dir -1),
+// that can be picked; -1 if there is none. Disabled options are never highlighted.
+function findEnabled(options, start, dir) {
+  for (let i = start; i >= 0 && i < options.length; i += dir) {
+    if (!options[i].disabled) return i;
+  }
+  return -1;
+}
+
+function Dropdown({ label, options, value, onChange, placeholder = "Select…" }) {
+  const id = React.useId();
+  const labelId = id + "-label";
+  const listId = id + "-list";
+  const optionId = (i) => id + "-option-" + i;
+
+  const [open, setOpen] = React.useState(false);
+  const [active, setActive] = React.useState(-1);          // highlighted option: virtual focus
+  const [placement, setPlacement] = React.useState("below");
+  const rootRef = React.useRef(null);
+  const comboRef = React.useRef(null);
+  const popupRef = React.useRef(null);
+  const typed = React.useRef({ text: "", timer: null });
+
+  const selectedIndex = options.findIndex((o) => o.value === value);
+  const selected = options[selectedIndex];
+
+  function openAt(index) {
+    setOpen(true);
+    setActive(index);
+  }
+  function close() {
+    setOpen(false);
+    setActive(-1);
+  }
+  function choose(index) {
+    const option = options[index];
+    if (!option || option.disabled) return;      // a disabled option does nothing; the list stays open
+    onChange(option.value);
+    close();
+  }
+  // Reopening starts on the current value, so the user sees where they are.
+  const startIndex = () => (selected && !selected.disabled ? selectedIndex : findEnabled(options, 0, 1));
+
+  // Type to jump: "i" goes to India, "i" again to Indonesia, and a quick
+  // "united s" goes to United States. The typed text clears after 500 ms.
+  function typeahead(char) {
+    const t = typed.current;
+    clearTimeout(t.timer);
+    t.timer = setTimeout(() => { t.text = ""; }, 500);
+    t.text += char.toLowerCase();
+    const repeated = [...t.text].every((c) => c === t.text[0]);
+    const search = repeated ? t.text[0] : t.text;
+    const from = open ? active : selectedIndex;
+    const offset = search.length === 1 ? 1 : 0;    // one letter moves on to the NEXT match
+    for (let k = 0; k < options.length; k++) {
+      const i = (from + offset + k + options.length) % options.length;
+      if (!options[i].disabled && options[i].label.toLowerCase().startsWith(search)) {
+        openAt(i);
+        return;
+      }
+    }
+  }
+
+  function onKeyDown(e) {
+    const key = e.key;
+    const printable = key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+    // Space opens and selects, except in the middle of typing "united s".
+    if (printable && (key !== " " || typed.current.text)) {
+      e.preventDefault();
+      typeahead(key);
+      return;
+    }
+
+    if (!open) {
+      if (key === "ArrowDown" || key === "ArrowUp" || key === "Enter" || key === " ") {
+        e.preventDefault();                          // Space and arrows would scroll the page
+        openAt(startIndex());
+      } else if (key === "Home") {
+        e.preventDefault();
+        openAt(findEnabled(options, 0, 1));
+      } else if (key === "End") {
+        e.preventDefault();
+        openAt(findEnabled(options, options.length - 1, -1));
+      }
+      return;
+    }
+
+    switch (key) {
+      case "ArrowDown": {
+        e.preventDefault();
+        const next = findEnabled(options, active + 1, 1);
+        if (next !== -1) setActive(next);          // stop at the last option, like a native select
+        break;
+      }
+      case "ArrowUp": {
+        e.preventDefault();
+        const prev = findEnabled(options, active - 1, -1);
+        if (prev !== -1) setActive(prev);
+        break;
+      }
+      case "Home":
+        e.preventDefault();
+        setActive(findEnabled(options, 0, 1));
+        break;
+      case "End":
+        e.preventDefault();
+        setActive(findEnabled(options, options.length - 1, -1));
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        if (active >= 0) choose(active);
+        else close();
+        break;
+      case "Escape":
+        e.preventDefault();
+        e.stopPropagation();   // inside a modal, the first Escape closes only the dropdown
+        close();               // and the value does not change
+        break;
+      case "Tab":
+        close();               // no preventDefault: focus moves on as normal, never trapped
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Click outside closes. Capture phase, so a parent that stops propagation
+  // cannot swallow it; pointerdown, so it works for touch and pen as well.
+  React.useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e) {
+      if (rootRef.current && !rootRef.current.contains(e.target)) close();
+    }
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [open]);
+
+  // A long list scrolls, and the highlighted option must stay in view.
+  React.useEffect(() => {
+    if (!open || active < 0) return;
+    document.getElementById(id + "-option-" + active)?.scrollIntoView?.({ block: "nearest" });
+  }, [open, active, id]);
+
+  // Near the bottom of the screen, open upwards instead of off the edge.
+  React.useLayoutEffect(() => {
+    if (!open || !popupRef.current) return;
+    const trigger = comboRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - trigger.bottom;
+    const needed = popupRef.current.offsetHeight;
+    setPlacement(spaceBelow < needed && trigger.top > spaceBelow ? "above" : "below");
+  }, [open]);
+
+  React.useEffect(() => {
+    const t = typed.current;
+    return () => clearTimeout(t.timer);
+  }, []);
+
+  return (
+    <div ref={rootRef} style={{ marginBottom: 18, maxWidth: 320 }}>
+      <div id={labelId} onClick={() => comboRef.current.focus()} style={{ fontSize: 14, marginBottom: 6 }}>
+        {label}
+      </div>
+      <div style={{ position: "relative" }}>
+        <div
+          ref={comboRef}
+          role="combobox"
+          tabIndex={0}
+          aria-labelledby={labelId}
+          aria-haspopup="listbox"
+          aria-controls={listId}
+          aria-expanded={open}
+          aria-activedescendant={open && active >= 0 ? optionId(active) : undefined}
+          onClick={() => (open ? close() : openAt(startIndex()))}
+          onKeyDown={onKeyDown}
+          onBlur={(e) => { if (!rootRef.current.contains(e.relatedTarget)) close(); }}
+          style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
+            padding: "9px 12px", borderRadius: 6, cursor: "pointer", fontSize: 15,
+            border: "1px solid " + (open ? "#3b82f6" : "#334155"), background: "#1e293b",
+          }}
+        >
+          {/* A long label is cut with an ellipsis instead of stretching the trigger. */}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: selected ? "#fff" : "#94a3b8" }}>
+            {selected ? selected.label : placeholder}
+          </span>
+          <span aria-hidden="true" style={{ fontSize: 11, color: "#94a3b8" }}>{open ? "▲" : "▼"}</span>
+        </div>
+
+        {open && (
+          <div
+            ref={popupRef}
+            // Keeps focus on the trigger when an option is clicked or the scrollbar is dragged.
+            onMouseDown={(e) => e.preventDefault()}
+            style={{
+              position: "absolute", left: 0, right: 0, zIndex: 10, margin: "4px 0",
+              [placement === "above" ? "bottom" : "top"]: "100%",
+              background: "#0f172a", border: "1px solid #334155", borderRadius: 6,
+            }}
+          >
+            {options.length === 0 ? (
+              <p role="status" style={{ margin: 0, padding: "10px 12px", fontSize: 14, color: "#94a3b8" }}>
+                No options available
+              </p>
+            ) : (
+              <ul
+                id={listId}
+                role="listbox"
+                aria-labelledby={labelId}
+                style={{ listStyle: "none", margin: 0, padding: 4, maxHeight: 220, overflowY: "auto" }}
+              >
+                {options.map((option, i) => (
+                  <li
+                    key={option.value}
+                    id={optionId(i)}
+                    role="option"
+                    aria-selected={i === active}
+                    aria-disabled={option.disabled ? true : undefined}
+                    onClick={() => choose(i)}
+                    // onMouseMove, not onMouseEnter: when the arrow keys scroll the
+                    // list under a resting pointer, mouseenter fires and steals the highlight.
+                    onMouseMove={() => { if (!option.disabled && i !== active) setActive(i); }}
+                    style={{
+                      padding: "7px 10px", borderRadius: 4, fontSize: 14,
+                      cursor: option.disabled ? "not-allowed" : "pointer",
+                      color: option.disabled ? "#64748b" : i === active ? "#fff" : "#e2e8f0",
+                      background: i === active ? "#2563eb" : "transparent",
+                    }}
+                  >
+                    <span aria-hidden="true" style={{ display: "inline-block", width: 18 }}>
+                      {option.value === value ? "✓" : ""}
+                    </span>
+                    {option.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [fruit, setFruit] = React.useState(null);
+  const [country, setCountry] = React.useState(null);
+  const [assignee, setAssignee] = React.useState(null);
+
+  return (
+    <div style={{ padding: 24, fontFamily: "system-ui", color: "#e2e8f0", maxWidth: 420 }}>
+      <h2 style={{ marginTop: 0 }}>Dropdown</h2>
+      <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 0, lineHeight: 1.5 }}>
+        Put the mouse away. Tab to a dropdown, open it with Enter, Space or ↓, move with the
+        arrows, Home and End, type a letter to jump, choose with Enter, back out with Escape.
+      </p>
+      <Dropdown label="Fruit" options={FRUITS} value={fruit} onChange={setFruit} placeholder="Choose a fruit" />
+      <Dropdown label="Country" options={COUNTRIES} value={country} onChange={setCountry} placeholder="Choose a country" />
+      <Dropdown label="Assignee" options={[]} value={assignee} onChange={setAssignee} placeholder="Nobody to assign yet" />
+    </div>
+  );
+}
+
+render(<App />);
+
+// TRY TO BREAK IT
+//   - Keyboard only: Tab in, Enter, arrows, Enter. Then reopen it: it starts on
+//     the value you chose, not back at the top.
+//   - Open Fruit and press Escape: the value does not change.
+//   - Open Fruit, then click the heading, or the Country dropdown: it closes.
+//   - Arrow past Cherry: Durian is skipped. Click it: nothing happens.
+//   - Open Country and keep pressing the down arrow: the list scrolls with you.
+//   - Open Assignee: it says why there is nothing to pick.
+//
+// FOLLOW-UPS INTERVIEWERS ASK
+//   - "Why not a native select?" Often you should: it is accessible, works
+//     with forms, and gives phones their own picker. Build a custom one only
+//     for what a select cannot do (icons, two-line options, custom styling of
+//     the open list), and add a hidden input with a name if it sits in a form.
+//   - Searchable dropdown: that is a combobox with a text input and
+//     aria-autocomplete. See the Auto-Complete template.
+//   - Thousands of options: render only the visible rows (virtualisation), and
+//     give each option aria-setsize and aria-posinset, because most of them
+//     are no longer in the DOM for a screen reader to count.
+//   - Inside a container with overflow: hidden, or a modal: the absolute list
+//     gets clipped. Render it in a portal and position it from the trigger's
+//     getBoundingClientRect (or use Floating UI).
+//   - Multi-select: aria-multiselectable on the listbox, Space toggles an
+//     option, and the list stays open between picks.
+//   - In production, Radix Select, React Aria's useSelect or Headless UI's
+//     Listbox already handle the screen-reader edge cases this one skips.`,
+      },
     ],
   },
 ];

@@ -3987,6 +3987,36 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
       "Leaving the page cancels uploads still in progress; handle 413 Payload Too Large with a clear message."
     ]
   },
+  "Dropdown (keyboard + click outside)": {
+    "summary": "A custom select that works with the keyboard alone, closes on an outside click, and handles empty, long and disabled lists.",
+    "statement": "Build a reusable Dropdown that takes a label, a list of options ({ value, label, disabled? }), the current value and an onChange. Getting it to open and pick a value is the easy half; what is graded is everything a real user will try. It must work without a mouse: Tab to it, open it with Enter, Space or the down arrow, move with the arrow keys, Home and End, type a letter to jump to a matching option, choose with Enter, and back out with Escape. It closes when the user clicks anywhere outside it. Disabled options are skipped and cannot be chosen, a long list scrolls with the highlight, and an empty list says so. Show three: Fruit (one option out of stock), Country (45 options) and Assignee (no options).",
+    "examples": [
+      {
+        "input": "Tab to Fruit, press ↓, ↓, Enter. Then press Space and Enter.",
+        "output": "The list opens on Apple, the highlight moves to Banana, and Enter picks Banana and closes the list. Reopening starts on Banana, so Enter keeps it."
+      },
+      {
+        "input": "Open Fruit, then click the heading, or the Country dropdown.",
+        "output": "Fruit closes without changing its value. Clicking Country also opens Country, so only one list is open at a time."
+      },
+      {
+        "input": "Focus Country and quickly type \"united s\", then press Enter.",
+        "output": "The highlight jumps to United States and Enter selects it. Typing \"i\" twice in a row moves to India, then Indonesia."
+      },
+      {
+        "input": "Open Assignee.",
+        "output": "\"No options available\" instead of an empty box."
+      }
+    ],
+    "constraints": [
+      "Focus stays on the trigger the whole time: it has role=\"combobox\", aria-expanded and aria-controls, and aria-activedescendant points at the highlighted option.",
+      "The list has role=\"listbox\" and is labelled; each option has role=\"option\", and a disabled one has aria-disabled=\"true\".",
+      "Escape closes without changing the value; Tab closes and lets focus move on, never trapping it.",
+      "Space and the arrow keys must not scroll the page while the dropdown has focus.",
+      "Clicking an option or dragging the list's scrollbar must not close the list before the choice lands.",
+      "A list near the bottom of the screen opens upwards instead of off the edge."
+    ]
+  },
   "DOM Tree Height": {
     "summary": "Return the height of a node tree: how many nodes lie on its longest root-to-leaf path.",
     "statement": "Write treeHeight(node). Each node is shaped { tag, children }, where children is an array (empty for a leaf). The height is the number of nodes on the longest path from the root down to a leaf, so a single node has height 1 and an empty tree (null) has height 0. The tree is made of plain objects standing in for DOM nodes, because the playground runs your code in a Web Worker, which has no DOM. The problem has exactly the same shape as it would on real elements.",

@@ -1,5 +1,9 @@
 # What's New
 
+## v1.7.10 (October 2026)
+
+**New React Machine Coding challenge: Dropdown (keyboard + click outside).** Getting a dropdown to open and pick a value takes ten minutes; the interview is about what happens when someone tries to break it. This one is graded on exactly that: it must work with the keyboard alone (open with Enter, Space or the down arrow, move with the arrows, Home and End, type a letter to jump, choose with Enter, back out with Escape, leave with Tab), close when you click outside, skip an option that is out of stock, keep a 45-item list scrolled to the highlight, and say so when there is nothing to pick. Check runs eight of these behaviours against your build, and Explain walks through the reference one decision at a time. It sits in the Overlays & Disclosure track.
+
 ## v1.7.9 (October 2026)
 
 **PrepHub has a new address: [prephub.sreenathp.com](https://prephub.sreenathp.com/).** Old `sreen98.github.io/prephub` links, bookmarks and shared URLs redirect there automatically. Progress you saved on the old address (solved challenges, bookmarks, review schedule) stays with the old address and doesn't carry over, so the new site starts fresh. If you installed PrepHub as an app, install it again from the new address.

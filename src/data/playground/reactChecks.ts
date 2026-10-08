@@ -7067,4 +7067,358 @@ export const reactChecks: Record<string, ReactCheck[]> = {
       ]
     }
   ],
+  "Dropdown (keyboard + click outside)": [
+    {
+      "label": "opens and picks an option with the keyboard alone, and reopens on that option",
+      "steps": [
+        {
+          "focus": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "press": "ArrowDown"
+        },
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Fruit"
+          },
+          "attr": "aria-expanded",
+          "equals": "true"
+        },
+        {
+          "press": "ArrowDown"
+        },
+        {
+          "press": "Enter"
+        },
+        {
+          "expect": {
+            "role": "listbox"
+          },
+          "count": 0
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Fruit",
+            "text": "Banana"
+          },
+          "focused": true
+        },
+        {
+          "press": " "
+        },
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "press": "Enter"
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Fruit",
+            "text": "Banana"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Escape closes the list without changing the value, and focus stays on the dropdown",
+      "steps": [
+        {
+          "focus": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "press": "Enter"
+        },
+        {
+          "press": "ArrowDown"
+        },
+        {
+          "press": "Escape"
+        },
+        {
+          "expect": {
+            "role": "listbox"
+          },
+          "count": 0
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Fruit",
+            "text": "Choose a fruit"
+          },
+          "focused": true
+        }
+      ]
+    },
+    {
+      "label": "clicking outside closes the list, and opening another dropdown closes the first",
+      "steps": [
+        {
+          "click": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "click": {
+            "role": "heading",
+            "name": "Dropdown"
+          }
+        },
+        {
+          "expect": {
+            "role": "listbox"
+          },
+          "count": 0
+        },
+        {
+          "click": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "click": {
+            "role": "combobox",
+            "name": "Country"
+          }
+        },
+        {
+          "expect": {
+            "role": "listbox"
+          },
+          "count": 1
+        },
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Country"
+          }
+        }
+      ]
+    },
+    {
+      "label": "a mouse click on an option selects it and closes the list",
+      "steps": [
+        {
+          "click": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "click": {
+            "role": "option",
+            "name": "Cherry"
+          }
+        },
+        {
+          "expect": {
+            "role": "listbox"
+          },
+          "count": 0
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Fruit",
+            "text": "Cherry"
+          }
+        }
+      ]
+    },
+    {
+      "label": "a disabled option is skipped by the arrow keys and cannot be clicked",
+      "steps": [
+        {
+          "click": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "expect": {
+            "role": "option",
+            "name": "Durian"
+          },
+          "attr": "aria-disabled",
+          "equals": "true"
+        },
+        {
+          "click": {
+            "role": "option",
+            "name": "Durian"
+          }
+        },
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Fruit",
+            "text": "Choose a fruit"
+          }
+        },
+        {
+          "press": "Escape",
+          "on": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "focus": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "press": "ArrowDown"
+        },
+        {
+          "press": "ArrowDown"
+        },
+        {
+          "press": "ArrowDown"
+        },
+        {
+          "press": "ArrowDown"
+        },
+        {
+          "press": "Enter"
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Fruit",
+            "text": "Elderberry"
+          }
+        }
+      ]
+    },
+    {
+      "label": "typing letters jumps to the matching option",
+      "steps": [
+        {
+          "focus": {
+            "role": "combobox",
+            "name": "Country"
+          }
+        },
+        {
+          "press": "u"
+        },
+        {
+          "press": "n"
+        },
+        {
+          "press": "i"
+        },
+        {
+          "press": "t"
+        },
+        {
+          "press": "e"
+        },
+        {
+          "press": "d"
+        },
+        {
+          "press": " "
+        },
+        {
+          "press": "s"
+        },
+        {
+          "press": "Enter"
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Country",
+            "text": "United States"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Tab closes the list and moves focus on instead of trapping it",
+      "steps": [
+        {
+          "focus": {
+            "role": "combobox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "press": "Enter"
+        },
+        {
+          "expect": {
+            "role": "listbox",
+            "name": "Fruit"
+          }
+        },
+        {
+          "press": "Tab"
+        },
+        {
+          "expect": {
+            "role": "listbox"
+          },
+          "count": 0
+        },
+        {
+          "expect": {
+            "role": "combobox",
+            "name": "Country"
+          },
+          "focused": true
+        }
+      ]
+    },
+    {
+      "label": "an empty list says there is nothing to pick",
+      "steps": [
+        {
+          "click": {
+            "role": "combobox",
+            "name": "Assignee"
+          }
+        },
+        {
+          "expectText": "No options available"
+        }
+      ]
+    }
+  ],
 };
