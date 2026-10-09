@@ -255,6 +255,8 @@ describe('TypeScript guide tricky Q20–Q31 — errors and outputs, checked', ()
     ['Q29', 'function parse(input: string): number;'],
     ['Q30', 'type WithOptional = { nickname?: string };'],
     ['Q31', 'function laterReassigned(input: string | undefined) {'],
+    // Same convention, used by an interview answer: null versus unknown.
+    ['interview Q29', 'function inspectValue(value: unknown): string {'],
   ])('%s', (_label, marker) => {
     const { code, output } = blockAndOutput(marker);
 

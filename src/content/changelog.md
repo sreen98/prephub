@@ -1,5 +1,9 @@
 # What's New
 
+## v1.7.12 (October 2026)
+
+**Eight new interview questions, from a real interview.** JavaScript adds five: global and local variables; timers (`setTimeout`, `setInterval`, why the delay is only a minimum, and when to use a recursive `setTimeout` instead); whether JavaScript is statically or dynamically typed (and why it is also weakly typed); how to handle `null` with `== null`, `??`, `?.` and guard clauses; and a five-case output question on shadowing, hoisting and the Temporal Dead Zone, with a "How to answer" summary. TypeScript adds "What are `null` and `unknown`, and how are they different?". Browser APIs adds session state versus window state, with a table of what survives a reload, a new tab and a duplicated tab. Docker, Kubernetes & CI/CD adds "What is CI/CD, and how have you implemented it?", walking through PrepHub's own pipeline as the worked example. Every code example prints exactly the output shown, and a test checks it.
+
 ## v1.7.11 (October 2026)
 
 **React Playground previews are readable again.** The preview pane is white, but about 20 React challenges were styled for a dark page, so their headings, hints and labels were white or light grey on white and almost invisible. They include Accordion, Tabs, Auto-Complete, File Upload, Shopping Cart, Data Table, Chat App, Calculator and Stopwatch. They now sit on their own dark panel and look as they were designed. The new Dropdown challenge is restyled for the white pane.

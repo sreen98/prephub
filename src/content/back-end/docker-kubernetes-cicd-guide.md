@@ -813,6 +813,76 @@ The honest summary: **Kubernetes solves an organisational problem — many teams
 
 ---
 
+**Q9: What is CI/CD, and how have you implemented it? Walk through a real pipeline.**
+
+**Short answer:** **CI (continuous integration)** means every change is merged into the main branch often, and each merge is automatically built and tested, so a broken change is caught within minutes rather than at release time. **CD** means one of two things. **Continuous delivery** keeps every passing build ready to release, with a person pressing the button. **Continuous deployment** goes one step further, and every passing build goes to production with no human step. The goal of both is the same: small, frequent, boring releases, with the checks done by machines.
+
+**A worked example: this site, PrepHub.** PrepHub is a static React app (built with Vite) hosted on GitHub Pages. It uses **continuous deployment**: every push to `main` that passes the checks is live within minutes. The checks run in three layers, cheapest first:
+
+```text
+git commit   →  pre-commit hook  (a second or two)  architecture rules + counts in the docs
+git push     →  pre-push hook    typecheck, lint, unit tests, counts,
+                                 architecture rules, every code block parses
+push to main →  GitHub Actions   install → generate data → the same checks
+                                 → build → deploy to GitHub Pages
+```
+
+The workflow, trimmed to its shape:
+
+```yaml
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write                 # only what the deploy step needs
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm install
+      - run: npm run content:meta          # generated files are built, never committed
+      - run: npm run typecheck             # fast checks first: fail in seconds
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run verify:arch
+      - run: npm run verify:blocks
+      - run: npm run verify:counts
+      - run: npm run build                 # Vite build + one HTML file per route
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          cname: prephub.sreenathp.com     # keeps the custom domain on every deploy
+```
+
+**The design decisions, and why each was made:**
+
+- **The same checks run locally and in CI.** `npm run verify` is one command that runs all six checks, and the git hooks call the same scripts. A developer finds out on their own machine, in seconds, what CI would have told them after a push. CI stays the real backstop, because hooks can be skipped with `--no-verify`.
+- **Hooks live in the repository.** They are in `.githooks/`, and an npm `prepare` script points git at that folder (`core.hooksPath`), so everyone who runs `npm install` gets them. Hooks in `.git/hooks` are not versioned and get lost on a fresh clone.
+- **Fail fast.** Type errors and lint run before the slower build, so a typo fails in seconds, not minutes.
+- **Checks for things a compiler cannot see.** `verify:counts` fails the deploy when a number written in the docs ("76 guides") no longer matches the content. `verify:blocks` parses every code example so none ships a broken "Try it" button. `verify:arch` enforces import layering. Each was added after that kind of bug shipped once.
+- **Generated files are generated in CI, never committed,** so they can never be stale.
+- **Least privilege:** the job's token may write repository contents (to push the built site) and nothing else.
+- **Deploying a static site has its own details.** A build step writes an HTML file for every route so deep links return 200 instead of 404, and the service worker (which caches the app for offline use) checks for a new version and updates itself, so users are not stuck on an old build.
+
+**Rollback** is `git revert` and push: the pipeline rebuilds and redeploys the previous state, which is the same path every release takes. Because there is no database, there is no migration to undo.
+
+**What I would add with a team, and saying this is part of a strong answer:**
+
+- **Pull requests with required checks** (`on: pull_request` plus branch protection), so `main` is never broken, and a **preview deployment per pull request** for review.
+- **`npm ci` instead of `npm install`**, so CI installs exactly what the lockfile says and fails if it is out of date.
+- **Actions pinned to a commit SHA** and a `concurrency` group to cancel superseded runs (Q5 and §8.2).
+- **A smoke test after deploy** that loads a few routes on the live site and fails loudly.
+
+For a containerised service the same ideas grow into the full pipeline in Q5: build the image once, tag it by commit SHA, promote that same image through staging to production, and roll out with a rolling or canary strategy (§9).
+
+---
+
 ## 14. Tricky Questions
 
 ---

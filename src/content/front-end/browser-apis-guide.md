@@ -1283,6 +1283,58 @@ clients.forEach(c => c.postMessage({ type: 'logout' }));
 
 ---
 
+**Q18: What is the difference between session state and window state? What survives a reload, a new tab, or a duplicated tab?**
+
+**Short answer:** **window state** is whatever lives in the page's JavaScript memory: variables, React state, a Redux store. It belongs to one document in one tab, and it is gone the moment the page reloads, navigates or closes. **Session state** outlives the page but not the tab: `sessionStorage` keeps it per tab, through reloads, until that tab closes. Both differ from `localStorage`, which every tab of the origin shares and which never expires. Which one to use depends on how long the data should live and who should share it.
+
+| Where the state lives | Reload | New tab | Duplicated tab | Browser restart | Shared between tabs |
+|---|---|---|---|---|---|
+| Window (JS memory, React state) | lost | starts empty | starts empty | lost | no |
+| `sessionStorage` | kept | starts empty | **copied**, then independent | lost (a restored tab may get it back) | no |
+| `localStorage` | kept | kept | kept | kept | yes, same origin |
+| URL (query string, `history.state`) | kept | only if the link is opened | kept | kept in history | via the link |
+| Server session (cookie with a session id) | kept | kept | kept | depends on cookie expiry | yes, whole browser |
+
+**Details that separate a good answer:**
+
+- **"Session" means two things.** `sessionStorage` is a per-**tab** store in the browser. A **login session** is server-side state found through a cookie, and since cookies belong to the whole browser, every tab shares it. Logging in in one tab logs in all of them, while a value in `sessionStorage` stays in the tab that wrote it.
+- **The back button is an exception for window state.** With the back-forward cache, the browser can bring back the exact in-memory page, timers and all (Q13), so do not assume memory always starts fresh.
+- **A duplicated tab gets a copy, not a link.** Duplicating copies `sessionStorage` at that moment; after that the two tabs change their copies separately.
+- **Every one of them is per origin.** `https://app.example.com` and `https://example.com` have separate storage.
+
+**Choosing:**
+
+| Data | Put it in | Why |
+|---|---|---|
+| A half-filled form or a multi-step wizard | `sessionStorage` | survives an accidental reload, and two tabs can hold two different drafts |
+| Theme, language, dismissed banners | `localStorage` | should apply in every tab, next week too |
+| Search filters, the open page of a list | the URL | survives a reload and can be shared or bookmarked |
+| Auth | an `HttpOnly` cookie session | JavaScript cannot read it, so a cross-site scripting (XSS) bug cannot steal it (Q1) |
+| Hover, open menus, an in-flight request | window memory | nothing is lost if it resets |
+
+```js
+// Keep a form draft per tab: survives a reload, and is cleared when the tab closes.
+function saveDraft(text) {
+  try {
+    sessionStorage.setItem('draft', text);
+  } catch {
+    // storage can throw (private mode, storage blocked, quota): losing a draft beats crashing
+  }
+}
+
+function loadDraft() {
+  try {
+    return sessionStorage.getItem('draft') ?? '';
+  } catch {
+    return '';
+  }
+}
+```
+
+**Takeaway:** ask "who should see this, and for how long?" One page load means window memory, one tab means `sessionStorage`, every tab means `localStorage` or the server, and anything shareable goes in the URL.
+
+---
+
 ## 17. Tricky Questions
 
 Practice questions testing your understanding of how the browser actually behaves under specific edge cases.

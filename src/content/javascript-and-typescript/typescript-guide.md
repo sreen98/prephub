@@ -2490,6 +2490,56 @@ type StrictOmit<T, K extends keyof T> = Omit<T, K>;
 
 ---
 
+**Q29: What are `null` and `unknown` in TypeScript, and how are they different?**
+
+**Short answer:** `null` is a **value** meaning "deliberately empty", and its type contains only that one value. `unknown` is a **type** meaning "this could be anything, and I have not checked yet". They answer different questions: `string | null` says you **know** the value is either a string or empty, while `unknown` says you do **not know** what it is. `null` describes your data; `unknown` describes your ignorance about data from outside.
+
+```ts
+function displayName(name: string | null): string {
+  // return name.toUpperCase();          // ✗ TS18047: 'name' is possibly 'null'.
+  return name === null ? 'Anonymous' : name.toUpperCase();
+}
+
+function inspectValue(value: unknown): string {
+  // return value.toUpperCase();         // ✗ TS18046: 'value' is of type 'unknown'.
+  if (typeof value === 'string') return 'string ' + value.toUpperCase();
+  if (typeof value === 'object') {
+    if (value === null) return 'null';   // typeof null is 'object', so check it first
+    return 'object ' + Object.keys(value).join(',');
+  }
+  return typeof value;
+}
+
+const anything: unknown = null;          // every value fits in unknown, null included
+// const label: string | null = anything;  // ✗ TS2322: Type 'unknown' is not assignable to type 'string | null'.
+
+console.log(displayName(null), displayName('ada'));
+console.log(inspectValue('hi'), inspectValue(anything), inspectValue({ a: 1, b: 2 }), inspectValue(42));
+```
+
+```text
+Anonymous ADA
+string HI null object a,b number
+```
+
+| Aspect | `null` | `unknown` |
+|---|---|---|
+| What it is | a value, and a type with that single value | a type that every value belongs to (the **top type**) |
+| Means | "known to be empty" | "not checked yet" |
+| What you may assign to it | only `null` (and `any`) | anything |
+| Where it can go | only into types that include `null` (with `strictNullChecks`) | only into `unknown` or `any`, until you narrow it |
+| How you make it usable | `!== null`, `?.`, `??` | narrow with `typeof`, `instanceof`, `in`, or a type guard |
+| Typical source | your own models: an optional field, "no result" | the outside world: `JSON.parse`, `catch (e)`, `response.json()` |
+
+**The points that show you understand the difference:**
+
+- **`null` only means something with `strictNullChecks` on** (part of `strict`). With it off, `null` is silently allowed in every type and the compiler stops protecting you (Q19).
+- **`unknown` contains `null`.** That is why narrowing an `unknown` with `typeof value === 'object'` still leaves `object | null`, and you must rule out `null` before calling `Object.keys` (the tricky section's Q26).
+- **`unknown` is the safe twin of `any`.** Both accept every value, but `any` turns checking off while `unknown` forces a check before use (Q5). Use it at every boundary where data enters the program (Q27), and in `catch` clauses, where `useUnknownInCatchVariables` makes the error `unknown` (tricky Q28).
+- **`null` versus `undefined`.** Both mean "no value"; many TypeScript codebases use `undefined` for optional things (`name?: string`) and keep `null` for "explicitly cleared", such as a JSON field or a database `NULL`. Pick one convention per codebase (the JavaScript guide's Q3 and Q44 cover handling both at runtime).
+
+---
+
 ## 16. Tricky Output Questions
 
 Practice questions testing your understanding of TypeScript's type inference, narrowing, generics, and compile-time behavior.

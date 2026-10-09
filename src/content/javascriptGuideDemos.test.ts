@@ -141,3 +141,50 @@ describe('repaired JavaScript guide demos actually print', () => {
     ]);
   });
 });
+
+/**
+ * Interview Q41–Q45: each runnable block is followed by a `text` block giving
+ * its output. Run the block and compare, so no output is written by hand.
+ */
+describe('JavaScript guide interview Q41–Q45 print their Output blocks', () => {
+  const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8').replace(/\r\n/g, '\n');
+  const fmt = (a: unknown[]) => a.map(v => typeof v === 'string' ? v : inspect(v)).join(' ');
+
+  /** Every js block in [from, to) paired with the text block right after it. */
+  const pairs = (from: string, to: string) => {
+    const start = md.indexOf(from);
+    const end = md.indexOf(to, start);
+    expect(start, `marker not found: ${from}`).toBeGreaterThan(-1);
+    const region = md.slice(start, end);
+    const out: { code: string; output: string[] }[] = [];
+    const re = /```js\n([\s\S]*?)```\n\n```text\n([\s\S]*?)\n```/g;
+    for (let m = re.exec(region); m; m = re.exec(region)) out.push({ code: m[1], output: m[2].split('\n') });
+    return out;
+  };
+
+  /** Run a block with real timers, then wait for them to finish (rule 9a). */
+  const run = async (code: string) => {
+    const logs: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- executing the guide's own snippet is the point
+    const fn = new Function('console', code) as (c: unknown) => void;
+    fn({ log: (...a: unknown[]) => logs.push(fmt(a)) });
+    await new Promise(r => setTimeout(r, 150));
+    return logs;
+  };
+
+  it.each([
+    ['Q41', '**Q41:', '**Q42:', 1],
+    ['Q42', '**Q42:', '**Q43:', 2],
+    ['Q43', '**Q43:', '**Q44:', 1],
+    ['Q44', '**Q44:', '**Q45:', 1],
+    ['Q45', '**Q45:', '## 16. Tricky Output Questions', 6],
+  ] as const)('%s', async (_label, from, to, count) => {
+    const blocks = pairs(from, to);
+    expect(blocks).toHaveLength(count);
+    for (const { code, output } of blocks) {
+      const logs = await run(code);
+      expect(logs.length, 'the block printed nothing').toBeGreaterThan(0);
+      expect(logs).toEqual(output);
+    }
+  });
+});

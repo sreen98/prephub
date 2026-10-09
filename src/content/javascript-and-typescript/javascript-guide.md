@@ -4725,6 +4725,424 @@ computed 1 time
 
 ---
 
+**Q41: What are global and local variables in JavaScript?**
+
+**Short answer:** a **global** variable is declared outside every function and block, so any code in the program can read and change it, and it lives as long as the page does. A **local** variable is declared inside a function or a block (`{ … }`), so only code inside that function or block can see it, and it is created fresh on each call and thrown away when the call ends.
+
+```js
+let count = 0;                       // global (top level): every function below can see it
+
+function increment() {
+  let step = 1;                      // local: exists only while this call runs
+  count += step;
+  return count;
+}
+
+increment();
+increment();
+console.log(count);
+console.log(typeof step);            // step was local to increment, so it is gone
+
+function shadow() {
+  let count = 100;                   // a NEW local that hides the global one
+  return count;
+}
+console.log(shadow(), count);
+
+if (true) {
+  const blockOnly = 'inside';        // let/const: local to the braces
+  var leaksOut = 'function-wide';    // var ignores blocks
+}
+console.log(typeof blockOnly, leaksOut);
+
+function forgetsDeclaration() {
+  'use strict';
+  try {
+    total = 5;                       // no let, const or var
+  } catch (e) {
+    console.log(e.name);
+  }
+}
+forgetsDeclaration();
+```
+
+```text
+2
+undefined
+100 2
+undefined function-wide
+ReferenceError
+```
+
+| Output | Why |
+|---|---|
+| `2` | `increment` changed the global `count` twice |
+| `undefined` | `step` was local to `increment`; outside it, the name does not exist |
+| `100 2` | `shadow`'s own `count` **shadows** (hides) the global one inside the function; the global is untouched |
+| `undefined function-wide` | `const` is local to the `if` block, `var` is local to the whole function (or global at top level), so it leaks out of the block |
+| `ReferenceError` | assigning to a name that was never declared. Strict mode throws; sloppy mode silently creates a global, which is the accidental-global bug |
+
+**Three details that make the answer complete:**
+
+- **Where "global" actually lives.** In a classic `<script>`, top-level `var` and function declarations become properties of the global object (`window` in a browser, `globalThis` everywhere), so `var x = 1` makes `window.x` equal 1. Top-level `let` and `const` are global too, but they are **not** added to `window`. In an **ES module** (and in Node's CommonJS files), the top level is the module's own scope, so nothing is global unless you write `globalThis.x = …` on purpose.
+- **Lookup goes inside out.** When code reads a name, the engine checks the current scope, then each enclosing scope, ending at the global one: the scope chain (§5.1). That is why a local can shadow a global, and why a closure can still read its outer function's locals after that function returned (Q2).
+- **Why to avoid globals.** Any script can overwrite them (two libraries both defining `config`), any function can change them, so a bug's cause can be anywhere, and tests leak state into each other. They also stay in memory for the life of the page. Prefer locals, pass values as arguments, keep shared state in a module, and keep private state in a closure (Q40).
+
+See §3.1 for `var` versus `let`/`const` scoping and Q5 for the full comparison.
+
+---
+
+**Q42: Explain timers in JavaScript.**
+
+**Short answer:** JavaScript has two timer functions. `setTimeout(fn, ms)` runs `fn` once after **at least** `ms` milliseconds, and `setInterval(fn, ms)` runs it repeatedly every `ms`. Each returns an id that you pass to `clearTimeout` or `clearInterval` to cancel it. Timers are not part of the language itself; the browser or Node provides them, and when one is due its callback joins the **task queue** (the queue of work the event loop runs one item at a time), so it only runs once the current code and all pending Promise callbacks have finished (§11).
+
+```js
+console.log('1 sync');
+
+const id = setTimeout(() => console.log('never runs'), 0);
+clearTimeout(id);                                   // cancelled before it was due
+
+setTimeout((name) => console.log('3 timeout, hello ' + name), 0, 'Ada');   // extra args go to the callback
+
+Promise.resolve().then(() => console.log('2 microtask first'));
+
+let ticks = 0;
+const intervalId = setInterval(() => {
+  ticks++;
+  console.log('4 tick', ticks);
+  if (ticks === 3) clearInterval(intervalId);       // without this it runs forever
+}, 10);
+```
+
+```text
+1 sync
+2 microtask first
+3 timeout, hello Ada
+4 tick 1
+4 tick 2
+4 tick 3
+```
+
+A `0` ms timeout still runs **after** the Promise callback, because Promise callbacks (microtasks) all run before the event loop takes the next task. The cancelled timeout never runs at all.
+
+**The details interviewers look for:**
+
+- **The delay is a minimum, not a promise.** If the main thread is busy for 200 ms, a 10 ms timer fires after 200 ms. Browsers also add their own floors: once timers are nested five levels deep, the delay becomes at least 4 ms, and in a hidden background tab timers run at most about once a second (Chrome slows long-hidden pages further). Never use a timer as a clock; measure elapsed time with `performance.now()` or `Date.now()`.
+- **`setInterval` does not wait for your work.** It schedules the next call on a fixed beat whether or not the last one finished, so a slow callback (or an async one that awaits a network call) can pile up. When each run must finish before the next starts, use a **recursive `setTimeout`**, which schedules the next run only at the end of the current one:
+
+```js
+function poll(times) {
+  let n = 0;
+  function tick() {
+    n++;
+    console.log('poll', n);
+    if (n < times) setTimeout(tick, 10);   // the next run is scheduled only after this one finished
+  }
+  setTimeout(tick, 10);
+}
+poll(3);
+```
+
+```text
+poll 1
+poll 2
+poll 3
+```
+
+- **Always clear what you start.** An interval that is never cleared keeps its callback, and everything that callback references, alive forever (Q15, Q25). In React, return the cleanup from the effect: `useEffect(() => { const id = setInterval(tick, 1000); return () => clearInterval(id); }, [])`.
+- **The id differs by platform.** Browsers return a number; Node returns a `Timeout` object with `.unref()`, which lets the process exit even while the timer is pending.
+- **There is a maximum delay.** Anything above 2,147,483,647 ms (about 24.8 days) overflows a 32-bit integer and fires almost immediately.
+- **`this` inside a callback.** A plain `function` passed to `setTimeout` is called without an object, so `this` is not your object. Use an arrow function, or `bind`.
+
+**The related schedulers, and when each fits:**
+
+| API | Runs when | Use it for |
+|---|---|---|
+| `setTimeout` / `setInterval` | after a delay, as a task | delays, polling, debounce |
+| `queueMicrotask` / `Promise.then` | right after the current code, before any task | finishing work before the browser paints or handles input |
+| `requestAnimationFrame` | just before the next paint (about every 16 ms at 60 Hz) | animation (see the Browser APIs guide, Q10) |
+| `requestIdleCallback` | when the browser has nothing else to do | low-priority work such as analytics |
+| `setImmediate` (Node only) | after the current I/O phase | yielding inside Node's event loop |
+
+Debounce (Q16) and `once` (Q26) are both built on `setTimeout` plus a closure, and Q27 in the tricky section shows how `var` and `let` change what timer callbacks print.
+
+---
+
+**Q43: Is JavaScript a statically typed or a dynamically typed language?**
+
+**Short answer:** **dynamically typed.** In JavaScript a type belongs to a **value**, not to a variable. A variable can hold a number now and a string later, and nothing checks types until the line actually runs. In a **statically typed** language (Java, C#, Go, Rust, TypeScript) each variable has a fixed type that a compiler checks **before** the program runs.
+
+```js
+let value = 42;
+console.log(typeof value);
+value = 'forty-two';                    // allowed: the variable has no type, the value does
+console.log(typeof value);
+value = { n: 42 };
+console.log(typeof value);
+
+console.log('5' * 2, '5' + 2);          // weak typing: mixed types are converted silently
+
+function shout(text) {
+  return text.toUpperCase();
+}
+console.log(shout('hi'));
+try {
+  shout(42);                            // nothing objects until this line runs
+} catch (e) {
+  console.log(e.constructor.name + ': ' + e.message);
+}
+```
+
+```text
+number
+string
+object
+10 52
+HI
+TypeError: text.toUpperCase is not a function
+```
+
+**Follow-up: JavaScript is also weakly typed, and that is a separate question.** "Static or dynamic" asks **when** types are checked. "Strong or weak" asks **how strictly** the language refuses to mix types. JavaScript converts silently (`'5' * 2` is `10`, `'5' + 2` is `'52'`, §2.4), so it is dynamic **and** weak. Python is dynamic but strong, since `'5' + 2` raises a `TypeError` there.
+
+| Language | Checked when | Mixing types |
+|---|---|---|
+| JavaScript | at runtime (dynamic) | converted silently (weak) |
+| Python | at runtime (dynamic) | raises an error (strong) |
+| TypeScript | before running (static), then erased | follows JavaScript at runtime |
+| Java, C#, Go | before running (static) | mostly refused (strong) |
+
+**The trade-off to state:** dynamic typing makes small programs fast to write and flexible (one function can accept many shapes), but a mistake such as `shout(42)` above surfaces only when that line runs, possibly in production. That is why most teams add **TypeScript**, a static type checker on top of JavaScript (Q38). Its types are removed before the code runs, so the program itself is still dynamically typed. At runtime you check types yourself with `typeof`, `Array.isArray` and `instanceof` (the tricky section's Q33 covers `typeof`'s surprises).
+
+---
+
+**Q44: How do you handle `null` in JavaScript?**
+
+**Short answer:** check for it with `== null` (which catches `null` and `undefined` together), supply defaults with `??` rather than `||`, read through it safely with `?.`, and at system boundaries (API responses, user input, storage) fail early with a clear error instead of letting a `null` travel until something crashes on it. Then, where you can, design it away: return an empty array rather than `null`, and let TypeScript's `strictNullChecks` find the places you forgot.
+
+```js
+const user = { name: 'Ada', age: 0, address: null, tags: [] };
+
+// 1. == null is true for null AND undefined, and for nothing else
+console.log(user.address == null, user.phone == null, user.age == null);
+
+// 2. || replaces every falsy value (0, '', false); ?? replaces only null and undefined
+console.log(user.age || 18, user.age ?? 18);
+
+// 3. ?. stops at null and gives undefined instead of throwing
+console.log(user.address?.city);
+console.log(user.address?.city ?? 'No city');
+
+// 4. Default parameters fill in undefined, NOT null
+function greetBroken(name = 'guest') { return 'Hi ' + name; }
+function greet(name) { return 'Hi ' + (name ?? 'guest'); }
+console.log(greetBroken(undefined), greetBroken(null));
+console.log(greet(null));
+
+// 5. ??= assigns only when the current value is null or undefined
+const settings = { theme: null, fontSize: 0 };
+settings.theme ??= 'light';
+settings.fontSize ??= 16;
+console.log(settings);
+
+// 6. At a boundary, fail fast with a message that names the problem
+function requireValue(value, label) {
+  if (value == null) throw new Error(label + ' is required');
+  return value;
+}
+try {
+  requireValue(user.address, 'address');
+} catch (e) {
+  console.log(e.message);
+}
+```
+
+```text
+true true false
+18 0
+undefined
+No city
+Hi guest Hi null
+Hi guest
+{ theme: 'light', fontSize: 0 }
+address is required
+```
+
+| Technique | Use it for | The trap it avoids |
+|---|---|---|
+| `x == null` | "is it missing?" | `=== null` misses `undefined`, and `!x` wrongly rejects `0`, `''` and `false` |
+| `a ?? b` | defaults | `a \|\| b` replaces a real `0` or `''` (an age of 0 became 18 above) |
+| `a?.b`, `a?.()`, `a?.[i]` | data that is genuinely optional | `Cannot read properties of null` |
+| `??=` | filling in missing settings | overwriting a deliberate `0` or `false` |
+| Guard clause + `throw` | values that must exist | a `null` that crashes three functions later, far from the cause |
+
+**How to present it in an interview:**
+
+- **Decide whether `null` is allowed before choosing a tool.** `?.` is right for optional data and wrong for required data, where it hides a bug by turning a crash into a silent `undefined`. For required values, check once at the boundary and throw.
+- **Avoid producing `null` in the first place.** A function returning a list returns `[]` when there is nothing, so callers can map over it without a check. The **Null Object pattern** (returning a harmless stand-in object, such as a guest user with no permissions) does the same for objects.
+- **Know where `null` comes from:** `document.querySelector` finding nothing, `localStorage.getItem` for a missing key, `JSON.parse('null')`, a database `NULL`, and API fields. `JSON.stringify` keeps `null` but drops `undefined` properties, so a `null` is what survives a round trip to the server.
+- **In TypeScript**, `strictNullChecks` makes `null` part of the type (`string | null`), and the compiler refuses to let you use the value until you have handled that case (TypeScript guide Q19 and Q29).
+
+Q3 covers `null` versus `undefined`, and the tricky section's Q39 and Q49 show default parameters ignoring `null` and how far `?.` short-circuits.
+
+---
+
+**Q45: A variable is declared globally, and a variable with the same name is defined again inside a function. There is a `console.log` inside the function and another outside it. What gets printed?**
+
+**Short answer:** it depends on **how** the inner variable is declared and **where** the `console.log` sits:
+
+- **Redeclared with `var`, `let` or `const`, and logged after the declaration:** inside prints the local value, outside prints the global one. This is **shadowing**: a local variable with the same name hides the outer one.
+- **Assigned without a keyword:** there is no new variable, so the global itself changes.
+- **Logged before a `var` declaration:** `undefined`, because of hoisting.
+- **Logged before a `let`/`const` declaration:** a `ReferenceError`, because of the Temporal Dead Zone (TDZ).
+
+**Case 1: shadowing (declared inside, logged after)**
+
+```js
+var name = 'Global';
+
+function show() {
+  var name = 'Local';
+  console.log(name);
+}
+
+show();
+console.log(name);
+```
+
+```text
+Local
+Global
+```
+
+The inner `name` is a new variable that exists only inside `show`, so it shadows the global one, and the global is never changed. `let` and `const` behave the same way here.
+
+**Case 2: no keyword inside (the global changes)**
+
+```js
+var name = 'Global';
+
+function show() {
+  name = 'Local';
+  console.log(name);
+}
+
+show();
+console.log(name);
+```
+
+```text
+Local
+Local
+```
+
+Without `var`, `let` or `const` nothing new is declared, so the assignment walks up the scope chain and overwrites the outer `name`.
+
+**Case 3: logged before a `var` declaration (hoisting)**
+
+```js
+var name = 'Global';
+
+function show() {
+  console.log(name);
+  var name = 'Local';
+}
+
+show();
+console.log(name);
+```
+
+```text
+undefined
+Global
+```
+
+**Hoisting** means the engine sets up every declaration in a scope before running that scope's code (§3.2). A `var` is set up as `undefined`, so `show` really runs like this:
+
+```js
+function show() {
+  var name;            // hoisted, value is undefined
+  console.log(name);   // undefined
+  name = 'Local';
+}
+
+show();
+```
+
+```text
+undefined
+```
+
+The local `name` already exists from the first line, so it hides the global, but it has no value yet.
+
+**Case 4: logged before a `let`/`const` declaration (the TDZ)**
+
+```js
+let name = 'Global';
+
+function show() {
+  console.log(name);
+  let name = 'Local';
+}
+
+try {
+  show();
+} catch (e) {
+  console.log(e.name + ': ' + e.message);
+}
+```
+
+```text
+ReferenceError: Cannot access 'name' before initialization
+```
+
+`let` and `const` are hoisted too, but they stay in the **Temporal Dead Zone** (the stretch from the start of the scope to the declaration line) until their line runs, and reading them there throws (Q11). The engine does **not** fall back to the global `name`, because the local one already exists, just not ready yet. The `try`/`catch` is only there so the example finishes; without it, `show()` throws and the outer log never runs.
+
+**Case 5 (bonus): block scope, `var` versus `let`**
+
+```js
+var a = 'Global';
+if (true) {
+  var a = 'Block';
+}
+console.log(a);
+
+let b = 'Global';
+if (true) {
+  let b = 'Block';
+}
+console.log(b);
+```
+
+```text
+Block
+Global
+```
+
+`var` ignores blocks, so the inner `var a` is the **same** variable and overwrites it. `let` is block-scoped, so the inner `let b` is a new variable that disappears at the closing brace.
+
+**Summary:**
+
+| Inside the function | Log inside | Log outside |
+|---|---|---|
+| `var`/`let`/`const x = …`, logged after | local value | global value (unchanged) |
+| `x = …` (no keyword) | new value | new value (global changed) |
+| `var x`, logged before the declaration | `undefined` | global value |
+| `let`/`const x`, logged before the declaration | `ReferenceError` (TDZ) | does not run |
+
+> **How to answer:** "If the variable is redeclared inside the function with `var`, `let` or `const`, it shadows the global: inside you see the local value, and outside the global is unchanged. If it's assigned without a keyword, it changes the global. If you log before the declaration, `var` gives `undefined` because of hoisting, while `let` and `const` throw a `ReferenceError` because of the Temporal Dead Zone."
+
+**Key takeaways:**
+
+- A variable declared inside a function shadows an outer variable with the same name.
+- Assigning without `var`/`let`/`const` changes the outer variable, and in sloppy (non-strict) mode, when no outer variable exists, it silently creates an accidental global (Q41).
+- `var` is hoisted and starts as `undefined`; `let`/`const` are hoisted but sit in the TDZ until their declaration runs.
+- `var` is function-scoped; `let`/`const` are block-scoped.
+- Prefer `const` and `let` so a read-before-declare is a loud error instead of a silent `undefined`.
+
+**Related:** Q41 (global versus local variables), Q5 (`var` versus `let` versus `const`), Q11 (the TDZ), Q2 and Q40 (closures), §3.2 (hoisting of function declarations versus function expressions), Q27 and the tricky section's Q31 (`this` in normal and arrow functions), and the tricky section's Q28 and Q29 for two more hoisting and TDZ puzzles.
+
+---
+
 ## 16. Tricky Output Questions
 
 Practice questions testing your understanding of JavaScript quirks — type coercion, reference types, and the event loop.
