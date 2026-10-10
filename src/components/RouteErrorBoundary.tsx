@@ -53,27 +53,27 @@ export default class RouteErrorBoundary extends React.Component<Props, State> {
         <h2 className="text-xl font-bold mb-2">
           {isChunkError ? 'This page needs a refresh' : 'Something went wrong'}
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mb-6">
+        <p className="text-sm text-muted max-w-md mb-6">
           {isChunkError
             ? 'A new version was deployed while this tab was open, so part of the app could not be loaded. Reloading picks up the latest version.'
-            : 'This page failed to render. Reloading usually clears it — the details are in the browser console.'}
+            : 'This page failed to render. Reloading usually clears it. The details are in the browser console.'}
         </p>
         <div className="flex gap-3">
           <button
             onClick={() => window.location.reload()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-accent text-accent-contrast text-sm font-medium hover:bg-accent-strong transition-colors"
           >
             <RotateCcw size={16} /> Reload
           </button>
           <a
             href={import.meta.env.BASE_URL}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-ink/5 text-sm font-medium hover:bg-ink/10 transition-colors"
           >
             <Home size={16} /> Home
           </a>
         </div>
         {!isChunkError && (
-          <pre className="mt-6 max-w-full overflow-x-auto text-left text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <pre className="mt-6 max-w-full overflow-x-auto text-left text-[11px] text-muted bg-canvas border border-line rounded-lg p-3">
             {error.message}
           </pre>
         )}

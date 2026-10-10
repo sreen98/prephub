@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readSeries } from './guideSeries';
 
 /**
  * §13.1's phase demo states an exact console order in a `text` block right below it.
@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
  * lines and the claimed output out of the guide and check one against the other.
  */
 describe('JavaScript guide §13.1 — the stated propagation order is real', () => {
-  const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8');
+  const md = readSeries('javascript');
   const demo = md.slice(md.indexOf('function PhaseDemo()'));
 
   it('registers on outer, inner and the button in the documented order', () => {

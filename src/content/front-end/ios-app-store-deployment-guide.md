@@ -200,6 +200,8 @@ xcrun altool --upload-app -f build/App.ipa --type ios \
 
 The archive is a `.xcarchive` (app plus dSYMs); the `.ipa` (iOS App Store package) is the signed, zipped payload you actually upload. Bitcode was **removed in Xcode 14** — if a tutorial mentions enabling it, the tutorial is stale.
 
+Apple also sets a **minimum Xcode and SDK** for uploads and raises it each spring: Xcode 16 with the iOS 18 SDK from 24 April 2025, then **Xcode 26 with the iOS 26 SDK from 28 April 2026**. A build from an older toolchain is rejected at upload, so update CI's Xcode image before the date (Apple lists them under "Upcoming requirements" in developer news).
+
 ---
 
 ## 8. Automating the Build
@@ -300,7 +302,7 @@ Declared in App Store Connect, shown on your product page: for each data type, w
 
 If you track users across apps or websites owned by other companies — including using the IDFA (Identifier for Advertisers, a per-device advertising ID) — you **must** call `ATTrackingManager.requestTrackingAuthorization` and provide `NSUserTrackingUsageDescription`. Accessing the IDFA without consent is a hard rejection. Note most users decline, so any business model depending on IDFA needs a fallback.
 
-Two more requirements that mirror Android's: **account deletion must be offered in-app** if the app supports account creation (since June 2022), and **Sign in with Apple** must be offered if you offer any third-party social login.
+Two more requirements that mirror Android's: **account deletion must be offered in-app** if the app supports account creation (since June 2022), and if the user's primary account can be created with a third-party or social login, **guideline 4.8** requires an equivalent privacy-focused login option too (one that limits data to name and email, lets users hide their email, and doesn't track them for ads without consent). **Sign in with Apple** is the usual way to meet it, but not the only one.
 
 ---
 
@@ -331,13 +333,15 @@ ATS forces HTTPS with TLS 1.2+ and forward secrecy by default. Exceptions live i
 
 ```
 App icon      1024×1024 PNG, no alpha channel, no rounded corners (Apple rounds it)
-Screenshots   REQUIRED: 6.9" (iPhone 16 Pro Max) and 6.5" or 6.7"
+Screenshots   REQUIRED: iPhone with Dynamic Island, medium display
+              (1206×2622 or 1179×2556, e.g. iPhone 17 Pro / 16)
+              6.5" (1284×2778) only if no Dynamic Island large-display set
               iPad 13" required if the app supports iPad
               up to 10 per device size; first 3 show in search results
 App previews  optional video, 15–30 s, up to 3
 ```
 
-Apple **scales screenshots down** to smaller device sizes, so you only need the largest of each family — but the required sizes change as Apple ships new hardware, and a missing required size blocks submission. Use `fastlane snapshot` or a design template so a device-lineup change is a rebuild, not a redesign.
+Apple **scales screenshots** to the other device sizes, so you only need the required sets — but the required sizes change as Apple ships new hardware, and a missing required size blocks submission. Use `fastlane snapshot` or a design template so a device-lineup change is a rebuild, not a redesign.
 
 The **first three screenshots** appear in search results, so lead with your strongest. Localised screenshots and metadata materially improve conversion in non-English markets.
 
@@ -376,7 +380,7 @@ Ranked by how often they actually happen:
 7. **Guideline 5.1.1(v) — account deletion.** Account creation without in-app deletion.
 8. **Crashes on launch** — usually a Release-only signing, entitlement or missing-plist-key problem the team never saw in debug.
 9. **Missing/invalid privacy manifest** — auto-rejected at processing (§11).
-10. **Sign in with Apple missing** where third-party login is offered.
+10. **Guideline 4.8 — no privacy-focused login option** where third-party login is offered. Sign in with Apple is the usual fix.
 
 Practical handling: read the **Resolution Center** message carefully — it cites the guideline number; you can reply and argue with evidence, which genuinely works when the reviewer misunderstood the app. **Expedited review** exists for critical bugs and legal issues and should be used sparingly, since abusing it costs credibility. A rejection does not reset your review position for the next submission.
 
@@ -435,7 +439,7 @@ Apple reduces delivered size automatically with **app thinning**: **slicing** (p
 - **Expo managed vs bare.** Managed + EAS handles signing and needs no Mac. Bare gives full native control and requires you to own the Xcode project. **Prebuild/CNG** (Continuous Native Generation) regenerates the `ios/` directory from config, so hand edits are lost unless expressed as a **config plugin**.
 - **New Architecture.** Fabric and TurboModules are the default in recent React Native; verify each native dependency supports it before upgrading, since an unmaintained module is what blocks the migration.
 - **Hermes** is the default engine; keep the `.hbc` **source map** and upload it to your crash reporter or JS stack traces are unreadable.
-- **OTA (over-the-air) updates.** EAS Update (or CodePush) pushes a new JavaScript bundle straight to installed apps, so you can ship **JS-only** changes without review — legitimate and explicitly permitted, provided you do not change the app's purpose or add features that would need review. Anything touching native code still needs a full submission. Guideline 3.1.1 and 2.5.2 set the boundary: don't ship functionality the reviewer never saw.
+- **OTA (over-the-air) updates.** EAS Update pushes a new JavaScript bundle straight to installed apps, so you can ship **JS-only** changes without review — legitimate and explicitly permitted, provided you do not change the app's purpose or add features that would need review. Anything touching native code still needs a full submission. Guideline 2.5.2 and section 3.3.1(B) of the Apple Developer Program License Agreement (downloaded interpreted code must not change the app's primary purpose) set the boundary: don't ship functionality the reviewer never saw.
 - **Debug-only settings must not leak** — the ATS localhost exception (§12) and any dev menu.
 
 ---
@@ -452,7 +456,7 @@ Apple reduces delivered size automatically with **app thinning**: **slicing** (p
 [ ] App Privacy nutrition labels completed and truthful
 [ ] ATT prompt implemented if you track; IDFA not touched otherwise
 [ ] Account deletion available in-app (if accounts exist)
-[ ] Sign in with Apple offered (if third-party login exists)
+[ ] Privacy-focused login, e.g. Sign in with Apple (if third-party login exists)
 [ ] No NSAllowsArbitraryLoads in Release
 [ ] Screenshots for every required device size; icon 1024×1024 no alpha
 [ ] Demo account credentials in App Review Information
@@ -484,11 +488,11 @@ Four things must agree. A **certificate** proves who built the app, backed by a 
 
 **Q5: What are the most common App Store rejections and how do you avoid them?**
 
-Top of the list is **guideline 2.1, incomplete information** — no working demo account, or an OTP login the reviewer can't get through; always supply credentials and a bypass in App Review Information. Then **5.1.1**, purpose strings and data collection: "We need camera access" gets rejected, because the string must state the specific user benefit, and requesting permissions the app doesn't need or gating basic features behind registration also fails. **2.3 inaccurate metadata** — screenshots not matching the app, or mentioning Android. **4.3 spam** for near-duplicate or thin apps, **4.2 minimum functionality** for a wrapped website, and **3.1.1** for taking payment for digital goods outside IAP. Newer ones: **account deletion** must be in-app if you allow account creation, **Sign in with Apple** if you offer social login, and a **missing privacy manifest** auto-rejects. The process point: the Resolution Center message cites the guideline number, and you can reply with evidence — arguing works when the reviewer misunderstood the app.
+Top of the list is **guideline 2.1, incomplete information** — no working demo account, or an OTP login the reviewer can't get through; always supply credentials and a bypass in App Review Information. Then **5.1.1**, purpose strings and data collection: "We need camera access" gets rejected, because the string must state the specific user benefit, and requesting permissions the app doesn't need or gating basic features behind registration also fails. **2.3 inaccurate metadata** — screenshots not matching the app, or mentioning Android. **4.3 spam** for near-duplicate or thin apps, **4.2 minimum functionality** for a wrapped website, and **3.1.1** for taking payment for digital goods outside IAP. Newer ones: **account deletion** must be in-app if you allow account creation, an equivalent **privacy-focused login** such as Sign in with Apple if you offer social login (4.8), and a **missing privacy manifest** auto-rejects. The process point: the Resolution Center message cites the guideline number, and you can reply with evidence — arguing works when the reviewer misunderstood the app.
 
 **Q6: How do you handle a critical bug discovered after release? Can you roll back?**
 
-**There is no rollback on iOS** — you cannot revert users to a previous version, which is the sharpest operational difference from Android and from web. Your options: **remove the version from sale** to stop new installs and updates (existing users keep the broken build), **submit a fix with an expedited review request**, which Apple grants for genuinely critical issues, and — if the bug is in the JavaScript layer of a React Native app — **ship an OTA update** through EAS Update or CodePush, which needs no review and reaches users in minutes. That last one is why OTA capability is worth having before you need it. Preventatively: **phased release** ramps automatic updates over 7 days and can be **paused**, which limits blast radius, though pausing doesn't roll anyone back and users who update manually get the build immediately. And feature-flag risky changes server-side so you can disable them without shipping anything.
+**There is no rollback on iOS** — you cannot revert users to a previous version, which is the sharpest operational difference from Android and from web. Your options: **remove the version from sale** to stop new installs and updates (existing users keep the broken build), **submit a fix with an expedited review request**, which Apple grants for genuinely critical issues, and — if the bug is in the JavaScript layer of a React Native app — **ship an OTA update** through EAS Update (hosted CodePush was retired with App Center on 31 March 2025), which needs no review and reaches users in minutes. That last one is why OTA capability is worth having before you need it. Preventatively: **phased release** ramps automatic updates over 7 days and can be **paused**, which limits blast radius, though pausing doesn't roll anyone back and users who update manually get the build immediately. And feature-flag risky changes server-side so you can disable them without shipping anything.
 
 **Q7: Push notifications work in debug but not in TestFlight. What's happening?**
 
@@ -500,11 +504,11 @@ You host an **`apple-app-site-association`** file at `https://example.com/.well-
 
 **Q9: How does iOS deployment differ from Android, at a process level?**
 
-Three structural differences. **Review is mandatory on every update** — there is no equivalent of pushing to Play production without review — so your release cadence includes a 24–48 hour review, and you plan around it. **Code signing is far stricter**: Android needs one keystore, whereas iOS requires the certificate, App ID, entitlements and provisioning profile to agree, which is why `fastlane match` exists and why "it builds on my machine" is a common iOS-only failure. And **there's no rollback**, versus Play where you can halt a staged rollout and resume a previous release. In the other direction iOS is simpler: one store, one hardware family, no fragmentation across OEM skins, and phased release plus TestFlight are cleaner than their Android equivalents. Building also **requires macOS**, so CI needs Mac runners or a service like EAS or Xcode Cloud. Privacy paperwork is heavier on iOS — privacy manifests, nutrition labels and ATT — while Android's Data Safety form is the rough analogue.
+Three structural differences. **Review is mandatory on every update** — there is no equivalent of pushing to Play production without review — so your release cadence includes a 24–48 hour review, and you plan around it. **Code signing is far stricter**: Android needs one keystore, whereas iOS requires the certificate, App ID, entitlements and provisioning profile to agree, which is why `fastlane match` exists and why "it builds on my machine" is a common iOS-only failure. And **there's no rollback**, versus Play where halting a staged rollout makes the previous version available to new users again (users who already got the halted build keep it, and the real fix is a new release with a higher `versionCode`). In the other direction iOS is simpler: one store, one hardware family, no fragmentation across OEM skins, and phased release plus TestFlight are cleaner than their Android equivalents. Building also **requires macOS**, so CI needs Mac runners or a service like EAS or Xcode Cloud. Privacy paperwork is heavier on iOS — privacy manifests, nutrition labels and ATT — while Android's Data Safety form is the rough analogue.
 
 **Q10: Can you ship an update without App Review?**
 
-Partially, and knowing the boundary matters. **Over-the-air JavaScript updates** — EAS Update or CodePush — are explicitly permitted for React Native apps and reach users in minutes without review, which makes them the fastest fix path for a JS-layer bug. The limit is that you must not change the app's **purpose** or add functionality the reviewer never evaluated; guidelines 3.1.1 and 2.5.2 draw that line, and abusing it risks removal. Anything touching **native** code — a new dependency, an entitlement, a permission — requires a full submission. Separately, some App Store Connect fields update without review: **promotional text** is the notable one, so use it for time-sensitive messaging rather than editing the description. And server-side **feature flags** are the most under-used answer here: shipping a feature dark and enabling it remotely means the risky change needs no release at all.
+Partially, and knowing the boundary matters. **Over-the-air JavaScript updates** — EAS Update, for example — are explicitly permitted for React Native apps and reach users in minutes without review, which makes them the fastest fix path for a JS-layer bug. The limit is that you must not change the app's **purpose** or add functionality the reviewer never evaluated; guideline 2.5.2 and the interpreted-code clause of the Developer Program License Agreement (3.3.1(B)) draw that line, and abusing it risks removal. Anything touching **native** code — a new dependency, an entitlement, a permission — requires a full submission. Separately, some App Store Connect fields update without review: **promotional text** is the notable one, so use it for time-sensitive messaging rather than editing the description. And server-side **feature flags** are the most under-used answer here: shipping a feature dark and enabling it remotely means the risky change needs no release at all.
 
 ---
 
@@ -516,7 +520,7 @@ Partially, and knowing the boundary matters. **Over-the-air JavaScript updates**
 
 **Q2: You upload a build and App Store Connect immediately rejects it before any human sees it. Nothing changed in your code. What happened?**
 
-**An automated processing check failed — most likely the privacy manifest or a build-number collision.** Uploads pass through automated validation before review, and three things reject there. A **missing or invalid `PrivacyInfo.xcprivacy`**, including the case where your code is fine but a **third-party SDK shipped without a signed privacy manifest** — so a dependency update (or a new Apple enforcement date arriving) breaks a build whose own source is unchanged. A **build number that isn't higher** than a previous upload for that version. Or a **missing required screenshot size** after Apple added new hardware. The "nothing changed in our code" framing is the tell that it's an external requirement changing under you, which is why SDK currency is a release requirement rather than housekeeping. Read the email or the Activity tab — the message names the specific check.
+**An automated processing check failed — most likely the privacy manifest or a build-number collision.** Uploads pass through automated validation before review, and three things reject there (a missing screenshot size isn't one of them: screenshots aren't part of the build, so that blocks *submitting for review*, not uploading). A **missing or invalid `PrivacyInfo.xcprivacy`**, including the case where your code is fine but a **third-party SDK shipped without a signed privacy manifest** — so a dependency update (or a new Apple enforcement date arriving) breaks a build whose own source is unchanged. A **build number that isn't higher** than a previous upload for that version. Or a build made with an **Xcode/SDK older than Apple's current minimum** (Xcode 26 and the iOS 26 SDK since 28 April 2026) once an enforcement date passes. The "nothing changed in our code" framing is the tell that it's an external requirement changing under you, which is why SDK currency is a release requirement rather than housekeeping. Read the email or the Activity tab — the message names the specific check.
 
 **Q3: A universal link opens Safari instead of your app, but only for some users, and it used to work. Why?**
 
@@ -585,7 +589,7 @@ Partially, and knowing the boundary matters. **Over-the-air JavaScript updates**
 29. Nutrition labels must match reality **including SDK behaviour**.
 30. Tracking across companies (incl. IDFA) requires **ATT** consent.
 31. Account creation ⇒ **in-app account deletion** required.
-32. Third-party login ⇒ **Sign in with Apple** required.
+32. Third-party login ⇒ an equivalent **privacy-focused login** (4.8); Sign in with Apple is the usual one.
 
 **Networking**
 
@@ -595,7 +599,7 @@ Partially, and knowing the boundary matters. **Over-the-air JavaScript updates**
 **Assets**
 
 35. Icon 1024×1024, **no alpha, no rounded corners**.
-36. Screenshots: largest of each family; Apple scales down. First 3 show in search.
+36. Screenshots: the required sets (iPhone Dynamic Island medium display; iPad 13" if supported); Apple scales them to other sizes. First 3 show in search.
 37. **Promotional text** updates without review; description does not.
 
 **Release**

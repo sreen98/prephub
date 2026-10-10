@@ -58,7 +58,7 @@ export default function StepCanvas({ step }: { step: ExplanationStep }) {
   const hasVisual = VISUAL_KEYS.some((k) => Boolean(step[k]));
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-4 flex flex-col gap-4">
+    <div className="rounded-md border border-line bg-canvas p-4 flex flex-col gap-4">
       {VISUAL_RENDERERS.map(({ key, render }) => (
         <Fragment key={key}>{render(step)}</Fragment>
       ))}
@@ -73,8 +73,8 @@ export default function StepCanvas({ step }: { step: ExplanationStep }) {
 
       {/* Keeps the panel from looking broken when a step is narrative only. */}
       {!hasVisual && (
-        <div className="text-xs text-slate-500 dark:text-slate-500 italic flex items-center justify-center text-center min-h-[120px]">
-          No visual change this step — read the title and the highlighted pseudocode line.
+        <div className="text-xs text-muted italic flex items-center justify-center text-center min-h-[120px]">
+          No visual change in this step. Read the title and the highlighted pseudocode line.
         </div>
       )}
     </div>

@@ -29,7 +29,7 @@ export default function NotesPanel({ notes, onChange, open, onToggle }: NotesPan
         <textarea
           value={notes}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Scratchpad for thoughts on this challenge — approach, gotchas, time complexity ideas. Saved with your code."
+          placeholder="Notes on this challenge: approach, gotchas, complexity. Saved with your code."
           className="w-full h-32 px-4 py-2 bg-[#1e1e2e] text-slate-200 text-sm font-mono resize-none outline-none border-t border-[#2d333b]"
           spellCheck={false}
         />

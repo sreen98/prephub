@@ -34,7 +34,7 @@ This guide covers the platform behaviour and the React Native API surface. For w
 
 Roughly **16% of people** live with a significant disability (WHO), and on mobile the affected population is broader than screen-reader users: anyone using large text, anyone with a temporary injury, anyone in bright sunlight, anyone one-handed on a train.
 
-The legal picture matters commercially. The **European Accessibility Act** became enforceable in June 2025 and covers consumer mobile apps sold in the EU; **ADA Title II** obligations apply to US public entities and their apps; and both stores can reject or remove apps — Apple's guideline 2.5.1 and Google's accessibility policies. Unlike the web, **you cannot hot-patch a rejected app the same day**, which makes accessibility a release-blocking concern rather than a follow-up ticket.
+The legal picture matters commercially. The **European Accessibility Act** became enforceable in June 2025 and covers consumer mobile apps sold in the EU; **ADA Title II** obligations apply to US public entities and their apps. Store review is not the gate: Apple's App Review Guidelines have no general accessibility requirement (guideline 2.5.1, sometimes cited, is about using public APIs), so the legal exposure is what makes this commercial. Unlike the web, **you cannot hot-patch a shipped app the same day**, which makes accessibility a release-blocking concern rather than a follow-up ticket.
 
 The practical argument that lands in interviews: mobile accessibility APIs are **cheaper to satisfy than the web's**, because the platform gives you semantics if you use the real components. Most failures come from re-implementing a button as a `View` with an `onPress`.
 

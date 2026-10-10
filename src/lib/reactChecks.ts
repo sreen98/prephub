@@ -394,7 +394,7 @@ async function runOne(root: Element, check: ReactCheck, reset: () => Promise<voi
 export function describeCheckResults(results: CheckResult[]): string[] {
   const passed = results.filter((r) => r.passed).length;
   return [
-    `🧪 Behaviour checks: ${passed}/${results.length} passed`,
+    `Behaviour checks: ${passed}/${results.length} passed`,
     ...results.filter((r) => !r.passed).map((r) => `   ✗ ${r.label} (step ${r.failedStep}): ${r.message}`),
   ];
 }

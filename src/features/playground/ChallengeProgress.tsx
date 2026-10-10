@@ -73,7 +73,7 @@ export function CompleteToggle({ name, template, progress, onChange }: TogglePro
       aria-pressed={solved}
       title={
         solved
-          ? 'Completed — click to un-mark'
+          ? 'Completed. Click to unmark.'
           : autoDetected
             ? 'Mark as complete (also happens automatically when every test passes)'
             : isChallenge
@@ -81,7 +81,7 @@ export function CompleteToggle({ name, template, progress, onChange }: TogglePro
               : 'Mark as read'
       }
       className={
-        'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors '
+        'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors'
         + (solved
           ? 'border-emerald-700/60 bg-emerald-900/25 text-emerald-400 hover:bg-emerald-900/40'
           : 'border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white')

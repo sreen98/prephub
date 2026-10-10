@@ -17,21 +17,21 @@ import type {
 export function ComplexityRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between text-xs py-0.5">
-      <span className="text-slate-500">{label}</span>
-      <code className="font-mono text-slate-900 dark:text-slate-200 font-semibold">{value}</code>
+      <span className="text-muted">{label}</span>
+      <code className="font-mono text-ink font-semibold">{value}</code>
     </div>
   );
 }
 
 const POINTER_COLOR = {
-  red: 'text-red-500', amber: 'text-amber-500', emerald: 'text-emerald-500', indigo: 'text-indigo-500',
+  red: 'text-red-500', amber: 'text-amber-500', emerald: 'text-emerald-500', indigo: 'text-accent',
 } as const;
 
 export function ArrayView({ array }: { array: NonNullable<ExplanationStep['array']> }) {
   const pointers = array.pointers ?? [];
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Array</div>
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-2">Array</div>
       {/* Each pointer sits in its cell's own column, so on a narrow screen it
           wraps with the cell instead of drifting under a different one. */}
       <div className="flex gap-1.5 flex-wrap">
@@ -64,13 +64,13 @@ export function CellView({ index, cell }: { index: number; cell: ArrayCell }) {
       case 'compare': return 'border-blue-400 bg-blue-50 dark:bg-blue-950/30';
       case 'found': return 'border-emerald-500 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 shadow-md';
       case 'hit': return 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30';
-      case 'new': return 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30';
-      default: return 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900';
+      case 'new': return 'border-accent bg-accent-soft';
+      default: return 'border-line bg-surface';
     }
   })();
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-[10px] text-slate-400 font-mono">[{index}]</span>
+      <span className="text-[10px] text-muted font-mono">[{index}]</span>
       <div className={`w-12 h-12 rounded-lg ${baseRing} ${cls} flex items-center justify-center font-mono text-sm font-semibold transition-all`}>
         {cell.value}
       </div>
@@ -81,9 +81,9 @@ export function CellView({ index, cell }: { index: number; cell: ArrayCell }) {
 export function MapView({ snapshot }: { snapshot: NonNullable<ExplanationStep['map']> }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Hash Map</div>
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-2">Hash Map</div>
       {snapshot.entries.length === 0 ? (
-        <div className="px-3 py-2 rounded-md bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-400 italic">
+        <div className="px-3 py-2 rounded-md bg-surface border border-dashed border-line text-xs text-muted italic">
           {'{ }'} (empty)
         </div>
       ) : (
@@ -99,11 +99,11 @@ export function MapEntryView({ entry }: { entry: MapEntry }) {
   const cls = entry.highlight === 'hit'
     ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-200 shadow-md'
     : entry.highlight === 'new'
-    ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-200'
-    : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300';
+    ? 'border-accent bg-accent-soft text-accent'
+    : 'border-line bg-surface text-ink';
   return (
     <div className={`px-2.5 py-1.5 rounded-lg border-2 ${cls} transition-all`}>
-      <code className="font-mono text-xs">{entry.key} <span className="text-slate-400">→</span> {entry.value}</code>
+      <code className="font-mono text-xs">{entry.key} <span className="text-muted">→</span> {entry.value}</code>
     </div>
   );
 }
@@ -111,15 +111,15 @@ export function MapEntryView({ entry }: { entry: MapEntry }) {
 export function ComputationView({ c }: { c: NonNullable<ExplanationStep['computation']> }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1.5">{c.label}</div>
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-1.5">{c.label}</div>
       <div className="flex items-center gap-2 font-mono text-sm flex-wrap">
-        {c.lhs && <span className="px-2 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">{c.lhs}</span>}
-        {c.op && <span className="text-slate-500">{c.op}</span>}
-        {c.rhs && <span className="px-2 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">{c.rhs}</span>}
+        {c.lhs && <span className="px-2 py-1 rounded bg-surface border border-line">{c.lhs}</span>}
+        {c.op && <span className="text-muted">{c.op}</span>}
+        {c.rhs && <span className="px-2 py-1 rounded bg-surface border border-line">{c.rhs}</span>}
         {c.result && (
           <>
-            <span className="text-slate-500">=</span>
-            <span className="px-2 py-1 rounded bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-300 dark:border-indigo-800">{c.result}</span>
+            <span className="text-muted">=</span>
+            <span className="px-2 py-1 rounded bg-accent-soft text-accent font-semibold border border-accent/30">{c.result}</span>
           </>
         )}
       </div>
@@ -131,17 +131,17 @@ export function StackView({ snapshot }: { snapshot: StackSnapshot }) {
   const top = snapshot.items.length - 1;
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">
-        Stack {snapshot.action && <span className="ml-1 text-indigo-500">· {snapshot.action}</span>}
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-2">
+        Stack {snapshot.action && <span className="ml-1 text-accent">· {snapshot.action}</span>}
       </div>
       {snapshot.items.length === 0 ? (
-        <div className="px-3 py-2 rounded-md bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-400 italic">[ ] (empty)</div>
+        <div className="px-3 py-2 rounded-md bg-surface border border-dashed border-line text-xs text-muted italic">[ ] (empty)</div>
       ) : (
         <div className="flex flex-col-reverse gap-1 w-fit">
           {snapshot.items.map((cell, i) => (
             <div key={i} className="flex items-center gap-2">
               <CellView index={i} cell={cell} />
-              {i === top && <span className="text-[10px] text-indigo-500 font-bold">← top</span>}
+              {i === top && <span className="text-[10px] text-accent font-bold">← top</span>}
             </div>
           ))}
         </div>
@@ -153,17 +153,17 @@ export function StackView({ snapshot }: { snapshot: StackSnapshot }) {
 export function SetView({ snapshot }: { snapshot: SetSnapshot }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Set</div>
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-2">Set</div>
       {snapshot.items.length === 0 ? (
-        <div className="px-3 py-2 rounded-md bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-400 italic">{'{ }'} (empty)</div>
+        <div className="px-3 py-2 rounded-md bg-surface border border-dashed border-line text-xs text-muted italic">{'{ }'} (empty)</div>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {snapshot.items.map((it, i) => {
             const cls = it.highlight === 'hit'
               ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-200'
               : it.highlight === 'new'
-              ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-200'
-              : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300';
+              ? 'border-accent bg-accent-soft text-accent'
+              : 'border-line bg-surface text-ink';
             return (
               <div key={i} className={`px-2.5 py-1 rounded-full border-2 ${cls}`}>
                 <code className="font-mono text-xs">{it.value}</code>
@@ -181,7 +181,7 @@ export function DualArrayView({ snapshot }: { snapshot: DualArraySnapshot }) {
     <div className="flex flex-col gap-3">
       {[snapshot.left, snapshot.right].map((side, idx) => (
         <div key={idx}>
-          <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1.5">{side.label}</div>
+          <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-1.5">{side.label}</div>
           <div className="flex gap-1.5 flex-wrap">
             {side.cells.map((c, i) => <CellView key={i} index={i} cell={c} />)}
           </div>
@@ -189,7 +189,7 @@ export function DualArrayView({ snapshot }: { snapshot: DualArraySnapshot }) {
             <div className="flex gap-1.5 mt-1 flex-wrap">
               {side.cells.map((_, i) => (
                 <div key={i} className="w-12 flex justify-center">
-                  {i === side.pointer && <span className="text-[10px] font-bold text-indigo-500">↑</span>}
+                  {i === side.pointer && <span className="text-[10px] font-bold text-accent">↑</span>}
                 </div>
               ))}
             </div>
@@ -201,7 +201,7 @@ export function DualArrayView({ snapshot }: { snapshot: DualArraySnapshot }) {
           <div className="text-[10px] uppercase tracking-wider font-semibold text-emerald-600 dark:text-emerald-400 mb-1.5">{snapshot.result.label}</div>
           <div className="flex gap-1.5 flex-wrap">
             {snapshot.result.cells.length === 0 ? (
-              <div className="px-3 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-400 italic">[ ]</div>
+              <div className="px-3 py-1.5 rounded-md bg-surface border border-dashed border-line text-xs text-muted italic">[ ]</div>
             ) : snapshot.result.cells.map((c, i) => <CellView key={i} index={i} cell={c} />)}
           </div>
         </div>
@@ -213,14 +213,14 @@ export function DualArrayView({ snapshot }: { snapshot: DualArraySnapshot }) {
 export function CallStackView({ snapshot }: { snapshot: CallStackSnapshot }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Call Stack</div>
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-2">Call Stack</div>
       <div className="flex flex-col-reverse gap-1">
         {snapshot.frames.map((f, i) => {
           const cls = f.status === 'active'
-            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-200'
+            ? 'border-accent bg-accent-soft text-accent'
             : f.status === 'returned'
             ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
-            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400';
+            : 'border-line bg-surface text-muted';
           return (
             <div key={i} className={`px-3 py-1.5 rounded-md border-2 ${cls} font-mono text-xs flex items-center justify-between`}>
               <span>{f.call}</span>
@@ -236,21 +236,21 @@ export function CallStackView({ snapshot }: { snapshot: CallStackSnapshot }) {
 export function LinkedListView({ snapshot }: { snapshot: LinkedListSnapshot }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Linked List</div>
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-2">Linked List</div>
       {snapshot.nodes.length === 0 ? (
-        <div className="px-3 py-2 rounded-md bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-400 italic">null (empty)</div>
+        <div className="px-3 py-2 rounded-md bg-surface border border-dashed border-line text-xs text-muted italic">null (empty)</div>
       ) : (
         <div className="flex items-center gap-1.5 flex-wrap">
           {snapshot.nodes.map((n, i) => (
             <React.Fragment key={i}>
               <div className="flex flex-col items-center gap-0.5">
-                {n.label && <span className="text-[10px] font-bold text-indigo-500">{n.label}</span>}
+                {n.label && <span className="text-[10px] font-bold text-accent">{n.label}</span>}
                 <CellView index={i} cell={{ value: n.value, highlight: n.highlight }} />
               </div>
-              {i < snapshot.nodes.length - 1 && <span className="text-slate-400 font-mono">→</span>}
+              {i < snapshot.nodes.length - 1 && <span className="text-muted font-mono">→</span>}
             </React.Fragment>
           ))}
-          <span className="text-slate-400 font-mono">→ {snapshot.tail ?? 'null'}</span>
+          <span className="text-muted font-mono">→ {snapshot.tail ?? 'null'}</span>
         </div>
       )}
     </div>
@@ -261,11 +261,11 @@ export function TimelineView({ snapshot }: { snapshot: TimelineSnapshot }) {
   const maxT = Math.max(1, ...snapshot.events.map(e => e.t));
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-2">
-        Timeline {snapshot.windowMs && <span className="ml-1 text-indigo-500">· window {snapshot.windowMs}ms</span>}
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-muted mb-2">
+        Timeline {snapshot.windowMs && <span className="ml-1 text-accent">· window {snapshot.windowMs}ms</span>}
       </div>
-      <div className="relative h-14 bg-white dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800">
-        <div className="absolute inset-x-2 top-5 h-px bg-slate-300 dark:bg-slate-700" />
+      <div className="relative h-14 bg-surface rounded-md border border-line">
+        <div className="absolute inset-x-2 top-5 h-px bg-ink/15" />
         {/* Markers sit in an inset box so one at t=0 or t=max is not cut in half by the edge. */}
         <div className="absolute inset-y-0 left-10 right-10">
         {snapshot.events.map((e, i) => {
@@ -273,14 +273,14 @@ export function TimelineView({ snapshot }: { snapshot: TimelineSnapshot }) {
           const colorCls = e.kind === 'fire'
             ? 'bg-emerald-500 text-white'
             : e.kind === 'input'
-            ? 'bg-indigo-500 text-white'
+            ? 'bg-accent text-accent-contrast'
             : e.kind === 'skip'
-            ? 'bg-slate-300 dark:bg-slate-700 text-slate-500'
+            ? 'bg-ink/15 text-muted'
             : 'bg-amber-400 text-white';
           return (
             <div key={i} style={{ left: x }} className="absolute top-5 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center">
               <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${colorCls} whitespace-nowrap`}>{e.label}</span>
-              <span className="mt-0.5 text-[9px] font-mono text-slate-500 dark:text-slate-400">{e.t}ms</span>
+              <span className="mt-0.5 text-[9px] font-mono text-muted">{e.t}ms</span>
             </div>
           );
         })}
@@ -295,7 +295,7 @@ function LookupAt({ at }: { at?: string }) {
   if (at === undefined) return null;
   return /^\d+$/.test(at)
     ? <> (at index <code className="font-mono">{at}</code>)</>
-    : <> — {at}</>;
+    : <> ({at})</>;
 }
 
 export function LookupView({ outcome }: { outcome: NonNullable<ExplanationStep['lookupOutcome']> }) {
@@ -307,7 +307,7 @@ export function LookupView({ outcome }: { outcome: NonNullable<ExplanationStep['
     );
   }
   return (
-    <div className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 font-medium">
+    <div className="px-3 py-2 rounded-lg bg-ink/5 border border-line text-xs text-muted font-medium">
       ✕ <code className="font-mono mx-1">{outcome.key}</code> is not in the map<LookupAt at={outcome.at} />
     </div>
   );

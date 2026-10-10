@@ -65,7 +65,7 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[120] bg-black/70 flex items-center justify-center p-4"
           onClick={onClose}
         >
           <motion.div
@@ -74,27 +74,27 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
             exit={{ scale: 0.96, opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={e => e.stopPropagation()}
-            className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden"
+            className="w-full max-w-4xl max-h-[90vh] bg-surface dark:bg-[#0f1117] rounded-lg shadow-2xl border border-line flex flex-col overflow-hidden"
           >
-            <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+            <div className="flex items-start justify-between px-6 py-4 border-b border-line shrink-0">
               <div>
                 <h2 className="text-xl font-bold">{explanation.problem}</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">How to build it, in order</p>
+                <p className="text-xs text-muted mt-1">How to build it, in order</p>
               </div>
-              <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0" aria-label="Close explanation">
+              <button onClick={onClose} className="p-2 rounded-lg text-muted hover:bg-ink/5 transition-colors shrink-0" aria-label="Close explanation">
                 <X size={18} />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-5">
-              <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/40 mb-5">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1.5">
+              <div className="p-4 rounded-md bg-accent-soft border border-accent/30 mb-5">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-accent mb-1.5">
                   <ClipboardList size={13} /> The brief
                 </div>
-                <RichText text={explanation.problemStatement} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed" />
+                <RichText text={explanation.problemStatement} className="text-sm text-ink leading-relaxed" />
               </div>
 
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-2">
                 Build it in this order
               </div>
               <div className="flex flex-wrap gap-1.5 mb-4">
@@ -107,8 +107,8 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
                     className={
                       'w-8 h-8 rounded-lg text-xs font-bold transition-colors '
                       + (i === stepIdx
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700')
+                        ? 'bg-accent text-accent-contrast'
+                        : 'bg-ink/5 text-muted hover:bg-ink/10')
                     }
                   >
                     {i + 1}
@@ -116,16 +116,16 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
                 ))}
               </div>
 
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    <span className="text-indigo-600 dark:text-indigo-400">{stepIdx + 1}.</span> <InlineText text={step.title} />
+              <div className="rounded-md border border-line overflow-hidden">
+                <div className="px-4 py-3 bg-canvas border-b border-line">
+                  <h3 className="text-sm font-semibold text-ink">
+                    <span className="text-accent">{stepIdx + 1}.</span> <InlineText text={step.title} />
                   </h3>
                 </div>
 
                 {excerpt && (
                   <div>
-                    <div className="px-4 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <div className="px-4 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted">
                       From this template
                     </div>
                     <pre className="text-[12.5px] leading-relaxed p-4 overflow-x-auto bg-[#22272e] text-slate-200 hljs">
@@ -135,7 +135,7 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
                 )}
 
                 <div className="p-4 space-y-3">
-                  <RichText text={step.detail} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed" />
+                  <RichText text={step.detail} className="text-sm text-ink leading-relaxed" />
                   {step.pitfall && (
                     <div className="flex gap-2.5 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-900/40">
                       <AlertTriangle size={15} className="text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
@@ -146,36 +146,36 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
               </div>
 
               <div className="mt-6">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted mb-2">
                   <CheckCircle2 size={13} /> What an interviewer is grading
                 </div>
                 <ul className="space-y-2.5">
                   {explanation.graded.map(g => (
-                    <li key={g.point} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                      <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100"><InlineText text={g.point} /></div>
-                      <RichText text={g.why} className="text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed mt-0.5" />
+                    <li key={g.point} className="p-3 rounded-lg bg-canvas border border-line">
+                      <div className="text-[13px] font-semibold text-ink"><InlineText text={g.point} /></div>
+                      <RichText text={g.why} className="text-[13px] text-muted leading-relaxed mt-0.5" />
                     </li>
                   ))}
                 </ul>
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 dark:border-slate-800 shrink-0 bg-slate-50 dark:bg-[#0b0d12]">
-              <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+            <div className="flex items-center justify-between px-6 py-3 border-t border-line shrink-0 bg-canvas dark:bg-[#0b0d12]">
+              <span className="text-xs text-muted tabular-nums">
                 Step {stepIdx + 1} of {total}
               </span>
               <div className="flex gap-2">
                 <button
                   onClick={prev}
                   disabled={stepIdx === 0}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-surface border border-line text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-ink/5 transition-colors"
                 >
                   <ChevronLeft size={15} /> Back
                 </button>
                 <button
                   onClick={next}
                   disabled={stepIdx === total - 1}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-500 transition-colors"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-accent text-accent-contrast disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent-strong transition-colors"
                 >
                   Next <ChevronRight size={15} />
                 </button>

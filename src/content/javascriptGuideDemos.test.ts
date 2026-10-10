@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readSeries } from './guideSeries';
 import { inspect } from 'node:util';
 
 /** Run the four repaired demo blocks and check they print what they claim. */
 describe('repaired JavaScript guide demos actually print', () => {
-  const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8').replace(/\r\n/g, '\n');
+  const md = readSeries('javascript');
   const run = (snippet: string) => {
     const logs: string[] = [];
     /* eslint-disable @typescript-eslint/no-implied-eval -- executing the guide's
@@ -143,11 +143,11 @@ describe('repaired JavaScript guide demos actually print', () => {
 });
 
 /**
- * Interview Q41–Q45: each runnable block is followed by a `text` block giving
+ * Interview Q41–Q46: each runnable block is followed by a `text` block giving
  * its output. Run the block and compare, so no output is written by hand.
  */
-describe('JavaScript guide interview Q41–Q45 print their Output blocks', () => {
-  const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8').replace(/\r\n/g, '\n');
+describe('JavaScript guide interview Q41–Q46 print their Output blocks', () => {
+  const md = readSeries('javascript');
   const fmt = (a: unknown[]) => a.map(v => typeof v === 'string' ? v : inspect(v)).join(' ');
 
   /** Every js block in [from, to) paired with the text block right after it. */
@@ -177,7 +177,8 @@ describe('JavaScript guide interview Q41–Q45 print their Output blocks', () =>
     ['Q42', '**Q42:', '**Q43:', 2],
     ['Q43', '**Q43:', '**Q44:', 1],
     ['Q44', '**Q44:', '**Q45:', 1],
-    ['Q45', '**Q45:', '## 16. Tricky Output Questions', 6],
+    ['Q45', '**Q45:', '**Q46:', 6],
+    ['Q46', '**Q46:', '## 16. Tricky Output Questions', 3],
   ] as const)('%s', async (_label, from, to, count) => {
     const blocks = pairs(from, to);
     expect(blocks).toHaveLength(count);

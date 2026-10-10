@@ -38,7 +38,7 @@
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;         /* 3 columns */
   grid-template-columns: repeat(3, 1fr);       /* 3 equal */
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* responsive */
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); /* responsive, no overflow on narrow screens */
   grid-template-rows: auto 1fr auto;
   gap: 16px;
 }
@@ -71,7 +71,7 @@
 
 | Pattern | CSS |
 |---------|-----|
-| Auto-fit cards | `grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))` |
+| Auto-fit cards | `grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr))` |
 | Holy grail layout | Use `grid-template-areas` |
 | Masonry-like | `grid-template-columns: repeat(3, 1fr)` + varying `grid-row: span N` |
 | Full-bleed | `grid-template-columns: 1fr min(65ch, 100%) 1fr` |
@@ -119,7 +119,7 @@ flex: 0 0 250px;/* fixed 250px sidebar */
 ## auto-fit vs auto-fill
 ```css
 repeat(auto-fit,  minmax(200px, 1fr))   /* empty tracks COLLAPSE → items stretch */
-repeat(auto-fill, minmax(200px, 1fr))   /* empty tracks are KEPT → items stay 200px */
+repeat(auto-fill, minmax(200px, 1fr))   /* empty tracks are KEPT → items don't stretch into the gap (each is still track-width: ≥200px, under 2×) */
 ```
 
 ## Subgrid

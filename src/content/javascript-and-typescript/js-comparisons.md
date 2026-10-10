@@ -103,7 +103,7 @@ Four combinators for coordinating multiple promises. Each one answers a differen
 
 **`allSettled` is what you want for "gather all outcomes"**: returns an array of `{ status: 'fulfilled', value }` or `{ status: 'rejected', reason }`. Perfect for dashboards that load from multiple sources and want to show what succeeded while marking what failed.
 
-**`race` vs `any`**: `race` cares about *settlement* (fulfill or reject); `any` cares about *fulfillment only*. Classic use case for `race`: `Promise.race([fetch(url), delay(5000).then(() => throw)])` for a timeout. Classic `any` use case: try three mirror servers, take whichever responds first successfully.
+**`race` vs `any`**: `race` cares about *settlement* (fulfill or reject); `any` cares about *fulfillment only*. Classic use case for `race`: `Promise.race([fetch(url), delay(5000).then(() => { throw new Error('timeout'); })])` for a timeout. Classic `any` use case: try three mirror servers, take whichever responds first successfully.
 
 ---
 

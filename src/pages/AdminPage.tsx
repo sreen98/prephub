@@ -75,11 +75,11 @@ export default function AdminPage() {
       <div className="flex items-center justify-center min-h-[80vh] px-6">
         <div className="w-full max-w-sm">
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 mb-4">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-lg bg-accent-soft text-accent mb-4">
               <Lock size={26} />
             </div>
             <h1 className="text-xl font-bold mb-1">Admin Area</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-muted">
               Enter the passphrase to view this section.
             </p>
           </div>
@@ -87,7 +87,7 @@ export default function AdminPage() {
             <div className="relative">
               <KeyRound
                 size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
               />
               <input
                 ref={inputRef}
@@ -97,7 +97,7 @@ export default function AdminPage() {
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setError(''); }}
                 placeholder="Passphrase"
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-indigo-400 dark:focus:border-indigo-600 transition-colors text-base"
+                className="w-full pl-10 pr-4 py-3 rounded-md border border-line bg-surface text-ink outline-none focus:border-accent transition-colors text-base"
               />
             </div>
             {error && (
@@ -106,7 +106,7 @@ export default function AdminPage() {
             <button
               type="submit"
               disabled={checking}
-              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors"
+              className="w-full py-3 rounded-md bg-accent hover:bg-accent-strong disabled:opacity-60 text-accent-contrast text-sm font-semibold transition-colors"
             >
               {checking ? 'Unlocking…' : 'Unlock'}
             </button>
@@ -118,17 +118,17 @@ export default function AdminPage() {
 
   return (
     <div className="px-6 py-12 md:px-12 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-line">
         <div className="flex items-center gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-medium">
             <Lock size={11} />
             Admin
           </span>
-          <span className="text-slate-500 dark:text-slate-400">Personal interview prep</span>
+          <span className="text-muted">Personal interview prep</span>
         </div>
         <button
           onClick={lock}
-          className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink transition-colors"
           title="Lock and clear the document from memory"
         >
           <LogOut size={13} />

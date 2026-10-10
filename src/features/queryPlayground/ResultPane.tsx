@@ -26,7 +26,7 @@ export default function ResultPane({
   if (engineLoading) {
     return (
       <div className="p-4 flex items-start gap-3 text-sm text-slate-300">
-        <Download size={16} className="mt-0.5 shrink-0 animate-pulse text-indigo-400" />
+        <Download size={16} className="mt-0.5 shrink-0 animate-pulse text-teal-300" />
         <div>
           <p className="font-medium">Downloading PostgreSQL…</p>
           <p className="text-slate-500 text-[13px] mt-1">

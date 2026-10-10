@@ -2,12 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%236366f1'/><stop offset='100%25' stop-color='%23a855f7'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><path d='M9 10h5M9 16h9M9 22h7' stroke='white' stroke-width='2.5' stroke-linecap='round'/></svg>" type="image/svg+xml" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f46e5'/><path d='M9 10h5M9 16h9M9 22h7' stroke='white' stroke-width='2.5' stroke-linecap='round'/></svg>" type="image/svg+xml" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Free interview preparation guides for full-stack developers — React, Node.js, TypeScript, System Design, AWS, Git, DSA & more. Interactive quizzes, code playground, and spaced repetition." />
+    <meta name="description" content="Free interview preparation guides for full-stack developers: React, Node.js, TypeScript, System Design, AWS, Git, DSA & more. Interactive quizzes, code playground, and spaced repetition." />
     <meta name="keywords" content="interview prep, frontend interview, backend interview, system design, react interview questions, javascript interview, typescript, node.js, aws, dsa, coding interview, full stack developer" />
     <meta name="author" content="PrepHub" />
-    <meta name="theme-color" content="#6366f1" />
+    <meta name="theme-color" content="#4f46e5" />
     <link rel="canonical" href="https://prephub.sreenathp.com/" />
     <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
     <link rel="dns-prefetch" href="https://www.google-analytics.com" />
@@ -15,8 +15,8 @@
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://prephub.sreenathp.com/" />
-    <meta property="og:title" content="PrepHub — Free Full-Stack Interview Prep Guides" />
-    <meta property="og:description" content="Free interview preparation guides for full-stack developers — React, Node.js, TypeScript, System Design, AWS, Git, DSA & more. Interactive quizzes, code playground, and spaced repetition." />
+    <meta property="og:title" content="PrepHub: Free Full-Stack Interview Prep Guides" />
+    <meta property="og:description" content="Free interview preparation guides for full-stack developers: React, Node.js, TypeScript, System Design, AWS, Git, DSA & more. Interactive quizzes, code playground, and spaced repetition." />
     <meta property="og:image" content="https://prephub.sreenathp.com/og-image.png" />
     <meta property="og:site_name" content="PrepHub" />
     <meta property="og:locale" content="en_US" />
@@ -24,8 +24,8 @@
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://prephub.sreenathp.com/" />
-    <meta name="twitter:title" content="PrepHub — Free Full-Stack Interview Prep Guides" />
-    <meta name="twitter:description" content="Free interview preparation guides for full-stack developers — React, Node.js, TypeScript, System Design, AWS, Git, DSA & more." />
+    <meta name="twitter:title" content="PrepHub: Free Full-Stack Interview Prep Guides" />
+    <meta name="twitter:description" content="Free interview preparation guides for full-stack developers: React, Node.js, TypeScript, System Design, AWS, Git, DSA & more." />
     <meta name="twitter:image" content="https://prephub.sreenathp.com/og-image.png" />
 
     <!-- Structured Data -->
@@ -64,13 +64,10 @@
     </script>
 
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <title>PrepHub — Interview Prep</title>
+    <title>PrepHub: Interview Prep</title>
       <!--
       Theme must be resolved BEFORE first paint. `body` is styled
-      `bg-slate-50 dark:bg-[#0a0a0f]`, and the `dark` class was only added by
+      `bg-canvas` (#0f1220 in dark mode), and the `dark` class was only added by
       useDarkMode's effect — which runs after the main bundle downloads, parses
       and mounts React. On a slow connection that left a white page for several
       seconds before flipping to dark. This is the same blocking-script fix the
@@ -90,7 +87,7 @@
           if (dark) {
             document.documentElement.classList.add('dark');
             // Paint the right colour even before the CSS bundle arrives.
-            document.documentElement.style.backgroundColor = '#0a0a0f';
+            document.documentElement.style.backgroundColor = '#0f1220';
           }
         } catch (e) { /* localStorage unavailable — fall through to light */ }
       })();

@@ -132,7 +132,7 @@ function shippingCostOpen(order) {
 
 **Where it leads:** **Strategy** (swap the algorithm), **Factory Method** (swap what gets constructed), **Decorator** (add behaviour without touching the original), **Chain of Responsibility** (add a handler to the chain). In JavaScript a plain object map, as above, is often the whole pattern — you rarely need a class hierarchy to get the benefit.
 
-**The honest caveat:** you cannot be open to *every* axis of change. Guessing wrong produces indirection that buys nothing. Wait until a second case arrives, then generalise along the axis that actually varied.
+**The honest caveat:** you cannot be open to *every* axis of change. Guessing wrong produces indirection that buys nothing. Wait until real cases arrive: a second case is the earliest point you can see which axis varies, and the "rule of three" (generalise on the third) is the safer default (§7). Then generalise along the axis that actually varied.
 
 ---
 
@@ -419,7 +419,7 @@ const processor: PaymentProcessor = new StripeAdapter(new StripeAPI());
 
 **Intent:** Decouple an abstraction from its implementation so they can vary independently. Splits a class hierarchy into two: one for the abstraction, one for the implementation.
 
-**Use when:** You have two orthogonal axes of variation — e.g., shapes (Circle, Square) crossed with rendering backends (Canvas, SVG, WebGL). Without Bridge, you'd need 6 classes; with Bridge, 3 + 3.
+**Use when:** You have two orthogonal axes of variation — e.g., shapes (Circle, Square) crossed with rendering backends (Canvas, SVG, WebGL). Without Bridge, you'd need 6 classes (2 × 3); with Bridge, 2 + 3.
 
 ```ts
 // Implementation hierarchy
@@ -511,7 +511,7 @@ class CompressedDataSource implements DataSource {
 const src = new EncryptedDataSource(new CompressedDataSource(new FileDataSource()));
 ```
 
-**Real-world examples:** TypeScript decorators (`@Component`, `@Inject`). Express/Koa middleware (each adds behavior to the request). React's HOCs (`withAuth(Component)` is a decorator). Python's `@functools.lru_cache`.
+**Real-world examples:** TypeScript decorators (`@Component`, `@Inject`). React's HOCs (`withAuth(Component)` is a decorator). Python's `@functools.lru_cache`.
 
 ### 4.5 Facade
 
@@ -543,7 +543,7 @@ class VideoConverter {
 const out = new VideoConverter().convert('input.mp4', 'avi');
 ```
 
-**Real-world examples:** `fetch` is a Facade over `XMLHttpRequest` (and the lower-level network stack). `console.log` hides terminal/devtools complexity. jQuery was famously a Facade over the inconsistent DOM APIs of its era.
+**Real-world examples:** An `apiClient` module that wraps `fetch` with auth headers, retries and JSON parsing behind `api.get('/users')`. `console.log` hides terminal/devtools complexity. jQuery was famously a Facade over the inconsistent DOM APIs of its era.
 
 ### 4.6 Flyweight
 
@@ -804,7 +804,7 @@ class Order {
 }
 ```
 
-**Real-world examples:** Workflow engines, order/payment state machines, game character states (idle/walking/running/attacking). XState library is State + Strategy made into a framework. React's reducers are a flat State pattern.
+**Real-world examples:** Workflow engines, order/payment state machines, game character states (idle/walking/running/attacking). XState library is State + Strategy made into a framework. (React's reducers are not the State pattern: actions are Commands handled by one function, see the Reducer Pattern below.)
 
 **State vs Strategy.** Mechanically identical (delegate to a swappable object). Different *intent*: Strategy chooses the algorithm at construction; State changes the behavior over time as conditions evolve.
 
@@ -1114,7 +1114,7 @@ Patterns become anti-patterns when applied wrong:
 - Composite + Visitor = AST traversal (Babel, ESLint)
 - Strategy + Factory = "give me the strategy object for this configuration"
 - Mediator + Observer = Redux (store mediates; components observe)
-- Decorator stack = Express middleware chain
+- Chain of Responsibility = Express middleware chain (each handler responds, calls `next()`, or stops the chain)
 
 ---
 

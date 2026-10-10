@@ -78,7 +78,7 @@ export default function MermaidBlock({ chart }: MermaidBlockProps) {
     return (
       <div className="mermaid-container">
         <div ref={containerRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }} />
-        <div className="text-slate-500 dark:text-slate-400 text-sm">Loading diagram...</div>
+        <div className="text-muted text-sm">Loading diagram...</div>
       </div>
     );
   }

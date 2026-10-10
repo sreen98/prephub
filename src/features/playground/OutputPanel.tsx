@@ -31,7 +31,7 @@ function OutputPanelImpl({ output, hasPreview, previewRef }: OutputPanelProps) {
               Click "Run" or press ⌘+Enter to execute your code...
             </div>
           ) : output.length === 0 ? (
-            <div className="text-slate-600 italic text-xs">No console output yet — logs will appear here.</div>
+            <div className="text-slate-600 italic text-xs">No console output yet. Logs appear here when you run your code.</div>
           ) : (
             output.map((entry, i) => (
               <OutputRow key={i} entry={entry} />

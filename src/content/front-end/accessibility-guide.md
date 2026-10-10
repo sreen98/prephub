@@ -62,7 +62,7 @@ WCAG organises everything under four principles, and knowing them lets you reaso
 | **Understandable** | Content and operation are comprehensible | unlabelled inputs, unclear errors, inconsistent navigation |
 | **Robust** | Works with current and future assistive tech | invalid ARIA, custom widgets with no roles, state not exposed |
 
-The hierarchy is **Principles (4) → Guidelines (13) → Success Criteria (87 in WCAG 2.2)**, each criterion at Level A, AA or AAA. A, AA and AAA are *not* difficulty tiers — they reflect how broadly applicable and how testable the requirement is. Some AAA criteria are genuinely impossible for certain content, which is exactly why the legal target is AA.
+The hierarchy is **Principles (4) → Guidelines (13) → Success Criteria (86 in WCAG 2.2)**, each criterion at Level A, AA or AAA. A, AA and AAA are *not* difficulty tiers — they reflect how broadly applicable and how testable the requirement is. Some AAA criteria are genuinely impossible for certain content, which is exactly why the legal target is AA.
 
 The criterion numbers worth actually remembering, because they come up by number in audits:
 
@@ -147,7 +147,7 @@ What you get from `<button>` and lose from `div`: focusability, Enter and Space 
 
 Landmarks (`header`, `nav`, `main`, `aside`, `footer`, `search`, `form` with a name) let screen-reader users jump directly between regions — this is *the* primary navigation mechanism, more used than reading linearly. Give repeated landmarks an accessible name (`aria-label`) so "Main navigation" and "Footer navigation" are distinguishable.
 
-**Headings are a navigation structure, not a font-size picker.** Screen-reader users pull up a heading list and navigate by it. So: one `<h1>`, never skip levels going down (`h2` → `h4` is a failure of 1.3.1), and style with CSS rather than choosing a level for its size.
+**Headings are a navigation structure, not a font-size picker.** Screen-reader users pull up a heading list and navigate by it. So: one `<h1>`, never skip levels going down (`h2` → `h4` is not a WCAG failure on its own, but it confuses screen-reader users navigating by heading, so avoid it), and style with CSS rather than choosing a level for its size.
 
 **The skip link** is required in practice (2.4.1 Bypass Blocks) and is usually implemented wrong. It must be the first focusable element, visually hidden until focused, and visible when focused:
 
@@ -203,7 +203,7 @@ ARIA adds semantics to markup that doesn't have them. It changes **only what ass
 
 ### 5.1 Naming: The Priority Order
 
-The accessible name is computed from the first of these that exists:
+The accessible name is computed from the first of these that produces a name:
 
 ```
 aria-labelledby  →  aria-label  →  native label (<label>, alt, title on some)  →  text content  →  title
@@ -248,7 +248,7 @@ The label is *what it is*; the description is *extra detail*. Screen readers ann
 
 - **Adding roles that duplicate native semantics** — `<button role="button">`, `<nav role="navigation">`. Harmless but signals cargo-culting.
 - **`aria-label` on a div with no role** — silently does nothing.
-- **`aria-labelledby` pointing at a non-existent or duplicated ID** — silently produces no name. This is why duplicate IDs are still bugs even though 4.1.1 was removed.
+- **`aria-labelledby` pointing at a non-existent or duplicated ID** — a missing ID is ignored and the name silently falls through to `aria-label` or the text, which hides the bug; a duplicated ID resolves to the *first* match in the document, which silently gives the wrong name. This is why duplicate IDs are still bugs even though 4.1.1 was removed.
 - **Roles without their required states** — `role="checkbox"` with no `aria-checked`, `role="tab"` with no `aria-selected`. An incomplete role is worse than no role.
 - **`aria-hidden` on a focusable element** — creates the invisible-but-reachable state.
 - **Overriding visible text with `aria-label`** — breaks voice control and fails 2.5.3.
@@ -873,28 +873,30 @@ And if asked about **WCAG 3.0**: it's a working draft with a different outcome-a
 
 ---
 
-**Q1: The audit says this button has no accessible name. It clearly has text. Why?**
+**Q1: The audit says this button's accessible name is wrong. It clearly says "Save". Why?**
 
 ```html
+<div id="tooltip-9" role="tooltip">Delete draft</div>
+
 <button aria-labelledby="tooltip-9">
   <svg aria-hidden="true">…</svg>
   Save
 </button>
 ```
 
-**Answer:** `aria-labelledby` wins over everything, and it points at an ID that doesn't exist (or was removed) — so the name computation returns empty rather than falling through to the text content.
+**Answer:** `aria-labelledby` wins over everything, and it points at an element that exists but holds the wrong text. The button's name is "Delete draft", and the visible text "Save" is never consulted.
 
 **Explanation:**
 
-The accessible name is computed from the **first** available source in a strict priority order:
+The accessible name is computed from the **first** source in this order that produces a name:
 
 ```
 aria-labelledby  →  aria-label  →  native label (<label>, alt)  →  text content  →  title
 ```
 
-The critical property is that this is a **priority list, not a fallback chain**. Once `aria-labelledby` is present, the algorithm uses it and **does not** continue down the list if it produces nothing. A dangling ID reference gives you an empty name, and the visible text "Save" is never consulted.
+The critical property is what counts as "produces a name". Under AccName 1.2 (the W3C accessible-name algorithm), an `aria-labelledby` whose IDs point at nothing, or only at empty elements, is skipped, and the computation falls through to `aria-label` and then the text content. So a dangling ID on its own would still give "Save", and the bug stays hidden. But once an ID resolves to an element with text, that text **is** the name, and nothing further down the list is consulted. The dangerous case is a reference to the *wrong* element, not to a missing one.
 
-This is a very common real bug, and it usually arrives one of three ways: a tooltip component that renders its label element conditionally, so the ID exists only while the tooltip is open; a component that generates IDs per render without `useId`, so the reference goes stale after re-render; or a copy-paste that kept the attribute but not the target.
+This is a very common real bug, and it usually arrives one of three ways: a shared tooltip element whose text changes to match whichever control was last hovered; a component that hard-codes or generates IDs without `useId`, so two instances share an ID and the reference resolves to the other one's text; or a copy-paste that kept the attribute pointing at another control's label.
 
 It's also why **duplicate IDs are still bugs** even though WCAG 2.2 removed 4.1.1 Parsing — `aria-labelledby` resolves to the *first* match, so a duplicate can silently point at the wrong element.
 
@@ -914,7 +916,7 @@ The related version of the same trap, which is arguably worse because nothing lo
 
 Debug all of this in Chrome DevTools' **Accessibility** pane, which shows the computed name and which source produced it. That pane is the single most useful accessibility debugging tool, because it shows what the user actually receives rather than what you intended.
 
-**Takeaway:** the accessible-name computation is a strict priority order, not a fallback chain — a present-but-broken `aria-labelledby` yields an empty name, and a working `aria-label` silently overrides visible text, breaking voice control and 2.5.3.
+**Takeaway:** the accessible name comes from the first source that produces one — a dangling `aria-labelledby` falls through to the text, but one that points at the wrong element silently wins with the wrong name, and a working `aria-label` silently overrides visible text, breaking voice control and 2.5.3.
 
 ---
 
@@ -1101,7 +1103,7 @@ LEGAL & STANDARDS
     ADA Title II has explicit WCAG 2.1 AA deadlines. EN 301 549 v4.1.1 → WCAG 2.2.
  3. Overlay widgets don't work — legally or technically. They increase exposure.
  4. WCAG 3.0 is a draft with a different model. Years from being a legal reference.
- 5. Structure: 4 principles (POUR) → 13 guidelines → 87 success criteria (2.2).
+ 5. Structure: 4 principles (POUR) → 13 guidelines → 86 success criteria (2.2).
 
 WCAG 2.2 NEW (9 added, 4.1.1 Parsing removed)
  6. 2.5.8 Target Size (AA) = 24×24 CSS px. (2.5.5 AAA is the 44×44 figure.)
@@ -1126,9 +1128,10 @@ SEMANTIC HTML
     <fieldset>/<legend>, <table>/<caption>/<th scope>, <progress>, <datalist>.
 
 ARIA
-19. Name priority (a PRIORITY ORDER, not a fallback chain):
+19. Name priority (the first source that produces a name wins):
     aria-labelledby → aria-label → native label → text content → title.
-20. A broken aria-labelledby ID = EMPTY name. It does not fall through to text.
+20. aria-labelledby pointing at a MISSING id is skipped (falls through to text);
+    pointing at the WRONG element gives the wrong name, and text is never used.
 21. aria-label OVERRIDES visible text → breaks voice control, fails 2.5.3 Label in Name.
     Extend with .sr-only text instead of replacing.
 22. aria-label on a div with no role usually does NOTHING.
@@ -1182,7 +1185,7 @@ COLOUR & VISUAL
 50. Never encode meaning in colour alone (1.4.1) — ~1 in 12 men has a CVD.
 51. 200% text zoom (1.4.4), reflow at 320px / 400% zoom (1.4.10),
     survive user text spacing (1.4.12).
-52. prefers-reduced-motion: remove MOVEMENT, keep opacity fades. WCAG 2.3.3.
+52. prefers-reduced-motion: remove MOVEMENT, keep opacity fades. WCAG 2.3.3 (AAA).
 
 REACT
 53. useId for label/describedby association — SSR-safe, no collisions.

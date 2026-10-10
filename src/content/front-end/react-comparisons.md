@@ -41,7 +41,8 @@ Both manage state, but they model updates differently. `useState` holds a value 
 | **Complex transitions** | Awkward — multiple `setState` calls | Clean — single dispatch triggers coordinated update |
 | **Debugging** | Harder to trace updates | Easy — log dispatched actions |
 | **Testing** | Test the component | Reducer is pure function — test independently |
-| **Performance** | Re-renders on every set call | Can batch related state updates naturally |
+| **Performance** | Same: since React 18 all updates are batched automatically | Same: batched like `useState`; one `dispatch` is no cheaper than several setters |
+| **Passing updates down** | Pass each setter (or a callback) | Pass one `dispatch`, whose identity is stable |
 | **TypeScript experience** | Simpler types | Better type safety for actions and state shape |
 
 **Why `useReducer` shines for complex logic**: when multiple fields update together (e.g., a form that sets `isLoading: true`, clears `error`, and stores a pending request), `useState` forces three separate setter calls and three closures. `useReducer` expresses the whole transition as a single action, which reads like a single event: `dispatch({ type: 'submit' })` triggers one reducer branch that updates all fields at once. Actions also become a log of user intent — much easier to reason about than a trail of setter calls.
@@ -67,7 +68,7 @@ Both are memoization hooks, and both exist purely for **referential stability** 
 
 **Why they exist**: every render creates new object and function references. `{ color: 'red' }` and `() => handleClick(id)` are structurally identical between renders but referentially different. `React.memo`, `useEffect`, and React's built-in comparisons all use `Object.is` (reference equality), so a new reference always looks like a change. Memoization pins the reference in place until the dependencies change.
 
-**Why over-memoizing is worse than under-memoizing**: each `useMemo`/`useCallback` has overhead — React still runs the hook, compares deps, and stores the value. If the memoized computation is cheap and the result isn't passed to a memoized child, the hook costs more than it saves. React 19's compiler automates this via static analysis, which is why the React team recommends writing plain code and letting the compiler decide.
+**Why over-memoizing is worse than under-memoizing**: each `useMemo`/`useCallback` has overhead — React still runs the hook, compares deps, and stores the value. If the memoized computation is cheap and the result isn't passed to a memoized child, the hook costs more than it saves. The React Compiler (a separate build-time tool, not part of React 19 itself; it supports React 17 and later) automates this via static analysis, which is why the React team recommends writing plain code and letting the compiler decide.
 
 **When to use which**: Use `useMemo` to cache expensive derived values (sort, filter, aggregate) *and* to stabilize object/array references passed to memoized children. Use `useCallback` specifically for function references passed to memoized children or declared as effect deps. Don't memoize everything — profile first, or rely on the React Compiler.
 
@@ -83,13 +84,13 @@ They look identical; their **timing** relative to the browser paint is what diff
 | **Blocks rendering** | No | Yes — delays visual update |
 | **Performance impact** | Better (non-blocking) | Can cause jank if slow |
 | **Use case** | Data fetching, subscriptions, logging, timers | DOM measurements, scroll position, preventing visual flicker |
-| **SSR behavior** | Works fine | Warns in SSR (no DOM to measure) |
+| **SSR behavior** | Skipped on the server | Skipped on the server (no DOM to measure); React 19 no longer warns |
 | **Cleanup timing** | Async, after new render paints | Sync, before new render paints |
 | **Frequency of use** | ~95% of the time | ~5% — only for DOM measurement/mutation |
 
 **Canonical `useLayoutEffect` case**: a tooltip that positions itself above a button by measuring both elements. If you use `useEffect`, the tooltip renders at a default position → paints → then jumps to the correct spot. Users see a flicker. `useLayoutEffect` runs before paint, so positioning is done before the user sees anything — no flicker.
 
-**Why `useEffect` is the default**: blocking the paint is bad for perceived performance. Frameworks and React itself warn when you use `useLayoutEffect` without a clear reason, and it warns in SSR because there's no DOM to measure.
+**Why `useEffect` is the default**: blocking the paint is bad for perceived performance. Neither hook runs during server rendering, and React 19 dropped the old SSR warning for `useLayoutEffect`, but a layout effect still can't measure anything until the client hydrates.
 
 **When to use which**: Default to `useEffect` for essentially everything (fetching, subscriptions, logging, timers). Use `useLayoutEffect` only when you need to read DOM layout and synchronously re-render before the browser paints.
 
@@ -132,7 +133,7 @@ These all solve "share state across the component tree without prop-drilling" bu
 
 **Why Redux Toolkit over classic Redux**: RTK ships with `createSlice` (auto-generates action creators + reducers), `configureStore` (DevTools + middleware set up automatically), and built-in Immer for immutable updates. It cuts boilerplate 80% without giving up any Redux power.
 
-**Why Zustand is the trendy middle ground**: Single store, hook-based API, no providers needed, ~1 KB. No action types or dispatch — you mutate state directly via setters. Gets you 90% of Redux's benefits with 10% of the code.
+**Why Zustand is the trendy middle ground**: Single store, hook-based API, no providers needed, ~1 KB. No action types or dispatch — you call `set()` with the changed fields, which still updates immutably like React state (direct mutation needs the `immer` middleware). Gets you 90% of Redux's benefits with 10% of the code.
 
 **When to use which**: Use Context for low-frequency global data (theme, locale, auth user object). Use Redux Toolkit when you have complex state flows, want time-travel debugging, or need the strict patterns a large team benefits from. Use Zustand when you want a lightweight global store without ceremony. For server data, reach for **TanStack Query** instead of any of these — it's purpose-built for that and handles caching, revalidation, and deduping automatically.
 
@@ -140,7 +141,7 @@ These all solve "share state across the component tree without prop-drilling" bu
 
 ## Server Components vs Client Components
 
-Introduced with React 18 and popularized by Next.js App Router, **React Server Components (RSC)** are components that render **only on the server**. Their JavaScript is never shipped to the browser — only the rendered output. Client Components are the traditional interactive React components you've always written, now requiring an explicit `"use client"` directive to opt in.
+Announced in 2020, stable in React 19 and popularized by Next.js App Router, **React Server Components (RSC)** are components that render **only on the server**. Their JavaScript is never shipped to the browser — only the rendered output. Client Components are the traditional interactive React components you've always written, now requiring an explicit `"use client"` directive to opt in.
 
 | Feature | Server Components | Client Components |
 |---|---|---|

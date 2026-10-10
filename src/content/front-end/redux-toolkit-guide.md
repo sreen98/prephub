@@ -1090,7 +1090,7 @@ const middleware = (store) => (next) => (action) => {
 
 The three nested functions look odd but each has a job: the outer one receives the store once at setup, the middle one receives `next` (the next middleware in the chain, or the reducer at the end), and the inner one runs for every action.
 
-Built-in RTK middleware: `thunk` (lets you dispatch a function that does async work and dispatches real actions later), plus the development-only `serializableCheck` and `immutableCheck`, which warn when you put a non-plain value in state or mutate it.
+Built-in RTK middleware: `thunk` (lets you dispatch a function that does async work and dispatches real actions later), plus the development-only `serializableCheck` and `immutableCheck`, which warn when you put a non-plain value in state or mutate it, and `actionCreatorCheck` (since RTK 1.9.6), which warns when you dispatch an action creator itself (`dispatch(increment)` instead of `dispatch(increment())`).
 Common third-party: `redux-saga` (complex async workflows written with generator functions), `redux-logger` (logs each action and the state before and after).
 
 ---
@@ -1258,7 +1258,7 @@ updateUser: builder.mutation({
 
 1. **No unnecessary Redux**: server data goes in a query cache (RTK Query or React Query) and local UI state stays in components. Most "our Redux is huge" problems are hand-written loading/error/data fields for API calls that a query cache would own.
 2. **Feature slices**: each feature owns its slice, selectors and types in one folder (§11.1), so a team can change its feature without touching a shared mega-reducer.
-3. **Code splitting**: lazy-load a feature's reducer with `store.replaceReducer` when its route loads, so users do not download state logic for pages they never visit.
+3. **Code splitting**: lazy-load a feature's reducer when its route loads, so users do not download state logic for pages they never visit. In RTK 2 the built-in way is `combineSlices(...)` for the root reducer plus `rootReducer.inject(slice)`; the lower-level `store.replaceReducer` still works.
 4. **Normalized data**: `createEntityAdapter` for collections, so each record exists once and updates stay small (Q13).
 5. **Memoized selectors**: `createSelector` for derived data, so components re-render only when the derived result actually changes (Q7).
 6. **Typed hooks**: `useAppSelector` and `useAppDispatch` carry the store's types, so a renamed field is a compile error instead of an `undefined` at runtime.
@@ -1349,7 +1349,7 @@ The development checks are the part people underrate. The immutability check and
 
 **The mistakes worth knowing:**
 
-- **Passing your own middleware list replaces the defaults.** The docs are explicit: if you supply `middleware`, you are responsible for *all* of it. `middleware: () => [logger]` quietly removes thunk and both dev checks. Always start from `getDefaultMiddleware()` and `.concat()` (or `.prepend()`) your own. The same rule applies to `enhancers` and `getDefaultEnhancers()`.
+- **Passing your own middleware list replaces the defaults.** The docs are explicit: if you supply `middleware`, you are responsible for *all* of it. `middleware: () => [logger]` quietly removes thunk and all the dev checks. Always start from `getDefaultMiddleware()` and `.concat()` (or `.prepend()`) your own. The same rule applies to `enhancers` and `getDefaultEnhancers()`.
 - **Use the callback form.** It is what the docs recommend, and it is what makes TypeScript infer the right `dispatch` type, including thunks. A plain array still works in JavaScript.
 - **Don't switch the checks off to silence a warning.** A serializability warning about a `Date` means the state shape is wrong: store `date.toISOString()` or a timestamp. Only ignore specific action types you understand, such as the ones redux-persist dispatches.
 - **For SSR and tests, create a store per request or per test.** Export a `makeStore()` function that calls `configureStore`, instead of one module-level `store`. A shared store leaks one user's state into another user's server render, and one test's state into the next test.
@@ -1908,7 +1908,7 @@ The reducer stored the `Date`, so the check fires twice: once on the way in (the
 
 **Explanation:**
 
-`configureStore` wires up two sanity-check middlewares by default in development: `serializableCheck` and `immutableCheck`. The serializability check walks both the action and the resulting state after every dispatch and confirms every value is JSON-safe — plain objects, arrays, strings, numbers, booleans, `null`. Anything with a prototype chain beyond `Object.prototype` fails the check.
+`configureStore` wires up three sanity-check middlewares by default in development: `serializableCheck`, `immutableCheck` and `actionCreatorCheck`. The serializability check walks both the action and the resulting state after every dispatch and confirms every value is JSON-safe — plain objects, arrays, strings, numbers, booleans, `null`. Anything with a prototype chain beyond `Object.prototype` fails the check.
 
 Common offenders: `Date`, `Map`, `Set`, `RegExp`, `Error`, class instances, DOM nodes, functions, promises, `undefined`, symbols.
 

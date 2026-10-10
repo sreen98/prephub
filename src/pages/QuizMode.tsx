@@ -151,8 +151,8 @@ export default function QuizMode() {
   if (!corpus) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-        <div className="h-6 w-6 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-indigo-500 animate-spin mb-4" />
-        <p className="text-slate-500 dark:text-slate-400">Loading questions…</p>
+        <div className="h-6 w-6 rounded-full border-2 border-line border-t-accent animate-spin mb-4" />
+        <p className="text-muted">Loading questions…</p>
       </div>
     );
   }
@@ -160,9 +160,9 @@ export default function QuizMode() {
   if (total === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-        <BookOpen size={48} className="text-slate-300 dark:text-slate-700 mb-4" />
+        <BookOpen size={48} className="text-slate-300 mb-4" />
         <h2 className="text-xl font-bold mb-2">No Quiz Questions Found</h2>
-        <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-md">
+        <p className="text-muted mb-6 max-w-md">
           {selectedGuide === 'all'
             ? 'No interview questions could be extracted from the guides.'
             : `No questions found in "${selectedGuide}". Try a different guide.`}
@@ -170,14 +170,14 @@ export default function QuizMode() {
         <div className="flex gap-3">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-ink/5 text-sm font-medium hover:bg-ink/10 transition-colors"
           >
             <ArrowLeft size={16} /> Back Home
           </Link>
           {selectedGuide !== 'all' && (
             <button
               onClick={() => handleGuideChange('all')}
-              className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition-colors"
+              className="px-4 py-2 rounded-md bg-accent text-accent-contrast text-sm font-medium hover:bg-accent-strong transition-colors"
             >
               Try All Guides
             </button>
@@ -223,7 +223,7 @@ export default function QuizMode() {
               >
                 {!isFlipped ? (
                   /* Question Side */
-                  <div className="min-h-[280px] p-8 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm flex flex-col relative">
+                  <div className="min-h-[280px] p-8 rounded-lg border border-line bg-surface shadow-sm flex flex-col relative">
                     {/* Bookmark button */}
                     <button
                       aria-label={isBookmarked(`quiz__${currentQuestion.id}`) ? 'Remove bookmark' : 'Bookmark this question'}
@@ -231,16 +231,16 @@ export default function QuizMode() {
                         e.stopPropagation();
                         toggleBookmark({ id: `quiz__${currentQuestion.id}`, questionId: currentQuestion.id, questionText: currentQuestion.question.slice(0, 100), guideName: currentQuestion.guide, type: 'quiz' });
                       }}
-                      className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-amber-500 transition-colors"
+                      className="absolute top-4 right-4 p-1.5 rounded-lg text-muted hover:text-amber-500 transition-colors"
                     >
                       {isBookmarked(`quiz__${currentQuestion.id}`) ? <BookmarkCheck size={18} className="text-amber-500 fill-amber-500" /> : <Bookmark size={18} />}
                     </button>
                     <div className="flex items-center gap-2 mb-6 flex-wrap">
-                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-lg">
+                      <span className="text-xs font-bold uppercase tracking-wider text-accent bg-accent-soft px-2.5 py-1 rounded-lg">
                         Question
                       </span>
                       {currentQuestion.guide && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-ink/5 text-muted">
                           {currentQuestion.guide}
                         </span>
                       )}
@@ -260,13 +260,13 @@ export default function QuizMode() {
                         {currentQuestion.question}
                       </ReactMarkdown>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-6 text-center">
+                    <p className="text-xs text-muted mt-6 text-center">
                       Tap to reveal answer
                     </p>
                   </div>
                 ) : (
                   /* Answer Side */
-                  <div className="min-h-[280px] p-8 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20 shadow-sm flex flex-col">
+                  <div className="min-h-[280px] p-8 rounded-lg border border-emerald-200 dark:border-emerald-800/50 shadow-sm flex flex-col bg-accent-soft">
                     <div className="flex items-center gap-2 mb-6">
                       <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg">
                         Answer
@@ -277,7 +277,7 @@ export default function QuizMode() {
                         {currentQuestion.answer}
                       </ReactMarkdown>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-6 text-center">
+                    <p className="text-xs text-muted mt-6 text-center">
                       Tap to see question
                     </p>
                   </div>
@@ -293,7 +293,7 @@ export default function QuizMode() {
         <button
           onClick={handlePrev}
           disabled={currentIndex === 0}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium border border-line disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 transition-colors"
         >
           <ChevronLeft size={16} /> Previous
         </button>
@@ -302,13 +302,13 @@ export default function QuizMode() {
           <div className="flex gap-2">
             <button
               onClick={() => handleScore(false)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
             >
               <ThumbsDown size={14} /> Study Again
             </button>
             <button
               onClick={() => handleScore(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
             >
               <ThumbsUp size={14} /> Got It
             </button>
@@ -318,7 +318,7 @@ export default function QuizMode() {
         <button
           onClick={handleNext}
           disabled={currentIndex >= total - 1}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium border border-line disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ink/5 transition-colors"
         >
           Next <ChevronRight size={16} />
         </button>
@@ -329,17 +329,17 @@ export default function QuizMode() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-8 p-6 rounded-2xl bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-200 dark:border-indigo-800/50 text-center"
+          className="mt-8 p-6 rounded-lg border border-accent/30 text-center bg-accent-soft"
         >
           <h3 className="text-lg font-bold mb-2">Quiz Complete!</h3>
-          <p className="text-slate-600 dark:text-slate-400 mb-4">
+          <p className="text-muted mb-4">
             You reviewed all {total} questions.
             <span className="text-emerald-600 font-semibold"> {score.knew} knew</span>,
             <span className="text-amber-600 font-semibold"> {score.learning} to review</span>.
           </p>
           <button
             onClick={handleReset}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-accent text-accent-contrast font-medium hover:bg-accent-strong transition-colors"
           >
             <RotateCcw size={16} /> Try Again
           </button>

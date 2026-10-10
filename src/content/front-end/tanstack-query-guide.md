@@ -811,14 +811,15 @@ Same result. No slice, no saga, no selectors, no dispatch, no useEffect.
 **Redux + Saga:**
 
 ```ts
-// slice.ts - add more actions
-const extraReducers = {
+// slice.ts - add more actions to the slice's own `reducers`
+// (they are this slice's actions; RTK 2 also removed the object form of extraReducers)
+const reducers = {
   updateTodoRequest: (state, action) => { state.updating = true; },
-updateTodoSuccess: (state, action) => {
-  state.updating = false;
-  const index = state.items.findIndex(t => t.id === action.payload.id);
-  if (index !== -1) state.items[index] = action.payload;
-},
+  updateTodoSuccess: (state, action) => {
+    state.updating = false;
+    const index = state.items.findIndex(t => t.id === action.payload.id);
+    if (index !== -1) state.items[index] = action.payload;
+  },
   updateTodoFailure: (state, action) => {
     state.updating = false;
     state.error = action.payload;
@@ -870,7 +871,7 @@ mutation.mutate(updatedTodo);
 | **Deduplication** | Multiple components using same query = one request |
 | **Optimistic updates** | Built-in pattern with rollback support |
 | **Pagination / infinite scroll** | `useInfiniteQuery` handles it natively |
-| **Request cancellation** | Auto-cancels on unmount or key change |
+| **Request cancellation** | Aborts the `signal` on unmount or key change; the request itself stops only if your query function passes `signal` to `fetch`/axios (§6.4) |
 | **Offline support** | Pauses queries when offline, resumes when online |
 
 ---
@@ -1339,11 +1340,18 @@ Short answer: give every test its own `QueryClient` with retries off, mock the n
    }
    ```
 
-2. **Mock the API layer** (not React Query itself) — mocking `useQuery` would test your mock, while mocking the fetch function still exercises the real caching and loading behaviour:
+2. **Mock the network with MSW** (not React Query, and not your own API module) — mocking `useQuery` would test your mock, and `vi.mock`-ing your own fetch module tests your assumptions about it. MSW answers the HTTP request, so your real fetch code, caching and loading behaviour all run (see the [Testing Strategy guide](/frontend/testing-strategy)):
    ```ts
-   vi.mock('@/lib/api', () => ({
-     fetchTodos: vi.fn().mockResolvedValue([{ id: 1, title: 'Test' }]),
-   }));
+   import { http, HttpResponse } from 'msw';
+   import { setupServer } from 'msw/node';
+
+   const server = setupServer(
+     http.get('/api/todos', () => HttpResponse.json([{ id: 1, title: 'Test' }])),
+   );
+
+   beforeAll(() => server.listen());
+   afterEach(() => server.resetHandlers());
+   afterAll(() => server.close());
    ```
 
 3. **Wait for loading to complete**:

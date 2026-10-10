@@ -30,10 +30,6 @@ export interface MenuSection {
   path?: string;
   file?: string;
   icon?: LucideIcon;
-  gradient?: string;
-  lightBg?: string;
-  darkBg?: string;
-  accent?: string;
   description?: string;
   items?: MenuItem[];
 }
@@ -42,7 +38,6 @@ export interface CheatSheet {
   name: string;
   path: string;
   file: string;
-  color: string;
   description: string;
 }
 
@@ -202,13 +197,13 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'Front End',
     icon: Monitor,
-    gradient: 'from-blue-500 to-cyan-400',
-    lightBg: 'bg-blue-50',
-    darkBg: 'dark:bg-blue-950/30',
-    accent: 'text-blue-600 dark:text-blue-400',
-    description: 'React, React Router, Next.js & RSC, Frontend Architecture, Modern CSS, Accessibility, Web Performance, Testing Strategy, React Native, global state (Redux Toolkit, Redux Saga, Zustand), TanStack Query, Browser APIs & Tooling, Mobile (React Native, iOS & Play Store deployment, accessibility, security)',
+    description: 'React (core concepts, performance & internals, React 19 & patterns, interview and tricky questions), React Router, Next.js & RSC, Frontend Architecture, Modern CSS, Accessibility, Web Performance, Testing Strategy, React Native, global state (Redux Toolkit, Redux Saga, Zustand), TanStack Query, Browser APIs & Tooling, Mobile (React Native, iOS & Play Store deployment, accessibility, security)',
     items: [
       { name: 'React Guide', path: '/frontend/react', group: 'React & State', file: './content/front-end/react-guide.md', officialDocs: [{ label: 'React', url: 'https://react.dev' }] },
+      { name: 'React Performance & Internals', path: '/frontend/react-performance', group: 'React & State', file: './content/front-end/react-performance-guide.md', officialDocs: [{ label: 'React Performance', url: 'https://react.dev/reference/react/memo' }] },
+      { name: 'React 19 & Patterns', path: '/frontend/react-19-patterns', group: 'React & State', file: './content/front-end/react-19-patterns-guide.md', officialDocs: [{ label: 'React 19', url: 'https://react.dev/blog/2024/12/05/react-19' }] },
+      { name: 'React Interview Questions', path: '/frontend/react-interview-questions', group: 'React & State', file: './content/front-end/react-interview-questions.md', officialDocs: [{ label: 'React', url: 'https://react.dev' }] },
+      { name: 'React Tricky Questions', path: '/frontend/react-tricky-questions', group: 'React & State', file: './content/front-end/react-tricky-questions.md', officialDocs: [{ label: 'React', url: 'https://react.dev' }] },
       { name: 'Next.js & RSC', path: '/frontend/nextjs-rsc', group: 'React & State', file: './content/front-end/nextjs-rsc-guide.md', officialDocs: [{ label: 'Next.js App Router', url: 'https://nextjs.org/docs/app' }, { label: 'React Server Components', url: 'https://react.dev/reference/rsc/server-components' }, { label: 'Next.js Auth Guide', url: 'https://nextjs.org/docs/app/guides/authentication' }] },
       { name: 'React Router', path: '/frontend/react-router', group: 'React & State', file: './content/front-end/react-router-guide.md', officialDocs: [{ label: 'React Router', url: 'https://reactrouter.com' }, { label: 'Upgrading to v7', url: 'https://reactrouter.com/upgrading/future' }] },
       { name: 'React Comparisons', path: '/frontend/comparisons', group: 'React & State', file: './content/front-end/react-comparisons.md', officialDocs: [] },
@@ -238,14 +233,14 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'JS & TS',
     icon: Braces,
-    gradient: 'from-amber-500 to-orange-400',
-    lightBg: 'bg-amber-50',
-    darkBg: 'dark:bg-amber-950/30',
-    accent: 'text-amber-600 dark:text-amber-400',
-    description: 'JavaScript, TypeScript, Regex & tricky interview problems',
+    description: 'JavaScript and TypeScript (core guides, interview questions and tricky output questions), Regex and comparisons',
     items: [
       { name: 'JavaScript Guide', path: '/javascript/guide', group: 'Languages', file: './content/javascript-and-typescript/javascript-guide.md', officialDocs: [{ label: 'MDN JavaScript', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }] },
+      { name: 'JavaScript Interview Questions', path: '/javascript/interview-questions', group: 'Languages', file: './content/javascript-and-typescript/javascript-interview-questions.md', officialDocs: [{ label: 'MDN JavaScript', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }] },
+      { name: 'JavaScript Tricky Questions', path: '/javascript/tricky-questions', group: 'Languages', file: './content/javascript-and-typescript/javascript-tricky-questions.md', officialDocs: [{ label: 'MDN JavaScript', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }] },
       { name: 'TypeScript Guide', path: '/javascript/typescript', group: 'Languages', file: './content/javascript-and-typescript/typescript-guide.md', officialDocs: [{ label: 'TypeScript', url: 'https://www.typescriptlang.org/docs' }] },
+      { name: 'TypeScript Interview Questions', path: '/javascript/typescript-interview-questions', group: 'Languages', file: './content/javascript-and-typescript/typescript-interview-questions.md', officialDocs: [{ label: 'TypeScript', url: 'https://www.typescriptlang.org/docs' }] },
+      { name: 'TypeScript Tricky Questions', path: '/javascript/typescript-tricky-questions', group: 'Languages', file: './content/javascript-and-typescript/typescript-tricky-questions.md', officialDocs: [{ label: 'TypeScript', url: 'https://www.typescriptlang.org/docs' }] },
       { name: 'Regex Guide', path: '/javascript/regex', group: 'Reference', file: './content/javascript-and-typescript/regex-guide.md', officialDocs: [{ label: 'MDN — Regular Expressions', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions' }, { label: 'regex101', url: 'https://regex101.com' }] },
       { name: 'JS Comparisons', path: '/javascript/comparisons', group: 'Reference', file: './content/javascript-and-typescript/js-comparisons.md', officialDocs: [] },
     ]
@@ -253,10 +248,6 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'Back End',
     icon: Server,
-    gradient: 'from-emerald-500 to-teal-400',
-    lightBg: 'bg-emerald-50',
-    darkBg: 'dark:bg-emerald-950/30',
-    accent: 'text-emerald-600 dark:text-emerald-400',
     description: 'Node.js, Express, Python, FastAPI, MongoDB, SQL, PostgreSQL, MySQL, API Design, GraphQL, CORS, Web Security, OAuth & SSO, Microservices & Stripe',
     items: [
       { name: 'Node.js Guide', path: '/backend/nodejs', group: 'Runtimes & Frameworks', file: './content/back-end/nodejs-guide.md', officialDocs: [{ label: 'Node.js', url: 'https://nodejs.org/docs/latest/api' }] },
@@ -281,10 +272,6 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'AI Engineering',
     icon: Sparkles,
-    gradient: 'from-fuchsia-500 to-purple-400',
-    lightBg: 'bg-fuchsia-50',
-    darkBg: 'dark:bg-fuchsia-950/30',
-    accent: 'text-fuchsia-600 dark:text-fuchsia-400',
     description: 'Generative AI foundations, LLM engineering, RAG, agentic AI & multi-agent systems, MCP, LangChain & LangGraph',
     items: [
       { name: 'Generative AI Foundations', path: '/ai/generative-ai', group: 'Foundations', file: './content/ai/generative-ai-guide.md', officialDocs: [{ label: 'Anthropic Docs', url: 'https://docs.claude.com/en/docs/overview' }, { label: 'OpenAI Platform', url: 'https://platform.openai.com/docs' }, { label: 'Hugging Face Course', url: 'https://huggingface.co/learn/nlp-course' }] },
@@ -298,10 +285,6 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'AI-Augmented Development',
     icon: Bot,
-    gradient: 'from-cyan-500 to-sky-400',
-    lightBg: 'bg-cyan-50',
-    darkBg: 'dark:bg-cyan-950/30',
-    accent: 'text-cyan-600 dark:text-cyan-400',
     description: 'Using Claude Code and Copilot as an engineering discipline — context scoping, agentic workflows, hooks and permissions, review standards for AI-generated code, tooling, and team rollout',
     items: [
       { name: 'Using Claude Code Efficiently', path: '/ai-dev/claude-code', file: './content/ai/ai-augmented-development-guide.md', officialDocs: [{ label: 'Claude Code Docs', url: 'https://code.claude.com/docs/en/overview' }, { label: 'Claude Code — Best practices', url: 'https://code.claude.com/docs/en/best-practices' }, { label: 'Claude Code — Hooks', url: 'https://code.claude.com/docs/en/hooks' }, { label: 'GitHub Copilot', url: 'https://docs.github.com/en/copilot' }] },
@@ -310,10 +293,6 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'DevOps',
     icon: InfinityIcon,
-    gradient: 'from-orange-500 to-yellow-400',
-    lightBg: 'bg-orange-50',
-    darkBg: 'dark:bg-orange-950/30',
-    accent: 'text-orange-600 dark:text-orange-400',
     description: 'AWS (IAM, EC2, S3, Lambda, CloudWatch), Docker & Kubernetes, Terraform, Ansible, Jenkins, AWS CodePipeline & CodeBuild, SSH & Linux, Observability & SRE, Helm & GitOps',
     items: [
       { name: 'SSH & Linux Administration', path: '/devops/ssh-linux', group: 'Linux & Networking', file: './content/devops/ssh-linux-guide.md', officialDocs: [{ label: 'OpenSSH Manual', url: 'https://www.openssh.com/manual.html' }, { label: 'Linux Performance', url: 'https://www.brendangregg.com/linuxperf.html' }, { label: 'systemd.service', url: 'https://www.freedesktop.org/software/systemd/man/systemd.service.html' }] },
@@ -336,10 +315,6 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'Git',
     icon: GitCompare,
-    gradient: 'from-slate-500 to-gray-400',
-    lightBg: 'bg-slate-50',
-    darkBg: 'dark:bg-slate-950/30',
-    accent: 'text-slate-600 dark:text-slate-400',
     description: 'Branching, merging, rebasing, workflows & internals',
     items: [
       { name: 'Git Guide', path: '/git/guide', file: './content/git/git-guide.md', officialDocs: [{ label: 'Git Docs', url: 'https://git-scm.com/doc' }, { label: 'Learn Git Branching', url: 'https://learngitbranching.js.org' }] },
@@ -349,10 +324,6 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'DSA',
     icon: Binary,
-    gradient: 'from-rose-500 to-pink-400',
-    lightBg: 'bg-rose-50',
-    darkBg: 'dark:bg-rose-950/30',
-    accent: 'text-rose-600 dark:text-rose-400',
     description: 'Data structures, algorithms & coding patterns',
     items: [
       { name: 'DSA Guide', path: '/dsa/guide', file: './content/dsa/dsa-guide.md', officialDocs: [] },
@@ -361,10 +332,6 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'Behavioral',
     icon: Users,
-    gradient: 'from-teal-500 to-cyan-400',
-    lightBg: 'bg-teal-50',
-    darkBg: 'dark:bg-teal-950/30',
-    accent: 'text-teal-600 dark:text-teal-400',
     description: 'STAR method, leadership principles & soft skills',
     items: [
       { name: 'Behavioral Guide', path: '/behavioral/guide', file: './content/behavioral/behavioral-guide.md', officialDocs: [] },
@@ -373,10 +340,6 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'System Design',
     icon: Layers,
-    gradient: 'from-violet-500 to-purple-400',
-    lightBg: 'bg-violet-50',
-    darkBg: 'dark:bg-violet-950/30',
-    accent: 'text-violet-600 dark:text-violet-400',
     description: 'Scalability, load balancing, caching, frontend system design, low-level design (LLD) & architecture patterns',
     items: [
       { name: 'System Design Guide', path: '/system-design/guide', group: 'Design', file: './content/system-design/system-design-guide.md', officialDocs: [] },
@@ -497,21 +460,21 @@ export async function getAllQuestions(): Promise<Question[]> {
 
 
 export const cheatSheets: CheatSheet[] = [
-  { name: 'React Hooks', path: '/cheatsheets/react-hooks', file: './content/cheatsheets/react-hooks.md', color: 'blue', description: 'useState, useEffect, useRef, useMemo, custom hooks' },
-  { name: 'JavaScript ES6+', path: '/cheatsheets/javascript-es6', file: './content/cheatsheets/javascript-es6.md', color: 'amber', description: 'Destructuring, spread, promises, modules, optional chaining' },
-  { name: 'Git Commands', path: '/cheatsheets/git-commands', file: './content/cheatsheets/git-commands.md', color: 'orange', description: 'Branching, merging, rebasing, undoing, remotes' },
-  { name: 'Git Workflows & Advanced', path: '/cheatsheets/git-workflows', file: './content/cheatsheets/git-workflows.md', color: 'teal', description: 'Interactive rebase, cherry-pick, bisect, reflog, worktrees, Git Flow, GitHub Flow' },
-  { name: 'Big-O Notation', path: '/cheatsheets/big-o-notation', file: './content/cheatsheets/big-o-notation.md', color: 'emerald', description: 'Time/space complexity, data structures, sorting algorithms' },
-  { name: 'CSS Flexbox & Grid', path: '/cheatsheets/css-flexbox-grid', file: './content/cheatsheets/css-flexbox-grid.md', color: 'violet', description: 'Flex containers, grid layouts, common patterns' },
-  { name: 'HTTP Status Codes', path: '/cheatsheets/http-status-codes', file: './content/cheatsheets/http-status-codes.md', color: 'rose', description: '2xx success, 4xx client errors, 5xx server errors, REST mapping' },
+  { name: 'React Hooks', path: '/cheatsheets/react-hooks', file: './content/cheatsheets/react-hooks.md', description: 'useState, useEffect, useRef, useMemo, custom hooks' },
+  { name: 'JavaScript ES6+', path: '/cheatsheets/javascript-es6', file: './content/cheatsheets/javascript-es6.md', description: 'Destructuring, spread, promises, modules, optional chaining' },
+  { name: 'Git Commands', path: '/cheatsheets/git-commands', file: './content/cheatsheets/git-commands.md', description: 'Branching, merging, rebasing, undoing, remotes' },
+  { name: 'Git Workflows & Advanced', path: '/cheatsheets/git-workflows', file: './content/cheatsheets/git-workflows.md', description: 'Interactive rebase, cherry-pick, bisect, reflog, worktrees, Git Flow, GitHub Flow' },
+  { name: 'Big-O Notation', path: '/cheatsheets/big-o-notation', file: './content/cheatsheets/big-o-notation.md', description: 'Time/space complexity, data structures, sorting algorithms' },
+  { name: 'CSS Flexbox & Grid', path: '/cheatsheets/css-flexbox-grid', file: './content/cheatsheets/css-flexbox-grid.md', description: 'Flex containers, grid layouts, common patterns' },
+  { name: 'HTTP Status Codes', path: '/cheatsheets/http-status-codes', file: './content/cheatsheets/http-status-codes.md', description: '2xx success, 4xx client errors, 5xx server errors, REST mapping' },
   // Cross-cutting quick-reference tables (JS, React, backend, networking, AWS,
   // system design). Lives under content/comparisons/ rather than content/cheatsheets/.
-  { name: 'Comparison Tables', path: '/cheatsheets/comparison-tables', file: './content/comparisons/comparison-tables.md', color: 'indigo', description: 'Side-by-side tables across JavaScript, React, backend, networking, AWS and system design' },
-  { name: 'TypeScript', path: '/cheatsheets/typescript', file: './content/cheatsheets/typescript.md', color: 'sky', description: 'Types, narrowing, generics, utility types, satisfies, tsconfig flags' },
-  { name: 'Python', path: '/cheatsheets/python', file: './content/cheatsheets/python.md', color: 'cyan', description: 'Containers, comprehensions, dataclasses, decorators, asyncio, typing' },
-  { name: 'SQL', path: '/cheatsheets/sql', file: './content/cheatsheets/sql.md', color: 'lime', description: 'Joins, window functions, CTEs, indexes, isolation levels, EXPLAIN' },
-  { name: 'Docker & Kubernetes', path: '/cheatsheets/docker-kubernetes', file: './content/cheatsheets/docker-kubernetes.md', color: 'fuchsia', description: 'Docker CLI, multi-stage Dockerfiles, kubectl, probes, requests vs limits' },
-  { name: 'Regex', path: '/cheatsheets/regex', file: './content/cheatsheets/regex.md', color: 'purple', description: 'Flags, classes, quantifiers, lookaround, the lastIndex trap, ReDoS' },
-  { name: 'GraphQL', path: '/cheatsheets/graphql', file: './content/cheatsheets/graphql.md', color: 'pink', description: 'Schema and nullability, resolvers, DataLoader, connections, security' },
+  { name: 'Comparison Tables', path: '/cheatsheets/comparison-tables', file: './content/comparisons/comparison-tables.md', description: 'Side-by-side tables across JavaScript, React, backend, networking, AWS and system design' },
+  { name: 'TypeScript', path: '/cheatsheets/typescript', file: './content/cheatsheets/typescript.md', description: 'Types, narrowing, generics, utility types, satisfies, tsconfig flags' },
+  { name: 'Python', path: '/cheatsheets/python', file: './content/cheatsheets/python.md', description: 'Containers, comprehensions, dataclasses, decorators, asyncio, typing' },
+  { name: 'SQL', path: '/cheatsheets/sql', file: './content/cheatsheets/sql.md', description: 'Joins, window functions, CTEs, indexes, isolation levels, EXPLAIN' },
+  { name: 'Docker & Kubernetes', path: '/cheatsheets/docker-kubernetes', file: './content/cheatsheets/docker-kubernetes.md', description: 'Docker CLI, multi-stage Dockerfiles, kubectl, probes, requests vs limits' },
+  { name: 'Regex', path: '/cheatsheets/regex', file: './content/cheatsheets/regex.md', description: 'Flags, classes, quantifiers, lookaround, the lastIndex trap, ReDoS' },
+  { name: 'GraphQL', path: '/cheatsheets/graphql', file: './content/cheatsheets/graphql.md', description: 'Schema and nullability, resolvers, DataLoader, connections, security' },
 ];
 

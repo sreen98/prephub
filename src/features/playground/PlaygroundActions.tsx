@@ -99,7 +99,7 @@ function SummaryPill({ summary: raw }: { summary: RunSummary | null }) {
     {summary && (
       <div
         className={
-          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium ' +
+          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium' +
           (allOk
             ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40'
             : 'bg-red-500/15 text-red-300 border border-red-500/40')
@@ -109,8 +109,8 @@ function SummaryPill({ summary: raw }: { summary: RunSummary | null }) {
         {allOk ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
         {summary.fail === 0
           ? `${summary.pass}/${summary.pass} passed`
-          : `${summary.pass}/${summary.pass + summary.fail} — ${summary.fail} failed`}
-        {summary.hiddenTotal ? ` · 🔒 ${summary.hiddenPass ?? 0}/${summary.hiddenTotal} hidden` : ''}
+          : `${summary.pass}/${summary.pass + summary.fail}, ${summary.fail} failed`}
+        {summary.hiddenTotal ? ` · ${summary.hiddenPass ?? 0}/${summary.hiddenTotal} hidden` : ''}
       </div>
     )}
     </>
@@ -125,7 +125,7 @@ function AnswerButtons(p: PlaygroundActionsProps) {
         <button
           onClick={p.onExplain}
           disabled={p.isLoadingExplain}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-indigo-500/50 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 hover:text-indigo-200 transition-colors disabled:opacity-60"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-teal-400/50 bg-teal-500/10 text-teal-300 hover:bg-teal-500/20 hover:text-teal-200 transition-colors disabled:opacity-60"
           title="Step-by-step explanation with visual walkthrough"
         >
           {p.isLoadingExplain ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
@@ -144,7 +144,7 @@ function AnswerButtons(p: PlaygroundActionsProps) {
           onClick={p.onToggleSolution}
           disabled={p.isLoadingSolution}
           className={
-            'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors disabled:opacity-60 ' +
+            'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors disabled:opacity-60' +
             (p.showingSolution
               ? 'border-amber-500 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
               : 'border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white')

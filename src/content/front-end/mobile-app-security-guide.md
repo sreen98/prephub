@@ -51,7 +51,7 @@ The second reframe: your app ships to millions of devices you don't control, and
 |---|---|---|
 | **iOS Keychain** | yes, hardware-backed | tokens, keys, credentials |
 | **Android Keystore** | yes, hardware-backed (TEE/StrongBox) | key material |
-| **EncryptedSharedPreferences** | yes (key from Keystore) | small secrets on Android |
+| **EncryptedSharedPreferences** | yes (key from Keystore) | **deprecated** (security-crypto, 2025): Google now points to platform APIs plus Android Keystore directly; Tink is an option for the encryption |
 | `AsyncStorage` (RN) | **no** — plaintext | non-sensitive cache, preferences |
 | `UserDefaults` / `SharedPreferences` | **no** | non-sensitive settings |
 | SQLite / Realm | no by default | use SQLCipher for sensitive data |
@@ -132,7 +132,7 @@ Note the trade-off with `AfterFirstUnlock` accessibility: background sync needs 
 
 A mobile app is a **public client**: it cannot keep a client secret (§9), so the classic authorization-code flow with a secret doesn't apply.
 
-**Authorization Code + PKCE** is the answer, and it is mandatory in OAuth 2.1. PKCE (Proof Key for Code Exchange) replaces the secret the app cannot keep with a one-time random value the app invents per login, so only the app that started the login can finish it:
+**Authorization Code + PKCE** is the answer, required by the OAuth 2.1 draft and by current best practice (RFC 9700). PKCE (Proof Key for Code Exchange) replaces the secret the app cannot keep with a one-time random value the app invents per login, so only the app that started the login can finish it:
 
 ```
 1. app generates code_verifier (random) and code_challenge = S256(verifier)
@@ -471,7 +471,7 @@ The OWASP Mobile Top 10 runs from M1 Improper Credential Usage through M10 Insuf
 **OAuth**
 
 20. Mobile apps are **public clients** — no client secret, ever.
-21. **Authorization Code + PKCE** (mandatory in OAuth 2.1).
+21. **Authorization Code + PKCE** (required by the OAuth 2.1 draft and RFC 9700).
 22. **System browser**, never a WebView, for login.
 23. Custom schemes are **hijackable** — prefer Universal Links / App Links.
 24. Verify `state`; use a claimed-https or loopback redirect (RFC 8252).

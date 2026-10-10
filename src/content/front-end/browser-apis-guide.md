@@ -103,15 +103,17 @@ The browser ships **five** different storage mechanisms with very different rule
 
 ### 2.1 Cookies
 
-The original. Strings only, sent automatically on every same-origin request, max ~4 KB total per domain. The only client-readable storage that the *server* can also see, which is why they're still the standard transport for session IDs and CSRF tokens (CSRF, cross-site request forgery, is another site tricking the user's browser into sending a request to yours, with the user's cookies attached).
+The original. Strings only, sent automatically on every same-origin request, max ~4 KB **per cookie**, and browsers also cap the *number* of cookies per domain (RFC 6265 asks for at least 50). The only client-readable storage that the *server* can also see, which is why they're still the standard transport for session IDs and CSRF tokens (CSRF, cross-site request forgery, is another site tricking the user's browser into sending a request to yours, with the user's cookies attached).
 
 ```js
 // Set (the API is one of the worst in the platform — a string with semicolons)
+// No HttpOnly here: the browser drops a cookie set from JS with HttpOnly.
+// Auth cookies come from the server's Set-Cookie header (see the flags below).
 document.cookie =
-  'sid=abc123; Max-Age=3600; Path=/; Secure; HttpOnly; SameSite=Strict';
+  'theme=dark; Max-Age=3600; Path=/; Secure; SameSite=Strict';
 
-// Read (returns ALL cookies as one string)
-document.cookie;  // "sid=abc123; theme=dark"
+// Read (returns ALL cookies JS can see as one string; HttpOnly ones are hidden)
+document.cookie;  // "theme=dark; lang=en"
 
 // Delete by setting Max-Age=0
 document.cookie = 'theme=; Max-Age=0; Path=/';
@@ -121,7 +123,7 @@ document.cookie = 'theme=; Max-Age=0; Path=/';
 
 - **`HttpOnly`** — JavaScript cannot read it (`document.cookie` won't show it). Defends against XSS-based session theft. Set this on every auth cookie. *Must be set by the server* — `document.cookie` cannot.
 - **`Secure`** — only sent over HTTPS.
-- **`SameSite`** — `Strict` (never sent cross-site), `Lax` (sent on top-level navigation only — the modern default), `None` (always sent — requires `Secure`). Defends against CSRF.
+- **`SameSite`** — `Strict` (never sent cross-site), `Lax` (sent on top-level navigation only — Chromium browsers default to it, Firefox and Safari don't, so always set `SameSite` explicitly), `None` (always sent — requires `Secure`). Defends against CSRF.
 - **`Domain`** / **`Path`** — scope. Default is the issuing host + current path.
 
 ### 2.2 localStorage and sessionStorage
@@ -202,7 +204,7 @@ This is what enables a PWA's (progressive web app: a website that can be install
 ```
 | API              | Capacity      | Sync? | Sent w/ requests | Tab scope        | Use for                               |
 |------------------|---------------|-------|------------------|------------------|---------------------------------------|
-| Cookies          | ~4 KB total   | Sync  | Yes (always)     | Origin (config)  | Session id, CSRF token (HttpOnly)     |
+| Cookies          | ~4 KB/cookie  | Sync  | Yes (always)     | Origin (config)  | Session id, CSRF token (HttpOnly)     |
 | localStorage     | 5–10 MB       | Sync  | No               | Origin (shared)  | UI prefs, tiny client cache           |
 | sessionStorage   | 5–10 MB       | Sync  | No               | Tab only         | Per-tab transient state               |
 | IndexedDB        | ~½ disk (GB)  | Async | No               | Origin (shared)  | Offline data, big blobs, queries      |
@@ -443,7 +445,7 @@ JavaScript on the main thread shares the thread with rendering, layout, and inpu
 
 ### 4.1 Web Workers (dedicated)
 
-One worker per page, owned by the page that created it. Dies when the page unloads.
+Owned by the single page (or worker) that created it: "dedicated" means one owner, not one per page, so a page can create as many as it needs. Dies when the page unloads.
 
 ```js
 // main.js
@@ -983,7 +985,7 @@ All three store data on the client, keyed by origin, but their lifetimes, scopes
 
 - **`localStorage`** — synchronous string KV store, ~5–10 MB, persists indefinitely, shared across tabs of the same origin. Not sent on requests.
 - **`sessionStorage`** — same API, same size, but scoped to the **tab**. Cleared when the tab closes; not shared across tabs.
-- **Cookies** — ~4 KB total per domain, sent automatically on every same-origin request, can be made `HttpOnly` (invisible to JS — defends against XSS) and `SameSite` (defends against CSRF). The only mechanism the server can both set and read.
+- **Cookies** — ~4 KB per cookie (and a cap of roughly 50+ cookies per domain), sent automatically on every same-origin request, can be made `HttpOnly` (invisible to JS — defends against XSS) and `SameSite` (defends against CSRF). The only mechanism the server can both set and read.
 
 Pick by the question "who needs to read this and when": server every request → cookie; client-only UI prefs → localStorage; per-tab transient state → sessionStorage. Auth tokens go in `HttpOnly` cookies, never `localStorage`.
 
@@ -1209,7 +1211,7 @@ All three serialize messages with the **structured clone algorithm** (no functio
 
 **Q15: What's the structured clone algorithm and where does it apply?**
 
-The platform's algorithm for **deep-copying** values across realms — workers, `postMessage`, `history.pushState`, `IndexedDB`, `Cache.put`. Roughly:
+The platform's algorithm for **deep-copying** values across realms — workers, `postMessage`, `history.pushState`, `IndexedDB`. (`Cache.put` is not on the list: it stores a `Response`, not a cloned value.) Roughly:
 
 - Handles cycles (a → b → a doesn't infinite loop).
 - Copies typed arrays, Maps, Sets, Dates, RegExps, Blobs, Files, ArrayBuffers correctly.
@@ -1385,7 +1387,7 @@ One more failure path to handle, which is not a storage failure at all: the valu
 
 **Explanation:**
 
-The `HttpOnly` flag exists specifically to keep auth cookies away from JavaScript so they survive an XSS attack. The browser enforces this by stripping `HttpOnly` from any cookie set via `document.cookie` and — in most modern browsers — refusing to set the cookie at all (the assignment silently no-ops). There's no thrown error, no warning unless DevTools is open.
+The `HttpOnly` flag exists specifically to keep auth cookies away from JavaScript so they survive an XSS attack. The browser enforces this by ignoring the whole cookie when a `document.cookie` assignment includes `HttpOnly` (RFC 6265: a non-HTTP API must not set an HttpOnly cookie), so the assignment silently no-ops. There's no thrown error, no warning unless DevTools is open.
 
 This catches teams that try to "set the cookie from JS for SPA convenience and just use the same name as the server one." That cookie doesn't have `HttpOnly`, so an XSS payload *can* read it; meanwhile the server's `HttpOnly` version may be shadowed or conflicting depending on path/domain. The result is a security regression that looks like a working feature.
 
@@ -1641,11 +1643,11 @@ Modern analytics libraries (Sentry, Datadog RUM, Google Analytics) all do this d
 
 **Explanation:**
 
-Browsers throttle or pause `requestAnimationFrame` callbacks when the tab is hidden. In Chrome, the callback frequency drops to roughly 1 Hz (one call per second) after the tab has been backgrounded for a while; some browsers stop firing rAF entirely until the tab becomes visible. Your animation loop, which assumed 60 FPS, instead got 1 callback per second for the duration the tab was hidden.
+Browsers pause `requestAnimationFrame` callbacks entirely while the tab is hidden; rAF fires again only when the tab becomes visible. (The roughly once-per-second throttling of background tabs applies to timers, `setTimeout`/`setInterval`, not to rAF.) Your animation loop, which assumed 60 FPS, instead got no callbacks at all for the duration the tab was hidden.
 
 When the tab becomes visible again, three things compound:
 
-1. **A fixed step per callback falls behind real time.** If each callback advances the animation by "one frame" (say 16ms of motion), then while hidden it advanced one step per second — or none — instead of sixty. When the tab returns, the animation is far behind where the clock says it should be, and it crawls on from there.
+1. **A fixed step per callback falls behind real time.** If each callback advances the animation by "one frame" (say 16ms of motion), then while hidden it advanced no steps at all instead of sixty a second. When the tab returns, the animation is far behind where the clock says it should be, and it crawls on from there.
 2. **An animation that computes position from elapsed time jumps instead.** If your code says "I started 30 seconds ago, so I should be at second 30", the first callback after the tab returns leaps straight there — a visible jump rather than a lag.
 3. **A `setInterval`-based animation has a different problem** — it keeps firing in the background, but throttled (typically to once a second or less), so it too advances far less than it would have while visible, and the jump or lag reappears when the tab comes back.
 
@@ -1667,7 +1669,7 @@ By integrating against the actual elapsed time and **clamping** the maximum dt, 
 
 A second pattern: pause your animation explicitly on `visibilitychange → hidden` and resume on `visibilitychange → visible`. Cheaper than computing through pause periods, especially for things like games where simulation has costs beyond animation.
 
-**Takeaway:** rAF is throttled or paused in hidden tabs. Use the timestamp argument and clamp dt — or pause/resume on `visibilitychange`.
+**Takeaway:** rAF is paused in hidden tabs (timers are the ones throttled). Use the timestamp argument and clamp dt — or pause/resume on `visibilitychange`.
 
 ---
 
@@ -1680,7 +1682,7 @@ A second pattern: pause your animation explicitly on `visibilitychange → hidde
 4.  postMessage clones by default — use transfer list for ArrayBuffers
 5.  Always validate event.origin AND event.source on message receivers
 6.  passive: true silently ignores preventDefault — opt out for swipe gestures
-7.  rAF is throttled (~1Hz) or paused in hidden tabs
+7.  rAF is paused in hidden tabs; timers are throttled (~1/s)
 8.  HTTP/1.1 caps ~6 connections per origin → head-of-line blocking
 9.  beforeunload is unreliable — use sendBeacon on pagehide/visibilitychange
 10. Service Workers wait for all tabs to close — use skipWaiting + clients.claim

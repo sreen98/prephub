@@ -916,20 +916,24 @@ For high-security apps, use `react-native-ssl-pinning` or platform-specific pinn
 ```tsx
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-await AsyncStorage.setItem('@token', 'abc123');
-const token = await AsyncStorage.getItem('@token');
-await AsyncStorage.removeItem('@token');
+// Non-secret settings only. Tokens go in SecureStore (see Secure tokens below).
+await AsyncStorage.setItem('@theme', 'dark');
+const theme = await AsyncStorage.getItem('@theme');
+await AsyncStorage.removeItem('@theme');
 ```
 
 ### MMKV (preferred for modern apps)
 
 ```tsx
-import { MMKV } from 'react-native-mmkv';
+import { createMMKV } from 'react-native-mmkv';
 
-const storage = new MMKV();
-storage.set('token', 'abc123');   // sync
-const token = storage.getString('token');
+const storage = createMMKV();
+storage.set('lastTab', 'home');   // sync
+const lastTab = storage.getString('lastTab');
+storage.remove('lastTab');
 ```
+
+This is the v4 API: `createMMKV()` and `.remove()`, and v4 is a Nitro Module, so it also needs `react-native-nitro-modules` installed (and RN 0.76+). Code written for v2/v3 uses `new MMKV()` and `.delete()`.
 
 Why MMKV: AsyncStorage is JSON-file-based, async, and painfully slow for many reads. MMKV is memory-mapped and synchronous — you can use it at startup without awaiting.
 
@@ -1375,7 +1379,7 @@ A JS engine purpose-built for mobile by Meta. Ships bytecode so apps start faste
 
 ### Bridgeless mode
 
-Removes the legacy bridge entirely. Requires the new arch to be fully enabled and all modules migrated. Default in RN 0.76+ for Expo SDK 52+.
+Runs the app without the legacy bridge. Two releases are involved, which is why sources disagree on "when it became the default": **RN 0.74** made bridgeless the default *when the New Architecture is enabled*, and **RN 0.76** (Expo SDK 52) turned the New Architecture itself on by default. So a new project is bridgeless out of the box from 0.76; on 0.74–0.75 you got it only after opting into the New Architecture.
 
 ### Impact summary
 
@@ -1394,7 +1398,7 @@ Removes the legacy bridge entirely. Requires the new arch to be fully enabled an
 
 Don't optimize without data. Use:
 - **React DevTools Profiler** — component renders, wasted renders.
-- **Flipper / React Native DevTools** — JS thread, bridge traffic.
+- **React Native DevTools** — JS debugging, component tree, React profiler.
 - **Xcode Instruments** / **Android Systrace** — UI thread frame drops.
 - **Perf Monitor** — shake → Perf Monitor, shows JS FPS and UI FPS.
 
@@ -1452,7 +1456,7 @@ Inspect component tree, props, state, hook values. Profiler tab shows renders.
 
 ### Flipper (legacy but still useful)
 
-Desktop app with plugins: layout inspector, network, Redux, AsyncStorage, crash reporter.
+No longer supported: RN 0.74 removed Flipper from new projects and declared its React Native plugins unsupported. Use React Native DevTools instead. Older apps may still carry its desktop plugins (layout inspector, network, Redux, AsyncStorage, crash reporter).
 
 ### LogBox
 
@@ -1558,7 +1562,7 @@ Profiles live in `eas.json`:
 ### Signing
 
 - **iOS**: Apple-issued distribution certificate + provisioning profile. Expo EAS manages this automatically.
-- **Android**: a keystore you generate once. **Never lose it** — losing the upload key permanently locks you out of updating your Play listing (there's a key-reset flow but it's painful).
+- **Android**: a keystore you generate once. **Never lose it**, but with **Play App Signing** (required for new apps since August 2021) Google holds the real app-signing key, so a lost upload key is recoverable: you request an **upload key reset** in Play Console and wait for Google to approve it. Only an app not enrolled in Play App Signing is locked out for good if it loses its signing key.
 
 ### App Store & Play Store
 
@@ -1586,7 +1590,7 @@ Users receive the update on next launch.
 
 ### CodePush (App Center)
 
-Microsoft's alternative. Active but deprioritized — EAS Update is the modern choice on Expo.
+Microsoft's former alternative. App Center, including hosted CodePush, was retired on **31 March 2025**, and Microsoft archived its open-source `code-push-server` on 20 May 2025. CodePush today means running that archived server yourself, self-maintained. EAS Update is the modern choice.
 
 ### Rules (both iOS and Android)
 
@@ -1639,13 +1643,13 @@ function Example() {
 
 ### Dynamic type / font scaling
 
-iOS and Android let users scale system font size. By default RN scales your `Text` — sometimes you don't want that (e.g., a logo).
+iOS and Android let users scale system font size. By default RN scales your `Text`. Keep it that way: where a layout can't grow without limit (even a logo), cap growth with `maxFontSizeMultiplier` instead of `allowFontScaling={false}`, which ignores the user's setting (see [Mobile Accessibility](/frontend/mobile-accessibility)).
 
 ```tsx
 function Example() {
   return (
     <>
-      <Text allowFontScaling={false}>LOGO</Text>
+      <Text maxFontSizeMultiplier={1.2}>LOGO</Text>
       <Text maxFontSizeMultiplier={1.5}>Capped growth</Text>
     </>
   );
@@ -1868,7 +1872,7 @@ Startup time is the other half, and users notice it more:
 9. **Not handling keyboard on iOS** — `KeyboardAvoidingView` with `behavior="padding"` is required.
 10. **Forgetting iOS usage strings** — App Store rejection when accessing camera, location, photos without `NSXxxUsageDescription`.
 11. **Running heavy work on the JS thread** — use `InteractionManager`, `requestIdleCallback`, or offload to a worklet / native module.
-12. **Lost Android keystore** — no path back to updating your Play Store listing. Back it up in a vault.
+12. **Lost Android keystore** — with Play App Signing you can request an upload key reset, which costs days; an app not enrolled in Play App Signing has no path back. Back it up in a vault.
 13. **Mutating state in FlatList data** — if `data` is a new reference every render, the list will re-render. Memoize the array.
 14. **Not testing on real devices** — simulators don't show real performance, cellular conditions, push tokens, or biometrics.
 15. **Blocking the UI thread with synchronous native work** — long JSI calls during scroll will drop frames. Prefer async on hot paths.
@@ -2126,7 +2130,7 @@ Expect a mid-range Android to be ~2× slower than high-end iPhone; optimize for 
 
 **Q26: How do you ship OTA updates safely?**
 
-Using EAS Update (or CodePush), treat each JS-bundle ship like a native release:
+Using EAS Update, treat each JS-bundle ship like a native release:
 
 1. **Channels**: maintain `staging` and `production` channels; require at least one day of staging use before promoting.
 2. **Rollouts**: push to 5% → monitor crash rate and error rate → 25% → 100%. EAS supports this natively.
@@ -2583,9 +2587,9 @@ function App() {
 
 Short answer: they see the login screen flash first, because the token read is asynchronous and the first render happens before it returns.
 
-`AsyncStorage` is, as the name says, **asynchronous**: the classic iOS implementation writes a JSON manifest file (with large values in separate files), Android uses SQLite, and version 3 of the library uses SQLite on both. Every read hops over the JS/native bridge, does I/O, and returns through a Promise. On the first render of `App`, `token` is `null` (the initial state) because React renders synchronously and the effect runs **after** commit. So the first frame paints `LoginScreen`, then microseconds to hundreds of milliseconds later the promise resolves, `setToken` triggers a re-render, and `HomeScreen` replaces it. The user perceives a login-screen flash followed by a jarring swap. There are three correct fixes, and production apps typically combine them: (1) **MMKV** (`react-native-mmkv`) is a synchronous, memory-mapped key-value store; you can read at module scope or during the initial render with no promise, eliminating the flash. (2) Keep the native splash screen up until hydration completes, via `expo-splash-screen` or `react-native-bootsplash` — call `preventAutoHideAsync()` at startup and `hideAsync()` after reading the token. (3) Render a neutral loading state (a blank view with the app's background color) instead of `LoginScreen` while `token` is still the sentinel value — and use a three-state enum (`'unknown' | 'loggedIn' | 'loggedOut'`) rather than `null` so you can tell "haven't checked" apart from "checked and empty". The splash + MMKV combination gives the smoothest UX.
+`AsyncStorage` is, as the name says, **asynchronous**: the classic iOS implementation writes a JSON manifest file (with large values in separate files), Android uses SQLite, and version 3 of the library uses SQLite on both. Every read hops over the JS/native bridge, does I/O, and returns through a Promise. On the first render of `App`, `token` is `null` (the initial state) because React renders synchronously and the effect runs **after** commit. So the first frame paints `LoginScreen`, then microseconds to hundreds of milliseconds later the promise resolves, `setToken` triggers a re-render, and `HomeScreen` replaces it. The user perceives a login-screen flash followed by a jarring swap. There are three correct fixes, and production apps typically combine them: (1) **MMKV** (`react-native-mmkv`) is a synchronous, memory-mapped key-value store, so a non-secret flag such as `hasSession` (never the token itself, which belongs in SecureStore, the Keychain/Keystore-backed store) can be read during the first render with no promise, choosing the right screen immediately. (2) Keep the native splash screen up until hydration completes, via `expo-splash-screen` or `react-native-bootsplash` — call `preventAutoHideAsync()` at startup and `hideAsync()` after reading the token. (3) Render a neutral loading state (a blank view with the app's background color) instead of `LoginScreen` while `token` is still the sentinel value — and use a three-state enum (`'unknown' | 'loggedIn' | 'loggedOut'`) rather than `null` so you can tell "haven't checked" apart from "checked and empty". The splash + MMKV combination gives the smoothest UX.
 
-**Takeaway:** AsyncStorage-backed gates always flash — use MMKV for sync reads, keep the splash screen up during hydration, and distinguish "unknown" from "logged out".
+**Takeaway:** AsyncStorage-backed gates always flash. Read a non-secret session flag synchronously from MMKV (keep the token in SecureStore), keep the splash screen up while the token loads, and distinguish "unknown" from "logged out".
 
 ---
 

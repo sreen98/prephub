@@ -121,7 +121,7 @@ const { pending, data } = useFormStatus();   // must be INSIDE the <form>
 
 ## useEffectEvent
 ```jsx
-// stable identity, always-fresh values — lets you drop a dep without staleness
+// always-fresh values, but NO stable identity: call it only inside Effects, never list it as a dep or pass it down
 const onVisit = useEffectEvent(() => log(url, theme));
 useEffect(() => { onVisit(); }, [url]);      // theme is fresh but not a dep
 ```
@@ -181,7 +181,7 @@ function usePrevious(value) {
 - `useRef` mutations **do not trigger a re-render**; never store rendered data in a ref.
 - **StrictMode double-invokes** effects and renders in development to surface missing cleanup. It is not a bug.
 - `useCallback(fn, deps)` is exactly `useMemo(() => fn, deps)` — and memoizing without a `React.memo` child usually costs more than it saves.
-- `useLayoutEffect` blocks paint; it warns during SSR. Use `useEffect` unless you must measure before paint.
+- `useLayoutEffect` blocks paint; it does not run during SSR (React 19 no longer warns). Use `useEffect` unless you must measure before paint.
 - `useFormStatus` reads the **nearest parent** `<form>` — called in the component that renders the form, it never sees that form and `pending` stays `false`.
 - Calling hooks conditionally breaks the call-order invariant — that's why the lint rule is not optional.
 - Cleanup runs **before every re-run**, not just on unmount.

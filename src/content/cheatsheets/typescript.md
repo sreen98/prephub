@@ -73,7 +73,8 @@ type IsArray<T> = T extends unknown[] ? true : false;
 ```ts
 const a: Record<string, string> = { x: 'y' };  // widens — a.x is string, keys lost
 const b = { x: 'y' } as Record<string, string>;// cast: no checking, unsafe
-const c = { x: 'y' } satisfies Record<string, string>; // checks AND keeps { x: 'y' }
+const c = { x: 'y' } satisfies Record<string, string>; // checks AND keeps key x: { x: string }
+const d = { x: 'y' } as const satisfies Record<string, string>; // add as const to keep 'y'
 ```
 
 ## Functions

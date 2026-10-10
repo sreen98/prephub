@@ -15,7 +15,7 @@ function inline(text: string): ReactNode[] {
       return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
     }
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
-      return <code key={i} className="font-mono text-[0.92em] px-1 py-px rounded bg-slate-200/70 dark:bg-slate-800">{part.slice(1, -1)}</code>;
+      return <code key={i} className="font-mono text-[0.92em] px-1 py-px rounded bg-ink/10">{part.slice(1, -1)}</code>;
     }
     if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
       return <em key={i}>{part.slice(1, -1)}</em>;

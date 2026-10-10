@@ -155,23 +155,26 @@ const { promise, resolve, reject } = Promise.withResolvers();   // ES2024
 
 ## Modern Additions (ES2020 → ES2026)
 ```js
-arr.at(-1);                                  // last element
-arr.findLast(fn); arr.findLastIndex(fn);
-arr.toSorted(); arr.toReversed(); arr.with(0, x);   // IMMUTABLE copies
-Object.groupBy(items, x => x.type);          // → { type: [...] }
-Map.groupBy(items, fn);
-Object.hasOwn(obj, 'k');                     // safer than hasOwnProperty
-structuredClone(obj);                        // deep clone incl. Map/Set/Date/cycles
-Array.fromAsync(asyncIterable);
-Promise.try(fn);
-Error.isError(e);                            // survives cross-realm
-RegExp.escape(str);
-str.replaceAll('a', 'b');
-new Set([1,2]).union(other).intersection(other).difference(other);
-using file = open();                        // explicit resource management
-await using conn = await connect();         // disposed in reverse order
+arr.at(-1);                                  // last element (ES2022)
+arr.findLast(fn); arr.findLastIndex(fn);     // ES2023
+arr.toSorted(); arr.toReversed(); arr.with(0, x);   // IMMUTABLE copies (ES2023)
+Object.groupBy(items, x => x.type);          // → { type: [...] } (ES2024)
+Map.groupBy(items, fn);                      // ES2024
+Object.hasOwn(obj, 'k');                     // safer than hasOwnProperty (ES2022)
+str.replaceAll('a', 'b');                    // ES2021
+Promise.try(fn);                             // ES2025
+RegExp.escape(str);                          // ES2025
+new Set([1,2]).union(other).intersection(other).difference(other);   // ES2025
+Array.fromAsync(asyncIterable);              // ES2026
+Error.isError(e);                            // survives cross-realm (ES2026)
+structuredClone(obj);   // HTML/web API, not ECMAScript: deep clone incl. Map/Set/Date/cycles
+```
+
+## Next Edition (ES2027)
+```js
+using file = open();                         // explicit resource management
+await using conn = await connect();          // disposed in reverse order
 Temporal.Now.plainDateISO();                 // the Date replacement
-label: { if (x) break label; };              // labeled block
 ```
 
 ## Symbols & Well-Known Symbols

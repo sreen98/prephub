@@ -75,12 +75,12 @@ export function checkAnswer(
       correct: false,
       reason: `Expected ${expected.length} row${expected.length === 1 ? '' : 's'}, got ${actual.length}.`
         + (actual.length > expected.length
-          ? ' Check your filter — something is letting extra rows through.'
-          : ' Check your filter or JOIN — rows are being excluded.'),
+          ? ' Check your filter: something is letting extra rows through.'
+          : ' Check your filter or JOIN: rows are being excluded.'),
     };
   }
 
-  if (expected.length === 0) return { correct: true, reason: 'Correct — both result sets are empty.' };
+  if (expected.length === 0) return { correct: true, reason: 'Correct. Both result sets are empty.' };
 
   const expectedCols = Object.keys(expected[0]).sort();
   const actualCols = Object.keys(actual[0]).sort();
@@ -92,7 +92,7 @@ export function checkAnswer(
     if (extra.length) parts.push(`unexpected ${extra.map((c) => `\`${c}\``).join(', ')}`);
     return {
       correct: false,
-      reason: `Column mismatch: ${parts.join('; ')}. Aliases matter — name the columns exactly as asked.`,
+      reason: `Column mismatch: ${parts.join('; ')}. Aliases matter, so name the columns exactly as asked.`,
     };
   }
 
@@ -106,7 +106,7 @@ export function checkAnswer(
         };
       }
     }
-    return { correct: true, reason: 'Correct — rows match, in the required order.' };
+    return { correct: true, reason: 'Correct. The rows match, in the required order.' };
   }
 
   // Order-insensitive: compare as multisets so duplicates still have to match.
@@ -124,5 +124,5 @@ export function checkAnswer(
     }
     counts.set(key, n - 1);
   }
-  return { correct: true, reason: 'Correct — all rows match.' };
+  return { correct: true, reason: 'Correct. All rows match.' };
 }

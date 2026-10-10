@@ -110,10 +110,10 @@ export function readHiddenResults<T extends { text: string }>(
 /** Console lines describing the hidden results. No ✅/❌, so the visible tally is unaffected. */
 export function describeHiddenResults(results: HiddenResult[] | null, total: number): string[] {
   if (results === null) {
-    return [`🔒 Hidden tests (${total}) did not run: your code threw or timed out before reaching them.`];
+    return [`Hidden tests (${total}) did not run: your code threw or timed out before reaching them.`];
   }
   const passed = results.filter((r) => r.passed).length;
-  const lines = [`🔒 Hidden tests: ${passed}/${results.length} passed`];
+  const lines = [`Hidden tests: ${passed}/${results.length} passed`];
   for (const r of results) {
     if (r.passed) continue;
     lines.push(r.error

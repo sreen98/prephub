@@ -4,14 +4,77 @@
 
 /* ==================== Base ==================== */
 
+/*
+ * Design tokens, as RGB triples so Tailwind's `/opacity` modifiers work
+ * (tailwind.config.js maps them to bg-canvas, text-ink, text-accent, bg-pop…).
+ * "Focused & vivid": soft grey page, white cards, indigo-violet for actions and
+ * links, coral for progress and streaks. Every text pairing is WCAG AA or better
+ * in both themes (lowest: pop-ink on pop-soft, 4.7:1). Coral itself is a FILL
+ * colour only: put ink on it, never white (white on coral is 2.7:1).
+ */
 :root {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --canvas: 245 246 250;        /* page background */
+  --surface: 255 255 255;       /* cards and panels */
+  --ink: 17 24 39;              /* body text and headings */
+  --muted: 75 85 99;            /* secondary text */
+  --line: 229 231 235;          /* borders and dividers */
+  --accent: 79 70 229;          /* links, the primary action, focus */
+  --accent-strong: 67 56 202;   /* accent on hover */
+  --accent-soft: 238 242 255;   /* tinted background for an active item */
+  --accent-contrast: 255 255 255; /* text on a solid accent fill */
+  --pop: 249 115 98;            /* coral: progress bars, streaks, highlights (fill only) */
+  --pop-ink: 194 65 45;         /* coral as text */
+  --pop-soft: 255 241 238;      /* coral tint */
+
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  scroll-behavior: smooth;
+}
+
+.dark {
+  --canvas: 15 18 32;
+  --surface: 23 27 46;
+  --ink: 230 232 242;
+  --muted: 163 169 191;
+  --line: 42 48 71;
+  --accent: 165 163 255;
+  --accent-strong: 196 194 255;
+  --accent-soft: 37 35 77;
+  --accent-contrast: 15 18 32;
+  --pop: 255 138 120;
+  --pop-ink: 255 155 138;
+  --pop-soft: 58 35 40;
+}
+
+/* Smooth anchor scrolling only for people who have not asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    scroll-behavior: smooth;
+  }
+}
+
+/*
+ * Reduced motion: CSS animations and transitions finish instantly. Framer
+ * Motion is covered separately by <MotionConfig reducedMotion="user"> in main.tsx.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* One visible keyboard-focus ring everywhere, in the accent colour. */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
 }
 
 body {
@@ -27,7 +90,7 @@ html {
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 dark:bg-[#0a0a0f] dark:text-slate-100;
+    @apply bg-canvas text-ink;
   }
 }
 
@@ -44,11 +107,11 @@ html {
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  @apply bg-slate-300 dark:bg-slate-700;
+  @apply bg-ink/15;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400 dark:bg-slate-600;
+  @apply bg-ink/30;
 }
 
 .sidebar-scroll::-webkit-scrollbar {
@@ -58,18 +121,18 @@ html {
 /* ==================== Selection ==================== */
 
 ::selection {
-  @apply bg-indigo-200 dark:bg-indigo-900/60 text-indigo-900 dark:text-indigo-100;
+  @apply bg-accent-soft text-accent;
 }
 
 /* ==================== Content / Prose ==================== */
 
 .prose-container {
-  @apply text-slate-700 dark:text-slate-300;
+  @apply text-ink;
   line-height: 1.8;
 }
 
 .prose-container h1 {
-  @apply text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white mb-6 mt-12 pb-4 border-b border-slate-200 dark:border-slate-800;
+  @apply text-3xl sm:text-4xl font-extrabold text-ink mb-6 mt-12 pb-4 border-b border-line;
 }
 
 .prose-container h1:first-child {
@@ -77,19 +140,19 @@ html {
 }
 
 .prose-container h2 {
-  @apply text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mb-4 mt-10;
+  @apply text-2xl sm:text-3xl font-bold text-ink mb-4 mt-10;
 }
 
 .prose-container h3 {
-  @apply text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100 mb-3 mt-8;
+  @apply text-xl sm:text-2xl font-bold text-ink mb-3 mt-8;
 }
 
 .prose-container h4 {
-  @apply text-lg font-bold text-slate-800 dark:text-slate-200 mb-2 mt-6;
+  @apply text-lg font-bold text-ink mb-2 mt-6;
 }
 
 .prose-container h5 {
-  @apply text-base font-bold text-slate-800 dark:text-slate-200 mb-2 mt-4;
+  @apply text-base font-bold text-ink mb-2 mt-4;
 }
 
 .prose-container p {
@@ -123,7 +186,7 @@ html {
 }
 
 .prose-container blockquote {
-  @apply border-l-4 border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 pl-4 pr-4 py-3 my-6 rounded-r-xl text-slate-600 dark:text-slate-400;
+  @apply border-l-2 border-ink/20 pl-4 pr-4 py-1 my-6 text-muted;
 }
 
 .prose-container blockquote p {
@@ -131,11 +194,11 @@ html {
 }
 
 .prose-container hr {
-  @apply my-10 border-slate-200 dark:border-slate-800;
+  @apply my-10 border-line;
 }
 
 .prose-container strong {
-  @apply font-bold text-slate-900 dark:text-white;
+  @apply font-bold text-ink;
 }
 
 .prose-container em {
@@ -143,25 +206,25 @@ html {
 }
 
 .prose-container img {
-  @apply rounded-xl my-6 shadow-lg max-w-full;
+  @apply rounded-md my-6 shadow-lg max-w-full;
 }
 
 /* ==================== Links ==================== */
 
 .content-link {
-  @apply text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 underline decoration-indigo-300/50 dark:decoration-indigo-600/50 underline-offset-2 hover:decoration-indigo-500 dark:hover:decoration-indigo-400 transition-colors;
+  @apply text-accent hover:text-accent-strong underline decoration-accent/40 underline-offset-2 hover:decoration-accent-strong transition-colors;
 }
 
 /* ==================== Inline Code ==================== */
 
 .inline-code {
-  @apply px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[0.875em] font-mono text-pink-600 dark:text-pink-400 border border-slate-200/60 dark:border-slate-700/60;
+  @apply px-1.5 py-0.5 rounded-md bg-ink/5 text-[0.875em] font-mono text-accent border border-line;
 }
 
 /* ==================== Code Blocks ==================== */
 
 .code-block {
-  @apply my-6 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700/50 shadow-sm;
+  @apply my-6 rounded-md overflow-hidden border border-line shadow-sm;
   background: #22272e;
 }
 
@@ -301,15 +364,15 @@ html {
 }
 
 .prose-container thead {
-  @apply bg-slate-50 dark:bg-slate-800/50;
+  @apply bg-canvas;
 }
 
 .prose-container th {
-  @apply px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300 border-b-2 border-slate-200 dark:border-slate-700;
+  @apply px-4 py-3 text-left font-semibold text-ink border-b-2 border-line;
 }
 
 .prose-container td {
-  @apply px-4 py-3 border-b border-slate-100 dark:border-slate-800;
+  @apply px-4 py-3 border-b border-line;
 }
 
 .prose-container tbody tr {
@@ -317,7 +380,7 @@ html {
 }
 
 .prose-container tbody tr:hover {
-  @apply bg-slate-50/80 dark:bg-slate-800/30;
+  @apply bg-canvas;
 }
 
 /* ==================== Try It Button ==================== */
@@ -376,11 +439,11 @@ mark.search-hl {
 }
 
 .quiz-markdown code {
-  @apply px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-sm font-mono text-pink-600 dark:text-pink-400;
+  @apply px-1.5 py-0.5 rounded-md bg-ink/5 text-sm font-mono text-accent;
 }
 
 .quiz-markdown pre {
-  @apply my-4 p-4 rounded-xl overflow-x-auto text-sm;
+  @apply my-4 p-4 rounded-md overflow-x-auto text-sm;
   background: #22272e;
 }
 
@@ -390,11 +453,11 @@ mark.search-hl {
 }
 
 .quiz-markdown strong {
-  @apply font-bold text-slate-900 dark:text-white;
+  @apply font-bold text-ink;
 }
 
 .quiz-markdown a {
-  @apply text-indigo-600 dark:text-indigo-400 underline;
+  @apply text-accent underline;
 }
 
 /* ==================== Font Size Preferences ==================== */
@@ -417,7 +480,7 @@ mark.search-hl {
 /* ==================== Mermaid Diagrams ==================== */
 
 .mermaid-container {
-  @apply rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 my-6 flex justify-center overflow-x-auto;
+  @apply rounded-md border border-line bg-surface p-6 my-6 flex justify-center overflow-x-auto;
 }
 
 .mermaid-container svg {
@@ -432,12 +495,12 @@ mark.search-hl {
 /* ==================== Deep Section Links ==================== */
 
 .heading-anchor {
-  @apply opacity-0 group-hover:opacity-100 ml-2 inline-flex items-center text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-all cursor-pointer;
+  @apply opacity-0 group-hover:opacity-100 ml-2 inline-flex items-center text-muted hover:text-accent-strong transition-all cursor-pointer;
   vertical-align: middle;
 }
 
 .heading-bookmark {
-  @apply opacity-0 group-hover:opacity-100 ml-1 inline-flex items-center text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 transition-all cursor-pointer;
+  @apply opacity-0 group-hover:opacity-100 ml-1 inline-flex items-center text-muted hover:text-amber-500 dark:hover:text-amber-400 transition-all cursor-pointer;
   vertical-align: middle;
 }
 

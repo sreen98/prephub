@@ -1,37 +1,16 @@
-import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
-interface StreakMessage {
-  emoji: string;
-  text: string;
+/** Streak lengths worth marking. Any other value renders nothing. */
+const MILESTONES = new Set([3, 7, 14, 30, 60, 100, 365]);
+
+/** A plain sentence for the milestone; the number is the news, so the copy stays calm. */
+function describe(days: number): string {
+  if (days === 7) return 'You have studied every day for a week.';
+  if (days === 30) return 'You have studied every day for a month.';
+  if (days === 365) return 'You have studied every day for a year.';
+  return `You have studied ${days} days in a row.`;
 }
-
-const messages: Record<number, StreakMessage> = {
-  3: { emoji: '\u{1F525}', text: "3-day streak! You're getting started!" },
-  7: { emoji: '\u{1F525}', text: "7-day streak! A whole week of learning!" },
-  14: { emoji: '\u26A1', text: "14-day streak! Consistency is key!" },
-  30: { emoji: '\u{1F3C6}', text: "30-day streak! A full month \u2014 amazing!" },
-  60: { emoji: '\u{1F48E}', text: "60-day streak! You're unstoppable!" },
-  100: { emoji: '\u{1F451}', text: "100-day streak! Legendary dedication!" },
-  365: { emoji: '\u{1F31F}', text: "365-day streak! A full year! Incredible!" },
-};
-
-interface Particle {
-  angle: number;
-  delay: number;
-  distance: number;
-  size: number;
-  color: string;
-}
-
-const particles: Particle[] = Array.from({ length: 12 }, (_, i) => ({
-  angle: (i * 30 * Math.PI) / 180,
-  delay: i * 0.05,
-  distance: 80 + Math.random() * 40,
-  size: 6 + Math.random() * 6,
-  color: ['#6366f1', '#a855f7', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'][i % 6],
-}));
 
 interface StreakCelebrationProps {
   milestone: number | null;
@@ -39,76 +18,48 @@ interface StreakCelebrationProps {
 }
 
 export default function StreakCelebration({ milestone, onClose }: StreakCelebrationProps) {
-  const msg = milestone ? messages[milestone] : null;
-  if (!msg) return null;
+  if (!milestone || !MILESTONES.has(milestone)) return null;
 
   return (
     <AnimatePresence>
-      {milestone && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300]"
+      <motion.div
+        key="backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 z-[300]"
+        onClick={onClose}
+      />
+      <motion.div
+        key="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="streak-title"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[301] w-80 max-w-[90vw]"
+      >
+        <div className="relative bg-surface rounded-md p-7 border border-line shadow-xl text-ink">
+          <button onClick={onClose} aria-label="Dismiss" className="absolute top-3 right-3 p-1.5 rounded-md text-muted hover:text-ink hover:bg-ink/5 transition-colors">
+            <X size={16} />
+          </button>
+
+          <p className="text-4xl font-bold tabular-nums text-accent mb-1">{milestone}</p>
+          <h2 id="streak-title" className="text-lg font-bold mb-2">day streak</h2>
+          <p className="text-muted text-sm mb-6">
+            {describe(milestone)} Your review schedule keeps bringing back the questions you found hard.
+          </p>
+
+          <button
             onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ type: 'spring', damping: 20 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[301] w-80 max-w-[90vw]"
+            autoFocus
+            className="px-5 py-2 rounded-md bg-accent text-accent-contrast font-medium text-sm hover:bg-accent-strong transition-colors"
           >
-            <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-8 text-center shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-              {/* Particle burst */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                {particles.map((p, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
-                    animate={{
-                      x: Math.cos(p.angle) * p.distance,
-                      y: Math.sin(p.angle) * p.distance,
-                      opacity: 0,
-                      scale: 0,
-                    }}
-                    transition={{ duration: 1, delay: 0.2 + p.delay, ease: 'easeOut' }}
-                    style={{ width: p.size, height: p.size, borderRadius: '50%', background: p.color, position: 'absolute' }}
-                  />
-                ))}
-              </div>
-
-              <button onClick={onClose} aria-label="Dismiss" className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <X size={16} />
-              </button>
-
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', delay: 0.1 }}
-                className="text-5xl mb-4"
-              >
-                {msg.emoji}
-              </motion.div>
-
-              <h2 className="text-xl font-extrabold mb-2 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
-                {milestone}-Day Streak!
-              </h2>
-              <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
-                {msg.text}
-              </p>
-
-              <button
-                onClick={onClose}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium text-sm hover:from-indigo-500 hover:to-purple-500 transition-all shadow-lg shadow-indigo-500/20"
-              >
-                Keep Going!
-              </button>
-            </div>
-          </motion.div>
-        </>
-      )}
+            Continue
+          </button>
+        </div>
+      </motion.div>
     </AnimatePresence>
   );
 }

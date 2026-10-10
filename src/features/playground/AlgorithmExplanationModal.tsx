@@ -73,7 +73,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[120] bg-black/70 flex items-center justify-center p-4"
           onClick={onClose}
         >
           <motion.div
@@ -82,23 +82,23 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
             exit={{ scale: 0.96, opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={e => e.stopPropagation()}
-            className="w-full max-w-5xl max-h-[90vh] bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden"
+            className="w-full max-w-5xl max-h-[90vh] bg-surface dark:bg-[#0f1117] rounded-lg shadow-2xl border border-line flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+            <div className="flex items-start justify-between px-6 py-4 border-b border-line shrink-0">
               <div>
-                <h2 className="text-xl font-bold">{explanation.problem} — Explained</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                <h2 className="text-xl font-bold">{explanation.problem}: explained</h2>
+                <p className="text-xs text-muted mt-1 max-w-2xl leading-relaxed">
                   <InlineText text={explanation.problemStatement} />
                 </p>
               </div>
-              <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0" aria-label="Close">
+              <button onClick={onClose} className="p-2 rounded-lg text-muted hover:bg-ink/5 transition-colors shrink-0" aria-label="Close">
                 <X size={18} />
               </button>
             </div>
 
             {/* Approach tabs */}
-            <div className="flex gap-2 px-6 pt-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+            <div className="flex gap-2 px-6 pt-4 border-b border-line shrink-0">
               {explanation.approaches.map((a, i) => (
                 <button
                   key={a.id}
@@ -106,8 +106,8 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                   className={
                     'inline-flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium border-b-2 transition-colors ' +
                     (i === activeApproach
-                      ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200')
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-muted hover:text-ink')
                   }
                 >
                   {a.badge === 'best' && <Award size={14} className="text-amber-500" />}
@@ -120,15 +120,15 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {/* Intuition + complexity */}
               <div className="grid md:grid-cols-3 gap-4 mb-5">
-                <div className="md:col-span-2 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/40">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1.5">Intuition</div>
-                  <RichText text={approach.intuition} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed" />
+                <div className="md:col-span-2 p-4 rounded-md bg-accent-soft border border-accent/30">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-accent mb-1.5">Intuition</div>
+                  <RichText text={approach.intuition} className="text-sm text-ink leading-relaxed" />
                 </div>
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Complexity</div>
+                <div className="p-4 rounded-md bg-canvas border border-line">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-2">Complexity</div>
                   <ComplexityRow label="Time" value={approach.complexity.time} />
                   <ComplexityRow label="Space" value={approach.complexity.space} />
-                  <div className="text-xs mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 italic">
+                  <div className="text-xs mt-2 pt-2 border-t border-line text-muted italic">
                     {approach.complexity.verdict}
                   </div>
                 </div>
@@ -136,9 +136,9 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
 
               {/* Example */}
               <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
-                <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-900 text-slate-500 font-medium">Example</span>
+                <span className="px-2 py-1 rounded-md bg-ink/5 text-muted font-medium">Example</span>
                 <code className="px-2 py-1 rounded-md bg-slate-900 text-emerald-300 font-mono">{approach.example.input}</code>
-                <span className="text-slate-400">→</span>
+                <span className="text-muted">→</span>
                 <code className="px-2 py-1 rounded-md bg-slate-900 text-amber-300 font-mono">{approach.example.output}</code>
               </div>
 
@@ -147,9 +147,9 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                 {/* Pseudocode — single column OR side-by-side comparison */}
                 {approach.pseudocodeCompare && approach.pseudocodeCompare.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-xl border border-indigo-300 dark:border-indigo-700/60 bg-[#0f1117] overflow-hidden">
-                      <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-indigo-400 border-b border-slate-800">
-                        {approach.pseudocodeLabel ?? 'Primary'} <span className="text-slate-500">· this one</span>
+                    <div className="rounded-md border border-accent/30 bg-[#0f1117] overflow-hidden">
+                      <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-teal-300 border-b border-slate-800">
+                        {approach.pseudocodeLabel ?? 'Primary'} <span className="text-slate-400">· this one</span>
                       </div>
                       <pre className="p-2 text-[11px] leading-relaxed font-mono">
                         {approach.pseudocode.map((line, i) => (
@@ -158,7 +158,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                             className={
                               'px-1.5 py-0.5 rounded transition-colors ' +
                               (i === step.pseudoLine
-                                ? 'bg-indigo-500/20 text-indigo-200 border-l-2 border-indigo-400 -ml-0.5'
+                                ? 'bg-teal-500/20 text-teal-100 border-l-2 border-teal-400 -ml-0.5'
                                 : 'text-slate-400 border-l-2 border-transparent -ml-0.5')
                             }
                           >
@@ -168,9 +168,9 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                       </pre>
                     </div>
                     {approach.pseudocodeCompare.map(block => (
-                      <div key={block.label} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-[#0f1117] overflow-hidden">
-                        <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-slate-500 border-b border-slate-800">
-                          {block.label} <span className="text-slate-600">· compare</span>
+                      <div key={block.label} className="rounded-md border border-line bg-[#0f1117] overflow-hidden">
+                        <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-slate-400 border-b border-slate-800">
+                          {block.label} <span className="text-slate-400">· compare</span>
                         </div>
                         <pre className="p-2 text-[11px] leading-relaxed font-mono">
                           {block.lines.map((line, i) => (
@@ -180,7 +180,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                                 'px-1.5 py-0.5 rounded transition-colors ' +
                                 (i === block.highlightLine
                                   ? 'bg-amber-500/15 text-amber-200 border-l-2 border-amber-500/60 -ml-0.5'
-                                  : 'text-slate-500 border-l-2 border-transparent -ml-0.5')
+                                  : 'text-slate-400 border-l-2 border-transparent -ml-0.5')
                               }
                             >
                               {line || ' '}
@@ -191,8 +191,8 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                     ))}
                   </div>
                 ) : (
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-[#0f1117] overflow-hidden">
-                  <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-slate-500 border-b border-slate-800">Pseudocode</div>
+                <div className="rounded-md border border-line bg-[#0f1117] overflow-hidden">
+                  <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-slate-400 border-b border-slate-800">Pseudocode</div>
                   <pre className="p-3 text-xs leading-relaxed font-mono">
                     {approach.pseudocode.map((line, i) => (
                       <div
@@ -200,7 +200,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                         className={
                           'px-2 py-0.5 rounded transition-colors ' +
                           (i === step.pseudoLine
-                            ? 'bg-indigo-500/20 text-indigo-200 border-l-2 border-indigo-400 -ml-0.5'
+                            ? 'bg-teal-500/20 text-teal-100 border-l-2 border-teal-400 -ml-0.5'
                             : 'text-slate-400 border-l-2 border-transparent -ml-0.5')
                         }
                       >
@@ -216,21 +216,21 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
               </div>
 
               {/* Step description */}
-              <div className="mt-3 p-4 rounded-xl bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+              <div className="mt-3 p-4 rounded-md bg-ink/5 border border-line">
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Step {stepIdx + 1} of {totalSteps}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Step {stepIdx + 1} of {totalSteps}</span>
                 </div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100"><InlineText text={step.title} /></p>
-                {step.detail && <RichText text={step.detail} className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed" />}
+                <p className="text-sm font-medium text-ink"><InlineText text={step.title} /></p>
+                {step.detail && <RichText text={step.detail} className="text-xs text-muted mt-1.5 leading-relaxed" />}
               </div>
 
               {/* Polyfill references — built-ins this approach uses that have a polyfill template */}
               {approach.usesPolyfills && approach.usesPolyfills.length > 0 && (
-                <div className="mt-4 p-4 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/20">
+                <div className="mt-4 p-4 rounded-md border border-amber-200 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/20">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-2">
                     Built-ins used (peek under the hood)
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+                  <p className="text-xs text-muted mb-3">
                     This approach leans on the following array/object built-ins. Click any chip to open its polyfill template and study how it's implemented internally.
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -244,14 +244,14 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                           }
                         }}
                         disabled={!onLoadTemplate}
-                        className="group inline-flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg bg-white dark:bg-slate-900/60 border border-amber-200 dark:border-amber-900/50 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-sm transition-all disabled:cursor-default disabled:hover:border-amber-200 disabled:hover:shadow-none"
+                        className="group inline-flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg bg-surface border border-amber-200 dark:border-amber-900/50 hover:border-amber-400 dark:hover:border-amber-600 transition-all disabled:cursor-default disabled:hover:border-amber-200"
                         title={onLoadTemplate ? `Open the ${p.templateName} polyfill template` : undefined}
                       >
                         <code className="text-xs font-mono text-amber-700 dark:text-amber-300 group-hover:text-amber-900 dark:group-hover:text-amber-200">
                           {p.builtin}
                         </code>
                         {p.why && (
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                          <span className="text-[10px] text-muted leading-tight">
                             {p.why}
                           </span>
                         )}
@@ -262,19 +262,19 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
               )}
 
               {/* Tradeoffs */}
-              <details className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <summary className="px-4 py-2.5 text-xs font-semibold cursor-pointer text-slate-700 dark:text-slate-300">
+              <details className="mt-4 rounded-md border border-line">
+                <summary className="px-4 py-2.5 text-xs font-semibold cursor-pointer text-ink">
                   When to pick this approach
                 </summary>
-                <RichText text={approach.tradeoffs} className="px-4 pb-3 pt-1 text-xs text-slate-600 dark:text-slate-400 leading-relaxed" />
+                <RichText text={approach.tradeoffs} className="px-4 pb-3 pt-1 text-xs text-muted leading-relaxed" />
               </details>
             </div>
 
             {/* Footer — step navigator */}
-            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 shrink-0">
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3.5 border-t border-line bg-canvas shrink-0">
               <button
                 onClick={reset}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted hover:bg-ink/10 transition-colors"
                 aria-label="Reset"
               >
                 <RotateCcw size={12} /> Reset
@@ -283,14 +283,14 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                 <button
                   onClick={prev}
                   disabled={stepIdx === 0}
-                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="p-2 rounded-lg border border-line disabled:opacity-40 hover:bg-ink/5 transition-colors"
                   aria-label="Previous step"
                 >
                   <ChevronLeft size={16} />
                 </button>
                 {/* Dot indicator. Walkthroughs run to ~20 steps, which is too many
                     dots for a phone, so narrow screens get a "3 / 12" counter. */}
-                <span className="sm:hidden px-1 text-xs font-medium tabular-nums text-slate-600 dark:text-slate-400">
+                <span className="sm:hidden px-1 text-xs font-medium tabular-nums text-muted">
                   {stepIdx + 1} / {totalSteps}
                 </span>
                 <div className="hidden sm:flex gap-1.5 px-2">
@@ -301,8 +301,8 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                       className={
                         'w-2 h-2 rounded-full transition-all ' +
                         (i === stepIdx
-                          ? 'bg-indigo-500 w-4'
-                          : i < stepIdx ? 'bg-indigo-300 dark:bg-indigo-800' : 'bg-slate-300 dark:bg-slate-700')
+                          ? 'bg-accent w-4'
+                          : i < stepIdx ? 'bg-accent/40' : 'bg-ink/15')
                       }
                       aria-label={`Go to step ${i + 1}`}
                     />
@@ -310,7 +310,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                 </div>
                 <button
                   onClick={() => setPlaying(p => !p)}
-                  className="p-2 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
+                  className="p-2 rounded-lg bg-accent text-accent-contrast hover:bg-accent-strong transition-colors"
                   aria-label={playing ? 'Pause' : 'Auto-play'}
                   title={playing ? 'Pause' : 'Auto-play (Space)'}
                 >
@@ -319,13 +319,13 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                 <button
                   onClick={next}
                   disabled={stepIdx >= totalSteps - 1}
-                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="p-2 rounded-lg border border-line disabled:opacity-40 hover:bg-ink/5 transition-colors"
                   aria-label="Next step"
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
-              <span className="text-[10px] text-slate-400 hidden md:inline">← → arrows · Space to play</span>
+              <span className="text-[10px] text-muted hidden md:inline">← → arrows · Space to play</span>
             </div>
           </motion.div>
         </motion.div>

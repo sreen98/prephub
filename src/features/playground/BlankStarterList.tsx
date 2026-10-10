@@ -13,9 +13,9 @@ export default function BlankStarterList({
 }) {
   const handleBlankStarter = onPick;
   return (
-    <div className="flex-1 overflow-auto p-8 bg-slate-50/40 dark:bg-slate-900/20">
-      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-xl">
-        Pick a language and start with a tiny scaffold — no template content. Run, edit, experiment.
+    <div className="flex-1 overflow-auto p-8 bg-canvas">
+      <p className="text-sm text-muted mb-6 max-w-xl">
+        Pick a language and start from a minimal scaffold you can run and edit.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {starters.map((starter) => {
@@ -24,7 +24,7 @@ export default function BlankStarterList({
             <button
               key={starter.name}
               onClick={() => handleBlankStarter(starter)}
-              className="group text-left p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all"
+              className="group text-left p-5 rounded-md border border-line bg-surface hover:border-accent transition-all"
             >
               <div className="flex items-center gap-2 mb-2">
                 <span className={
@@ -39,8 +39,8 @@ export default function BlankStarterList({
                 </span>
                 <span className="font-semibold text-base">{starter.name}</span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{starter.description}</p>
-              <div className="mt-3 inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              <p className="text-xs text-muted leading-relaxed">{starter.description}</p>
+              <div className="mt-3 inline-flex items-center gap-1 text-[11px] text-accent font-medium opacity-0 group-hover:opacity-100 transition-opacity">
                 Start <ChevronRight size={11} />
               </div>
             </button>

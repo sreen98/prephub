@@ -19,8 +19,8 @@ import type { UseTemplateFiltersReturn } from '../../hooks/useTemplateFilters';
 function CountPill({ done, total }: { done: number; total: number }) {
   return (
     <span className="text-[10px] shrink-0 tabular-nums">
-      <span className={done > 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400'}>{done}</span>
-      <span className="text-slate-400">/{total}</span>
+      <span className={done > 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-muted'}>{done}</span>
+      <span className="text-muted">/{total}</span>
     </span>
   );
 }
@@ -46,7 +46,7 @@ export default function TemplateFilterSidebar({
   return (
     // Below sm this is a horizontal, scrollable strip of chips above the grid;
     // a 220px sidebar would leave a phone ~130px for the templates.
-    <div className="shrink-0 flex items-center gap-2 overflow-x-auto border-b border-slate-100 dark:border-slate-800 py-2 sm:block sm:w-[220px] sm:py-3 sm:overflow-x-visible sm:overflow-y-auto sm:border-b-0 sm:border-r sidebar-scroll bg-slate-50/60 dark:bg-slate-900/40">
+    <div className="shrink-0 flex items-center gap-2 overflow-x-auto border-b border-line py-2 sm:block sm:w-[220px] sm:py-3 sm:overflow-x-visible sm:overflow-y-auto sm:border-b-0 sm:border-r sidebar-scroll bg-canvas">
       {/* Tag pills at top of category list — counts respect the
           current modal mode (templates vs challenges) so they
           reflect what the user is actually browsing. */}
@@ -65,8 +65,8 @@ export default function TemplateFilterSidebar({
               className={[
                 "px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all capitalize flex items-center gap-1",
                 drawerFilter === tag
-                  ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
-                  : "bg-white dark:bg-slate-800/70 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  ? "bg-accent-soft text-accent"
+                  : "bg-surface text-muted hover:text-ink"
               ].join(' ')}
             >
               {tag === 'all' ? 'All' : tag}
@@ -87,15 +87,15 @@ export default function TemplateFilterSidebar({
               className={[
                 "shrink-0 whitespace-nowrap sm:w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors flex items-center justify-between gap-2",
                 patternFilter === 'all'
-                  ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
+                  ? "bg-accent-soft text-accent font-medium"
+                  : "text-muted hover:bg-surface"
               ].join(' ')}
             >
               <span className="flex items-center gap-2">
-                {patternFilter === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />}
+                {patternFilter === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
                 <span>All patterns</span>
               </span>
-              <span className="text-[10px] text-slate-400">{
+              <span className="text-[10px] text-muted">{
                 // Total challenges in the current view (after drawerFilter+search)
                 // ignoring patternFilter — the count when "All" is selected.
                 allTemplates.filter(t => {
@@ -111,7 +111,7 @@ export default function TemplateFilterSidebar({
               if (visible.length === 0) return null;
               return (
                 <div key={group.label} className="flex gap-1 sm:block sm:mt-3">
-                  <div className="hidden sm:block px-3 mb-1 text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500">
+                  <div className="hidden sm:block px-3 mb-1 text-[10px] uppercase tracking-wider font-bold text-muted">
                     {group.label}
                   </div>
                   {visible.map(p => {
@@ -123,16 +123,16 @@ export default function TemplateFilterSidebar({
                         className={[
                           "shrink-0 whitespace-nowrap sm:w-full text-left px-3 py-1.5 mt-0.5 rounded-lg text-[12.5px] transition-colors flex items-center justify-between gap-2",
                           isActive
-                            ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
-                            : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
+                            ? "bg-accent-soft text-accent font-medium"
+                            : "text-muted hover:bg-surface"
                         ].join(' ')}
                         title={`${patternCounts[p]} challenge${patternCounts[p] === 1 ? '' : 's'} use this pattern`}
                       >
                         <span className="truncate flex items-center gap-2">
-                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />}
+                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
                           {p}
                         </span>
-                        <span className="text-[10px] text-slate-400 shrink-0">{patternCounts[p]}</span>
+                        <span className="text-[10px] text-muted shrink-0">{patternCounts[p]}</span>
                       </button>
                     );
                   })}
@@ -147,8 +147,8 @@ export default function TemplateFilterSidebar({
               className={[
                 "shrink-0 whitespace-nowrap sm:w-full text-left px-3 py-2 rounded-lg text-[13px] transition-colors flex items-center justify-between gap-2",
                 activeCategory === 'all'
-                  ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
+                  ? "bg-accent-soft text-accent font-medium"
+                  : "text-muted hover:bg-surface"
               ].join(' ')}
             >
               <span>All categories</span>
@@ -166,15 +166,15 @@ export default function TemplateFilterSidebar({
                   className={[
                     "shrink-0 whitespace-nowrap sm:w-full text-left px-3 py-2 mt-0.5 rounded-lg text-[13px] transition-colors flex items-center justify-between gap-2",
                     isActive
-                      ? "bg-indigo-100/70 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium"
-                      : "text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60"
+                      ? "bg-accent-soft text-accent font-medium"
+                      : "text-muted hover:bg-surface"
                   ].join(' ')}
                 >
                   <span className="flex items-center gap-2 min-w-0">
                     <span className={[
                       "text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0",
                       cat.tag === 'React' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
-                        cat.tag === 'Polyfills' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' :
+                        cat.tag === 'Polyfills' ? 'bg-accent-soft text-accent' :
                           'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
                     ].join(' ')}>
                       {cat.tag}

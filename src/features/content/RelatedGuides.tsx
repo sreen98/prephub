@@ -15,8 +15,8 @@ export default function RelatedGuides({ guides }: { guides: MenuItem[] }) {
   if (guides.length === 0) return null;
 
   return (
-    <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800">
-      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-4 flex items-center gap-2">
+    <div className="mt-12 pt-8 border-t border-line">
+      <h3 className="text-sm font-bold uppercase tracking-wider text-muted mb-4 flex items-center gap-2">
         <BookOpen size={14} />
         Continue Learning
       </h3>
@@ -28,18 +28,18 @@ export default function RelatedGuides({ guides }: { guides: MenuItem[] }) {
             <Link
               key={guide.path}
               to={guide.path}
-              className="group p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 hover:-translate-y-0.5 transition-all duration-200"
+              className="group p-4 rounded-md border border-line bg-surface hover:border-ink/30 transition-all duration-200"
             >
-              <div className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+              <div className="text-sm font-semibold text-ink group-hover:text-accent-strong transition-colors">
                 {guide.name}
               </div>
               <div className="flex items-center gap-2 mt-1.5">
                 {category && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/5 text-muted">
                     {category.name}
                   </span>
                 )}
-                <span className="text-[10px] text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                <span className="text-[10px] text-muted flex items-center gap-1">
                   <Clock size={10} />
                   ~{readTime}m
                 </span>

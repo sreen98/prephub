@@ -1,6 +1,7 @@
 import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import type { Components } from 'react-markdown';
+import { Link } from 'react-router-dom';
 import { slugify, getTextContent } from '../../data';
 import { cn } from '../../lib/cn';
 import MermaidBlock from '../../components/MermaidBlock';
@@ -97,13 +98,18 @@ export function buildMarkdownComponents(opts: MarkdownComponentOptions): Compone
     table({ children }) {
       // Wide tables scroll inside their own container so the page never does.
       return (
-        <div className="overflow-x-auto my-6 rounded-xl border border-slate-200 dark:border-slate-700">
+        <div className="overflow-x-auto my-6 rounded-md border border-line">
           <table>{children}</table>
         </div>
       );
     },
     a({ href, children, ...props }) {
       const isExternal = href?.startsWith('http://') || href?.startsWith('https://');
+      // A link to another guide (`/frontend/react-performance#135-…`) navigates inside the app
+      // rather than reloading it; ContentPage scrolls to the #anchor when the location changes.
+      if (href?.startsWith('/') && !href.startsWith('//')) {
+        return <Link to={href} className="content-link">{children}</Link>;
+      }
       return (
         <a
           href={href}

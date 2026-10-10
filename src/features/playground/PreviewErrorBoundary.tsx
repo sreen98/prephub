@@ -54,7 +54,7 @@ export default class PreviewErrorBoundary extends React.Component<Props, State> 
         <div style={{ marginTop: 10, color: '#7f1d1d', fontSize: 12 }}>
           The full message is in Console Output. If this names something like
           {' '}<code>fetchResults</code> or <code>api</code>, the snippet is calling a
-          helper it does not define — add a stub for it.
+          helper it does not define. Add a stub for it.
         </div>
       </div>
     );

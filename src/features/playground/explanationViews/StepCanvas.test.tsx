@@ -7,7 +7,7 @@ import type { ExplanationStep } from '../../../data/playground/playgroundExplana
 
 const base: ExplanationStep = { title: 'A step', detail: 'what happens', pseudoLine: 0 };
 const render = (step: ExplanationStep) => renderToStaticMarkup(<StepCanvas step={step} />);
-const FALLBACK = /No visual change this step/;
+const FALLBACK = /No visual change in this step/;
 
 describe('StepCanvas — the fallback is derived, not hand-maintained', () => {
   it('shows the fallback for a narrative-only step', () => {

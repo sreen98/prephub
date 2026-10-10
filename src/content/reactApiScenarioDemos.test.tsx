@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { readSeries } from './guideSeries';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { buildReactScope } from '../lib/playgroundScope';
@@ -13,7 +14,8 @@ import { transform } from '@babel/standalone';
  * them — so an answer can never claim an output its own Try it button disproves.
  */
 
-const reactGuide = readFileSync('src/content/front-end/react-guide.md', 'utf8');
+// The React guide is a five-file series; markers are found wherever their block lives.
+const reactGuide = readSeries('react');
 const reduxGuide = readFileSync('src/content/front-end/redux-toolkit-guide.md', 'utf8');
 
 /** The fenced block containing `marker`. */

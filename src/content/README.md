@@ -2,7 +2,7 @@
 
 A comprehensive collection of guides covering everything a full-stack developer gets asked in interviews — from JavaScript fundamentals to frontend architecture, accessibility, security and AI engineering.
 
-**76 guides across 10 categories, plus 14 cheat sheets and an interactive Code Playground.**
+**84 guides across 10 categories, plus 14 cheat sheets and an interactive Code Playground.**
 
 ---
 
@@ -56,9 +56,9 @@ If you have limited time, this is the list. These twenty topics come up in almos
 
 ## 🗂️ What's In Here
 
-### 🎨 Front End (25 guides)
+### 🎨 Front End (29 guides)
 
-**Core React** — [React Guide](/frontend/react) (hooks, reconciliation and Fiber, performance, React 19 through 19.3), [React Router](/frontend/react-router) (nested layouts, loaders, the URL as state), [Next.js & RSC](/frontend/nextjs-rsc)
+**Core React** — the React series: [React Guide](/frontend/react) (core concepts and hooks), [React Performance & Internals](/frontend/react-performance) (memoisation, concurrent features, reconciliation and Fiber), [React 19 & Patterns](/frontend/react-19-patterns) (React 19 through 19.3, component patterns), [React Interview Questions](/frontend/react-interview-questions) and [React Tricky Questions](/frontend/react-tricky-questions), [React Router](/frontend/react-router) (nested layouts, loaders, the URL as state), [Next.js & RSC](/frontend/nextjs-rsc)
 
 **Global state management** — [TanStack Query](/frontend/tanstack-query), [Redux Toolkit](/frontend/redux-toolkit), [Redux Saga](/frontend/redux-saga), [Zustand](/frontend/zustand) — start with the split the guides all teach: **server state** belongs in TanStack Query, rarely-changing config in Context, and only genuinely shared client state in a store
 
@@ -72,9 +72,9 @@ If you have limited time, this is the list. These twenty topics come up in almos
 
 **Mobile** — [React Native & Apps](/frontend/react-native) (New Architecture, navigation, lists, in-app purchases, crash reporting, background tasks, app size), [Play Store Deployment](/frontend/play-store-deployment) (AAB and signing, the Data Safety form, closed testing, the 14-day soak), [iOS & App Store Deployment](/frontend/ios-app-store-deployment) (code signing, TestFlight, privacy manifests, App Review rejections, phased release), [Mobile Accessibility](/frontend/mobile-accessibility) (VoiceOver and TalkBack, grouping, Dynamic Type, touch targets, WCAG for mobile), [Mobile App Security](/frontend/mobile-app-security) (Keychain/Keystore, biometrics done right, PKCE, pinning, attestation, receipt validation)
 
-### 💻 JavaScript & TypeScript (4 guides)
+### 💻 JavaScript & TypeScript (8 guides)
 
-[JavaScript Guide](/javascript/guide) (closures, prototypes, the event loop, ES2026 — Temporal, `using`, iterator helpers), [TypeScript Guide](/javascript/typescript) (generics, conditional and mapped types, the Go-native compiler), [Regex Guide](/javascript/regex), [JS Comparisons](/javascript/comparisons)
+[JavaScript Guide](/javascript/guide) with [JavaScript Interview Questions](/javascript/interview-questions) and [JavaScript Tricky Questions](/javascript/tricky-questions) (closures, prototypes, the event loop, ES2026 — Temporal, `using`, iterator helpers), [TypeScript Guide](/javascript/typescript) with [TypeScript Interview Questions](/javascript/typescript-interview-questions) and [TypeScript Tricky Questions](/javascript/typescript-tricky-questions) (generics, conditional and mapped types, the Go-native compiler), [Regex Guide](/javascript/regex), [JS Comparisons](/javascript/comparisons)
 
 ### ⚙️ Back End (17 guides)
 

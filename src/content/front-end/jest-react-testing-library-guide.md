@@ -28,7 +28,7 @@
 Jest is a **zero-config JavaScript testing framework** by Meta (Facebook). It provides a test runner, assertion library, mocking utilities, and code coverage — all in one package.
 
 ```bash
-npm install --save-dev jest @types/jest ts-jest
+npm install --save-dev jest @types/jest ts-jest jest-environment-jsdom   # jsdom env is a separate package since Jest 28
 # or with Vitest (Jest-compatible, faster with Vite)
 npm install --save-dev vitest
 ```
@@ -1209,6 +1209,8 @@ function renderWithQuery(ui: React.ReactElement) {
 
 ### 13.2 Mocking API Calls
 
+Mocking your own endpoint module works, but it is the fallback, not the default: for network calls prefer MSW (§13.3), which leaves your request code running, and keep `jest.mock` for modules you genuinely can't run in a test (an analytics SDK, a native API).
+
 ```tsx
 // Mock the endpoint module
 jest.mock('@/lib/endpoints/users', () => ({
@@ -1447,7 +1449,7 @@ it('shows job detail for given ID', async () => {
 ❌ Don't assert on snapshot alone (combine with behavior tests)
 ❌ Don't test third-party library internals (trust shadcn, MUI, etc.)
 ❌ Don't test constants or static data
-❌ Don't use getBy inside waitFor — use findBy
+❌ Don't reach for waitFor + getBy to wait for one element — prefer findBy
 ❌ Don't use toMatchSnapshot excessively — tests become brittle
 ```
 
@@ -1500,7 +1502,7 @@ The ⚠️ pair is a style point, not a bug: `getBy` inside `waitFor` works. `wa
 
 ```ts
 export default {
-  testEnvironment: 'jsdom',
+  testEnvironment: 'jsdom',                    // needs the jest-environment-jsdom package (Jest 28+)
   setupFilesAfterEnv: ['./src/test/setup.ts'],
   transform: {
     '^.+\\.tsx?$': 'ts-jest',
@@ -1521,6 +1523,7 @@ export default {
 ### 17.2 Vitest Config (vitest.config.ts)
 
 ```ts
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
@@ -1533,7 +1536,7 @@ export default defineConfig({
     css: true,
   },
   resolve: {
-    alias: { '@': './src' },
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }, // aliases need an absolute path
   },
 });
 ```
@@ -1843,12 +1846,12 @@ await waitFor(() => {
 | **MSW** | Mock at network level | Realistic, test full stack | More setup |
 
 ```ts
-// Approach 1: jest.mock (most common)
+// Approach 1: jest.mock (common, but tied to the import path)
 jest.mock('@/lib/endpoints/users', () => ({
   getUsers: jest.fn().mockResolvedValue([{ id: '1', name: 'Alice' }]),
 }));
 
-// Approach 2: MSW (recommended for integration tests)
+// Approach 2: MSW (recommended for anything that makes network calls)
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 
@@ -1859,7 +1862,7 @@ server.use(
 );
 ```
 
-**Best practice:** Use `jest.mock` for unit tests (fast), MSW for integration tests (realistic).
+**Best practice:** use MSW for network calls, in unit and integration tests alike, and keep `jest.mock` for modules you genuinely can't run in a test (an analytics SDK, a native API).
 
 The difference is *where* the fake sits. `jest.mock` replaces one of your own modules, so the test is tied to that file's path and function names: move `getUsers` to another file, or switch from `fetch` to axios, and the test breaks although the app still works — while the code in between (URL building, headers, response parsing) is never exercised. MSW (Mock Service Worker) intercepts the actual HTTP request at the network layer, so all of your code runs for real and only the server is fake. The same handlers can also be reused in the browser during development.
 
@@ -2110,7 +2113,7 @@ it('matches snapshot', () => {
 it('matches inline snapshot', () => {
   const { container } = render(<Badge label="New" />);
   expect(container.innerHTML).toMatchInlineSnapshot(
-    `"<span class=\\"badge badge-new\\">New</span>"`
+    `"<span class="badge badge-new">New</span>"`
   );
 });
 ```

@@ -46,7 +46,7 @@ export default function ExplanationPanel({
           )}
 
           {question.followUp && (
-            <p className="mt-3 text-[13px] text-indigo-300 flex items-start gap-2">
+            <p className="mt-3 text-[13px] text-teal-300 flex items-start gap-2">
               <BookOpen size={14} className="mt-0.5 shrink-0" />
               <span><strong>Follow-up an interviewer would ask:</strong> {question.followUp}</span>
             </p>
@@ -55,7 +55,7 @@ export default function ExplanationPanel({
       ) : (
         <button
           onClick={onShowExplanation}
-          className="mt-3 text-[13px] text-indigo-400 hover:text-indigo-300"
+          className="mt-3 text-[13px] text-teal-300 hover:text-teal-300"
         >
           Show explanation →
         </button>

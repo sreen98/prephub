@@ -53,7 +53,7 @@ export default function CompareModal({ open, onClose, name, mine }: CompareModal
   );
 
   return (
-    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
         role="dialog" aria-modal="true" aria-label={`Compare ${name}`}
         onClick={(e) => e.stopPropagation()}

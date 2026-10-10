@@ -16,9 +16,9 @@ export const OfficialDocsBar = ({ filePath }: { filePath: string }) => {
   if (!guide?.officialDocs?.length) return null;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 mb-6 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200/50 dark:border-indigo-800/30 text-sm flex-wrap">
-      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 shrink-0">
-        <BookOpen size={15} className="text-indigo-500 dark:text-indigo-400" />
+    <div className="flex items-center gap-3 px-4 py-2.5 mb-6 rounded-md bg-accent-soft border border-accent/30 text-sm flex-wrap">
+      <div className="flex items-center gap-2 text-muted shrink-0">
+        <BookOpen size={15} className="text-accent" />
         <span>Official docs:</span>
       </div>
       {guide.officialDocs.map((doc, i) => (
@@ -27,7 +27,7 @@ export const OfficialDocsBar = ({ filePath }: { filePath: string }) => {
           href={doc.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium hover:underline"
+          className="inline-flex items-center gap-1 text-accent hover:text-accent-strong font-medium hover:underline"
         >
           {doc.label}
           <ExternalLink size={12} />

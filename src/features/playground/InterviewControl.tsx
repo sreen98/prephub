@@ -19,7 +19,7 @@ export default function InterviewControl({ interview, name, isChallenge, onGoTo 
     const low = remainingMs < 5 * 60_000;
     return (
       <span className="flex items-center gap-1.5" role="timer" aria-label={`Interview mode, ${formatClock(remainingMs)} left`}>
-        <span className={'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-mono border ' + (low ? 'border-rose-500/60 text-rose-300 bg-rose-500/10' : 'border-amber-500/50 text-amber-200 bg-amber-500/10')}>
+        <span className={'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-mono border' + (low ? 'border-rose-500/60 text-rose-300 bg-rose-500/10' : 'border-amber-500/50 text-amber-200 bg-amber-500/10')}>
           <Timer size={14} /> {formatClock(remainingMs)}
         </span>
         <button onClick={() => interview.end('ended')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-[#3d444d] text-slate-300 hover:bg-[#2d333b]" title="Stop the timer and unlock Explain and the solution">

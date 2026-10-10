@@ -295,7 +295,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
   const onChallengeSolved = useCallback((name: string) => {
     markSolved(name);
     const attempt = reportSolved(name);
-    if (attempt) setToastMsg(`Solved in ${formatClock(attempt.elapsedMs)} 🎉`);
+    if (attempt) setToastMsg(`Solved in ${formatClock(attempt.elapsedMs)}`);
   }, [markSolved, reportSolved]);
   // `keep`: drop logs after that index first (the checks re-run the program, which re-logs).
   const appendLines = useCallback((lines: string[], keep?: number) => {
@@ -347,7 +347,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
       if (hadModuleSyntax) {
         logsRef.current = [...logsRef.current, {
           type: 'warn',
-          text: `import/export statements were ignored — the playground runs a script, not a module. ${scopeNames()} are already in scope.`,
+          text: `import/export statements were ignored, because the playground runs a script. ${scopeNames()} are already in scope.`,
         }];
       }
       let sourceToTranspile = moduleFree;
@@ -501,7 +501,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
     const opened = stub === undefined ? null : resolveOpenCode(saved, stub);
     if (opened?.restored) {
       setCode(opened.code);
-      setToastMsg(opened.templateUpdated ? 'Resumed your saved work — this challenge has been updated since; Reset loads the new version.' : `Resumed your saved work in "${template.name}"`);
+      setToastMsg(opened.templateUpdated ? 'Resumed your saved work. This challenge has changed since then, and Reset loads the new version.' : `Resumed your saved work in "${template.name}"`);
     } else if (stub !== undefined) {
       setCode(stub);
     } else {
@@ -833,7 +833,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
           <PlaygroundFlavorSwitch flavor={flavor} />
           {selectedName && (
             <span className="text-sm text-slate-500 font-normal truncate hidden sm:inline">
-              — {selectedName}
+              · {selectedName}
             </span>
           )}
           {isJSX && (
@@ -901,7 +901,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
                 className={
                   'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
                   (wrapOn
-                    ? 'border-indigo-700/50 bg-indigo-900/20 text-indigo-300 hover:bg-indigo-900/30'
+                    ? 'border-teal-600/50 bg-teal-900/20 text-teal-300 hover:bg-teal-900/30'
                     : 'border-[#3d444d] text-slate-500 hover:bg-[#2d333b] hover:text-slate-300')
                 }
                 title={wrapOn ? 'Word wrap: ON (long lines break visually)' : 'Word wrap: OFF (long lines scroll horizontally)'}
@@ -962,7 +962,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
           aria-label="Resize editor and output panels"
           className={
             'hidden md:flex items-center justify-center shrink-0 w-1.5 cursor-col-resize transition-colors group ' +
-            (isResizing ? 'bg-indigo-500' : 'bg-[#2d333b] hover:bg-indigo-500/70')
+            (isResizing ? 'bg-teal-800' : 'bg-[#2d333b] hover:bg-teal-500/70')
           }
         >
           <div className="w-0.5 h-8 rounded-full bg-slate-600 group-hover:bg-white transition-colors" />

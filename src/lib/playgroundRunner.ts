@@ -238,7 +238,7 @@ export function runInWorker(
       if (!syncDone) {
         logs.push({
           type: 'error',
-          text: `⏱️ Execution timed out after ${syncTimeoutMs / 1000}s — your code is likely stuck in an infinite loop. The worker was force-stopped.`,
+          text: `Execution timed out after ${syncTimeoutMs / 1000}s. Your code is probably stuck in an infinite loop, so the worker was stopped.`,
         });
         finalize(true);
       }

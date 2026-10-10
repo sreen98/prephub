@@ -145,7 +145,7 @@ const { items, total } = useCartStore(
 );
 ```
 
-`useShallow` compares one level deep: instead of asking "is this the same object?", it asks "does each field hold the same value as last time?", so a new wrapper object with the same field references is treated as unchanged. **In Zustand v5 this is the only supported form** — the old `useStore(selector, shallow)` second argument was removed.
+`useShallow` compares one level deep: instead of asking "is this the same object?", it asks "does each field hold the same value as last time?", so a new wrapper object with the same field references is treated as unchanged. **In Zustand v5 the hook from `create` no longer takes an equality function** — the old `useStore(selector, shallow)` second argument was removed. If you need a custom equality function, `createWithEqualityFn` from `zustand/traditional` still accepts one.
 
 ### Derived values
 
@@ -223,12 +223,12 @@ const useStore = create(
 |---|---|---|
 | `persist` | Writes state to localStorage and rehydrates on load | Persists everything unless you `partialize`; needs `version` + `migrate` or an old shape crashes a returning user |
 | `devtools` | Redux DevTools, including time travel | Name your actions (`set(fn, false, 'cart/addItem')`) or the log is a wall of `anonymous` |
-| `immer` | Write "mutations" that produce immutable updates | Adds ~14 KB; only worth it for genuinely deep state |
+| `immer` | Write "mutations" that produce immutable updates | Adds ~5 KB gzipped (immer itself); only worth it for genuinely deep state |
 | `subscribeWithSelector` | `subscribe` with a selector and an equality check | Only needed for imperative subscriptions outside React (§7) |
 
 **Ordering:** `devtools` goes outermost so every change passes through it; `persist` wraps the creator so it can rehydrate; `immer` goes innermost, next to your state. Swap `persist` and `devtools` and rehydration calls the store's raw setter, which bypasses `devtools` entirely: the restored state never appears in the log, so DevTools keeps showing the pre-hydration values until the next action. In the correct order rehydration does show up, as one unnamed `anonymous` entry, and that entry is expected.
 
-**`persist` is asynchronous on rehydration.** The first render can happen before storage is read, which is a hydration mismatch waiting to happen in SSR. `useStore.persist.hasHydrated()` and `onRehydrateStorage` exist for exactly that.
+**When `persist` rehydrates depends on the storage.** With a synchronous storage such as `localStorage`, it rehydrates synchronously when the store is created; with an async storage (React Native's AsyncStorage, IndexedDB) the first render can happen before storage is read. In SSR the server has no `localStorage`, so it renders the defaults and the client renders the stored values: a hydration mismatch waiting to happen. `useStore.persist.hasHydrated()` and `onRehydrateStorage` exist for exactly that.
 
 ---
 
@@ -338,7 +338,7 @@ Most store logic can be tested exactly like that — no rendering at all, becaus
 |---|---|---|---|---|
 | Partial subscription | **No** — every consumer re-renders | Yes, per selector | Yes, per selector | Yes, per atom |
 | Boilerplate | Lowest | Low | Moderate | Low |
-| Provider required | Yes | No | Yes | Yes |
+| Provider required | Yes | No | Yes | Optional (default store) |
 | DevTools / time travel | No | Via middleware | Built in, best in class | Via middleware |
 | Enforced update path | No | No | Yes — actions and reducers | No |
 | Async | Plain functions | Plain functions | Thunks / RTK Query / Saga | Plain functions |
@@ -409,13 +409,13 @@ Slices — a function per feature returning its state and actions, composed into
 
 **Q6: What is `useShallow` and when do you need it?**
 
-Zustand compares the selector result with `Object.is`. A selector returning an object literal produces a new reference every call, so the comparison always fails and the component re-renders on every store change — the exact thing selectors were meant to prevent. `useShallow` wraps the selector with a one-level-deep comparison, so a new wrapper containing the same field references counts as unchanged. In v5 it is the only supported form; the old second-argument equality function was removed. The alternative, and usually the simpler one, is several separate `useStore` calls.
+Zustand compares the selector result with `Object.is`. A selector returning an object literal produces a new reference every call, so the comparison always fails and the component re-renders on every store change — the exact thing selectors were meant to prevent. `useShallow` wraps the selector with a one-level-deep comparison, so a new wrapper containing the same field references counts as unchanged. In v5 the hook from `create` no longer accepts the old second-argument equality function; `createWithEqualityFn` from `zustand/traditional` keeps that form for custom comparisons. The alternative, and usually the simpler one, is several separate `useStore` calls.
 
 ---
 
 **Q7: How do you persist state, and what goes wrong?**
 
-The `persist` middleware, with three options that are not optional in practice. `partialize` restricts what is written, because persisting the whole store means transient UI state is restored on the next visit. `version` plus `migrate` handles shape changes — without them, a returning user with an old shape gets a crash on load, and the bad data is in *their* browser, so you cannot fix it from the server. And rehydration is asynchronous, so the first render can occur before storage is read; `onRehydrateStorage` and `hasHydrated()` exist for that, and ignoring it is a classic SSR hydration mismatch.
+The `persist` middleware, with three options that are not optional in practice. `partialize` restricts what is written, because persisting the whole store means transient UI state is restored on the next visit. `version` plus `migrate` handles shape changes — without them, a returning user with an old shape gets a crash on load, and the bad data is in *their* browser, so you cannot fix it from the server. And rehydration timing: with `localStorage` it happens synchronously at store creation, but with an async storage the first render can occur before storage is read, and in SSR the server (which has no `localStorage`) renders the defaults while the client renders stored values. `onRehydrateStorage` and `hasHydrated()` exist for that, and ignoring it is a classic SSR hydration mismatch.
 
 ---
 

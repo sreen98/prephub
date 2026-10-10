@@ -31,8 +31,8 @@ export default function TemplateGrid({
   return (
     <div className="flex-1 overflow-y-auto sidebar-scroll p-4">
       {/* Mobile-only search */}
-      <div className="sm:hidden mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-        <Search size={13} className="text-slate-400 shrink-0" />
+      <div className="sm:hidden mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-canvas border border-line">
+        <Search size={13} className="text-muted shrink-0" />
         <input
           value={drawerSearch}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDrawerSearch(e.target.value)}
@@ -46,7 +46,7 @@ export default function TemplateGrid({
           challenges-only; `scopeHasDifficulty` is scoped to the active mode. */}
       {scopeHasDifficulty && (
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">Difficulty:</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted mr-1">Difficulty:</span>
           {(['all', 'Easy', 'Medium', 'Hard'] as const).map(d => {
             const isActive = difficultyFilter === d;
             const count = d === 'all'
@@ -58,7 +58,7 @@ export default function TemplateGrid({
               ? (isActive ? 'bg-amber-600 text-white' : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40')
               : d === 'Hard'
               ? (isActive ? 'bg-red-600 text-white' : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40')
-              : (isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700');
+              : (isActive ? 'bg-accent text-accent-contrast' : 'bg-ink/5 text-muted hover:bg-ink/10');
             return (
               <button
                 key={d}
@@ -68,7 +68,7 @@ export default function TemplateGrid({
                 }
               >
                 {d === 'all' ? 'All' : d}
-                <span className={'text-[9px] px-1 rounded ' + (isActive ? 'bg-white/20' : 'bg-white/40 dark:bg-slate-900/40')}>
+                <span className={'text-[9px] px-1 rounded ' + (isActive ? 'bg-surface' : 'bg-surface')}>
                   {count}
                 </span>
               </button>
@@ -78,7 +78,7 @@ export default function TemplateGrid({
       )}
 
       {filteredCategories.length === 0 ? (
-        <div className="h-full flex flex-col items-center justify-center py-12 text-slate-400">
+        <div className="h-full flex flex-col items-center justify-center py-12 text-muted">
           <Search size={32} className="mb-3 opacity-40" />
           <p className="text-sm font-medium">No templates found</p>
           <p className="text-xs mt-1">Try a different search or filter</p>
@@ -87,13 +87,13 @@ export default function TemplateGrid({
         (activeCategory === 'all' ? filteredCategories : filteredCategories.filter(c => c.label === activeCategory)).map((cat: CategoryMeta) => (
           <div key={cat.label} className="mb-5 last:mb-0">
             <div className="flex items-center gap-2 mb-2.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
                 {cat.label}
               </span>
               <span className={[
                 "text-[9px] px-1.5 py-0.5 rounded-full font-semibold",
                 cat.tag === 'React' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
-                  cat.tag === 'Polyfills' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400' :
+                  cat.tag === 'Polyfills' ? 'bg-accent-soft text-accent' :
                     'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
               ].join(' ')}>
                 {cat.tag}
@@ -113,10 +113,10 @@ export default function TemplateGrid({
                     key={t.name}
                     onClick={() => handleTemplate(t)}
                     className={[
-                      "text-left px-3 py-2.5 rounded-xl text-[13px] transition-all flex items-center gap-2 group border",
+                      "text-left px-3 py-2.5 rounded-md text-[13px] transition-all flex items-center gap-2 group border",
                       isActive
-                        ? "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-medium shadow-sm"
-                        : "bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300"
+                        ? "bg-accent-soft border-accent/30 text-accent font-medium shadow-sm"
+                        : "bg-surface border-line hover:border-accent/30 hover:bg-accent-soft text-ink"
                     ].join(' ')}
                     title={
                       entry?.status === 'solved' ? 'Solved'
@@ -147,7 +147,7 @@ export default function TemplateGrid({
                           {t.patterns?.map((p: Pattern) => (
                             <span
                               key={p}
-                              className="text-[9px] px-1 py-0 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 leading-tight"
+                              className="text-[9px] px-1 py-0 rounded bg-ink/5 text-muted leading-tight"
                               title={`Pattern: ${p}`}
                             >
                               {p}
@@ -161,7 +161,7 @@ export default function TemplateGrid({
                         JSX
                       </span>
                     )}
-                    <ChevronRight size={12} className="text-slate-300 dark:text-slate-700 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors shrink-0" />
+                    <ChevronRight size={12} className="text-slate-300 group-hover:text-accent-strong transition-colors shrink-0" />
                   </button>
                 );
               })}

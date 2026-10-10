@@ -207,6 +207,7 @@ The server sets `Content-Type: text/event-stream` and writes plain-text frames s
 data: {"id": 1, "text": "hello"}
 
 data: {"id": 2, "text": "world"}
+
 event: typing
 data: {"user": "alice"}
 
@@ -734,26 +735,36 @@ GraphQL has three operation types: `query` (read), `mutation` (write), and `subs
 ### Server (Apollo Server with `graphql-ws`)
 
 ```js
-const { ApolloServer } = require('@apollo/server');
-const { useServer } = require('graphql-ws/lib/use/ws');
+const { createServer } = require('node:http');
 const { WebSocketServer } = require('ws');
+const { useServer } = require('graphql-ws/use/ws');            // graphql-ws v6 (v5: 'graphql-ws/lib/use/ws')
+const { makeExecutableSchema } = require('@graphql-tools/schema');
+const { PubSub } = require('graphql-subscriptions');
+
+// In a full app, ApolloServer (@apollo/server) serves queries and mutations on this same HTTP server.
+const httpServer = createServer();
+const pubsub = new PubSub();   // in-memory: one process only; use a Redis-backed PubSub with several servers
 
 const wsServer = new WebSocketServer({ server: httpServer, path: '/graphql' });
 
 const schema = makeExecutableSchema({
   typeDefs: `
+    type Message { id: ID!, text: String! }
+    type Query { ping: Boolean }
     type Subscription { messageAdded(roomId: ID!): Message! }
   `,
   resolvers: {
     Subscription: {
       messageAdded: {
-        subscribe: (_, { roomId }) => pubsub.asyncIterator(`MSG_${roomId}`),
+        // graphql-subscriptions v3 renamed asyncIterator to asyncIterableIterator
+        subscribe: (_, { roomId }) => pubsub.asyncIterableIterator(`MSG_${roomId}`),
       },
     },
   },
 });
 
 useServer({ schema }, wsServer);
+httpServer.listen(4000);
 ```
 
 ### Client (Apollo Client)
@@ -894,7 +905,7 @@ A production-grade real-time client tries the best transport first and falls bac
 WebSocket  →  SSE  →  Long polling  →  Short polling
 ```
 
-**Socket.IO** does this automatically. If you build your own, the fallback usually only matters for users behind hostile corporate proxies — and many teams skip it for the operational simplicity of "WebSocket only, with a clear error if it fails."
+**Socket.IO** does a version of this automatically, but without the SSE step: it has no SSE transport. It connects with HTTP long-polling first and upgrades to WebSocket (or WebTransport) when it can. If you build your own, the fallback usually only matters for users behind hostile corporate proxies — and many teams skip it for the operational simplicity of "WebSocket only, with a clear error if it fails."
 
 ---
 
@@ -1061,7 +1072,7 @@ function broadcast(room, message) {
 
 **Layer 3: presence and replay.** Track who's online (Redis sorted set with TTL). Track last-message-ID per user (Redis hash). On reconnect, read missed messages from a log (Redis Streams, Kafka).
 
-**Common mistake:** assuming Socket.IO "just scales." Socket.IO requires the `socket.io-redis` adapter to do exactly the fan-out above; without it, multi-server is broken.
+**Common mistake:** assuming Socket.IO "just scales." Socket.IO requires the Redis adapter (`@socket.io/redis-adapter`, formerly `socket.io-redis`) to do exactly the fan-out above; without it, multi-server is broken.
 
 ---
 
@@ -1164,7 +1175,7 @@ Corporate proxies often don't pass `Upgrade: websocket` — they see the HTTP re
 
 Other hostile-proxy behaviors: stripping the `Sec-WebSocket-Protocol` header, terminating idle connections at 30s, or caching the handshake response.
 
-**Fallback:** ship a transport-fallback chain — WebSocket first, then SSE, then long polling. Socket.IO does this automatically. If you're rolling your own, the typical strategy is:
+**Fallback:** ship a transport-fallback chain — WebSocket first, then SSE, then long polling. Socket.IO does a version of this automatically, but with HTTP long-polling as its only fallback (it has no SSE transport): it connects with polling and upgrades to WebSocket when it can. If you're rolling your own, the typical strategy is:
 
 1. Try WebSocket. If `onclose` fires with `1006` before `onopen`, mark WS as unavailable.
 2. Try SSE for receive + plain `fetch POST` for send.

@@ -59,6 +59,6 @@ export function scopeNames(): string {
     'useState', 'useEffect', 'useEffectEvent', 'Fragment', 'Suspense',
     'Activity', 'ViewTransition', 'memo', 'lazy', 'createPortal',
   ].filter((n) => n in scope);
-  return `React and all ${names.length - 1} of its exports (${hookCount} hooks — `
+  return `React and all ${names.length - 1} of its exports (${hookCount} hooks: `
     + `${featured.join(', ')} and the rest), plus render, are already in scope.`;
 }

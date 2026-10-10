@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readSeries } from './guideSeries';
 import ts from 'typescript';
 import { stripModuleSyntax } from '../lib/playgroundRunner';
 
@@ -11,7 +11,7 @@ import { stripModuleSyntax } from '../lib/playgroundRunner';
  * it claimed** — `NoInfer` looked like a no-op. No existing gate could see it:
  * the blocks parse, and they are prose rather than playground templates.
  */
-const GUIDE = 'src/content/javascript-and-typescript/typescript-guide.md';
+// The TypeScript guide is a series (core, interview questions, tricky questions); read all of it.
 
 /** Type-check a snippet in memory and return its diagnostic messages. */
 function diagnose(source: string): string[] {
@@ -36,7 +36,7 @@ function diagnose(source: string): string[] {
 }
 
 describe('TypeScript guide — type-level claims, checked by the compiler', () => {
-  const md = readFileSync(GUIDE, 'utf8').replace(/\r\n/g, '\n');
+  const md = readSeries('typescript');
   /** The fenced `ts` block containing `marker`. */
   const block = (marker: string) => {
     const at = md.indexOf(marker);
@@ -208,7 +208,7 @@ emitter.on('click', (p) => { void p.x; void p.y; });`)).toEqual([]);
  *   3. compiled and run, it prints exactly the Output block that follows it.
  */
 describe('TypeScript guide tricky Q20–Q31 — errors and outputs, checked', () => {
-  const md = readFileSync(GUIDE, 'utf8').replace(/\r\n/g, '\n');
+  const md = readSeries('typescript');
   const DOM_LIB = ['lib.es2023.d.ts', 'lib.dom.d.ts'];
 
   function codes(source: string): number[] {
@@ -286,7 +286,7 @@ describe('TypeScript guide tricky Q20–Q31 — errors and outputs, checked', ()
  *   - each COMMENTED ✗ line produces its code when uncommented.
  */
 describe('TypeScript guide tricky Q1–Q19 — runnable, with every error annotated', () => {
-  const md = readFileSync(GUIDE, 'utf8').replace(/\r\n/g, '\n');
+  const md = readSeries('typescript');
   const trickyStart = md.indexOf('## 16. Tricky Output Questions');
   const region = md.slice(trickyStart, md.indexOf('**Q20:', trickyStart));
 

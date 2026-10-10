@@ -643,24 +643,22 @@ export const Decorative: Story = {
 ### 7.4 Viewport Addon
 
 ```tsx
-// Test responsive behavior
+// Test responsive behavior: choose a viewport per story with globals
 export const Mobile: Story = {
-  parameters: {
-    viewport: {
-      defaultViewport: 'iphone14',
-    },
+  globals: {
+    viewport: { value: 'iphone14', isRotated: false },
   },
 };
 
 export const Tablet: Story = {
-  parameters: {
-    viewport: {
-      defaultViewport: 'ipad',
-    },
+  globals: {
+    viewport: { value: 'ipad', isRotated: false },
   },
 };
 
-// Custom viewports in preview.ts
+// preview.ts: list the available viewports (built-in plus custom)
+import { INITIAL_VIEWPORTS } from 'storybook/viewport';
+
 const customViewports = {
   smallMobile: {
     name: 'Small Mobile',
@@ -671,7 +669,20 @@ const customViewports = {
     styles: { width: '414px', height: '896px' },
   },
 };
+
+const preview = {
+  parameters: {
+    viewport: {
+      options: { ...INITIAL_VIEWPORTS, ...customViewports },
+    },
+  },
+  initialGlobals: {
+    viewport: { value: 'smallMobile', isRotated: false },
+  },
+};
 ```
+
+`iphone14` and `ipad` are keys of `INITIAL_VIEWPORTS`; the default set (`MINIMAL_VIEWPORTS`) only has `mobile1`, `mobile2`, `tablet` and `desktop`, so a story naming another key needs that key in `options`. Storybook 8 used `parameters.viewport.defaultViewport` and `viewports` instead.
 
 ---
 
@@ -961,6 +972,8 @@ npx chromatic --project-token=<token>
 
 ### 11.2 Storybook Test Runner
 
+For Vite-based frameworks, the Storybook docs now say the test-runner is superseded by the Vitest addon (`@storybook/addon-vitest`, §7.2), which does the same job as Vitest tests; the test-runner remains the option for other builders such as Webpack.
+
 ```bash
 npm install -D @storybook/test-runner
 
@@ -974,8 +987,9 @@ npx test-storybook --coverage
 ### 11.3 Snapshot Testing
 
 ```tsx
-// Using test-runner, stories are automatically snapshot tested
-// Or manually with a test file:
+// test-runner does not snapshot stories by itself: it checks that each story
+// renders and its play function passes. Add snapshots with a postVisit hook in
+// .storybook/test-runner.ts, or manually with a test file:
 
 import { composeStories } from '@storybook/react-vite';
 import { render } from '@testing-library/react';

@@ -1,5 +1,47 @@
 # What's New
 
+## v1.7.15 (October 2026)
+
+**JavaScript and TypeScript are now three-part series, and much shorter.** Each language has a core guide plus separate Interview Questions and Tricky Questions guides under **Languages** in the sidebar: [JavaScript Guide](/javascript/guide), [JavaScript Interview Questions](/javascript/interview-questions), [JavaScript Tricky Questions](/javascript/tricky-questions), [TypeScript Guide](/javascript/typescript), [TypeScript Interview Questions](/javascript/typescript-interview-questions) and [TypeScript Tricky Questions](/javascript/typescript-tricky-questions). Repeated explanations are gone (the event loop, for example, is now explained once and linked), interview answers are short with a link to the full explanation, and tricky questions keep the code, the output and a short why. The JavaScript material is about 30% shorter and TypeScript about 24%, with no topic or question removed. The Regex guide got the same treatment.
+
+**Your progress comes with it**, as with React: Daily Review history, bookmarks and checkpoints move to the new guides, and old links to a moved section still open it.
+
+**Corrections across JavaScript, TypeScript, Regex and the cheat sheets**, each checked by running the code or against the compiler: top-level `this` now has one consistent rule (module, browser script, CommonJS), `FinalizationRegistry.register` throws when the target is also the held value, `Array.fromAsync` does not fail fast, `satisfies` keeps literal types only with `as const`, regex `split` results include the trailing empty string, the catastrophic-backtracking figures are 2^(n−1), and the ES2025–ES2027 feature lists now put each feature in the right edition.
+
+**Corrections across the Front End guides**, from a full audit where every finding was re-checked by running the code or against the official docs before changing anything:
+- **Next.js:** what can cross the Server-to-Client boundary (no RegExp, only `Symbol.for` symbols), `use(params)` for Next 16's async params, `priority` replaced by `loading="eager"` / `fetchPriority="high"` on LCP images, and the React2Shell CVE.
+- **React Router:** imports now come from `react-router` (v7), and when loaders re-run in each mode.
+- **Testing:** MSW recommended over mocking your own modules, Jest 28+ needing `jest-environment-jsdom`, the current Storybook viewport API, and the test-runner superseded by the Vitest addon.
+- **State:** Zustand's `persist` rehydrates synchronously with `localStorage`, and RTK's third dev-check middleware.
+- **Real-time:** Socket.IO has no SSE transport, and the current `graphql-ws` import paths.
+- **CSS:** `:is()` vs `:where()` specificity, and a duplicate `view-transition-name` skips the transition.
+- **Accessibility:** how `aria-labelledby` really falls through, WCAG 2.2 has 86 criteria, and 2.3.3 is AAA.
+- **Browser APIs:** cookie limits are per cookie, and `requestAnimationFrame` pauses in background tabs.
+- **Tooling:** Vite 8 transforms with Oxc, Husky 9 setup, and current versions.
+- **Mobile:** CodePush is retired, testers count from opt-in for the Play Store 14-day rule, current App Store screenshot and Xcode requirements, and auth tokens in SecureStore rather than AsyncStorage or MMKV.
+
+## v1.7.14 (October 2026)
+
+**The React guide is now a five-part series, and a third shorter.** The single React guide had grown to a 10-hour read. It is now five guides under **React & State** in the sidebar: [React Guide](/frontend/react) (core concepts and hooks, about 1 h 40 min), [React Performance & Internals](/frontend/react-performance), [React 19 & Patterns](/frontend/react-19-patterns), [React Interview Questions](/frontend/react-interview-questions) and [React Tricky Questions](/frontend/react-tricky-questions). Each idea is now explained once: interview answers give what you would actually say and link to the full explanation, tricky questions keep the code, the output and a short why, and the class-components and build-tool sections are condensed. No topic or question was removed, and the series is about 32% shorter overall.
+
+**Your progress comes with it.** Daily Review history, bookmarked questions and sections, and saved checkpoints move to the new guides automatically, and old links to a React section open that section on its new page.
+
+**More than 30 corrections to the React content**, each checked by running the code or against the official docs. Among them: `startTransition` does not make a slow filter faster (it runs its callback immediately), `useOptimistic` only works inside an Action, the old `componentWill*` methods are deprecated rather than removed, JSX compiles to `jsx()` calls since React 17, effects caused by a click can run before the browser paints, the React Compiler question now shows what Compiler 1.0 really does, and the `useId` prefix changed twice (19.1 and 19.2).
+
+**Links between guides open instantly** instead of reloading the app.
+
+## v1.7.13 (October 2026)
+
+**A fresh look across the whole site.** Clean white cards on a soft grey page, indigo-violet for buttons and links, and coral for your progress and streaks, in place of the old purple-and-pink gradients and glass effects. Dark mode is a deep navy with the same colours. Text uses your system's own font, so pages show their words straight away instead of waiting for a font download. The home page is rebuilt: a **Continue** button takes you back to the guide you were reading, you can try a real question from the JavaScript guide right there, a progress bar shows how many guides you have finished, and every category has its own colour tag, with reading times such as "42 h" instead of "2499m". The Cheat Sheets page is now a simple list, and the streak message is a quiet card without confetti.
+
+**Respects "reduce motion".** If your device is set to reduce motion, PrepHub no longer slides or animates content.
+
+**Keyboard focus is always visible.** Tabbing through the site now shows a clear outline on the focused link or button.
+
+**New: Privacy Policy and Terms of Use** pages, linked at the bottom of the sidebar. They explain what is stored (only in your browser) and that the site uses Google Analytics. Both are marked as drafts while a few details are confirmed.
+
+**New JavaScript interview question:** why `['1', '2', '3'].map(parseInt)` returns `[1, NaN, NaN]`, how `Number` and `parseInt(s, 10)` differ as fixes, and why passing any function straight to `map` can break later.
+
 ## v1.7.12 (October 2026)
 
 **Eight new interview questions, from a real interview.** JavaScript adds five: global and local variables; timers (`setTimeout`, `setInterval`, why the delay is only a minimum, and when to use a recursive `setTimeout` instead); whether JavaScript is statically or dynamically typed (and why it is also weakly typed); how to handle `null` with `== null`, `??`, `?.` and guard clauses; and a five-case output question on shadowing, hoisting and the Temporal Dead Zone, with a "How to answer" summary. TypeScript adds "What are `null` and `unknown`, and how are they different?". Browser APIs adds session state versus window state, with a table of what survives a reload, a new tab and a duplicated tab. Docker, Kubernetes & CI/CD adds "What is CI/CD, and how have you implemented it?", walking through PrepHub's own pipeline as the worked example. Every code example prints exactly the output shown, and a test checks it.

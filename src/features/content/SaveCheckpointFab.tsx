@@ -34,11 +34,11 @@ export const SaveCheckpointFab = ({ onSave }: { onSave: () => void }) => {
             "fixed bottom-24 right-6 inline-flex items-center gap-2 px-3.5 py-2.5 rounded-full shadow-lg border transition-all z-50",
             savedFlash
               ? "bg-emerald-500 text-white border-emerald-500"
-              : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:shadow-xl hover:-translate-y-0.5"
+              : "bg-surface border-line text-ink"
           )}
           aria-label="Save checkpoint at current position"
         >
-          {savedFlash ? <Check size={16} /> : <Flag size={16} className="text-indigo-500" />}
+          {savedFlash ? <Check size={16} /> : <Flag size={16} className="text-accent" />}
           <span className="text-xs font-medium">{savedFlash ? 'Saved' : 'Save Checkpoint'}</span>
         </motion.button>
       )}

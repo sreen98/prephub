@@ -127,11 +127,11 @@ export default function InterviewSimulator() {
   if (phase === 'setup') {
     return (
       <div className="max-w-2xl mx-auto px-6 py-8 md:py-12">
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-4">
+        <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors mb-4">
           <ArrowLeft size={14} /> Back
         </Link>
         <h1 className="text-2xl font-extrabold mb-2">Interview Simulator</h1>
-        <p className="text-slate-500 dark:text-slate-400 mb-8">Simulate a timed mock interview with random questions.</p>
+        <p className="text-muted mb-8">Simulate a timed mock interview with random questions.</p>
 
         <div className="space-y-6">
           {/* Questions */}
@@ -142,7 +142,7 @@ export default function InterviewSimulator() {
                 <button
                   key={n}
                   onClick={() => setConfig((p: InterviewConfig) => ({ ...p, questionCount: n }))}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${config.questionCount === n ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                  className={`px-5 py-2.5 rounded-md text-sm font-medium transition-colors ${config.questionCount === n ? 'bg-accent-soft text-accent shadow-sm' : 'bg-ink/5 text-muted hover:bg-ink/10'}`}
                 >
                   {n}
                 </button>
@@ -158,7 +158,7 @@ export default function InterviewSimulator() {
                 <button
                   key={n}
                   onClick={() => setConfig((p: InterviewConfig) => ({ ...p, timeLimit: n }))}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${config.timeLimit === n ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                  className={`px-5 py-2.5 rounded-md text-sm font-medium transition-colors ${config.timeLimit === n ? 'bg-accent-soft text-accent shadow-sm' : 'bg-ink/5 text-muted hover:bg-ink/10'}`}
                 >
                   {n} min
                 </button>
@@ -174,7 +174,7 @@ export default function InterviewSimulator() {
                 <button
                   key={cat}
                   onClick={() => toggleCategory(cat)}
-                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors ${config.categories.includes(cat) ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 line-through'}`}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${config.categories.includes(cat) ? 'bg-accent-soft text-accent' : 'bg-ink/5 text-muted line-through'}`}
                 >
                   {cat}
                 </button>
@@ -185,11 +185,11 @@ export default function InterviewSimulator() {
           <button
             onClick={startInterview}
             disabled={config.categories.length === 0 || isStarting}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-40 text-white font-medium shadow-lg shadow-indigo-500/20 transition-all"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-md disabled:opacity-40 text-accent-contrast font-medium shadow-lg transition-all bg-accent"
           >
             {isStarting ? (
               <>
-                <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                <span className="h-4 w-4 rounded-full border-2 border-line border-t-white animate-spin" />
                 Loading questions…
               </>
             ) : (
@@ -210,22 +210,22 @@ export default function InterviewSimulator() {
       <div className="max-w-3xl mx-auto px-6 py-8">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-6">
-          <span className="text-sm text-slate-500 dark:text-slate-400">Question {currentIndex + 1} of {questions.length}</span>
-          <span className={`text-lg font-bold font-mono ${isLowTime ? 'text-red-500 animate-pulse' : 'text-slate-700 dark:text-slate-300'}`}>
+          <span className="text-sm text-muted">Question {currentIndex + 1} of {questions.length}</span>
+          <span className={`text-lg font-bold font-mono ${isLowTime ? 'text-red-500 animate-pulse' : 'text-ink'}`}>
             <Timer size={16} className="inline mr-1" />
             {formatTime(timeLeft)}
           </span>
         </div>
 
         {/* Progress */}
-        <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mb-8 overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all" style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }} />
+        <div className="h-1.5 bg-ink/5 rounded-full mb-8 overflow-hidden">
+          <div className="h-full rounded-full transition-all bg-accent" style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }} />
         </div>
 
         {/* Question */}
-        <div className="min-h-[200px] p-8 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 mb-6">
+        <div className="min-h-[200px] p-8 rounded-lg border border-line bg-surface mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{current.guide}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-ink/5 text-muted">{current.guide}</span>
             {current.difficulty && (
               <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${current.difficulty === 'beginner' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600' : current.difficulty === 'intermediate' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600' : 'bg-red-50 dark:bg-red-950/30 text-red-600'}`}>
                 {current.difficulty}
@@ -242,7 +242,7 @@ export default function InterviewSimulator() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-8 rounded-2xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/10 mb-6"
+            className="p-8 rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/10 mb-6"
           >
             <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3 block">Answer</span>
             <div className="quiz-markdown overflow-auto max-h-[40vh]">
@@ -255,19 +255,19 @@ export default function InterviewSimulator() {
         <div className="flex items-center justify-center gap-3">
           {!isRevealed ? (
             <>
-              <button onClick={() => setIsRevealed(true)} className="px-6 py-3 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 transition-colors">
+              <button onClick={() => setIsRevealed(true)} className="px-6 py-3 rounded-md bg-accent text-accent-contrast font-medium hover:bg-accent-strong transition-colors">
                 Reveal Answer
               </button>
-              <button onClick={handleSkip} className="flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm">
+              <button onClick={handleSkip} className="flex items-center gap-2 px-4 py-3 rounded-md border border-line text-muted hover:bg-ink/5 transition-colors text-sm">
                 <SkipForward size={14} /> Skip
               </button>
             </>
           ) : (
             <>
-              <button onClick={() => handleAnswer(false)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 font-medium text-sm hover:bg-amber-100 transition-colors">
+              <button onClick={() => handleAnswer(false)} className="flex items-center gap-2 px-5 py-3 rounded-md bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 font-medium text-sm hover:bg-amber-100 transition-colors">
                 <ThumbsDown size={16} /> Didn't Know
               </button>
-              <button onClick={() => handleAnswer(true)} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 font-medium text-sm hover:bg-emerald-100 transition-colors">
+              <button onClick={() => handleAnswer(true)} className="flex items-center gap-2 px-5 py-3 rounded-md bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 font-medium text-sm hover:bg-emerald-100 transition-colors">
                 <ThumbsUp size={16} /> Got It
               </button>
             </>
@@ -298,24 +298,24 @@ export default function InterviewSimulator() {
     <div className="max-w-2xl mx-auto px-6 py-8 md:py-12">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <div className="text-center mb-8">
-          <Trophy size={48} className={`mx-auto mb-4 ${score >= 70 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'}`} />
+          <Trophy size={48} className={`mx-auto mb-4 ${score >= 70 ? 'text-amber-500' : 'text-muted'}`} />
           <h1 className="text-3xl font-extrabold mb-2">Interview Complete!</h1>
-          <p className="text-slate-500 dark:text-slate-400">You scored <strong className={score >= 70 ? 'text-emerald-600' : 'text-amber-600'}>{score}%</strong> in {formatTime(timeTaken)}</p>
+          <p className="text-muted">You scored <strong className={score >= 70 ? 'text-emerald-600' : 'text-amber-600'}>{score}%</strong> in {formatTime(timeTaken)}</p>
         </div>
 
         {/* Score cards */}
         <div className="grid grid-cols-3 gap-3 mb-8">
-          <div className="text-center p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50">
+          <div className="text-center p-4 rounded-md bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50">
             <div className="text-2xl font-extrabold text-emerald-600">{correct}</div>
             <div className="text-xs text-emerald-600/70">Correct</div>
           </div>
-          <div className="text-center p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50">
+          <div className="text-center p-4 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50">
             <div className="text-2xl font-extrabold text-amber-600">{answered - correct}</div>
             <div className="text-xs text-amber-600/70">Incorrect</div>
           </div>
-          <div className="text-center p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <div className="text-2xl font-extrabold text-slate-500 dark:text-slate-400">{skipped}</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Skipped</div>
+          <div className="text-center p-4 rounded-md bg-canvas border border-line">
+            <div className="text-2xl font-extrabold text-muted">{skipped}</div>
+            <div className="text-xs text-muted">Skipped</div>
           </div>
         </div>
 
@@ -330,7 +330,7 @@ export default function InterviewSimulator() {
                 return (
                   <div key={cat} className="flex items-center gap-3">
                     <span className="text-sm w-32 truncate">{cat}</span>
-                    <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="flex-1 h-2 bg-ink/5 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${isWeak ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
                     </div>
                     <span className={`text-xs font-medium w-12 text-right ${isWeak ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -344,10 +344,10 @@ export default function InterviewSimulator() {
         )}
 
         <div className="flex justify-center gap-3">
-          <button onClick={() => { setPhase('setup'); setResults([]); }} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium">
+          <button onClick={() => { setPhase('setup'); setResults([]); }} className="flex items-center gap-2 px-5 py-2.5 rounded-md border border-line hover:bg-ink/5 transition-colors text-sm font-medium">
             <RotateCcw size={14} /> Try Again
           </button>
-          <Link to="/" className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition-colors">
+          <Link to="/" className="px-5 py-2.5 rounded-md bg-accent text-accent-contrast text-sm font-medium hover:bg-accent-strong transition-colors">
             Back Home
           </Link>
         </div>

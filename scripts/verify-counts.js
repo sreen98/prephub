@@ -19,6 +19,7 @@
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { getAllRoutes } from './lib/routes.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 // Normalise CRLF so a Windows checkout (core.autocrlf=true) counts the same as CI.
@@ -181,6 +182,47 @@ if (deadAnchors.length) {
   if (deadAnchors.length > 15) console.log(`      … and ${deadAnchors.length - 15} more`);
 } else {
   console.log(`  ✓ all ${anchorTotal} in-page anchors resolve`);
+}
+
+// Links to ANOTHER guide: `](/frontend/react-performance#135-…)`. The React guide became a
+// five-guide series that links between its parts constantly, and a link whose route or
+// heading does not exist is invisible until a reader clicks it. Every internal route must be
+// one the app serves, and an anchor on a guide route must be a heading in that guide's file.
+console.log('\nCross-guide links');
+const routeFile = new Map(
+  [...dataTs.matchAll(/\bpath:\s*'(\/[^']*)'[^\n}]*?\bfile:\s*'\.\/(content\/[^']+)'/g)]
+    .map((m) => [m[1], join(root, 'src', m[2])]));
+const knownRoutes = new Set(getAllRoutes());
+const headsCache = new Map();
+const headsOf = (file) => {
+  if (!headsCache.has(file)) {
+    const body = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    headsCache.set(file, new Set([...body.matchAll(/^#{1,6} (.+)$/gm)].map((m) => slugify(m[1]))));
+  }
+  return headsCache.get(file);
+};
+let crossTotal = 0;
+const deadCross = [];
+for (const file of mdFiles(join(root, 'src/content'))) {
+  const body = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+  for (const m of body.matchAll(/\]\((\/[a-z0-9\-/]*)(?:#([^)\s]+))?\)/g)) {
+    const [, route, anchor] = m;
+    const where = file.replace(root, '').replace(/\\/g, '/').replace(/^\//, '');
+    crossTotal++;
+    if (!knownRoutes.has(route.replace(/\/$/, '') || '/')) {
+      deadCross.push(`${where} -> ${route} (no such route)`);
+    } else if (anchor && routeFile.has(route) && !headsOf(routeFile.get(route)).has(anchor)) {
+      deadCross.push(`${where} -> ${route}#${anchor} (no such heading)`);
+    }
+  }
+}
+if (deadCross.length) {
+  failed++;
+  console.log(`  ✗ ${deadCross.length} of ${crossTotal} links to other pages are dead`);
+  for (const d of deadCross.slice(0, 15)) console.log(`      ${d}`);
+  if (deadCross.length > 15) console.log(`      … and ${deadCross.length - 15} more`);
+} else {
+  console.log(`  ✓ all ${crossTotal} links to other pages resolve`);
 }
 
 if (failed) {

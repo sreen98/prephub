@@ -92,11 +92,11 @@ s.split(re);                  // capture groups get INCLUDED in the result
 
 ## Common Patterns
 ```js
-/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;          // pragmatic email (never RFC 5322)
+/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;          // pragmatic email, {2,}-char TLD variant (never RFC 5322)
 /^https?:\/\/[^\s/$.?#].[^\s]*$/i;         // URL
 /^\d{4}-\d{2}-\d{2}$/;                     // ISO date
-/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;         // hex colour
-/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;   // password rules via lookahead
+/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;  // hex colour: 3, 6 or 8 digits (8 = alpha)
+/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;  // password: 8+, lower, upper, digit, special
 /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;  // UUIDv4
 /\s+/g;                                    // whitespace runs → collapse
 s.replace(/[A-Z]/g, m => '-' + m.toLowerCase());  // camelCase → kebab-case

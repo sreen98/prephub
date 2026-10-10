@@ -21,7 +21,7 @@ export default function SchemaPanel({
 
       {sql?.tables.map((table) => (
         <div key={table.name}>
-          <div className="flex items-center gap-1.5 font-mono font-semibold text-indigo-300 mb-1">
+          <div className="flex items-center gap-1.5 font-mono font-semibold text-teal-300 mb-1">
             <Table2 size={12} /> {table.name}
           </div>
           <ul className="pl-5 space-y-0.5 font-mono text-[12px] text-slate-400">
@@ -40,7 +40,7 @@ export default function SchemaPanel({
           <pre className="pl-2 text-[11px] text-slate-400 overflow-x-auto bg-[#1c2028] rounded-lg p-2 border border-[#2d333b]">
             {JSON.stringify(docs[0], null, 2)}
           </pre>
-          <p className="pl-2 mt-1 text-[11px] text-slate-500 italic">First document shown — the rest share this shape.</p>
+          <p className="pl-2 mt-1 text-[11px] text-slate-500 italic">First document shown. The rest share this shape.</p>
         </div>
       ))}
     </div>

@@ -277,7 +277,7 @@ Component code has its own canonical refactorings beyond Fowler's list:
 
 - **Replace `class extends React.Component` with hooks** — for new code, always. Old code only when you're touching it for another reason.
 
-- **Replace `bind`/`.apply` and arrow functions in JSX** with `useCallback` or hoisted handlers — but only after the Profiler tells you it matters.
+- **Replace `bind`/`.apply` and arrow functions in JSX** with `useCallback` or hoisted handlers — but only after the Profiler tells you it matters. If the project uses the React Compiler (stable since 1.0, October 2025), it memoizes handlers for you, so check that first; manual `useCallback` is for code the compiler doesn't cover.
 
 - **Replace inline conditionals with early returns.** A render function with 5 nested ternaries is unreadable; 5 early returns is fine.
 

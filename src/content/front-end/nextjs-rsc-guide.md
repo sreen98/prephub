@@ -163,7 +163,7 @@ Props crossing from a Server Component to a Client Component are **serialised**,
 |---|---|
 | primitives, `null`, `undefined` | functions (except Server Actions) |
 | plain objects and arrays | class instances (a Mongoose document, a `Decimal`) |
-| `Date`, `Map`, `Set`, `BigInt`, `RegExp` | Symbols (except well-known) |
+| `Date`, `Map`, `Set`, `BigInt`, TypedArrays, `ArrayBuffer` | `RegExp`; symbols, except global ones created with `Symbol.for()` |
 | Promises (React will unwrap them) | anything with methods you intend to call |
 | JSX / React elements | Node streams, `fs` handles, DB clients |
 | **Server Actions** (a special reference) | |
@@ -213,7 +213,7 @@ app/
 
 ### 4.2 Params Are Async Now
 
-A Next.js 16 breaking change that trips up everyone upgrading:
+Introduced in Next.js 15, which kept a temporary synchronous fallback (reading `params.slug` still worked, with a warning); Next.js 16 removed the fallback, so it's now a breaking change that trips up everyone upgrading:
 
 ```tsx
 // ❌ Next 14
@@ -302,7 +302,7 @@ Caching is the part of Next.js that has changed most, and interviewers ask about
 |---|---|
 | **13–14** | `fetch` was **cached by default** (`force-cache`), plus an implicit Router Cache, Full Route Cache and Data Cache. Powerful, and a notorious source of "why is my data stale?" |
 | **15** | `fetch` became **uncached by default**. GET Route Handlers and client router cache defaults also flipped to uncached |
-| **16** | **Cache Components** — caching is **entirely opt-in** via the `"use cache"` directive. All dynamic code in a page, layout or route runs at request time by default |
+| **16** | With `cacheComponents: true`: **Cache Components** — caching is **entirely opt-in** via the `"use cache"` directive, and all dynamic code in a page, layout or route runs at request time by default. Without that flag, Next 16 keeps the Next 15 defaults above |
 
 The direction of travel is the answer to give: Next moved from **implicit caching that surprised you** to **explicit caching you ask for**. Saying that shows you understand the *why*, not just the current API.
 
@@ -401,8 +401,9 @@ const UserSkeleton = () => <p>Loading user…</p>;
 const PostsSkeleton = () => <p>Loading posts…</p>;
 
 export default function Page({ params }) {
-  const userPromise = getUser(params.id);     // no await
-  const postsPromise = getPosts(params.id);
+  const { id } = use(params);                 // params is a Promise; a Server Component would write: const { id } = await params;
+  const userPromise = getUser(id);            // no await
+  const postsPromise = getPosts(id);
   return (
     <>
       <Suspense fallback={<UserSkeleton />}><User promise={userPromise} /></Suspense>
@@ -411,7 +412,7 @@ export default function Page({ params }) {
   );
 }
 
-render(<Page params={{ id: '42' }} />);
+render(<Suspense fallback={null}><Page params={Promise.resolve({ id: '42' })} /></Suspense>);
 ```
 
 The third pattern is worth knowing well: **start the fetch without awaiting, pass the promise down, and unwrap it with `use()` inside a Suspense boundary.** (`use()` is the React 19 API that reads a promise's value during render: the component suspends until the promise resolves, and the nearest `Suspense` shows its fallback meanwhile.) Requests overlap, and each section renders the moment its own data is ready rather than waiting for the slowest.
@@ -429,8 +430,9 @@ A Server Action is an async function marked `'use server'` that runs on the serv
 'use server';
 
 import { z } from 'zod';
+import { updateTag } from 'next/cache';
 
-const Schema = z.object({ name: z.string().min(1), email: z.string().email() });
+const Schema = z.object({ id: z.string(), name: z.string().min(1), email: z.string().email() });
 
 export async function updateProfile(prevState: unknown, formData: FormData) {
   // 1. AUTHENTICATE — this is a public HTTP endpoint
@@ -521,9 +523,13 @@ This is the most security-consequential section in the guide, and it has a real 
 |---|---|
 | **CVE-2025-29927** | A crafted `x-middleware-subrequest` header let a request **skip middleware entirely** — taking every middleware-based authorization check with it |
 | **CVE-2026-45109** | An incomplete fix for a **segment-prefetch bypass**; patched in 15.5.18 / 16.2.6 |
-| **CVE-2026-64642** | A **proxy bypass** affecting App Router builds on Turbopack; patched in 16.2.11 (July 2026) |
+| **CVE-2026-64642** | A **proxy bypass** affecting App Router builds on Turbopack with a **single locale** in `i18n.locales`; patched in 16.2.11 (July 2026) |
+
+CVE-2026-64642 only applies when `config.i18n.locales` has a **single entry**; apps with no i18n config or with several locales were not exposed.
 
 The pattern is unmistakable: **the request-interception layer has been bypassable more than once.** Next's own documentation says middleware/proxy is not a complete authorization solution. So the design has to be resilient to that layer failing entirely.
+
+A different class of bug is a reason to keep the framework patched rather than a reason for defence in depth: **CVE-2025-55182** ("React2Shell", December 2025, CVSS 10.0) was an **unauthenticated remote code execution** in how React deserialised requests to Server Function endpoints, in `react-server-dom-webpack`/`-parcel`/`-turbopack` 19.0–19.2.0 (fixed in 19.0.1, 19.1.2 and 19.2.1). An app was exposed if it supported Server Components at all, even with no Server Actions defined, and Next.js shipped patched releases for every affected release line (13.3 onwards). The separate Next.js id, CVE-2025-66478, was rejected as a duplicate, so cite CVE-2025-55182. No Data Access Layer stops an RCE in the protocol layer: upgrading is the only fix.
 
 ### 9.2 The Layers
 
@@ -604,8 +610,8 @@ Migration is mechanical: rename the file and rename the exported function to `pr
 
 Released **21 October 2025**. The headline items:
 
-- **Cache Components** with `"use cache"` — caching is now entirely opt-in, and PPR is folded into this model. The `experimental.ppr` flag and `export const experimental_ppr` were **removed**; `experimental.dynamicIO` was renamed to `cacheComponents`.
-- **Turbopack is stable and the default bundler** for all apps: 2–5× faster production builds, up to 10× faster Fast Refresh. Opt out with `next dev --webpack` / `next build --webpack`. Filesystem caching is available in beta behind `experimental.turbopackFileSystemCacheForDev`.
+- **Cache Components** with `"use cache"` — once you set `cacheComponents: true`, caching is entirely opt-in (without it, the Next 15 defaults still apply), and PPR is folded into this model. The `experimental.ppr` flag and `export const experimental_ppr` were **removed**; `experimental.dynamicIO` was renamed to `cacheComponents`.
+- **Turbopack is stable and the default bundler** for all apps: 2–5× faster production builds, up to 10× faster Fast Refresh. Opt out with `next dev --webpack` / `next build --webpack`. Filesystem caching for `next dev` shipped in beta behind `experimental.turbopackFileSystemCacheForDev` in 16.0, and became stable and on by default in **16.1** (December 2025).
 - **`proxy.ts`** replaces `middleware.ts` (§10).
 - **React Compiler support is stable** via `reactCompiler: true` — promoted out of `experimental`, though **not on by default**, and it increases build time because it runs through Babel.
 - **React 19.2** features available in the App Router: `useEffectEvent` and `<Activity />`. **View Transitions were not in that list**, because React's `<ViewTransition>` was still Canary-only in 19.2. It became stable in **React 19.3** (September 2026), so on a Next.js release that ships React 19.3 or later you can use the component; on earlier versions, animating a route change means the browser's `document.startViewTransition` (see the React guide, §16.10 and §16.11).
@@ -630,7 +636,7 @@ Use the codemod: `npx @next/codemod@canary upgrade latest`.
 ## 12. Performance
 
 - **Push `'use client'` down.** The most effective bundle-size lever in the whole framework. Audit with `@next/bundle-analyzer` and look for a `'use client'` high in the tree.
-- **`next/image`** — automatic responsive `srcset`, modern formats, lazy loading, and reserved space (no CLS). Set `priority` on your LCP image and `sizes` accurately, or you serve a needlessly large file.
+- **`next/image`** — automatic responsive `srcset`, modern formats, lazy loading, and reserved space (no CLS). Mark your LCP image with `loading="eager"` or `fetchPriority="high"` (the `priority` prop is deprecated since Next.js 16; its replacement, `preload`, is for the rarer case of starting the download from the `<head>`), set `sizes` accurately, or you serve a needlessly large file.
 - **`next/font`** — self-hosts the font at build time, so no third-party round trip, and injects fallback metrics to eliminate swap-induced layout shift.
 - **`next/dynamic`** for genuinely heavy client components (a chart library, a rich text editor), with `ssr: false` where the component can't render server-side.
 - **Don't fetch in a Client Component with `useEffect`** — that's a round trip *after* hydration, which is the waterfall RSC exists to remove. Fetch on the server, or use TanStack Query if the data is genuinely client-owned and interactive.
@@ -699,7 +705,7 @@ The direction of travel is the answer: Next moved from **implicit caching that s
 
 - **Next 13–14**: `fetch` was cached by default, on top of an implicit Router Cache, Full Route Cache and Data Cache. Powerful, and a notorious source of "why is my data stale?"
 - **Next 15**: `fetch` became **uncached** by default.
-- **Next 16**: **Cache Components.** Caching is entirely opt-in via the `"use cache"` directive; all dynamic code in a page, layout or route runs at request time by default.
+- **Next 16**: **Cache Components**, when you set `cacheComponents: true`. Caching is then entirely opt-in via the `"use cache"` directive; all dynamic code in a page, layout or route runs at request time by default. Without the flag, Next 16 keeps the Next 15 defaults.
 
 ```ts
 async function getProducts(category: string) {
@@ -730,7 +736,7 @@ Getting this wrong produces a specific, recognisable bug: using `revalidateTag` 
 
 **Defence in depth, and never trust the proxy layer alone.** That's the whole answer, and the CVE history makes the argument for me.
 
-`middleware.ts` became **`proxy.ts`** in Next 16. It runs before route processing and is the right place for a cheap early redirect. It is explicitly **not** an authorization solution, and it has been bypassable more than once: **CVE-2025-29927** let a crafted `x-middleware-subrequest` header skip middleware entirely, taking every middleware-based check with it; **CVE-2026-45109** was an incomplete fix for a segment-prefetch bypass; **CVE-2026-64642** was a proxy bypass on Turbopack App Router builds, patched in 16.2.11.
+`middleware.ts` became **`proxy.ts`** in Next 16. It runs before route processing and is the right place for a cheap early redirect. It is explicitly **not** an authorization solution, and it has been bypassable more than once: **CVE-2025-29927** let a crafted `x-middleware-subrequest` header skip middleware entirely, taking every middleware-based check with it; **CVE-2026-45109** was an incomplete fix for a segment-prefetch bypass; **CVE-2026-64642** was a proxy bypass on Turbopack App Router builds configured with a single locale, patched in 16.2.11.
 
 So the layers:
 
@@ -795,9 +801,9 @@ This is also the answer to "how do you cache personalised data at the CDN?" — 
 
 The boundary is a **wire**, so props are **serialised**. They must be serialisable, and the enforcement is at runtime.
 
-**Can cross:** primitives, `null`/`undefined`, plain objects and arrays, `Date`, `Map`, `Set`, `BigInt`, `RegExp`, JSX elements, Promises (React unwraps them), and **Server Actions** — the one "function" that can cross, because what's serialised is a reference rather than the code.
+**Can cross:** primitives, `null`/`undefined`, plain objects and arrays, `Date`, `Map`, `Set`, `BigInt`, TypedArrays and `ArrayBuffer`, global symbols created with `Symbol.for()`, JSX elements, Promises (React unwraps them), and **Server Actions** — the one "function" that can cross, because what's serialised is a reference rather than the code.
 
-**Cannot cross:** functions, class instances, Symbols, and anything with methods you intend to call.
+**Cannot cross:** functions, class instances, `RegExp`, any other symbol, and anything with methods you intend to call.
 
 The most frequent real failure is passing an **ORM object** straight through — a Mongoose document or Prisma result with a `Decimal` looks like a plain object but carries a prototype full of methods. Map to a plain DTO at the boundary.
 
@@ -1107,7 +1113,7 @@ Next's own documentation says middleware/proxy is not a complete authorization s
 |---|---|
 | **CVE-2025-29927** | A crafted `x-middleware-subrequest` header made a request **skip middleware entirely** |
 | **CVE-2026-45109** | Incomplete fix for a **segment-prefetch** bypass — patched in 15.5.18 / 16.2.6 |
-| **CVE-2026-64642** | **Proxy bypass** on App Router builds using Turbopack — patched in 16.2.11 |
+| **CVE-2026-64642** | **Proxy bypass** on App Router builds using Turbopack with a single `i18n` locale — patched in 16.2.11 |
 
 But even with every patch applied, the architecture is wrong. `proxy.ts` guards *route navigation*. It does not guard:
 
@@ -1208,7 +1214,7 @@ THE BOUNDARY
  7. A Client Component cannot IMPORT a Server Component, but CAN render one passed
     as children. This is the most useful composition pattern in the framework.
  8. Props are SERIALISED. No functions (except Server Actions), no class instances
-    (map ORM results to DTOs), no symbols.
+    (map ORM results to DTOs), no RegExp, no symbols except Symbol.for() ones.
  9. Every prop is serialised into the payload the BROWSER DOWNLOADS. Passing a whole
     user record leaks every field into the page source.
 10. import 'server-only' → build error if a server module reaches the client graph.
@@ -1225,7 +1231,7 @@ ROUTING
     specific response types. Not for "get data for my own page."
 
 CACHING (the direction: implicit → explicit)
-16. Next 13-14 cached fetch by default. Next 15 stopped. Next 16 = opt-in only.
+16. Next 13-14 cached fetch by default. Next 15 stopped. Next 16 + cacheComponents = opt-in only.
 17. cacheComponents: true, then "use cache" on a function, component, or file.
     cacheLife('hours') for freshness, cacheTag('x') for invalidation.
 18. revalidateTag(tag, profile) = stale-while-revalidate (eventual consistency).
@@ -1253,13 +1259,15 @@ AUTH — DEFENCE IN DEPTH
     A UX OPTIMISATION, NOT A SECURITY BOUNDARY.
 30. CVE-2025-29927 (x-middleware-subrequest skipped middleware entirely),
     CVE-2026-45109 (segment-prefetch bypass), CVE-2026-64642 (Turbopack App Router
-    proxy bypass). The pipeline has been bypassable more than once.
+    proxy bypass, single-locale apps only). The pipeline has been bypassable more than once.
 31. THE boundary is a Data Access Layer: every read/write calls verifySession()
     itself, wrapped in cache(), in a module marked 'server-only'.
 32. SCOPE THE QUERY to the session. Don't validate an ID from the caller (IDOR).
 33. Layouts PERSIST — an auth check in a layout does not re-run on every navigation.
 34. HttpOnly; Secure; SameSite=Lax cookies. Never localStorage for tokens.
 35. Keep Next patched. Given the CVE history, pinning an old minor IS the risk.
+    CVE-2025-55182 ("React2Shell", Dec 2025) was unauthenticated RCE in the RSC
+    protocol: no auth layer helps, only upgrading.
 
 RENDERING
 36. PPR: static shell at build (stops at Suspense boundaries) + dynamic holes
@@ -1308,5 +1316,6 @@ WHEN NOT TO USE IT
 - [React Docs — `cache()`](https://react.dev/reference/react/cache) — request-level memoisation
 - [Making Sense of React Server Components](https://www.joshwcomeau.com/react/server-components/) — the clearest conceptual explanation available
 - [CVE-2025-29927 — Next.js middleware bypass](https://nvd.nist.gov/vuln/detail/CVE-2025-29927) — the authorization lesson, in primary-source form
+- [React — Critical Security Vulnerability in React Server Components](https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components) — CVE-2025-55182, affected and patched versions
 - [Vercel Security Changelog](https://vercel.com/changelog) — where the Next.js security releases are announced
 - [Partial Prerendering](https://nextjs.org/docs/app/getting-started/partial-prerendering)

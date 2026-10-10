@@ -2806,3 +2806,113 @@ template code, so it is not a template's end; and template code contains escaped
 the end is the first **unescaped** backtick followed by `,`. A bash heredoc also collapsed
 a doubled backslash to a single one in a Node script, which silently changed two regexes;
 write such scripts with the Write tool instead.
+
+## Design pass against a written brief: tokens, system font, reduced motion (v1.7.13)
+
+An audit against a design brief (near-white warm background, one restrained accent, no
+gradients, orbs, glass, sparkle icons, Inter or purple-and-black, motion that respects the OS
+setting) found the opposite on nearly every point. Measured before the change: 76 gradient
+classes, 81 purple/violet/pink and 315 indigo classes in UI code, `backdrop-blur` in 9 files,
+`focus-visible:` used once, and **no `prefers-reduced-motion` handling anywhere in the app**
+while Framer Motion animated about 60 places. GA4 loaded on every page with no privacy page.
+
+What changed, and why each is a rule now:
+- **Tokens before redesign.** Colours were raw Tailwind classes in every file, so any palette
+  change meant editing hundreds of strings. Tokens (`canvas`, `ink`, `accent`…) make the next
+  page a class swap. Contrast was computed for every text pairing (lowest 6.4:1) before use.
+- **System font.** Inter came from Google Fonts in 7 weights, a render-blocking request.
+- **`MotionConfig reducedMotion="user"`** is one line and covers every Framer Motion component.
+- **Sidebar tests keyed on `shadow-sm` and `bg-amber-50`**, so a restyle silently turned
+  "exactly one active link" into a check that could not fail. They now assert `aria-current`.
+- **Homepage read times** showed "2499m"; `formatReadTime` gives "42 h".
+- The 500 px decorative orb overflowed a 390 px phone and was hidden only by `overflow-x: hidden`
+  on `html` and `body`.
+
+Checked in Chrome at 1440 px and 390 px (iframe), light and dark. Not yet migrated: Quiz,
+Review, Interview Simulator, Cheat Sheets, Bookmarks, the playgrounds' chrome, modals, the streak
+celebration, lucide icons, the OG image and PWA icons.
+
+### Follow-up: from "restrained" to "Focused & vivid" (same release)
+
+The first palette (warm off-white, one teal accent, no cards) followed the brief closely and the
+owner rejected it: "very plain", "I don't get a mind to study". The brief optimises for a
+product landing page; a study app also has to make people want to come back. The replacement
+keeps the brief's mechanics (tokens, no gradients or glass, reduced motion, focus ring, AA
+contrast) and adds energy back through colour and structure: white cards on a grey page, an
+indigo-violet accent, a coral `pop` token for progress and streaks, and per-category colour tags.
+Because the first pass had already moved the app to tokens, the palette change itself was one
+block in `index.css`.
+
+The site-wide migration was a codemod over every class string, located with the TypeScript
+parser. A regex-based first version mis-paired quotes after an apostrophe in JSX text and silently
+skipped strings for the rest of the file. Two bugs it caused, both fixed and worth knowing for
+any future colour codemod: light tints with opacity (`bg-indigo-100/70`) became a 70% solid
+accent, which hid accent text on top of it; and theme-aware files that contain an always-dark
+panel (the Explain modal's pseudocode) got theme tokens inside the dark panel.
+
+After this follow-up, every page listed above as "not yet migrated" is on tokens. Still open:
+the lucide icons (a swap to Heroicons was started and paused while the palette was chosen) and
+the OG image and PWA icons, which still carry the old purple artwork.
+
+## The React guide became a five-guide series (v1.7.14)
+
+The guide was 8,996 lines / 76,239 words and showed a 610-minute reading time. 53% of it was
+Q&A (39%) and Tricky Output (14%), and an external audit measured about a third of the Q&A as
+re-teaching body sections. It was split verbatim by a script (no line lost, checked by a
+multiset line comparison against the original), then each part was fixed and trimmed by its own
+agent against the verified audit findings (`prephub-audit-verification.md`, R1–R26).
+
+| Part | Words before | After | Read |
+|---|---:|---:|---:|
+| react-guide.md (§1–12) | 15,837 | 11,201 | 102 min |
+| react-performance-guide.md (§13–14) | 10,218 | 6,804 | 59 min |
+| react-19-patterns-guide.md (§15–16) | 9,633 | 8,354 | 66 min |
+| react-interview-questions.md (§17) | 29,961 | 19,875 | 147 min |
+| react-tricky-questions.md (§18) | 10,849 | 5,564 | 54 min |
+
+Decisions worth keeping:
+- **Section numbers continue across the files** (§13 starts the performance guide). Renumbering
+  would have changed every heading anchor, and with it every saved checkpoint, bookmark and deep link.
+- **Question ids include the guide name**, so moving Q&A and Tricky out of "React Guide" changed
+  every id that keys SM-2 history. `src/lib/guideSplitMigration.ts` (originally React-only, generalised the same day for JS and TS) rewrites `sr-schedule`,
+  `bookmarks` and `checkpoints` on every start-up (idempotent, so no "done" flag and no new
+  storage key), and rewrites `/frontend/react#moved-anchor` URLs before the router mounts.
+  The moved-anchor map (now in `src/data/guideSplits.ts`) is generated and pinned to the files by its test; that test caught one
+  of the trimming agents deleting a heading mid-run.
+- **Content tests read the five files as one string**, so a pinned block's marker keeps working
+  wherever the block lives and uniqueness stays series-wide.
+- **verify:counts gained a cross-guide link check** (route exists, anchor is a heading in that
+  guide's file). Probed by adding a dead anchor and a dead route: both reported.
+- Internal markdown links (`/…`) now render as router `Link`s; before, every cross-guide link
+  reloaded the whole app.
+- Found while trimming: §6.3's useLocalStorage demo wrote to the key `theme`, overwriting the
+  app's own theme preference when run; it now uses `demo-theme`.
+
+## JavaScript and TypeScript became guide series (v1.7.15), and a mid-run restore
+
+The JavaScript (7,600 lines, 60% questions) and TypeScript guides were split like React: a core
+guide (§1–14) plus `*-interview-questions.md` (§15) and `*-tricky-questions.md` (§16).
+
+**What went wrong mid-run.** Trimming agents were working on the JS/TS files when something
+outside them (not a git operation: the reflog and stash list were clean) restored a batch of
+files to HEAD at about 23:08. It put `javascript-guide.md`, `typescript-guide.md` and
+`regex-guide.md` back to the single-file originals, put four content tests back to their HEAD
+versions, and deleted `src/content/guideSeries.ts`, `src/lib/guideSplitMigration.test.ts` and
+the React `src/data/reactSeries.ts`. The visible symptoms were exact:
+- Quiz counted 1,682 questions instead of 1,583, because 99 JavaScript questions existed both
+  inside the restored single-file guide and in their new series files;
+- `tsc` failed on imports of the deleted modules.
+
+The two agents whose files were overwritten rebuilt them from their scratch copies. The
+recovery then cut §15–16 out of the restored JS core guide (their trimmed copies already
+existed) and replaced the React-only migration with one generic, generated table for all three
+series. **Lesson:** content work that several agents do in parallel needs a single owner for the
+shared infrastructure (data modules, test helpers, counts), and a quick `npm run content:meta`
+question count is a cheap tripwire for duplicated or lost questions.
+
+**The id subtlety the React split did not have.** Tricky questions restart at Q1, and
+`dedupeIds` suffixes only the second occurrence of an id, so a Tricky Qn is `-qN-2` only when
+the Q&A section also has a Qn. React's Tricky section (Q1–Q26) sits entirely under its Q&A
+count (86), but JavaScript's Tricky Q46–Q53 (Q&A 45) and TypeScript's Q30–Q31 (Q&A 29) were
+stored with plain `-qN` ids. The migration therefore needs each guide's **deployed** Q&A count
+(`qaMax`), not just the suffix; the tests pin those cases.

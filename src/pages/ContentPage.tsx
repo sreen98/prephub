@@ -93,13 +93,13 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
 
   // Dynamic page title for SEO
   useEffect(() => {
-    const pageTitle = guideName ? `${guideName} — PrepHub` : 'PrepHub — Interview Prep';
+    const pageTitle = guideName ? `${guideName} · PrepHub` : 'PrepHub: Interview Prep';
     document.title = pageTitle;
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc && guideName) {
-      metaDesc.setAttribute('content', `${guideName} interview preparation guide — PrepHub`);
+      metaDesc.setAttribute('content', `${guideName}: an interview preparation guide on PrepHub`);
     }
-    return () => { document.title = 'PrepHub — Interview Prep'; };
+    return () => { document.title = 'PrepHub: Interview Prep'; };
   }, [guideName]);
 
   // Hash-based scroll-to-heading on mount. The target does not exist when this
@@ -300,7 +300,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
       >
         {/* Search highlight banner */}
         {searchQuery && highlightCount > 0 && (
-          <div className="flex items-center justify-between px-4 py-2.5 mb-6 rounded-xl bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 text-sm">
+          <div className="flex items-center justify-between px-4 py-2.5 mb-6 rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/50 text-sm">
             <span className="text-yellow-800 dark:text-yellow-300">
               Found <strong>{highlightCount}</strong> match{highlightCount !== 1 ? 'es' : ''} for &ldquo;{searchQuery}&rdquo;
             </span>
@@ -313,7 +313,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
           </div>
         )}
 
-        <div className="flex items-center gap-3 mb-4 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
+        <div className="flex items-center gap-3 mb-4 text-sm text-muted flex-wrap">
           <span className="inline-flex items-center gap-1.5">
             <Clock size={14} />
             ~{readMinFor(filePath)} min read
@@ -321,7 +321,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
           {guidePath && (
             <button
               onClick={handleToggleComplete}
-              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors", guideStatus === 'completed' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300")}
+              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors", guideStatus === 'completed' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" : "bg-ink/5 text-muted hover:text-ink")}
             >
               {guideStatus === 'completed' ? <CheckCircle size={13} /> : <Circle size={13} />}
               {guideStatus === 'completed' ? 'Completed' : 'Mark Complete'}
@@ -333,9 +333,9 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
 
         {checkpoint && guidePath && (
           <div
-            className="animate-drop-in flex items-center gap-3 px-4 py-3 mb-6 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50"
+            className="animate-drop-in flex items-center gap-3 px-4 py-3 mb-6 rounded-md bg-accent-soft border border-accent/30"
           >
-            <Flag size={16} className="text-indigo-500 fill-indigo-500/30 shrink-0" />
+            <Flag size={16} className="text-accent fill-accent shrink-0" />
             <button
               onClick={() => {
                 const el = document.getElementById(checkpoint.headingId);
@@ -344,14 +344,14 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
               }}
               className="flex-1 min-w-0 text-left text-sm group"
             >
-              <span className="text-indigo-700 dark:text-indigo-300">Continue from </span>
-              <span className="font-semibold text-indigo-900 dark:text-indigo-100 group-hover:underline truncate">
+              <span className="text-accent">Continue from </span>
+              <span className="font-semibold text-accent group-hover:underline truncate">
                 &ldquo;{checkpoint.headingText}&rdquo;
               </span>
             </button>
             <button
               onClick={() => clearCheckpoint(guidePath)}
-              className="p-1 rounded-lg text-indigo-500 dark:text-indigo-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
+              className="p-1 rounded-lg text-accent hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
               aria-label="Clear checkpoint"
             >
               <X size={14} />

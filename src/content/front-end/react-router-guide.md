@@ -44,10 +44,10 @@ React Router intercepts the click, calls `history.pushState` to change the URL w
 ### Installation
 
 ```bash
-npm install react-router-dom
+npm install react-router
 ```
 
-In **v7** the package is just `react-router`; `react-router-dom` still exists and re-exports it, so an existing import path keeps working.
+In **v7** everything lives in `react-router`, and every example here imports from it. `react-router-dom` still exists only to help migration (it re-exports `react-router`), so an existing import path keeps working. A DOM app imports `RouterProvider` from `react-router/dom`.
 
 ---
 
@@ -93,7 +93,7 @@ Nesting is the feature everything else rests on. A nested route renders *inside*
 The parent decides *where* the child appears, with `<Outlet />`:
 
 ```jsx
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 import { Header } from './Header';
 
 function RootLayout() {
@@ -125,7 +125,7 @@ function RootLayout() {
 ## 4. Navigating
 
 ```jsx
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router';
 
 function Nav() {
   const navigate = useNavigate();
@@ -167,7 +167,7 @@ function Nav() {
 The most useful idea in this guide: anything that should survive a refresh, be shareable, or be undoable with Back belongs in the URL rather than in `useState`.
 
 ```jsx
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router';
 
 function ProductList() {
   const { category } = useParams();                    // from the path
@@ -200,7 +200,8 @@ function ProductList() {
 In data mode, a route declares how to get its data. The router calls the loader **before** rendering the route, so the component never renders in a loading state at all.
 
 ```jsx
-import { createBrowserRouter, RouterProvider, useLoaderData } from 'react-router-dom';
+import { createBrowserRouter, useLoaderData } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 
 const router = createBrowserRouter([
   {
@@ -235,7 +236,7 @@ function ProductDetail() {
 - **Errors become a route concern.** Throwing a `Response` from a loader renders the nearest `errorElement` instead of crashing the tree.
 - **Forms work without JavaScript state.** `<Form method="post">` posts to the route's `action`, and the router revalidates the loaders afterwards.
 
-**What it deliberately is not:** a cache. Loaders re-run on every navigation to that route. If you want caching, de-duplication and background revalidation, that is still TanStack Query's job — and combining them is normal.
+**What it deliberately is not:** a cache. A loader runs whenever its route is navigated into, and while the route stays matched it re-runs on its own rules: in data mode when its own params change, when the search string changes, or after an action returns a non-error status (`shouldRevalidate` overrides this); in framework mode with SSR, after every navigation. If you want caching, de-duplication and background revalidation, that is still TanStack Query's job — and combining them is normal.
 
 ---
 
@@ -244,7 +245,7 @@ function ProductDetail() {
 Because the router knows a navigation is in flight, it can tell you.
 
 ```jsx
-import { useNavigation, useFetcher, Form } from 'react-router-dom';
+import { useNavigation, useFetcher, Form } from 'react-router';
 
 function Root() {
   const navigation = useNavigation();   // 'idle' | 'loading' | 'submitting'
@@ -260,7 +261,7 @@ function Root() {
 **`useFetcher` is the one worth knowing.** It calls a loader or action **without navigating** — a "mark as read" button, a newsletter signup in the footer, a like. You get the same pending state and the same revalidation, with no URL change:
 
 ```jsx
-import { useFetcher } from 'react-router-dom';
+import { useFetcher } from 'react-router';
 
 function LikeButton({ id }) {
   const fetcher = useFetcher();
@@ -284,7 +285,7 @@ function LikeButton({ id }) {
 ## 8. Errors and Boundaries
 
 ```jsx
-import { useRouteError, isRouteErrorResponse } from 'react-router-dom';
+import { useRouteError, isRouteErrorResponse } from 'react-router';
 
 function RouteError() {
   const error = useRouteError();
@@ -312,7 +313,7 @@ Routes are the correct splitting boundary: one page should not ship the other ni
 
 ```jsx
 import { lazy, Suspense } from 'react';
-import { Route } from 'react-router-dom';
+import { Route } from 'react-router';
 
 const Dashboard = lazy(() => import('./Dashboard'));
 
@@ -345,7 +346,7 @@ const dashboardRoute = {
 ## 10. Protected Routes
 
 ```jsx
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router';
 import { useAuth } from './auth';
 
 function RequireAuth({ children }) {
@@ -373,11 +374,11 @@ Three things carry the answer here: the **loading state** as a distinct third ca
 
 A client-side navigation changes the page without the browser doing any of the things it normally does, and the two it stops doing are the two that matter for accessibility.
 
-**Scroll.** The browser restores scroll on a real navigation; a `pushState` does not. In framework mode `<ScrollRestoration />` handles it. Otherwise:
+**Scroll.** The browser restores scroll on a real navigation; a `pushState` does not. In framework mode and data mode (`createBrowserRouter`), `<ScrollRestoration />` handles it. Otherwise:
 
 ```jsx
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -392,7 +393,7 @@ Depend on `pathname` rather than the whole location, or changing a search param 
 
 ```jsx
 import { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 
 function RouteAnnouncer({ title }) {
   const headingRef = useRef(null);
@@ -414,7 +415,7 @@ A live region announcing the new page title is the other half. Neither is provid
 Use `MemoryRouter` — no DOM history, and you set the starting URL directly:
 
 ```jsx
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 render(
   <MemoryRouter initialEntries={['/products/42']}>
@@ -467,7 +468,7 @@ Set `basename` when the app is not at the domain root:
 | nested routes defined inside components | nested `<Route>` elements plus `<Outlet />` |
 | `<Redirect>` | `<Navigate>` |
 
-**v6 → v7** is deliberately undramatic. The package became `react-router`, the minimum React version rose, and the behaviours that were behind `future` flags in late v6 became the default. The migration strategy the team recommends is to turn those flags on one at a time in v6.30 — `v7_startTransition`, `v7_relativeSplatPath`, `v7_fetcherPersist`, `v7_normalizeFormMethod`, `v7_partialHydration` — so that by the time you bump the major, nothing changes.
+**v6 → v7** is deliberately undramatic. The package became `react-router`, the minimum React version rose, and the behaviours that were behind `future` flags in late v6 became the default. The migration strategy the team recommends is to turn those flags on one at a time in v6.30 — `v7_startTransition`, `v7_relativeSplatPath`, `v7_fetcherPersist`, `v7_normalizeFormMethod`, `v7_partialHydration`, `v7_skipActionErrorRevalidation` — so that by the time you bump the major, nothing changes.
 
 **The one that surprises people is `v7_relativeSplatPath`**, which changes how relative links resolve inside a splat route. If you have `<Route path="files/*">` with relative links inside it, check those first.
 
@@ -540,7 +541,7 @@ Anything the user would expect to survive a refresh, share as a link, or undo wi
 
 **Q5: What do loaders give you that fetching in `useEffect` does not?**
 
-Four things. The data is fetched **before** the route renders, so there is no loading branch in the component. Nested loaders run **in parallel** rather than waterfalling parent-then-child. The `request.signal` is aborted for you when the user navigates away, so a superseded request cancels itself. And a thrown `Response` is caught by the route's `errorElement` rather than crashing the tree. What they do not give you is caching — loaders re-run on every navigation — which is why pairing them with TanStack Query is common rather than contradictory.
+Four things. The data is fetched **before** the route renders, so there is no loading branch in the component. Nested loaders run **in parallel** rather than waterfalling parent-then-child. The `request.signal` is aborted for you when the user navigates away, so a superseded request cancels itself. And a thrown `Response` is caught by the route's `errorElement` rather than crashing the tree. What they do not give you is caching — a loader re-runs whenever its route is entered, and in data mode also when its params or the search string change or an action succeeds (in framework mode with SSR, after every navigation) — which is why pairing them with TanStack Query is common rather than contradictory.
 
 ---
 
@@ -591,7 +592,7 @@ Start by separating the two 404s, because the interviewer usually means one and 
 **The client 404** is a route that matches when nothing else does. A splat as a sibling of your real routes:
 
 ```tsx
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router';
 
 function NotFound() {
   return <h1>Page not found</h1>;
@@ -615,7 +616,7 @@ function AppRoutes() {
 For a 404 that keeps your chrome, nest it inside the layout route rather than beside it:
 
 ```tsx
-import { Routes, Route, Outlet } from 'react-router-dom';
+import { Routes, Route, Outlet } from 'react-router';
 
 function Layout() { return <div><nav>nav</nav><Outlet /></div>; }
 function Dashboard() { return <h1>Dashboard</h1>; }
@@ -701,7 +702,7 @@ Navigation is a **side effect**: it updates the router's state. Doing it during 
 The library's answer is `<Navigate to="/login" replace />` — a component that performs the navigation in an effect, after commit. That is the whole reason it exists as a component rather than being a function you call inline.
 
 ```jsx
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router';
 
 function RequireAuth({ status, children }) {
   const navigate = useNavigate();
@@ -785,7 +786,7 @@ This exact bug shipped in this app when `Sidebar` was extracted from `App.tsx` a
 
 ```jsx
 // Setup — declarative
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router';
 
 function App() {
   return (
@@ -804,7 +805,7 @@ function App() {
 
 ```jsx
 // Navigation
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router';
 
 function Nav() {
   const navigate = useNavigate();
@@ -821,7 +822,7 @@ function Nav() {
 
 ```jsx
 // Reading the URL
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router';
 
 function Filters() {
   const { id } = useParams();                      // keys come from the PATH

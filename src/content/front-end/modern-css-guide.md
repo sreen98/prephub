@@ -552,7 +552,7 @@ Three features that together delete a category of JavaScript.
 <div id="menu" popover>…</div>
 ```
 
-For free, with no JavaScript: **top-layer rendering** (immune to `z-index` and `overflow: hidden`), **light dismiss** (click outside or press Escape), automatic focus management, and correct `aria-expanded` wiring on the invoker. The *top layer* is a separate layer the browser paints above the entire page, outside every stacking context, which is why nothing on the page can cover or clip it. `popover="manual"` opts out of light dismiss for things like toasts.
+For free, with no JavaScript: **top-layer rendering** (immune to `z-index` and `overflow: hidden`), **light dismiss** (click outside or press Escape), keyboard order that runs from the invoker straight into the popover, focus returning to the invoker when the popover closes with focus inside it, and correct `aria-expanded` wiring on the invoker. Opening a popover does **not** move focus into it (only an element inside with `autofocus` takes focus), so for a menu you still move focus yourself. The *top layer* is a separate layer the browser paints above the entire page, outside every stacking context, which is why nothing on the page can cover or clip it. `popover="manual"` opts out of light dismiss for things like toasts.
 
 `::backdrop` styles the layer behind it, and `:popover-open` styles the open state.
 
@@ -615,7 +615,7 @@ To animate specific elements independently, give them a shared `view-transition-
 
 The element then *morphs* between its old and new position and size — the shared-element transition that used to require Framer Motion's layout animations.
 
-**The rule that catches everyone: `view-transition-name` must be unique per snapshot.** Two elements with `view-transition-name: card` visible at once silently disables the whole transition. For a list, generate names (`view-transition-name: card-42`) — and note this is exactly why React's `useId` prefix changed from `:r:` to `_r_` in 19.2, since a colon is not a valid `view-transition-name`.
+**The rule that catches everyone: `view-transition-name` must be unique per snapshot.** Two elements with `view-transition-name: card` visible at once make the browser skip the whole transition: the DOM still updates, but nothing animates and the transition's `ready` promise rejects with an `InvalidStateError`. For a list, generate names (`view-transition-name: card-42`) — and note this is exactly why React's `useId` prefix changed from `:r:` to `_r_` in 19.2, since a colon is not a valid `view-transition-name`.
 
 ### 13.2 Cross-Document (MPA)
 
@@ -685,16 +685,17 @@ Also relevant for entry/exit animations: `@starting-style` gives you an initial 
 
 ### 14.3 `prefers-reduced-motion` Is Not Optional
 
-This is WCAG 2.3.3 territory and a common accessibility-audit failure. The correct implementation is **not** "turn off all animation" — that can break UI that depends on a transition to communicate state. Reduce or replace instead:
+This is WCAG 2.3.3 (Animation from Interactions) territory. 2.3.3 is a Level **AAA** criterion, so an audit that targets AA won't fail you on it, but ignoring the preference is still a common accessibility complaint. The correct implementation is **not** "turn off all animation" — that can break UI that depends on a transition to communicate state. Reduce or replace instead:
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+  /* Decorative movement: remove it */
+  .parallax, .hero-zoom, .spinner-decoration { animation: none; transform: none; }
+  .carousel { animation-play-state: paused; }
+  html { scroll-behavior: auto; }
+
+  /* Movement that communicates state: replace it with an opacity fade */
+  .drawer { transition: opacity 200ms; }
 }
 ```
 
@@ -1061,11 +1062,11 @@ Two more that come up as follow-ups: for a sticky table header, the property goe
 
 The trap is assuming `:is()` and `:where()` behave the same because they match the same elements. They match identically and have **completely different specificity**.
 
-- `:is(#wrap) .text` — `:is()` takes the specificity of its **most specific argument**, which is an ID. So this is `1,0,1`.
-- `:where(#wrap) .text` — `:where()` is **always `0,0,0`**, whatever is inside it. Only `.text` counts: `0,1,1`.
+- `:is(#wrap) .text` — `:is()` takes the specificity of its **most specific argument**, which is an ID, plus `.text`, which is a class. So this is `1,1,0` (IDs, classes, elements).
+- `:where(#wrap) .text` — `:where()` is **always `0,0,0`**, whatever is inside it. Only `.text` counts: `0,1,0`.
 - `.text` — `0,1,0`.
 
-Sorting: `1,0,1` > `0,1,1` > `0,1,0`. Red wins, and it isn't close — remember specificity is compared **column by column, not summed**, so the single ID in column one settles it before the other columns are even considered.
+Sorting: `1,1,0` > `0,1,0` = `0,1,0`. Red wins, and it isn't close — remember specificity is compared **column by column, not summed**, so the single ID in column one settles it before the other columns are even considered. (Blue and green tie at `0,1,0`, so if the red rule were removed, source order would decide and the later green rule would win.)
 
 The practical lesson is which one to reach for. `:where()` is the correct wrapper for **library and design-system defaults**, precisely because zero specificity means a consumer overrides it with a single class and never has to fight you:
 
@@ -1078,7 +1079,7 @@ Two related facts that get asked as follow-ups. `:not()` also takes its most spe
 
 ```css
 .card, #featured {
-  & .title { color: red; }   /* behaves as :is(.card, #featured) .title → 1,0,1 */
+  & .title { color: red; }   /* behaves as :is(.card, #featured) .title → 1,1,0 */
 }
 ```
 
@@ -1205,19 +1206,19 @@ Related and worth mentioning: `flex-shrink` doesn't override this. `flex: 1` is 
 
 ---
 
-**Q5: Your view transition animates the whole page as one cross-fade instead of morphing the individual cards, and on some navigations no transition happens at all. The CSS looks right. What's wrong?**
+**Q5: Your view transition never morphs the individual cards: the page just swaps instantly, with no animation at all. The CSS looks right. What's wrong?**
 
 ```css
 .card { view-transition-name: card; }
 ```
 
-**Answer:** `view-transition-name` must be **unique per snapshot**. Multiple visible `.card` elements share one name, which is invalid, so the browser silently falls back to a whole-page transition — or aborts entirely.
+**Answer:** `view-transition-name` must be **unique per snapshot**. Multiple visible `.card` elements share one name, which is invalid, so the browser skips the transition entirely. There is no fallback to a whole-page cross-fade.
 
 **Explanation:**
 
 `view-transition-name` is an *identity*, not a class. The browser uses it to pair an element's "before" snapshot with its "after" snapshot so it can morph between the two positions and sizes. If two elements claim the same name in the same snapshot, there's no unambiguous pairing, and the specification says the transition is skipped.
 
-The behaviour you observe is confusing because it's not a hard error — you get a whole-page cross-fade (the default group), or nothing, and no console message on some engines.
+The behaviour you observe is confusing because it's not a thrown error: your update callback still runs and the DOM changes instantly, and the only signal is that the transition's `ready` promise rejects with an `InvalidStateError` (plus a console message in some engines).
 
 The fix is generated names:
 
@@ -1247,7 +1248,7 @@ And always gate it on motion preference, since a full-page morph is precisely th
 }
 ```
 
-**Takeaway:** `view-transition-name` is a unique identity per snapshot, not a class — duplicate names silently degrade to a whole-page fade or skip the transition entirely, so generate per-item names and use the same name on both sides of the navigation.
+**Takeaway:** `view-transition-name` is a unique identity per snapshot, not a class — duplicate names make the browser skip the transition entirely (no whole-page fallback), so generate per-item names and use the same name on both sides of the navigation.
 
 ---
 
@@ -1377,7 +1378,8 @@ STACKING & CONTAINING BLOCKS
     overflow / contain.
 
 TOP LAYER & POSITIONING
-46. popover attribute = non-modal + top layer + light dismiss + focus mgmt, free.
+46. popover attribute = non-modal + top layer + light dismiss + Esc, free.
+    Focus does NOT move in on open (only autofocus); it returns to the invoker on close.
 47. <dialog>.showModal() = modal + focus trap + Escape + inert page + ::backdrop.
 48. popover for menus/tooltips, modal dialog for blocking flows. Don't swap them.
 49. Anchor positioning (anchor-name / position-anchor / position-area /
@@ -1385,8 +1387,8 @@ TOP LAYER & POSITIONING
     (Jan 2026); keep a @supports fallback for older browsers.
 
 VIEW TRANSITIONS
-50. view-transition-name must be UNIQUE per snapshot — duplicates silently degrade
-    to a whole-page fade or skip the transition. Generate per-item names.
+50. view-transition-name must be UNIQUE per snapshot — duplicates skip the whole
+    transition (ready rejects, InvalidStateError). Generate per-item names.
 51. Same name on BOTH states for a morph. No colons allowed in the name.
 52. Cross-document: @view-transition { navigation: auto; } on BOTH pages.
     Chromium + Safari 18.2; not Firefox stable. Degrades safely.
@@ -1397,7 +1399,7 @@ MOTION
 55. will-change is temporary — it costs memory and creates a stacking context.
 56. interpolate-size: allow-keywords, or grid-template-rows 0fr→1fr, to animate to auto.
 57. @starting-style + transition-behavior: allow-discrete → animate popover/dialog open.
-58. prefers-reduced-motion: remove MOVEMENT, keep opacity fades. It's WCAG 2.3.3.
+58. prefers-reduced-motion: remove MOVEMENT, keep opacity fades. It's WCAG 2.3.3 (AAA).
 
 ARCHITECTURE & PERF
 59. Runtime CSS-in-JS conflicts with RSC (no client runtime to evaluate styles) —

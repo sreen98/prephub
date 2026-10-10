@@ -53,6 +53,7 @@ const ContentPage        = lazy(() => import('./pages/ContentPage'));
 // Passphrase-protected. The page ships only ciphertext and decrypts it in the
 // browser, so it is safe in production. See AdminPage.tsx.
 const AdminPage          = lazy(() => import('./pages/AdminPage'));
+const LegalPage          = lazy(() => import('./pages/LegalPage'));
 
 // Loader shown while a lazy route chunk is being fetched.
 // Pulse-skeleton hints at the upcoming page shape so the transition
@@ -69,12 +70,12 @@ const TopProgressBar = () => {
   if (pending === 0) return null;
   return (
     <div
-      className="fixed top-0 left-0 right-0 h-0.5 z-[100] overflow-hidden bg-indigo-500/25"
+      className="fixed top-0 left-0 right-0 h-0.5 z-[100] overflow-hidden bg-accent/25"
       role="progressbar"
       aria-busy="true"
       aria-label="Loading content"
     >
-      <div className="h-full w-1/3 bg-indigo-500 progress-slide" />
+      <div className="h-full w-1/3 bg-accent progress-slide" />
     </div>
   );
 };
@@ -84,16 +85,16 @@ const TopProgressBar = () => {
 
 const RouteFallback = () => (
   <div className="px-6 py-12 md:px-12 max-w-5xl mx-auto animate-pulse" aria-busy="true" aria-label="Loading page">
-    <div className="h-8 w-2/3 rounded-lg bg-slate-200 dark:bg-slate-800 mb-4" />
-    <div className="h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-800 mb-10" />
+    <div className="h-8 w-2/3 rounded-lg bg-ink/10 mb-4" />
+    <div className="h-4 w-1/2 rounded bg-ink/10 mb-10" />
     <div className="space-y-3">
-      <div className="h-3 w-full rounded bg-slate-200 dark:bg-slate-800" />
-      <div className="h-3 w-11/12 rounded bg-slate-200 dark:bg-slate-800" />
-      <div className="h-3 w-10/12 rounded bg-slate-200 dark:bg-slate-800" />
-      <div className="h-3 w-9/12 rounded bg-slate-200 dark:bg-slate-800" />
+      <div className="h-3 w-full rounded bg-ink/10" />
+      <div className="h-3 w-11/12 rounded bg-ink/10" />
+      <div className="h-3 w-10/12 rounded bg-ink/10" />
+      <div className="h-3 w-9/12 rounded bg-ink/10" />
     </div>
-    <div className="mt-8 flex items-center gap-3 text-slate-500 dark:text-slate-400">
-      <div className="h-4 w-4 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-indigo-500 animate-spin" />
+    <div className="mt-8 flex items-center gap-3 text-muted">
+      <div className="h-4 w-4 rounded-full border-2 border-line border-t-accent animate-spin" />
       <span className="text-xs font-medium">Loading…</span>
     </div>
   </div>
@@ -125,7 +126,7 @@ const ReadingProgress = () => {
   return (
     <div className="fixed top-0 left-0 right-0 h-[3px] z-[100] bg-transparent">
       <div
-        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-[width] duration-150 ease-out"
+        className="h-full bg-accent transition-[width] duration-150 ease-out"
         style={{ width: `${progress}%` }}
       />
     </div>
@@ -160,7 +161,7 @@ const BackToTop = () => {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 right-6 p-3 rounded-full bg-white dark:bg-slate-800 shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl hover:-translate-y-0.5 transition-all z-50"
+          className="fixed bottom-6 right-6 p-3 rounded-full bg-surface shadow-lg border border-line transition-all z-50"
         >
           <ArrowUp size={18} />
         </motion.button>
@@ -246,16 +247,18 @@ export default function App() {
   // Dynamic page titles for non-content pages
   useEffect(() => {
     const pageTitles: Record<string, string> = {
-      '/': 'PrepHub — Free Full-Stack Interview Prep Guides',
-      '/quiz': 'Quiz Mode — PrepHub',
-      '/playground': 'JavaScript Playground — PrepHub',
-      '/playground/react': 'React Playground — PrepHub',
-      '/query-playground': 'Query Playground — PrepHub',
-      '/interview': 'Interview Simulator — PrepHub',
-      '/review': 'Spaced Repetition Review — PrepHub',
-      '/bookmarks': 'Bookmarks — PrepHub',
-      '/cheatsheets': 'Cheat Sheets — PrepHub',
-      '/changelog': "What's New — PrepHub",
+      '/': 'PrepHub: Free Full-Stack Interview Prep Guides',
+      '/quiz': 'Quiz Mode · PrepHub',
+      '/playground': 'JavaScript Playground · PrepHub',
+      '/playground/react': 'React Playground · PrepHub',
+      '/query-playground': 'Query Playground · PrepHub',
+      '/interview': 'Interview Simulator · PrepHub',
+      '/review': 'Spaced Repetition Review · PrepHub',
+      '/bookmarks': 'Bookmarks · PrepHub',
+      '/cheatsheets': 'Cheat Sheets · PrepHub',
+      '/changelog': "What's New · PrepHub",
+      '/privacy': 'Privacy Policy · PrepHub',
+      '/terms': 'Terms of Use · PrepHub',
     };
     const title = pageTitles[location.pathname];
     if (title) document.title = title;
@@ -336,32 +339,32 @@ export default function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-[#0a0a0f] text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-x-hidden">
+    <div className="flex min-h-screen bg-canvas text-ink transition-colors duration-300 overflow-x-hidden">
       <ReadingProgress />
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       <BackToTop />
       <StreakCelebration milestone={milestone} onClose={() => setMilestone(null)} />
 
       {/* Mobile Header */}
-      <header className="fixed top-0 left-0 right-0 h-14 bg-white/80 dark:bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between px-4 z-50 md:hidden">
-        <button onClick={() => setIsSidebarOpen(true)} aria-label="Open navigation" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+      <header className="fixed top-0 left-0 right-0 h-14 bg-canvas border-b border-line flex items-center justify-between px-4 z-50 md:hidden">
+        <button onClick={() => setIsSidebarOpen(true)} aria-label="Open navigation" className="p-2 rounded-lg hover:bg-ink/5 transition-colors">
           <Menu size={20} />
         </button>
         <Link to="/" className="flex items-center gap-2 font-bold">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-            <BookOpen size={14} className="text-white" />
+          <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center">
+            <BookOpen size={14} className="text-accent-contrast" />
           </div>
           <span className="text-base">PrepHub</span>
         </Link>
         <div className="flex items-center gap-1">
-          <button onClick={() => setIsSearchOpen(true)} aria-label="Search guides" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={() => setIsSearchOpen(true)} aria-label="Search guides" className="p-2 rounded-lg hover:bg-ink/5 transition-colors">
             <Search size={18} />
           </button>
-          <button onClick={cycleFontSize} aria-label={`Text size: ${fontSize}. Tap to change.`} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative" title={`Font size: ${fontSize}`}>
+          <button onClick={cycleFontSize} aria-label={`Text size: ${fontSize}. Tap to change.`} className="p-2 rounded-lg hover:bg-ink/5 transition-colors relative" title={`Font size: ${fontSize}`}>
             <Type size={18} />
-            <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded px-0.5">{sizeLabel}</span>
+            <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-bold bg-accent-soft text-accent rounded px-0.5">{sizeLabel}</span>
           </button>
-          <button onClick={toggleTheme} aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={toggleTheme} aria-label={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'} className="p-2 rounded-lg hover:bg-ink/5 transition-colors">
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </div>
@@ -375,7 +378,7 @@ export default function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] md:hidden"
+            className="fixed inset-0 bg-black/50 z-[60] md:hidden"
           />
         )}
       </AnimatePresence>
@@ -384,10 +387,10 @@ export default function App() {
       {isSidebarCollapsed && !location.pathname.startsWith('/playground') && (
         <button
           onClick={() => setIsSidebarCollapsed(false)}
-          className="hidden md:flex fixed top-1/2 -translate-y-1/2 left-0 z-[55] py-3 px-1 rounded-r-lg bg-slate-200/80 dark:bg-slate-800/80 border border-l-0 border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700 hover:px-2 transition-all"
+          className="hidden md:flex fixed top-1/2 -translate-y-1/2 left-0 z-[55] py-3 px-1 rounded-r-lg bg-ink/10 border border-l-0 border-line hover:bg-ink/15 hover:px-2 transition-all"
           title="Expand sidebar"
         >
-          <PanelLeftOpen size={14} className="text-slate-500 dark:text-slate-400" />
+          <PanelLeftOpen size={14} className="text-muted" />
         </button>
       )}
 
@@ -433,6 +436,8 @@ export default function App() {
             <Route path="/changelog" element={<ContentPage filePath="./content/changelog.md" />} />
             <Route path="/cheatsheets" element={<CheatSheetsIndex />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/privacy" element={<LegalPage doc="privacy" />} />
+            <Route path="/terms" element={<LegalPage doc="terms" />} />
             {cheatSheets.map(cs => (
               <Route key={cs.path} path={cs.path} element={<ContentPage filePath={cs.file} />} />
             ))}

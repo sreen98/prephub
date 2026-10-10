@@ -59,7 +59,7 @@ export default function QuestionList({
               className={cn(
                 'w-full text-left px-3 py-2 rounded-lg transition-colors border',
                 isActive
-                  ? 'bg-indigo-950/40 border-indigo-700/60'
+                  ? 'bg-teal-900/40 border-teal-600/60'
                   : 'border-transparent hover:bg-[#2d333b]/60',
               )}
             >

@@ -46,10 +46,10 @@ export const TableOfContents = ({ content, isCollapsed, onToggle }: { content: s
     return (
       <button
         onClick={onToggle}
-        className="hidden xl:flex fixed top-1/2 -translate-y-1/2 right-0 z-[55] py-3 px-1 rounded-l-lg bg-slate-200/80 dark:bg-slate-800/80 border border-r-0 border-slate-300 dark:border-slate-700 hover:bg-slate-300 dark:hover:bg-slate-700 hover:px-2 transition-all"
+        className="hidden xl:flex fixed top-1/2 -translate-y-1/2 right-0 z-[55] py-3 px-1 rounded-l-lg bg-ink/10 border border-r-0 border-line hover:bg-ink/15 hover:px-2 transition-all"
         title="Show table of contents"
       >
-        <PanelLeftOpen size={14} className="text-slate-500 dark:text-slate-400 rotate-180" />
+        <PanelLeftOpen size={14} className="text-muted rotate-180" />
       </button>
     );
   }
@@ -57,14 +57,14 @@ export const TableOfContents = ({ content, isCollapsed, onToggle }: { content: s
   return (
     // pb-40: the Save Checkpoint and back-to-top buttons float over the bottom
     // ~140px of this column, so the last entries must be able to scroll above them.
-    <aside className="hidden xl:block w-60 fixed top-0 right-0 h-screen overflow-y-auto pt-8 pb-40 pl-5 pr-4 sidebar-scroll bg-slate-50 dark:bg-[#0a0a0f] border-l border-slate-200/50 dark:border-slate-800/50">
-      <div className="border-l-2 border-slate-200 dark:border-slate-800 pl-4">
+    <aside className="hidden xl:block w-60 fixed top-0 right-0 h-screen overflow-y-auto pt-8 pb-40 pl-5 pr-4 sidebar-scroll bg-canvas border-l border-line">
+      <div className="border-l-2 border-line pl-4">
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted">
             On this page
           </h4>
-          <button onClick={onToggle} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" title="Hide table of contents">
-            <PanelLeftClose size={12} className="text-slate-500 dark:text-slate-400 rotate-180" />
+          <button onClick={onToggle} className="p-1 rounded hover:bg-ink/10 transition-colors" title="Hide table of contents">
+            <PanelLeftClose size={12} className="text-muted rotate-180" />
           </button>
         </div>
         <nav className="space-y-0.5">
@@ -79,8 +79,8 @@ export const TableOfContents = ({ content, isCollapsed, onToggle }: { content: s
                 "block w-full text-left text-[12px] leading-snug py-1.5 transition-colors truncate",
                 heading.level === 3 && "pl-3",
                 activeId === heading.id
-                  ? "text-indigo-600 dark:text-indigo-400 font-semibold"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-300"
+                  ? "text-accent font-semibold"
+                  : "text-muted hover:text-ink"
               )}
               title={heading.text}
             >

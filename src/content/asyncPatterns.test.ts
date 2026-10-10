@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readSeries } from './guideSeries';
 
 /**
  * §8.7 makes precise claims about three production patterns — the back-off
  * series, that a pool keeps exactly N in flight, and that it preserves input
  * order. Claims like those are worth executing rather than asserting.
  */
-const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8').replace(/\r\n/g, '\n');
+const md = readSeries('javascript');
 const block = (marker: string) => {
   const i = md.indexOf(marker);
   const start = md.lastIndexOf('```js\n', i) + 6;

@@ -125,7 +125,7 @@ export default function QueryPlayground() {
       if (verdict.correct) {
         markSolved(question.id);
         setShowExplanation(true);
-        setToast('Correct — explanation opened below');
+        setToast('Correct. The explanation is open below.');
       }
     } finally {
       setIsRunning(false);
@@ -152,7 +152,7 @@ export default function QueryPlayground() {
           </button>
           <Link to="/" className="text-slate-400 hover:text-white shrink-0"><ArrowLeft size={16} /></Link>
           <h1 className="text-lg font-bold truncate">Query Playground</h1>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-950/50 text-indigo-300 border border-indigo-800/60">
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-teal-900/50 text-teal-300 border border-teal-900/60">
             {question.engine === 'postgres' ? 'PostgreSQL' : 'MongoDB'}
           </span>
         </div>
@@ -199,7 +199,7 @@ export default function QueryPlayground() {
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               {!question.orderMatters && (
                 <p className="text-[11px] text-slate-500">
-                  Row order is not checked — only the rows themselves.
+                  Only the rows are checked, in any order.
                 </p>
               )}
               {question.engine === 'postgres' && (

@@ -25,6 +25,12 @@ const props: SidebarProps = {
   appVersion: '1.6.0',
 };
 
+/** The opening <a> tag of the link to `href` (attribute order is React's business). */
+const linkTag = (html: string, href: string) => {
+  const at = html.indexOf(`href="${href}"`);
+  return at < 0 ? '' : html.slice(html.lastIndexOf('<a', at), html.indexOf('>', at) + 1);
+};
+
 const at = (path: string, overrides: Partial<SidebarProps> = {}) =>
   renderToStaticMarkup(
     <MemoryRouter initialEntries={[path]}>
@@ -57,16 +63,17 @@ describe('Sidebar', () => {
   it('marks the active tool from the ROUTER location, not window.location', () => {
     const onQuiz = at('/quiz');
     const onReview = at('/review');
-    expect(onQuiz).not.toBe(onReview);
-    // The active link carries its accent background; exactly one does.
-    const activeCount = (html: string) => (html.match(/shadow-sm/g) ?? []).length;
-    expect(activeCount(onQuiz)).toBeGreaterThan(0);
+    // The active link is marked aria-current="page", and exactly one link is.
+    expect(linkTag(onQuiz, '/quiz')).toContain('aria-current="page"');
+    expect(linkTag(onQuiz, '/review')).not.toContain('aria-current');
+    expect(linkTag(onReview, '/review')).toContain('aria-current="page"');
+    expect(onQuiz.match(/aria-current="page"/g)).toHaveLength(1);
   });
 
   it('renders no active highlight on a route with no matching tool', () => {
     const html = at('/frontend/react');
-    const quizActive = /href="\/quiz"[^>]*bg-amber-50/.test(html);
-    expect(quizActive).toBe(false);
+    expect(linkTag(html, '/quiz')).not.toContain('aria-current');
+    expect(linkTag(html, '/quiz')).not.toContain('bg-accent-soft');
   });
 
   it('shows a due-count badge only when there is something due', () => {
@@ -83,8 +90,8 @@ describe('Sidebar', () => {
   });
 
   it('shows the unread dot for a new changelog', () => {
-    expect(at('/', { hasUnreadChangelog: false })).not.toMatch(/animate-pulse/);
-    expect(at('/', { hasUnreadChangelog: true })).toMatch(/animate-pulse/);
+    expect(at('/', { hasUnreadChangelog: false })).not.toMatch(/aria-label="unread"/);
+    expect(at('/', { hasUnreadChangelog: true })).toMatch(/aria-label="unread"/);
   });
 
   /**

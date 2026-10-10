@@ -53,7 +53,7 @@ An Android App Bundle (`.aab`), the format Google Play requires for new apps. It
 | **Total to public launch** | **~3–5 weeks** | If everything goes smoothly |
 
 ### Account types that matter
-- **Personal account**: Subject to the 14-day Closed Testing rule (since Nov 2023). Needs 12+ testers.
+- **Personal account**: Subject to the 14-day Closed Testing rule (accounts created after 13 Nov 2023). Needs 12+ testers opted in (the rule launched at 20 testers and was lowered to 12 in Dec 2024).
 - **Organization account**: No 14-day rule, but needs a DUNS number (a free company identifier issued by Dun & Bradstreet) and business documents.
 
 If you don't have a registered business, personal is fine — just plan for the soak window.
@@ -144,7 +144,7 @@ Your Expo `app.json` is the single source of truth for native config. Don't edit
 ```
 
 - **Proguard + shrink resources**: Turns on R8 (the successor to ProGuard) for release builds, which removes unused code and resources and renames what is left. Not required by Play, but strongly recommended: the app gets smaller and harder to reverse-engineer. The catch is that it can break code that looks classes up by name, so test a release build before shipping (§21.4, tricky Q3).
-- **`usesCleartextTraffic: false`**: Blocks all non-HTTPS network traffic. Required for "Encryption in transit" claim.
+- **`usesCleartextTraffic: false`**: Cleartext (`http://`) traffic is already blocked by default for apps targeting API 28+. Setting it explicitly documents the default and guards against a library or config turning it back on. Backs the "Encryption in transit" claim.
 - **No `newArchEnabled` flag**: From Expo SDK 55 the New Architecture (§22.1) is always on and cannot be switched off. SDK 54 is the last version where `newArchEnabled: false` works, so if a native module you depend on does not support the New Architecture yet, your options are to stay on SDK 54 until it does or to replace the module.
 
 ### Tablet support
@@ -194,9 +194,9 @@ EAS (Expo Application Services) handles signing, native builds, and AAB generati
 ]
 ```
 
-Set the `SENTRY_AUTH_TOKEN` as an EAS secret:
+Set the `SENTRY_AUTH_TOKEN` as an EAS environment variable with secret visibility (the old `eas secret` commands are deprecated in favour of `eas env`):
 ```bash
-eas secret:create --scope project --name SENTRY_AUTH_TOKEN --value <token>
+eas env:set --name SENTRY_AUTH_TOKEN --value <token> --environment production --visibility secret
 ```
 
 This uploads sourcemaps during the build so Sentry can deminify stack traces.
@@ -466,7 +466,7 @@ Google may require you to verify ownership of your Android package name. You'll 
 - **OFF**: Approved changes auto-publish immediately.
 - **ON**: You manually click "publish" after approval.
 
-For closed testing: **OFF is fine**. For production: **turn ON** so you control the exact go-live moment.
+It is **one app-wide switch** (Publishing overview → Managed publishing), not a per-track setting: when ON it holds back approved changes on every track except internal testing, closed-testing releases included. Leaving it OFF during the soak lets closed releases go out on approval; **turn it ON before production** so you control the exact go-live moment.
 
 ---
 
@@ -756,15 +756,15 @@ Changing `supportsTablet` will not make the request go away: that key is iOS-onl
 ## 17. Closed Testing Setup
 
 ### Why Closed Testing (not Internal Testing)
-For new personal accounts (since November 2023), Google requires:
-- A Closed Testing track active for **14 consecutive days**
-- **12+ active testers** during that window
+For personal accounts created after 13 November 2023, Google requires (the rule launched at 20 testers and was lowered to 12 in December 2024):
+- A closed test with **at least 12 testers opted in** when you apply
+- Each of them opted in **continuously for the preceding 14 days**
 
 Internal Testing **does not count** toward this requirement. Open Testing is overkill (public).
 
 ### Track structure
 - **Internal testing**: Up to 100 testers, no Play review, instant rollout. Use for dev sanity checks.
-- **Closed testing (Alpha/Beta tracks)**: Up to 100 testers per email list, requires Play review on first submission. Use for the soak.
+- **Closed testing (Alpha/Beta tracks)**: Email lists of up to 2,000 addresses each, or Google Groups; requires Play review on first submission. Use for the soak.
 - **Open testing**: Public, anyone can opt in.
 - **Production**: Public release.
 
@@ -786,8 +786,8 @@ Internal Testing **does not count** toward this requirement. Open Testing is ove
 ### Critical rules during the soak
 
 - **Don't change the tester list mid-soak.** Google tracks tester stability. Adding/removing destabilizes the count.
-- **Make sure 12+ testers actually install the app.** Just being on the list isn't enough.
-- **Encourage testers to use the app daily** — Google tracks "active testers."
+- **Make sure 12+ testers actually opt in** through the opt-in URL. Being on the email list isn't enough, and installs don't start or stop the clock: opt-in does.
+- **Encourage testers to use the app daily** — real usage is what surfaces crashes and feedback before launch.
 
 ### What testers experience
 1. Open opt-in URL (must be signed in with their tester Gmail)
@@ -802,7 +802,7 @@ Internal Testing **does not count** toward this requirement. Open Testing is ove
 ## 18. The 14-Day Soak & Production Access
 
 ### Day 0
-First Closed Testing release goes live. 14-day countdown starts when **the first tester actually installs the app** (not when you upload).
+First Closed Testing release goes live. Each tester's 14-day clock starts when **they opt in** (not when you upload, and not when they install). Get 12+ testers opted in on day 0 and the earliest you can apply is day 14.
 
 ### Days 1–14: Monitor
 
@@ -888,7 +888,7 @@ Once approved:
 
 ### Managed publishing OFF in production
 **Symptom**: Update auto-published the moment Google approved, before you were ready.
-**Fix**: Turn ON managed publishing for production. You manually click "publish" after approval.
+**Fix**: Turn ON managed publishing (one app-wide switch in Publishing overview). You manually click "publish" after approval.
 
 ### Lost EAS credentials
 **Symptom**: Need to update app, but `eas build` says credentials are missing/different.
@@ -970,7 +970,7 @@ Print this and tick before you submit anything.
 ### Post-submission
 
 - [ ] Monitor Sentry / Crashlytics daily
-- [ ] Track tester install count (12+ within first week)
+- [ ] Track opted-in tester count (12+, each opted in for 14 consecutive days)
 - [ ] Don't modify tester list mid-soak
 - [ ] Day 14: apply for Production Access
 - [ ] After Production Access: ramp rollout 5% → 25% → 50% → 100%
@@ -993,7 +993,7 @@ Print this and tick before you submit anything.
 | Universal APK | One APK with everything | Used for sideloading; never published |
 | `.apks` | Container of split APKs (debug tool) | Output of `bundletool` |
 
-**Why Play forced the switch (Aug 2021):** Smaller installs = better install rates and lower carrier-data complaints. Apps over 150 MB *must* use AAB.
+**Why Play forced the switch (Aug 2021):** Smaller installs = better install rates and lower carrier-data complaints.
 
 **Local debug installs** still use APK. `npx expo run:android` produces an APK, not an AAB.
 
@@ -1187,8 +1187,10 @@ To inspect what merged in, look at `android/app/build/intermediates/merged_manif
 Toggle in `app.json`:
 
 ```json
-"jsEngine": "hermes"   // or "jsc"
+"jsEngine": "hermes"
 ```
+
+JavaScriptCore is no longer a core option to plan around: from RN 0.79 it moved to a community package, `@react-native-community/javascriptcore`, and the copy built into React Native is slated for removal. Hermes is the default.
 
 **Baseline Profiles** ship with your app and tell ART (Android Runtime) which methods to AOT-compile at install time. This dramatically improves first-launch performance on Android 9+. Generated by:
 
@@ -1235,7 +1237,7 @@ What you **cannot** ship via OTA (Play policy):
 | **JSI** (JavaScript Interface) | — | Direct C++ binding; calls feel synchronous |
 | **TurboModules** | NativeModules over the bridge | TurboModules over JSI — typed, lazy-loaded |
 | **Fabric** | UIManager over the bridge | Fabric renderer over JSI — concurrent-mode aware |
-| **Bridgeless** | — | RN ≥ 0.74 — the legacy bridge is gone entirely |
+| **Bridgeless** | — | Default from RN 0.74 when the New Architecture is enabled, so on by default for new apps from 0.76 ([why two versions](/frontend/react-native#bridgeless-mode)) |
 
 The "New Architecture" is the bundle of JSI + TurboModules + Fabric + Hermes + Bridgeless. As of RN 0.76, it's the default. For a brand-new app, leave it on. For an app upgrading from old-arch, third-party native modules may not yet support it. On Expo you can no longer defer that with a flag: SDK 54 is the last version where `newArchEnabled: false` works, and from SDK 55 the New Architecture is always on. So the order is to check every native module first, then upgrade.
 
@@ -1250,7 +1252,7 @@ The "New Architecture" is the bundle of JSI + TurboModules + Fabric + Hermes + B
 
 ### 22.3 EAS Build vs Local Gradle
 
-| Aspect | EAS Build | Local `./gradlew assembleRelease` |
+| Aspect | EAS Build | Local `./gradlew bundleRelease` |
 |---|---|---|
 | Where | Expo cloud | Your machine |
 | Speed | 15–25 min | 2–10 min after the first build |
@@ -1279,7 +1281,7 @@ TypeError: undefined is not an object (evaluating 'user.profile')
 
 The Sentry Expo plugin uploads sourcemaps to Sentry during the EAS build. Two requirements:
 
-1. `SENTRY_AUTH_TOKEN` set as an EAS secret.
+1. `SENTRY_AUTH_TOKEN` set as an EAS environment variable (secret visibility).
 2. `@sentry/react-native/expo` plugin in `app.json`.
 
 After the build, verify in Sentry → Settings → Source Maps that the bundle and map for your `versionCode` are present. If they aren't, your crash reports stay obfuscated forever — there's no retroactive upload.
@@ -1362,7 +1364,7 @@ Play App Signing splits the signing into two keys: an **upload key** you control
 
 **Q4: What is the 14-day Closed Testing soak rule?**
 
-Since November 2023, new personal Play developer accounts must run a Closed Testing track for 14 consecutive days with at least 12 active testers before they can apply for Production access. The intent is to catch policy and quality issues before they reach the public. Internal Testing does *not* count. Organization accounts (which require a DUNS number) bypass this requirement.
+Personal Play developer accounts created after 13 November 2023 must run a closed test with at least 12 testers, each opted in continuously for the preceding 14 days, before they can apply for Production access. (The rule launched at 20 testers; Google lowered it to 12 in December 2024.) The intent is to catch policy and quality issues before they reach the public. Internal Testing does *not* count. Organization accounts (which require a DUNS number) bypass this requirement.
 
 ---
 
@@ -1374,7 +1376,7 @@ Google's policies require the privacy policy to be reachable without installing 
 
 **Q6: Why do you set `usesCleartextTraffic` to `false`?**
 
-`usesCleartextTraffic: false` tells Android to block all non-HTTPS network traffic at the OS level. It's required to truthfully claim "Encryption in transit" in the Play Data Safety form. Without it, an accidental `http://` URL would silently leak user data. With it, the OS throws an error so you catch the bug in development.
+`usesCleartextTraffic: false` tells Android to block all non-HTTPS network traffic at the OS level. Since target SDK 28 that is already the default, so an accidental `http://` URL fails rather than leaking data even without the flag. Setting it explicitly documents the default and guards against a library or config turning it back on, which matters because you're claiming "Encryption in transit" in the Play Data Safety form.
 
 ---
 
@@ -1389,7 +1391,7 @@ Google's policies require the privacy policy to be reachable without installing 
 | Track | Audience | Play review | Best use |
 |---|---|---|---|
 | Internal | Up to 100 testers via email list | None — instant rollout | Quick dev sanity checks |
-| Closed | Up to 100 testers per email list (multiple lists allowed) | Yes, on first submission per track | The required 14-day soak |
+| Closed | Email lists of up to 2,000 addresses each (multiple lists allowed), or Google Groups | Yes, on first submission per track | The required 14-day soak |
 | Open | Public — anyone can opt in | Yes | Public beta |
 
 Internal Testing does *not* count toward the 14-day soak — only Closed Testing does.
@@ -1479,7 +1481,7 @@ When Metro bundles your JS, it minifies — `userProfile` becomes `a`, line numb
 
 Without sourcemaps uploaded to Sentry/Crashlytics, every crash report looks like `at index.android.bundle:1:42857` — useless for debugging. With them: `at UserScreen.tsx:42:18` — actionable.
 
-Sourcemaps must be uploaded **at build time, keyed by `versionCode`**. The Sentry Expo plugin does this automatically when `SENTRY_AUTH_TOKEN` is set as an EAS secret. There's no retroactive upload — if you forget for a release, those crashes stay obfuscated forever.
+Sourcemaps must be uploaded **at build time, keyed by `versionCode`**. The Sentry Expo plugin does this automatically when `SENTRY_AUTH_TOKEN` is set as an EAS environment variable. There's no retroactive upload — if you forget for a release, those crashes stay obfuscated forever.
 
 ---
 
@@ -1520,7 +1522,7 @@ The New Architecture replaces the old asynchronous JSON bridge with:
 - **JSI** — a C++ interface that lets JS hold direct references to native objects, with synchronous calls.
 - **TurboModules** — native modules over JSI; typed via codegen, lazy-loaded.
 - **Fabric** — a new renderer over JSI, concurrent-mode aware, supports React's Suspense/transitions properly.
-- **Bridgeless mode** (RN ≥ 0.74) — the legacy bridge is removed entirely.
+- **Bridgeless mode** — runs without the legacy bridge; the default once the New Architecture is enabled (RN 0.74+), which is itself the default from 0.76 ([details](/frontend/react-native#bridgeless-mode)).
 - Hermes is the de facto JS engine for the New Architecture.
 
 Migration risk lies in third-party native modules: each has to be ported. As of RN 0.76 it's the default for new apps. The escape hatch is closing: Expo SDK 54 is the last version that lets you set `newArchEnabled: false`, and from SDK 55 it is always on. So upgrading a real app means auditing every native module first, and staying on SDK 54 until the last one is ported or replaced.
@@ -1765,24 +1767,22 @@ Fix:
 3. Wait 1–2 business days for Play to verify and switch.
 4. Resume uploads with the new key.
 
-If you'd lost the *app signing key* (which can't happen with Play App Signing; only legacy V1-only apps without App Signing risk this), you'd be permanently unable to update the app — Google won't switch user-facing keys. The whole point of Play App Signing is to make upload-key loss recoverable.
+If you'd lost the *app signing key* (which can't happen with Play App Signing; only apps not enrolled in Play App Signing risk this), you'd be permanently unable to update the app — Google won't switch user-facing keys. The whole point of Play App Signing is to make upload-key loss recoverable.
 
 **Takeaway:** Lost / changed upload key = recoverable via Play Console reset (1–2 days). Lost app signing key (legacy non-Play-Signed apps only) = unrecoverable. Play App Signing exists to prevent this.
 
 ---
 
-**Q9: You enable Managed Publishing OFF for Closed Testing (so each release rolls out automatically) and ON for Production. Your team submits a fix to production. Two days later Google approves. You're on vacation. The release auto-publishes anyway. How is that possible?**
+**Q9: You plan to set Managed Publishing OFF for Closed Testing (so each release rolls out automatically) and ON for Production, then go on vacation while a production fix is in review. Why can't you set it up that way, and what happens when Google approves the fix?**
 
-Managed Publishing in Play Console has two scopes that confuse people:
+Managed Publishing is **one app-wide switch** in Publishing overview, not a per-track or per-release setting, so "OFF for closed, ON for production" doesn't exist.
 
-- **Per-release** managed publishing — controls a specific release (set when you create the release).
-- **App-level** managed publishing — controls the whole app (set in Publishing overview).
+- If the switch is **OFF**, every approved change publishes automatically, so the production fix goes live the moment Google approves it, vacation or not.
+- If it is **ON**, approved changes on every track except internal testing wait in Publishing overview until someone clicks "Publish", closed-testing releases included. The fix sits approved but unpublished until you (or a teammate with permission) publish it.
 
-If app-level Managed Publishing is OFF and you didn't explicitly mark a release as "managed," the release publishes automatically when Google approves — even if you intended otherwise.
+So the choice is app-wide: turn it ON and publish closed-testing releases by hand too (one click), or leave it OFF and time production submissions around your availability. A few changes skip managed publishing even when it's ON, such as increasing a staged rollout to 100%, editing release notes, and unpublishing.
 
-Fix: turn on **app-level** Managed Publishing in Publishing overview → Managed publishing → ON. Now *every* approved change waits for a manual "Publish" click. Don't rely on per-release toggles for this; the app-level switch is the real safety net.
-
-**Takeaway:** Managed Publishing has app-level and per-release scopes. Toggle the app-level one ON in Publishing overview to guarantee no auto-publish, ever.
+**Takeaway:** Managed Publishing is a single app-level ON/OFF in Publishing overview. ON holds every approved change (except internal testing) for a manual publish; OFF publishes on approval.
 
 ---
 
@@ -1810,16 +1810,16 @@ Three options, in order of safety:
 4. **`versionCode`** is a global, ever-increasing integer per app (not per track).
 5. **`autoIncrement: false` for the first build**; flip to `true` after, AND sync `app.json` to Play's reality.
 6. **`targetSdkVersion`** has a yearly Google-enforced floor — keep up or get hidden from Play.
-7. **`usesCleartextTraffic: false`** is the OS-level enforcement of "Encryption in transit."
+7. **`usesCleartextTraffic: false`** makes the API 28+ default (no cleartext) explicit and backs "Encryption in transit."
 8. **R8 obfuscates** — anything accessed via reflection, JNI, or JSON parsing needs a keep rule.
 9. **`blockedPermissions`** removes the manifest declaration; you still must disable the SDK feature that uses it.
 10. **Privacy policy must be public** (no login wall), accurate, and linked from both Play listing AND in-app Settings.
 11. **Cascade delete + anonymize** — delete user-owned docs, anonymize references in other users' docs.
 12. **Public delete-account URL** is a Play requirement — works without installing the app.
-13. **14-day Closed Testing soak** — needs 12+ active testers, **stable list** (no rotation).
+13. **14-day Closed Testing soak** — needs 12+ testers each opted in for 14 consecutive days, **stable list** (no rotation).
 14. **Internal Testing doesn't count** toward the soak; only Closed Testing does.
 15. **Sentry default = Crash logs + Diagnostics + Device IDs**; `tracesSampleRate > 0` adds **App interactions**.
-16. **Managed Publishing app-level ON** prevents auto-publish on approval.
+16. **Managed Publishing ON** (one app-wide switch) prevents auto-publish on approval.
 17. **OTA (EAS Update / CodePush)** ships JS + assets. Anything native = new AAB.
 18. **Sourcemaps must be uploaded per `versionCode`** — no retroactive upload, no symbolicated stack traces.
 19. **Hermes** = JS bytecode at build time; **baseline profiles** = AOT-compiled native methods at install.

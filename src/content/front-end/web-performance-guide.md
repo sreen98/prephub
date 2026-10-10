@@ -211,7 +211,7 @@ The rules that keep these from backfiring:
 - **`preconnect` is expensive — use it for two or three origins at most.** Each one holds a connection open speculatively; a dozen of them competes with the resources you actually need. `dns-prefetch` is the cheap fallback for the rest.
 - **`crossorigin` on font preloads is mandatory.** Fonts are fetched in CORS mode, so a preload without `crossorigin` creates a *separate* cache entry and the font is downloaded **twice**. This is one of the most common preload bugs, and it makes things slower while looking like an optimisation.
 - **Preload only what's genuinely critical.** Preloading is a priority *reallocation*, not free bandwidth — every preload steals from something else. Preloading five things preloads nothing.
-- **`fetchpriority="high"` on the LCP image** is often a bigger win than a preload, because images default to Low priority until layout determines they're in the viewport.
+- **`fetchpriority="high"` on the LCP image** is often a bigger win than a preload, because images start at Low priority (Chrome 117+ lifts the first five large images to Medium) and are raised only once layout shows they're in the viewport.
 - **Never `loading="lazy"` your LCP image.** It's the single most common self-inflicted LCP regression: lazy loading defers the fetch until layout, adding hundreds of milliseconds to the element that defines your LCP. Lazy-load below-the-fold images only.
 - **Speculation Rules API** is the modern successor to `prefetch` for navigations, and can *prerender* a whole next page:
 
@@ -527,7 +527,7 @@ Images are usually the largest bytes on a page and very often the LCP element, s
 - **Modern formats** — AVIF (30–50% smaller than JPEG) → WebP → JPEG fallback via `<picture>`.
 - **`srcset` + `sizes`** so the browser picks the right file for the viewport and DPR. **`sizes` is what people get wrong** — it describes the *rendered* width, and an inaccurate value makes the browser confidently choose the wrong resource. Getting it wrong is worse than omitting `srcset`.
 - **`width`/`height` or `aspect-ratio`** always, to reserve space and avoid CLS.
-- **`fetchpriority="high"`** on the LCP image, because images default to Low priority until layout confirms they're in the viewport.
+- **`fetchpriority="high"`** on the LCP image, because images start at Low priority (Chrome 117+ lifts the first five large images to Medium) until layout confirms they're in the viewport.
 - **`loading="lazy"` below the fold — and NEVER on the LCP image.** That's the single most common self-inflicted LCP regression.
 - **An image CDN** rather than committing five sizes of everything.
 
@@ -830,7 +830,7 @@ Fix the LCP image specifically:
 <img src="/below-fold.webp" loading="lazy" width="800" height="600" alt="">
 ```
 
-`fetchpriority="high"` matters on its own: images are fetched at **Low** priority until layout confirms they're in the viewport, so even an eager hero image is initially deprioritised behind scripts and stylesheets. Setting it high is often a bigger win than a `preload`.
+`fetchpriority="high"` matters on its own: images are fetched at **Low** priority (the first five large ones at Medium since Chrome 117) until layout confirms they're in the viewport, so even an eager hero image is initially deprioritised behind scripts and stylesheets. Setting it high is often a bigger win than a `preload`.
 
 **Three more ways to accidentally hide your LCP element from the preload scanner** — all the same root cause:
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readSeries } from './guideSeries';
 import { inspect } from 'node:util';
 
 /**
@@ -7,7 +7,7 @@ import { inspect } from 'node:util';
  * and run it, so a claim can never drift from what the "Try it" button prints.
  */
 describe('JavaScript guide interview answers print what they claim', () => {
-  const md = readFileSync('src/content/javascript-and-typescript/javascript-guide.md', 'utf8').replace(/\r\n/g, '\n');
+  const md = readSeries('javascript');
   const block = (marker: string) => {
     const i = md.indexOf(marker);
     expect(i, `marker not found: ${marker}`).toBeGreaterThan(-1);
@@ -350,7 +350,7 @@ describe('JavaScript guide interview answers print what they claim', () => {
 
 describe('React guide Q64 — an unbounded memoize cache grows with zero hits', () => {
   it('prints the claimed stats', () => {
-    const md = readFileSync('src/content/front-end/react-guide.md', 'utf8').replace(/\r\n/g, '\n');
+    const md = readSeries('react');
     const i = md.indexOf('const formatTime = memoize(');
     expect(i).toBeGreaterThan(-1);
     const start = md.lastIndexOf('```js\n', i) + 6;

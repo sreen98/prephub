@@ -18,7 +18,7 @@ export const MobileToc = ({ content }: { content: string }) => {
     <div className="xl:hidden mb-6">
       <button
         onClick={() => setIsOpen(o => !o)}
-        className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+        className="flex items-center gap-2 text-sm font-medium text-muted hover:text-ink transition-colors"
       >
         <List size={16} />
         Table of Contents
@@ -33,7 +33,7 @@ export const MobileToc = ({ content }: { content: string }) => {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <nav className="mt-3 pl-4 border-l-2 border-slate-200 dark:border-slate-800 space-y-1 max-h-60 overflow-y-auto">
+            <nav className="mt-3 pl-4 border-l-2 border-line space-y-1 max-h-60 overflow-y-auto">
               {headings.map((heading) => (
                 <button
                   key={heading.id}
@@ -43,7 +43,7 @@ export const MobileToc = ({ content }: { content: string }) => {
                     setIsOpen(false);
                   }}
                   className={cn(
-                    "block w-full text-left text-sm py-1 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors",
+                    "block w-full text-left text-sm py-1 text-muted hover:text-accent-strong transition-colors",
                     heading.level === 3 && "pl-3 text-xs"
                   )}
                 >

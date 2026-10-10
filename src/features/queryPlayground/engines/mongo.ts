@@ -26,7 +26,7 @@ export function isMongoReady(): boolean {
  */
 export function parsePipeline(text: string): { pipeline?: ResultRow[]; error?: string } {
   const trimmed = text.trim();
-  if (!trimmed) return { error: 'Write an aggregation pipeline — an array of stages.' };
+  if (!trimmed) return { error: 'Write an aggregation pipeline: an array of stages.' };
 
   const attempt = (s: string): unknown => JSON.parse(s);
   let parsed: unknown;

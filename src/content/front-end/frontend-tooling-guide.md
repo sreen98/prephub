@@ -19,21 +19,21 @@
 
 ### 1.1 Can You Use React Without a Bundler?
 
-Technically, yes. You can load React via CDN script tags:
+Technically, yes. You can load React from a CDN. React 19 ships no UMD builds (the old `react.development.js` script tags stopped at React 18), so load its ES modules instead:
 
 ```html
 <!-- Load React from CDN — no bundler needed -->
-<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-
 <div id="root"></div>
-<script>
+<script type="module">
+  import React from 'https://esm.sh/react@19';
+  import { createRoot } from 'https://esm.sh/react-dom@19/client';
+
   // This works — but you can't use JSX
   const App = () => React.createElement('div', null,
     React.createElement('h1', null, 'Hello World'),
     React.createElement('p', null, 'This is vanilla React without JSX')
   );
-  ReactDOM.createRoot(document.getElementById('root')).render(
+  createRoot(document.getElementById('root')).render(
     React.createElement(App)
   );
 </script>
@@ -248,7 +248,7 @@ module.exports = {
 3. Resolve each dependency (check `resolve.extensions`, `resolve.alias`, `node_modules`)
 4. Apply matching loaders to each file (e.g., `babel-loader` for `.jsx`)
 5. Recursively repeat steps 2-4 for each dependency
-6. Build a complete dependency graph (a directed acyclic graph of modules)
+6. Build a complete dependency graph (a directed graph of modules; circular imports are allowed, so it can contain cycles)
 7. Group modules into **chunks** (based on entry points and dynamic imports)
 8. Run plugins on the compilation
 9. Write output bundles to `output.path`
@@ -266,7 +266,7 @@ module.exports = {
 | `file-loader` | Emit file to output directory, return URL (deprecated in webpack 5) | Replaced by `type: 'asset/resource'` |
 | `url-loader` | Inline small files as base64 data URLs (deprecated in webpack 5) | Replaced by `type: 'asset'` with `maxSize` |
 | `svg-url-loader` | Inline SVGs as data URIs | Better: use `@svgr/webpack` for React components |
-| `@svgr/webpack` | Import SVGs as React components | `import { ReactComponent as Logo } from './logo.svg'` |
+| `@svgr/webpack` | Import SVGs as React components | `import Logo from './logo.svg'` (the `{ ReactComponent }` named export was Create React App's setup) |
 
 **Loader execution order matters.** Loaders in the `use` array run **right-to-left** (bottom-to-top):
 
@@ -694,7 +694,7 @@ export default defineConfig({
         },
       },
     },
-    // Target modern browsers (default: 'modules' = native ES modules support)
+    // Target modern browsers (default since Vite 7: 'baseline-widely-available')
     target: 'es2020',
     // CSS code splitting — each async chunk gets its own CSS file
     cssCodeSplit: true,
@@ -720,7 +720,7 @@ export default defineConfig({
     },
     preprocessorOptions: {
       scss: {
-        additionalData: `@import "@/styles/variables.scss";`,
+        additionalData: `@use "@/styles/variables.scss" as *;`,  // Sass @import is deprecated
       },
     },
   },
@@ -830,10 +830,10 @@ interface ImportMeta {
 | **Dev startup time** | Slow (10-60s for large apps) | Near-instant (<1s) |
 | **HMR speed** | Degrades with project size | Constant-time (~50ms) |
 | **Production bundler** | Webpack (custom) | Rollup up to Vite 7; **Rolldown** from Vite 8 |
-| **Transpiler** | Babel (via babel-loader) | esbuild in dev up to Vite 7; **Rolldown** for both from Vite 8 |
+| **Transpiler** | Babel (via babel-loader) | esbuild in dev up to Vite 7; **Oxc** from Vite 8 |
 | **Config complexity** | Complex (100-500 line configs typical) | Minimal (20-50 lines typical) |
 | **CSS handling** | Requires loaders (css-loader, style-loader, etc.) | Built-in (CSS Modules, PostCSS, Sass with one install) |
-| **TypeScript** | Requires ts-loader or babel-loader + @babel/preset-typescript | Built-in (esbuild strips types, no type checking) |
+| **TypeScript** | Requires ts-loader or babel-loader + @babel/preset-typescript | Built-in (esbuild up to Vite 7, Oxc from Vite 8, strips types; no type checking) |
 | **Static assets** | Asset modules (type: 'asset') | Built-in, URL imports work out of the box |
 | **Environment variables** | `DefinePlugin` with `process.env.*` | `import.meta.env.VITE_*` (no plugin needed) |
 | **Code splitting** | Dynamic imports + splitChunks config | Dynamic imports + `build.rollupOptions.output.manualChunks` (`rolldownOptions` from Vite 8) |
@@ -848,7 +848,7 @@ interface ImportMeta {
 
 - **Existing large codebase** already on webpack — migration cost may not be worth it
 - **Highly custom build requirements** — webpack's loader/plugin ecosystem is unmatched
-- **Module Federation already in use** — webpack 5's runtime module sharing for micro-frontends. Vite had no real equivalent until Vite 8's Rolldown graph added support (§9.1), so an existing federated setup is a reason to stay put rather than a reason Vite cannot do it
+- **Module Federation already in use** — webpack 5's runtime module sharing for micro-frontends. Vite had no real equivalent until Vite 8's Rolldown graph made it practical with the official `@module-federation/vite` plugin (§9.1), so an existing federated setup is a reason to stay put rather than a reason Vite cannot do it
 - **Need fine-grained control** over every aspect of the build
 
 ### When to Use Vite
@@ -856,7 +856,7 @@ interface ImportMeta {
 - **New projects** — React, Vue, Svelte, or any modern framework
 - **DX is a priority** — instant server start, fast HMR
 - **Migrating from CRA** — Vite is the natural successor
-- **Library development** — Vite's library mode uses Rollup, which produces clean output
+- **Library development** — Vite's library mode uses Rollup (Rolldown from Vite 8), which produces clean output
 
 ### Choosing Between Them — The Decision, Not the Feature List
 
@@ -881,7 +881,7 @@ Three things would change that default:
 - **A heavy CommonJS or non-standard-module codebase.** Vite assumes ESM. Dynamic `require()`, conditional requires, and `require.context` all fight it.
 - **Custom loaders with no Vite equivalent** — fifteen years of loaders for every obscure asset type.
 - **Fine-grained chunking control**, though Rolldown's `advancedChunks` narrows this.
-- **Module Federation** used to head this list. Vite 8's single Rolldown graph supports it, so it mostly does not any more (§9.1).
+- **Module Federation** used to head this list. Vite 8's single Rolldown graph, with the official `@module-federation/vite` plugin, supports it, so it mostly does not any more (§9.1).
 
 **Two honesty notes worth carrying into an interview.**
 
@@ -948,7 +948,7 @@ export default {
 };
 ```
 
-**When to use:** Building npm packages / libraries. Not typically used directly for applications (use Vite instead, which uses Rollup internally).
+**When to use:** Building npm packages / libraries. Not typically used directly for applications (use Vite instead, which used Rollup internally up to Vite 7 and Rolldown, its Rust reimplementation, from Vite 8).
 
 ### 5.2 esbuild
 
@@ -986,7 +986,7 @@ esbuild.build({
 });
 ```
 
-**When to use:** As part of other toolchains (Vite uses it). Also good for build scripts, CLI tools, and simple bundling tasks where speed is paramount and you don't need the full plugin ecosystem.
+**When to use:** As part of other toolchains (Vite used it up to Vite 7; Vite 8 replaced it with Rolldown and Oxc). Also good for build scripts, CLI tools, and simple bundling tasks where speed is paramount and you don't need the full plugin ecosystem.
 
 ### 5.3 Parcel
 
@@ -1465,7 +1465,7 @@ Nothing is added to your global installs, and the copy stays in the cache rather
 npx create-react-app my-app            # CRA (legacy)
 npx create-vite@latest my-app          # Vite
 npx create-next-app@latest my-app      # Next.js
-npx create-remix my-app                # Remix
+npx create-react-router@latest my-app  # React Router framework mode (formerly Remix)
 
 # Run local project binaries
 npx eslint src/                         # runs ./node_modules/.bin/eslint
@@ -1536,10 +1536,10 @@ npx -p typescript tsc --init
     "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
-    "vite": "^5.0.0",
-    "@vitejs/plugin-react": "^4.2.0",
+    "vite": "^8.0.0",
+    "@vitejs/plugin-react": "^6.0.0",
     "typescript": "^5.3.0",
-    "eslint": "^8.55.0",
+    "eslint": "^10.0.0",
     "@types/react": "^18.2.0"
   },
   "peerDependencies": {
@@ -1616,19 +1616,20 @@ Version format: `MAJOR.MINOR.PATCH` (e.g., `18.2.1`)
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "eslint src/ --ext .ts,.tsx",
-    "lint:fix": "eslint src/ --ext .ts,.tsx --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write src/",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky install",
-    "precommit": "lint-staged",
+    "prepare": "husky",
     "clean": "rm -rf dist node_modules",
     "analyze": "vite-bundle-visualizer"
   }
 }
 ```
+
+With flat config, the files to lint are set in `eslint.config.js`, so the script is just `eslint .`. Husky v9's `prepare` script is plain `husky`; the hook itself is the file `.husky/pre-commit` (created by `npx husky init`) containing `npx lint-staged`. A `package.json` script named `precommit` is not a Git hook and never runs on commit.
 
 **Lifecycle scripts** — npm runs these automatically:
 
@@ -1713,7 +1714,7 @@ import { internal } from 'my-lib/src/core';   // ERROR — not in exports map
   "lint-staged": {
     "*.{ts,tsx}": ["eslint --fix", "prettier --write"]
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@12.10.1"
 }
 ```
 
@@ -1736,7 +1737,7 @@ Vite's original design had a structural oddity: **dev used esbuild, production u
 
 | Aspect | Vite ≤7 | Vite 8 |
 |---|---|---|
-| Dev transform | esbuild | Rolldown |
+| Dev transform | esbuild | Oxc |
 | Production bundle | Rollup | Rolldown |
 | Module graph | two | **one** |
 | Build speed | baseline | **10–30× faster** on large projects |
@@ -1745,7 +1746,7 @@ The interesting part is not the speed number — it is what a single graph unloc
 
 - **Full bundle mode in dev.** Vite's unbundled-ESM dev server was brilliant for small apps but degrades on very large ones, where the browser opens thousands of module requests. One bundler means dev can bundle when that's faster.
 - **Module-level persistent caching** across restarts, because there's one canonical representation to cache.
-- **Flexible chunk splitting** and **Module Federation** support — the last real reason teams stayed on webpack for micro-frontends.
+- **Flexible chunk splitting** and **Module Federation** support (through Rolldown, with the official `@module-federation/vite` plugin) — the last real reason teams stayed on webpack for micro-frontends.
 
 Migration is mostly a version bump, but two things bite. `@vitejs/plugin-react` v6 dropped Babel, so React Compiler is wired in differently than the Babel-plugin recipe in most 2025 tutorials. And any plugin reaching into Rollup internals rather than using the public plugin API may need updating — the API is compatible, the internals are not.
 
@@ -1805,7 +1806,7 @@ This closes the loop. Before 2026 a typical pipeline was: native transform (esbu
 New React SPA           → Vite 8 (Rolldown default). Nothing to configure.
 New full-stack app      → Next.js 16 (Turbopack default) or Remix/React Router.
 Library                 → Rolldown or tsdown; keep Rollup if you depend on niche plugins.
-Micro-frontends         → Vite 8 Module Federation, or webpack if the setup already exists.
+Micro-frontends         → Vite 8 + @module-federation/vite, or webpack if the setup already exists.
 Linting, pragmatic      → ESLint 10 flat config + typescript-eslint, oxlint as a pre-commit pre-check.
 Linting, greenfield     → Biome, if you value one tool over maximum rule coverage.
 Type-checking           → TypeScript 7, unless you use Vue/Svelte/Astro tooling → stay on 6.0.
@@ -1984,9 +1985,9 @@ Why they do not replace webpack/Vite/Rollup for application bundling: esbuild's 
 
 **Q17: What is Module Federation in webpack 5 and why doesn't Vite have an equivalent?**
 
-Short answer: Module Federation lets separately built and deployed apps load each other's code at runtime. The premise of the question is now dated — Vite 8 supports it through Rolldown (§9.1) — so the strong answer explains why Vite *used* to lack it, then corrects the premise.
+Short answer: Module Federation lets separately built and deployed apps load each other's code at runtime. The premise of the question is now dated — Vite 8 supports it through Rolldown, with the official `@module-federation/vite` plugin (§9.1) — so the strong answer explains why Vite *used* to lack it, then corrects the premise.
 
-Module Federation is a webpack 5 feature that allows independently built and deployed applications to share modules at runtime. Application A can expose a React component, and Application B can consume it without having it at build time — the module is loaded over the network at runtime. This enables **micro-frontends**: separate teams build and deploy their features independently, and a shell application composes them. Key concepts: `exposes` (modules this build makes available), `remotes` (other builds to consume modules from), and `shared` (dependencies that should be deduplicated at runtime, e.g., React). Vite ≤7 had no built-in equivalent because Module Federation needs a runtime module loader that is deeply integrated into the bundler's module format, and Vite ran two different tools (esbuild in dev, Rollup in production) with no single runtime to build it into. Community plugins (`vite-plugin-federation`) offered partial compatibility. Vite 8's single Rolldown graph is what made native support possible, so federation is no longer a reason on its own to choose webpack for new work — though an existing webpack federation setup is still a reason not to migrate in a hurry.
+Module Federation is a webpack 5 feature that allows independently built and deployed applications to share modules at runtime. Application A can expose a React component, and Application B can consume it without having it at build time — the module is loaded over the network at runtime. This enables **micro-frontends**: separate teams build and deploy their features independently, and a shell application composes them. Key concepts: `exposes` (modules this build makes available), `remotes` (other builds to consume modules from), and `shared` (dependencies that should be deduplicated at runtime, e.g., React). Vite ≤7 had no built-in equivalent because Module Federation needs a runtime module loader that is deeply integrated into the bundler's module format, and Vite ran two different tools (esbuild in dev, Rollup in production) with no single runtime to build it into. Community plugins (`vite-plugin-federation`) offered partial compatibility. Vite 8's single Rolldown graph is what made solid support possible, through the official `@module-federation/vite` plugin, so federation is no longer a reason on its own to choose webpack for new work — though an existing webpack federation setup is still a reason not to migrate in a hurry.
 
 ---
 
@@ -2008,7 +2009,7 @@ Vite, and the reason to lead with is not speed. It is that the ecosystem default
 
 The supporting reasons, in the order they actually matter: the dev server starts in under a second regardless of project size and HMR is near-instant; the config is 20–50 lines rather than 100–500; TypeScript, CSS Modules, PostCSS and static assets work with no loader configuration; and production output goes through Rollup (Rolldown from Vite 8), which tree-shakes well.
 
-**The gotcha to volunteer, because it catches teams out:** Vite transpiles TypeScript without type-checking it. esbuild — and now Rolldown — strip the types and move on, so `vite build` succeeds on code with type errors. You need `tsc --noEmit` in CI or `vite-plugin-checker` in dev. Webpack's `ts-loader` type-checks by default, so this is a real behavioural difference, not a footnote.
+**The gotcha to volunteer, because it catches teams out:** Vite transpiles TypeScript without type-checking it. esbuild — and now Oxc — strip the types and move on, so `vite build` succeeds on code with type errors. You need `tsc --noEmit` in CI or `vite-plugin-checker` in dev. Webpack's `ts-loader` type-checks by default, so this is a real behavioural difference, not a footnote.
 
 ---
 
@@ -2022,7 +2023,7 @@ Three things would change the default: dev startup or HMR slow enough to cost **
 
 **And if the trigger is purely speed, look at Rspack before Vite.** It is a Rust rewrite of webpack that is deliberately config-compatible — most `webpack.config.js` files run with minimal edits, and the loader and plugin APIs are unchanged, so `babel-loader` and the rest keep working. You get most of the speed without rewriting the build. Vite is the better *destination*; Rspack is the cheaper *move*, and distinguishing an upgrade from a rewrite is the judgement being tested.
 
-What still legitimately keeps a project on webpack: a heavy CommonJS or non-standard-module codebase (Vite assumes ESM, and `require.context` or conditional `require()` will fight it), custom loaders with no Vite equivalent, and fine-grained chunking control — though Rolldown's `advancedChunks` narrows that last one. Module Federation used to head this list; Vite 8's single Rolldown graph supports it, so it mostly does not any more (§9.1).
+What still legitimately keeps a project on webpack: a heavy CommonJS or non-standard-module codebase (Vite assumes ESM, and `require.context` or conditional `require()` will fight it), custom loaders with no Vite equivalent, and fine-grained chunking control — though Rolldown's `advancedChunks` narrows that last one. Module Federation used to head this list; Vite 8's single Rolldown graph, with the official `@module-federation/vite` plugin, supports it, so it mostly does not any more (§9.1).
 
 **Two honesty notes.** Know which version you actually shipped — "esbuild in dev, Rollup in prod" is correct for Vite 7 and earlier, while Vite 8 uses Rolldown for both and `build.rollupOptions` becomes `build.rolldownOptions`. And do not imply you led a migration you did not lead: "webpack on one project, Vite on another, different eras" is a complete answer, whereas claiming a migration invites specifics about CommonJS interop, `process.env` vs `import.meta.env`, path aliases and the Jest config that has to move too.
 
@@ -2059,7 +2060,7 @@ The speed is the headline, but the architectural wins are the better answer:
 - **A single module graph** eliminates dev/prod divergence entirely.
 - **Full bundle mode in dev** becomes possible — Vite's unbundled-ESM dev server is excellent for small apps but degrades on very large ones where the browser opens thousands of module requests.
 - **Module-level persistent caching** across restarts, since there's one canonical representation to cache.
-- **Module Federation** support, which was the last real reason micro-frontend teams stayed on webpack.
+- **Module Federation** support (through Rolldown, with the official `@module-federation/vite` plugin), which was the last real reason micro-frontend teams stayed on webpack.
 
 Migration caveats worth naming: `@vitejs/plugin-react` v6 dropped Babel, so React Compiler is wired up differently from the Babel-plugin recipe in most 2025 tutorials; and plugins that reach into Rollup *internals* rather than the public plugin API may need updating — the API is compatible, the internals are not.
 

@@ -83,7 +83,7 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200]"
+            className="fixed inset-0 bg-black/60 z-[200]"
             onClick={onClose}
           />
           <motion.div
@@ -93,9 +93,9 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             transition={{ duration: 0.15 }}
             className="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-xl z-[201] px-4"
           >
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-                <Search size={18} className="text-slate-500 dark:text-slate-400 shrink-0" />
+            <div className="bg-surface rounded-lg shadow-2xl border border-line overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-line">
+                <Search size={18} className="text-muted shrink-0" />
                 <input
                   ref={inputRef}
                   value={query}
@@ -105,9 +105,9 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                     if (e.key === 'Enter' && results.length > 0) handleSelect(results[0].path);
                   }}
                   placeholder="Search guides and content..."
-                  className="flex-1 bg-transparent outline-none text-base placeholder:text-slate-500 dark:placeholder:text-slate-400"
+                  className="flex-1 bg-transparent outline-none text-base placeholder:text-muted"
                 />
-                <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700">
+                <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-[10px] font-mono text-muted bg-ink/5 rounded-md border border-line">
                   ESC
                 </kbd>
               </div>
@@ -119,12 +119,12 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                        lazy-loaded), so distinguish "still loading" from
                        "genuinely nothing matched" — otherwise every first
                        search reads as a miss. */
-                    <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
-                      <span className="h-4 w-4 rounded-full border-2 border-slate-300 dark:border-slate-700 border-t-indigo-500 animate-spin" />
+                    <div className="px-4 py-8 text-center text-muted flex items-center justify-center gap-2">
+                      <span className="h-4 w-4 rounded-full border-2 border-line border-t-teal-400 animate-spin" />
                       Loading search index…
                     </div>
                   ) : results.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                    <div className="px-4 py-8 text-center text-muted">
                       No results found for &ldquo;{query}&rdquo;
                     </div>
                   ) : (
@@ -133,19 +133,19 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                         key={item.path}
                         onClick={() => handleSelect(item.path)}
                         className={cn(
-                          "w-full text-left px-4 py-3 rounded-xl transition-colors",
-                          "hover:bg-slate-100 dark:hover:bg-slate-800",
-                          i === 0 && "bg-slate-50 dark:bg-slate-800/50"
+                          "w-full text-left px-4 py-3 rounded-md transition-colors",
+                          "hover:bg-ink/5",
+                          i === 0 && "bg-canvas"
                         )}
                       >
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">{item.name}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/5 text-muted">
                             {item.category}
                           </span>
                         </div>
                         {item.snippet && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{item.snippet}</p>
+                          <p className="text-xs text-muted mt-1 line-clamp-2">{item.snippet}</p>
                         )}
                       </button>
                     ))
@@ -154,7 +154,7 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
               )}
 
               {query.length < 2 && (
-                <div className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400 text-center">
+                <div className="px-5 py-6 text-sm text-muted text-center">
                   Type to search across all {menuStructure.flatMap(s => s.items || []).length} guides...
                 </div>
               )}

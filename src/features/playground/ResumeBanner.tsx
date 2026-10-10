@@ -30,12 +30,12 @@ export default function ResumeBanner({ lastSessionName, selectedName, dismissed,
   const tpl = allTemplates.find((t) => t.name === lastSessionName);
   if (!tpl) return null;
   return (
-    <div className="px-4 py-2 bg-indigo-950/40 border-b border-indigo-900/40 text-xs flex items-center gap-2 shrink-0">
-      <span className="text-indigo-300/80">▶</span>
-      <button onClick={() => onResume(tpl)} className="text-indigo-300 hover:text-indigo-200 hover:underline font-medium">
+    <div className="px-4 py-2 bg-teal-900/40 border-b border-teal-900/40 text-xs flex items-center gap-2 shrink-0">
+      <span className="text-teal-300">▶</span>
+      <button onClick={() => onResume(tpl)} className="text-teal-300 hover:text-teal-200 hover:underline font-medium">
         Resume &quot;{lastSessionName}&quot;
       </button>
-      <span className="text-slate-500">— last edited {ago(entry.updatedAt)}</span>
+      <span className="text-slate-500">· last edited {ago(entry.updatedAt)}</span>
       <button onClick={onDismiss} className="ml-auto text-slate-500 hover:text-slate-300" aria-label="Dismiss" title="Dismiss for this session">
         <X size={12} />
       </button>
