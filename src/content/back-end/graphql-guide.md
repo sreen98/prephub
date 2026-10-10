@@ -268,7 +268,7 @@ GraphQL returns **HTTP 200 with an `errors` array** for execution errors, becaus
 
 `data` and `errors` can **both** be present — the defining feature and the thing that surprises REST-trained clients. A client that checks only `response.ok` will silently treat a half-failed response as success.
 
-The status codes that *are* used: `400` for malformed or invalid queries (validation happens before execution), `401`/`403` at the transport layer, and `200` for anything that reached execution.
+The status codes that *are* used: `400` for a document that cannot be parsed and, per the GraphQL-over-HTTP draft, `422` for one that fails validation (Apollo and many servers still use `400` for both; validation happens before execution), `401`/`403` at the transport layer, and `200` for anything that reached execution.
 
 The mature pattern separates two categories:
 
@@ -359,7 +359,7 @@ The GraphQL-specific hazard is that **any path can reach any type**. A field gua
 
 - **Adding** a field or an optional argument is always safe.
 - **Removing or renaming** is breaking. Mark it `@deprecated(reason: "Use x")`, watch field-level usage metrics until it hits zero, then remove.
-- Making a nullable field **non-null** is breaking for servers (you must always supply it); making a non-null field nullable is breaking for clients.
+- Nullability changes break in opposite directions for output and input. For an **output field**, nullable → non-null is safe for clients but a promise the server must keep (a null then propagates up); non-null → nullable is breaking, because clients that relied on a value must now handle null. For an **argument or input field** it is the reverse: making it required (non-null) breaks existing queries that omit it, while making it optional is safe.
 - Adding an enum value is breaking for clients that exhaustively switch — a real-world trap.
 
 Design guidance that comes up:
@@ -390,7 +390,7 @@ type Candidate @key(fields: "id") { id: ID!  name: String! }
 
 # applications subgraph — extends the same entity
 type Candidate @key(fields: "id") {
-  id: ID! @external
+  id: ID!
   applications: [Application!]!
 }
 ```
@@ -423,11 +423,13 @@ Use **codegen** (`graphql-codegen`) to generate TypeScript types from your schem
 **Testing layers.** Unit-test resolvers as plain functions with a stubbed context — that is where authorization and mapping logic lives. Integration-test by executing real queries against the schema with a test database, which catches schema/resolver mismatches. Add **schema snapshot** tests so unintended contract changes show up in review, and use `graphql-inspector` in CI to fail on breaking changes.
 
 ```js
-const res = await executeOperation({
-  query: `{ candidate(id:"1"){ name company { name } } }`,
-  contextValue: makeContext({ viewer: adminUser }),
-});
-expect(res.errors).toBeUndefined();
+// Apollo Server 4+: context is the second argument; errors sit under body.singleResult
+const res = await server.executeOperation(
+  { query: `{ candidate(id:"1"){ name company { name } } }` },
+  { contextValue: makeContext({ viewer: adminUser }) },
+);
+assert(res.body.kind === 'single');
+expect(res.body.singleResult.errors).toBeUndefined();
 ```
 
 Assert on `errors` explicitly — a test checking only `data` will pass on a partially failed response.
@@ -471,11 +473,11 @@ HTTP caching keys on URL plus method, and GraphQL sends every operation as `POST
 
 **Q5: How do you handle errors in GraphQL?**
 
-Execution errors return **HTTP 200 with an `errors` array**, and `data` and `errors` can both be present because a query may partially succeed — a client checking only `response.ok` will treat a half-failed response as success. `400` is used for malformed or invalid queries, since validation runs before execution. The mature pattern splits errors in two. **Exceptional** failures — a service is down, a bug — belong in the `errors` array with a machine-readable `extensions.code` and no internal detail in the message. **Expected, recoverable** failures — validation, "email already taken" — should be returned **as data** in the mutation payload, as a non-null `errors: [UserError!]!` list, because that makes them typed, always present and impossible for a client to forget, whereas the top-level array is untyped and easy to ignore. Also disable stack traces in production and map internal exceptions to safe codes in `formatError`.
+Execution errors return **HTTP 200 with an `errors` array**, and `data` and `errors` can both be present because a query may partially succeed — a client checking only `response.ok` will treat a half-failed response as success. `400` is used for unparseable queries and, per the GraphQL-over-HTTP draft, `422` for queries that fail validation (Apollo and many servers still use `400` for both), since validation runs before execution. The mature pattern splits errors in two. **Exceptional** failures — a service is down, a bug — belong in the `errors` array with a machine-readable `extensions.code` and no internal detail in the message. **Expected, recoverable** failures — validation, "email already taken" — should be returned **as data** in the mutation payload, as a non-null `errors: [UserError!]!` list, because that makes them typed, always present and impossible for a client to forget, whereas the top-level array is untyped and easy to ignore. Also disable stack traces in production and map internal exceptions to safe codes in `formatError`.
 
 **Q6: How does nullability work, and why does it matter so much?**
 
-`!` marks a field non-null. If a non-null field's resolver returns null or throws, GraphQL cannot represent that, so it **nulls out the nearest nullable ancestor** — and if every ancestor is non-null, the whole `data` becomes null. So over-using `!` converts one flaky field into a total request failure, which is why nullability is the highest-leverage schema decision. Use non-null for genuinely invariant fields like `id`, and nullable for anything depending on a remote call, on permissions, or that may legitimately be absent — which is also why authorization-gated fields such as `email` should be nullable, so denying access degrades gracefully. Lists have two independent positions: `[Role!]!` is a non-null list of non-null items, while `[Role]` may itself be null and may contain nulls. Note the asymmetry in evolution: making a nullable field non-null is breaking for servers, and making a non-null field nullable is breaking for clients.
+`!` marks a field non-null. If a non-null field's resolver returns null or throws, GraphQL cannot represent that, so it **nulls out the nearest nullable ancestor** — and if every ancestor is non-null, the whole `data` becomes null. So over-using `!` converts one flaky field into a total request failure, which is why nullability is the highest-leverage schema decision. Use non-null for genuinely invariant fields like `id`, and nullable for anything depending on a remote call, on permissions, or that may legitimately be absent — which is also why authorization-gated fields such as `email` should be nullable, so denying access degrades gracefully. Lists have two independent positions: `[Role!]!` is a non-null list of non-null items, while `[Role]` may itself be null and may contain nulls. Note the asymmetry in evolution: for an output field, nullable → non-null is safe for clients (but a promise the server must keep), while non-null → nullable breaks clients; for arguments and input fields it is the reverse, since making one required breaks existing queries.
 
 **Q7: How do you secure a GraphQL API?**
 
@@ -491,11 +493,11 @@ Offset pagination degrades as the offset grows and **skips or duplicates rows** 
 
 **Q10: How does GraphQL handle versioning and breaking changes?**
 
-It is designed not to be versioned: you evolve a single schema continuously. Adding a field or an optional argument is always safe. Removing or renaming is breaking, so the process is to mark the field `@deprecated(reason: "Use x")`, watch **field-level usage metrics** until it reaches zero, then remove — which is why per-field usage tracking is not optional at scale. Subtler breaking changes: making a nullable field non-null breaks servers, making a non-null field nullable breaks clients, and **adding an enum value breaks clients that switch exhaustively**. Enforce this in CI with a schema diff tool such as `graphql-inspector`, failing the build on a breaking change that has no deprecation path. Because there is no version boundary, the compensating discipline is that the schema must be designed as a product surface rather than a mirror of your tables — otherwise every database change becomes a client-visible break.
+It is designed not to be versioned: you evolve a single schema continuously. Adding a field or an optional argument is always safe. Removing or renaming is breaking, so the process is to mark the field `@deprecated(reason: "Use x")`, watch **field-level usage metrics** until it reaches zero, then remove — which is why per-field usage tracking is not optional at scale. Subtler breaking changes: making an output field nullable (clients relied on a value), making an argument or input field required (existing queries omit it), and **adding an enum value breaks clients that switch exhaustively**. Enforce this in CI with a schema diff tool such as `graphql-inspector`, failing the build on a breaking change that has no deprecation path. Because there is no version boundary, the compensating discipline is that the schema must be designed as a product surface rather than a mirror of your tables — otherwise every database change becomes a client-visible break.
 
 **Q11: What is Apollo Federation, and when would you use it?**
 
-Federation composes one supergraph from independently deployed **subgraphs**, so each team owns and ships its own schema. Its core concept is the **entity**: a type with a `@key`, owned by one subgraph and extendable by others via `@external`, letting the applications team add `Candidate.applications` to a `Candidate` owned by the candidates team. A router plans the query, calls each subgraph, and resolves references through the `_entities` field. Use it when many teams share a graph and a single schema file has become an organisational bottleneck; split subgraphs along **ownership and bounded-context boundaries**, not technical layers. Costs to acknowledge: an extra network hop per subgraph, potential **N+1 across services** if the graph is split badly, mandatory composition checks in CI so one team cannot break the supergraph, and distributed tracing becoming necessary to explain a slow query. Schema stitching is the lighter alternative that keeps merge logic in the gateway.
+Federation composes one supergraph from independently deployed **subgraphs**, so each team owns and ships its own schema. Its core concept is the **entity**: a type with a `@key`, owned by one subgraph and extendable by others, which redeclare the type with the same `@key` (`@external` is only for fields a subgraph needs from another one, for example with `@requires`), letting the applications team add `Candidate.applications` to a `Candidate` owned by the candidates team. A router plans the query, calls each subgraph, and resolves references through the `_entities` field. Use it when many teams share a graph and a single schema file has become an organisational bottleneck; split subgraphs along **ownership and bounded-context boundaries**, not technical layers. Costs to acknowledge: an extra network hop per subgraph, potential **N+1 across services** if the graph is split badly, mandatory composition checks in CI so one team cannot break the supergraph, and distributed tracing becoming necessary to explain a slow query. Schema stitching is the lighter alternative that keeps merge logic in the gateway.
 
 **Q12: How do subscriptions work, and when would you use something else?**
 
@@ -594,7 +596,7 @@ Standard HTTP metrics are nearly useless because every request is `POST /graphql
 **Errors**
 
 32. `data` and `errors` can both be present. Never trust `res.ok` alone.
-33. `400` for invalid/malformed queries (validation precedes execution).
+33. `400` for unparseable queries; `422` for validation failures per the GraphQL-over-HTTP draft (many servers use `400`).
 34. Exceptional errors → `errors` array with `extensions.code`.
 35. Expected errors → **data**, as a non-null `[UserError!]!` in the payload.
 36. Disable stack traces in production; map exceptions in `formatError`.
@@ -628,7 +630,7 @@ Standard HTTP metrics are nearly useless because every request is `POST /graphql
 **Evolution**
 
 54. Adding fields and optional args: safe. Removing/renaming: breaking.
-55. Nullable → non-null breaks servers; non-null → nullable breaks clients.
+55. Output field: non-null → nullable breaks clients. Argument/input: nullable → required breaks queries.
 56. **Adding an enum value is breaking** for exhaustive clients.
 57. `@deprecated` + field-usage metrics + `graphql-inspector` in CI.
 

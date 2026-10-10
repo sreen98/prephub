@@ -143,7 +143,7 @@ The whitespace rules are where everyone loses time:
 - **`nindent N`** adds a newline then indents by N — almost always what you want when injecting a YAML block.
 - `indent N` indents without the leading newline.
 - **`toYaml`** serialises a values object; combine as `{{- toYaml . | nindent 4 }}`.
-- **`| quote`** on anything that could be read as a number or boolean — an unquoted `"true"` or a version like `1.10` will be coerced and surprise you.
+- **`| quote`** on anything that could be read as a number or boolean — an unquoted `"true"` or a version like `1.10` will be coerced and surprise you. (Quote `1.10` in the values file too: an unquoted one is already `1.1` by the time the template sees it.)
 
 Named templates live in `_helpers.tpl`:
 
@@ -187,7 +187,7 @@ helm upgrade app ./mychart \
 
 The pattern that works: a **common** values file plus a **per-environment** file, with only the image tag supplied on the command line by CI. Putting environment differences in `--set` flags scattered through a pipeline makes the deployed configuration unreproducible.
 
-Two `--set` gotchas: commas and dots must be escaped (`--set 'nodeSelector.kubernetes\.io/os=linux'`), and `--set` interprets values, so use **`--set-string`** for anything that must stay a string — a numeric-looking tag like `1.10` otherwise becomes `1.1`.
+Two `--set` gotchas: commas and dots must be escaped (`--set 'nodeSelector.kubernetes\.io/os=linux'`), and `--set` interprets values (`true`/`false`/`null` and integers like `12345` are converted; `1.10` stays a string), so use **`--set-string`** for anything that must stay a string. The `1.10` → `1.1` trap is in values files: YAML reads an unquoted `tag: 1.10` as a float, so write `tag: "1.10"`.
 
 **`--reuse-values` vs `--reset-values`** trips people badly. `--reuse-values` merges into the previously supplied values, so a value you *removed* from your file persists invisibly; `--reset-values` starts from the chart defaults. Neither is a safe default for CI — supply the **full** set of values every time so a deploy is a function of the repository state alone.
 
@@ -230,14 +230,14 @@ global:
 ```bash
 helm upgrade --install app ./chart \        # idempotent: install or upgrade
   --namespace prod --create-namespace \
-  --atomic --timeout 5m \                   # roll back automatically on failure
+  --rollback-on-failure --timeout 5m \      # roll back automatically on failure (Helm 3: --atomic)
   --wait                                    # wait for resources to be ready
 helm history app
 helm rollback app 3
 helm get values app / manifest app / notes app
 ```
 
-`--atomic` is the flag to know: it implies `--wait`, and if resources don't become ready within the timeout it **automatically rolls back** to the previous revision, so a failed deploy doesn't leave a half-applied release. In CI, `upgrade --install --atomic --timeout` is the standard incantation.
+`--rollback-on-failure` is the flag to know (Helm 4, released November 2025, renamed Helm 3's `--atomic` to it and keeps `--atomic` only as a deprecated alias): it turns on waiting, and if resources don't become ready within the timeout it **automatically rolls back** to the previous revision, so a failed deploy doesn't leave a half-applied release. In CI, `upgrade --install --rollback-on-failure --timeout` (`--atomic --timeout` on Helm 3) is the standard incantation.
 
 Release state lives in Secrets (`sh.helm.release.v1.<name>.v<revision>`) in the release namespace, which is how `history` and `rollback` work — and why deleting those Secrets by hand orphans the release.
 
@@ -259,7 +259,7 @@ metadata:
 
 Hook points: `pre-install`, `post-install`, `pre-upgrade`, `post-upgrade`, `pre-delete`, `post-delete`, `pre-rollback`, `post-rollback`, `test`.
 
-The canonical use is a **database migration Job** as `pre-upgrade`, so schema changes land before the new code. Three caveats: a failed hook fails the release; **hook resources are not tracked as part of the release**, so they aren't rolled back by `helm rollback`; and a hook Job left behind by a missing `hook-delete-policy` causes the next upgrade to fail on an immutable-field conflict.
+The canonical use is a **database migration Job** as `pre-upgrade`, so schema changes land before the new code. Three caveats: a failed hook fails the release; **hook resources are not tracked as part of the release**, so they aren't rolled back by `helm rollback`; and a leftover hook Job (for example a failed Job when the policy is only `hook-succeeded`) can block the next upgrade, so keep `before-hook-creation`, which is also the default when no policy is set.
 
 ```bash
 helm test app        # runs templates/tests/* as Jobs, asserting the release works
@@ -403,8 +403,9 @@ Git is the source of truth, and plaintext secrets cannot go in git. Four approac
 **External Secrets Operator is the strongest default** where you already run a secret manager, because git contains only a pointer:
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1      # v1beta1 is no longer served since ESO v0.17
 kind: ExternalSecret
+metadata: { name: api-secrets }
 spec:
   secretStoreRef: { name: aws-sm, kind: ClusterSecretStore }
   target: { name: api-secrets }
@@ -517,7 +518,7 @@ The critical discipline is that the **same artefact** is promoted unchanged — 
 
 **Q6: What do `prune` and `selfHeal` do in Argo CD, and why are they off by default?**
 
-**`prune`** deletes cluster resources that no longer exist in git; **`selfHeal`** reverts manual changes made in the cluster so it converges back to the repository. Together they make git genuinely authoritative. They're off by default because both are destructive in the wrong circumstances: with `prune`, a mistaken commit removing a manifest — or a bad path in the Application spec so Argo sees *no* resources — deletes live infrastructure; with `selfHeal`, an emergency `kubectl edit` is silently reverted, possibly mid-incident.
+**`prune`** deletes cluster resources that no longer exist in git; **`selfHeal`** reverts manual changes made in the cluster so it converges back to the repository. Together they make git genuinely authoritative. They're off by default because both are destructive in the wrong circumstances: with `prune`, a mistaken commit removing a manifest — or a bad path in the Application spec so Argo sees only *some* of the resources — deletes live infrastructure; with `selfHeal`, an emergency `kubectl edit` is silently reverted, possibly mid-incident.
 
 The consequence worth stating is that `selfHeal: true` means **`kubectl edit` in production stops working by design**, which surprises people at the worst moment, so the break-glass procedure — disable auto-sync, or annotate the resource — must be documented before you need it. In practice you enable both in production because uncorrected drift is worse, and you pair them with branch protection, `AppProject` restrictions on what an Application may touch, and sync windows.
 
@@ -547,7 +548,7 @@ The lessons: never mix imperative `kubectl create` with a Helm-managed release, 
 
 **The release is stuck in a transitional state because the Helm client was killed before it could finalise the revision.** Helm stores release state as Secrets in the namespace, and an interrupted `upgrade` leaves the newest revision marked `pending-upgrade` with no client coming back to complete it. Helm refuses to start another operation on a release it believes is mid-flight, so every later upgrade fails with "another operation is in progress" — and no amount of retrying clears it. Recovery is `helm rollback <release> <last-good-revision>`, which resets the state, or deleting the pending release Secret as a last resort.
 
-Prevention is the real answer: **`--atomic --timeout`** so a failed upgrade rolls itself back rather than hanging, a CI timeout comfortably longer than the Helm timeout so Helm finishes first, and `--wait` so success actually means ready. This is also an argument for GitOps: a controller reconciling continuously has no interruptible client-side session to strand.
+Prevention is the real answer: **`--rollback-on-failure --timeout`** (`--atomic` on Helm 3) so a failed upgrade rolls itself back rather than hanging, a CI timeout comfortably longer than the Helm timeout so Helm finishes first, and `--wait` so success actually means ready. This is also an argument for GitOps: a controller reconciling continuously has no interruptible client-side session to strand.
 
 **Q3: Your Argo CD Application shows `Synced` and `Healthy`, but the running pods are clearly the old version. How?**
 
@@ -559,13 +560,13 @@ Other candidates: CI pushed the image but never committed the tag change, so the
 
 **`selfHeal` reverted the manual scale, and `prune` deleted everything Argo no longer saw in git.** `selfHeal` exists to make drift impossible: it continuously reconciles, so `kubectl scale` is undone almost immediately — correct by design, and genuinely dangerous mid-incident if nobody knows the break-glass procedure, which is to disable auto-sync on the Application (or annotate the resource) *before* making manual changes.
 
-The second failure is worse and is the standard argument against enabling `prune` casually: while the path was wrong, Argo rendered **no resources** from that source, concluded that every live object tracked by the Application was absent from git, and pruned them. A path typo therefore becomes a deletion event. Mitigations: `prune: false` until the Application is proven, `PrunePropagationPolicy` and `prune-last`, `ignoreDifferences` for fields other controllers own (like HPA-managed replicas), sync windows, and restricting blast radius with `AppProject` allow-lists on namespaces and kinds.
+The second failure is worse and is the standard argument against enabling `prune` casually: while the path was wrong, it pointed at a directory that rendered only **a subset** of the resources, so Argo concluded that every other live object tracked by the Application was absent from git, and pruned them. (A path that renders *nothing* is blocked: automated prune refuses to sync to an empty set unless `allowEmpty: true`.) A path typo therefore becomes a deletion event. Mitigations: `prune: false` until the Application is proven, leaving `allowEmpty` off, `PrunePropagationPolicy` and `prune-last`, `ignoreDifferences` for fields other controllers own (like HPA-managed replicas), sync windows, and restricting blast radius with `AppProject` allow-lists on namespaces and kinds.
 
 **Q5: Your chart renders correctly with `helm template` but `helm install` fails with a validation error. And an image tag of `1.10` deploys as `1.1`. What's happening in each case?**
 
 **`helm template` renders client-side only, whereas `install` sends the objects to the API server** — so anything requiring server knowledge slips through the first and fails the second: an `apiVersion` that doesn't exist in that cluster version, a field rejected by a CRD's OpenAPI schema, an admission webhook or policy engine (OPA/Kyverno) refusing the object, or a `.Capabilities` check that resolves differently against a real server. The fix is to use **`helm install --dry-run=server --debug`** in CI rather than `template` when you want real validation (a bare `--dry-run` means `client` since Helm 3.13). Admission webhooks still run only on a real write, so a policy rejection surfaces at install time, or with `kubectl apply --dry-run=server` on the rendered output.
 
-The second problem is a **`--set` type coercion**: `--set image.tag=1.10` is parsed as a number, and `1.10` as a float is `1.1`, which then renders as a nonexistent tag. Use **`--set-string image.tag=1.10`**, or quote in values with `{{ .Values.image.tag | quote }}`. The same class of bug hits anything numeric-looking or boolean-looking in YAML — version strings, `"true"`, `"on"`, and leading-zero values — which is why `| quote` on template output is a habit worth having.
+The second problem is **YAML type coercion in a values file**: an unquoted `tag: 1.10` is parsed as a float, and `1.10` as a float is `1.1`, which then renders as a nonexistent tag. Quote it in the values file (`tag: "1.10"`); `| quote` in the template is too late, because the value is already `1.1` by then. (`--set image.tag=1.10` does not have this bug: Helm's `--set` parser converts only booleans, `null` and integers, so `1.10` stays a string; reach for **`--set-string`** when an integer-looking value such as `--set tag=12345` must stay a string.) The same class of bug hits anything numeric-looking or boolean-looking in YAML — version strings, `"true"`, `"on"`, and leading-zero values — which is why `| quote` on template output is a habit worth having.
 
 ---
 
@@ -596,14 +597,14 @@ The second problem is a **`--set` type coercion**: `--set image.tag=1.10` is par
 **Values**
 
 14. Precedence: chart defaults → parent values → `-f` (later wins) → **`--set`**.
-15. **`--set-string`** for version-like values — `--set tag=1.10` becomes `1.1`.
+15. Quote version-like values in values files — an unquoted `tag: 1.10` becomes `1.1`; **`--set-string`** for integer-looking values.
 16. `--reuse-values` silently keeps removed values; supply the **full** set in CI.
 17. Common + per-environment values files; only the image tag from CI.
 
 **Lifecycle**
 
-18. `helm upgrade --install --atomic --timeout 5m` is the CI standard.
-19. **`--atomic`** implies `--wait` and auto-rolls back on failure.
+18. `helm upgrade --install --rollback-on-failure --timeout 5m` is the CI standard (`--atomic` on Helm 3).
+19. **`--rollback-on-failure`** waits and auto-rolls back on failure.
 20. `helm history` / `helm rollback N`.
 21. **`pending-upgrade`** = interrupted client; fix with `rollback`.
 22. Deleting a template **deletes the resource**; hand-created objects are invisible to Helm.
@@ -626,7 +627,7 @@ The second problem is a **`--set` type coercion**: `--set image.tag=1.10` is par
 **Argo CD**
 
 32. `Application` maps a git path → a cluster namespace.
-33. **`prune`** deletes what's gone from git — a path typo becomes a deletion event.
+33. **`prune`** deletes what's gone from git — a path typo that renders a subset becomes a deletion event (an empty render is blocked unless `allowEmpty`).
 34. **`selfHeal`** reverts manual changes — `kubectl edit` stops working by design.
 35. Document break-glass **before** you need it.
 36. Sync waves order resources; PreSync/PostSync hooks for migrations.

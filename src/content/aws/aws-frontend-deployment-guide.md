@@ -49,7 +49,7 @@ WAF          → Web Application Firewall (optional)
 ### Option 1: S3 + CloudFront (Recommended)
 
 ```
-User → CloudFront (CDN, 400+ edge locations)
+User → CloudFront (CDN, 750+ points of presence)
          → S3 (origin, stores static files)
          → ACM (HTTPS)
          → Route 53 (DNS)
@@ -260,19 +260,24 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
 
+interface FrontendStackProps extends cdk.StackProps {
+  stage: string;
+  domainName: string;
+  apiUrl: string;
+}
+
 export class FrontendStack extends cdk.Stack {
-  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
+  constructor(scope: cdk.App, id: string, props: FrontendStackProps) {
     super(scope, id, props);
 
-    // S3 bucket (private, no website hosting)
+    // S3 bucket (private, no website hosting); no fixed bucketName, so stages don't collide
     const bucket = new s3.Bucket(this, 'FrontendBucket', {
-      bucketName: 'my-app-frontend',
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    // ACM certificate (must be in us-east-1 for CloudFront)
+    // ACM certificate (must be in us-east-1 for CloudFront; a *.example.com cert covers every stage)
     const certificate = acm.Certificate.fromCertificateArn(
       this, 'Certificate',
       'arn:aws:acm:us-east-1:123456789:certificate/abc-123'
@@ -287,7 +292,7 @@ export class FrontendStack extends cdk.Stack {
         compress: true,
       },
       defaultRootObject: 'index.html',
-      domainNames: ['app.example.com'],
+      domainNames: [props.domainName],
       certificate,
       errorResponses: [
         {
@@ -306,13 +311,28 @@ export class FrontendStack extends cdk.Stack {
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100, // US/Europe
     });
 
-    // Deploy build files to S3 + invalidate CloudFront
-    new s3deploy.BucketDeployment(this, 'DeployFiles', {
+    // Deploy build files to S3 + invalidate CloudFront.
+    // prune defaults to true, which would delete the previous build's chunks,
+    // so deploy hashed assets and HTML separately, both with prune: false.
+    const assets = new s3deploy.BucketDeployment(this, 'DeployAssets', {
       sources: [s3deploy.Source.asset('../dist')],
       destinationBucket: bucket,
-      distribution,
-      distributionPaths: ['/*'],            // invalidate all paths
+      exclude: ['*.html'],
+      prune: false,
+      cacheControl: [s3deploy.CacheControl.fromString('public, max-age=31536000, immutable')],
     });
+
+    const html = new s3deploy.BucketDeployment(this, 'DeployHtml', {
+      sources: [s3deploy.Source.asset('../dist')],
+      destinationBucket: bucket,
+      exclude: ['*'],
+      include: ['*.html'],
+      prune: false,
+      cacheControl: [s3deploy.CacheControl.noCache()],
+      distribution,
+      distributionPaths: ['/index.html'],   // hashed assets never need invalidating
+    });
+    html.node.addDependency(assets);         // assets first, HTML last
 
     // Route 53 A record
     const hostedZone = route53.HostedZone.fromLookup(this, 'Zone', {
@@ -321,7 +341,7 @@ export class FrontendStack extends cdk.Stack {
 
     new route53.ARecord(this, 'ARecord', {
       zone: hostedZone,
-      recordName: 'app',
+      recordName: props.domainName,
       target: route53.RecordTarget.fromAlias(
         new route53targets.CloudFrontTarget(distribution)
       ),
@@ -512,10 +532,9 @@ phases:
 
   post_build:
     commands:
-      - aws s3 sync dist/ s3://${S3_BUCKET} --delete
-      - |
-        aws s3 cp dist/index.html s3://${S3_BUCKET}/index.html \
-          --cache-control "no-cache, no-store, must-revalidate"
+      # Hashed assets first (no --delete, so open tabs keep their chunks), HTML last
+      - aws s3 sync dist/ s3://${S3_BUCKET} --exclude "*.html" --cache-control "public, max-age=31536000, immutable"
+      - aws s3 sync dist/ s3://${S3_BUCKET} --exclude "*" --include "*.html" --cache-control "no-cache, no-store, must-revalidate" --delete
       - |
         aws cloudfront create-invalidation \
           --distribution-id ${CLOUDFRONT_ID} \
@@ -540,6 +559,10 @@ on:
       - qa           # → QA environment
       - main         # → production
 
+permissions:
+  id-token: write    # OIDC: GitHub proves the job's identity to AWS
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -556,9 +579,15 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
           VITE_CDN_BASE_URL: ${{ vars.CDN_BASE_URL }}
 
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
       - name: Deploy
         run: |
-          aws s3 sync dist/ s3://${{ vars.S3_BUCKET }} --delete
+          aws s3 sync dist/ s3://${{ vars.S3_BUCKET }} --exclude "*.html" --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync dist/ s3://${{ vars.S3_BUCKET }} --exclude "*" --include "*.html" --cache-control "no-cache, no-store, must-revalidate" --delete
           aws cloudfront create-invalidation \
             --distribution-id ${{ vars.CLOUDFRONT_ID }} \
             --paths "/*"
@@ -602,14 +631,18 @@ Vite chooses which `.env.[mode]` file to load from the `--mode` flag; there is n
 
 ### 8.3 Runtime Config (No Rebuild)
 
+```text
+// public/config.js (plain JavaScript, no <script> tags)
+window.__APP_CONFIG__ = {
+  API_BASE_URL: 'https://api.example.com',
+  FEATURE_FLAGS: { newDashboard: true },
+};
+```
+
 ```html
-<!-- public/config.js (loaded before app) -->
-<script>
-  window.__APP_CONFIG__ = {
-    API_BASE_URL: 'https://api.example.com',
-    FEATURE_FLAGS: { newDashboard: true },
-  };
-</script>
+<!-- index.html: load config.js before the app's module script -->
+<script src="/config.js"></script>
+<script type="module" src="/src/main.tsx"></script>
 ```
 
 ```ts
@@ -925,16 +958,21 @@ frontend:
   cache:
     paths:
       - node_modules/**/*
+```
 
-  customHeaders:
-    - pattern: '**/*'
-      headers:
-        - key: 'Strict-Transport-Security'
-          value: 'max-age=31536000; includeSubDomains'
-        - key: 'X-Content-Type-Options'
-          value: 'nosniff'
-        - key: 'X-Frame-Options'
-          value: 'DENY'
+Custom headers no longer belong in `amplify.yml` (that form is legacy). Put them in `customHttp.yml` in the project root (or in the console under Hosting > Custom headers), then redeploy for them to take effect:
+
+```yaml
+# customHttp.yml
+customHeaders:
+  - pattern: '**/*'
+    headers:
+      - key: 'Strict-Transport-Security'
+        value: 'max-age=31536000; includeSubDomains'
+      - key: 'X-Content-Type-Options'
+        value: 'nosniff'
+      - key: 'X-Frame-Options'
+        value: 'DENY'
 ```
 
 ### 14.3 Amplify Rewrites (SPA Routing)
@@ -976,18 +1014,19 @@ S3:
   Requests: 500K GET = ~$0.20
 
 CloudFront:
-  Data transfer: 200 GB = ~$17.00 (first 10TB at $0.085/GB)
-  Requests: 500K HTTPS = ~$0.50
+  Data transfer: 200 GB = $0 (within the 1 TB/month always-free allowance;
+                 $0.085/GB beyond it)
+  Requests: 500K HTTPS = $0 (10M/month free)
   Invalidations: ~50 = free (first 1000/month free)
 
 Route 53:
   Hosted zone: $0.50
-  Queries: 500K = ~$0.20
+  Queries: alias queries to CloudFront are free
 
 ACM:
   Certificate: FREE
 
-Total: ~$18/month
+Total: ~$0.50–1/month, rising by ~$17 per extra 200 GB past 1 TB
 ```
 
 ### 15.2 Cost Optimization
@@ -1035,7 +1074,7 @@ S3 static website hosting works but has limitations:
 - **Higher latency** for global users
 - **No compression** (gzip/brotli)
 
-CloudFront adds: global CDN (400+ edge locations), HTTPS, compression, caching, security headers, WAF integration, and HTTP/2+3 support. It's practically required for production.
+CloudFront adds: global CDN (750+ points of presence), HTTPS, compression, caching, security headers, WAF integration, and HTTP/2+3 support. It's practically required for production.
 
 ---
 
@@ -1078,7 +1117,7 @@ When you deploy: index.html changes → user gets new index.html → which loads
 Using GitHub Actions:
 1. **Trigger**: Push to `main` branch
 2. **Build**: Install deps (`npm ci`), run build (`npm run build`)
-3. **Deploy**: `aws s3 sync dist/ s3://bucket --delete`
+3. **Deploy** in two steps: hashed assets first (`aws s3 sync dist/ s3://bucket --exclude "*.html" --cache-control "public, max-age=31536000, immutable"`, no `--delete`), then HTML (`--exclude "*" --include "*.html" --cache-control "no-cache, no-store, must-revalidate" --delete`)
 4. **Invalidate**: `aws cloudfront create-invalidation --paths "/*"`
 5. **Credentials**: Prefer OIDC (OpenID Connect — GitHub proves the job's identity to AWS and receives short-lived credentials for an IAM role) over IAM access keys stored in GitHub Secrets, because there is then no long-lived key to leak or rotate
 

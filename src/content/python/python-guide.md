@@ -289,8 +289,8 @@ finally:
 
 The parts people get wrong:
 
-- **`else` exists** and is the right place for code that must not be inside the `try`. If you put `parse(resp)` in the `try`, a `TimeoutError` raised *by the parser* would be swallowed by your handler.
-- **`finally` runs even on `return`**, and a `return` inside `finally` *replaces* the pending return or exception — a good way to lose an error silently.
+- **`else` exists** and is the right place for code that must not be inside the `try`. If you put `parse(resp)` in the `try`, an `OSError` or `TimeoutError` raised *by the parser* would be handled as if the network call failed: counted as a timeout, or silently replaced by `fallback()`.
+- **`finally` runs even on `return`**, and a `return` inside `finally` *replaces* the pending return or exception — a good way to lose an error silently. Since Python 3.14 the compiler emits a `SyntaxWarning` for a `return`, `break` or `continue` that leaves a `finally` block (PEP 765).
 - **Never write a bare `except:`** — it catches `KeyboardInterrupt` and `SystemExit`. Use `except Exception:` if you must be broad.
 
 ### 3.2 Exception chaining — `raise ... from ...`
@@ -865,7 +865,7 @@ def timed(fn):
     return wrapper
 ```
 
-**`functools.wraps` is not cosmetic.** Without it, `work.__name__` becomes `'wrapper'`, the docstring is lost, `help()` is useless, and — importantly — tooling that keys off `__name__` breaks. Two real cases: pytest collecting tests, and FastAPI/Flask route registration, where several decorated handlers all end up named `wrapper` and collide.
+**`functools.wraps` is not cosmetic.** Without it, `work.__name__` becomes `'wrapper'`, the docstring is lost, `help()` is useless, and — importantly — tooling that keys off `__name__` breaks. Two real cases: pytest fixture injection (pytest reads the signature; without `__wrapped__` it sees `(*args, **kwargs)` and passes no fixtures), and route registration — Flask names every endpoint `wrapper` so they collide, and FastAPI reads `(*args, **kwargs)` instead of the handler's parameters.
 
 Timing goes in a `finally` so a failing call is still measured.
 
@@ -1038,14 +1038,14 @@ So CPython adds a **generational cyclic garbage collector**. It tracks container
 import gc
 gc.collect()             # force a full collection; returns objects freed
 gc.get_stats()
-gc.freeze()              # after startup: move current objects out of gen0 scanning
+gc.freeze()              # move all tracked objects to a permanent generation ignored by every future collection
 ```
 
 **When you'd actually call `gc.collect()`:**
 
 - Immediately after building a large temporary graph, to return memory before a memory-heavy phase.
 - In tests asserting that objects are released.
-- Before `fork()`, together with `gc.freeze()`, to keep copy-on-write pages shared in pre-fork servers (a real Gunicorn/uWSGI memory win). After a fork, parent and child share memory pages until one of them writes to a page, at which point the OS copies it. The collector writes bookkeeping into every object it scans, so a collection in each worker would copy pages that could otherwise have stayed shared; freezing tells it to leave the startup objects alone.
+- Not before `fork()`: for pre-fork servers the documented recipe is `gc.disable()` early in the parent, `gc.freeze()` just before `fork()`, and `gc.enable()` in each worker, which keeps copy-on-write pages shared (a real Gunicorn/uWSGI memory win). A collection in the parent would only leave freed holes in pages the workers share. After a fork, parent and child share memory pages until one of them writes to a page, at which point the OS copies it. The collector writes bookkeeping into every object it scans, so a collection in each worker would copy pages that could otherwise have stayed shared; freezing tells it to leave the startup objects alone.
 
 And when you'd **disable** it: latency-sensitive services sometimes run `gc.disable()` to avoid unpredictable pauses, accepting that cycles leak — only viable if you don't create them.
 
@@ -1403,7 +1403,7 @@ Read `cumtime` (function plus everything it calls) to find *where* time goes, th
 1. **Reproduce** with a benchmark you can rerun — otherwise you cannot tell if you helped.
 2. **cProfile** it to get the function-level breakdown. Deterministic but adds overhead and hides time inside C calls.
 3. **Line-level** (`line_profiler`, `@profile`) on the one suspicious function.
-4. **Distinguish CPU from waiting.** If `cumtime` is large but `tottime` is tiny, you are blocked on I/O — profiling the Python won't help; look at query counts and network calls. `py-spy` samples a *running* process without restarting it, which is how you profile production.
+4. **Distinguish CPU from waiting.** A large `cumtime` with a tiny `tottime` only means the time is spent in callees. If the top `tottime` entries are socket, `select`, `sleep` or DB-driver calls, or wall time far exceeds CPU time (`time.process_time()`), you are blocked on I/O — profiling the Python won't help; look at query counts and network calls. `py-spy` samples a *running* process without restarting it, which is how you profile production.
 5. **Check the algorithm before the micro-optimisations.** The usual real causes, in frequency order: an accidental O(n²) (a `list` membership test in a loop — use a `set`), N+1 queries (one query to fetch a list, then one more query per item in it, instead of a single query for all of them), repeated serialisation, and re-computing something cacheable.
 6. **Then** consider the mechanical wins: `set`/`dict` lookups, avoiding attribute lookups in hot loops, `__slots__`, batching I/O, and pushing numeric work into NumPy/Polars.
 
@@ -1573,7 +1573,7 @@ Pydantic v2's core is compiled Rust, so validation is roughly 5–50× faster th
 - **Large nested payloads** cost the most; validation is proportional to the data you validate.
 - **`model_validate` on every request** is usually worth it at the trust boundary — it is your input sanitisation, and skipping it trades a known cost for unknown corruption.
 - **Don't re-validate internally.** Construct once at the edge, then pass the typed object down. `model_construct()` skips validation for data you already trust.
-- **Response models double the work** — FastAPI validates your *output* too. If a handler returns data you just built, `response_model` is often pure overhead; return a plain dict or use `response_model_exclude_unset`.
+- **Response models double the work** — FastAPI validates your *output* too. If a handler returns data you just built, `response_model` is often pure overhead; declare `response_model=None` (and no model return annotation) or return a `Response`/`JSONResponse` directly to skip it.
 - Prefer `TypeAdapter` for repeated validation of the same non-model shape, and `model_dump_json()` (Rust) over `json.dumps(model.model_dump())` (two passes).
 - Avoid expensive custom validators on hot fields; regex-heavy validators are a common hidden cost.
 
@@ -1888,9 +1888,9 @@ class CandidateScore:
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError('name must not be empty')
+        self.score = float(self.score)          # you coerce by hand
         if not 0 <= self.score <= 100:
             raise ValueError(f'score out of range: {self.score}')
-        self.score = float(self.score)          # you coerce by hand
 ```
 
 ```python
@@ -1912,7 +1912,7 @@ class CandidateScore(BaseModel):
 | Aspect | `@dataclass` | Pydantic |
 |---|---|---|
 | Validation | whatever you write in `__post_init__` | declarative, from the types |
-| Coercion | none — `"85"` stays a string | `"85"` → `85.0` |
+| Coercion | none unless you write it (an unhandled field keeps `"85"` a string) | `"85"` → `85.0` |
 | Dependency | standard library | third party |
 | Speed to construct | **faster** (no validation) | slower, but Rust-fast in v2 |
 | Serialisation | `asdict()` | `model_dump()`, `model_dump_json()`, JSON Schema |
@@ -2066,7 +2066,7 @@ A dict comprehension builds a dict with `{k: v for ... }`; a list comprehension 
 
 **Q6: How do you handle exceptions using try/except/finally?**
 
-`try` wraps the risky code; `except` handles specific exception types, most specific first; `else` runs only if nothing was raised; `finally` always runs. Two parts people miss: `else` exists and is where the happy path belongs, because code inside `try` has its own exceptions caught by your handlers — put `parse(resp)` in the `try` and a parser bug gets swallowed by your `TimeoutError` clause. And `finally` runs even on `return`, so a `return` inside `finally` silently discards a pending exception or return value. Never write a bare `except:`, which also catches `KeyboardInterrupt` and `SystemExit`; use `except Exception:` if you must be broad, and re-raise with a bare `raise` to preserve the traceback.
+`try` wraps the risky code; `except` handles specific exception types, most specific first; `else` runs only if nothing was raised; `finally` always runs. Two parts people miss: `else` exists and is where the happy path belongs, because code inside `try` has its own exceptions caught by your handlers — put `parse(resp)` in the `try` and an `OSError` or `TimeoutError` from the parser is treated as a network failure — counted as a timeout, or silently replaced by `fallback()`. And `finally` runs even on `return`, so a `return` inside `finally` silently discards a pending exception or return value. Never write a bare `except:`, which also catches `KeyboardInterrupt` and `SystemExit`; use `except Exception:` if you must be broad, and re-raise with a bare `raise` to preserve the traceback.
 
 **Q7: What are `*args` and `**kwargs`, and when would you use them?**
 
@@ -2124,7 +2124,7 @@ Threads share one address space and one GIL: cheap to create, trivial to share d
 
 **Q20: How do decorators work, and how would you write one?**
 
-`@d` above `def f` simply rebinds the name: `f = d(f)`. So a decorator is any callable that takes a function and returns a replacement, usually a closure. A correct one accepts `*args, **kwargs` to preserve any signature and applies `functools.wraps` to copy `__name__`, `__doc__` and set `__wrapped__`. `wraps` is not cosmetic — without it every decorated function is named `wrapper`, which breaks `help()`, confuses tracebacks, and actively breaks tools that key off `__name__`, such as pytest collection and Flask/FastAPI route registration where several handlers collide. A decorator taking arguments needs one more layer: `retry(times=3)` is called first and returns the real decorator. Stacking applies bottom-up, and the order changes behaviour.
+`@d` above `def f` simply rebinds the name: `f = d(f)`. So a decorator is any callable that takes a function and returns a replacement, usually a closure. A correct one accepts `*args, **kwargs` to preserve any signature and applies `functools.wraps` to copy `__name__`, `__doc__` and set `__wrapped__`. `wraps` is not cosmetic — without it every decorated function is named `wrapper`, which breaks `help()`, confuses tracebacks, and actively breaks tools that key off `__name__`, such as pytest fixture injection (it reads the signature, which becomes `(*args, **kwargs)`) and Flask/FastAPI route registration, where Flask's handlers all collide as `wrapper`. A decorator taking arguments needs one more layer: `retry(times=3)` is called first and returns the real decorator. Stacking applies bottom-up, and the order changes behaviour.
 
 **Q21: What are generators, and how do they differ from returning a list?**
 
@@ -2180,7 +2180,7 @@ Annotations declare intended types (`def f(a: int) -> str:`) and are **not enfor
 
 **Q34: How would you profile a slow Python function to find the bottleneck?**
 
-First get a reproducible benchmark, or you cannot tell whether a change helped. Then `cProfile` sorted by `cumtime` to see where time goes, and `tottime` to find the code actually burning CPU. If `cumtime` is large while `tottime` is tiny, you are **waiting on I/O** and profiling Python won't help — look at query and network call counts. Narrow to a single function with `line_profiler`; use `py-spy` to sample a live production process without restarting it, and `tracemalloc` for memory. Check the algorithm before micro-optimising: the usual real causes are an accidental O(n²) from a `list` membership test in a loop, N+1 queries, repeated serialisation, and recomputing something cacheable.
+First get a reproducible benchmark, or you cannot tell whether a change helped. Then `cProfile` sorted by `cumtime` to see where time goes, and `tottime` to find the code actually burning CPU. If the top `tottime` entries are socket, `select`, `sleep` or DB-driver calls, or wall time far exceeds CPU time (`time.process_time()`), you are **waiting on I/O** and profiling Python won't help — look at query and network call counts. Narrow to a single function with `line_profiler`; use `py-spy` to sample a live production process without restarting it, and `tracemalloc` for memory. Check the algorithm before micro-optimising: the usual real causes are an accidental O(n²) from a `list` membership test in a loop, N+1 queries, repeated serialisation, and recomputing something cacheable.
 
 ### Advanced
 
@@ -2194,7 +2194,7 @@ The workload is dominated by **waiting on model APIs**, so asyncio is the right 
 
 **Q37: How does Python's garbage collector handle reference cycles, and when would you need `gc.collect()`?**
 
-Reference counting frees objects the moment their count hits zero, but a cycle keeps every member's count above zero, so it never fires. CPython therefore adds a **generational cyclic collector** that tracks container objects in three generations, promoting survivors and scanning older generations progressively less often, on the assumption that most objects die young. You rarely call `gc.collect()` manually. The legitimate cases: after building a large temporary object graph, to return memory before a memory-heavy phase; in tests asserting objects are released; and before `fork()` in a pre-fork server, paired with `gc.freeze()`, to keep copy-on-write pages shared — a real memory win under Gunicorn. Latency-sensitive services sometimes `gc.disable()` to avoid unpredictable pauses, which is only safe if they genuinely create no cycles. Note that real "leaks" in Python are almost always unbounded growth of a live container, not GC failure.
+Reference counting frees objects the moment their count hits zero, but a cycle keeps every member's count above zero, so it never fires. CPython therefore adds a **generational cyclic collector** that tracks container objects in three generations, promoting survivors and scanning older generations progressively less often, on the assumption that most objects die young. You rarely call `gc.collect()` manually. The legitimate cases: after building a large temporary object graph, to return memory before a memory-heavy phase; in tests asserting objects are released; and not before `fork()`: a pre-fork server instead calls `gc.disable()` early in the parent, `gc.freeze()` just before `fork()` and `gc.enable()` in each worker, to keep copy-on-write pages shared — a real memory win under Gunicorn. Latency-sensitive services sometimes `gc.disable()` to avoid unpredictable pauses, which is only safe if they genuinely create no cycles. Note that real "leaks" in Python are almost always unbounded growth of a live container, not GC failure.
 
 **Q38: How would you implement retry logic with exponential backoff and jitter for a flaky external API?**
 
@@ -2320,7 +2320,7 @@ def f():
 print(f())
 ```
 
-**Output:** `finally`.
+**Output:** `finally` (on Python 3.14+ the compiler also emits a `SyntaxWarning` for the `return` in the `finally` block, per PEP 765).
 
 `finally` always runs, and a `return` inside it **replaces** the pending return value. The `try` block's `'try'` is computed and queued, then discarded when `finally` returns its own value. The genuinely dangerous version of this is with an exception: if the `try` raises and `finally` returns, the exception is **silently swallowed** and the caller sees a normal return. Never `return` (or `break`, or `continue`) from a `finally` block — use it only for cleanup.
 
@@ -2398,7 +2398,7 @@ Calling an `async def` function **does not run it** — it constructs and return
 **Errors**
 
 14. `else` runs only on success; keep the happy path out of `try`.
-15. `finally` always runs — never `return` from it, it discards exceptions.
+15. `finally` always runs — never `return` from it, it discards exceptions (3.14+ emits a `SyntaxWarning`).
 16. Never bare `except:`; use `except Exception:` and re-raise with bare `raise`.
 17. `raise X from exc` for chaining; `from None` to suppress the cause.
 18. Prefer EAFP (`try`/`except`) over LBYL for race-free lookups.
@@ -2432,7 +2432,7 @@ Calling an `async def` function **does not run it** — it constructs and return
 **Decorators**
 
 36. `@d` means `f = d(f)`; with arguments it's one extra layer.
-37. Always `functools.wraps` — pytest and web routing break without it.
+37. Always `functools.wraps` — pytest fixtures and web routing break without it.
 38. Stacking applies bottom-up; order changes behaviour.
 39. `lru_cache` needs hashable args, is per-process, and pins `self` on methods.
 

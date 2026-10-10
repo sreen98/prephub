@@ -82,7 +82,7 @@ pipeline {
 
   environment {
     REGISTRY = 'registry.example.com'
-    IMAGE    = "${REGISTRY}/app:${env.GIT_COMMIT.take(7)}"
+    // not IMAGE from GIT_COMMIT here: with agent none nothing is checked out yet, so it is null
   }
 
   parameters {
@@ -92,20 +92,22 @@ pipeline {
 
   stages {
     stage('Build') {
-      agent { docker { image 'node:20-alpine'; args '-v $HOME/.npm:/root/.npm' } }
+      agent { docker { image 'node:24-alpine'; args '-v $HOME/.npm:/root/.npm' } }
+      environment { IMAGE = "${REGISTRY}/app:${env.GIT_COMMIT.take(7)}" }   // after checkout
       steps {
         sh 'npm ci'
         sh 'npm run build'
         stash name: 'dist', includes: 'dist/**'    // pass files between agents
       }
+      post { always { cleanWs() } }                 // reclaim disk on this agent
     }
 
     stage('Test') {
-      when { not { params.SKIP_TESTS } }
-      agent { docker { image 'node:20-alpine' } }
-      steps { sh 'npm test -- --ci --reporters=jest-junit' }
+      when { not { expression { params.SKIP_TESTS } } }
+      agent { docker { image 'node:24-alpine' } }
+      steps { sh 'JEST_JUNIT_OUTPUT_DIR=reports npm test -- --ci --reporters=default --reporters=jest-junit' }
       post {
-        always { junit 'reports/*.xml' }            // publish even on failure
+        always { junit 'reports/*.xml'; cleanWs() } // publish even on failure
       }
     }
 
@@ -123,6 +125,7 @@ pipeline {
           sh './scripts/deploy.sh'                     // reads $TOKEN from the env
         }
       }
+      post { always { cleanWs() } }
     }
   }
 
@@ -130,7 +133,8 @@ pipeline {
     success  { slackSend(message: "✅ ${env.JOB_NAME} #${env.BUILD_NUMBER}") }
     failure  { slackSend(message: "❌ ${env.JOB_NAME} #${env.BUILD_NUMBER}") }
     unstable { echo 'tests failed but the build completed' }
-    always   { cleanWs() }                       // reclaim disk on the agent
+    // no cleanWs() here: with agent none this post block has no workspace,
+    // so each stage that has an agent cleans up in its own post
   }
 }
 ```
@@ -199,18 +203,18 @@ stage('Verify') {
 stage('Cross-platform') {
   matrix {
     axes {
-      axis { name 'NODE'; values '20', '22' }
+      axis { name 'NODE'; values '22', '24' }
       axis { name 'OS';   values 'linux', 'windows' }
     }
     excludes { exclude { axis { name 'OS'; values 'windows' }
-                         axis { name 'NODE'; values '20' } } }
+                         axis { name 'NODE'; values '22' } } }
     agent { label "${OS}" }
     stages { stage('Test') { steps { sh 'npm test' } } }
   }
 }
 ```
 
-`failFast true` inside `parallel` aborts siblings on the first failure — good for saving executor time, bad when you want the full picture of what's broken. Each parallel branch needs its own executor, so wide parallelism needs agent capacity to match or the branches simply queue.
+`failFast true` on the stage that contains `parallel` (or `options { parallelsAlwaysFailFast() }` for the whole pipeline) aborts siblings on the first failure — good for saving executor time, bad when you want the full picture of what's broken. Each parallel branch needs its own executor, so wide parallelism needs agent capacity to match or the branches simply queue.
 
 ---
 
@@ -256,7 +260,7 @@ Once several repositories have near-identical pipelines, extract a shared librar
 // vars/buildNodeApp.groovy
 def call(Map cfg = [:]) {
   pipeline {
-    agent { docker { image "node:${cfg.node ?: '20'}-alpine" } }
+    agent { docker { image "node:${cfg.node ?: '24'}-alpine" } }
     stages {
       stage('Build') { steps { sh 'npm ci && npm run build' } }
       stage('Test')  { steps { sh 'npm test' }
@@ -417,7 +421,7 @@ For greenfield work, a hosted service — GitHub Actions or GitLab CI. The decis
 
 **Q5: `JENKINS_HOME` filled the disk and Jenkins won't start. What caused it and how do you prevent it?**
 
-**Unbounded build history and archived artifacts.** Every build keeps its console log, test results and any `archiveArtifacts` output under `JENKINS_HOME/jobs/<job>/builds/`, and with no retention policy that grows forever — a job archiving a 200 MB bundle on every commit consumes disk at a rate nobody notices until Jenkins can't write its configuration and fails to start. Prevention: `buildDiscarder(logRotator(numToKeepStr: '30'))` in `options` on **every** pipeline, `cleanWs()` in `post { always }` to reclaim agent workspaces, and archiving only what you genuinely need to download while pushing real releases to Nexus, Artifactory or a container registry. Monitor `JENKINS_HOME` disk with an alert. The deeper lesson is that `JENKINS_HOME` is the whole system, which is why it needs backups and why defining the controller with JCasC — so it can be rebuilt rather than nursed — is worth the effort.
+**Unbounded build history and archived artifacts.** Every build keeps its console log, test results and any `archiveArtifacts` output under `JENKINS_HOME/jobs/<job>/builds/`, and with no retention policy that grows forever — a job archiving a 200 MB bundle on every commit consumes disk at a rate nobody notices until Jenkins can't write its configuration and fails to start. Prevention: `buildDiscarder(logRotator(numToKeepStr: '30'))` in `options` on **every** pipeline, `cleanWs()` in `post { always }` (of a stage that has an agent, since a pipeline-level `post` under `agent none` has no workspace) to reclaim agent workspaces, and archiving only what you genuinely need to download while pushing real releases to Nexus, Artifactory or a container registry. Monitor `JENKINS_HOME` disk with an alert. The deeper lesson is that `JENKINS_HOME` is the whole system, which is why it needs backups and why defining the controller with JCasC — so it can be rebuilt rather than nursed — is worth the effort.
 
 ---
 
@@ -452,7 +456,7 @@ For greenfield work, a hosted service — GitHub Actions or GitLab CI. The decis
 16. `timeout` on **every** pipeline.
 17. `buildDiscarder` on **every** job, or `JENKINS_HOME` fills the disk.
 18. `disableConcurrentBuilds()` or `lock()` for shared environments.
-19. `cleanWs()` in `post { always }`.
+19. `cleanWs()` in `post { always }` of each stage with an agent (not pipeline-level under `agent none`).
 
 **Credentials**
 

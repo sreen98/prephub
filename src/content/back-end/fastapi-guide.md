@@ -197,10 +197,10 @@ FastAPI ships the *plumbing* (extracting and documenting credentials), not an au
 ```python
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
-from passlib.context import CryptContext
+from pwdlib import PasswordHash          # pip install "pwdlib[argon2]"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='token')   # also wires up Swagger auth
-pwd = CryptContext(schemes=['argon2'])
+pwd = PasswordHash.recommended()          # argon2
 
 @app.post('/token')
 async def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]):
@@ -268,7 +268,7 @@ async def add_request_id(request: Request, call_next):
     return response
 ```
 
-`allow_origins=['*']` together with `allow_credentials=True` is **invalid per the CORS spec** and browsers reject it — list explicit origins. Middleware runs in reverse registration order on the way out. Note that middleware sees the whole request/response, so heavy work there costs every route; prefer a dependency when only some routes need it.
+`allow_origins=['*']` together with `allow_credentials=True`: a literal `*` with credentials is **invalid per the CORS spec**, but Starlette doesn't send `*` — it echoes the caller's `Origin`, so this config lets **any website** make credentialed requests. List explicit origins. The last middleware added is outermost: first on the request, last on the response. Note that middleware sees the whole request/response, so heavy work there costs every route; prefer a dependency when only some routes need it.
 
 ---
 
@@ -382,7 +382,7 @@ async def test_create(client):
     assert 'email' not in r.json()          # response_model must filter it out
 ```
 
-`dependency_overrides` is the feature that makes FastAPI pleasant to test — you swap the database, the clock or the current user without `unittest.mock.patch`. `TestClient` (sync, built on httpx) is fine for simple cases, but `AsyncClient` + `ASGITransport` is required to test async dependencies properly, and both bypass the network so tests stay fast. **Remember `TestClient` as a context manager triggers `lifespan`** — outside one, your startup code never runs and `app.state` is empty.
+`dependency_overrides` is the feature that makes FastAPI pleasant to test — you swap the database, the clock or the current user without `unittest.mock.patch`. `TestClient` (sync, built on httpx) handles async endpoints and dependencies from plain `def` tests; use `AsyncClient` + `ASGITransport` (with `@pytest.mark.anyio`) when the test itself must `await`, e.g. to check an async database. Both bypass the network so tests stay fast. `AsyncClient` never runs `lifespan`; wrap the app in `asgi_lifespan.LifespanManager(app)` in the fixture if startup code matters. **Remember `TestClient` as a context manager triggers `lifespan`** — outside one, your startup code never runs and `app.state` is empty.
 
 ---
 
@@ -410,9 +410,9 @@ Keep `schemas` (Pydantic, the API contract) separate from `models` (ORM, the dat
 ## 14. Performance and Deployment
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-# or, with process supervision:
-gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 4
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4   # restarts crashed workers itself
+# or under Gunicorn (pip install uvicorn-worker):
+gunicorn app.main:app -k uvicorn_worker.UvicornWorker -w 4
 ```
 
 **Workers give you CPU parallelism** (one process each, sidestepping the GIL — the Global Interpreter Lock, which lets only one thread run Python code at a time within a process); **async gives concurrency within a worker**. Rule of thumb: workers ≈ CPU cores for CPU-bound, fewer with high async concurrency. Remember every worker holds its own connection pool.
@@ -477,7 +477,7 @@ With the **`lifespan` async context manager** passed to `FastAPI(lifespan=...)` 
 
 **Q8: How do you test a FastAPI application?**
 
-Use `httpx.AsyncClient` with `ASGITransport(app=app)`, which calls the app in-process without a network socket, and override dependencies via `app.dependency_overrides[get_db] = fake` rather than patching — that is the cleanest seam FastAPI gives you, and it works for the database, the clock and the current user. `TestClient` (sync) is fine for straightforward cases, but async dependencies need the async client. Two things people trip on: `TestClient` only triggers **`lifespan`** when used as a context manager, so outside one your startup never runs and `app.state` is empty; and you should assert that `response_model` actually filtered sensitive fields (`assert 'email' not in body`), because that's a security property worth a test. Clear the overrides in fixture teardown, since they're global to the app object.
+Use `httpx.AsyncClient` with `ASGITransport(app=app)`, which calls the app in-process without a network socket, and override dependencies via `app.dependency_overrides[get_db] = fake` rather than patching — that is the cleanest seam FastAPI gives you, and it works for the database, the clock and the current user. `TestClient` (sync) handles async endpoints and dependencies too; the async client is for tests that must themselves `await` (e.g. an async database check), and it never runs `lifespan` unless you wrap the app in `asgi_lifespan.LifespanManager(app)`. Two things people trip on: `TestClient` only triggers **`lifespan`** when used as a context manager, so outside one your startup never runs and `app.state` is empty; and you should assert that `response_model` actually filtered sensitive fields (`assert 'email' not in body`), because that's a security property worth a test. Clear the overrides in fixture teardown, since they're global to the app object.
 
 **Q9: When would you choose FastAPI over Django or Flask?**
 
@@ -561,7 +561,7 @@ In order of how often they actually bite: **blocking calls inside `async def`**,
 24. Identical error for unknown user and wrong password.
 25. Pin JWT `algorithms=[...]` when decoding; verify `exp`, `aud`, `iss`.
 26. Hash with argon2/bcrypt; httpOnly cookies over `localStorage` for browsers.
-27. `allow_origins=['*']` with `allow_credentials=True` is invalid and browser-rejected.
+27. `allow_origins=['*']` with `allow_credentials=True` is invalid per spec, and Starlette echoes any `Origin` instead, so every site gets credentialed access.
 28. Authorize ownership, not just existence.
 
 **Streaming**

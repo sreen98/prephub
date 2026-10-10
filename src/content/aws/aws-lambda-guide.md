@@ -31,7 +31,7 @@ Key characteristics:
 - **Pay-per-use** — billed per request and compute duration (ms)
 - **Event-driven** — triggered by AWS services, HTTP requests, schedules, etc.
 - **Stateless** — design each invocation as if it starts from nothing. Lambda *may* reuse the same environment for the next call (so a cached client or file can still be there, §6.4), but it may equally start a fresh one, so nothing you rely on for correctness can live in memory or `/tmp`
-- **Supports** — Node.js, Python, Java, Go, .NET, Ruby, custom runtimes
+- **Supports** — managed runtimes for Node.js, Python, Java, .NET and Ruby; Go, Rust and others via the OS-only runtime (`provided.al2023`) or container images
 
 ### When to Use Lambda
 
@@ -144,7 +144,7 @@ export const handler = async (event, context) => {
 };
 ```
 
-```js
+```text
 // index.js (CommonJS)
 exports.handler = async (event, context) => {
   return {
@@ -362,7 +362,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/users.getAll
-      Runtime: nodejs20.x
+      Runtime: nodejs24.x
       Events:
         GetUsers:
           Type: Api
@@ -379,10 +379,10 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 // Router pattern (simple)
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  const { httpMethod, path, pathParameters, body } = event;
+  const { httpMethod, resource, pathParameters, body } = event;
 
   try {
-    switch (`${httpMethod} ${path}`) {
+    switch (`${httpMethod} ${resource}`) {   // resource is the route template, e.g. /users/{id}
       case 'GET /users':
         return await getUsers(event);
       case 'GET /users/{id}':
@@ -434,7 +434,7 @@ export const handler = async (event) => {
 
 ### 6.1 Environment Variables
 
-```ts
+```text
 // Set via console, CLI, or IaC
 // Accessed like any Node.js env var
 const DB_URL = process.env.DB_URL;
@@ -483,15 +483,17 @@ const cached = JSON.parse(readFileSync('/tmp/cache.json', 'utf8'));
 
 ```ts
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 
 // Code outside the handler runs ONCE during cold start (INIT phase)
 // Reused across invocations in the same execution environment
 const dynamodb = new DynamoDBClient({});   // connection reused!
+const doc = DynamoDBDocumentClient.from(dynamodb);
 const config = loadConfig();                // loaded once
 
 export const handler = async (event) => {
   // This runs on EVERY invocation
-  const result = await dynamodb.send(new GetCommand({ /* … */ }));
+  const result = await doc.send(new GetCommand({ /* … */ }));
   return { statusCode: 200, body: JSON.stringify(result) };
 };
 ```
@@ -522,7 +524,7 @@ zip -r my-layer.zip nodejs/
 aws lambda publish-layer-version \
   --layer-name my-shared-libs \
   --zip-file fileb://my-layer.zip \
-  --compatible-runtimes nodejs20.x
+  --compatible-runtimes nodejs24.x
 ```
 
 ### 7.2 Using Layers
@@ -542,7 +544,7 @@ Resources:
     Properties:
       ContentUri: layers/shared-libs/
       CompatibleRuntimes:
-        - nodejs20.x
+        - nodejs24.x
 ```
 
 ### 7.3 Layer Structure
@@ -587,14 +589,14 @@ Java                500ms-5s+
 Factors that increase cold start:
   - Larger deployment package
   - More dependencies
-  - VPC configuration (+1-10s, improved with Hyperplane)
+  - VPC configuration (historically several seconds; since 2019 ENIs are pre-created at deploy time, so the cold-start cost is negligible)
   - Too little memory allocated (CPU scales with memory, so init code runs slower)
   - Layers (slightly slower init)
 ```
 
 ### 8.3 Reducing Cold Starts
 
-```ts
+```text
 // 1. Keep deployment package small
 // Remove dev dependencies, use tree-shaking, avoid large libraries
 
@@ -614,7 +616,7 @@ export const handler = async (event) => {
   // ...
 };
 
-// 6. Use AWS Lambda SnapStart (Java only)
+// 6. Use Lambda SnapStart (Java 11+, Python 3.12+, .NET 8+)
 // Snapshots the initialized environment for instant restore
 
 // 7. Keep functions warm (invoke periodically — not recommended, use Provisioned Concurrency)
@@ -850,24 +852,27 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
 
 ### 12.1 CloudWatch Logs
 
-```ts
+```text
 // All console.log output goes to CloudWatch Logs automatically
 console.log('INFO:', JSON.stringify({ action: 'createUser', userId: '123' }));
 console.error('ERROR:', JSON.stringify({ error: 'Not found', code: 404 }));
 console.warn('WARN:', 'Approaching rate limit');
 
 // Structured logging (recommended)
-const log = (level, message, data = {}) => {
+const log = (level, message, context, data = {}) => {
   console.log(JSON.stringify({
     level,
     message,
     timestamp: new Date().toISOString(),
-    requestId: process.env._X_AMZN_TRACE_ID,
+    requestId: context.awsRequestId,          // Lambda request ID
+    traceId: process.env._X_AMZN_TRACE_ID,    // X-Ray trace header
     ...data,
   }));
 };
 
-log('INFO', 'User created', { userId: '123', email: 'a@b.com' });
+export const handler = async (event, context) => {
+  log('INFO', 'User created', context, { userId: '123', email: 'a@b.com' });
+};
 ```
 
 ### 12.2 CloudWatch Metrics
@@ -895,6 +900,8 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 const dynamodb = captureAWSv3Client(new DynamoDBClient({}));
 // Now all DynamoDB calls are traced in X-Ray
 ```
+
+The X-Ray SDKs are in maintenance mode (end of support February 2027). For new code, enable Active tracing and instrument with OpenTelemetry (the ADOT Lambda layer) or the Powertools Tracer; traces still appear in X-Ray.
 
 ---
 
@@ -988,7 +995,7 @@ Transform: AWS::Serverless-2016-10-31
 
 Globals:
   Function:
-    Runtime: nodejs20.x
+    Runtime: nodejs24.x
     Timeout: 30
     MemorySize: 256
     Environment:
@@ -1065,11 +1072,11 @@ sam local start-api                        # local API Gateway on port 3000
 ```yaml
 # serverless.yml
 service: my-api
-frameworkVersion: '3'
+frameworkVersion: '4'   # v3 is no longer maintained; v4 is free for individuals and organisations under $2M annual revenue, paid above that
 
 provider:
   name: aws
-  runtime: nodejs20.x
+  runtime: nodejs24.x
   region: us-east-1
   stage: ${opt:stage, 'dev'}
   environment:
@@ -1139,7 +1146,7 @@ export class MyApiStack extends cdk.Stack {
     });
 
     const fn = new lambda.Function(this, 'GetUsers', {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       handler: 'handlers/users.getAll',
       code: lambda.Code.fromAsset('src'),
       environment: { TABLE_NAME: table.tableName },
@@ -1181,7 +1188,9 @@ One gap to know about: this version records the id *before* doing the work. If `
 // Make handlers idempotent (safe to repeat)
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+
+const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 export const handler = async (event) => {
   const idempotencyKey = event.Records[0].messageId;
@@ -1276,9 +1285,9 @@ The practical difference is who handles failure. A synchronous caller receives t
 2. **Initialize outside handler**: SDK clients, DB connections, config — initialized once during cold start, reused on warm invocations
 3. **Provisioned Concurrency**: Pre-warm N environments — eliminates cold starts for traffic up to N concurrent requests; anything beyond N still cold-starts (costs extra, billed while configured)
 4. **Choose fast runtimes**: Node.js/Python have faster cold starts than Java/.NET
-5. **Avoid VPC** if not needed (VPC adds ENI setup time)
+5. **Use a VPC only when needed** (little cold-start cost now, but outbound access needs NAT or VPC endpoints)
 6. **Lazy import**: Only import heavy libraries when needed
-7. **SnapStart** (Java): Snapshots initialized environment
+7. **SnapStart** (Java, Python, .NET): Snapshots initialized environment
 
 ---
 
@@ -1403,7 +1412,7 @@ Short answer: both run your code on CloudFront requests. CloudFront Functions ar
 |---------|------------|---------------------|
 | Runtime | Node.js, Python | JavaScript only |
 | Execution | Regional (nearest region) | Edge (all PoPs) |
-| Duration | Up to 30s (viewer and origin events) | Sub-millisecond |
+| Duration | Up to 5s (viewer events), up to 30s (origin events) | Sub-millisecond |
 | Memory | 128 MB (viewer events), up to 10 GB (origin events) | 2 MB |
 | Network | Yes | No |
 | Use case | Complex origin logic, A/B testing, auth | URL rewrites, header manipulation, redirects |

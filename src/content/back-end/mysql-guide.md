@@ -39,7 +39,7 @@ Above the storage layer sit the connection handler, the parser, the optimizer an
 | MEMORY | volatile, table locks |
 | Archive / CSV / NDB | niche |
 
-"MySQL supports multiple engines" is now mostly historical trivia. **Assume InnoDB.** The one place it still matters: MySQL's internal system tables and, in older versions, temporary tables used MyISAM, and mixing engines breaks transactional guarantees silently — a `ROLLBACK` will not undo a write to a MyISAM table.
+"MySQL supports multiple engines" is now mostly historical trivia. **Assume InnoDB.** The one place it still matters: before 8.0, MySQL's internal system tables (and, in older versions, on-disk temporary tables) used MyISAM — 8.0 moved the system tables and the new data dictionary to InnoDB — and mixing engines breaks transactional guarantees silently — a `ROLLBACK` will not undo a write to a MyISAM table.
 
 Note the query cache was **removed in MySQL 8.0**; it was a global-mutex bottleneck. Caching belongs in the application or in a layer like ProxySQL.
 
@@ -74,7 +74,7 @@ A random UUID primary key is the classic MySQL performance mistake. It causes pa
 
 The **buffer pool** (`innodb_buffer_pool_size`) caches data and index pages. It is the single most important setting — target roughly 70–80% of RAM on a dedicated server. It uses a modified LRU with a young/old sublist so a large table scan cannot evict the entire working set.
 
-Writes go through the **redo log** (`ib_logfile*`) — InnoDB's write-ahead log, the same idea as Postgres's WAL. A write-ahead log means the change is first appended to a sequential log file, and only later written into the actual data pages. Commit makes the redo record durable on disk, and the modified in-memory ("dirty") pages are flushed later by background threads. Why bother: appending to one log file is far cheaper than rewriting scattered data pages on every commit, and after a crash InnoDB replays the log to recover any change that had not reached the data pages yet. `innodb_flush_log_at_trx_commit` controls the trade: `1` (default) flushes on every commit and is ACID-durable; `2` writes to the OS but doesn't fsync, losing data only if the OS crashes; `0` flushes once a second and can lose a second of commits. Anything but `1` sacrifices durability for throughput.
+Writes go through the **redo log** (`#innodb_redo/#ib_redo*` files since 8.0.30; `ib_logfile0`/`ib_logfile1` before) — InnoDB's write-ahead log, the same idea as Postgres's WAL. A write-ahead log means the change is first appended to a sequential log file, and only later written into the actual data pages. Commit makes the redo record durable on disk, and the modified in-memory ("dirty") pages are flushed later by background threads. Why bother: appending to one log file is far cheaper than rewriting scattered data pages on every commit, and after a crash InnoDB replays the log to recover any change that had not reached the data pages yet. `innodb_flush_log_at_trx_commit` controls the trade: `1` (default) flushes on every commit and is ACID-durable; `2` writes to the OS but doesn't fsync, losing data only if the OS crashes; `0` flushes once a second and can lose a second of commits. Anything but `1` sacrifices durability for throughput.
 
 The **undo log** stores previous row versions, and this is how InnoDB implements MVCC (multi-version concurrency control: readers see an older, consistent version of a row instead of waiting for a writer's lock) — the important structural contrast with Postgres, which keeps old versions in the table itself. Because old versions live in undo rather than in the table, InnoDB does not accumulate dead tuples in the data pages and **does not need `VACUUM`**; a background **purge** thread discards undo records once no transaction can see them. The equivalent failure mode does exist though: a long-running transaction prevents purge, the **undo log (history list) grows without bound**, and reads get slower because they walk longer version chains.
 
@@ -95,7 +95,7 @@ The three anomalies in the table, in one line each: a **dirty read** sees anothe
 |---|---|---|---|
 | READ UNCOMMITTED | possible | possible | possible |
 | READ COMMITTED | no | possible | possible |
-| **REPEATABLE READ** (default) | no | no | prevented by gap locks |
+| **REPEATABLE READ** (default) | no | no | consistent reads: snapshot; locking reads: gap/next-key locks |
 | SERIALIZABLE | no | no | no |
 
 Unlike Postgres, MySQL genuinely implements `READ UNCOMMITTED`.
@@ -132,7 +132,7 @@ The consequence that bites: **a query with no usable index locks far more than y
 **Deadlocks** are normal and expected in InnoDB; it detects them and rolls back the cheaper transaction with error 1213. Your application must retry. Common causes and fixes:
 
 - **Inconsistent ordering** — transactions touching rows in different orders. Fix by always acquiring locks in a consistent order (e.g. sort IDs before updating).
-- **Gap locks under Repeatable Read** — two inserts into the same gap. Fix by switching to `READ COMMITTED` where feasible, which removes gap locks for most statements.
+- **Gap locks under Repeatable Read** — two transactions each hold a gap lock on the same gap (say, from a `SELECT … FOR UPDATE` on a missing key), then both insert into it. Fix by switching to `READ COMMITTED` where feasible, which removes gap locks for most statements.
 - **Unindexed `WHERE` clauses** widening the lock footprint.
 - Long transactions holding locks — keep them short and never hold a lock across a network call or user interaction.
 
@@ -144,7 +144,7 @@ Diagnose with `SHOW ENGINE INNODB STATUS` (the `LATEST DETECTED DEADLOCK` sectio
 
 InnoDB indexes are B+ trees. What's MySQL-specific:
 
-**Leftmost prefix rule.** An index on `(a, b, c)` serves `a`, `(a,b)` and `(a,b,c)`, plus a range on the last used column. It cannot serve `b` alone. Column *order* is therefore the main design decision — put equality predicates before range predicates, since a range stops the index being usable for columns after it.
+**Leftmost prefix rule.** An index on `(a, b, c)` serves `a`, `(a,b)` and `(a,b,c)`, plus a range on the last used column. It cannot seek on `b` alone. Since 8.0.13 the optimizer may skip-scan (one range scan per distinct `a`, shown as `Using index for skip scan`), which only helps when `a` has few distinct values. Column *order* is therefore the main design decision — put equality predicates before range predicates, since a range stops the index being usable for columns after it.
 
 **Covering index.** Because secondary lookups cost a second traversal into the clustered index (§2), an index containing every column the query touches is dramatically faster. `EXPLAIN` shows `Using index` when this happens. MySQL 8 supports functional key parts, and unlike Postgres there is no `INCLUDE` clause — you add the columns to the key itself.
 
@@ -208,13 +208,13 @@ Use `ROW`. It is also what makes `READ COMMITTED` safe (§4) and what CDC (chang
 
 **Durability modes:** asynchronous by default (the primary doesn't wait — fast, can lose transactions on failover); **semi-synchronous** waits for at least one replica to *acknowledge receipt* (not apply), reducing but not eliminating loss; **Group Replication / InnoDB Cluster** provides a consensus-based, self-healing group with automatic primary election — MySQL's built-in HA answer, unlike Postgres which needs external tooling.
 
-**Replication lag** is MySQL's classic operational pain. Historically replicas applied the binlog single-threaded, so one slow write on the primary could put a replica minutes behind. Multi-threaded appliers (`replica_parallel_workers` with `LOGICAL_CLOCK` or `WRITESET`) largely fix it. Application impact is the same read-your-writes problem as anywhere: route a user's reads to the primary briefly after a write, and monitor `SHOW REPLICA STATUS` (`Seconds_Behind_Source`) plus a heartbeat table, since `Seconds_Behind_Source` is unreliable during network stalls.
+**Replication lag** is MySQL's classic operational pain. Historically replicas applied the binlog single-threaded, so one slow write on the primary could put a replica minutes behind. Multi-threaded appliers (`replica_parallel_workers`, on by default since 8.0.27, with `replica_parallel_type=LOGICAL_CLOCK` and `WRITESET` dependency tracking on the source) largely fix it. Application impact is the same read-your-writes problem as anywhere: route a user's reads to the primary briefly after a write, and monitor `SHOW REPLICA STATUS` (`Seconds_Behind_Source`) plus a heartbeat table, since `Seconds_Behind_Source` is unreliable during network stalls.
 
 ---
 
 ## 9. Online Schema Changes
 
-MySQL 8 supports **`ALGORITHM=INSTANT`** for a set of operations — adding a column at the end of the row, renaming a column, adding or dropping a virtual column, changing a default — which are metadata-only and effectively free. `ALGORITHM=INPLACE` rebuilds the table but generally permits concurrent DML. `ALGORITHM=COPY` copies the whole table and **blocks writes**.
+MySQL 8 supports **`ALGORITHM=INSTANT`** for a set of operations — adding a column (at any position since 8.0.29; only as the last column before that), dropping a column (since 8.0.29), renaming a column, adding or dropping a virtual column, changing a default — which are metadata-only and effectively free. `ALGORITHM=INPLACE` rebuilds the table but generally permits concurrent DML. `ALGORITHM=COPY` copies the whole table and **blocks writes**.
 
 ```sql
 ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INSTANT;   -- fails loudly if not possible
@@ -323,7 +323,7 @@ Short answer: **`REPEATABLE READ`** — unlike Postgres, which defaults to Read 
 
 So a write inside a Repeatable Read transaction can be based on data your reads never showed you. That is exactly why read-modify-write logic must use `SELECT … FOR UPDATE` (which locks the row and reads its latest version) rather than a plain `SELECT`.
 
-MySQL also prevents phantoms (new rows appearing in a repeated range query) not through the snapshot but through **gap locking**, a different mechanism with a different deadlock profile — which is why many high-throughput deployments deliberately run `READ COMMITTED`.
+MySQL prevents phantoms (new rows appearing in a repeated range query) for plain `SELECT`s through the snapshot, and for locking reads and writes through **gap locking**, a different mechanism with a different deadlock profile — which is why many high-throughput deployments deliberately run `READ COMMITTED`.
 
 **Q3: Explain InnoDB's locking model and why a missing index is a concurrency problem.**
 
@@ -380,7 +380,7 @@ The classic pain is replication lag from a single-threaded applier, largely fixe
 
 Short answer: try a metadata-only `ALGORITHM=INSTANT` change first, name the algorithm explicitly so MySQL can't silently pick a blocking one, and use an online migration tool such as `gh-ost` for everything else.
 
-- **`ALGORITHM=INSTANT`** covers adding a trailing column, renaming a column, and default changes, as metadata-only operations.
+- **`ALGORITHM=INSTANT`** covers adding a column (any position since 8.0.29, trailing only before that), renaming a column, and default changes, as metadata-only operations.
 - **Always name the algorithm.** If you omit it, MySQL silently falls back to whatever it can. If that turns out to be `ALGORITHM=COPY`, you have blocked writes and taken an outage; naming it makes the statement fail loudly instead.
 - **`INPLACE`** rebuilds the table but usually allows concurrent reads and writes (DML).
 - **For anything else on a large table, use an external tool.** **`gh-ost`** builds a "ghost" copy of the table and replays changes from the **binlog** — no triggers, and it can be paused and throttled. `pt-online-schema-change` does the same job with triggers and is older and heavier. Both copy into a new table and swap, so plan for the disk space and the duration.
@@ -437,11 +437,11 @@ Both are excellent. The differences that genuinely change a design are the clust
 
 **Q3: Two concurrent `INSERT`s into a table with a unique index deadlock, even though they insert different keys. Why?**
 
-**Gap locks under `REPEATABLE READ`.** When an insert must check a unique index, InnoDB takes locks on index records and the **gaps between** them — a next-key lock. Two inserts whose keys fall into the same gap therefore contend, and if each has already acquired a lock the other needs (commonly after a failed insert or a preceding `SELECT … FOR UPDATE`, or when the inserts arrive in different orders), they deadlock even though the final key values never collide. This is a MySQL-specific consequence of preventing phantoms with locks rather than with snapshot isolation — Postgres, using snapshot isolation, does not behave this way. Mitigations: run `READ COMMITTED`, which removes gap locks for most statements, insert in a consistent key order, use `INSERT … ON DUPLICATE KEY UPDATE` rather than check-then-insert, keep transactions short, and always retry on error 1213 since InnoDB deadlocks are expected rather than exceptional.
+**Gap locks under `REPEATABLE READ`.** InnoDB locks index records and the **gaps between** them (a next-key lock is a record plus the gap before it). Two plain inserts of different keys into the same gap don't block each other, because insert-intention locks are compatible. The deadlock appears when gap or next-key locks are already held — after a `SELECT … FOR UPDATE` or a range `UPDATE` on an empty range (check-then-insert), or after a duplicate-key error, which takes a shared next-key lock. Each transaction's insert-intention lock then waits on the other's gap lock, so they deadlock even though the final key values never collide. This is a MySQL-specific consequence of preventing phantoms with locks rather than with snapshot isolation — Postgres, using snapshot isolation, does not behave this way. Mitigations: run `READ COMMITTED`, which removes gap locks for most statements, insert in a consistent key order, use `INSERT … ON DUPLICATE KEY UPDATE` rather than check-then-insert, keep transactions short, and always retry on error 1213 since InnoDB deadlocks are expected rather than exceptional.
 
 **Q4: You add a column with `ALTER TABLE t ADD COLUMN c INT;` and it takes an hour and blocks writes, but the same statement on another table was instant. What differs?**
 
-**One qualified for `ALGORITHM=INSTANT` and the other silently fell back to `COPY`.** Instant `ADD COLUMN` has conditions — notably that the column is added **at the end** of the row, and that the table hasn't exhausted its instant-change budget or use an incompatible row format. Add the column with `AFTER some_col` (positioning it mid-row), or hit any other disqualifying condition, and MySQL quietly chooses a rebuild; `COPY` blocks writes for the duration. Because the fallback is silent, the identical-looking DDL behaves completely differently on two tables. The discipline is to **always specify the algorithm explicitly** — `ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INSTANT;` errors out rather than degrading, so you learn at deploy-plan time instead of during an outage. For tables that can't take it, run the change through `gh-ost`.
+**One qualified for `ALGORITHM=INSTANT` and the other silently fell back to a rebuild.** Instant `ADD COLUMN` has conditions: the table must not have used up its budget of 64 row versions (each instant add or drop uses one; `INFORMATION_SCHEMA.INNODB_TABLES.TOTAL_ROW_VERSIONS` shows the count), must not be `ROW_FORMAT=COMPRESSED` or have a `FULLTEXT` index, and on a server older than 8.0.29 the column must be added last (`AFTER some_col` disqualified it). Hit any of these and MySQL quietly chooses a rebuild: `INPLACE` rebuilds the whole table while allowing concurrent DML, but needs an exclusive metadata lock at the start and end, so writes pile up behind it whenever a long transaction holds the table; `COPY`, used where `INPLACE` isn't supported, blocks writes for the duration. Because the fallback is silent, the identical-looking DDL behaves completely differently on two tables. The discipline is to **always specify the algorithm explicitly** — `ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INSTANT;` errors out rather than degrading, so you learn at deploy-plan time instead of during an outage. For tables that can't take it, run the change through `gh-ost`.
 
 **Q5: A `JOIN` between two indexed `VARCHAR` columns won't use the index, and both columns are `utf8mb4`. What else could it be?**
 
@@ -481,7 +481,7 @@ Both are excellent. The differences that genuinely change a design are the clust
 17. `READ UNCOMMITTED` is genuinely implemented (unlike Postgres).
 18. Plain `SELECT` = consistent read from the snapshot; **writes see the latest committed row**.
 19. So read-modify-write needs `SELECT … FOR UPDATE`.
-20. Phantoms are prevented by **gap / next-key locks**, not snapshot isolation.
+20. Phantoms: plain `SELECT`s are protected by the snapshot; locking reads and writes by **gap / next-key locks**.
 21. Locks are on **index records** — no usable index means locking every row examined.
 22. Deadlocks are normal: error 1213, cheaper transaction rolled back, **retry required**.
 23. Consistent lock ordering prevents most deadlocks; `READ COMMITTED` removes most gap locks.
@@ -515,8 +515,8 @@ Both are excellent. The differences that genuinely change a design are the clust
 
 **Schema changes**
 
-42. Try `ALGORITHM=INSTANT`; **always name the algorithm** or MySQL silently uses `COPY`.
-43. Instant `ADD COLUMN` needs the column at the **end** of the row.
+42. Try `ALGORITHM=INSTANT`; **always name the algorithm** or MySQL silently falls back to a rebuild.
+43. Instant `ADD`/`DROP COLUMN` works at any position since 8.0.29, with a budget of **64 row versions** per table.
 44. `gh-ost` (binlog-based, no triggers, throttleable) over `pt-online-schema-change`.
 45. DDL is atomic but **not** transactional — no rollback inside a transaction.
 

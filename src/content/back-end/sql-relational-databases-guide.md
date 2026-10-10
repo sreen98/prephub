@@ -90,7 +90,7 @@ This single list explains a large fraction of SQL confusion:
 
 Two consequences that come up constantly:
 
-- **You can't use a `SELECT` alias in `WHERE`**, because `WHERE` runs first. You can in `ORDER BY`, because that runs later. (MySQL is more permissive here than the standard; Postgres is strict.)
+- **You can't use a `SELECT` alias in `WHERE`**, because `WHERE` runs first. You can in `ORDER BY`, because that runs later. (This holds in both Postgres and MySQL. MySQL's extra leniency is in `HAVING`, where it also accepts a `SELECT` alias; Postgres does not.)
 - **`WHERE` filters rows, `HAVING` filters groups.** `WHERE amount > 100` discards rows before aggregation; `HAVING SUM(amount) > 100` discards groups after. Putting an aggregate in `WHERE` is an error, and putting a row condition in `HAVING` works but scans more than it needs to.
 
 ### 2.2 `NULL` Is Not a Value
@@ -109,7 +109,7 @@ WHERE col NOT IN (1, 2, NULL)   -- matches NOTHING, ever. See below.
 
 That last one is the classic trap. `col NOT IN (1, 2, NULL)` expands to `col <> 1 AND col <> 2 AND col <> NULL`, and the final comparison is `UNKNOWN` — so the whole `AND` can never be `TRUE`. **A `NOT IN` against a subquery that can return a `NULL` silently returns zero rows.** Use `NOT EXISTS`, which is `NULL`-safe and usually plans better anyway.
 
-Other `NULL` behaviours worth knowing: aggregates **ignore** `NULL` (so `COUNT(col)` < `COUNT(*)` when nulls exist, and `AVG` divides by the non-null count); `UNIQUE` constraints permit multiple `NULL`s in most engines because two unknowns aren't equal; `ORDER BY` sorts nulls last by default in Postgres, first in MySQL — use `NULLS FIRST`/`NULLS LAST` explicitly.
+Other `NULL` behaviours worth knowing: aggregates **ignore** `NULL` (so `COUNT(col)` < `COUNT(*)` when nulls exist, and `AVG` divides by the non-null count); `UNIQUE` constraints permit multiple `NULL`s in most engines because two unknowns aren't equal; `ORDER BY … ASC` sorts nulls last in Postgres (first under `DESC`) and first in MySQL. In Postgres, say `NULLS FIRST`/`NULLS LAST` explicitly; MySQL lacks that syntax, so use `ORDER BY col IS NULL, col`.
 
 ### 2.3 Pagination
 
@@ -305,8 +305,10 @@ WHERE a = 1                        ✓  leftmost prefix
 WHERE a = 1 AND b = 2              ✓
 WHERE a = 1 AND b = 2 AND c = 3    ✓
 WHERE a = 1 AND c = 3              ⚠  uses `a` only, then filters c
-WHERE b = 2                        ✗  cannot use the index at all
-WHERE b = 2 AND c = 3              ✗
+WHERE b = 2                        ✗  no ordinary index seek; PG 18+ and MySQL 8.0.13+ can skip-scan
+                                      it (one probe per distinct a), which only pays off when a has
+                                      few distinct values
+WHERE b = 2 AND c = 3              ✗  same: at best a skip scan
 ```
 
 The analogy that makes it stick: a phone book sorted by (surname, first name) lets you find "Smith", and "Smith, John" — but it's useless for finding everyone named John.
@@ -360,7 +362,7 @@ Every index is written on every `INSERT`, `UPDATE` (of an indexed column) and `D
 - **Indexes slow down writes** and consume disk and cache. A table with 12 indexes has a genuinely expensive insert path.
 - **Unused indexes are pure cost.** `pg_stat_user_indexes` (`idx_scan = 0`) tells you which ones have never been used.
 - **Redundant indexes** are common: an index on `(a)` is redundant if you already have `(a, b)`, because the leftmost prefix serves it.
-- **Build them without downtime**: `CREATE INDEX CONCURRENTLY` in Postgres avoids the `ACCESS EXCLUSIVE` lock that would otherwise block all writes to the table for the duration.
+- **Build them without downtime**: `CREATE INDEX CONCURRENTLY` in Postgres avoids the `SHARE` lock that a plain `CREATE INDEX` holds for the whole build, which blocks every write to the table (reads still work).
 
 ---
 
@@ -533,11 +535,24 @@ Safer patterns: add columns nullable, backfill in batches, add the `NOT NULL` af
 ### 10.4 Why a `UNIQUE` Constraint Beats a Check-Then-Insert
 
 ```js
-async function registerUser(email) {
+// Stand-in for a pg client: a users table with a UNIQUE constraint on email
+const emails = new Set();
+const db = {
+  async query(sql, [email]) {
+    if (sql.startsWith('SELECT')) return { rows: emails.has(email) ? [{ '?column?': 1 }] : [] };
+    if (emails.has(email)) throw Object.assign(new Error('duplicate key'), { code: '23505' });
+    emails.add(email);
+    return { rows: [] };
+  },
+};
+
+async function registerUserBroken(email) {
   // ✗ A race. Two concurrent requests both see "no existing user" and both insert.
   const existing = await db.query('SELECT 1 FROM users WHERE email = $1', [email]);
   if (!existing.rows.length) await db.query('INSERT INTO users (email) VALUES ($1)', [email]);
+}
 
+async function registerUser(email) {
   // ✓ Let the database arbitrate; handle the violation
   try {
     await db.query('INSERT INTO users (email) VALUES ($1)', [email]);
@@ -545,7 +560,13 @@ async function registerUser(email) {
     if (e.code === '23505') return { error: 'Email already registered' };   // unique_violation
     throw e;
   }
+  return { ok: true };
 }
+
+(async () => {
+  console.log(await registerUser('ada@example.com'));   // { ok: true }
+  console.log(await registerUser('ada@example.com'));   // { error: 'Email already registered' }
+})();
 ```
 
 Or make it declarative, and let the database do the whole job:
@@ -564,32 +585,38 @@ The general principle: **any check-then-act across two statements is a race unle
 The most common performance bug in application code, and it's invisible in the schema:
 
 ```js
+// Stand-ins for ORM models that count the queries they issue
+let queries = 0;
+const Post = { async findAll({ limit }) { queries++; return Array.from({ length: limit }, (_, i) => ({ id: i, authorId: i % 5 })); } };
+const User = { async findByPk(id) { queries++; return { id }; } };
+
 const posts = await Post.findAll({ limit: 20 });          // 1 query
 for (const post of posts) {
   post.author = await User.findByPk(post.authorId);       // 20 more queries
 }
+console.log(queries);   // 21
 ```
 
 21 round trips where 2 would do. Each is fast, so nothing looks slow in the database's slow-query log — the cost is **latency × N**, which is why it shows up as a slow endpoint with a fast database.
 
 **The fixes:**
 
-```js
+```text
 // 1. Eager loading — the ORM does a JOIN or a second batched query
 await Post.findAll({ limit: 20, include: [User] });
 await prisma.post.findMany({ take: 20, include: { author: true } });
 
 // 2. Manual batching — two queries, then stitch in memory
-const posts  = await db.query('SELECT * FROM posts LIMIT 20');
-const ids    = [...new Set(posts.map(p => p.author_id))];
-const users  = await db.query('SELECT * FROM users WHERE id = ANY($1)', [ids]);
-const byId   = new Map(users.map(u => [u.id, u]));
+const { rows: posts } = await db.query('SELECT * FROM posts LIMIT 20');
+const ids             = [...new Set(posts.map(p => p.author_id))];
+const { rows: users } = await db.query('SELECT * FROM users WHERE id = ANY($1)', [ids]);
+const byId            = new Map(users.map(u => [u.id, u]));
 posts.forEach(p => { p.author = byId.get(p.author_id); });
 
 // 3. DataLoader — batches and dedupes within a tick. The GraphQL answer.
 const userLoader = new DataLoader(ids =>
   db.query('SELECT * FROM users WHERE id = ANY($1)', [ids])
-    .then(rows => ids.map(id => rows.find(r => r.id === id)))   // MUST preserve order
+    .then(({ rows }) => ids.map(id => rows.find(r => r.id === id)))   // MUST preserve order
 );
 ```
 
@@ -640,7 +667,7 @@ Other rules:
 The order matters — most teams reach for the last item when the first four would have done.
 
 1. **Fix the queries and indexes.** Genuinely most "we need to scale" situations are one missing index or one N+1. Measure first (`pg_stat_statements`).
-2. **Connection pooling.** Each Postgres connection is a process with real memory cost, and hundreds of idle connections from serverless functions will exhaust the server. **PgBouncer** in transaction-pooling mode (a small proxy that lends a real database connection to a client only for the duration of one transaction, so thousands of clients share a few dozen connections) is the standard answer, and it's mandatory in front of Lambda-style workloads. Note transaction pooling breaks session-level features (`SET`, advisory locks, prepared statements) — a real constraint to mention.
+2. **Connection pooling.** Each Postgres connection is a process with real memory cost, and hundreds of idle connections from serverless functions will exhaust the server. **PgBouncer** in transaction-pooling mode (a small proxy that lends a real database connection to a client only for the duration of one transaction, so thousands of clients share a few dozen connections) is the standard answer, and it's mandatory in front of Lambda-style workloads. Note transaction pooling breaks session-level features (`SET`, session advisory locks, SQL-level `PREPARE`) — a real constraint to mention. Protocol-level prepared statements work since PgBouncer 1.21 once `max_prepared_statements` is set.
 3. **Caching.** Redis in front of expensive reads, or a materialised view refreshed on a schedule for a heavy aggregate.
 4. **Read replicas.** Send reads to replicas, writes to the primary. The thing to name unprompted: **replication lag** means a read replica can serve stale data, so a user who just wrote and immediately reads may not see their own write. Route read-your-writes traffic to the primary, or use a causality token (the write returns its log position, and a replica only serves that user's next read once it has replayed past that position).
 5. **Partitioning** (declarative in Postgres). Split one logical table into physical partitions by range (time) or list (tenant). Wins: dropping old data becomes an instant `DROP TABLE` instead of a huge `DELETE`, and queries with the partition key in the predicate scan far less. Only helps if your queries **include the partition key** — otherwise every partition is scanned and you've made things worse.
@@ -655,7 +682,7 @@ A useful framing: **vertical scaling is underrated.** Modern hardware runs a ver
 | Aspect | **PostgreSQL** | **MySQL (InnoDB)** |
 |---|---|---|
 | Default isolation | Read Committed | **Repeatable Read** |
-| MVCC | row versions in the heap; needs `VACUUM` | undo log; no vacuum problem |
+| MVCC | row versions in the heap; needs `VACUUM` | undo log + purge thread; no table bloat, but long transactions grow the undo log |
 | Primary key storage | heap + separate indexes | **clustered** — PK *is* the row order |
 | `JOIN` support | full, incl. `FULL OUTER` | no `FULL OUTER JOIN` |
 | JSON | **`jsonb`** — binary, indexable with GIN | `JSON` — functional, less powerful |
@@ -669,7 +696,7 @@ A useful framing: **vertical scaling is underrated.** Modern hardware runs a ver
 
 **When MySQL:** an existing MySQL estate and expertise, or a workload dominated by simple primary-key reads where the clustered index is a genuine advantage.
 
-The two consequences of the storage difference worth knowing. Because InnoDB **clusters on the primary key**, a random UUIDv4 PK causes page splits and fragmentation on insert — much worse than in Postgres. And because Postgres keeps old row versions in the heap, `UPDATE`-heavy tables **bloat** and depend on autovacuum keeping up; a long-running transaction blocking vacuum is a classic Postgres incident with no MySQL equivalent.
+The two consequences of the storage difference worth knowing. Because InnoDB **clusters on the primary key**, a random UUIDv4 PK causes page splits and fragmentation on insert — much worse than in Postgres. And because Postgres keeps old row versions in the heap, `UPDATE`-heavy tables **bloat** and depend on autovacuum keeping up; a long-running transaction blocking vacuum is a classic Postgres incident. InnoDB has the counterpart: a long transaction blocks purge, the undo history list grows, and reads slow down.
 
 ---
 
@@ -697,7 +724,7 @@ HAVING SUM(total) > 1000;      -- then discard GROUPS below the threshold
 
 You cannot use an aggregate in `WHERE` (the groups don't exist yet), and while you *can* put a row-level condition in `HAVING`, it's slower — you'd be aggregating rows you're about to throw away.
 
-Two related facts from the same ordering: **you can't reference a `SELECT` alias in `WHERE`** because `SELECT` runs later (Postgres enforces this strictly; MySQL is more permissive), but you *can* in `ORDER BY`.
+Two related facts from the same ordering: **you can't reference a `SELECT` alias in `WHERE`** because `SELECT` runs later (true in both Postgres and MySQL; MySQL's extra leniency is that it also accepts a `SELECT` alias in `HAVING`, which Postgres rejects), but you *can* in `ORDER BY`.
 
 ---
 
@@ -731,7 +758,7 @@ Cases where an index doesn't help — this is the more interesting half:
 - **`LIKE '%suffix'`** — a suffix has no position in the sort order. You need a trigram index (`pg_trgm`) or full-text search.
 - **A function or cast wrapping the column.** `WHERE LOWER(email) = …`, `WHERE DATE(created_at) = …` and `WHERE id::text = …` all defeat a plain index. Either index the expression, or rewrite the predicate to be **sargable**: `created_at >= '2026-09-01' AND created_at < '2026-09-02'`.
 - **Low selectivity.** If the predicate matches most of the table, a sequential scan is genuinely faster — thousands of random index-then-heap reads cost more than one sequential pass. The planner knows this, which is why a `Seq Scan` isn't automatically a bug.
-- **Not a leftmost prefix of a composite index.** An index on `(a, b, c)` cannot serve `WHERE b = 2`. Like a phone book sorted by surname — useless for finding everyone named John.
+- **Not a leftmost prefix of a composite index.** An index on `(a, b, c)` cannot seek on `WHERE b = 2` (PG 18+ and MySQL 8.0.13+ can skip-scan it, one probe per distinct `a`, which only pays off when `a` has few distinct values). Like a phone book sorted by surname — useless for finding everyone named John.
 - **Small tables**, where the whole thing is one or two pages.
 
 And the cost side: every index is maintained on every write, consumes cache, and can be redundant — an index on `(a)` is redundant if `(a, b)` already exists. `pg_stat_user_indexes` with `idx_scan = 0` finds the ones earning nothing.
@@ -785,7 +812,7 @@ Two things to volunteer. **The defaults differ**: Postgres and Oracle default to
 
 One query to fetch a list, then one more per item to fetch a relation:
 
-```js
+```text
 const posts = await Post.findAll({ limit: 20 });               // 1
 for (const p of posts) p.author = await User.findByPk(p.authorId);  // +20
 ```
@@ -826,7 +853,7 @@ CREATE POLICY tenant_isolation ON invoices
 -- then per request/transaction:  SET LOCAL app.tenant_id = '42';
 ```
    A forgotten `WHERE tenant_id = …` now returns zero rows instead of another tenant's data. Without RLS you're relying on every query in the codebase forever, which is the failure mode that produces the headline breach.
-3. **Set the tenant in a transaction-scoped `SET LOCAL`**, so it can't leak across pooled connections. This interacts with PgBouncer — transaction pooling is fine with `SET LOCAL`, session pooling is not.
+3. **Set the tenant in a transaction-scoped `SET LOCAL`**, so it can't leak across pooled connections. This interacts with PgBouncer — `SET LOCAL` ends with the transaction, so it is safe under transaction pooling. A plain session-level `SET` is not, because the next client on that server connection inherits it.
 4. **A data-access layer** that takes the tenant from the authenticated session and never from a request parameter — otherwise you've built IDOR (insecure direct object reference: the caller picks an ID and the server trusts it) at the tenant level (see the Web Security guide).
 5. **Partition by `tenant_id`** (list or hash) once volume justifies it, which also makes "delete a tenant's data" a `DROP TABLE`.
 
@@ -903,10 +930,12 @@ ORDER BY col                    -- nulls LAST in Postgres, FIRST in MySQL
 
 ```sql
 CREATE INDEX idx_users_email ON users (email);
+CREATE INDEX idx_users_created ON users (created_at);
+CREATE INDEX idx_users_phone ON users (phone);
 
 SELECT * FROM users WHERE LOWER(email) = 'ada@example.com';
 SELECT * FROM users WHERE created_at::date = '2026-09-01';
-SELECT * FROM orders WHERE user_id = '42';        -- user_id is BIGINT
+SELECT * FROM users WHERE phone = 5551234;        -- phone is VARCHAR (MySQL casts the column)
 ```
 
 **Answer:** All three predicates are **non-sargable** — a function, a cast, or an implicit type conversion is applied to the indexed column, so the index's sort order no longer corresponds to the values being compared.
@@ -915,7 +944,7 @@ SELECT * FROM orders WHERE user_id = '42';        -- user_id is BIGINT
 
 An index on `email` stores the **actual values**, sorted. `LOWER(email)` is a *different* value, and the index has no idea where `'ada@example.com'` would sit in a lowercased ordering. The database can't use the index, so it computes the function for every row — a full scan.
 
-Same for `created_at::date`: the index is sorted by timestamp, not by the truncated date. And the third one is the sneakiest — comparing a `BIGINT` column to a string literal forces a conversion, and depending on the direction the engine picks, it may cast the *column* rather than the literal, defeating the index.
+Same for `created_at::date`: the index is sorted by timestamp, not by the truncated date. And the third one is the sneakiest — comparing a string column to a number makes MySQL convert every row's column value to a number, which defeats the index (Postgres refuses the comparison outright: `operator does not exist: character varying = integer`). A quoted literal against a numeric column, such as `user_id = '42'` on a `BIGINT`, is safe in both engines: the literal is converted, and the index is used.
 
 **Two fixes for each shape.** Either index the expression:
 
@@ -930,7 +959,7 @@ Or rewrite the predicate to be sargable, which is usually better because it need
 WHERE created_at >= '2026-09-01' AND created_at < '2026-09-02'
 
 -- ✓ Match the column's type
-WHERE user_id = 42
+WHERE phone = '5551234'
 
 -- ✓ For case-insensitive matching, consider the type instead of a function
 ALTER TABLE users ALTER COLUMN email TYPE citext;   -- Postgres citext extension
@@ -1072,7 +1101,8 @@ WINDOWS & CTEs
 INDEXES
 17. B-tree = sorted → serves equality, ranges, ORDER BY, and LIKE 'prefix%'.
     NOT LIKE '%suffix' (no sort position).
-18. LEFTMOST PREFIX RULE: an index on (a,b,c) cannot serve WHERE b = 2.
+18. LEFTMOST PREFIX RULE: an index on (a,b,c) cannot seek on WHERE b = 2.
+    (PG 18+ / MySQL 8.0.13+ may skip-scan it; only pays off when a has few values.)
     Phone book sorted by surname: useless for finding all the Johns.
 19. Equality columns before range columns. A range stops the index being usable
     for anything after it.
@@ -1083,7 +1113,8 @@ INDEXES
     filter that way.
 23. Every index costs writes, cache and disk. (a) is redundant if (a,b) exists.
     pg_stat_user_indexes idx_scan = 0 finds dead weight.
-24. CREATE INDEX CONCURRENTLY, or you take ACCESS EXCLUSIVE and block all writes.
+24. CREATE INDEX CONCURRENTLY, or a plain CREATE INDEX holds a SHARE lock and blocks
+    all writes for the build.
 
 QUERY PLANS
 25. EXPLAIN (ANALYZE, BUFFERS) — never plain EXPLAIN when diagnosing.
@@ -1139,7 +1170,8 @@ ORMs & N+1
 SCALING (in this order)
 53. Fix queries and indexes first. Most "we need to scale" is one index or one N+1.
 54. Connection pooling (PgBouncer) — mandatory in front of serverless. Transaction
-    pooling breaks SET / advisory locks / prepared statements.
+    pooling breaks SET / session advisory locks / SQL PREPARE (protocol-level
+    prepared statements work since PgBouncer 1.21 with max_prepared_statements).
 55. Cache (Redis, materialised views).
 56. Read replicas — and REPLICATION LAG means read-your-writes must go to the primary.
 57. Partitioning only helps if queries include the PARTITION KEY.

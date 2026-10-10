@@ -418,7 +418,7 @@ app.listen(3000);
 The three things being graded:
 
 1. **Don't read the file on every request.** `readFileSync` inside a handler blocks the event loop for every caller ([Node.js guide](/backend/nodejs)); even the async version is pointless repeated I/O for a static file. Load it once at startup. If the file *can* change at runtime, cache it with an mtime check or a TTL rather than re-reading blindly.
-2. **`res.json()`, not `res.send(JSON.stringify(...))`.** `json()` sets the `Content-Type` header, handles the `ETag`, and respects `app.set('json replacer')`. Sending a hand-stringified body with no content type makes the client guess.
+2. **`res.json()`, not `res.send(JSON.stringify(...))`.** `json()` sets the `Content-Type` header, handles the `ETag`, and respects `app.set('json replacer')`. A hand-stringified body is a string, which `res.send` labels `text/html`, so clients treat your JSON as HTML.
 3. **Handle the error paths.** A missing or malformed file should fail at **startup**, not surface as a 500 on the first request — that's the difference between a deploy that fails visibly and one that looks healthy and serves errors. And a missing record is **404**, not an empty 200.
 
 If the read must happen per request, keep it async and pass errors to the error middleware rather than swallowing them:
@@ -434,7 +434,7 @@ app.get('/api/jobs', async (req, res, next) => {
 });
 ```
 
-Note that in **Express 5** a rejected promise from an `async` handler is forwarded to the error middleware automatically, so the `try/catch` is optional there — but it is **required** in Express 4, where an unhandled rejection escapes and the request hangs.
+Note that in **Express 5** a rejected promise from an `async` handler is forwarded to the error middleware automatically, so the `try/catch` is optional there — but it is **required** in Express 4, where the rejection goes unhandled: on Node 15+ it crashes the whole process (the request only hangs if an `unhandledRejection` listener keeps the process alive).
 
 To let a React app on a different port call this in development, enable CORS for that origin only:
 
@@ -486,7 +486,7 @@ app.use((err, req, res, next) => {
 
 ### 6.2 Async Error Wrapper (Express 4)
 
-An `async` function never throws to its caller; it returns a promise that rejects. Express 4 ignores the promise your handler returns, so nothing catches the rejection and the request hangs. This wrapper attaches `.catch(next)` to that promise, which forwards the error to your error middleware. Express 5 does the same thing internally, so you only need this on Express 4.
+An `async` function never throws to its caller; it returns a promise that rejects. Express 4 ignores the promise your handler returns, so nothing catches the rejection: on Node 15+ the unhandled rejection crashes the whole process (the request only hangs if an `unhandledRejection` listener keeps it alive). This wrapper attaches `.catch(next)` to that promise, which forwards the error to your error middleware. Express 5 does the same thing internally, so you only need this on Express 4.
 
 ```js
 // Wrapper that catches async errors
@@ -623,7 +623,7 @@ app.use(helmet());
 
 // Sets headers like:
 // X-Content-Type-Options: nosniff
-// X-Frame-Options: DENY
+// X-Frame-Options: SAMEORIGIN
 // Strict-Transport-Security: max-age=...
 // Content-Security-Policy: ...
 ```
@@ -1272,13 +1272,13 @@ Short answer: use a rate-limiting middleware keyed by the user (not the IP) whos
 
 ```js
 const rateLimit = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis');
+const { RedisStore } = require('rate-limit-redis');
 
 // Global rate limit
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  store: new RedisStore({ client: redisClient }), // distributed
+  store: new RedisStore({ sendCommand: (...args) => redisClient.sendCommand(args) }), // distributed
 }));
 
 // Strict for auth
@@ -1386,7 +1386,7 @@ URL prefix is the usual choice, for concrete reasons: the version is visible in 
 | Feature | Express | Fastify | Koa | NestJS |
 |---------|---------|---------|-----|--------|
 | Philosophy | Minimal, unopinionated | Performance-focused | Minimal, modern | Full-featured, opinionated |
-| Performance | Good | Fastest of the four (about 1.6x Express 5 in Fastify's own hello-world benchmark) | Good | Good (uses Express/Fastify under the hood) |
+| Performance | Good | Fastest of the four (about 1.8x Express 5 in Fastify's own hello-world benchmark, Oct 2026) | Good | Good (uses Express/Fastify under the hood) |
 | Middleware | Callback-based | Plugin system | async/await native | Decorators, dependency injection |
 | Validation | Third-party (express-validator) | Built-in (JSON schema) | Third-party | Built-in (class-validator) |
 | TypeScript | Community types | First-class | Community types | First-class |
@@ -1474,7 +1474,7 @@ Short answer: write a factory, `validate(schema)`, that returns a middleware. Th
 
 The example uses Zod, a schema library where `schema.safeParse(value)` returns either `{ success: true, data }` (the value typed and cleaned up) or `{ success: false, error }`, whose `error.issues` lists every failed rule. Two details to volunteer: the handler should read the **parsed** values, so defaults and type conversions from the schema reach it; and validating `query` and `params` matters as much as `body`, because they arrive as strings from the URL.
 
-One Express 5 trap: `req.query` is now a getter, so `req.query = parsed.query` is silently ignored and the handler keeps seeing the raw strings. That is why the middleware stores the parsed result on its own property, `req.validated`, instead of writing it back onto `req.query`.
+One Express 5 trap: `req.query` is now a getter, so `req.query = parsed.query` is silently ignored in sloppy-mode CommonJS (the handler keeps seeing the raw strings) and throws a `TypeError` in strict code (ES modules, compiled TypeScript). That is why the middleware stores the parsed result on its own property, `req.validated`, instead of writing it back onto `req.query`.
 
 ```js
 const { z } = require('zod');

@@ -34,7 +34,7 @@ Complements the [Jenkins guide](/devops/jenkins) (self-hosted alternative), the 
 | **CodeDeploy** | release to EC2 / ECS / Lambda, with rollback | deployment strategies |
 | **CodeArtifact** | private npm / pip / Maven registry | package artifacts |
 | **ECR** | private container registry | image artifacts |
-| CodeCommit | managed Git | **closed to new customers (2024)** — use GitHub |
+| CodeCommit | managed Git | closed to new customers July 2024, **reopened (GA) Nov 2025**; most teams still use GitHub |
 | CodeGuru | automated review / profiling | optional |
 
 ```
@@ -42,7 +42,7 @@ source (GitHub) → CodeBuild (build + test) → CodeDeploy / ECS → prod
         └──────────── CodePipeline orchestrates ─────────────┘
 ```
 
-The design philosophy is composition: each service does one thing and IAM governs what it may touch. The cost is more moving parts than a single YAML file in GitHub Actions — and **CodeCommit being closed to new accounts** means most new pipelines start from GitHub anyway, which weakens the "everything in one place" argument.
+The design philosophy is composition: each service does one thing and IAM governs what it may touch. The cost is more moving parts than a single YAML file in GitHub Actions — and CodeCommit's July 2024 closure to new accounts (reversed when it returned to general availability in November 2025) pushed most new pipelines to GitHub anyway, which weakens the "everything in one place" argument.
 
 ---
 
@@ -52,10 +52,11 @@ A **project** defines: where the source comes from, the build environment (image
 
 ```
 Compute types (Linux):
-  BUILD_GENERAL1_SMALL    2 vCPU,  3 GB
-  BUILD_GENERAL1_MEDIUM   4 vCPU,  7 GB
-  BUILD_GENERAL1_LARGE    8 vCPU, 15 GB
-  BUILD_GENERAL1_2XLARGE 72 vCPU, 145 GB
+  BUILD_GENERAL1_SMALL    2 vCPU,   4 GiB
+  BUILD_GENERAL1_MEDIUM   4 vCPU,   8 GiB
+  BUILD_GENERAL1_LARGE    8 vCPU,  16 GiB
+  BUILD_GENERAL1_XLARGE  36 vCPU,  72 GiB
+  BUILD_GENERAL1_2XLARGE 72 vCPU, 144 GiB
   ARM / GPU / Lambda compute also available
 ```
 
@@ -65,7 +66,7 @@ Key knobs:
 - **`privilegedMode: true`** — required to run Docker inside the build (docker-in-docker). Understand that this is effectively root on the build host.
 - **Caching** — local (layer/source/custom) or S3. Without it every build re-downloads all dependencies.
 - **VPC configuration** — put the build in your VPC to reach a private RDS or an internal registry. Requires private subnets **plus a NAT gateway** (a managed router that lets private subnets make outbound internet calls) **or VPC endpoints** (private connections straight to specific AWS services), or the build loses internet access and hangs on package downloads.
-- **Timeout** (default 60 min, max 8 h) and **queue timeout**.
+- **Timeout** (default 60 min, max 36 h / 2,160 min) and **queue timeout**.
 - **Reports** — surface test and coverage results in the console.
 - **Batch builds** — fan out into parallel builds (matrix, or graph with dependencies).
 
@@ -98,7 +99,7 @@ phases:
       - npm ci
   pre_build:
     commands:
-      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}
+      - IMAGE_TAG=$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c 1-7)
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
   build:
     commands:
@@ -128,7 +129,7 @@ cache:
 Phases run in order: `install` → `pre_build` → `build` → `post_build`. Details that matter:
 
 - **`post_build` runs even if `build` fails.** So a naive `docker push` in `post_build` can publish an image whose tests failed — guard it with `$CODEBUILD_BUILD_SUCCEEDING`.
-- **Each command runs in its own shell.** `cd foo` in one command does not persist to the next; chain with `&&` or set `shell` / use a script.
+- **In `version: 0.2` all commands share one shell**, so `cd` and variables persist across commands and phases (that is how `IMAGE_TAG` set in `pre_build` is still there later). Only the legacy `version: 0.1` ran each command in its own shell.
 - A **non-zero exit** fails the phase and the build.
 - `finally` blocks (per phase) run regardless of the phase's success — the right place for cleanup and report collection.
 - Useful environment variables: `CODEBUILD_RESOLVED_SOURCE_VERSION` (the full commit SHA), `CODEBUILD_BUILD_ID`, `CODEBUILD_WEBHOOK_TRIGGER`, `CODEBUILD_BUILD_SUCCEEDING`.
@@ -144,17 +145,17 @@ A pipeline is **stages** containing **actions**. Actions within a stage can run 
 Source ──▶ Build ──▶ Test ──▶ Approve ──▶ Deploy-Staging ──▶ Approve ──▶ Deploy-Prod
 ```
 
-Action categories: `Source`, `Build`, `Test`, `Deploy`, `Approval`, `Invoke`.
+Action categories: `Source`, `Build`, `Test`, `Deploy`, `Approval`, `Invoke`, `Compute` (the Commands action, V2 pipelines).
 
 **Artifacts are the data plane.** Every action declares input and output artifacts, which CodePipeline stores in an **S3 artifact bucket** (encrypted with KMS, AWS Key Management Service) and passes between stages. So a build's output only reaches the deploy stage if the buildspec declared it in `artifacts:` — a missing `artifacts` block is the most common "my deploy stage can't find the file" cause.
 
 ```yaml
 # a Source action's trigger
-Source: GitHub (via CodeStar Connections)  # OAuth app connection, not a PAT
+Source: GitHub (via AWS CodeConnections, formerly CodeStar Connections)  # OAuth app connection, not a PAT
         or S3, ECR, CodeCommit
 ```
 
-**Prefer CodeStar Connections** for GitHub rather than a personal access token: it's an IAM-governed connection, tokens don't expire in someone's account, and it supports webhooks so pushes trigger immediately instead of polling.
+**Prefer AWS CodeConnections** (renamed from CodeStar Connections in March 2024) for GitHub rather than a personal access token: it's an IAM-governed connection, tokens don't expire in someone's account, and it supports webhooks so pushes trigger immediately instead of polling.
 
 **V2 pipelines** add: git tag and pull-request **triggers with filters** (branch/path), pipeline-level **variables**, and stage-level `conditions` for rollback and retry — worth knowing because V1 could only trigger on a branch push.
 
@@ -171,6 +172,8 @@ CodeDeploy handles the release itself, with health checks and automatic rollback
 | **EC2 / on-premise** | in-place, or blue/green with a new ASG (Auto Scaling group) |
 | **ECS** | blue/green via a load-balancer target-group swap; canary/linear |
 | **Lambda** | shift alias traffic: canary, linear, all-at-once |
+
+ECS now also has native blue/green (July 2025) and canary/linear (October 2025) deployments without CodeDeploy; CodeDeploy remains the tool for EC2/on-premises and Lambda.
 
 ```yaml
 # appspec.yml — EC2
@@ -203,7 +206,7 @@ Hooks:
 Concepts that get asked about:
 
 - **In-place vs blue/green.** In-place updates the existing instances — cheap, but there's a window of mixed versions and rollback means re-deploying the old build. Blue/green stands up a new environment and shifts traffic, so **rollback is instant** (shift back) at the cost of running both fleets briefly.
-- **Traffic-shifting configs**: `Canary10Percent5Minutes`, `Linear10PercentEvery1Minute`, `AllAtOnce`.
+- **Traffic-shifting configs** (ECS/Lambda): e.g. `CodeDeployDefault.LambdaCanary10Percent5Minutes`, `CodeDeployDefault.LambdaLinear10PercentEvery1Minute`, `CodeDeployDefault.ECSLinear10PercentEvery1Minutes`, `CodeDeployDefault.LambdaAllAtOnce`. EC2/on-premises uses `CodeDeployDefault.OneAtATime` (the default), `HalfAtATime` or `AllAtOnce`.
 - **Automatic rollback** on deployment failure or a **CloudWatch alarm** — this is the feature that makes CodeDeploy worth using over a script.
 - **`ApplicationStop` runs from the *previously deployed* revision**, so a broken `stop.sh` you already shipped will keep failing every future deployment until you work around it. This surprises people badly.
 - The **CodeDeploy agent** must be installed and running on EC2 targets, and instances need a tag or ASG membership matching the deployment group.
@@ -294,12 +297,12 @@ The two things that trip people: the artifact bucket must use a **customer-manag
 ## 10. Monitoring and Notifications
 
 ```
-CodePipeline / CodeBuild → EventBridge events → SNS / Lambda / Slack / Chatbot
+CodePipeline / CodeBuild → EventBridge events → SNS / Lambda / Slack / Amazon Q Developer in chat applications
 CodeBuild logs           → CloudWatch Logs (+ metrics, filters, alarms)
 CodeDeploy               → CloudWatch alarms can trigger automatic rollback
 ```
 
-What to actually watch: pipeline **failure rate** and **stage duration** (a build creeping from 4 to 12 minutes is a productivity tax nobody notices), CodeBuild **queue time** (a sign of concurrency limits), and deployment **rollback frequency**. **CodeStar Notifications** wires pipeline and build events to Slack or Teams via AWS Chatbot without writing Lambda glue.
+What to actually watch: pipeline **failure rate** and **stage duration** (a build creeping from 4 to 12 minutes is a productivity tax nobody notices), CodeBuild **queue time** (a sign of concurrency limits), and deployment **rollback frequency**. **CodeStar Notifications** wires pipeline and build events to Slack or Teams via Amazon Q Developer in chat applications (formerly AWS Chatbot) without writing Lambda glue.
 
 Wire a CloudWatch alarm on application error rate into the CodeDeploy deployment group — that turns "we deployed a bad build" into an automatic rollback instead of a page.
 
@@ -311,10 +314,12 @@ Do not click pipelines together in the console — they drift and can't be revie
 
 ```typescript
 // AWS CDK — the highest-level option
+import { CodePipeline, CodePipelineSource, ShellStep } from 'aws-cdk-lib/pipelines';
+
 const pipeline = new CodePipeline(this, 'Pipeline', {
   synth: new ShellStep('Synth', {
     input: CodePipelineSource.connection('org/repo', 'main', {
-      connectionArn: 'arn:aws:codestar-connections:...',
+      connectionArn: 'arn:aws:codeconnections:...',
     }),
     commands: ['npm ci', 'npm run build', 'npx cdk synth'],
   }),
@@ -339,7 +344,7 @@ Options ranked by how much they hide: **CDK Pipelines** (self-mutating — the p
 | Compliance / audit | CloudTrail on everything | GitHub audit log | you build it |
 | Developer experience | **weakest** | **strongest** | configurable |
 
-Choose **AWS-native** when you need builds inside a VPC reaching private resources, when compliance wants everything auditable in CloudTrail within your account boundary, when you're deploying to ECS/Lambda and want CodeDeploy's traffic shifting and alarm-triggered rollback, or in a regulated environment where code cannot leave AWS. Choose **GitHub Actions** for developer experience and speed of setup — which is why a very common real-world split is **Actions for build and test, CodeDeploy or ECS for the release**, with OIDC federation joining them.
+Choose **AWS-native** when you need builds inside a VPC reaching private resources, when compliance wants everything auditable in CloudTrail within your account boundary, when you're deploying to ECS/Lambda and want CodeDeploy (or ECS-native) traffic shifting and alarm-triggered rollback, or in a regulated environment where code cannot leave AWS. Choose **GitHub Actions** for developer experience and speed of setup — which is why a very common real-world split is **Actions for build and test, CodeDeploy or ECS for the release**, with OIDC federation joining them.
 
 The honest weakness of the AWS suite is ergonomics: the console is clumsy, iterating on a `buildspec` is slow without the local agent, and errors surface as IAM or KMS access denials that don't say what's missing.
 
@@ -349,15 +354,15 @@ The honest weakness of the AWS suite is ergonomics: the console is clumsy, itera
 
 **Q1: How do CodePipeline, CodeBuild and CodeDeploy fit together?**
 
-They are three narrow services you compose. **CodePipeline** is the orchestrator: stages containing actions, run sequentially with parallelism inside a stage, plus approvals. **CodeBuild** is the managed build environment — it runs your `buildspec.yml` in a container and produces artifacts. **CodeDeploy** performs the release to EC2, ECS or Lambda with health checks and rollback. The data plane between them is **artifacts** stored in an S3 bucket: each action declares inputs and outputs, so a file only reaches the deploy stage if the buildspec declared it under `artifacts:`. That composition is the design philosophy — each service does one thing and IAM governs what it can touch — and the trade-off is more moving parts than a single GitHub Actions YAML. Worth noting **CodeCommit is closed to new customers**, so most new pipelines source from GitHub via CodeStar Connections anyway.
+They are three narrow services you compose. **CodePipeline** is the orchestrator: stages containing actions, run sequentially with parallelism inside a stage, plus approvals. **CodeBuild** is the managed build environment — it runs your `buildspec.yml` in a container and produces artifacts. **CodeDeploy** performs the release to EC2, ECS or Lambda with health checks and rollback. The data plane between them is **artifacts** stored in an S3 bucket: each action declares inputs and outputs, so a file only reaches the deploy stage if the buildspec declared it under `artifacts:`. That composition is the design philosophy — each service does one thing and IAM governs what it can touch — and the trade-off is more moving parts than a single GitHub Actions YAML. Worth noting CodeCommit was closed to new customers from July 2024 until it returned to general availability in November 2025, so most new pipelines source from GitHub via AWS CodeConnections (formerly CodeStar Connections) anyway.
 
 **Q2: Walk through a `buildspec.yml` and the traps in it.**
 
-`version: 0.2`, then `env` for variables (including `parameter-store` and `secrets-manager` references resolved at build start), `phases` — `install`, `pre_build`, `build`, `post_build` — then `reports`, `artifacts` and `cache`. Three traps. **`post_build` runs even when `build` fails**, so a `docker push` there can publish an image whose tests failed unless you guard on `$CODEBUILD_BUILD_SUCCEEDING`. **Each command runs in its own shell**, so `cd` doesn't persist between commands — chain with `&&` or call a script. And a **missing `artifacts` block** means later pipeline stages can't see your output, which is the most common "deploy stage can't find the file" cause. Also useful: `exported-variables` passes a value like the image tag to later stages, `finally` blocks run regardless of phase outcome, and `CODEBUILD_RESOLVED_SOURCE_VERSION` gives you the commit SHA for tagging.
+`version: 0.2`, then `env` for variables (including `parameter-store` and `secrets-manager` references resolved at build start), `phases` — `install`, `pre_build`, `build`, `post_build` — then `reports`, `artifacts` and `cache`. Three traps. **`post_build` runs even when `build` fails**, so a `docker push` there can publish an image whose tests failed unless you guard on `$CODEBUILD_BUILD_SUCCEEDING`. **Shell state depends on the version**: in `version: 0.2` all commands share one shell instance, so `cd` and variables carry across commands and phases, but a legacy `0.1` buildspec ran each command in its own shell. And a **missing `artifacts` block** means later pipeline stages can't see your output, which is the most common "deploy stage can't find the file" cause. Also useful: `exported-variables` passes a value like the image tag to later stages, `finally` blocks run regardless of phase outcome, and `CODEBUILD_RESOLVED_SOURCE_VERSION` gives you the commit SHA for tagging.
 
 **Q3: In-place versus blue/green deployment in CodeDeploy?**
 
-**In-place** updates the existing instances in the deployment group: the agent stops the app, installs the new revision and restarts it. It's cheaper — no extra capacity — but there is a window where instances run mixed versions, and **rollback means redeploying the previous revision**, which takes as long as a deployment. **Blue/green** provisions a new set of instances (or, for ECS, a second target group), validates them, then shifts the load balancer, so **rollback is instant** because you shift traffic back to the still-running old environment; the cost is running both fleets briefly. For ECS and Lambda you additionally get traffic-shifting configurations — `Canary10Percent5Minutes`, `Linear10PercentEvery1Minute`, `AllAtOnce`. The feature that makes CodeDeploy worth using over a shell script is **automatic rollback on a CloudWatch alarm**, which turns a bad release into an automatic revert rather than a page.
+**In-place** updates the existing instances in the deployment group: the agent stops the app, installs the new revision and restarts it. It's cheaper — no extra capacity — but there is a window where instances run mixed versions, and **rollback means redeploying the previous revision**, which takes as long as a deployment. **Blue/green** provisions a new set of instances (or, for ECS, a second target group), validates them, then shifts the load balancer, so **rollback is instant** because you shift traffic back to the still-running old environment; the cost is running both fleets briefly. For ECS and Lambda you additionally get traffic-shifting configurations — e.g. `CodeDeployDefault.LambdaCanary10Percent5Minutes`, `CodeDeployDefault.ECSLinear10PercentEvery1Minutes`, `CodeDeployDefault.ECSAllAtOnce` (EC2 in-place uses `CodeDeployDefault.OneAtATime` by default). The feature that makes CodeDeploy worth using over a shell script is **automatic rollback on a CloudWatch alarm**, which turns a bad release into an automatic revert rather than a page.
 
 **Q4: How should IAM be set up for a CI/CD pipeline?**
 
@@ -373,7 +378,7 @@ The standard shape is a **tools account** holding the pipeline, CodeBuild and th
 
 **Q7: Why would you choose AWS-native CI/CD over GitHub Actions?**
 
-Four reasons that actually hold. **VPC-native builds** — CodeBuild can run inside your VPC to reach a private RDS, an internal registry or a service with no public endpoint, where Actions would need self-hosted runners. **Native IAM**, so there are no credentials to store at all; the build assumes a role. **Compliance** — everything is auditable in CloudTrail inside your account boundary, which matters in regulated environments where code and build logs cannot leave AWS. And **CodeDeploy's release features** — traffic shifting and automatic rollback on a CloudWatch alarm — if you're deploying to ECS or Lambda. Against that, the developer experience is clearly weaker: the console is clumsy, iterating on a buildspec is slow without the local agent, and failures often surface as unhelpful IAM or KMS denials. That's why a very common split is **Actions for build and test, AWS for the deploy**, joined by OIDC.
+Four reasons that actually hold. **VPC-native builds** — CodeBuild can run inside your VPC to reach a private RDS, an internal registry or a service with no public endpoint, where Actions would need self-hosted runners. **Native IAM**, so there are no credentials to store at all; the build assumes a role. **Compliance** — everything is auditable in CloudTrail inside your account boundary, which matters in regulated environments where code and build logs cannot leave AWS. And **CodeDeploy's (or ECS-native) release features** — traffic shifting and automatic rollback on a CloudWatch alarm — if you're deploying to ECS or Lambda. Against that, the developer experience is clearly weaker: the console is clumsy, iterating on a buildspec is slow without the local agent, and failures often surface as unhelpful IAM or KMS denials. That's why a very common split is **Actions for build and test, AWS for the deploy**, joined by OIDC.
 
 **Q8: How do you define pipelines as code, and what does CDK's self-mutation mean?**
 
@@ -410,7 +415,7 @@ Never click them together in the console — console-built pipelines drift, can'
 **The family**
 
 1. CodePipeline orchestrates, CodeBuild builds, CodeDeploy releases, ECR/CodeArtifact store.
-2. **CodeCommit is closed to new customers** — source from GitHub via CodeStar Connections.
+2. **CodeCommit** closed to new customers in July 2024 and reopened (GA) in Nov 2025; most teams source from GitHub via AWS CodeConnections (formerly CodeStar Connections).
 3. Artifacts pass between stages through an **S3 artifact bucket** (KMS-encrypted).
 
 **CodeBuild**
@@ -426,7 +431,7 @@ Never click them together in the console — console-built pipelines drift, can'
 
 10. Phases: `install` → `pre_build` → `build` → `post_build`.
 11. **`post_build` runs even if `build` failed** — guard on `$CODEBUILD_BUILD_SUCCEEDING`.
-12. **Each command is its own shell** — `cd` doesn't persist; chain with `&&`.
+12. **`version: 0.2` runs all commands in one shell** — `cd` and variables persist; only legacy `0.1` isolated each command.
 13. Missing `artifacts:` = later stages can't see your output.
 14. `finally` per phase for cleanup and report collection.
 15. `exported-variables` passes values to later pipeline stages.
@@ -435,7 +440,7 @@ Never click them together in the console — console-built pipelines drift, can'
 **CodePipeline**
 
 17. Stages run sequentially; actions within a stage can parallelise via `runOrder`.
-18. Categories: Source, Build, Test, Deploy, Approval, Invoke.
+18. Categories: Source, Build, Test, Deploy, Approval, Invoke, Compute (Commands action, V2).
 19. V2 adds tag/PR triggers with filters, pipeline variables, stage conditions.
 20. **Approvals expire after 7 days** and then fail the stage.
 21. `disableInboundStageTransitions` to pause for a release freeze.
@@ -444,7 +449,7 @@ Never click them together in the console — console-built pipelines drift, can'
 **CodeDeploy**
 
 23. In-place = cheap, mixed versions, slow rollback. Blue/green = instant rollback, double capacity.
-24. Traffic shifting: `Canary10Percent5Minutes`, `Linear10PercentEvery1Minute`, `AllAtOnce`.
+24. Traffic shifting: `CodeDeployDefault.LambdaCanary10Percent5Minutes`, `…LambdaLinear10PercentEvery1Minute`, `…ECSAllAtOnce`; EC2 default `CodeDeployDefault.OneAtATime`.
 25. **Automatic rollback on a CloudWatch alarm** — the main reason to use it.
 26. **`ApplicationStop` runs from the PREVIOUS revision** — a broken stop script blocks all future deploys.
 27. The agent must be installed; targets matched by tag or ASG.
@@ -468,7 +473,7 @@ Never click them together in the console — console-built pipelines drift, can'
 **Operations**
 
 38. Watch failure rate, stage duration, queue time, rollback frequency.
-39. CodeStar Notifications → Slack/Teams via Chatbot, no Lambda glue.
+39. CodeStar Notifications → Slack/Teams via Amazon Q Developer in chat applications (formerly AWS Chatbot), no Lambda glue.
 40. Define pipelines as code — CDK Pipelines **self-mutate**; never click-build.
 41. Common real-world split: **GitHub Actions to build, AWS to deploy**, joined by OIDC.
 

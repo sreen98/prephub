@@ -44,13 +44,19 @@ What that means in practice:
 
 ```bash
 # Launch a simple EC2 instance with the AWS CLI
+# --image-id: Amazon Linux 2023 AMI
+# --instance-type: 2 vCPU, 1 GB RAM
+# --key-name: SSH key pair name
+# --security-group-ids: Security group ID
+# --subnet-id: Subnet to launch in
+# --count: Number of instances
 aws ec2 run-instances \
-  --image-id ami-0c02fb55956c7d316 \        # Amazon Linux 2023 AMI
-  --instance-type t3.micro \                  # 2 vCPU, 1 GB RAM
-  --key-name my-key-pair \                    # SSH key pair name
-  --security-group-ids sg-0123456789abcdef0 \ # Security group ID
-  --subnet-id subnet-0123456789abcdef0 \      # Subnet to launch in
-  --count 1 \                                 # Number of instances
+  --image-id ami-0c02fb55956c7d316 \
+  --instance-type t3.micro \
+  --key-name my-key-pair \
+  --security-group-ids sg-0123456789abcdef0 \
+  --subnet-id subnet-0123456789abcdef0 \
+  --count 1 \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=my-web-server}]'
 ```
 
@@ -190,8 +196,9 @@ aws ec2 describe-images \
   --output table
 
 # Find the latest Ubuntu 22.04 AMI
+# --owners: Canonical's AWS account ID
 aws ec2 describe-images \
-  --owners 099720109477 \           # Canonical's AWS account ID
+  --owners 099720109477 \
   --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
   --query "Images | sort_by(@, &CreationDate) | [-1].ImageId" \
   --output text
@@ -508,9 +515,10 @@ Key pairs are used for **secure SSH access** to EC2 instances. AWS stores the pu
 
 ```bash
 # Option 1: Let AWS generate the key pair (downloads private key)
+# --key-type: rsa (default) or ed25519
 aws ec2 create-key-pair \
   --key-name my-key-pair \
-  --key-type rsa \                  # rsa (default) or ed25519
+  --key-type rsa \
   --query "KeyMaterial" \
   --output text > my-key-pair.pem
 
@@ -545,8 +553,9 @@ ssh -i ~/.ssh/my-key-pair.pem ec2-user@54.123.45.67
 ssh -v -i ~/.ssh/my-key-pair.pem ec2-user@54.123.45.67
 
 # SSH through a bastion host (jump host)
+# -J: Jump through bastion
 ssh -i ~/.ssh/my-key-pair.pem \
-  -J ec2-user@bastion-public-ip \       # Jump through bastion
+  -J ec2-user@bastion-public-ip \
   ec2-user@10.0.1.50                     # Private IP of target
 
 # SCP: Copy files to instance
@@ -578,7 +587,8 @@ Alternative: EC2 Instance Connect (no key pair needed)
 Alternative: AWS Systems Manager Session Manager
   - No SSH, no key pairs, no open ports
   - Uses IAM for authentication
-  - All sessions are logged to CloudTrail / S3
+  - Session start/stop is recorded in CloudTrail; session transcripts go to
+    S3 / CloudWatch Logs once you enable session logging
   - Works for private instances without public IP
   - Recommended for production environments
 ```
@@ -599,7 +609,7 @@ EBS provides **persistent block-level storage volumes** for EC2 instances. Unlik
 ```
 Volume Type  | Name               | IOPS (max)   | Throughput   | Use Case
 -------------+--------------------+--------------+--------------+---------------------------
-gp3          | General Purpose    | 16,000       | 1,000 MB/s   | Boot volumes, dev/test,
+gp3          | General Purpose    | 80,000       | 2,000 MiB/s  | Boot volumes, dev/test,
              | SSD                | (baseline    | (baseline    | virtual desktops, most
              |                    |  3,000 free) |  125 MB/s)   | workloads (DEFAULT choice)
 -------------+--------------------+--------------+--------------+---------------------------
@@ -612,7 +622,7 @@ io2 Block    | Provisioned IOPS   | 256,000      | 4,000 MB/s   | Databases (Ora
 Express      | SSD                | (sub-ms      |              | Server), latency-sensitive
              |                    |  latency)    |              | transactional workloads
 -------------+--------------------+--------------+--------------+---------------------------
-io2/io1      | Provisioned IOPS   | 64,000       | 1,000 MB/s   | High-performance databases
+io1          | Provisioned IOPS   | 64,000       | 1,000 MB/s   | High-performance databases
              | SSD                |              |              | requiring sustained IOPS
 -------------+--------------------+--------------+--------------+---------------------------
 st1          | Throughput         | 500          | 500 MB/s     | Big data, data warehouses,
@@ -633,13 +643,17 @@ Key points:
 
 ```bash
 # Create a gp3 volume
+# --size: 100 GB
+# --iops: 3,000 baseline is free (up to 80,000)
+# --throughput: 125 MiB/s baseline is free (up to 2,000 MiB/s)
+# --encrypted: Always encrypt in production
 aws ec2 create-volume \
   --volume-type gp3 \
-  --size 100 \                       # 100 GB
-  --iops 3000 \                      # Baseline is free (up to 16,000)
-  --throughput 125 \                 # Baseline is free (up to 1,000 MB/s)
+  --size 100 \
+  --iops 3000 \
+  --throughput 125 \
   --availability-zone us-east-1a \
-  --encrypted \                      # Always encrypt in production
+  --encrypted \
   --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=app-data}]'
 
 # Attach volume to an instance
@@ -655,10 +669,12 @@ aws ec2 attach-volume \
 # echo "/dev/xvdf /data xfs defaults,nofail 0 2" | sudo tee -a /etc/fstab
 
 # Modify volume type/size without downtime (Elastic Volumes)
+# --volume-type: Change from gp2 to gp3
+# --size: Increase size (cannot decrease!)
 aws ec2 modify-volume \
   --volume-id vol-0123456789abcdef0 \
-  --volume-type gp3 \               # Change from gp2 to gp3
-  --size 200 \                       # Increase size (cannot decrease!)
+  --volume-type gp3 \
+  --size 200 \
   --iops 6000                        # Increase IOPS
 ```
 
@@ -680,10 +696,11 @@ aws ec2 create-volume \
   --availability-zone us-east-1a
 
 # Copy a snapshot to another region (DR / cross-region replication)
+# --region is the destination; the copy is created in the Region you call
 aws ec2 copy-snapshot \
+  --region eu-west-1 \
   --source-region us-east-1 \
   --source-snapshot-id snap-0123456789abcdef0 \
-  --destination-region eu-west-1 \
   --description "DR copy of production data"
 
 # Create an AMI from a snapshot (for launching instances)
@@ -742,10 +759,11 @@ Cannot do:
 
 ```bash
 # Create an encrypted volume with default AWS-managed key
+# --encrypted: Uses default aws/ebs KMS key
 aws ec2 create-volume \
   --volume-type gp3 \
   --size 50 \
-  --encrypted \                      # Uses default aws/ebs KMS key
+  --encrypted \
   --availability-zone us-east-1a
 
 # Create with a custom KMS key
@@ -980,10 +998,11 @@ Use cases:
 
 ```bash
 # Create a peering connection (requester)
+# --peer-region: Cross-region (optional)
 aws ec2 create-vpc-peering-connection \
   --vpc-id vpc-0requester \
   --peer-vpc-id vpc-0accepter \
-  --peer-region eu-west-1 \           # Cross-region (optional)
+  --peer-region eu-west-1 \
   --peer-owner-id 987654321098         # Cross-account (optional)
 
 # Accept the peering connection (accepter side)
@@ -1090,10 +1109,11 @@ Decision tree:
 
 ```bash
 # Create an Application Load Balancer
+# --scheme: or "internal" for private ALB
 aws elbv2 create-load-balancer \
   --name my-web-alb \
   --type application \
-  --scheme internet-facing \              # or "internal" for private ALB
+  --scheme internet-facing \
   --subnets subnet-0public-1a subnet-0public-1b \
   --security-groups sg-0alb-sg \
   --tags Key=Environment,Value=production
@@ -1125,13 +1145,15 @@ Routing algorithms:
 
 ```bash
 # Create a target group for EC2 instances
+# --port: Port your app listens on
+# --health-check-path: Health check endpoint
 aws elbv2 create-target-group \
   --name web-servers-tg \
   --protocol HTTP \
-  --port 8080 \                           # Port your app listens on
+  --port 8080 \
   --vpc-id vpc-0123456789abcdef0 \
   --target-type instance \
-  --health-check-path /health \           # Health check endpoint
+  --health-check-path /health \
   --health-check-interval-seconds 30 \
   --healthy-threshold-count 2 \
   --unhealthy-threshold-count 3
@@ -1176,7 +1198,7 @@ Health Check Parameters:
   Port:               traffic-port (default) or specific port
   Interval:           30 seconds (how often to check)
   Timeout:            5 seconds (time to wait for response)
-  Healthy threshold:  3 (consecutive successes to mark healthy)
+  Healthy threshold:  5 (default; consecutive successes to mark healthy)
   Unhealthy threshold: 2 (consecutive failures to mark unhealthy)
   Success codes:      200 (or 200-299)
 
@@ -1241,9 +1263,10 @@ SSL Termination Options:
 
 ```bash
 # Request a free SSL certificate from ACM
+# --subject-alternative-names: Wildcard
 aws acm request-certificate \
   --domain-name example.com \
-  --subject-alternative-names "*.example.com" \   # Wildcard
+  --subject-alternative-names "*.example.com" \
   --validation-method DNS
 
 # After DNS validation, add certificate to ALB listener
@@ -1337,16 +1360,21 @@ aws ec2 modify-launch-template \
   --default-version 2
 
 # Create an Auto Scaling Group
+# --min-size: Minimum instances (never fewer)
+# --max-size: Maximum instances (never more)
+# --desired-capacity: Start with this many
+# --health-check-type: Use ALB health checks (not just EC2)
+# --health-check-grace-period: Wait 5 min before checking new instance
 aws autoscaling create-auto-scaling-group \
   --auto-scaling-group-name web-server-asg \
   --launch-template LaunchTemplateName=web-server-lt,Version='$Default' \
-  --min-size 2 \                          # Minimum instances (never fewer)
-  --max-size 6 \                          # Maximum instances (never more)
-  --desired-capacity 3 \                  # Start with this many
+  --min-size 2 \
+  --max-size 6 \
+  --desired-capacity 3 \
   --vpc-zone-identifier "subnet-0private-1a,subnet-0private-1b" \
   --target-group-arns "arn:aws:elasticloadbalancing:...:targetgroup/web-servers-tg/..." \
-  --health-check-type ELB \               # Use ALB health checks (not just EC2)
-  --health-check-grace-period 300 \       # Wait 5 min before checking new instance
+  --health-check-type ELB \
+  --health-check-grace-period 300 \
   --tags '[{"Key":"Environment","Value":"production","PropagateAtLaunch":true}]'
 ```
 
@@ -1387,13 +1415,12 @@ aws autoscaling put-scaling-policy \
   --auto-scaling-group-name web-server-asg \
   --policy-name cpu-target-tracking \
   --policy-type TargetTrackingScaling \
+  --estimated-instance-warmup 300 \
   --target-tracking-configuration '{
     "PredefinedMetricSpecification": {
       "PredefinedMetricType": "ASGAverageCPUUtilization"
     },
-    "TargetValue": 50.0,
-    "ScaleInCooldown": 300,
-    "ScaleOutCooldown": 60
+    "TargetValue": 50.0
   }'
 
 # Target Tracking: Keep request count per target at 1000
@@ -1422,18 +1449,20 @@ aws autoscaling put-scaling-policy \
   ]'
 
 # Scheduled Scaling: Scale up for business hours
+# --recurrence: Cron: 9 AM weekdays
 aws autoscaling put-scheduled-update-group-action \
   --auto-scaling-group-name web-server-asg \
   --scheduled-action-name scale-up-morning \
-  --recurrence "0 9 * * MON-FRI" \        # Cron: 9 AM weekdays
+  --recurrence "0 9 * * MON-FRI" \
   --min-size 4 \
   --max-size 10 \
   --desired-capacity 6
 
+# --recurrence: Cron: 6 PM weekdays
 aws autoscaling put-scheduled-update-group-action \
   --auto-scaling-group-name web-server-asg \
   --scheduled-action-name scale-down-evening \
-  --recurrence "0 18 * * MON-FRI" \       # Cron: 6 PM weekdays
+  --recurrence "0 18 * * MON-FRI" \
   --min-size 2 \
   --max-size 6 \
   --desired-capacity 2
@@ -1445,9 +1474,10 @@ aws autoscaling put-scheduled-update-group-action \
 Cooldown prevents Auto Scaling from launching or terminating instances
 before the previous scaling activity takes effect.
 
-Default cooldown:     300 seconds (5 minutes) — applies to simple scaling
-Scale-out cooldown:   60 seconds (recommended) — new instances need to be responsive
-Scale-in cooldown:    300 seconds — avoid premature scale-in
+Default cooldown:     300 seconds (5 minutes) — applies only to simple scaling
+Policy cooldown:      a simple scaling policy can override it (e.g. shorter for scale-in)
+Instance warm-up:     what target tracking and step scaling use instead — a new
+                      instance's metrics don't count until it has warmed up
 
 Why cooldown matters:
   Without cooldown:
@@ -1461,8 +1491,8 @@ Why cooldown matters:
     Re-evaluate → CPU now at 50% → no action needed
 
 Best practice:
-  - Use target tracking (handles cooldown automatically)
-  - Scale out fast (short cooldown), scale in slow (long cooldown)
+  - Use target tracking (no cooldown to tune; it uses instance warm-up)
+  - Scale out fast, scale in slow
   - Set health check grace period > instance boot time
   - Enable instance warm-up period for target tracking
 ```
@@ -1478,8 +1508,8 @@ Elastic IP characteristics:
   - Static: does not change when instance is stopped/started
   - Remappable: can move from one instance to another instantly
   - Regional: allocated in a specific region
-  - Charged when NOT associated with a running instance ($0.005/hr)
-  - Free when associated with a running instance
+  - Charged $0.005/hr whether associated with a running instance or idle
+    (AWS has billed every public IPv4 address, in use or not, since Feb 2024)
   - Limit: 5 per region by default (can request increase)
 
 When to use:
@@ -1525,15 +1555,16 @@ Three strategies:
 
 1. Cluster Placement Group:
    ┌─────────────────────────────┐
-   │  Same Rack / Close Together │
+   │  Packed close together      │
    │  [i-1] [i-2] [i-3] [i-4]  │
    │       Low latency           │
    │       High throughput       │
    └─────────────────────────────┘
-   - All instances in same AZ, same rack
-   - 10 Gbps network between instances (enhanced networking)
+   - All instances in one AZ, packed close together (not necessarily one rack)
+   - Up to 10 Gbps per single flow between instances (vs 5 Gbps outside a
+     cluster group); aggregate bandwidth up to the instance type's limit
    - Lowest latency, highest throughput
-   - Risk: single rack failure = all instances down
+   - Risk: low fault isolation — one hardware failure can take out many instances
    - Use for: HPC, big data jobs, low-latency applications
 
 2. Spread Placement Group:
@@ -1580,9 +1611,10 @@ aws ec2 create-placement-group \
   --partition-count 3
 
 # Launch instance into a placement group
+# --instance-type: Use same instance type in cluster
 aws ec2 run-instances \
   --image-id ami-0c02fb55956c7d316 \
-  --instance-type c5.18xlarge \         # Use same instance type in cluster
+  --instance-type c5.18xlarge \
   --placement GroupName=hpc-cluster \
   --count 4
 ```
@@ -1597,7 +1629,8 @@ EC2 pricing determines how much you pay for compute capacity. Choosing the right
 
 ```
 On-Demand:
-  - Pay by the second (Linux) or hour (Windows) with no commitment
+  - Pay by the second (60 s minimum) for Linux and Windows, with no commitment
+    (some other OS types still bill by the hour)
   - No upfront cost, no long-term contract
   - Most expensive per-hour rate
   - Start/stop anytime
@@ -1628,7 +1661,7 @@ Reserved Instances (RI):
 
   Types:
     Standard RI    → fixed instance type, highest discount
-    Convertible RI → can change instance type/family, lower discount (~54% max)
+    Convertible RI → can change instance type/family, lower discount (up to 66%)
 
 Best for:
   - Steady-state workloads (databases, always-on servers)
@@ -1799,7 +1832,7 @@ When you **stop** an instance: the instance shuts down, the public IP is release
 
 **Q5: What are the main EBS volume types and when would you use each?**
 
-The four main types are: **gp3** (General Purpose SSD) — the default choice for most workloads including boot volumes, web servers, and dev environments; it provides a baseline of 3,000 IOPS and 125 MB/s which you can increase independently of volume size. **io2** (Provisioned IOPS SSD) — for databases requiring guaranteed, sustained IOPS (input/output operations per second) with sub-millisecond latency (up to 64,000 IOPS, or 256,000 on io2 Block Express, per the table in §7.1). **st1** (Throughput Optimized HDD) — for big data and log processing where high sequential throughput matters (up to 500 MB/s) but not random I/O. **sc1** (Cold HDD) — the cheapest option for infrequently accessed data. Note that only SSD types (gp3, io2) can be used as boot volumes.
+The four main types are: **gp3** (General Purpose SSD) — the default choice for most workloads including boot volumes, web servers, and dev environments; it provides a baseline of 3,000 IOPS and 125 MB/s which you can increase independently of volume size. **io2** (Provisioned IOPS SSD) — for databases requiring guaranteed, sustained IOPS (input/output operations per second) with sub-millisecond latency (io2 volumes are all io2 Block Express now: up to 256,000 IOPS and 99.999% durability; the older io1 caps at 64,000 IOPS, per the table in §7.1). **st1** (Throughput Optimized HDD) — for big data and log processing where high sequential throughput matters (up to 500 MB/s) but not random I/O. **sc1** (Cold HDD) — the cheapest option for infrequently accessed data. Note that only SSD types (gp3, io2) can be used as boot volumes.
 
 ---
 
@@ -1817,7 +1850,7 @@ Short answer: if your traffic is HTTP, use an ALB; if you need raw TCP/UDP speed
 
 **Q7: How does Auto Scaling work and what is Target Tracking?**
 
-Auto Scaling maintains a fleet of EC2 instances at the right capacity. It has three components: a **Launch Template** (what to launch), an **Auto Scaling Group** (where and how many — min/max/desired), and **Scaling Policies** (when to scale). **Target Tracking** is the recommended scaling policy — you specify a target value for a metric (e.g., "keep average CPU at 50%"), and ASG automatically adds or removes instances to maintain that target, similar to a thermostat. It handles cooldown internally and creates the CloudWatch alarms for you. It is simpler and more effective than step scaling or simple scaling for most use cases. Common target metrics include CPU utilization, request count per target (from ALB), and custom CloudWatch metrics.
+Auto Scaling maintains a fleet of EC2 instances at the right capacity. It has three components: a **Launch Template** (what to launch), an **Auto Scaling Group** (where and how many — min/max/desired), and **Scaling Policies** (when to scale). **Target Tracking** is the recommended scaling policy — you specify a target value for a metric (e.g., "keep average CPU at 50%"), and ASG automatically adds or removes instances to maintain that target, similar to a thermostat. It uses instance warm-up rather than cooldowns and creates the CloudWatch alarms for you. It is simpler and more effective than step scaling or simple scaling for most use cases. Common target metrics include CPU utilization, request count per target (from ALB), and custom CloudWatch metrics.
 
 ---
 
@@ -1976,7 +2009,7 @@ curl -H "X-aws-ec2-metadata-token: $TOKEN" \
 
 **Q17: How do Placement Groups affect performance and availability? When would you choose each type?**
 
-**Cluster placement groups** place all instances physically close together (same rack or nearby racks) within a single AZ. This provides the lowest inter-instance latency (sub-millisecond) and up to 10 Gbps of bandwidth between instances using enhanced networking. Use for HPC workloads, tightly-coupled distributed computations, and real-time analytics. The trade-off is availability — a rack failure can impact all instances. Best practice: use the same instance type for all instances, and launch all at once (launching incrementally may fail due to insufficient capacity).
+**Cluster placement groups** place all instances physically close together (same rack or nearby racks) within a single AZ. This provides the lowest inter-instance latency (sub-millisecond) and up to 10 Gbps per single flow between instances using enhanced networking (vs 5 Gbps outside a cluster placement group; aggregate bandwidth goes up to the instance type's limit). Use for HPC workloads, tightly-coupled distributed computations, and real-time analytics. The trade-off is availability — a rack failure can impact all instances. Best practice: use the same instance type for all instances, and launch all at once (launching incrementally may fail due to insufficient capacity).
 
 **Spread placement groups** place each instance on separate physical hardware (different racks), limiting risk to 1 instance per rack failure. Maximum of 7 instances per AZ. Use for small clusters of critical instances where each must be isolated (e.g., primary and replica database nodes, ZooKeeper quorum, etcd cluster).
 

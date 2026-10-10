@@ -408,7 +408,7 @@ The two pairs people mix up: **401** means "I don't know who you are" (no creden
 415 Unsupported Media Type
   - Content-Type not supported
 
-422 Unprocessable Entity
+422 Unprocessable Content (formerly "Unprocessable Entity")
   - Request is well-formed but semantically invalid
   - Business rule violations
 
@@ -1087,6 +1087,10 @@ const globalLimiter = rateLimit({
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
+  store: new RedisStore({
+    sendCommand: (...args) => redisClient.sendCommand(args),
+    prefix: 'rl-auth:', // separate keys from the global limiter's default 'rl:'
+  }),
   message: {
     status: 'error',
     message: 'Too many login attempts',
@@ -1100,17 +1104,19 @@ app.use('/api/v1/auth/login', authLimiter);
 
 ### Rate Limit Headers
 
+`RateLimit-Reset` is the number of seconds until the window resets (the IETF draft `RateLimit-*` headers that `standardHeaders: true` sends); the legacy `X-RateLimit-Reset` header used a Unix timestamp instead.
+
 ```
 HTTP/1.1 200 OK
 RateLimit-Limit: 100
 RateLimit-Remaining: 87
-RateLimit-Reset: 1709722800
+RateLimit-Reset: 900
 
 HTTP/1.1 429 Too Many Requests
 Retry-After: 900
 RateLimit-Limit: 100
 RateLimit-Remaining: 0
-RateLimit-Reset: 1709722800
+RateLimit-Reset: 900
 ```
 
 ---
@@ -1168,7 +1174,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10 MB
-    files: 5,
+    files: 5, // max files per request; keep upload.array()'s maxCount at or below this
   },
   fileFilter: (req, file, cb) => {
     const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -1191,7 +1197,7 @@ router.post('/profile-image', authenticate, upload.single('image'), async (req, 
 });
 
 // Multiple file upload
-router.post('/resumes', authenticate, upload.array('files', 50), async (req, res) => {
+router.post('/resumes', authenticate, upload.array('files', 5), async (req, res) => {
   const urls = await Promise.all(
     req.files.map((file) =>
       storageService.upload(file.buffer, {
@@ -1213,7 +1219,7 @@ Multipart fields are plain strings, so nested JSON cannot be sent as structured 
 // POST /api/v2/roles
 // Content-Type: multipart/form-data
 
-router.post('/roles', authenticate, upload.array('poolFiles', 50), async (req, res) => {
+router.post('/roles', authenticate, upload.array('poolFiles', 5), async (req, res) => {
   // JSON data comes as a string field in multipart
   const payload = JSON.parse(req.body.data);
   const files = req.files;
@@ -1245,9 +1251,12 @@ import { WebSocketServer } from 'ws';
 const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
 wss.on('connection', (ws, req) => {
-  // Authenticate WebSocket connection
-  const token = new URL(req.url, 'http://localhost').searchParams.get('token');
-  const user = verifyToken(token);
+  // Authenticate WebSocket connection. Browsers can't set headers on the
+  // handshake, so don't put a long-lived token in the URL (it lands in access
+  // logs). Use the session cookie, or a short-lived single-use ticket the
+  // client fetched from an authenticated POST /ws-ticket just before connecting.
+  const ticket = new URL(req.url, 'http://localhost').searchParams.get('ticket');
+  const user = redeemWsTicket(ticket); // validates, then deletes the ticket
   if (!user) return ws.close(4001, 'Unauthorized');
 
   ws.userId = user.id;
@@ -1864,8 +1873,10 @@ router.post('/bulk', authenticate, authorize('admin'), async (req, res) => {
 });
 
 // Batch delete
-// DELETE /api/v1/users/bulk
-router.delete('/bulk', authenticate, authorize('admin'), async (req, res) => {
+// POST /api/v1/users/bulk-delete  { "ids": [...] }
+// Not DELETE with a body: RFC 9110 gives DELETE content no defined meaning,
+// and some proxies and clients drop or reject it.
+router.post('/bulk-delete', authenticate, authorize('admin'), async (req, res) => {
   const { ids } = req.body;
   const deleted = await userService.bulkDelete(ids);
   res.json({ status: 'success', results: { deletedCount: deleted } });
@@ -2068,7 +2079,7 @@ Short answer: the first digit tells the client who has to act. 2xx means it work
 - **403 Forbidden**: Authenticated but not authorized (wrong role/permissions)
 - **404 Not Found**: Resource doesn't exist
 - **409 Conflict**: Duplicate entry or state conflict
-- **422 Unprocessable Entity**: Valid syntax but fails business validation
+- **422 Unprocessable Content** (formerly "Unprocessable Entity"): Valid syntax but fails business validation
 - **429 Too Many Requests**: Rate limit exceeded
 - **500 Internal Server Error**: Unhandled server error
 
@@ -2131,7 +2142,7 @@ Short answer: rate limiting caps how many requests one client can make in a time
 - **Sliding window**: count requests in the last 60 seconds from *now*, which removes the boundary burst at the cost of storing more data (timestamps, or counts for two windows).
 - **Token bucket**: each client has a bucket that refills at a steady rate; each request spends a token. It allows short bursts up to the bucket size while holding the long-run average — usually what you want for real clients.
 
-**Implementation**: Use Redis for distributed rate limiting across multiple servers. Track request count per client (by IP, API key, or user ID) with TTL-based expiry. Return standard headers: `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`. Return `429 Too Many Requests` with `Retry-After` header when exceeded.
+**Implementation**: Use Redis for distributed rate limiting across multiple servers. Track request count per client (by IP, API key, or user ID) with TTL-based expiry. Return the IETF draft headers: `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` (seconds until the window resets). Return `429 Too Many Requests` with `Retry-After` header when exceeded.
 
 Apply different limits for different endpoints: stricter for auth (5/15min), moderate for writes (100/15min), lenient for reads (1000/15min).
 
@@ -2156,7 +2167,7 @@ CORS (Cross-Origin Resource Sharing) is the mechanism by which a server tells th
 
 Note what CORS is *not*: it does not protect your API from other servers, curl or scripts — only browsers enforce it. It protects users, by stopping a malicious site from using the user's logged-in browser to read your API's responses.
 
-**Simple requests** (GET, POST with standard content types) include an `Origin` header. The server responds with `Access-Control-Allow-Origin`.
+**Simple requests** (GET, HEAD, or POST with a `Content-Type` of `application/x-www-form-urlencoded`, `multipart/form-data` or `text/plain`, and no custom headers) include an `Origin` header. `application/json` is not in that list, so a JSON POST is preflighted. The server responds with `Access-Control-Allow-Origin`.
 
 **Preflight requests** (PUT, DELETE, custom headers) trigger an `OPTIONS` request first. The browser checks the response headers (`Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) before sending the actual request.
 
@@ -2260,7 +2271,7 @@ Short answer: assume any single control will fail, so put independent checks at 
 
 **API key management**: Hash keys in storage (never store plaintext), scope keys to specific endpoints/actions, support key rotation without downtime, track usage per key.
 
-**OAuth 2.0 for third-party access**: Authorization code flow for web apps, PKCE for SPAs/mobile, client credentials for service-to-service. Scope tokens to minimum necessary permissions.
+**OAuth 2.0 for third-party access**: Authorization code flow with PKCE for every interactive client (required for SPAs/mobile, recommended for server-side web apps per RFC 9700), client credentials for service-to-service. Scope tokens to minimum necessary permissions.
 
 **Monitoring**: Anomaly detection on request patterns, alert on auth failure spikes, log all admin actions, implement request signing for sensitive operations.
 

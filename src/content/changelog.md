@@ -1,5 +1,15 @@
 # What's New
 
+## v1.7.16 (October 2026)
+
+**Corrections across the Back End and DevOps guides.** All 32 guides were audited, and every finding was re-checked by running the code or against the official docs before anything changed (about 240 corrections). Highlights:
+- **Node, Express, FastAPI:** microtasks drain after every callback (not just between phases), when type stripping became stable, Helmet's `SAMEORIGIN` default, the current `rate-limit-redis` API, and Starlette echoing any Origin when `*` is combined with credentials.
+- **Databases:** MySQL's `INSTANT` DDL default, which replication slots really block vacuum, and several SQL examples that errored in PostgreSQL.
+- **API design, GraphQL, Stripe:** `RateLimit-Reset` is seconds, not a timestamp; which nullability changes are breaking; Stripe's 2025 API changes (`confirmation_secret`, `promotion`, `accountLinks.create`), current dispute fees and Smart Retries defaults.
+- **Security, OAuth, SSH:** `SameSite=Lax` is only a Chromium default, Google's real JWKS URL, Entra ID does not detect refresh-token reuse, and SSH host keys are checked on every connection.
+- **AWS:** S3's 50 TB object limit and SSE-C blocking on new buckets, current Lambda runtimes, CloudWatch subscription targets, and CodeCommit being generally available again.
+- **DevOps:** EndpointSlices replacing Endpoints, Helm 4's `--rollback-on-failure`, Terraform's `use_lockfile` and variable precedence, Ansible 2.19's strict conditionals, and Jenkins `post` blocks that need a workspace.
+
 ## v1.7.15 (October 2026)
 
 **JavaScript and TypeScript are now three-part series, and much shorter.** Each language has a core guide plus separate Interview Questions and Tricky Questions guides under **Languages** in the sidebar: [JavaScript Guide](/javascript/guide), [JavaScript Interview Questions](/javascript/interview-questions), [JavaScript Tricky Questions](/javascript/tricky-questions), [TypeScript Guide](/javascript/typescript), [TypeScript Interview Questions](/javascript/typescript-interview-questions) and [TypeScript Tricky Questions](/javascript/typescript-tricky-questions). Repeated explanations are gone (the event loop, for example, is now explained once and linked), interview answers are short with a link to the full explanation, and tricky questions keep the code, the output and a short why. The JavaScript material is about 30% shorter and TypeScript about 24%, with no topic or question removed. The Regex guide got the same treatment.

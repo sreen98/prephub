@@ -52,7 +52,7 @@ The authenticity of host 'web-01 (10.0.1.5)' can't be established.
 ED25519 key fingerprint is SHA256:abc123...
 ```
 
-That prompt is the **only** point at which MITM is detectable, which is why blindly typing "yes" — or worse, scripting `StrictHostKeyChecking=no` — removes SSH's server-authentication guarantee entirely. In automation, pre-seed `known_hosts` from a trusted source, or use `ssh-keyscan` at image-build time and ship the result.
+That prompt is the one moment a MITM can slip through undetected (trust on first use): after you accept a key, every later connection is checked against `known_hosts`, and a substituted key fails with "Host key verification failed". That is why blindly typing "yes" — or worse, scripting `StrictHostKeyChecking=no` — removes SSH's server-authentication guarantee entirely. In automation, pre-seed `known_hosts` from a trusted source, or use `ssh-keyscan` at image-build time and ship the result.
 
 SSH also has **forward secrecy**: past sessions stay private even if a long-term key leaks later. It comes from the per-session key, which is thrown away when the session ends and is never derived from the host key — so an attacker who records your traffic today and steals the host key next year still cannot decrypt the recording.
 
@@ -70,7 +70,7 @@ ssh-copy-id -i ~/.ssh/id_ed25519.pub user@host # appends to remote authorized_ke
 
 1. You generate a **key pair**. The private key never leaves your machine.
 2. The **public** key is appended to `~/.ssh/authorized_keys` on the server.
-3. On connect, the server sends a challenge; your client **signs** it with the private key.
+3. On connect, your client **signs** data that includes the session identifier (a value derived from this connection's key exchange) with the private key; because the session ID is unique per connection, the signature can't be replayed.
 4. The server verifies the signature against the stored public key.
 
 **Your private key is never transmitted** — that is the whole point, and it is why key auth is strictly better than passwords: nothing reusable crosses the wire, there is nothing to brute-force, and the key can be passphrase-protected at rest.
@@ -191,13 +191,13 @@ Note `-R` on a public host binds to loopback unless the server sets `GatewayPort
 
 ```bash
 scp file.txt user@host:/path/                # simple, no resume, deprecated protocol
-rsync -avz --progress file.txt user@host:/path/
+rsync -avzP file.txt user@host:/path/        # -P = --partial --progress
 rsync -avz --delete ./dist/ user@host:/var/www/   # mirror; note trailing slashes
 sftp user@host                               # interactive
 tar czf - ./dir | ssh host 'tar xzf - -C /dest'    # stream, no temp files
 ```
 
-**Prefer `rsync`.** It transfers only differences, resumes, preserves permissions and timestamps, can delete extraneous files to mirror a directory, and shows progress. `scp` re-copies everything and its underlying protocol is deprecated (modern OpenSSH `scp` actually uses SFTP internally).
+**Prefer `rsync`.** It transfers only differences, can resume interrupted transfers with `-P` (`--partial --progress`), preserves permissions and timestamps, can delete extraneous files to mirror a directory, and shows progress. `scp` re-copies everything and its underlying protocol is deprecated (modern OpenSSH `scp` actually uses SFTP internally).
 
 The `rsync` trailing-slash rule causes real accidents: `rsync -a src/ dest/` copies the *contents* of `src` into `dest`, while `rsync -a src dest/` copies the *directory* to `dest/src`. Always `--dry-run` first when `--delete` is involved.
 
@@ -210,7 +210,7 @@ The `rsync` trailing-slash rule causes real accidents: `rsync -a src/ dest/` cop
 PermitRootLogin no                 # or prohibit-password
 PasswordAuthentication no          # keys only — the single biggest win
 PubkeyAuthentication yes
-ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no    # with PasswordAuthentication no, closes the PAM password path
 AllowGroups ssh-users              # allow-list, not deny-list
 X11Forwarding no
 AllowAgentForwarding no            # unless genuinely needed
@@ -218,15 +218,14 @@ MaxAuthTries 3
 LoginGraceTime 20
 ClientAliveInterval 300
 ClientAliveCountMax 2
-Protocol 2
 ```
 
 ```bash
 sshd -t                            # ALWAYS validate before restarting
-systemctl reload sshd              # reload, don't restart, to keep sessions
+systemctl reload sshd              # re-reads config; existing sessions survive reload or restart (KillMode=process)
 ```
 
-Two operational rules. **Validate with `sshd -t` and keep your existing session open** while you test a new one from a second terminal — locking yourself out of a remote host with a bad `sshd_config` and no console access is a genuinely unrecoverable mistake on some providers. And **`reload` rather than `restart`** so current sessions survive.
+Two operational rules. **Validate with `sshd -t` and keep your existing session open** while you test a new one from a second terminal — locking yourself out of a remote host with a bad `sshd_config` and no console access is a genuinely unrecoverable mistake on some providers. And **prefer `reload` to `restart`**: if the new config is bad, the running listener keeps working, whereas a restart with a broken config leaves nothing listening for new logins.
 
 Beyond the config: `fail2ban` to throttle brute force, changing the port only reduces log noise (it is not security), and firewall rules restricting source ranges do far more than any `sshd` setting. Prefer **certificates over `authorized_keys`** at scale so access expires automatically.
 
@@ -355,14 +354,14 @@ Interpretation notes that separate a real answer from a tool list:
 ```bash
 journalctl -u app -f                  # follow one unit
 journalctl -p err -b                  # errors since boot
-journalctl --since "2026-09-08 10:00" --until "10:15"
+journalctl --since "2026-09-08 10:00" --until "2026-09-08 10:15"
 journalctl --disk-usage / --vacuum-time=7d
 tail -f /var/log/nginx/error.log
 ```
 
 Traditional files live in `/var/log` (`syslog`/`messages`, `auth.log`/`secure`, `nginx/`), and **journald is binary** — `grep` on the file won't work, use `journalctl`.
 
-Two practical points. **Log rotation** via `logrotate` is what stops logs filling the disk, and its `copytruncate` versus `create` choice matters: with `create`, a process holding the old file keeps writing to a deleted inode until it is signalled to reopen — the deleted-but-open-file problem from §11. And on servers, `journalctl` output is not persistent unless `/var/log/journal` exists; otherwise it is lost on reboot.
+Two practical points. **Log rotation** via `logrotate` is what stops logs filling the disk, and its `copytruncate` versus `create` choice matters: with `create`, logrotate renames the file and the process keeps writing to the renamed `app.log.1` until signalled to reopen. If `compress` (without `delaycompress`) or `rotate N` then deletes that file, the space becomes a deleted-but-open file invisible to `du` (§11). `copytruncate` avoids the signal but can lose lines written during the copy. And on servers, `journalctl` output is not persistent unless `/var/log/journal` exists; otherwise it is lost on reboot.
 
 ---
 
@@ -406,7 +405,7 @@ grep -E "5[0-9]{2}" access.log          # extended regex
 # top 10 IPs by request count — the classic one-liner
 awk '{print $1}' access.log | sort | uniq -c | sort -rn | head
 
-# average response time from field 10
+# average response size in bytes (field 10 in the combined format; response time needs $request_time/%D in a custom log format)
 awk '{sum+=$10; n++} END {print sum/n}' access.log
 
 # 5xx responses only (status in field 9)
@@ -480,7 +479,7 @@ Ctrl-b % / "                # split vertical / horizontal
 Ctrl-b [                    # copy mode, scroll back
 ```
 
-The operational point: run any long migration, build or restore **inside tmux**, so a laptop sleeping or a Wi-Fi blip doesn't abort it halfway. `nohup cmd &` and `systemd-run` are alternatives when you don't need to reattach. `screen` does the same job and is more likely to be pre-installed.
+The operational point: run any long migration, build or restore **inside tmux**, so a laptop sleeping or a Wi-Fi blip doesn't abort it halfway. `nohup cmd &` and `systemd-run` are alternatives when you don't need to reattach. `screen` does the same job and is still common on older systems, but RHEL 8+ ships `tmux` instead (`screen` only via EPEL).
 
 ---
 
@@ -488,7 +487,7 @@ The operational point: run any long migration, build or restore **inside tmux**,
 
 **Q1: Explain how SSH key-based authentication works.**
 
-You generate a key pair; the **private key never leaves your machine** and the public key is appended to `~/.ssh/authorized_keys` on the server. On connection the server sends a challenge, your client signs it with the private key, and the server verifies that signature against the stored public key. Nothing reusable crosses the network, which is why it is strictly stronger than password auth — there is no credential to intercept and nothing practical to brute-force, and the key can be passphrase-protected at rest.
+You generate a key pair; the **private key never leaves your machine** and the public key is appended to `~/.ssh/authorized_keys` on the server. On connection your client signs data that includes the per-connection session identifier with the private key, and the server verifies that signature against the stored public key. Nothing reusable crosses the network, which is why it is strictly stronger than password auth — there is no credential to intercept and nothing practical to brute-force, and the key can be passphrase-protected at rest.
 
 Worth separating from this is the **host key**, a *different* pair that identifies the server and is what `known_hosts` records; that is the mechanism that detects a man-in-the-middle, and accepting the fingerprint prompt blindly (or setting `StrictHostKeyChecking=no`) throws that guarantee away.
 
@@ -518,7 +517,7 @@ The habit that matters is forming a hypothesis from the numbers before touching 
 
 **Q5: `df` says the disk is full but `du` doesn't account for the space. Why?**
 
-**Almost certainly deleted-but-still-open files, or inode exhaustion.** `du` walks the directory tree, so it cannot see a file that has been unlinked while a process still holds an open descriptor — the space stays allocated until that process closes the file or exits. The classic case is a log rotated with `create` semantics while the writing process was never signalled to reopen, so it keeps appending to a deleted inode that grows invisibly. Find it with **`lsof +L1`**, which lists open files with a link count of zero, and reclaim it by restarting or `HUP`-ing the holder.
+**Almost certainly deleted-but-still-open files, or inode exhaustion.** `du` walks the directory tree, so it cannot see a file that has been unlinked while a process still holds an open descriptor — the space stays allocated until that process closes the file or exits. The classic case is a log rotated with `create` semantics while the writing process was never signalled to reopen: it keeps appending to the renamed file, and once rotation compresses or ages that file out, it is appending to a deleted inode that grows invisibly. Find it with **`lsof +L1`**, which lists open files with a link count of zero, and reclaim it by restarting or `HUP`-ing the holder.
 
 The other cause is **inode exhaustion** — check `df -i`; millions of tiny files (session files, mail spool, cache) exhaust inodes while leaving plenty of free bytes, and it reports as "No space left on device" which sends people hunting for large files that don't exist. A third, rarer one is space reserved for root, which makes a filesystem appear full to unprivileged writes at ~95%.
 
@@ -528,11 +527,11 @@ The single biggest win is **`PasswordAuthentication no`** with key-only auth, wh
 
 Outside `sshd` itself: restrict source ranges at the **firewall or security group**, which does more than any config setting; run `fail2ban` to throttle noise; and at scale replace `authorized_keys` with **SSH certificates** from an SSH CA so access expires automatically and revocation is central. Changing the port only reduces log volume — it is not security.
 
-Two operational rules I'd insist on: always validate with **`sshd -t`** and test a new session from a second terminal **while keeping the current one open**, because a bad config on a host with no console access is unrecoverable; and use `reload` rather than `restart` so live sessions survive. On AWS, **SSM Session Manager** is better still — IAM-authorised shell access with CloudTrail auditing and no inbound port at all.
+Two operational rules I'd insist on: always validate with **`sshd -t`** and test a new session from a second terminal **while keeping the current one open**, because a bad config on a host with no console access is unrecoverable; and prefer `reload` to `restart`, because a restart with a broken config leaves nothing listening for new logins (existing sessions survive either way). On AWS, **SSM Session Manager** is better still — IAM-authorised shell access with CloudTrail auditing and no inbound port at all.
 
 **Q7: What's the difference between `SIGTERM` and `SIGKILL`, and why does it matter?**
 
-`SIGTERM` (15) is a **request** to terminate: the process can catch it, flush buffers, close connections, release locks and exit cleanly. `SIGKILL` (9) **cannot be caught or ignored** — the kernel destroys the process immediately, so in-flight writes are lost, temp files and lock files are left behind, and clients see abrupt connection resets. So you always send TERM first and only escalate to KILL if it doesn't exit within a grace period, which is exactly what `kill` does by default and what `systemd`'s `TimeoutStopSec` automates.
+`SIGTERM` (15) is a **request** to terminate: the process can catch it, flush buffers, close connections, release locks and exit cleanly. `SIGKILL` (9) **cannot be caught or ignored** — the kernel destroys the process immediately, so in-flight writes are lost, temp files and lock files are left behind, and clients see abrupt connection resets. So you always send TERM first and only escalate to KILL if it doesn't exit within a grace period. `kill` itself sends only TERM by default; the escalation is up to you, or is automated by `systemd`'s `TimeoutStopSec`.
 
 The reason this comes up beyond the shell is that it is the same contract everywhere: Docker's `stop` sends TERM then KILL after a grace period, and Kubernetes uses `terminationGracePeriodSeconds` — so an application that doesn't handle `SIGTERM` drops in-flight requests on every deploy. `SIGHUP` is the third one to know: many daemons reload configuration on HUP without restarting.
 
@@ -550,7 +549,7 @@ awk '{print $1}' access.log | sort | uniq -c | sort -rn | head
 
 `awk` extracts the first field, `sort` groups identical values **adjacently**, `uniq -c` collapses and counts them, and `sort -rn` orders by count descending. The detail that matters is that **`uniq` only collapses adjacent lines**, so omitting the first `sort` silently produces wrong counts rather than an error — that's the part interviewers are checking.
 
-From there you'd extend the same idiom: `awk '$9 >= 500'` to filter 5xx first, `awk '{sum+=$10; n++} END {print sum/n}'` for an average latency, and `grep -E "5[0-9]{2}"` when the field position varies. On a very large file, `awk` alone can do the counting in one pass with an associative array, which avoids sorting the whole input.
+From there you'd extend the same idiom: `awk '$9 >= 500'` to filter 5xx first, `awk '{sum+=$10; n++} END {print sum/n}'` for the average response size, and `grep -E "5[0-9]{2}"` when the field position varies. On a very large file, `awk` alone can do the counting in one pass with an associative array, which avoids sorting the whole input.
 
 **Q10: `ssh` says "Connection refused" on one host and "Connection timed out" on another. What's the difference?**
 
@@ -572,7 +571,7 @@ That distinction tells you where to look — refused is a service problem on a h
 
 **Q3: You edit `sshd_config`, restart sshd, and now you cannot log in at all. Your session is already closed. What should you have done?**
 
-**Kept the existing session open, validated with `sshd -t`, and tested a new connection from a second terminal before closing anything.** A bad `sshd_config` on a remote host with no out-of-band console is one of the few genuinely unrecoverable operational mistakes — you have removed the only way in. The safe procedure is: run `sshd -t` (or `sshd -T` to dump the effective config) to catch syntax errors, use `systemctl reload` rather than `restart` so live sessions survive, keep your current shell **open**, open a **new** terminal and confirm you can still authenticate, and only then close the original. Belt and braces for risky changes: schedule a revert with `at`/`sleep` that restores the previous config in ten minutes unless you cancel it, and run a second `sshd` on an alternate port as a fallback. Recovery without any of that means the provider console, a rescue instance with the volume attached, or SSM Session Manager if the agent is installed — which is a strong argument for having it installed everywhere.
+**Kept the existing session open, validated with `sshd -t`, and tested a new connection from a second terminal before closing anything.** A bad `sshd_config` on a remote host with no out-of-band console is one of the few genuinely unrecoverable operational mistakes — you have removed the only way in. The safe procedure is: run `sshd -t` (or `sshd -T` to dump the effective config) to catch syntax errors, prefer `systemctl reload` to `restart` so a broken config can't leave nothing listening, keep your current shell **open**, open a **new** terminal and confirm you can still authenticate, and only then close the original. Belt and braces for risky changes: schedule a revert with `at`/`sleep` that restores the previous config in ten minutes unless you cancel it, and run a second `sshd` on an alternate port as a fallback. Recovery without any of that means the provider console, a rescue instance with the volume attached, or SSM Session Manager if the agent is installed — which is a strong argument for having it installed everywhere.
 
 **Q4: Your monitoring alerts on load average above 8 on an 8-core box, but CPU utilisation is only 15%. Is the server overloaded?**
 
@@ -590,7 +589,7 @@ That distinction tells you where to look — refused is a service problem on a h
 
 1. Three phases: key exchange → **server** auth (host key) → **client** auth.
 2. **Host key** identifies the server (`known_hosts`); **user key** identifies you.
-3. The fingerprint prompt is the only MITM defence — never `StrictHostKeyChecking=no`.
+3. First-connect fingerprint = trust on first use; verify it out of band and never set `StrictHostKeyChecking=no`.
 4. Private keys never cross the wire.
 
 **Keys**
@@ -623,7 +622,7 @@ That distinction tells you where to look — refused is a service problem on a h
 
 **Transfer**
 
-21. Prefer **`rsync -avz`** — deltas, resume, permissions, `--delete`.
+21. Prefer **`rsync -avz`** — deltas, resume with `-P`, permissions, `--delete`.
 22. **Trailing slash**: `src/` copies contents; `src` copies the directory.
 23. `--dry-run` always, before `--delete`.
 

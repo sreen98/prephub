@@ -73,7 +73,7 @@ Two key types, two environments. Mixing them up is the most common source of mys
 | Webhook signing      | Server-side webhook verify     | whsec_…              |
 ```
 
-- **Publishable key** identifies your account to Stripe.js for tokenizing card details. Safe in the browser bundle; the worst an attacker can do with it is generate test tokens.
+- **Publishable key** identifies your account to Stripe.js for tokenizing card details. Safe in the browser bundle; it can only create tokens and PaymentMethods from card details, not charge cards or read account data.
 - **Secret key** authorizes server-side API calls (creating PaymentIntents, refunds, customers). Treat it like a database password. Leak = financial blast radius.
 - **Restricted keys** are secret keys with a scoped permission set (e.g., "can create PaymentIntents but not refunds"). Use these for services that don't need full access — limits the damage of a leaked key.
 - **Test mode vs Live mode** — every object you create in test mode is invisible in live mode and vice versa. Test mode never moves real money. Use it heavily during development.
@@ -82,7 +82,7 @@ Two key types, two environments. Mixing them up is the most common source of mys
 
 - Never commit keys to git, even `pk_live_*` (which is harmless but signals account leakage).
 - Use environment variables, secrets managers (AWS Secrets Manager, GCP Secret Manager, Vault).
-- **Rotate immediately** if a secret key is exposed — Stripe dashboard has a "roll key" button that issues a new one and revokes the old.
+- **Rotate immediately** if a secret key is exposed — the Dashboard's "Rotate key" issues a new key and expires the old one either now or after a delay of up to 7 days; on a leak, pick Now.
 
 ---
 
@@ -186,10 +186,14 @@ requires_confirmation     ← card attached, waiting for confirm()
 requires_action           ← needs 3DS or other auth (SCA)
         ↓
 processing                ← Stripe is working (e.g., async ACH)
-        ↓
+        ↓                    (with capture_method: 'manual', it stops at
+        ↓                     requires_capture until you capture the hold)
 succeeded                 ← money moved, you can fulfill the order
         OR
 canceled                  ← intentionally aborted
+
+A failed attempt (e.g., a decline) goes back to requires_payment_method,
+so the customer can retry with another card.
 ```
 
 **Server-side creation (typical):**
@@ -276,7 +280,7 @@ Without verification, anyone who guesses your URL can POST fake events that say 
 
 ### 6.3 Idempotency — Stripe will retry
 
-Stripe retries webhook deliveries with exponential backoff for up to **3 days** if your endpoint returns non-2xx or times out (after 30 seconds). Two implications:
+Stripe retries webhook deliveries with exponential backoff for up to **3 days** if your endpoint returns non-2xx or doesn't respond in time (Stripe doesn't publish the exact timeout). Two implications:
 
 1. **Same event will arrive multiple times.** You need to handle duplicates.
 2. **A long-running handler will trigger retries.** Acknowledge fast (return a 2xx within a few seconds) and push the heavy work onto a background queue, so a slow email or PDF step never makes Stripe think the delivery failed.
@@ -319,7 +323,8 @@ The signature scheme includes a timestamp. By default, Stripe's SDK rejects even
 payment_intent.succeeded             — fulfill the order
 payment_intent.payment_failed        — notify, retry, or refund stock
 charge.refunded                      — credit back, decrement metrics
-checkout.session.completed           — same as payment_intent.succeeded for Checkout
+checkout.session.completed           — fulfill only if payment_status !== 'unpaid'
+checkout.session.async_payment_succeeded / _failed — delayed methods (ACH etc.)
 invoice.payment_succeeded            — extend subscription
 invoice.payment_failed               — start dunning flow, email user
 customer.subscription.created
@@ -416,31 +421,32 @@ const sub = await stripe.subscriptions.create({
   customer: 'cus_…',
   items: [{ price: 'price_monthly_pro' }],
   payment_behavior: 'default_incomplete',
-  expand: ['latest_invoice.payment_intent'],
+  expand: ['latest_invoice.confirmation_secret'], // pre-basil API versions: 'latest_invoice.payment_intent'
 });
 
 // Hand the client the PI's client_secret to confirm the first payment
 res.json({
   subscription_id: sub.id,
-  client_secret: sub.latest_invoice.payment_intent.client_secret,
+  client_secret: sub.latest_invoice.confirmation_secret.client_secret,
 });
 ```
 
-`payment_behavior: 'default_incomplete'` is the modern default — the subscription is created in `incomplete` state, the user confirms the first invoice's PI, and only on success does the subscription move to `active`. This handles the SCA-required case correctly.
+`payment_behavior: 'default_incomplete'` is the recommended setting (the API default is `allow_incomplete`) — the subscription is created in `incomplete` state, the user confirms the first invoice's PI, and only on success does the subscription move to `active`. This handles the SCA-required case correctly.
 
 **Lifecycle states:**
 
 ```
 incomplete           — created, awaiting first payment
-incomplete_expired   — first payment failed for 24h, sub abandoned
+incomplete_expired   — first invoice not paid within 23 hours, sub abandoned
 trialing             — in free trial period
 active               — paid up
 past_due             — invoice failed, dunning in progress
 canceled             — terminated
 unpaid               — dunning gave up
+paused               — trial ended with no payment method; no invoices until resumed
 ```
 
-**Dunning** — Stripe will retry failed renewal payments on a schedule (default 4 retries over 1–3 weeks). After dunning fails, Stripe fires `customer.subscription.deleted` (depending on settings). Your job: listen and revoke access.
+**Dunning** — Stripe will retry failed renewal payments on a schedule (Smart Retries' recommended default: 8 tries within 2 weeks, configurable from 1 week to 2 months). After dunning fails, Stripe fires `customer.subscription.deleted` (depending on settings). Your job: listen and revoke access.
 
 **Proration** — when the user upgrades mid-cycle, Stripe credits the unused portion of the old plan and charges the prorated upgrade. Configurable via `proration_behavior: 'create_prorations'` (default) or `'none'`.
 
@@ -471,7 +477,7 @@ const coupon = await stripe.coupons.create({
 
 // 2. Create a customer-facing code
 const promo = await stripe.promotionCodes.create({
-  coupon: 'summer-25',
+  promotion: { type: 'coupon', coupon: 'summer-25' }, // pre-clover API versions: coupon: 'summer-25'
   code: 'SUMMER25',
   max_redemptions: 1000,            // per-code cap
   expires_at: Math.floor(Date.now() / 1000) + 30 * 86400,
@@ -505,7 +511,7 @@ This is a **time-of-check vs time-of-use (TOCTOU)** race. The validation and the
 
 **Layer 1 — Let Stripe enforce the cap atomically.**
 
-Don't reproduce Stripe's `max_redemptions` count in your application. When you actually redeem (i.e., create the PaymentIntent / Subscription with the discount), Stripe will reject the call atomically if the cap was hit. The validation step in your UI is *advisory*; the binding check happens server-side at redemption time. You handle the rejection gracefully:
+Don't reproduce Stripe's `max_redemptions` count in your application. When you actually redeem (i.e., create the Subscription, Invoice or Checkout Session with the discount — a bare PaymentIntent has no discount field, so Stripe can't enforce the cap on it), Stripe will reject the call atomically if the cap was hit. The validation step in your UI is *advisory*; the binding check happens server-side at redemption time. You handle the rejection gracefully:
 
 ```js
 async function run() {
@@ -542,7 +548,7 @@ CREATE TABLE coupon_redemptions (
   reserved_at     TIMESTAMP NOT NULL DEFAULT NOW(),
   committed_at    TIMESTAMP,
   expires_at      TIMESTAMP NOT NULL,
-  stripe_pi_id    TEXT
+  stripe_session_id TEXT
 );
 
 -- One active redemption per (user, code). A partial rule needs a unique INDEX:
@@ -577,22 +583,29 @@ async function checkout(userId, code) {
     throw new Error('Coupon reservation expired — please re-enter the code');
   }
 
-  // 3. Create the PaymentIntent / Subscription with the discount.
-  //    Stripe will reject if its own caps are hit (Layer 1).
-  const pi = await stripe.paymentIntents.create({ /* ... */ }, {
-    idempotencyKey: `pi-${userId}-${reservation.id}`,
+  // 3. Create the Checkout Session (or Subscription) WITH the discount, so
+  //    Stripe rejects it if its own caps are hit (Layer 1). A bare
+  //    PaymentIntent has no discount field, so Stripe couldn't check the cap.
+  //    promoId is the promo_… id you looked up for `code`.
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    discounts: [{ promotion_code: promoId }],
+    /* line_items, success_url, ... */
+  }, {
+    idempotencyKey: `redeem-${reservation.id}`,
   });
 
   // 4. Commit happens in the webhook, NOT here.
-  await db.couponRedemptions.update(reservation.id, { stripe_pi_id: pi.id });
+  await db.couponRedemptions.update(reservation.id, { stripe_session_id: session.id });
 }
 
 // 5. In the webhook handler — this is the binding moment
 async function handleWebhook(event) {
   switch (event.type) {
-    case 'payment_intent.succeeded':
+    case 'checkout.session.completed':
+      if (event.data.object.payment_status === 'unpaid') break; // delayed method: wait for async_payment_succeeded
       await db.couponRedemptions.update({
-        stripe_pi_id: event.data.object.id,
+        stripe_session_id: event.data.object.id,
       }, {
         status: 'committed',
         committed_at: new Date(),
@@ -606,10 +619,10 @@ The reservation gives you a 15-minute window during which the user "owns" the di
 
 **Layer 3 — Idempotency keys on the redemption.**
 
-Tie the idempotency key to the reservation id (or order id), not the request. If the user clicks "Pay" twice, both calls hit the same key and Stripe returns the same PaymentIntent — no double-redemption.
+Tie the idempotency key to the reservation id (or order id), not the request. If the user clicks "Pay" twice, both calls hit the same key and Stripe returns the same Checkout Session — no double-redemption.
 
 ```js
-const pi = await stripe.paymentIntents.create({ /* ... */ }, {
+const session = await stripe.checkout.sessions.create({ /* ..., discounts */ }, {
   idempotencyKey: `redeem-${reservation.id}`,
 });
 ```
@@ -623,13 +636,13 @@ Time  User               Your Server                 DB                Stripe
                                                      reserved
  t1   ── 30 sec idle filling card form ──
  t2   Click Pay          ── verify reservation ──▶   row exists?
-                         ── PaymentIntent.create ──▶ ── Stripe enforces cap ──▶ Stripe
+                         ── Checkout Session ─────▶ ── Stripe enforces cap ──▶ Stripe
                          ── (idempotency key) ───▶                              ↓ atomic
                                                                                 ↓ either
                                                                                 ↓ accept
                                                                                 ↓ or reject
-                                                     ◀── PI client_secret
- t3   Confirm w/ Stripe.js                                            ◀── confirm ─── Stripe
+                                                     ◀── session url
+ t3   Pays on Checkout page                                           ◀── pay ─────── Stripe
  t4                       ◀── webhook  ─────────────                                  ↓
                           ── commit redemption ──▶   status: committed
 ```
@@ -637,7 +650,7 @@ Time  User               Your Server                 DB                Stripe
 **Common mistakes to avoid:**
 
 - **Counting the global cap yourself** in your app DB instead of relying on Stripe's `max_redemptions`. Your "how many are left?" read and your later write are separate steps, so two checkouts racing between them both see a slot free. Stripe's check is atomic with the redemption; yours is not. Your own table is for per-user rules, not the global count.
-- **Committing in the client's success callback** instead of the webhook. The user's tab might close before the callback runs; the webhook is guaranteed to arrive (eventually).
+- **Committing in the client's success callback** instead of the webhook. The user's tab might close before the callback runs; the webhook is retried for up to 3 days even if the tab closes (back it with a reconciliation job for anything that still slips through).
 - **Reservation without TTL.** If a reservation never expires, abandoned carts hold codes forever. Always set `expires_at`.
 
 ### 10.4 First-time-customer codes
@@ -648,7 +661,7 @@ For "one per customer email," create per-customer Promotion Codes scoped to a sp
 
 ```js
 const promo = await stripe.promotionCodes.create({
-  coupon: 'returning-customer-10',
+  promotion: { type: 'coupon', coupon: 'returning-customer-10' },
   customer: 'cus_…',                   // scoped to one customer
   code: 'WELCOMEBACK',
 });
@@ -678,7 +691,7 @@ Partial refunds across multiple calls are fine — Stripe tracks how much remain
 
 ### 11.2 Disputes (Chargebacks)
 
-A dispute is the customer telling their bank "this charge was fraudulent / not as described." The bank reverses the funds. Stripe fires `charge.dispute.created`, you have ~7 days to submit evidence (receipts, shipping logs, customer-service emails).
+A dispute is the customer telling their bank "this charge was fraudulent / not as described." The bank reverses the funds. Stripe fires `charge.dispute.created`, you usually have 7–21 days, depending on the card network, to submit evidence (receipts, shipping logs, customer-service emails); the exact deadline is `evidence_details.due_by`.
 
 ```js
 async function handleWebhook(event) {
@@ -697,7 +710,7 @@ async function handleWebhook(event) {
 }
 ```
 
-**Dispute fees** — Stripe charges $15 per dispute, win or lose. Fraud disputes (`reason: 'fraudulent'`) above 1% of your volume put you on **excessive dispute** programs (Visa's VDMP, Mastercard's MCMP) with extra fees and risk of merchant termination.
+**Dispute fees** — in the US, Stripe charges a $15 dispute fee that is never refunded, plus a $15 countered fee if you submit evidence, which is refunded if you win. A high dispute or fraud rate puts you in **card-network monitoring programs** (Visa's VAMP, which consolidated the old VDMP and VFMP in 2025; Mastercard's Excessive Chargeback and Excessive Fraud Merchant programs) with extra fees and risk of merchant termination. Thresholds vary by program and region.
 
 ---
 
@@ -820,7 +833,7 @@ Real webhooks have stable payloads. Capture one (Stripe dashboard → Webhook at
 3.  metadata is your friend — store your business id (order_id, user_id)
     on Stripe objects for webhook lookup.
 4.  Use idempotency keys on EVERY mutating call, not just retries.
-5.  Webhook handlers must return 2xx within ~30s, else Stripe retries.
+5.  Webhook handlers must return 2xx quickly (within seconds), else Stripe retries.
 6.  Webhook signature verification uses RAW body bytes, not parsed JSON.
 7.  Don't recreate Customer per checkout — once per user, save the id.
 8.  off_session: true is required for charging without user presence.
@@ -846,7 +859,7 @@ Real webhooks have stable payloads. Capture one (Stripe dashboard → Webhook at
 
 **Q1: What's the difference between a publishable key and a secret key?**
 
-The publishable key (`pk_…`) identifies your account to Stripe.js running in the browser. It's safe to ship in your client bundle — the worst it can do is generate test tokens for your account. The secret key (`sk_…`) authorizes server-side API calls — creating PaymentIntents, refunds, customers, etc. Treat it like a database password; it must never appear in browser code, logs, or git.
+The publishable key (`pk_…`) identifies your account to Stripe.js running in the browser. It's safe to ship in your client bundle — it can only create tokens and PaymentMethods from card details, not charge cards or read account data. The secret key (`sk_…`) authorizes server-side API calls — creating PaymentIntents, refunds, customers, etc. Treat it like a database password; it must never appear in browser code, logs, or git.
 
 Stripe also has **restricted keys** (`rk_…`) which are secret keys with a scoped permission set (e.g., "can create PaymentIntents but not refunds"). These limit blast radius if a key leaks.
 
@@ -860,7 +873,7 @@ So your servers never touch primary account numbers (PANs). If a card number pas
 
 **Q3: What is a PaymentIntent and why did Stripe replace the old Charges API?**
 
-A PaymentIntent is a state machine for collecting a single payment. States: `requires_payment_method` → `requires_confirmation` → `requires_action` (for 3DS) → `processing` → `succeeded` / `canceled`. The Charges API was synchronous — you called `stripe.charges.create()` and got success/failure immediately. That model can't handle 3D Secure (PSD2 / SCA in Europe), which requires an async authentication step where the user goes to their bank's page mid-flow and comes back. PaymentIntent has an explicit `requires_action` state for it. New code should always use PaymentIntent.
+A PaymentIntent is a state machine for collecting a single payment. States: `requires_payment_method` → `requires_confirmation` → `requires_action` (for 3DS) → `processing` → `succeeded` / `canceled`, plus `requires_capture` when you authorize now and capture later (`capture_method: 'manual'`); a declined attempt returns to `requires_payment_method`. The Charges API was synchronous — you called `stripe.charges.create()` and got success/failure immediately. That model can't handle 3D Secure (PSD2 / SCA in Europe), which requires an async authentication step where the user goes to their bank's page mid-flow and comes back. PaymentIntent has an explicit `requires_action` state for it. New code should always use PaymentIntent.
 
 ---
 
@@ -902,7 +915,7 @@ The webhook is delivered with retries for up to 3 days, even if your service is 
 
 **Q8: How do webhooks handle duplicates? What's your dedup strategy?**
 
-Stripe retries webhook delivery on any non-2xx response or timeout (>30s) with exponential backoff for up to 3 days. So the same event arrives multiple times — guaranteed.
+Stripe retries webhook delivery on any non-2xx response or timeout (Stripe doesn't publish the exact limit) with exponential backoff for up to 3 days, and its docs warn that an endpoint can occasionally receive the same event more than once. So the same event can arrive more than once; design for it.
 
 Standard pattern: a `processed_events` table keyed on `event.id`. Insert with a unique constraint; if the insert throws on conflict, return 200 (already processed). Otherwise process and return 200. Wrapping the dedup insert + business logic in a single transaction means a crash mid-process re-runs cleanly.
 
@@ -957,7 +970,7 @@ stripe.paymentIntents.create({
 });
 ```
 
-Sellers must complete **KYC** (know-your-customer) before payouts — name, address, tax id, bank account. Stripe provides hosted onboarding (`stripe.accounts.createLink`) — never collect this yourself.
+Sellers must complete **KYC** (know-your-customer) before payouts — name, address, tax id, bank account. Stripe provides hosted onboarding (`stripe.accountLinks.create({ account, refresh_url, return_url, type: 'account_onboarding' })`) — never collect this yourself.
 
 Know who pays when it goes wrong: with this charge type (a *destination charge* — the platform creates the charge and transfers the seller's share), refunds and disputes are debited from the **platform's** balance. You recover the money from the seller by reversing the transfer (`reverse_transfer: true` on the refund, or a transfer reversal for a dispute), so your terms with sellers need to allow that.
 
@@ -978,7 +991,7 @@ Exemptions exist (low-value, low-risk, recurring after the first, merchant-initi
 
 **Q13: Your subscription customer's renewal payment fails. What happens, what do you do?**
 
-Stripe enters **dunning** — automated retry of the failed invoice on a configurable schedule (default 4 retries over 1–3 weeks). During this period the subscription is `past_due`. Each retry attempt fires `invoice.payment_failed`; the eventual success fires `invoice.payment_succeeded`.
+Stripe enters **dunning** — automated retry of the failed invoice on a configurable schedule (Smart Retries' recommended default: 8 tries within 2 weeks, configurable from 1 week to 2 months). During this period the subscription is `past_due`. Each retry attempt fires `invoice.payment_failed`; the eventual success fires `invoice.payment_succeeded`.
 
 If dunning gives up:
 - Default behavior: subscription transitions to `unpaid` or `canceled` (configurable in the dashboard).
@@ -1037,17 +1050,17 @@ Practice questions on the more subtle interview scenarios.
 
 This is a **time-of-check vs time-of-use (TOCTOU)** race. The validation happens at t=0 ("yes, the coupon has redemptions left"), the redemption happens at t=30 seconds, and any number of concurrent redemptions can land in between. The fix is to never rely on the validation result as binding — only the *redemption* is binding.
 
-**Layer 1 — Stripe enforces the global cap atomically.** Don't reproduce `max_redemptions` in your application database. When you actually create the PaymentIntent or Subscription with the discount, Stripe checks the count atomically as part of that API call and rejects the call if the coupon is used up (the only coupon-specific code Stripe documents is `coupon_expired`, so log the code and message of any other rejection). The validation step in your UI is *advisory*; the binding check happens at redemption. You handle the rejection gracefully — show the user "this code was just claimed, please try another."
+**Layer 1 — Stripe enforces the global cap atomically.** Don't reproduce `max_redemptions` in your application database. When you actually create the Subscription, Invoice or Checkout Session with the discount (a bare PaymentIntent has no discount field, so Stripe can't enforce the cap on it), Stripe checks the count atomically as part of that API call and rejects the call if the coupon is used up (the only coupon-specific code Stripe documents is `coupon_expired`, so log the code and message of any other rejection). The validation step in your UI is *advisory*; the binding check happens at redemption. You handle the rejection gracefully — show the user "this code was just claimed, please try another."
 
 **Layer 2 — Reserve in your DB for per-user constraints.** Stripe enforces global caps and per-customer caps (via `first_time_transaction` or per-customer Promotion Codes). For your business rules — "one per email," "stackable up to N times" — add a `coupon_redemptions` table with a partial unique index on `(user_id, promotion_code)` covering only active (`reserved` or `committed`) rows. Insert the reservation with a 15-minute TTL when the user enters the code. Concurrent redemption attempts by the same user fail at the unique-constraint level.
 
-**Layer 3 — Idempotency keys.** Tie the idempotency key to the reservation id, not the request: `idempotencyKey: \`redeem-\${reservation.id}\``. Double-clicks on "Pay" hit the same key and Stripe returns the same PaymentIntent.
+**Layer 3 — Idempotency keys.** Tie the idempotency key to the reservation id, not the request: `idempotencyKey: \`redeem-\${reservation.id}\``. Double-clicks on "Pay" hit the same key and Stripe returns the same Checkout Session.
 
-**The commit happens in the webhook, not the client.** When `payment_intent.succeeded` arrives, mark the reservation `committed`. If the user abandons the checkout, the reservation expires after 15 minutes and the slot frees up. The flow:
+**The commit happens in the webhook, not the client.** When a paid `checkout.session.completed` arrives, mark the reservation `committed`. If the user abandons the checkout, the reservation expires after 15 minutes and the slot frees up. The flow:
 
 ```
 t=0   user enters code        → reserve (DB unique constraint)
-t=30  user clicks Pay         → PI.create with idempotency key
+t=30  user clicks Pay         → Checkout Session create (with discount + idempotency key)
                                 → Stripe atomically checks max_redemptions
                                 → either succeeds or is rejected
 t=60  webhook arrives          → commit reservation
@@ -1090,7 +1103,7 @@ The same idea applies to Refunds, Subscriptions, Transfers, Customer creation, a
 
 **Explanation:**
 
-You've turned a transient failure into a customer-experience cliff. Card payments fail for many recoverable reasons — temporarily insufficient funds, fraud-alert hold, expired card, bank's risk system pinging at 2am. Stripe's **dunning** mechanism is specifically designed for this: it retries the failed invoice on a configurable schedule (default 4 attempts over 1–3 weeks) before declaring the subscription unrecoverable. During this window the subscription state is `past_due`, not `canceled`.
+You've turned a transient failure into a customer-experience cliff. Card payments fail for many recoverable reasons — temporarily insufficient funds, fraud-alert hold, expired card, bank's risk system pinging at 2am. Stripe's **dunning** mechanism is specifically designed for this: it retries the failed invoice on a configurable schedule (Smart Retries' recommended default: 8 tries within 2 weeks, configurable from 1 week to 2 months) before declaring the subscription unrecoverable. During this window the subscription state is `past_due`, not `canceled`.
 
 Revoking on the first `invoice.payment_failed` event:
 
@@ -1102,7 +1115,7 @@ The right pattern:
 
 - On **`invoice.payment_failed`**: do nothing access-wise. Email the customer "your payment didn't go through; please update your card here" with a link to the Stripe customer portal.
 - During `past_due`: keep access live, possibly with a soft warning banner.
-- On **`customer.subscription.deleted`** (only fires after dunning gives up — typically 2-3 weeks later, or per your dashboard settings): revoke access.
+- On **`customer.subscription.deleted`** (only fires after dunning gives up — about 2 weeks later with the recommended Smart Retries setting, or per your dashboard settings): revoke access.
 - Optionally, on the *final* dunning attempt (just before cancellation), email a last-chance reminder.
 
 A small refinement for high-trust products: after dunning ends in cancellation, give a 7–14 day grace period where the user's data is preserved and a one-click "reactivate" path is offered. Some of those customers never meant to leave — their card simply expired — and this gives them an easy way back.
@@ -1177,7 +1190,7 @@ Then a separate worker reads the `outbox` table and actually sends the emails, w
 
 **Why the outbox over "just retry the email synchronously":**
 
-- Email sends can take seconds; webhook handlers must finish in <30s.
+- Email sends can take seconds; webhook handlers must acknowledge quickly (Stripe doesn't publish the exact timeout; for `checkout.session.completed` with a `success_url`, Checkout waits only up to 10 s before redirecting).
 - Email service outages happen; you don't want webhook delivery to fail because Mailgun is down.
 - Multiple side effects (email + Slack + analytics) in one handler compound the latency and failure surface.
 
@@ -1199,8 +1212,8 @@ Disputes are the most legally and financially complex part of payments work. The
 
 - The customer told their bank "this charge was unauthorized / not as described / not received."
 - The bank reverses the funds — you lose the money immediately.
-- You have ~7 days to submit evidence (per Stripe; banks can be tighter).
-- The bank reviews and either rules in your favor (you get the money back, minus Stripe's $15 dispute fee) or against (you stay out the money plus the $15).
+- You usually have 7–21 days to submit evidence, depending on the card network (the dispute's `evidence_details.due_by` gives the exact deadline).
+- The bank reviews and either rules in your favor (you get the money back, minus Stripe's $15 dispute fee; the $15 countered fee is refunded) or against (you stay out the money plus $30 in fees).
 
 **On `charge.dispute.created` webhook:**
 
@@ -1211,7 +1224,7 @@ Disputes are the most legally and financially complex part of payments work. The
 
 **Strategic considerations:**
 
-- **The $15 dispute fee is per dispute, win or lose.** Multiple losses in a row drive your dispute rate up; if it crosses ~1% of volume, Visa's VDMP (Visa Dispute Monitoring Program) puts you in a remediation program with extra fees and possible merchant termination.
+- **The $15 dispute fee is per dispute, win or lose** (contesting adds a $15 countered fee, refunded only if you win). Every dispute drives your dispute rate up, win or lose; if it crosses a network's threshold, a monitoring program such as Visa's VAMP (Visa Acquirer Monitoring Program, which replaced VDMP in 2025) puts you in remediation with extra fees and possible merchant termination. Thresholds vary by program and region.
 - **It's often cheaper to refund proactively** than to dispute. If a customer emails "I want my money back," refunding before they file a dispute saves the $15 plus avoids the dispute-rate impact. The "always fight" approach is wrong-headed for low-value transactions.
 - **Tools like Stripe Radar** (fraud detection) reduce the inbound rate. Configure rules around country-of-card mismatch, velocity, ZIP/AVS failures.
 - **Friendly fraud** ("I got the goods but disputed anyway") is rampant in some categories (digital goods, subscriptions). Strong evidence (clickwrap acceptance of terms, login records, IP address, email confirmations of the purchase) wins these. Weak evidence (just a receipt) loses them.
@@ -1229,7 +1242,7 @@ Disputes are the most legally and financially complex part of payments work. The
 2.  Idempotency keys tied to BUSINESS operation, not request timestamp.
 3.  Webhook signature uses RAW body bytes; rejects events older than 5 min.
 4.  Stripe webhooks retry for 3 days on non-2xx; dedup on event.id.
-5.  Webhook handler must finish in <30s; outbox heavy work.
+5.  Webhook handler must acknowledge within seconds; outbox heavy work.
 6.  Coupons enforce max_redemptions atomically — don't reproduce in app DB.
 7.  For per-user coupon limits: DB reservation + TTL + UNIQUE constraint.
 8.  Commit redemption in webhook, NOT client callback.

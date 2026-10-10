@@ -2916,3 +2916,18 @@ the Q&A section also has a Qn. React's Tricky section (Q1–Q26) sits entirely u
 count (86), but JavaScript's Tricky Q46–Q53 (Q&A 45) and TypeScript's Q30–Q31 (Q&A 29) were
 stored with plain `-qN` ids. The migration therefore needs each guide's **deployed** Q&A count
 (`qaMax`), not just the suffix; the tests pin those cases.
+
+## Back End and DevOps audit (v1.7.16)
+
+32 guides, ten read-only auditors (237 findings: 205 confirmed, 31 FIX-CHANGE, 1 rejected), then ten independent verify-and-fix
+agents, each owning a disjoint set of files. Every finding was given a verdict: CONFIRMED,
+FIX-CHANGE (real problem, but the proposed text was itself wrong), REJECTED or UNVERIFIED.
+Roughly one in eight findings needed a FIX-CHANGE, which is why the second stage exists:
+- the auditor's MySQL fallback said COPY where it is INPLACE, and `INSTANT` is the default since 8.0.12;
+- a proposed SQL replacement example errored in PostgreSQL;
+- the proposed Trusted Types header would have blocked DOMPurify's own `dompurify` policy;
+- Terraform: `identifier` on an RDS instance does not force replacement (`engine` does);
+- Visa VAMP thresholds took effect in June 2025, not April;
+- raising multer's `files` limit to 50 would have allowed 500 MB in memoryStorage.
+Rejected: the Bitnami chart repo is still served, so its commands stay.
+Python and shell examples were checked against the docs, not executed (no runner in the gate).

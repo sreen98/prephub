@@ -65,7 +65,7 @@ The browser ALLOWS (even without CORS):
   ✅ <video> / <audio>        → loading media
 ```
 
-> **Key insight:** SOP is enforced by the **browser**, not the server. The server always receives and processes the request — SOP prevents the browser from exposing the response to JavaScript.
+> **Key insight:** SOP is enforced by the **browser**, not the server. For simple requests the server receives and processes the request, and SOP only stops the browser from exposing the response to JavaScript; for preflighted requests, a failed preflight stops the real request from being sent at all.
 
 ### Why SOP Exists — The Threat Model
 
@@ -76,10 +76,10 @@ The concrete attack SOP prevents:
 ```
 1. You log into bank.com → cookie set, you're authenticated.
 2. You visit attacker.com (in another tab, or same tab via a link).
-3. attacker.com's JS calls fetch('https://bank.com/api/balance').
-   The browser dutifully includes your bank cookie (cookies attach
-   based on the request URL's domain, not on the page that issued
-   the request).
+3. attacker.com's JS calls fetch('https://bank.com/api/balance',
+   { credentials: 'include' }). If the session cookie is
+   SameSite=None, the browser attaches it (cookies are keyed to the
+   request URL, not to the page that issued the request).
 4. WITHOUT SOP: attacker.com reads the response, knows your balance,
    exfiltrates it to its server. Game over.
    WITH SOP: bank.com's response comes back, but the browser refuses
@@ -89,7 +89,7 @@ The concrete attack SOP prevents:
 
 Three things to internalize about this threat model:
 
-1. **Cookies are domain-keyed, not page-keyed.** A request *to* `bank.com` carries `bank.com` cookies regardless of which page issued the request. SOP is what stops that from being a catastrophe.
+1. **Cookies are domain-keyed, not page-keyed.** A credentialed request *to* `bank.com` carries the `bank.com` cookies that SameSite allows, whichever page issued it. SOP is what stops that from being a catastrophe.
 2. **The server still ran the request.** SOP only blocks the *response* from reaching cross-origin JavaScript. State-changing requests can still be sent (this is the CSRF problem — see §11).
 3. **CORS is the deliberate exception.** SOP is the default deny. CORS lets specific servers say "yes, this origin is allowed to read my response." Without SOP, CORS would make no sense; the entire point of the dance is *opting out of a default block*.
 
@@ -103,8 +103,10 @@ Three things to internalize about this threat model:
       JSONP emerges as a workaround — exploits the fact that <script>
       tags are NOT same-origin restricted.
 
-2009: CORS specification finalized — formal, browser-coordinated way to
-      relax SOP for specific cross-origin requests.
+2009: The access-control draft (in W3C work since 2005) is renamed
+      Cross-Origin Resource Sharing — a formal, browser-coordinated way
+      to relax SOP for specific cross-origin requests. It became a W3C
+      Recommendation in 2014 and now lives in the WHATWG Fetch Standard.
 
 2010s: postMessage, Fetch API, modern security headers (CSP, COOP, COEP)
        layer on top of SOP for richer cross-origin scenarios.
@@ -170,11 +172,13 @@ With CORS:
 // An origin is: protocol + host + port
 const url = new URL("https://app.example.com:443/api/data?key=123#section");
 
-url.origin    // "https://app.example.com:443"
+url.origin    // "https://app.example.com" (default port 443 is dropped)
 url.protocol  // "https:"
-url.host      // "app.example.com:443"
+url.host      // "app.example.com"
 url.hostname  // "app.example.com"
-url.port      // "443" (default for https)
+url.port      // "" (empty: 443 is the https default)
+
+new URL("https://app.example.com:8443").origin  // "https://app.example.com:8443"
 ```
 
 ### Origin Comparison Examples
@@ -196,10 +200,10 @@ https://www.example.com:8080        ❌ No          Different port
 
 ```
 Requests that send Origin: null:
-  - Sandboxed iframes
-  - Local file:// URLs
-  - Redirects from data: URLs
-  - Privacy-sensitive contexts
+  - Sandboxed iframes and CSP sandbox documents
+  - file:, data: and blob: documents
+  - Requests redirected across origins
+  - Some Referrer-Policy values on non-CORS form posts
 
 ⚠️ NEVER allow Access-Control-Allow-Origin: null
    Multiple sources can send null — it's not a safe value to whitelist
@@ -230,6 +234,9 @@ ALL conditions must be true:
    ✅ Accept-Language
    ✅ Content-Language
    ✅ Content-Type (with restrictions)
+   ✅ Range (a single byte range)
+   Values must also be short (128 bytes each, 1024 total) and use
+   only safe characters, or a preflight is sent.
 
 3. Content-Type (if set) is one of:
    ✅ application/x-www-form-urlencoded
@@ -481,8 +488,10 @@ More precisely, the danger is *reading*: with `*` plus credentials, any site cou
 Cross-origin cookies require:
   1. credentials: "include" on the request
   2. Access-Control-Allow-Credentials: true in the response
-  3. The cookie must have SameSite=None
-  4. The cookie must have Secure flag (HTTPS only)
+  3. Cross-site (app.com → api.com): the cookie must have SameSite=None
+     (same-site, e.g. app.example.com → api.example.com, also sends
+     Lax and Strict cookies once credentials are included)
+  4. SameSite=None cookies must have the Secure flag (HTTPS only)
   5. The domain must match (cookie domain ⊇ API domain)
 
 // Server setting a cross-origin cookie:
@@ -505,7 +514,8 @@ Use for:
 
 Limitations:
   - Cannot use with credentials
-  - Cannot expose custom headers with wildcard
+  - Custom headers still need Access-Control-Expose-Headers
+    (list the names, or * since these requests carry no credentials)
 ```
 
 ### Pattern 2: Single Trusted Origin
@@ -741,7 +751,7 @@ Wildcard * with credentials          Use specific origin
 Missing Vary: Origin                 Always add when origin is dynamic
 OPTIONS returns 404/500              Ensure server handles OPTIONS method
 CORS headers on error responses      Add CORS headers even for 4xx/5xx
-Trailing slash mismatch              /api/data ≠ /api/data/
+Trailing slash in allowed origin     https://app.com/ ≠ https://app.com
 http vs https origin mismatch        Origins must exactly match
 Forgetting port in origin            localhost:3000 ≠ localhost:5000
 ```
@@ -967,7 +977,7 @@ export default defineConfig({
   }
 });
 
-// Create React App proxy
+// Legacy Create React App proxy (CRA was deprecated in 2025)
 // package.json
 const craProxyConfig = {
   "proxy": "http://localhost:4000"
@@ -1013,7 +1023,7 @@ You **cannot** use `*` when `credentials: "include"` is set on the request (or `
 
 **Q4: Why is CORS enforced by the browser and not the server?**
 
-Short answer: because what CORS protects is the *user's* logged-in session, and the browser is the only party that knows which website is asking. The server always processes the request regardless of CORS — it's the browser that decides whether to expose the response to JavaScript.
+Short answer: because what CORS protects is the *user's* logged-in session, and the browser is the only party that knows which website is asking. For simple requests, the server processes the request regardless of CORS — it's the browser that decides whether to expose the response to JavaScript.
 
 Think about who is where. The attacker's page runs inside the victim's browser, which attaches the victim's cookies to every request to `bank.com`. The browser knows the request came from `evil.com`'s script, so it can hold the response back on the user's side, without every server having to get the check right. And a non-browser client such as curl has no victim's cookies to abuse — anyone using curl is only using their own credentials. So CORS is a user-protection feature, not a server-side access control mechanism.
 

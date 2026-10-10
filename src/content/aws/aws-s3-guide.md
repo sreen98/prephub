@@ -27,7 +27,7 @@ Amazon Simple Storage Service (S3) is an **object storage service** that offers 
 "Object storage" is the idea everything else follows from: an object is a whole file plus its metadata, stored and replaced **as a unit**. You cannot append to it or rewrite byte 500 in place the way you can on a disk; to change it you upload a new copy. That is what lets S3 spread data across many machines and scale without limit — and why it is a poor fit for a database or anything that makes small in-place edits.
 
 Key characteristics:
-- **Object storage** — stores files (objects) up to 5 TB each, not block storage (a raw disk, like EBS) or file storage (a shared network filesystem, like EFS)
+- **Object storage** — stores files (objects) up to 50 TB each, not block storage (a raw disk, like EBS) or file storage (a shared network filesystem, like EFS)
 - **Globally unique buckets** — bucket names are unique across ALL AWS accounts, because the name becomes part of a public DNS hostname (`my-bucket.s3.amazonaws.com`)
 - **Flat namespace** — no real directories; prefixes (folder/) simulate folder structure
 - **Strongly consistent** — since December 2020, a read after a successful write, overwrite or delete always sees that change (before then, overwrites and deletes were only eventually consistent)
@@ -53,7 +53,8 @@ Storage:        $0.023 per GB/month (Standard)
 PUT/POST:       $0.005 per 1,000 requests
 GET:            $0.0004 per 1,000 requests
 Data transfer:  $0.09 per GB (out to internet, first 10 TB)
-Free tier:      5 GB storage, 20,000 GET, 2,000 PUT per month (12 months)
+Free tier:      accounts created before 15 July 2025: 5 GB storage, 20,000 GET, 2,000 PUT per month (12 months);
+                newer accounts get up to $200 in AWS Free Tier credits instead
 
 Example: 100 GB stored, 1M GETs, 50 GB transfer out per month
   = 100 * $0.023 + 1000 * $0.0004 + 50 * $0.09
@@ -73,7 +74,8 @@ Bucket names must be globally unique across all AWS accounts and follow DNS nami
 ```
 Rules:
   - 3 to 63 characters long
-  - Lowercase letters, numbers, and hyphens only
+  - Lowercase letters, numbers, periods and hyphens (avoid periods except for website
+    buckets: they break virtual-hosted HTTPS and Transfer Acceleration)
   - Must start with a letter or number
   - Cannot end with a hyphen
   - Cannot contain consecutive periods (..)
@@ -299,7 +301,7 @@ Glacier classes are designed for archival storage with varying retrieval speeds 
 
 Glacier Instant Retrieval:
   - Same speed as Standard — milliseconds latency
-  - 68% cheaper than Standard
+  - Up to 68% cheaper than Standard-IA (about 83% below Standard at list price)
   - Use case: medical images, news archives, quarterly accessed data
 
 Glacier Flexible Retrieval (formerly "Glacier"):
@@ -346,9 +348,8 @@ Access frequency?
 ├── Unpredictable access pattern
 │   └── S3 Intelligent-Tiering
 ├── Accessed monthly/quarterly
-│   ├── Need millisecond access?
-│   │   ├── Yes → Glacier Instant Retrieval
-│   │   └── No, minutes OK → Standard-IA
+│   ├── Accessed about monthly → Standard-IA (ms access, 30-day minimum)
+│   ├── Accessed about quarterly → Glacier Instant Retrieval (ms access, 90-day minimum, higher retrieval fee)
 │   └── Can it be re-created if lost?
 │       └── Yes → One Zone-IA
 ├── Accessed 1-2 times per year
@@ -913,7 +914,7 @@ aws s3api head-object --bucket my-bucket --key file.txt
 
 ```
 SSE-KMS considerations:
-  - KMS API calls count toward your KMS request quota (5,500-30,000 req/sec per region)
+  - KMS API calls count toward your KMS request quota (10,000–100,000 requests/sec per Region by default, depending on Region; adjustable)
   - High-throughput buckets may hit KMS throttling limits
   - Solution: use S3 Bucket Keys (reduces KMS calls by up to 99%)
   - CloudTrail logs every KMS Decrypt/Encrypt call (audit trail)
@@ -923,6 +924,8 @@ SSE-KMS considerations:
 ### 7.3 SSE-C (Server-Side with Customer Keys)
 
 You provide the encryption key with every request. S3 performs the encryption/decryption but does not store the key — you must manage key storage yourself.
+
+Since April 2026, SSE-C is blocked by default on new buckets (and on existing buckets in accounts that had no SSE-C objects). Writes that use it get 403 AccessDenied until you allow SSE-C in the bucket's default-encryption configuration (`PutBucketEncryption` with `BlockedEncryptionTypes` set to `NONE`).
 
 ```bash
 # Generate a 256-bit (32-byte) encryption key
@@ -1155,6 +1158,9 @@ Use cases for SRR:
       "Filter": {
         "Prefix": "logs/"                                // only replicate logs/
       },
+      "DeleteMarkerReplication": {
+        "Status": "Disabled"                             // required whenever a rule has a Filter
+      },
       "Destination": {
         "Bucket": "arn:aws:s3:::archive-bucket",
         "StorageClass": "GLACIER"                        // store as Glacier at destination
@@ -1222,10 +1228,9 @@ Use cases:
 aws s3 presign s3://my-bucket/private-file.pdf --expires-in 3600
 # Returns: https://my-bucket.s3.amazonaws.com/private-file.pdf?X-Amz-Algorithm=...&X-Amz-Expires=3600&...
 
-# Generate a pre-signed URL for uploading (PUT)
-aws s3 presign s3://my-bucket/uploads/user-photo.jpg \
-  --expires-in 300
-# Client uses this URL with a PUT request to upload directly to S3
+# The CLI can only presign GET. For uploads (PUT), use an SDK:
+# getSignedUrl(s3, new PutObjectCommand(...)) (example below)
+# or boto3 generate_presigned_url('put_object', ...)
 ```
 
 ```javascript
@@ -1306,7 +1311,7 @@ The most common pattern — trigger a Lambda function when an object is uploaded
 
 ```javascript
 // Lambda function triggered by S3 event
-exports.handler = async (event) => {
+export const handler = async (event) => {
   // event.Records contains the S3 event details
   for (const record of event.Records) {
     const bucket = record.s3.bucket.name;              // "my-bucket"
@@ -1463,7 +1468,7 @@ Multipart upload details:
   - Recommended for objects > 100 MB
   - Each part: 5 MB to 5 GB
   - Max parts: 10,000
-  - Max object size: 5 TB (10,000 parts * 5 GB)
+  - Max object size: 50 TB (since December 2025; it was 5 TB before). 10,000 parts × 5 GB max part size = 50 TB.
   - Parts upload in parallel for better throughput
   - Failed parts can be retried independently
 ```
@@ -1548,7 +1553,8 @@ aws s3api put-bucket-accelerate-configuration \
 
 # Use the accelerated endpoint for uploads
 aws s3 cp ./large-file.zip s3://my-bucket/large-file.zip \
-  --endpoint-url https://my-bucket.s3-accelerate.amazonaws.com
+  --endpoint-url https://s3-accelerate.amazonaws.com
+# (Buckets with periods in their names can't use Transfer Acceleration)
 
 # Speed comparison tool (check if acceleration helps for your location)
 # https://s3-accelerate-speedtest.s3-accelerate.amazonaws.com/en/accelerate-speed-comparsion.html
@@ -1718,7 +1724,7 @@ Production architecture for static website:
       ├── Origin: S3 bucket (via Origin Access Control)
       ├── HTTPS certificate (ACM)
       ├── Custom domain (www.example.com)
-      ├── Edge caching (200+ locations)
+      ├── Edge caching (750+ points of presence)
       └── Custom error responses (SPA: 404 → /index.html)
 
   Advantages over raw S3 hosting:
@@ -1925,7 +1931,8 @@ Financial Services (SEC Rule 17a-4):
 
 Healthcare (HIPAA):
   - Mode: GOVERNANCE (allows authorized deletion with approval)
-  - Retention: 6 years after last access
+  - Retention: 6 years from creation or last effective date (HIPAA documentation rule;
+    medical-record retention is set by state law)
   - Legal Hold for active investigations
 
 Legal/eDiscovery:
@@ -1949,7 +1956,7 @@ Governance mode use case:
 
 **Q1: What is Amazon S3 and what are its key features?**
 
-Short answer: S3 is AWS's object store — you put whole files ("objects", up to 5 TB each) into named containers ("buckets") over HTTP, and AWS keeps them safe and available without you managing any disks.
+Short answer: S3 is AWS's object store — you put whole files ("objects", up to 50 TB each) into named containers ("buckets") over HTTP, and AWS keeps them safe and available without you managing any disks.
 
 The features worth naming, and why each matters:
 
@@ -1973,7 +1980,7 @@ Short answer: they differ in *how you talk to them*. S3 is files over HTTP; EBS 
 |---------|-------------|-------------|------------|
 | Type | Object storage | Block storage | File storage (NFS) |
 | Access | REST API / HTTP | Mounted to one EC2 instance | Mounted to multiple EC2 instances |
-| Max size | 5 TB per object, unlimited total | 64 TB per volume | Unlimited |
+| Max size | 50 TB per object, unlimited total | 64 TB per volume | Unlimited |
 | Performance | High throughput | Low latency, high IOPS | Moderate latency |
 | Durability | 11 9s (across 3+ AZs) | Replicated within single AZ | Across 3+ AZs |
 | Use case | Static files, backups, data lakes | Databases, boot volumes | Shared file system, CMS |
@@ -2043,7 +2050,7 @@ S3 offers four encryption approaches:
 
 SSE means server-side encryption: S3 encrypts the object as it writes it to disk and decrypts it when you read it. The four options differ in **who holds the key**, and that decides what you can prove and who can read the data.
 
-SSE-S3 is the default since January 2023. Use SSE-KMS (KMS is AWS Key Management Service) when you need audit trails, key rotation control, or cross-account key sharing — every decrypt is a KMS call logged in CloudTrail, and a KMS key policy is a second permission check on top of S3's, so someone with S3 read access still cannot read the object without permission to use the key. Use SSE-C when regulation requires you to manage keys (BYOK, "bring your own key"): you send the key with each request and AWS never stores it, so losing it loses the data. Use client-side when S3 must never see unencrypted data.
+SSE-S3 is the default since January 2023. Use SSE-KMS (KMS is AWS Key Management Service) when you need audit trails, key rotation control, or cross-account key sharing — every decrypt is a KMS call logged in CloudTrail, and a KMS key policy is a second permission check on top of S3's, so someone with S3 read access still cannot read the object without permission to use the key. Use SSE-C when regulation requires you to manage keys (BYOK, "bring your own key"): you send the key with each request and AWS never stores it, so losing it loses the data. Since April 2026, new buckets block SSE-C writes (403) until you allow it with `PutBucketEncryption` (`BlockedEncryptionTypes` = `NONE`). Use client-side when S3 must never see unencrypted data.
 
 For SSE-KMS at high throughput, enable **S3 Bucket Keys** to reduce KMS API calls by up to 99%. Without them, every object read or write calls KMS, and KMS has a per-region request quota you can exhaust; a bucket key is generated once and reused for many objects.
 
@@ -2206,7 +2213,8 @@ Performance tuning:
   ├── Use random/hashed prefixes if hitting throughput limits on a single prefix
   ├── Enable S3 Request Metrics (CloudWatch) to monitor throttling
   ├── Use VPC Gateway Endpoint to avoid NAT Gateway costs and bottlenecks
-  └── Parallelize multipart uploads: 100 concurrent parts × 100 MB = 10 GB/sec throughput
+  └── Parallelize multipart uploads: aggregate throughput ≈ concurrent parts × per-connection
+      bandwidth (e.g. 100 parts at ~50 MB/s ≈ 5 GB/s), far above the ~115 MB/s this workload needs
 
 Cost optimization:
   ├── Lifecycle: raw/ → Standard-IA after 30 days → Glacier after 90 days
@@ -2220,7 +2228,7 @@ Cost optimization:
 
 **Q13: Explain S3 consistency model and its implications for distributed systems.**
 
-Short answer: once a write to S3 succeeds, every later read and list sees it. That guarantee is per object, though — S3 has no transactions across several objects and no locks, so coordinating related writes is still your job.
+Short answer: once a write to S3 succeeds, every later read and list sees it. That guarantee is per object, though — S3 has no transactions across several objects and no locks (conditional writes give compare-and-swap on a single key), so coordinating related writes is still your job.
 
 Since December 2020, S3 provides **strong read-after-write consistency** for all operations:
 
@@ -2239,7 +2247,7 @@ Implications for distributed systems:
 2. **Safe for configuration files** — write config, immediately read it from another service
 3. **Atomic at the object level** — no partial reads (you get the old version or the new one, never a mix)
 4. **NOT atomic across objects** — if you update two related objects, a reader might see one old and one new
-5. **No locking** — concurrent writes to the same key = last writer wins (use DynamoDB for locking if needed)
+5. **No locks, but conditional writes** — a plain PUT is last-writer-wins. Since 2024 you can send `If-None-Match: *` (fail if the key exists) or `If-Match: <ETag>` (fail if it changed since you read it) for compare-and-swap on one key; a failed condition returns 412. Multi-object transactions still need DynamoDB or a manifest pattern.
 6. **Metadata consistency** — tags and ACL updates are also strongly consistent
 
 For multi-object transactions, use DynamoDB transactions or implement a manifest pattern (write data objects first, then atomically update a manifest/pointer object).
@@ -2382,7 +2390,7 @@ Prevention strategies:
 
 6. **Horizontal partitioning** — for extreme scale, split across multiple buckets
 
-7. **SSE-KMS throttling** — if using SSE-KMS, KMS API rate limits (5,500-30,000/sec) may be the bottleneck. Enable S3 Bucket Keys to reduce KMS calls by 99%.
+7. **SSE-KMS throttling** — if using SSE-KMS, KMS API rate limits (10,000–100,000 requests/sec per Region by default, depending on Region; adjustable) may be the bottleneck. Enable S3 Bucket Keys to reduce KMS calls by 99%.
 
 ---
 

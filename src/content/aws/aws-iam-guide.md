@@ -208,8 +208,8 @@ aws iam get-access-key-last-used --access-key-id AKIAIOSFODNN7EXAMPLE
 # Audit: find users with no MFA enabled
 aws iam generate-credential-report
 aws iam get-credential-report --output text --query Content | base64 --decode | \
-  grep -E "^[^,]+,[^,]+,[^,]+,[^,]+,[^,]+,false"
-# The 6th field is "mfa_active" — false means no MFA
+  awk -F, 'NR>1 && tolower($8)=="false" {print $1}'
+# The 8th field is "mfa_active" — false means no MFA
 
 # Audit: find access keys older than 90 days
 aws iam list-users --query 'Users[].UserName' --output text | while read user; do
@@ -763,18 +763,19 @@ aws iam put-role-policy \
 
 Short answer: an explicit Deny anywhere wins; otherwise something must explicitly Allow the request; and if nothing does, the answer is Deny.
 
-The subtlety is that policy types play two different parts. Identity-based and resource-based policies *grant* access. The others only set a *ceiling*: an SCP (service control policy, set in AWS Organizations to cap what an entire account can do), a permission boundary (a cap on the most a single user or role can ever be granted) and a session policy (a cap passed in when a role is assumed) can never add a permission — they can only remove one. So a request needs an Allow from a granting policy *and* must fit under every ceiling that applies. When you are debugging an Access Denied, walk the list below and find which one said no.
+The subtlety is that policy types play two different parts. Identity-based and resource-based policies *grant* access. The others only set a *ceiling*: an RCP (resource control policy, set in AWS Organizations to cap what anyone can do to the resources in an account), an SCP (service control policy, set in AWS Organizations to cap what an entire account can do), a permission boundary (a cap on the most a single user or role can ever be granted) and a session policy (a cap passed in when a role is assumed) can never add a permission — they can only remove one. So a request needs an Allow from a granting policy *and* must fit under every ceiling that applies. When you are debugging an Access Denied, walk the list below and find which one said no.
 
 ```
 Policy Evaluation Order:
 
 1. Explicit Deny     → If ANY policy says Deny → DENIED (final, cannot be overridden)
-2. SCP (Org level)   → Service Control Policies must Allow (if using AWS Organizations)
-3. Resource Policy   → Resource-based policies (e.g., S3 bucket policy) evaluated
-4. Identity Policy   → User/group/role policies must Allow
-5. Permission Boundary → If set, must Allow
-6. Session Policy    → If using assumed role with session policy, must Allow
-7. Default Deny      → If nothing explicitly Allows → DENIED
+2. RCP (Org level)   → Resource Control Policies must Allow (if RCPs are enabled)
+3. SCP (Org level)   → Service Control Policies must Allow (if using AWS Organizations)
+4. Resource Policy   → Resource-based policies (e.g., S3 bucket policy) evaluated
+5. Identity Policy   → User/group/role policies must Allow
+6. Permission Boundary → If set, must Allow
+7. Session Policy    → If using assumed role with session policy, must Allow
+8. Default Deny      → If nothing explicitly Allows → DENIED
 
 Simplified flow:
   Request → Explicit Deny? → DENIED
@@ -789,18 +790,28 @@ Evaluation across policy types:
                         │ Is there an explicit Deny?          │
                         │   YES → DENY (always wins)          │
                         │   NO  ↓                             │
+                        │ Is there an RCP Allow?              │
+                        │   NO  → DENY                        │
+                        │   YES ↓                             │
                         │ Is there an SCP Allow?              │
                         │   NO  → DENY                        │
                         │   YES ↓                             │
                         │ Is there a resource-based Allow?    │
-                        │   YES → ALLOW (for same account)    │
+                        │ (same account)                      │
+                        │   Names the user or role session    │
+                        │     → ALLOW                         │
+                        │   Names the role ARN → skip to the  │
+                        │     permission boundary check ↓     │
                         │   NO  ↓                             │
                         │ Is there an identity-based Allow?   │
                         │   NO  → DENY (default deny)         │
                         │   YES ↓                             │
                         │ Is there a permission boundary?     │
                         │   YES → Does it Allow? If not, DENY │
-                        │   NO  → ALLOW                       │
+                        │   NO  ↓                             │
+                        │ Is there a session policy?          │
+                        │   YES → Does it Allow? If not, DENY │
+                        │   Otherwise → ALLOW                 │
                         └─────────────────────────────────────┘
 ```
 
@@ -880,11 +891,15 @@ Conditions add fine-grained control to policies by evaluating request context su
       }
     },
     {
-      "Sid": "AllowDuringBusinessHours",
+      "Sid": "AllowDuringMaintenanceWindow",
       "Effect": "Allow",
       "Action": "ec2:*",
       "Resource": "*",
       "Condition": {
+        // One absolute window (9:00–17:00 UTC on 1 Jan 2024 only). Date operators
+        // compare full date-times, so IAM can't express "every weekday 9–5";
+        // for a recurring schedule, attach/detach the policy on a timer
+        // (e.g. EventBridge Scheduler + Lambda)
         "DateGreaterThan": { "aws:CurrentTime": "2024-01-01T09:00:00Z" },
         "DateLessThan": { "aws:CurrentTime": "2024-01-01T17:00:00Z" }
       }
@@ -1741,14 +1756,18 @@ aws accessanalyzer validate-policy \
     "Statement": [
       {
         "Effect": "Allow",
-        "Action": "s3:*",
+        "Action": "iam:PassRole",
         "Resource": "*"
       }
     ]
   }'
-# Returns warnings like:
-# "findingType": "SUGGESTION",
-# "message": "Using wildcards in the action and resource is overly permissive"
+# Returns findings like:
+# "findingType": "SECURITY_WARNING",
+# "issueCode": "PASS_ROLE_WITH_STAR_IN_RESOURCE",
+# "findingDetails": "Using the iam:PassRole action with wildcards (*) in the resource
+#   can be overly permissive because it allows iam:PassRole permissions on multiple
+#   resources. We recommend that you specify resource ARNs or add the
+#   iam:PassedToService condition key to your statement."
 
 # Generate a policy from CloudTrail activity (least privilege)
 aws accessanalyzer start-policy-generation \
@@ -1895,15 +1914,16 @@ Best practice: Use customer managed policies for reusability and auditability. U
 
 Short answer: Deny wins. If any applicable policy explicitly denies the action, no number of Allows can override it. Without a Deny, the request still needs an explicit Allow, because the default is Deny.
 
-The part worth volunteering: SCPs, permission boundaries and session policies never grant anything — they are ceilings that can only take permissions away. Identity-based and resource-based policies are the ones that grant. IAM evaluates policies in this order:
+The part worth volunteering: RCPs, SCPs, permission boundaries and session policies never grant anything — they are ceilings that can only take permissions away. Identity-based and resource-based policies are the ones that grant. IAM evaluates policies in this order:
 
 1. **Explicit Deny** — If any policy explicitly denies the action, it is DENIED immediately. An explicit deny always wins, regardless of any allows.
-2. **Organization SCPs** — If using AWS Organizations, Service Control Policies must allow the action.
-3. **Resource-based policies** — If the resource has a resource-based policy that allows the action (same-account), it may be allowed.
-4. **Identity-based policies** — The user/role policies must explicitly allow the action.
-5. **Permission boundaries** — If set, the action must be within the boundary.
-6. **Session policies** — If using assumed role with session policy, it must allow.
-7. **Default Deny** — If nothing explicitly allows the action, it is DENIED.
+2. **Organization RCPs** — If resource control policies are enabled, they must allow the action on the resource.
+3. **Organization SCPs** — If using AWS Organizations, Service Control Policies must allow the action.
+4. **Resource-based policies** — If the resource has a resource-based policy that allows the action (same-account), it may be allowed.
+5. **Identity-based policies** — The user/role policies must explicitly allow the action.
+6. **Permission boundaries** — If set, the action must be within the boundary.
+7. **Session policies** — If using assumed role with session policy, it must allow.
+8. **Default Deny** — If nothing explicitly allows the action, it is DENIED.
 
 The key rule: **Explicit Deny > Everything > Default Deny**. You cannot override an explicit deny with any number of allows.
 
@@ -2021,7 +2041,7 @@ Even if a developer attaches `AdministratorAccess` to a role they create, the ef
 
 **Q11: Explain the full IAM policy evaluation flow for a cross-account request when both SCPs, permission boundaries, and session policies are involved.**
 
-Short answer: it is two separate checks. First, getting into the role — Account 1 must let User A call `sts:AssumeRole`, and the role's trust policy must let User A in. Second, every call made with the role's credentials — now only Account 2's policies apply, and the action must be allowed by the role and fit under every ceiling (SCP, boundary, session policy). User A's own permissions no longer matter once they are using the role.
+Short answer: it is two separate checks. First, getting into the role — Account 1 must let User A call `sts:AssumeRole`, and the role's trust policy must let User A in. Second, every call made with the role's credentials — now only Account 2's policies apply, and the action must be allowed by the role and fit under every ceiling (RCP, SCP, boundary, session policy). User A's own permissions no longer matter once they are using the role.
 
 For a cross-account request where User A in Account 1 assumes a role in Account 2, the full evaluation is:
 
@@ -2035,13 +2055,14 @@ For a cross-account request where User A in Account 1 assumes a role in Account 
 5. Conditions on the trust policy must be met (MFA, ExternalId, etc.)
 
 **Account 2 (target) — when using the assumed role's credentials:**
-6. Account 2 SCPs must allow the requested action
-7. The role's identity-based policies must allow the action
-8. If the role has a permission boundary, it must allow the action
-9. If a session policy was passed during AssumeRole, the action must be within the session policy
-10. If the target resource has a resource-based policy with an explicit deny, it takes precedence
+6. If RCPs are enabled, the RCPs that apply to the target resource's account must allow the action
+7. Account 2 SCPs must allow the requested action
+8. The role's identity-based policies must allow the action
+9. If the role has a permission boundary, it must allow the action
+10. If a session policy was passed during AssumeRole, the action must be within the session policy
+11. If the target resource has a resource-based policy with an explicit deny, it takes precedence
 
-Effective permissions = SCP ∩ Permission Boundary ∩ Session Policy ∩ Identity Policy
+Effective permissions = RCP ∩ SCP ∩ Permission Boundary ∩ Session Policy ∩ Identity Policy
 
 Any explicit deny at any level results in DENY. A missing allow at any level results in DENY (default deny).
 
@@ -2198,7 +2219,7 @@ Step 9: Use IAM Policy Simulator
 
 Step 10: Check CloudTrail
   → Look for the denied API call in CloudTrail logs
-  → errorCode: "AccessDenied" or "UnauthorizedAccess"
+  → errorCode: "AccessDenied" / "AccessDeniedException" (most services) or "Client.UnauthorizedOperation" (EC2)
   → Shows the full request context (principal, action, resource, IP, time)
 ```
 
@@ -2415,6 +2436,7 @@ SCP evaluation:
         "cloudtrail:StopLogging",
         "cloudtrail:DeleteTrail",
         "guardduty:DeleteDetector",
+        "guardduty:DisassociateFromAdministratorAccount",
         "guardduty:DisassociateFromMasterAccount",
         "config:StopConfigurationRecorder",
         "config:DeleteConfigurationRecorder"

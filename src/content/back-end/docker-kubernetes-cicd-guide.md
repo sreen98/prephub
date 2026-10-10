@@ -186,7 +186,7 @@ CMD ["node", "dist/server.js"]     # ✓ exec form → node is PID 1 and receive
 
 This matters because Kubernetes sends `SIGTERM`, waits `terminationGracePeriodSeconds` (30 by default), then `SIGKILL`s. If your process never sees the `SIGTERM`, every deploy drops in-flight requests. So handle it:
 
-```js
+```text
 process.on('SIGTERM', async () => {
   server.close();                      // stop accepting new connections
   await drainInFlightRequests();       // finish what's in progress
@@ -265,10 +265,12 @@ services:
   db:
     image: postgres:17-alpine
     environment:
+      POSTGRES_USER: app       # without these the image creates only the postgres role and database
+      POSTGRES_DB: app
       POSTGRES_PASSWORD: secret
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app"]
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
       interval: 5s
       retries: 10
 
@@ -342,7 +344,7 @@ spec:
   ports: [{ port: 80, targetPort: 3000 }]
 ```
 
-**How traffic finds a pod** — worth being able to narrate, because it's a common "explain what happens" question: the Service selects pods by **label**, and the endpoints controller maintains the list of *ready* pod IPs. When a pod fails its readiness probe it's removed from that list, so traffic stops going to it without the pod being killed. That distinction — readiness controls traffic, liveness controls restarts — is §7.1.
+**How traffic finds a pod** — worth being able to narrate, because it's a common "explain what happens" question: the Service selects pods by **label**, and the EndpointSlice controller maintains the list of *ready* pod IPs. When a pod fails its readiness probe it's removed from that list, so traffic stops going to it without the pod being killed. That distinction — readiness controls traffic, liveness controls restarts — is §7.1.
 
 
 ---
@@ -600,7 +602,7 @@ resource "aws_ecs_service" "api" {
 The concepts worth holding, without pretending to be a Terraform specialist:
 
 - **Declarative and idempotent** — you describe desired state; `plan` shows the diff; `apply` converges. Same reconciliation idea as Kubernetes.
-- **State is the crux.** Terraform's state file maps config to real resources. It must be in **remote storage with locking** (S3 + DynamoDB, or Terraform Cloud), or two engineers applying simultaneously corrupt it. State also **contains secrets in plaintext**, so it needs encryption and tight access.
+- **State is the crux.** Terraform's state file maps config to real resources. It must be in **remote storage with locking** (S3 with native `use_lockfile` locking, where DynamoDB is the deprecated older way, or HCP Terraform, formerly Terraform Cloud), or two engineers applying simultaneously corrupt it. State also **contains secrets in plaintext**, so it needs encryption and tight access.
 - **`plan` in CI on every PR** so reviewers see the infrastructure diff; `apply` gated on merge.
 - **Modules** for reuse; **workspaces** or separate state per environment.
 - **Drift** — someone changes something in the console and reality diverges from code. Detect it with a scheduled `plan`.
@@ -682,7 +684,7 @@ And I'd insist on a **`.dockerignore`** — without one, `COPY . .` ships `node_
 **The classic mistake is checking dependencies in the liveness probe**, and it causes cascading outages:
 
 ```
-Database hiccups for 20 seconds
+Database is unreachable for a minute
   → every pod's liveness probe fails
   → Kubernetes restarts EVERY pod at once
   → the app is fully down, pods crash-loop
@@ -846,11 +848,13 @@ jobs:
         with: { node-version: 24, cache: npm }
       - run: npm install
       - run: npm run content:meta          # generated files are built, never committed
+      - run: npm run playground:index      # also imported by src/, so it must exist before typecheck
       - run: npm run typecheck             # fast checks first: fail in seconds
       - run: npm run lint
       - run: npm run test
       - run: npm run verify:arch
       - run: npm run verify:blocks
+      - run: node scripts/prepare-content.js
       - run: npm run verify:counts
       - run: npm run build                 # Vite build + one HTML file per route
       - uses: peaceiris/actions-gh-pages@v4
@@ -969,7 +973,7 @@ CMD ["node", "dist/server.js"]   # ✓ node is PID 1 and receives it
 
 With shell form, Kubernetes sends `SIGTERM` to `sh`, which ignores it, waits out `terminationGracePeriodSeconds` (30s by default), then gets `SIGKILL`ed — taking every in-flight request with it. And even with exec form, you must actually handle it:
 
-```js
+```text
 process.on('SIGTERM', async () => {
   server.close();                    // stop accepting NEW connections
   await drainInFlight();             // finish what's in progress
@@ -983,7 +987,7 @@ process.on('SIGTERM', async () => {
 ```
 kubelet sends SIGTERM ──┐
                         ├── these race
-endpoints controller ───┘   removes the pod IP → kube-proxy/ingress updates rules
+EndpointSlice ctrl ─────┘   removes the pod IP → kube-proxy/ingress updates rules
 ```
 
 So for a brief window the pod has begun shutting down while load balancers are *still* routing to it. The fix is a `preStop` hook that simply waits, so the endpoint removal propagates before your app starts refusing connections:
@@ -991,7 +995,7 @@ So for a brief window the pod has begun shutting down while load balancers are *
 ```yaml
 lifecycle:
   preStop:
-    exec: { command: ["sh", "-c", "sleep 5"] }
+    sleep: { seconds: 5 }            # built-in, run by the kubelet: no shell needed (stable in v1.34)
 terminationGracePeriodSeconds: 30    # must exceed preStop + your drain time
 ```
 
@@ -1003,7 +1007,7 @@ Other contributors worth checking: `terminationGracePeriodSeconds` shorter than 
 
 ---
 
-**Q3: A brief database blip took down your entire service for ten minutes, even though the database recovered in twenty seconds. What happened?**
+**Q3: A brief database blip took down your entire service for several minutes, even though the database recovered in about a minute. What happened?**
 
 **Answer:** The liveness probe checked the database. Every pod failed it simultaneously, Kubernetes restarted them all, and the restart storm both removed all capacity and hammered the recovering database.
 
@@ -1019,15 +1023,16 @@ livenessProbe:
 The cascade:
 
 ```
-t+0s   DB becomes unreachable for 20s
+t+0s   DB becomes unreachable (it is back at t+60s)
 t+30s  every pod has failed liveness 3× → Kubernetes kills ALL of them
 t+35s  new pods start, fail their startup DB connection, exit
-t+45s  CrashLoopBackOff begins — with EXPONENTIAL BACKOFF (10s, 20s, 40s, 80s…)
-t+50s  DB is healthy again — but pods are now in a long backoff and won't retry yet
-t+10m  backoff finally elapses, pods start, service recovers
+t+45s  CrashLoopBackOff begins — with EXPONENTIAL BACKOFF (10s, 20s, 40s, 80s… capped at 5 min)
+t+60s  DB is reachable again — but every replica reconnecting at once overloads it,
+       so restarts keep failing and each wait doubles
+t+~6m  a restart lands after a 160s backoff wait, pods start, service recovers
 ```
 
-The database was fine after 20 seconds. The **outage was entirely self-inflicted**, and `CrashLoopBackOff`'s exponential delay is what turned a 20-second blip into ten minutes.
+The database was back after a minute. The **outage was entirely self-inflicted**, and `CrashLoopBackOff`'s exponential delay is what turned a one-minute blip into several minutes of total outage.
 
 The compounding factor: restarting a pod **cannot fix a database problem**. Every restart was pure harm — it destroyed warm connection pools and caches, and the simultaneous reconnection attempts from every replica made the database's recovery slower.
 
@@ -1092,7 +1097,7 @@ KUBERNETES
 19. Declarative RECONCILIATION: you declare desired state, controllers converge.
     That one idea explains self-healing, rolling updates and scaling.
 20. Deployment → ReplicaSet → Pods. Service = stable VIP + DNS selecting pods
-    BY LABEL; the endpoints controller tracks the READY ones.
+    BY LABEL; the EndpointSlice controller tracks the READY ones.
 21. PROBES: readiness = "route to me?" (removes from Service, pod lives)
     liveness  = "restart me?" (kills the container)
     startup   = disables the other two until it passes

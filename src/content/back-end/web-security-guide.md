@@ -104,7 +104,7 @@ The `href` case is the one people miss most often, and it's a genuine bug in a l
 const safe = /^(https?:|mailto:|\/)/i.test(url) ? url : '#';
 ```
 
-React warns about `javascript:` URLs in development and blocks some cases, but the reliable fix is your own scheme allowlist. The same applies to `src`, `formaction`, `xlink:href` and `srcdoc`.
+React 16.9–18 only warn about `javascript:` URLs in development; React 19 replaces them with a URL that throws. The reliable fix is still your own scheme allowlist, because the same string is dangerous wherever React isn't in the path (§13 Q1). The same applies to `src`, `formaction`, `xlink:href` and `srcdoc`.
 
 ### 2.3 When You Must Render HTML
 
@@ -193,14 +193,15 @@ Report-Only mode reports violations without blocking, so you deploy it, collect 
 CSP restricts script *sources*. **Trusted Types** attacks the other half: it makes the dangerous DOM sinks refuse plain strings at all.
 
 ```
-Content-Security-Policy: require-trusted-types-for 'script'; trusted-types default dompurify
+Content-Security-Policy: require-trusted-types-for 'script'; trusted-types app-html dompurify
 ```
 
 With that header, `element.innerHTML = someString` **throws**. It only accepts a `TrustedHTML` object produced by a policy you defined:
 
 ```js
-const policy = trustedTypes.createPolicy('dompurify', {
-  createHTML: (s) => DOMPurify.sanitize(s, { RETURN_TRUSTED_TYPE: true }),
+// 'dompurify' in the header is the policy DOMPurify creates for its own parsing; don't reuse that name
+const policy = trustedTypes.createPolicy('app-html', {
+  createHTML: (s) => DOMPurify.sanitize(s),
 });
 element.innerHTML = policy.createHTML(userInput);   // must go through the policy
 ```
@@ -232,7 +233,7 @@ Note what CSRF is **not**: the attacker cannot *read* the response (the same-ori
 Set-Cookie: session=…; HttpOnly; Secure; SameSite=Lax; Path=/
 ```
 
-`SameSite=Lax` (the modern browser default) blocks the cookie on cross-site **POST**, which stops the classic attack above. `Strict` blocks it on cross-site navigation too, which breaks "click a link in an email and arrive logged in."
+`SameSite=Lax` (set it explicitly: Chromium browsers apply `Lax` when the attribute is missing, but Firefox and Safari do not) blocks the cookie on cross-site **POST**, which stops the classic attack above. `Strict` blocks it on cross-site navigation too, which breaks "click a link in an email and arrive logged in."
 
 The gaps that make it insufficient on its own, and this is the depth interviewers look for:
 
@@ -562,7 +563,7 @@ It works because **cookies are attached automatically** by the browser based on 
 
 Defences, layered:
 
-1. **`SameSite=Lax` cookies** (the modern browser default) block the cookie on cross-site POST. Necessary but **not sufficient**: `Lax` still sends it on a top-level cross-site **GET** navigation, `SameSite` is *site*-scoped so subdomains count as same-site, and older or non-browser clients may not enforce it.
+1. **`SameSite=Lax` cookies** (set it explicitly: only Chromium browsers default a missing attribute to `Lax`) block the cookie on cross-site POST. Necessary but **not sufficient**: `Lax` still sends it on a top-level cross-site **GET** navigation, `SameSite` is *site*-scoped so subdomains count as same-site, and older or non-browser clients may not enforce it.
 2. **Anti-CSRF tokens** — the actual control. The attacker can cause a request but cannot read a value from your origin. Synchroniser token (server-side state) or signed double-submit cookie.
 3. **Validate `Origin`** or `Sec-Fetch-Site` on state-changing requests.
 4. **Never let `GET` mutate state** — that removes half the exposure.

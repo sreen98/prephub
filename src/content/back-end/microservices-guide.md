@@ -112,7 +112,7 @@ async function run() {
 
 Service A emits an event. Other services subscribe to events they care about. A doesn't know who's listening or care.
 
-```js
+```text
 // Service A (order service)
 await db.transaction(async tx => {
   await tx.orders.insert(order);
@@ -182,7 +182,7 @@ A load balancer in front of the service does the registry lookup. Clients call t
 
 ### Service mesh
 
-Istio, Linkerd. Sidecars (a proxy alongside each service container) handle discovery, retries, mTLS (mutual TLS — both ends of a connection present certificates, so each side proves who it is), observability. The service code is oblivious to networking concerns. Powerful, complex, expensive to operate.
+Istio, Linkerd. Proxies — classically sidecars (a proxy alongside each service container), or in Istio's ambient mode a shared per-node proxy — handle discovery, retries, mTLS (mutual TLS — both ends of a connection present certificates, so each side proves who it is), observability. The service code is oblivious to networking concerns. Powerful, complex, expensive to operate.
 
 For most teams: Kubernetes' built-in DNS discovery is enough. Consider a service mesh only when you have specific cross-cutting concerns (mTLS everywhere, traffic shifting for canary deploys) that justify the overhead.
 
@@ -255,7 +255,7 @@ Most production sagas are orchestrated (Temporal, Camunda, AWS Step Functions). 
 
 A subtle but critical pattern. The problem:
 
-```js
+```text
 await db.transaction(async tx => {
   await tx.orders.insert(order);   // commits to DB
 });
@@ -293,7 +293,7 @@ Network calls fail. Services go slow. Without defensive patterns, one slow servi
 
 ### Timeouts
 
-Every network call must have a timeout. The default `fetch` in many runtimes has none — it can wait forever. Wrap with `AbortController`:
+Every network call must have a timeout you chose. `fetch` takes no timeout option: browsers leave it to the network stack, and Node's built-in `fetch` waits up to 5 minutes for the response headers — far too long for a service-to-service call. Wrap with `AbortController`:
 
 ```js
 const ctl = new AbortController();
@@ -318,7 +318,8 @@ async function callWithRetry(url, opts, retries = 3) {
     try {
       const res = await fetch(url, opts);
       if (res.ok) return res;
-      if (res.status >= 400 && res.status < 500) return res;   // don't retry 4xx
+      // don't retry permanent 4xx; 408 and 429 are retryable (a real client also honours Retry-After)
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) return res;
       lastError = new Error(`HTTP ${res.status}`);
     } catch (e) { lastError = e; }
     if (i < retries) {
@@ -374,7 +375,7 @@ Per-service structured logs. Use a logging library that writes JSON: timestamp, 
 
 **Correlation:** every request gets a `request_id` (or `trace_id`). The gateway generates it; every downstream call propagates it as an HTTP header. Logs from every service for that request can be filtered by the id.
 
-```js
+```text
 // Express middleware to propagate trace ID
 app.use((req, res, next) => {
   req.traceId = req.headers['x-trace-id'] || crypto.randomUUID();
@@ -737,9 +738,9 @@ Typical timeline: 12–24 months for a meaningful migration. Many teams pause pa
 
 **Q12: What is a service mesh and when do you need one?**
 
-A **service mesh** is infrastructure that handles cross-cutting concerns for service-to-service communication, deployed as **sidecars** alongside each service container.
+A **service mesh** is infrastructure that handles cross-cutting concerns for service-to-service communication, deployed either as **sidecar** proxies beside each container (classic Istio, Linkerd) or, in Istio's ambient mode (GA since 1.24, Nov 2024), as a per-node proxy (ztunnel) plus optional L7 waypoint proxies.
 
-Sidecars (typically Envoy proxies) handle:
+The proxies (Envoy in Istio, linkerd2-proxy in Linkerd) handle:
 - Service discovery
 - mTLS (mutual TLS between services)
 - Retries, timeouts, circuit breaking
@@ -861,7 +862,7 @@ It does NOT provide:
 - Traffic splitting by HTTP header / cookie (canary at 5% to users with a specific cohort).
 - Application-level observability (distributed tracing, metrics) out of the box.
 
-**A service mesh (Istio, Linkerd) adds these without requiring app code changes**, via sidecar proxies that intercept all service traffic.
+**A service mesh (Istio, Linkerd) adds these without requiring app code changes**, via proxies (sidecars, or per-node in Istio's ambient mode) that intercept all service traffic.
 
 Whether you need it depends on what you're missing. If your services already have good HTTP client libraries with retries + circuit breaking, OpenTelemetry for tracing, and you don't need mTLS or sophisticated traffic management, Kubernetes alone is sufficient.
 
@@ -899,7 +900,7 @@ The user sees a "ghost period" between committing and propagation.
 
 **Q8: A service mesh slows your p99 latency from 50ms to 90ms. Your team wants to remove it. What questions should you ask before pulling the trigger?**
 
-The mesh isn't free: every call now passes through two extra proxies (the caller's sidecar and the callee's), and each adds some latency. But an 80% jump at p99 is more than you should simply accept as "the cost of a mesh". Treat it as a symptom to diagnose before you treat it as a reason to remove the mesh.
+The mesh isn't free: in a sidecar mesh every call now passes through two extra proxies (the caller's sidecar and the callee's), and each adds some latency. But an 80% jump at p99 is more than you should simply accept as "the cost of a mesh". Treat it as a symptom to diagnose before you treat it as a reason to remove the mesh.
 
 Questions before removing:
 
@@ -908,6 +909,7 @@ Questions before removing:
 2. **Have you measured the source of overhead?** Compare traces with and without the sidecar on the same path, and find where the extra time goes. Two common causes can be fixed without removing the mesh:
    - **The sidecars are starved of CPU.** A proxy that hits its CPU limit gets throttled, and requests queue behind it. That shows up in the tail (p99) long before the average moves. Raise the sidecar's CPU request and limit.
    - **Connections are not being reused.** If each call opens a new connection, it pays a fresh TCP and mutual-TLS handshake every time. Check whether the proxies upgrade HTTP/1.1 to HTTP/2 between each other (Istio's `h2UpgradePolicy` setting), so many calls share one connection.
+   - **Try ambient mode** (Istio 1.24+). It removes the per-pod sidecar hop and the sidecar CPU limits, often recovering most of the p99 while keeping mTLS.
 
 3. **What's the cost of NOT having mTLS?** If your compliance audit requires it, you can't just turn it off. You'd need to put TLS in every service's code — bigger change.
 

@@ -556,6 +556,13 @@ jobSchema.virtual('candidates', {
   ref: 'Candidate',
   localField: '_id',
   foreignField: 'jobId',
+});
+
+// Same join, but populate() fills in a number instead of the documents
+jobSchema.virtual('candidateCount', {
+  ref: 'Candidate',
+  localField: '_id',
+  foreignField: 'jobId',
   count: true, // only get count, not full docs
 });
 ```
@@ -1071,7 +1078,7 @@ CREATE TABLE users (
     name VARCHAR(100) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'recruiter'
         CHECK (role IN ('admin', 'manager', 'recruiter')),
-    department_id UUID REFERENCES departments(id),
+    department_id UUID,  -- FK added after departments exists (fk_users_department below)
     is_active BOOLEAN DEFAULT true,
     last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1493,7 +1500,7 @@ Application-level validation runs before the database is touched, so it can retu
 import { z } from 'zod';
 
 const createJobSchema = z.object({
-  title: z.string().min(1).max(200).trim(),
+  title: z.string().trim().min(1).max(200),
   description: z.string().optional(),
   departmentId: z.string().regex(/^[a-f\d]{24}$/i, 'Invalid department ID'),
   skills: z.array(z.object({

@@ -67,9 +67,9 @@ So a table accumulates **dead tuples**, and this is what "bloat" means: pages fu
 - Plain `VACUUM` marks space **reusable by the table**; it does not return it to the OS. `VACUUM FULL` does, but takes an `ACCESS EXCLUSIVE` lock and rewrites the whole table — never run it on a live hot table. Use `pg_repack` for online compaction.
 - `VACUUM` also updates the **visibility map**, which is what enables index-only scans.
 - `ANALYZE` updates **planner statistics**; a plan regression after a bulk load is usually stale stats.
-- On huge, frequently updated tables the default 20% threshold is far too lax — tune the scale factor down per table.
+- On huge, frequently updated tables the default 20% threshold is far too lax — tune the scale factor down per table. (PG 18's `autovacuum_vacuum_max_threshold`, default 100 million dead tuples, caps the threshold for very large tables; per-table tuning still matters below that.)
 
-**What blocks vacuum** is the classic production incident: a **long-running transaction**, an **idle-in-transaction** connection, an unused **replication slot**, or a **prepared transaction** holds the oldest visible snapshot, so vacuum cannot remove any tuple newer than it. Bloat then grows without bound while autovacuum runs and reclaims nothing. Watch `pg_stat_activity` for `state = 'idle in transaction'` and set `idle_in_transaction_session_timeout`.
+**What blocks vacuum** is the classic production incident: a **long-running transaction**, an **idle-in-transaction** connection, a **physical replication slot with `hot_standby_feedback`** whose standby is gone (a logical slot pins only catalog rows), or a **prepared transaction** holds the oldest visible snapshot, so vacuum cannot remove any tuple newer than it. Bloat then grows without bound while autovacuum runs and reclaims nothing. Watch `pg_stat_activity` for `state = 'idle in transaction'` and set `idle_in_transaction_session_timeout`.
 
 **Transaction ID wraparound.** Every transaction gets a transaction ID (XID), and XIDs are 32-bit, so the counter eventually wraps around to reuse old numbers. Before that happens Postgres must "freeze" old tuples — mark them as visible to everyone, so their stale `xmin` can never be mistaken for a future transaction. Freezing is done by vacuum, so if vacuum is blocked, Postgres first starts warning, then refuses writes entirely to protect data. That is one of the few ways to take a Postgres cluster fully read-only, and it is always the same root cause: vacuum was prevented from running.
 
@@ -142,8 +142,8 @@ CREATE INDEX CONCURRENTLY ON orders (customer_id);
 **Why your index isn't used** — the list to run through:
 
 1. **Non-sargable predicate.** "Sargable" (from *search argument able*) means the predicate compares the bare column, so the index can be searched directly. Wrapping the column in a function (`WHERE lower(email) = …`, `WHERE date(created_at) = …`) defeats a plain index. Fix with an expression index, or rewrite as a range.
-2. **Leftmost-prefix rule.** An index on `(a, b, c)` serves `a`, `(a,b)`, `(a,b,c)` — not `b` alone.
-3. **Type mismatch.** Comparing a `varchar` column to an integer, or a `timestamptz` to a `timestamp`, can force a cast on the column side.
+2. **Leftmost-prefix rule.** An index on `(a, b, c)` is most efficient when the query constrains `a`: it serves `a`, `(a,b)`, `(a,b,c)` directly. A query on `b` alone can still use it — since PG 18 a B-tree *skip scan* runs one index search per distinct `a` value — but that pays off only when `a` has few distinct values; otherwise the planner usually prefers a seq scan.
+3. **Type mismatch.** If the comparison resolves to an operator the index's operator class doesn't support, the column gets cast and the index is skipped — e.g. a `bigint` column compared to a `float8` or `numeric` value, or an explicit `::text` cast on a `uuid` column. (`varchar = integer` is an outright error in Postgres, unlike MySQL.)
 4. **Low selectivity.** If the predicate matches a large fraction of the table, a sequential scan genuinely is cheaper. The planner is right.
 5. **Stale statistics** — run `ANALYZE`.
 6. **The table is tiny.** A seq scan on one page always wins.
@@ -177,7 +177,7 @@ Timing caveat: `EXPLAIN ANALYZE` **executes the query**, including `INSERT`/`UPD
 SELECT data->'address'->>'city' FROM users;   -- -> returns jsonb, ->> returns text
 SELECT * FROM users WHERE data @> '{"plan":"pro"}';        -- containment
 CREATE INDEX ON users USING GIN (data);                    -- all keys/values
-CREATE INDEX ON users USING GIN (data jsonb_path_ops);     -- smaller, @> only
+CREATE INDEX ON users USING GIN (data jsonb_path_ops);     -- smaller; @>, @?, @@ (no key-exists ?)
 CREATE INDEX ON users ((data->>'email'));                  -- one hot key, B-tree
 ```
 
@@ -194,7 +194,7 @@ So a pooler is mandatory at any scale:
 - **Application-side pool** (HikariCP, `pg` Pool, SQLAlchemy) — reuses connections within one process. Necessary but insufficient when you run many processes: 50 pods × 20 connections = 1,000 connections.
 - **PgBouncer / RDS Proxy** — an external pooler multiplexing many client connections onto few server connections. In **transaction** pooling mode a server connection is assigned only for the duration of a transaction, which is what makes high client counts possible.
 
-The catch with transaction pooling: anything relying on **session state** breaks, because you are not guaranteed the same backend between statements — session-level `SET`, `LISTEN`/`NOTIFY`, advisory locks, `WITH HOLD` cursors, and server-side prepared statements. `session` pooling mode keeps state but loses most of the multiplexing benefit.
+The catch with transaction pooling: anything relying on **session state** breaks, because you are not guaranteed the same backend between statements — session-level `SET`, `LISTEN`/`NOTIFY`, advisory locks, `WITH HOLD` cursors, and SQL-level `PREPARE`. Protocol-level prepared statements (what drivers use) work in transaction mode since PgBouncer 1.21 via `max_prepared_statements`. `session` pooling mode keeps state but loses most of the multiplexing benefit.
 
 **Serverless makes this worse**: each Lambda container holds its own pool, so N concurrent invocations open N pools. Pool size 1–2 per container, short idle timeouts, and a proxy in front (§18.8 of the [Python guide](/backend/python)).
 
@@ -211,7 +211,7 @@ Also watch **`idle in transaction`**: a connection that opened a transaction and
 
 **Replica lag** is the thing that causes application bugs: a user writes, then reads from a replica and doesn't see their own write. Fixes are read-your-writes routing (send a user's reads to the primary for a short window), or `synchronous_commit = remote_apply` at the cost of latency. Monitor lag in bytes and seconds.
 
-**Logical replication** replicates row-level changes for selected tables via publications and subscriptions. Use it for cross-version upgrades, selective replication and CDC (change data capture — streaming every row change into another system such as a search index or warehouse). It does not replicate DDL, and a **replication slot whose consumer is gone will retain WAL forever** and block vacuum — a frequent cause of a disk filling up.
+**Logical replication** replicates row-level changes for selected tables via publications and subscriptions. Use it for cross-version upgrades, selective replication and CDC (change data capture — streaming every row change into another system such as a search index or warehouse). It does not replicate DDL, and a **replication slot whose consumer is gone will retain WAL indefinitely** (unless `max_slot_wal_keep_size` caps it) — a frequent cause of a disk filling up. A logical slot also stops vacuum removing old system-catalog rows (`catalog_xmin`); a physical slot with `hot_standby_feedback` holds back dead tuples in every table (`xmin`).
 
 Failover needs an external tool: **Patroni**, `repmgr`, or a managed service. Postgres does not elect a new primary by itself, and two primaries accepting writes (split brain) is the failure to design against.
 
@@ -293,6 +293,11 @@ Safe and effectively instant (metadata-only):
 ALTER TABLE t ADD COLUMN c text;                       -- nullable, no default
 ALTER TABLE t ADD COLUMN c int NOT NULL DEFAULT 0;     -- instant since PG 11
 ALTER TABLE t DROP COLUMN c;                           -- marks it dropped
+```
+
+Slow (they scan the table) but safe, because they don't block writes:
+
+```sql
 CREATE INDEX CONCURRENTLY …;                           -- no write lock
 ALTER TABLE t VALIDATE CONSTRAINT c;                   -- after adding NOT VALID
 ```
@@ -338,7 +343,7 @@ Postgres never updates a row in place. An `UPDATE` writes a **new tuple** and ma
 
 **Q2: Autovacuum is running but a table keeps bloating. What is wrong?**
 
-Something is **holding an old snapshot**, so vacuum runs but is not permitted to remove any tuple newer than the oldest transaction that might still see it. The usual culprits are a long-running transaction, a connection sitting `idle in transaction`, an **abandoned replication slot** whose consumer is gone, or a stuck prepared transaction. Diagnose from `pg_stat_activity` (look for old `xact_start` and `state = 'idle in transaction'`) and `pg_replication_slots`. Mitigate with `idle_in_transaction_session_timeout` and `statement_timeout`, dropping unused slots, and tuning `autovacuum_vacuum_scale_factor` down for large hot tables where the 20% default is far too lax. This matters beyond disk: if freezing cannot proceed, you eventually approach **transaction ID wraparound**, where Postgres warns and then refuses writes to protect data — and the root cause is always that vacuum was blocked.
+Something is **holding an old snapshot**, so vacuum runs but is not permitted to remove any tuple newer than the oldest transaction that might still see it. The usual culprits are a long-running transaction, a connection sitting `idle in transaction`, an **abandoned physical replication slot** with `hot_standby_feedback` (logical slots hold back only catalog rows), or a stuck prepared transaction. Diagnose from `pg_stat_activity` (look for old `xact_start` and `state = 'idle in transaction'`) and `pg_replication_slots`. Mitigate with `idle_in_transaction_session_timeout` and `statement_timeout`, dropping unused slots, and tuning `autovacuum_vacuum_scale_factor` down for large hot tables where the 20% default is far too lax. This matters beyond disk: if freezing cannot proceed, you eventually approach **transaction ID wraparound**, where Postgres warns and then refuses writes to protect data — and the root cause is always that vacuum was blocked.
 
 **Q3: What is the default isolation level, and what anomaly can still occur at `REPEATABLE READ`?**
 
@@ -346,7 +351,7 @@ The default is **`READ COMMITTED`**, where each *statement* takes a fresh snapsh
 
 **Q4: Why might Postgres ignore your index?**
 
-Run through seven causes. A **non-sargable predicate** — wrapping the column in a function like `lower(email)` or `date(created_at)` — defeats a plain index; fix with an expression index or a range rewrite. The **leftmost-prefix rule**: an index on `(a,b,c)` cannot serve a query filtering only on `b`. A **type mismatch** forcing a cast on the column side. **Low selectivity** — if the predicate matches a large fraction of rows, a sequential scan really is cheaper and the planner is correct. **Stale statistics**, fixed by `ANALYZE`. A **tiny table**, where one page is always faster to scan. And an **invalid index** left behind by a failed `CREATE INDEX CONCURRENTLY`, which you find via `pg_index.indisvalid`. Confirm with `EXPLAIN (ANALYZE, BUFFERS)` and compare estimated against actual rows — a big divergence is the usual root cause of a bad plan.
+Run through seven causes. A **non-sargable predicate** — wrapping the column in a function like `lower(email)` or `date(created_at)` — defeats a plain index; fix with an expression index or a range rewrite. The **leftmost-prefix rule**: an index on `(a,b,c)` is most efficient when the query constrains `a`; a query filtering only on `b` can use it only through PG 18's skip scan, which pays off just when `a` has few distinct values. A **type mismatch** forcing a cast on the column side — say a `bigint` column against a `float8` parameter (`varchar = integer` is simply an error in Postgres). **Low selectivity** — if the predicate matches a large fraction of rows, a sequential scan really is cheaper and the planner is correct. **Stale statistics**, fixed by `ANALYZE`. A **tiny table**, where one page is always faster to scan. And an **invalid index** left behind by a failed `CREATE INDEX CONCURRENTLY`, which you find via `pg_index.indisvalid`. Confirm with `EXPLAIN (ANALYZE, BUFFERS)` and compare estimated against actual rows — a big divergence is the usual root cause of a bad plan.
 
 **Q5: How do you read `EXPLAIN ANALYZE` output?**
 
@@ -354,15 +359,15 @@ Run through seven causes. A **non-sargable predicate** — wrapping the column i
 
 **Q6: When should you use `jsonb`, and what does it cost?**
 
-`jsonb` stores a parsed binary representation — slower to write, much faster to read, indexable with GIN, and it de-duplicates keys without preserving order; prefer it over `json` unless you need the byte-exact original. Reach for it for genuinely schemaless attributes, verbatim third-party payloads, and sparse per-tenant custom fields. The costs are real: no constraints or foreign keys inside the document, no type checking, weak planner estimates on jsonb predicates, and — the one people miss — updating a single key rewrites the **entire document** because of MVCC, so a large document under frequent partial updates produces heavy bloat. Index deliberately: GIN over the whole column, `jsonb_path_ops` for a smaller containment-only index, or a plain B-tree expression index on one hot key. The usual right answer is hybrid: real columns for anything you query, filter or constrain, `jsonb` for the long tail.
+`jsonb` stores a parsed binary representation — slower to write, much faster to read, indexable with GIN, and it de-duplicates keys without preserving order; prefer it over `json` unless you need the byte-exact original. Reach for it for genuinely schemaless attributes, verbatim third-party payloads, and sparse per-tenant custom fields. The costs are real: no constraints or foreign keys inside the document, no type checking, weak planner estimates on jsonb predicates, and — the one people miss — updating a single key rewrites the **entire document** because of MVCC, so a large document under frequent partial updates produces heavy bloat. Index deliberately: GIN over the whole column, `jsonb_path_ops` for a smaller index that serves `@>`, `@?` and `@@` but not the key-exists `?` operators, or a plain B-tree expression index on one hot key. The usual right answer is hybrid: real columns for anything you query, filter or constrain, `jsonb` for the long tail.
 
 **Q7: Why does Postgres need connection pooling more than other databases?**
 
-Because Postgres is **process-per-connection**: every client gets a forked OS process with its own memory, so connections are expensive and the practical ceiling is hundreds, not tens of thousands. Exceeding `max_connections` doesn't degrade gracefully — it refuses connections. An application-side pool reuses connections within a process but is insufficient when you run many processes, since 50 pods × 20 connections is 1,000 connections. So you add an external pooler — **PgBouncer** or RDS Proxy — in **transaction** mode, where a backend is assigned only for a transaction's duration. The trade-off to state: transaction pooling breaks anything depending on **session state**, because consecutive statements may hit different backends — session-level `SET`, `LISTEN`/`NOTIFY`, advisory locks, and server-side prepared statements. Serverless amplifies all of this, since each container holds its own pool; use pool size 1–2 and a proxy.
+Because Postgres is **process-per-connection**: every client gets a forked OS process with its own memory, so connections are expensive and the practical ceiling is hundreds, not tens of thousands. Exceeding `max_connections` doesn't degrade gracefully — it refuses connections. An application-side pool reuses connections within a process but is insufficient when you run many processes, since 50 pods × 20 connections is 1,000 connections. So you add an external pooler — **PgBouncer** or RDS Proxy — in **transaction** mode, where a backend is assigned only for a transaction's duration. The trade-off to state: transaction pooling breaks anything depending on **session state**, because consecutive statements may hit different backends — session-level `SET`, `LISTEN`/`NOTIFY`, advisory locks, and SQL-level `PREPARE` (protocol-level prepared statements, which drivers use, work since PgBouncer 1.21 via `max_prepared_statements`). Serverless amplifies all of this, since each container holds its own pool; use pool size 1–2 and a proxy.
 
 **Q8: Compare physical and logical replication, and name the operational hazard of each.**
 
-**Physical (streaming)** replication ships WAL and replays it byte-for-byte, producing read-only replicas identical to the primary; it is the standard mechanism for HA and read scaling. Its hazard is **replica lag** causing read-your-writes bugs — a user writes, reads from a replica, and doesn't see their own change — mitigated by routing a user's reads to the primary briefly or by `remote_apply` at a latency cost. Synchronous replication removes data loss but **blocks commits if the only synchronous standby is down**, so configure a quorum. **Logical** replication replicates row-level changes for selected tables via publications and subscriptions, which is what you use for cross-version upgrades, selective replication and CDC; it does not replicate DDL. Its hazard is that a **replication slot with no consumer retains WAL indefinitely**, filling the disk and blocking vacuum. Neither does automatic failover — that needs Patroni, repmgr or a managed service, and split brain is the thing to design against.
+**Physical (streaming)** replication ships WAL and replays it byte-for-byte, producing read-only replicas identical to the primary; it is the standard mechanism for HA and read scaling. Its hazard is **replica lag** causing read-your-writes bugs — a user writes, reads from a replica, and doesn't see their own change — mitigated by routing a user's reads to the primary briefly or by `remote_apply` at a latency cost. Synchronous replication removes data loss but **blocks commits if the only synchronous standby is down**, so configure a quorum. **Logical** replication replicates row-level changes for selected tables via publications and subscriptions, which is what you use for cross-version upgrades, selective replication and CDC; it does not replicate DDL. Its hazard is that a **replication slot with no consumer retains WAL indefinitely** (unless `max_slot_wal_keep_size` caps it), filling the disk; a logical slot also pins old system-catalog rows against vacuum. Neither does automatic failover — that needs Patroni, repmgr or a managed service, and split brain is the thing to design against.
 
 **Q9: When does partitioning help, and when does it hurt?**
 
@@ -374,7 +379,7 @@ Store chunks with an `embedding vector(n)` column alongside their relational met
 
 **Q11: Which schema migrations are safe on a live Postgres table, and which are not?**
 
-Safe and metadata-only: adding a nullable column, adding a `NOT NULL` column **with a default** (instant since PG 11), dropping a column, `CREATE INDEX CONCURRENTLY`, and validating a previously `NOT VALID` constraint. Dangerous: changing a column's type (a full table rewrite under `ACCESS EXCLUSIVE`), adding a `CHECK` or foreign key directly (scans the whole table), and `VACUUM FULL`. Use the two-step pattern — `ADD CONSTRAINT … NOT VALID` then `VALIDATE CONSTRAINT` — to avoid the long exclusive lock. The most important operational rule is to **always set a short `lock_timeout`**, because a statement waiting on an `ACCESS EXCLUSIVE` lock queues behind every running query *and blocks every new query behind it*, so one slow `SELECT` turns an instant migration into an outage. Postgres DDL being transactional is a real advantage, but `CREATE INDEX CONCURRENTLY` cannot run in a transaction block and leaves an invalid index behind on failure.
+Safe and metadata-only: adding a nullable column, adding a `NOT NULL` column **with a default** (instant since PG 11), and dropping a column. Slow but non-blocking (they scan the table without blocking writes): `CREATE INDEX CONCURRENTLY` and validating a previously `NOT VALID` constraint. Dangerous: changing a column's type (a full table rewrite under `ACCESS EXCLUSIVE`), adding a `CHECK` or foreign key directly (scans the whole table), and `VACUUM FULL`. Use the two-step pattern — `ADD CONSTRAINT … NOT VALID` then `VALIDATE CONSTRAINT` — to avoid the long exclusive lock. The most important operational rule is to **always set a short `lock_timeout`**, because a statement waiting on an `ACCESS EXCLUSIVE` lock queues behind every running query *and blocks every new query behind it*, so one slow `SELECT` turns an instant migration into an outage. Postgres DDL being transactional is a real advantage, but `CREATE INDEX CONCURRENTLY` cannot run in a transaction block and leaves an invalid index behind on failure.
 
 **Q12: What are the main differences between Postgres and MySQL that would affect your design?**
 
@@ -422,10 +427,10 @@ Four that actually change decisions. **Connection model**: Postgres forks a proc
 7. Plain `VACUUM` makes space reusable by the table; `VACUUM FULL` returns it to the OS but locks exclusively.
 8. Use `pg_repack` for online compaction, never `VACUUM FULL` on a hot table.
 9. `ANALYZE` updates planner stats — run it after bulk loads.
-10. Vacuum is blocked by long transactions, `idle in transaction`, orphaned replication slots, prepared transactions.
+10. Vacuum is blocked by long transactions, `idle in transaction`, orphaned physical slots with `hot_standby_feedback`, prepared transactions.
 11. Set `idle_in_transaction_session_timeout` and `statement_timeout`.
 12. Blocked vacuum eventually means XID wraparound and refused writes.
-13. Tune `autovacuum_vacuum_scale_factor` down for big hot tables — 20% is too lax.
+13. Tune `autovacuum_vacuum_scale_factor` down for big hot tables — 20% is too lax (PG 18 caps the threshold at `autovacuum_vacuum_max_threshold`, default 100M dead tuples).
 
 **Transactions**
 
@@ -442,7 +447,7 @@ Four that actually change decisions. **Connection model**: Postgres forks a proc
 21. A failed `CONCURRENTLY` build leaves an **invalid** index; check `indisvalid`.
 22. Partial indexes for a hot subset; expression indexes make functions sargable.
 23. `INCLUDE` columns enable index-only scans (which need the visibility map, hence vacuum).
-24. Leftmost-prefix rule applies to composite indexes.
+24. Composite indexes are most efficient on the leading column; PG 18 skip scan helps only when it has few distinct values.
 
 **Plans**
 
@@ -461,7 +466,7 @@ Four that actually change decisions. **Connection model**: Postgres forks a proc
 **Connections**
 
 33. Hundreds of connections, not thousands. `max_connections` refuses, it doesn't queue.
-34. PgBouncer **transaction** mode for scale; it breaks session state (`SET`, `LISTEN`, advisory locks, prepared statements).
+34. PgBouncer **transaction** mode for scale; it breaks session state (`SET`, `LISTEN`, advisory locks, SQL-level `PREPARE`); protocol-level prepared statements work since 1.21 (`max_prepared_statements`).
 35. Serverless: pool size 1–2 per container plus a proxy.
 
 **Replication**
@@ -470,7 +475,7 @@ Four that actually change decisions. **Connection model**: Postgres forks a proc
 37. Async can lose data on failover; sync blocks commits if the only standby is down — use a quorum.
 38. Replica lag causes read-your-writes bugs.
 39. Logical replication: per-table, no DDL, good for upgrades and CDC.
-40. An orphaned replication slot retains WAL forever and blocks vacuum.
+40. An orphaned replication slot retains WAL indefinitely (unless `max_slot_wal_keep_size` caps it); a logical slot also pins catalog rows.
 41. Failover needs Patroni/repmgr/managed — Postgres won't elect a primary.
 
 **Partitioning and migrations**
@@ -478,7 +483,7 @@ Four that actually change decisions. **Connection model**: Postgres forks a proc
 42. Biggest win is instant `DROP` of old partitions, not read speed.
 43. The partition key must appear in the query or pruning can't happen.
 44. Unique constraints must include the partition key.
-45. Safe DDL: nullable column, `NOT NULL` + default (PG 11+), drop column, `CONCURRENTLY`, `VALIDATE`.
+45. Instant DDL: nullable column, `NOT NULL` + default (PG 11+), drop column. Slow but non-blocking: `CONCURRENTLY`, `VALIDATE`.
 46. Unsafe: type change, direct `CHECK`/FK, `VACUUM FULL`.
 47. Two-step constraints: `NOT VALID` then `VALIDATE CONSTRAINT`.
 48. **Always `SET lock_timeout`** — a pending exclusive lock blocks every query behind it.

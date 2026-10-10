@@ -102,7 +102,7 @@ inventory/
 plugin: amazon.aws.aws_ec2
 regions: [us-east-1]
 keyed_groups:
-  - key: tags.Role       # creates groups like tag_Role_web
+  - key: ec2_tags.Role   # creates groups like tag_web (key: ec2_tags gives tag_Role_web)
     prefix: tag
 filters:
   instance-state-name: running
@@ -157,7 +157,7 @@ ansible-inventory -i inventory/ --graph      # verify what Ansible actually sees
 
 A **playbook** is a list of **plays**; each play maps a set of hosts to **tasks**; each task calls a **module** with arguments. Use **fully qualified collection names** (`ansible.builtin.apt`) — short names are ambiguous once you have collections installed, and FQCNs are the modern standard.
 
-Execution order within a play: `pre_tasks` → `roles` → `tasks` → `post_tasks` → handlers. By default Ansible runs each task on **all hosts** before moving to the next task (the `linear` strategy), which is what makes `serial` a meaningful rolling-deployment control.
+Execution order within a play: `pre_tasks` → handlers → `roles` → `tasks` → handlers → `post_tasks` → handlers (notified handlers are flushed after each of those three sections). By default Ansible runs each task on **all hosts** before moving to the next task (the `linear` strategy), which is what makes `serial` a meaningful rolling-deployment control.
 
 ---
 
@@ -208,7 +208,6 @@ When you genuinely must shell out, make it honest:
   register: build
   changed_when: build.rc == 0 and 'up to date' not in build.stdout
   failed_when: build.rc != 0
-  check_mode: false                       # it's safe to skip in check mode
 ```
 
 `creates` / `removes` give you conditional execution; `changed_when` and `failed_when` let you report truthfully. Also: `command` does **not** run through a shell, so no pipes, redirects or globs — that's a feature, since it avoids shell-injection. Use `shell` only when you need shell features, and quote carefully.
@@ -305,7 +304,7 @@ upstream app {
 
 Filters you'll use constantly: `default(x)`, `mandatory`, `to_json`, `to_nice_yaml`, `join(',')`, `bool`, `int`, `regex_replace()`, `combine()`, `dict2items`, `password_hash('sha512')`.
 
-**Handlers** run **once at the end of the play**, only if notified, and only if the notifying task actually reported `changed`:
+**Handlers** run **once, at the end of the section that notified them** (`pre_tasks`, `roles`/`tasks`, `post_tasks`), only if notified, and only if the notifying task actually reported `changed`:
 
 ```yaml
 - ansible.builtin.template:
@@ -349,7 +348,7 @@ That design is deliberate: ten tasks touching nginx config produce **one** resta
   when: run_migrations | bool
 ```
 
-`loop` replaces the old `with_items` family. Note **`when` on a loop is evaluated per item**, and `when` on a block applies to every task inside it. A common trap is that `when` with an undefined variable errors rather than being false — use `when: myvar | default(false) | bool`, and remember a non-empty string like `"false"` is **truthy** unless you pipe it through `| bool`.
+`loop` replaces the old `with_items` family. Note **`when` on a loop is evaluated per item**, and `when` on a block applies to every task inside it. A common trap is that `when` with an undefined variable errors rather than being false — use `when: myvar | default(false) | bool`, and remember a non-empty string like `"false"` is **truthy** unless you pipe it through `| bool` (on ansible-core 2.19+ a non-boolean `when` result is an error instead: "Conditionals must have a boolean result").
 
 ---
 
@@ -547,13 +546,13 @@ The things that quietly break it are worth naming: **`shell`/`command`** can't k
 
 Modules are idempotent, report `changed` accurately, work in `--check` mode and return structured data; `shell` and `command` do none of that, so they execute unconditionally, always report `changed` — which breaks handlers by triggering restarts every run — and make check mode meaningless.
 
-When shelling out is genuinely necessary, make it honest: use **`creates`** or `removes` so it skips when the work is already done, **`changed_when`** to report truthfully based on return code or output, **`failed_when`** to define real failure, and `check_mode: false` if it's safe to skip during a dry run.
+When shelling out is genuinely necessary, make it honest: use **`creates`** or `removes` so it skips when the work is already done, **`changed_when`** to report truthfully based on return code or output, **`failed_when`** to define real failure, and `check_mode: false` only for a read-only command that is safe to run for real during a dry run (it forces the task to execute even under `--check`).
 
 Also prefer `command` over `shell`: `command` doesn't invoke a shell, so there are no pipes, globs or redirects and therefore no shell-injection risk — reach for `shell` only when you actually need shell features.
 
 **Q4: Explain handlers, and the two ways they surprise people.**
 
-A handler is a task that runs **once at the end of the play**, only if notified, and only if the notifying task actually reported `changed`. That means ten tasks all touching nginx configuration produce a single restart instead of ten, which is exactly what you want.
+A handler is a task that runs **once, at the end of the section that notified it** (`pre_tasks`, `roles`/`tasks`, `post_tasks`), only if notified, and only if the notifying task actually reported `changed`. That means ten tasks all touching nginx configuration produce a single restart instead of ten, which is exactly what you want.
 
 The first surprise is that handlers are matched **by name**, so a typo in `notify` silently does nothing at all — no error, no restart, and a service left running stale config. The second is that if a **later task in the play fails, pending handlers never run**, so a config change is written to disk but the service is never restarted, leaving the host in a half-applied state; `--force-handlers` or an explicit `meta: flush_handlers` at a chosen point addresses that.
 
@@ -617,11 +616,11 @@ So the honest positioning is that Ansible has moved from "how you configure serv
 
 **Q2: A task writes a new config file successfully, but the service is still running the old configuration after the playbook finishes with no errors reported for that task. What happened?**
 
-**A later task in the play failed, so the pending handler never ran.** Handlers are deferred to the end of the play, and if any subsequent task fails on that host, Ansible stops processing it and the queued `Restart nginx` is silently dropped — the file is on disk, the service is stale, and the failure message points at an unrelated task. The other candidate is a **`notify` name that doesn't match the handler's name**, which fails completely silently: no error, no restart. Fixes: use `--force-handlers` (or `force_handlers: true`) so notified handlers run even after a failure, insert `meta: flush_handlers` at a safe point to apply restarts before risky later work, and add `validate:` to template tasks so a broken config can't be installed at all. This is also why a health check with `retries`/`until` after a deploy is worth having — it catches the half-applied state that no task reported as an error.
+**A later task in the play failed, so the pending handler never ran.** Handlers are deferred to the end of the section (`pre_tasks`, `roles`/`tasks` or `post_tasks`), and if any subsequent task fails on that host, Ansible stops processing it and the queued `Restart nginx` is silently dropped — the file is on disk, the service is stale, and the failure message points at an unrelated task. The other candidate is a **`notify` name that doesn't match the handler's name**, which fails completely silently: no error, no restart. Fixes: use `--force-handlers` (or `force_handlers: true`) so notified handlers run even after a failure, insert `meta: flush_handlers` at a safe point to apply restarts before risky later work, and add `validate:` to template tasks so a broken config can't be installed at all. This is also why a health check with `retries`/`until` after a deploy is worth having — it catches the half-applied state that no task reported as an error.
 
 **Q3: `when: enable_feature` skips on some hosts and runs on others, and the variable is the string `"false"` everywhere. Why?**
 
-**A non-empty string is truthy in Jinja2, so `"false"` evaluates as true — and the hosts that skipped had the variable set as a real boolean.** Ansible variables come from many sources with different types: YAML `enable_feature: false` is a genuine boolean, whereas a value from an environment variable, a `-e` command-line override, or an inventory INI file arrives as the **string** `"false"`, which is truthy because it has length. So the same condition behaves differently depending on where the value came from. The fix is to coerce explicitly: `when: enable_feature | default(false) | bool`, which correctly interprets `"false"`, `"no"`, `"0"` and `false`. The related trap is that referencing an **undefined** variable in `when` raises an error rather than being falsy, which is why `| default(false)` belongs there too. Ansible's INI inventory and `-e` are the two most common sources of accidental strings.
+**A non-empty string is truthy in Jinja2, so `"false"` evaluates as true — and the hosts that skipped had the variable set as a real boolean.** Ansible variables come from many sources with different types: YAML `enable_feature: false` is a genuine boolean, whereas a value from an environment variable, a `-e` command-line override, or an inventory INI file arrives as the **string** `"false"`, which is truthy because it has length. So the same condition behaves differently depending on where the value came from. The fix is to coerce explicitly: `when: enable_feature | default(false) | bool`, which correctly interprets `"false"`, `"no"`, `"0"` and `false`. The related trap is that referencing an **undefined** variable in `when` raises an error rather than being falsy, which is why `| default(false)` belongs there too. Ansible's INI inventory and `-e` are the two most common sources of accidental strings. This silent truthiness is the behaviour before ansible-core 2.19; from 2.19 a string result in `when` fails the task with "Conditionals must have a boolean result" (unless `ALLOW_BROKEN_CONDITIONALS` is set), and `| bool` is still the fix.
 
 **Q4: `--check` passes cleanly, but the real run fails partway through. Why isn't check mode a reliable plan?**
 
@@ -645,7 +644,7 @@ So the honest positioning is that Ansible has moved from "how you configure serv
 **Structure**
 
 5. Playbook → plays → tasks → modules. Handlers at the end.
-6. Order: `pre_tasks` → `roles` → `tasks` → `post_tasks` → handlers.
+6. Order: `pre_tasks` → handlers → `roles` → `tasks` → handlers → `post_tasks` → handlers.
 7. Use **FQCNs** (`ansible.builtin.apt`).
 8. Default strategy is `linear`: every host completes a task before the next.
 
@@ -663,7 +662,7 @@ So the honest positioning is that Ansible has moved from "how you configure serv
 15. `defaults/` = meant to be overridden. `vars/` = internal, hard to override.
 16. `-e` always wins — great for one-offs, bad as a habit.
 17. `ansible-inventory --host <h>` to see what resolved.
-18. Coerce booleans: `| default(false) | bool` — `"false"` is **truthy**.
+18. Coerce booleans: `| default(false) | bool` — `"false"` is **truthy** (an error on ansible-core 2.19+).
 19. An undefined variable in `when` **errors**, it isn't falsy.
 
 **Facts**
@@ -674,7 +673,7 @@ So the honest positioning is that Ansible has moved from "how you configure serv
 
 **Handlers**
 
-23. Run **once**, at the end, only if notified by a **changed** task.
+23. Run **once**, at the end of the notifying section, only if notified by a **changed** task.
 24. Matched by **name** — a typo fails silently.
 25. A later task failing means pending handlers **never run**.
 26. `--force-handlers` or `meta: flush_handlers` to control that.

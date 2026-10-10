@@ -454,7 +454,7 @@ db.orders.aggregate([
 ({ $concat: ["$firstName", " ", "$lastName"] });
 ({ $toUpper: "$name" });
 ({ $toLower: "$email" });
-({ $substr: ["$name", 0, 3] });
+({ $substrCP: ["$name", 0, 3] });
 
 // Math
 ({ $add: ["$price", "$tax"] });
@@ -742,7 +742,7 @@ const userV2V2 = await User.findById(id);
 const userV2V2V2 = await User.findOne({ email: 'a@b.com' });
 
 // Update
-await User.findByIdAndUpdate(id, { name: 'Bob' }, { new: true, runValidators: true });
+await User.findByIdAndUpdate(id, { name: 'Bob' }, { returnDocument: 'after', runValidators: true });
 await User.updateMany({ isActive: false }, { $set: { role: 'archived' } });
 
 // Delete
@@ -778,11 +778,10 @@ const orderV2 = await Order.findById(id)
 
 ```js
 // Pre-save hook
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function () {
   if (this.isModified('password')) {
     this.password = await bcrypt.hash(this.password, 12);
   }
-  next();
 });
 
 // Post-save hook
@@ -791,16 +790,14 @@ userSchema.post('save', function(doc) {
 });
 
 // Pre-find hook (e.g., exclude deleted)
-userSchema.pre(/^find/, function(next) {
+userSchema.pre(/^find/, function () {
   this.where({ isDeleted: { $ne: true } });
-  next();
 });
 
 // Pre-remove hook
-userSchema.pre('findOneAndDelete', async function(next) {
+userSchema.pre('findOneAndDelete', async function () {
   const user = await this.model.findOne(this.getQuery());
-  await Order.deleteMany({ user: user._id });   // cascade delete
-  next();
+  if (user) await Order.deleteMany({ user: user._id });   // cascade delete
 });
 ```
 
@@ -932,7 +929,9 @@ db.users.find({ email: "a@b.com" }, { email: 1, name: 1, _id: 0 });
 
 // Avoid $where and $regex without anchors
 // BAD: db.users.find({ name: /alice/ })     // scans all strings
-// GOOD: db.users.find({ name: /^alice/i })  // can use index prefix
+// GOOD: db.users.find({ name: /^alice/ })   // case-sensitive prefix → index range
+// Case-insensitive (/^alice/i) can't use the range: store a lower-cased copy
+// of the field, or query by equality with a case-insensitive collation index
 ```
 
 ### 11.2 Bulk Operations
@@ -995,7 +994,7 @@ db.createUser({
 
 // GOOD: validate and sanitize input
 const email = String(req.body.email);      // force to string
-// Or use express-mongo-sanitize middleware
+// Or mongoose.set('sanitizeFilter', true) (express-mongo-sanitize throws on Express 5)
 ```
 
 ---
@@ -1379,9 +1378,11 @@ const user = await User.findOne({ email: req.body.email });
 // 1. Validate input types
 const email = String(req.body.email);
 
-// 2. Use express-mongo-sanitize middleware
-const mongoSanitize = require('express-mongo-sanitize');
-app.use(mongoSanitize());  // removes $ and . from req.body/query/params
+// 2. Strip operators out of user filters
+// Express 4: express-mongo-sanitize removes $-prefixed and dotted keys from
+// req.body/query/params. On Express 5 it throws (req.query is a read-only getter).
+// Any Express version: Mongoose wraps $-keyed objects in filters in $eq
+mongoose.set('sanitizeFilter', true);
 
 // 3. Use schema validation (Mongoose validates types automatically)
 // 4. Never pass raw req.body to queries
@@ -1395,13 +1396,14 @@ app.use(mongoSanitize());  // removes $ and . from req.body/query/params
 Change Streams let you watch for real-time changes to a collection, database, or deployment:
 
 ```js
-const changeStream = db.collection('orders').watch([
-  { $match: { operationType: { $in: ['insert', 'update'] } } }
-]);
+const changeStream = db.collection('orders').watch(
+  [{ $match: { operationType: { $in: ['insert', 'update'] } } }],
+  { fullDocument: 'updateLookup' }   // without it, update events carry no fullDocument
+);
 
 changeStream.on('change', (change) => {
   console.log(change.operationType);       // 'insert', 'update', 'delete', 'replace'
-  console.log(change.fullDocument);        // the document (for insert/update)
+  console.log(change.fullDocument);        // insert: always; update: only with 'updateLookup'
   console.log(change.updateDescription);   // changed fields (for update)
 });
 ```

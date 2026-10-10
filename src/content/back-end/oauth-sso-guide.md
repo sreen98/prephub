@@ -218,7 +218,7 @@ async function sha256Base64Url(s) {
 }
 ```
 
-**OAuth 2.1 makes PKCE mandatory for ALL clients**, not just public ones. Even confidential server-side clients benefit: a `client_secret` proves *which app* is redeeming a code, but not that this code belongs to the login *this browser* started. PKCE binds the code to the verifier created at the start of that specific login, so a stolen code injected into someone else's callback cannot be redeemed.
+**OAuth 2.1 requires PKCE for every client by default**, not just public ones, with one narrow exception: a confidential client that the server knows correctly uses the OIDC `nonce` instead. Even confidential server-side clients benefit: a `client_secret` proves *which app* is redeeming a code, but not that this code belongs to the login *this browser* started. PKCE binds the code to the verifier created at the start of that specific login, so a stolen code injected into someone else's callback cannot be redeemed.
 
 ---
 
@@ -272,7 +272,7 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMiLCJleHAiOjE3MTYwfQ.signatur
 
 Receiving a JWT means nothing until you've verified it. Required checks:
 
-1. **Signature** — verify the signature using the issuer's public key, fetched from its JWKS (JSON Web Key Set: the issuer's published list of current public keys, usually at `/.well-known/jwks.json`). If you skip this, ANY token "validates," because anyone can write any payload.
+1. **Signature** — verify the signature using the issuer's public key, fetched from its JWKS (JSON Web Key Set: the issuer's published list of current public keys, at the `jwks_uri` URL in its `/.well-known/openid-configuration` discovery document). If you skip this, ANY token "validates," because anyone can write any payload.
 2. **`exp` (expiration)** — must be in the future.
 3. **`iat` / `nbf` (issued at / not before)** — must be in the past.
 4. **`iss` (issuer)** — must match your trusted issuer URL.
@@ -281,11 +281,11 @@ Receiving a JWT means nothing until you've verified it. Required checks:
 ```js
 import { jwtVerify, createRemoteJWKSet } from 'jose';
 
-const JWKS = createRemoteJWKSet(new URL('https://accounts.google.com/.well-known/jwks.json'));
+const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));   // Google's jwks_uri
 
 async function verifyGoogleIdToken(token) {
   const { payload } = await jwtVerify(token, JWKS, {
-    issuer: 'https://accounts.google.com',
+    issuer: ['https://accounts.google.com', 'accounts.google.com'],   // Google uses both forms
     audience: process.env.GOOGLE_CLIENT_ID,
   });
   return payload;   // throws if any check fails
@@ -399,7 +399,7 @@ If the auth server EVER sees an already-used (rotated-out) refresh token, that m
 - The legitimate client lost its newer RT and is retrying the old one (rare bug)
 - An attacker is using a stolen old RT
 
-The server can't distinguish, so the safe move is: **invalidate the entire refresh-token chain for that user**. Force a re-login. Auth0, Okta, Azure AD all implement this.
+The server can't distinguish, so the safe move is: **invalidate the entire refresh-token chain for that user**. Force a re-login. Auth0 and Okta implement this (when rotation is enabled). Microsoft Entra ID issues a new refresh token on each use but does not revoke the old one, so there is no reuse detection to rely on.
 
 ---
 
@@ -422,7 +422,7 @@ This is the #1 question in OAuth implementation, and the answer is contested.
 3. The BFF issues the SPA a session cookie (HttpOnly, Secure, SameSite=Lax).
 4. SPA calls its own backend (the BFF) with the session cookie; BFF attaches the access token and proxies to the real API.
 
-The tokens never live in JS-accessible storage. XSS can't steal them. CSRF is blocked by SameSite. Logout invalidates the session server-side.
+The tokens never live in JS-accessible storage. XSS can't steal them. `SameSite=Lax` is the CSRF baseline; add an anti-CSRF token or an `Origin`/`Sec-Fetch-Site` check on state-changing BFF routes, and use the `__Host-` cookie prefix (see the Web Security guide §4). Logout invalidates the session server-side.
 
 This is what most enterprise SaaS apps do in 2026. It's more infrastructure but materially safer than putting tokens in localStorage.
 
@@ -486,7 +486,7 @@ Logout that just clears the session but leaves the refresh token alive lets an a
 ```js
 import express from 'express';
 import session from 'express-session';
-import { Issuer, generators } from 'openid-client';
+import { Issuer, generators } from 'openid-client';   // v5 API (npm i openid-client@5); v6 is a different, functional API
 
 const app = express();
 app.use(session({ secret: process.env.SESSION_SECRET, resave: false, saveUninitialized: false }));
@@ -535,7 +535,7 @@ app.post('/logout', async (req, res) => {
     await client.revoke(req.session.tokens.refresh_token);
   }
   req.session.destroy(() => {
-    res.redirect(client.endSessionUrl());
+    res.redirect('/');   // Google has no end_session_endpoint; with IdPs that have one, use client.endSessionUrl()
   });
 });
 ```
@@ -564,7 +564,7 @@ app.get('/me', requireAuth, (req, res) => res.json(req.user));
 ```js
 import { PublicClientApplication } from '@azure/msal-browser';
 
-const msal = new PublicClientApplication({
+const msal = await PublicClientApplication.createPublicClientApplication({   // returns an initialized instance
   auth: {
     clientId: 'spa-id',
     authority: 'https://login.microsoftonline.com/{tenant}',
@@ -685,7 +685,7 @@ OAuth 2.1 removes Implicit entirely. Use Authorization Code with PKCE for SPAs.
 
 Two common approaches:
 
-**Approach 1: Shared cookie domain.** All apps live under `*.example.com`. The session cookie is set on `.example.com` (with a leading dot). Browsers send it on every subdomain. Easiest but only works on a single parent domain.
+**Approach 1: Shared cookie domain.** All apps live under `*.example.com`. The session cookie is set with `Domain=example.com`, so browsers send it to every subdomain (a leading dot is legacy syntax and is ignored). Easiest but only works on a single parent domain.
 
 **Approach 2: Token-based SSO via IdP.** A central IdP (Okta, your own) issues an OIDC session. When the user hits app2.example.com, the app redirects to the IdP, which sees an existing session cookie (on the IdP's domain) and silently issues a new ID token / authorization code for app2 without prompting.
 
@@ -711,7 +711,7 @@ Renewal #2:    POST /token { refresh_token: RT_2 }
 
 The server can't distinguish, so the safe move is to **invalidate the entire refresh-token chain for that user**. All RTs derived from that root token are nuked. The legitimate user has to log in again, but an attacker is locked out.
 
-Auth0, Okta, Azure AD all implement this.
+Auth0 and Okta implement this (when rotation is enabled). Microsoft Entra ID issues a new refresh token on each use but does not revoke the old one, so there is no reuse detection to rely on.
 
 ---
 
@@ -784,7 +784,7 @@ It's NOT safe. Decoding a JWT without verification is meaningless — anyone can
 
 The attack needs no malware and no interception. The attacker writes their own JWT with `email: ceo@yourcompany.com` in the payload, signs it with any key (or none), and sends it to your callback or API themselves. The base64 decodes exactly like a real one. If you only decode, you log the attacker in as the CEO.
 
-The fix: ALWAYS verify the signature against the issuer's public key (fetched from `/.well-known/jwks.json`), pin the `iss` claim to Google's exact URL, and pin `aud` to your client_id. The `jose` or `google-auth-library` packages do all this for you — use them, don't roll your own.
+The fix: ALWAYS verify the signature against the issuer's public key (fetched from the `jwks_uri` in Google's discovery document), pin the `iss` claim to Google's exact URL, and pin `aud` to your client_id. The `jose` or `google-auth-library` packages do all this for you — use them, don't roll your own.
 
 ---
 
@@ -811,7 +811,7 @@ Several:
 5. **Single Logout (SLO) reliability.** If SLO is required, expect to debug "phantom session" problems for weeks.
 6. **No standard discovery.** Unlike OIDC, there's no `/.well-known` endpoint. You'll be configuring URLs, certificates, and binding types by hand for every customer.
 
-Library: `samlify` or `passport-saml` for Node, `OneLogin/python3-saml` for Python. Don't roll your own SAML.
+Library: `samlify` or `@node-saml/passport-saml` (formerly `passport-saml`) for Node, `OneLogin/python3-saml` for Python. Don't roll your own SAML.
 
 ---
 

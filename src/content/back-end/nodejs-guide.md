@@ -67,7 +67,7 @@ graph TD
     style E fill:#ecfdf5,stroke:#10b981,color:#064e3b
 ```
 
-> **Microtask queue** runs BETWEEN each phase: `process.nextTick` (highest priority), then Promise callbacks.
+> **Microtask queues** drain after every callback the loop runs (since Node 11; before that, only between phases): `process.nextTick` (highest priority), then Promise callbacks.
 
 ### 2.2 libuv and Thread Pool
 
@@ -634,7 +634,7 @@ if (isMainThread) {
 
 | Aspect | Child Process | Worker Thread |
 |---|---|---|
-| Separate memory | Yes | Shared (SharedArrayBuffer) |
+| Separate memory | Yes | Separate heap per worker; opt-in sharing via SharedArrayBuffer |
 | Startup cost | Higher (new process) | Lower (new thread) |
 | Communication | IPC (serialized) | MessagePort (transferable) |
 | Use case | Run external programs, isolation | CPU-intensive JS, parallel computation |
@@ -933,10 +933,10 @@ Node moved fast in 2025–26, and three of those changes are big enough to come 
 | Release | Date | Status | Headline changes |
 |---|---|---|---|
 | **Node 22** | Apr 2024 | Maintenance LTS | `node --run`, global `WebSocket`, `--experimental-strip-types`, unflagged `require(esm)` in 22.12 |
-| **Node 24** | Apr 2025 | **Active LTS** (the recommended version through 2026) | `require(esm)` stable, type stripping on by default, `--permission` (renamed from `--experimental-permission`), global `URLPattern`, `AsyncLocalStorage` on `AsyncContextFrame` |
-| **Node 26** | May 2026 | Current → LTS in **Oct 2026** | Type stripping graduates to the stable module system, `Temporal` as a global, `Map.getOrInsert`, `Iterator.concat`, Undici 8 |
+| **Node 24** | May 2025 | **Active LTS** until 20 Oct 2026, then Maintenance | `require(esm)` stable, type stripping on by default (stable from 24.12), `--permission` (stable and renamed from `--experimental-permission` in 23.5/22.13), global `URLPattern`, `AsyncLocalStorage` on `AsyncContextFrame` |
+| **Node 26** | May 2026 | Current → LTS in **Oct 2026** | `--experimental-transform-types` removed, `Temporal` as a global, `Map.getOrInsert`, `Iterator.concat`, Undici 8 |
 
-Node 26 is also the **last release on the old six-month schedule** — from v27 onward Node moves to **annual** releases, which changes upgrade planning: one major per year instead of two, and a longer window on each LTS line.
+Node 26 is also the **last release on the old six-month schedule** — from v27 onward Node moves to **annual** releases, which changes upgrade planning: one major per year instead of two (April, promoted to LTS in October), every release becomes LTS (no more odd/even split; an Alpha channel takes over the early-testing role of odd releases), and the LTS window stays roughly the same length.
 
 ---
 
@@ -959,7 +959,7 @@ The practical consequence: new libraries can ship ESM-only without abandoning Co
 
 **2. Running TypeScript with no build step.**
 
-Node can execute `.ts` files directly. Type stripping arrived behind `--experimental-strip-types` in 22.6, became the default in 24, and is part of the stable module system in 26:
+Node can execute `.ts` files directly. Type stripping arrived behind `--experimental-strip-types` in 22.6, became the default in 23.6/22.18, and was marked stable in 25.2/24.12:
 
 ```bash
 node app.ts          # just works on Node 24+
@@ -1011,12 +1011,12 @@ Note the asymmetry that trips people up: Node gives you a WebSocket **client**, 
 
 ```bash
 node --run build          # run a package.json script without npm's ~200ms overhead
-node --permission --allow-fs-read=./data --allow-net=api.example.com app.js
+node --permission --allow-fs-read=./data app.js
 ```
 
 `node --run` (Node 22+) executes a `package.json` script directly, skipping the npm process spawn — meaningfully faster in CI and in watch loops. It deliberately does **not** support npm's extras: no pre/post scripts, no `node_modules/.bin` path munging beyond the basics. If your script relies on `prebuild`, keep using `npm run`.
 
-The **permission model** (`--permission`, renamed from `--experimental-permission` in Node 24) restricts filesystem, network and child-process access at the process level. It is the answer to "how would you limit the blast radius of a compromised dependency?" — a supply-chain question that has become standard in backend interviews. It is coarse-grained and process-wide, not a sandbox per module, so present it as defence in depth rather than a substitute for auditing dependencies.
+The **permission model** (`--permission`, stable and renamed from `--experimental-permission` in 23.5/22.13) restricts filesystem, child-process, worker-thread and native-addon access at the process level; from Node 25 it also blocks network access, which `--allow-net` re-enables all-or-nothing (no per-host list). It is the answer to "how would you limit the blast radius of a compromised dependency?" — a supply-chain question that has become standard in backend interviews. It is coarse-grained and process-wide, not a sandbox per module, so present it as defence in depth rather than a substitute for auditing dependencies.
 
 **Temporal is a global in Node 26**, which means the date-handling advice in the JavaScript guide §9.10 applies server-side without a polyfill — relevant because timezone bugs are overwhelmingly a *backend* problem.
 
@@ -1038,7 +1038,7 @@ No, Node.js is not a programming language. It's a **runtime environment** that a
 
 **Short answer:** it is the loop that lets one JavaScript thread handle many requests. Slow work (disk, network) is handed off, and when it finishes its callback is queued; the event loop runs queued callbacks one at a time whenever the call stack is empty.
 
-The loop has phases: timers -> pending callbacks -> poll (I/O) -> check (setImmediate) -> close callbacks. Between each phase, microtasks (process.nextTick, Promise callbacks) are processed.
+The loop has phases: timers -> pending callbacks -> poll (I/O) -> check (setImmediate) -> close callbacks. Microtasks (process.nextTick, then Promise callbacks) are drained after every callback the loop runs (since Node 11; before that, only between phases).
 
 The consequence to volunteer: because callbacks run one at a time on one thread, a slow synchronous callback (a big `JSON.parse`, a CPU-heavy loop, `readFileSync`) stalls every other request until it returns. "Don't block the event loop" (§13.1) is the whole performance model of Node in one sentence.
 
@@ -1184,9 +1184,9 @@ const str = buf.toString('utf8');
 str.length;         // 5 (characters)
 
 // Multi-byte characters differ
-const emoji = Buffer.from('Hi');
+const emoji = Buffer.from('Hi😀');
 emoji.length;       // 6 bytes (emoji is 4 bytes in UTF-8)
-'Hi'.length;       // 3 characters (emoji counts as 2 in JS)
+'Hi😀'.length;     // 4 (H, i, plus 2 UTF-16 code units for the emoji)
 ```
 
 The point the example makes: a Buffer's `length` counts **bytes**, a string's `length` counts **UTF-16 code units** (roughly characters, but an emoji takes two). The two agree only for plain ASCII text. So when a limit is in bytes — a `Content-Length` header, a database column size, a protocol field — measure the Buffer (or use `Buffer.byteLength(str)`), not the string.
@@ -1422,7 +1422,7 @@ The distinction matters: network I/O scales to thousands of connections (OS-leve
 
 You can drop the *transpile* step. You cannot drop the *type-check* step, and conflating the two is the mistake this question is designed to catch.
 
-Node's type stripping (flagged in 22.6, default in 24, stable in 26) is a purely **syntactic** transform: it replaces type annotations with whitespace, one file at a time, with no type information and no cross-file view. It never validates anything. Ship a file where you pass a `string` to a function expecting a `number` and Node runs it happily — the annotation that would have caught it was deleted before execution.
+Node's type stripping (flagged in 22.6, default in 23.6/22.18, stable in 25.2/24.12) is a purely **syntactic** transform: it replaces type annotations with whitespace, one file at a time, with no type information and no cross-file view. It never validates anything. Ship a file where you pass a `string` to a function expecting a `number` and Node runs it happily — the annotation that would have caught it was deleted before execution.
 
 So the correct pipeline is:
 
@@ -1538,7 +1538,7 @@ First, the synchronous top-level script runs to completion: `"1"` prints, the ti
 
 One caveat worth knowing: this is the output of a **CommonJS** script (`node file.js` with no `"type": "module"`). Save the same code as `file.mjs` and it prints `1 5 3 4 2` — an ES module is evaluated from inside a promise job, so the microtask queue is drained before control returns to Node's nextTick processing, and `3` jumps ahead of `4`. The same flip applies to Q5 (`D` before `E` under ESM).
 
-**Takeaway:** `process.nextTick` > Promise microtasks > any event loop phase (timers, I/O, setImmediate). The two "out-of-loop" queues drain completely between phases, with nextTick draining first.
+**Takeaway:** `process.nextTick` > Promise microtasks > any event loop phase (timers, I/O, setImmediate). The two "out-of-loop" queues drain completely after every callback (since Node 11), with nextTick draining first.
 
 ---
 
@@ -1841,6 +1841,7 @@ The trick to understanding circular requires is Node's "insert into cache **befo
 **Q13: On Node 24, `require()` of an ESM package succeeds but the function call throws. Why?**
 
 ```js
+// esm-pkg/package.json: { "name": "esm-pkg", "main": "index.mjs" }
 // esm-pkg/index.mjs
 export default function greet(name) { return `hi ${name}`; }
 export const version = '1.0.0';

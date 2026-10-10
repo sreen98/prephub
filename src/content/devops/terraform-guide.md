@@ -89,7 +89,7 @@ State exists because Terraform must answer three questions: does this resource a
 **Consequences that drive most real-world practice:**
 
 - **State is the source of truth about ownership.** Delete a resource block and Terraform destroys the resource, because state says it owns it. Delete the *state entry* and Terraform will try to **create it again**, hitting an "already exists" error.
-- **State contains secrets in plaintext** — database passwords, generated keys, and any sensitive attribute. It must be encrypted at rest and access-controlled. `sensitive = true` only hides values from CLI output, not from state.
+- **State contains secrets in plaintext** — database passwords, generated keys, and any sensitive attribute. It must be encrypted at rest and access-controlled. `sensitive = true` only hides values from CLI output, not from state. (Since Terraform 1.11, *write-only* arguments such as `password_wo` are the exception: they are never stored; see §11.)
 - **Local state doesn't work for teams.** Two people applying concurrently produce divergent state and orphaned resources.
 
 **Remote state with locking** is therefore mandatory:
@@ -142,7 +142,7 @@ terraform destroy
 <= read (data source)
 ```
 
-**`-/+` on a stateful resource is how outages happen.** Changing an immutable attribute — a database engine version, an EC2 AMI, a subnet — forces replacement, which for an RDS instance means deleting it. Always read the plan for `forces replacement`.
+**`-/+` on a stateful resource is how outages happen.** Changing an immutable attribute — an RDS instance's `engine` or `storage_encrypted`, an EC2 AMI, a subnet — forces replacement, which for an RDS instance means deleting it. Always read the plan for `forces replacement`.
 
 Applying a **saved plan file** in CI is the practice that matters: it guarantees what was reviewed is exactly what runs, whereas a bare `terraform apply` recomputes and may act on a changed world.
 
@@ -176,7 +176,7 @@ output "endpoint" {
 }
 ```
 
-Precedence, lowest to highest: defaults → `terraform.tfvars` → `*.auto.tfvars` → `-var-file` → `-var` → `TF_VAR_*` environment variables.
+Precedence, lowest to highest: defaults → `TF_VAR_*` environment variables → `terraform.tfvars` → `terraform.tfvars.json` → `*.auto.tfvars` (lexical order) → `-var` / `-var-file` (in command-line order, so the later one wins).
 
 Use `variable` for inputs a caller sets, `locals` for values derived inside the module.
 
@@ -307,7 +307,7 @@ Even better for large estates: **split state by blast radius** — network, data
 
 ## 11. Secrets
 
-**Terraform state stores every value in plaintext**, so the rules are:
+**Terraform state stores attribute values in plaintext** (only write-only arguments, Terraform 1.11+, are kept out of it), so the rules are:
 
 1. Never hardcode secrets in `.tf` files (they go to git) or `.tfvars` (usually also git).
 2. Encrypt state at rest, restrict backend access with IAM, and version the bucket.
@@ -321,7 +321,18 @@ resource "aws_db_instance" "main" {
 }
 ```
 
-That value **still lands in state** — the win is that it isn't in git and rotates centrally. For genuinely sensitive material, have Terraform create the secret *container* and let the application populate it, so the value never enters Terraform's graph.
+That value **still lands in state** — the win is that it isn't in git and rotates centrally. On Terraform 1.11+ with a provider that supports it, read the secret with an **ephemeral** resource and pass it to a **write-only** argument, and nothing is stored:
+
+```hcl
+ephemeral "aws_secretsmanager_secret_version" "db" { secret_id = "prod/db" }
+
+resource "aws_db_instance" "main" {
+  password_wo         = jsondecode(ephemeral.aws_secretsmanager_secret_version.db.secret_string)["password"]
+  password_wo_version = 1        # bump to send a new password; only this number is stored
+}
+```
+
+For genuinely sensitive material on older setups, have Terraform create the secret *container* and let the application populate it, so the value never enters Terraform's graph.
 
 `sensitive = true` only redacts CLI and plan output. It is not encryption.
 
@@ -374,7 +385,7 @@ Practices that separate a working pipeline from a dangerous one:
 - **OIDC federation** for cloud credentials, not long-lived access keys. OIDC (OpenID Connect) lets the CI system prove its identity to the cloud and receive short-lived credentials per run, so there is no stored key to leak — and a Terraform pipeline's credentials can usually change everything.
 - Concurrency control so two pipelines can't apply the same state.
 - Policy as code — rules written as code and run against the plan in CI, using tools such as **OPA/Conftest** (Open Policy Agent), HashiCorp's Sentinel, or the `tflint` linter — to reject, say, an unencrypted bucket before apply rather than finding it in an audit afterwards.
-- `tfsec`/`checkov` scan the configuration for insecure settings, and `infracost` shows how much a change will add to the monthly bill, right in the PR where a reviewer can question it.
+- `trivy config` (formerly `tfsec`)/`checkov` scan the configuration for insecure settings, and `infracost` shows how much a change will add to the monthly bill, right in the PR where a reviewer can question it.
 - Set `TF_IN_AUTOMATION=1` and `-input=false` so nothing waits on a prompt.
 
 ---
@@ -403,7 +414,7 @@ State is Terraform's record mapping each configuration address, such as `aws_s3_
 
 **Q2: Why do you need remote state with locking, and what is drift?**
 
-Local state means each engineer has a different idea of what exists, and two concurrent applies produce divergent state plus orphaned resources that nothing manages. A remote backend — S3, GCS, Terraform Cloud — gives one shared source of truth, encryption at rest, versioning so you can roll back a corrupted state, and IAM-controlled access. **Locking** is the other half: it stops two applies mutating the same state simultaneously, historically via a DynamoDB table and now via S3 conditional writes with `use_lockfile`. **Drift** is divergence between state and reality, usually from a manual console change; `terraform plan` refreshes and surfaces it as a change Terraform intends to revert, while `apply -refresh-only` accepts reality into state instead. In practice you also want a scheduled plan that alerts on drift, because unnoticed drift makes the next unrelated apply surprising.
+Local state means each engineer has a different idea of what exists, and two concurrent applies produce divergent state plus orphaned resources that nothing manages. A remote backend — S3, GCS, HCP Terraform (formerly Terraform Cloud) — gives one shared source of truth, encryption at rest, versioning so you can roll back a corrupted state, and IAM-controlled access. **Locking** is the other half: it stops two applies mutating the same state simultaneously, historically via a DynamoDB table and now via S3 conditional writes with `use_lockfile`. **Drift** is divergence between state and reality, usually from a manual console change; `terraform plan` refreshes and surfaces it as a change Terraform intends to revert, while `apply -refresh-only` accepts reality into state instead. In practice you also want a scheduled plan that alerts on drift, because unnoticed drift makes the next unrelated apply surprising.
 
 **Q3: What's the difference between `count` and `for_each`, and which should you use?**
 
@@ -425,7 +436,7 @@ Renaming a resource block changes its address, and because state keys off the ad
 
 **Q6: How should you handle secrets in Terraform?**
 
-Start from the fact that **state stores every attribute in plaintext**, so the goal is to keep secrets out of git and to limit who can read state. Never hardcode them in `.tf` or `.tfvars`. Encrypt state at rest, version the bucket, and restrict backend access by IAM. Fetch values at apply time from a secret manager via a data source so the secret is centrally rotated and never committed — accepting that the value still lands in state. For genuinely sensitive material, invert the flow: let Terraform create the empty secret *container* and have the application or a separate process populate it, so the value never enters Terraform's graph at all. Be clear that `sensitive = true` only redacts CLI and plan output; it is not encryption and offers no protection to state.
+Start from the fact that **state stores attributes in plaintext** (write-only arguments, Terraform 1.11+, are the exception), so the goal is to keep secrets out of git and to limit who can read state. Never hardcode them in `.tf` or `.tfvars`. Encrypt state at rest, version the bucket, and restrict backend access by IAM. Fetch values at apply time from a secret manager via a data source so the secret is centrally rotated and never committed — accepting that the value still lands in state — unless you read it with an `ephemeral` resource and pass it to a write-only argument such as `password_wo` (Terraform 1.11+), which is never stored. For genuinely sensitive material, invert the flow: let Terraform create the empty secret *container* and have the application or a separate process populate it, so the value never enters Terraform's graph at all. Be clear that `sensitive = true` only redacts CLI and plan output; it is not encryption and offers no protection to state.
 
 **Q7: Workspaces or directory-per-environment?**
 
@@ -433,7 +444,7 @@ Directory-per-environment for anything real. Workspaces share **one configuratio
 
 **Q8: What does `plan` actually do, and why apply a saved plan file?**
 
-`plan` refreshes state against the real world, diffs desired configuration against actual, and emits an ordered list of actions. Reading it properly is the skill: `+` create, `-` destroy, `~` update in place, and **`-/+` destroy-then-create**, which is the dangerous one — changing an immutable attribute such as an RDS engine version or a subnet forces replacement, and for a stateful resource that means data loss. Always search the plan for "forces replacement". Applying a **saved plan file** matters because a bare `terraform apply` recomputes the plan at apply time, so what runs may differ from what was reviewed if the world changed in between; `terraform plan -out=tf.plan` followed by `terraform apply tf.plan` guarantees the reviewed actions are exactly the executed actions, which is why it's the standard in CI.
+`plan` refreshes state against the real world, diffs desired configuration against actual, and emits an ordered list of actions. Reading it properly is the skill: `+` create, `-` destroy, `~` update in place, and **`-/+` destroy-then-create**, which is the dangerous one — changing an immutable attribute such as an RDS instance's `engine` or an EC2 instance's subnet forces replacement, and for a stateful resource that means data loss. Always search the plan for "forces replacement". Applying a **saved plan file** matters because a bare `terraform apply` recomputes the plan at apply time, so what runs may differ from what was reviewed if the world changed in between; `terraform plan -out=tf.plan` followed by `terraform apply tf.plan` guarantees the reviewed actions are exactly the executed actions, which is why it's the standard in CI.
 
 **Q9: How do you design good Terraform modules?**
 
@@ -528,7 +539,7 @@ They solve different problems and are complements. Terraform is **declarative an
 32. Never `-auto-approve` a freshly computed plan in production.
 33. OIDC federation, not long-lived cloud keys.
 34. Concurrency control so two pipelines can't apply one state.
-35. `tflint`, `tfsec`/`checkov`, OPA/Conftest policy gates, `infracost`.
+35. `tflint`, `trivy config` (formerly `tfsec`)/`checkov`, OPA/Conftest policy gates, `infracost`.
 36. `TF_IN_AUTOMATION=1` and `-input=false`.
 
 **Gotchas**
@@ -551,4 +562,4 @@ They solve different problems and are complements. Terraform is **declarative an
 - [`moved` blocks](https://developer.hashicorp.com/terraform/language/modules/develop/refactoring) and [`import` blocks](https://developer.hashicorp.com/terraform/language/import)
 - [Module development best practices](https://developer.hashicorp.com/terraform/language/modules/develop)
 - [Running Terraform in automation](https://developer.hashicorp.com/terraform/tutorials/automation/automate-terraform)
-- [tflint](https://github.com/terraform-linters/tflint), [tfsec](https://github.com/aquasecurity/tfsec), [Checkov](https://www.checkov.io/), [Infracost](https://www.infracost.io/)
+- [tflint](https://github.com/terraform-linters/tflint), [Trivy](https://github.com/aquasecurity/trivy) (formerly tfsec), [Checkov](https://www.checkov.io/), [Infracost](https://www.infracost.io/)

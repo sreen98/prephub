@@ -21,7 +21,7 @@ These represent three fundamentally different compute models. EC2 is infrastruct
 
 **Why the cost models diverge**: EC2 bills for the VM whether you use it or not — efficient for steady load, wasteful for bursty load. Lambda bills per 1-ms of execution — efficient for bursty load, expensive for steady load (crossover point is usually ~50% utilization). Fargate sits in between: you pay for tasks while they're running, which is cheaper than keeping an EC2 hot for quiet periods but lacks Lambda's scale-to-zero.
 
-**Why Lambda is stateless**: containers are torn down after execution (or kept warm for ~15 min). You cannot rely on in-memory state or local disk across invocations. Use DynamoDB, S3, Redis (ElastiCache), or RDS for state.
+**Why Lambda is stateless**: an execution environment may be reused for later invocations (a warm start), but reuse is never guaranteed and concurrent requests land in different environments. You cannot rely on in-memory state or local disk (`/tmp`) across invocations. Use DynamoDB, S3, Redis (ElastiCache), or RDS for state.
 
 **Why Fargate has slow cold starts**: each task pulls a container image, allocates ENI for networking, and starts the runtime. Provisioned capacity (EC2 launch type, or Fargate with capacity providers) keeps warm tasks and sidesteps this.
 
@@ -37,7 +37,7 @@ Three different storage abstractions. S3 is an object store accessed over HTTP �
 |---|---|---|---|
 | **Type** | Object storage | Block storage | File storage (NFS) |
 | **Access** | HTTP API (any service) | Single EC2 instance | Multiple EC2/Lambda |
-| **Durability** | 11 9's | 5 9's | 11 9's |
+| **Durability** | 11 9's | 99.8–99.9% (gp2/gp3/io1); 99.999% (io2) | 11 9's |
 | **Scalability** | Unlimited | Up to 64 TB/volume | Petabyte, auto-scaling |
 | **Latency** | ~50-100ms | ~1ms | Low, scales with size |
 | **Pricing** | ~$0.023/GB/mo | ~$0.08-0.125/GB/mo | ~$0.30/GB/mo |
@@ -47,7 +47,7 @@ Three different storage abstractions. S3 is an object store accessed over HTTP �
 
 **Why EBS is single-attach**: it's block-level, which means the OS formats it and keeps caches in memory. Allowing two machines to write the same blocks would corrupt the filesystem. There's "Multi-Attach" now, but it requires a cluster filesystem on top — not for general use.
 
-**Why EFS is 6× more expensive than EBS**: NFS behind the scenes, replicated across AZs, scales elastically. You pay for that redundancy and scaling. For most workloads, EBS + S3 is cheaper. EFS shines when many compute nodes genuinely need a shared POSIX file system (ML training feeding from a shared dataset, legacy apps assuming local files).
+**Why EFS Standard costs ~3–4× more per GB than gp3 EBS**: NFS behind the scenes, replicated across AZs, scales elastically. You pay for that redundancy and scaling. For most workloads, EBS + S3 is cheaper. EFS shines when many compute nodes genuinely need a shared POSIX file system (ML training feeding from a shared dataset, legacy apps assuming local files).
 
 **When to use which**: S3 for static files, backups, log archives, data lakes, anything accessed via HTTP. EBS for databases, boot volumes, anything that needs low-latency random I/O. EFS for shared file system access across many instances (avoid otherwise — it's expensive).
 
@@ -84,15 +84,15 @@ Three messaging patterns. SQS is a queue — one producer puts messages in, one 
 |---|---|---|---|
 | **Pattern** | Point-to-point (queue) | Pub-sub (fan-out) | Event bus (routing + filtering) |
 | **Delivery** | Pull-based | Push-based | Push-based |
-| **Retention** | Up to 14 days | No retention | 24h replay via archive |
-| **Filtering** | No built-in | Message attribute filtering | Content-based rules |
+| **Retention** | Up to 14 days | No retention | Optional archive (kept indefinitely or N days) with replay |
+| **Filtering** | No built-in | Filter policies on message attributes or body | Content-based rules |
 | **Use case** | Work queues, decoupling | Fan-out notifications | Complex event routing |
 
 **Why SQS is pull-based**: consumers poll the queue. This is essential for work-queue semantics — if a consumer is busy or crashed, messages sit in the queue and another worker grabs them. SNS pushes to its subscribers; a slow or failed subscriber doesn't affect others, but the message is gone after delivery attempts (with retry + DLQ).
 
 **Why SNS → SQS is a standard pattern**: SNS gives you fan-out but no retention; SQS gives you retention but no fan-out. Subscribing SQS queues to an SNS topic gives you both — one publish event is mirrored into multiple queues, each queue buffers independently for its consumer. Most AWS event-driven designs use this.
 
-**Why EventBridge exists**: when you have many event sources and many targets with complex routing needs ("route orders above $1000 to the VIP queue, all others to the default queue, also send all of them to audit logs"), SNS filtering doesn't cut it. EventBridge rules are content-based (JSON match), support multiple targets per rule, and know about AWS service events (EC2 state changes, S3 uploads, etc.) out of the box.
+**Why EventBridge exists**: when you have many event sources and many targets with complex routing needs ("route orders above $1000 to the VIP queue, all others to the default queue, also send all of them to audit logs"), and especially when the events come from AWS services or SaaS partners or must go to targets SNS can't reach, an SNS topic with filter policies gets awkward. EventBridge rules are content-based (JSON match), support multiple targets per rule, can call any HTTP API through API destinations, and know about AWS service events (EC2 state changes, S3 uploads, etc.) and SaaS partner event sources out of the box.
 
 **When to use which**: SQS for work queues that need retention and backpressure. SNS for fan-out to a known set of subscribers. EventBridge for complex, content-based routing and integrating SaaS / AWS service events.
 
@@ -130,7 +130,7 @@ Three database offerings that sit at very different points on the SQL-to-NoSQL s
 | **Management** | Fully managed | Fully managed, AWS-proprietary storage | Fully managed serverless |
 | **Scaling** | Vertical (bigger instance) + read replicas | Same + auto-scaling storage | Horizontal — unlimited |
 | **Latency** | ms | ms (3–5× faster writes than RDS MySQL) | Single-digit ms, predictable |
-| **Pricing** | Per instance hour + storage | Per instance hour + storage + I/O | Per request + storage (on-demand), or per capacity unit (provisioned) |
+| **Pricing** | Per instance hour + storage | Per instance hour + storage + I/O (Standard); I/O-Optimized has no I/O charge | Per request + storage (on-demand), or per capacity unit (provisioned) |
 | **Best for** | Traditional OLTP, complex joins | High-perf SQL at scale | Massive scale, predictable access patterns |
 
 **Why Aurora is worth 20% more than RDS MySQL/Postgres**: Aurora replaces the storage engine with a distributed log-structured store replicated 6× across 3 AZs. Writes commit when 4 of 6 copies confirm, giving you stronger durability and much faster replication. It also scales to 15 read replicas that share the same storage — so adding replicas is nearly free in terms of I/O.
@@ -150,7 +150,7 @@ All three terminate requests at the edge of your architecture but do different j
 | **Primary role** | CDN / edge caching | Managed API front door | Load balancer |
 | **Scope** | Global (edge locations worldwide) | Regional (or edge-optimized) | Regional |
 | **Caching** | First-class (edge + origin shield) | Limited (per-method) | None built-in |
-| **Auth** | Lambda@Edge, signed URLs | IAM, Cognito, Lambda authorizers, API keys | None (delegate to backend) |
+| **Auth** | Lambda@Edge, signed URLs | IAM, Cognito, Lambda authorizers, API keys | OIDC / Cognito authenticate actions on HTTPS listeners (no API keys or throttling) |
 | **Pricing** | Per request + data transfer | Per request + data transfer | Per hour + LCU |
 | **Use case** | Static assets, SPA, video, globally cached APIs | REST/HTTP APIs with quotas, usage plans, auth | HTTP traffic to your compute |
 

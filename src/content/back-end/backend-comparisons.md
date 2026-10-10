@@ -38,7 +38,7 @@ REST treats each resource as a URL; you get whatever fields the server decided t
 | **Endpoints** | Multiple (`/users`, `/posts`) | Single (`/graphql`) |
 | **Data fetching** | Fixed response — over/under-fetching | Client specifies exact fields |
 | **Caching** | HTTP caching built-in | Complex — needs special solutions |
-| **Error handling** | HTTP status codes | Always 200 — errors in body |
+| **Error handling** | HTTP status codes | Execution errors in the body with a 2xx; invalid requests get 4xx under the GraphQL-over-HTTP draft |
 | **Real-time** | Polling or SSE | Subscriptions (WebSocket) |
 | **Learning curve** | Low | Medium |
 
@@ -60,7 +60,7 @@ Three approaches to "who is this user" across requests. Cookies are a *transport
 |---|---|---|---|
 | **Storage** | Browser cookie | Server memory/DB/Redis | Client (cookie or localStorage) |
 | **Stateful/Stateless** | Depends | Stateful | Stateless |
-| **Scalability** | Depends | Requires sticky sessions | Horizontally scalable |
+| **Scalability** | Depends | Shared store (Redis/DB), or sticky sessions if in-memory | Horizontally scalable |
 | **Revocation** | Delete cookie | Delete from store (instant) | Hard — must blocklist or wait for expiry |
 | **CSRF risk** | Yes | Yes | No (if in header, not cookie) |
 | **XSS risk** | Mitigated with HttpOnly | Mitigated with HttpOnly | Vulnerable if in localStorage |
@@ -107,13 +107,15 @@ Three popular Node.js server frameworks. Express is the original default (2010, 
 
 | Feature | Express | Fastify | Koa |
 |---|---|---|---|
-| **Performance (req/s)** | ~15K | ~45K+ | ~20K |
+| **Performance (req/s)** | ~27K | ~50K | ~39K |
 | **Async support** | Callbacks + manual | Native async/await | Native async/await |
 | **Validation** | External (Joi, Zod) | Built-in JSON Schema | External |
 | **TypeScript** | Community types | First-class | Community types |
 | **Ecosystem** | Largest | Growing | Smaller |
 
-**Why Fastify is 3× faster than Express**: three things. (1) It uses `find-my-way` for routing — a radix tree that's faster than Express's regex-based lookup. (2) It uses JSON Schema to compile serializers at startup — stringifying responses is often faster than `JSON.stringify`. (3) It's built for Node's async model from the start; no legacy callback patches.
+(Figures: Fastify's hello-world benchmark, Express 5, Oct 2026.)
+
+**Why Fastify is roughly 2× faster than Express in benchmarks**: three things. (1) It uses `find-my-way` for routing — a radix tree that's faster than Express's regex-based lookup. (2) It uses JSON Schema to compile serializers at startup — stringifying responses is often faster than `JSON.stringify`. (3) It's built for Node's async model from the start; no legacy callback patches.
 
 **Why Express still dominates**: the ecosystem. Almost every middleware, every tutorial, every "how do I..." answer is in Express. For most small-to-medium APIs, the framework is not the bottleneck — the DB is — so the performance difference is academic.
 
@@ -125,7 +127,7 @@ Three popular Node.js server frameworks. Express is the original default (2010, 
 
 ## HTTP vs HTTPS
 
-HTTPS is HTTP over TLS. It encrypts the traffic end-to-end, authenticates the server via certificate, and (with HSTS / MTLS) can also authenticate the client.
+HTTPS is HTTP over TLS. It encrypts the traffic end-to-end, authenticates the server via certificate, and with mutual TLS (client certificates) can also authenticate the client. HSTS just forces browsers to always use HTTPS.
 
 | Feature | HTTP | HTTPS |
 |---|---|---|
@@ -195,6 +197,6 @@ Browser storage options. `localStorage` and `sessionStorage` are pure client API
 
 **Why localStorage/sessionStorage are synchronous**: small mercy — they block the main thread. This is fine for small values but noticeable if you're storing a lot. IndexedDB is the async alternative for large structured data.
 
-**Cookies are size-limited**: 4 KB per cookie, ~20 per domain, 4 KB total per request. Don't store big JSON blobs. Use a short session ID + server-side storage, or split across cookies.
+**Cookies are size-limited**: ~4 KB per cookie, dozens per domain (RFC 6265 asks browsers to allow at least 50); every cookie rides on every matching request, so large cookies can hit the server's header limit (often 8–16 KB). Don't store big JSON blobs. Use a short session ID + server-side storage, or split across cookies.
 
 **When to use which**: Cookies for auth tokens (server needs them, benefits from `HttpOnly`). `localStorage` for persistent client-only data (preferences, drafts, cache). `sessionStorage` for tab-scoped temporary state. For structured or large data, reach for IndexedDB.

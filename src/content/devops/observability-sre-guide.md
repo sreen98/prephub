@@ -50,7 +50,7 @@ The **three pillars** framing — metrics, logs, traces — is the standard answ
 A Prometheus time series is identified by a **name plus a set of labels**:
 
 ```
-http_requests_total{method="POST", route="/checkout", status="500"}  →  1 27  @timestamp
+http_requests_total{method="POST", route="/checkout", status="500"}  →  127  @timestamp
 ```
 
 Every unique label combination is a **separate time series** — the fact that governs cost (§9).
@@ -100,7 +100,7 @@ histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by 
 # top 5 routes by error rate
 topk(5, sum(rate(http_requests_total{status=~"5.."}[5m])) by (route))
 
-# memory headroom
+# memory utilisation (fraction of memory in use)
 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
 
 # is anything down?
@@ -113,7 +113,7 @@ predict_linear(node_filesystem_avail_bytes[6h], 4*3600) < 0
 The functions that matter and their traps:
 
 - **`rate()`** is per-second, averaged over the window, and **handles counter resets**. Use it on counters only.
-- **`irate()`** uses the last two samples — spiky, good for graphs, **bad for alerts** because it can miss a sustained problem between samples.
+- **`irate()`** uses the last two samples — spiky, good for graphs, **bad for alerts** because one brief dip resets the alert's `for` timer, and every other sample in the window is ignored.
 - **`increase()`** is `rate() × window`, for "how many in the last hour".
 - The window must be **at least 4× the scrape interval**, or you get gaps and misleading zeros.
 - **`sum by (le)` before `histogram_quantile`** — aggregating after computing the quantile is wrong.
@@ -386,7 +386,7 @@ Related practices worth naming: **capacity planning** from real growth trends ra
 | Logs | **Loki**, ELK/OpenSearch | CloudWatch, Datadog, Splunk |
 | Traces | **Tempo**, **Jaeger** | Honeycomb, Datadog, X-Ray |
 | Instrumentation | **OpenTelemetry** | — |
-| Alert routing | **Alertmanager** | PagerDuty, Opsgenie, Incident.io |
+| Alert routing | **Alertmanager** | PagerDuty, Incident.io, Jira Service Management (Opsgenie's successor) |
 | Synthetic / uptime | blackbox_exporter | Pingdom, Checkly |
 | Errors | — | Sentry |
 
@@ -484,7 +484,7 @@ Reducing it means automating the repetitive path, **removing the need** rather t
 
 **Q2: You add `user_id` as a Prometheus label to debug a customer issue. A week later Prometheus OOMs. Explain the chain.**
 
-**Every distinct label value creates a new time series, so `user_id` multiplied your series count by the number of users.** Prometheus holds an in-memory index of active series in the TSDB (time-series database) **head block** — the in-memory section holding the most recent data — so one metric with 10,000 users, 5 routes and 3 status classes becomes 150,000 series — and it doesn't stop, because the label is **unbounded**: every new user adds series permanently, and churn (users appearing and disappearing) makes it worse by leaving series that must still be indexed for the retention window. Memory grows until the process is OOM-killed, which takes down monitoring **precisely when you most need it**. The correct place for a per-user question is **logs or traces**, which are designed for high cardinality; metrics answer "how much and is it broken", and you pivot to traces for "which user". Prevention: `sample_limit` and `label_limit` per scrape target, alerting on `prometheus_tsdb_head_series` growth, and a review habit that treats a new label as a cost decision.
+**Every distinct label value creates a new time series, so `user_id` multiplied your series count by the number of users.** Prometheus holds an in-memory index of active series in the TSDB (time-series database) **head block** — the in-memory section holding the most recent data — so one metric with 10,000 users, 5 routes and 3 status classes becomes 150,000 series — and it doesn't stop, because the label is **unbounded**: every new user adds series, and churn (users appearing and disappearing) makes it worse because the head block indexes every series seen in its window (roughly the last two hours), including ones that have stopped reporting. Memory grows until the process is OOM-killed, which takes down monitoring **precisely when you most need it**. The correct place for a per-user question is **logs or traces**, which are designed for high cardinality; metrics answer "how much and is it broken", and you pivot to traces for "which user". Prevention: `sample_limit` and `label_limit` per scrape target, alerting on `prometheus_tsdb_head_series` growth, and a review habit that treats a new label as a cost decision.
 
 **Q3: An alert fires "DiskSpaceLow: 85% full" every week. On-call acknowledges and does nothing. What's the actual problem?**
 

@@ -184,13 +184,14 @@ aws cloudwatch list-metrics \
   --dimensions Name=InstanceId,Value=i-1234567890abcdef0
 
 # Get metric data for a specific EC2 instance
+# --period: 300 seconds = 5 minutes
 aws cloudwatch get-metric-statistics \
   --namespace "AWS/EC2" \
   --metric-name CPUUtilization \
   --dimensions Name=InstanceId,Value=i-1234567890abcdef0 \
   --start-time 2025-01-01T00:00:00Z \
   --end-time 2025-01-01T01:00:00Z \
-  --period 300 \                  # 300 seconds = 5 minutes
+  --period 300 \
   --statistics Average Maximum    # can also use: Sum, Minimum, SampleCount
 ```
 
@@ -241,12 +242,13 @@ aws cloudwatch put-metric-data \
   --dimensions Environment=Production,Service=OrderService
 
 # Publish a high-resolution custom metric (1-second resolution)
+# --storage-resolution: 1 = high-resolution, 60 = standard (default)
 aws cloudwatch put-metric-data \
   --namespace "MyApp/Production" \
   --metric-name "ApiLatency" \
   --value 45.2 \
   --unit Milliseconds \
-  --storage-resolution 1 \            # 1 = high-resolution, 60 = standard (default)
+  --storage-resolution 1 \
   --dimensions Endpoint=/api/orders
 
 # Publish metric with statistic values (aggregated data — more efficient)
@@ -362,6 +364,10 @@ Alarms evaluate a metric against a threshold over a number of consecutive period
 
 ```bash
 # Create an alarm: notify when EC2 CPU > 80% for 3 consecutive 5-minute periods
+# --period: 300 seconds = 5 minutes
+# --evaluation-periods: 3 consecutive periods must breach
+# --threshold: 80 percent
+# --treat-missing-data: options: missing, notBreaching, breaching, ignore
 aws cloudwatch put-metric-alarm \
   --alarm-name "HighCPU-WebServer" \
   --alarm-description "CPU utilization exceeds 80% for 15 minutes" \
@@ -369,16 +375,18 @@ aws cloudwatch put-metric-alarm \
   --metric-name CPUUtilization \
   --dimensions Name=InstanceId,Value=i-1234567890abcdef0 \
   --statistic Average \
-  --period 300 \                          # 300 seconds = 5 minutes
-  --evaluation-periods 3 \               # 3 consecutive periods must breach
-  --threshold 80 \                        # 80 percent
+  --period 300 \
+  --evaluation-periods 3 \
+  --threshold 80 \
   --comparison-operator GreaterThanThreshold \
-  --treat-missing-data missing \          # options: missing, notBreaching, breaching, ignore
+  --treat-missing-data missing \
   --actions-enabled \
   --alarm-actions "arn:aws:sns:us-east-1:123456789012:AlertsTopic" \
   --ok-actions "arn:aws:sns:us-east-1:123456789012:RecoveryTopic"
 
 # Create alarm on a custom metric
+# --evaluation-periods: 5 consecutive 1-minute periods
+# --threshold: error rate > 5%
 aws cloudwatch put-metric-alarm \
   --alarm-name "HighErrorRate-OrderService" \
   --namespace "MyApp/Production" \
@@ -386,8 +394,8 @@ aws cloudwatch put-metric-alarm \
   --dimensions Name=Service,Value=OrderService \
   --statistic Average \
   --period 60 \
-  --evaluation-periods 5 \               # 5 consecutive 1-minute periods
-  --threshold 5 \                         # error rate > 5%
+  --evaluation-periods 5 \
+  --threshold 5 \
   --comparison-operator GreaterThanThreshold \
   --alarm-actions "arn:aws:sns:us-east-1:123456789012:AlertsTopic"
 
@@ -481,7 +489,7 @@ aws cloudwatch put-composite-alarm \
 
 ### 3.4 Alarm Actions (SNS, Auto Scaling, EC2)
 
-Alarms can trigger three types of actions: SNS notifications, Auto Scaling policies, and EC2 instance actions.
+Alarms can trigger SNS notifications, a Lambda function directly (since December 2023; the function needs a resource-based policy that allows the `lambda.alarms.cloudwatch.amazonaws.com` principal), Auto Scaling policies, EC2 instance actions, and Systems Manager OpsItems or incidents. The three most common are shown below.
 
 ```bash
 # Action 1: SNS Notification (most common — email, SMS, Slack, PagerDuty, Lambda)
@@ -569,7 +577,7 @@ aws logs create-log-stream \
   --log-group-name "/myapp/production/api" \
   --log-stream-name "server-1/application.log"
 
-# Put log events (requires sequence token for subsequent calls)
+# Put log events (sequence tokens are no longer required: since 2023 they are ignored)
 aws logs put-log-events \
   --log-group-name "/myapp/production/api" \
   --log-stream-name "server-1/application.log" \
@@ -589,8 +597,6 @@ aws logs get-log-events \
   --start-time 1704067200000 \
   --end-time 1704070800000
 ```
-
-The comment on `put-log-events` above is out of date: AWS dropped the sequence-token requirement in 2023. You can still pass a token, but it is ignored, so you no longer have to track the token returned by each call.
 
 ### 4.2 Log Retention
 
@@ -626,10 +632,11 @@ Metric filters extract metric data from log events using pattern matching. They 
 
 ```bash
 # Create a metric filter: count ERROR occurrences in logs
+# --filter-pattern: simple text match
 aws logs put-metric-filter \
   --log-group-name "/myapp/production/api" \
   --filter-name "ErrorCount" \
-  --filter-pattern "ERROR" \              # simple text match
+  --filter-pattern "ERROR" \
   --metric-transformations '[
     {
       "metricNamespace": "MyApp/Production",
@@ -650,10 +657,11 @@ aws logs put-metric-filter \
 
 # Create a metric filter for JSON structured logs
 # Log format: { "level": "ERROR", "statusCode": 500, "latency": 1234, "path": "/api/orders" }
+# --filter-pattern: requests over 2 seconds
 aws logs put-metric-filter \
   --log-group-name "/myapp/production/api" \
   --filter-name "HighLatencyRequests" \
-  --filter-pattern '{ $.latency > 2000 }' \    # requests over 2 seconds
+  --filter-pattern '{ $.latency > 2000 }' \
   --metric-transformations '[
     {
       "metricNamespace": "MyApp/Production",
@@ -664,10 +672,11 @@ aws logs put-metric-filter \
   ]'
 
 # Extract a value from the log as the metric value (e.g., actual latency)
+# --filter-pattern: any log with a latency field
 aws logs put-metric-filter \
   --log-group-name "/myapp/production/api" \
   --filter-name "RequestLatency" \
-  --filter-pattern '{ $.latency = * }' \        # any log with a latency field
+  --filter-pattern '{ $.latency = * }' \
   --metric-transformations '[
     {
       "metricNamespace": "MyApp/Production",
@@ -785,11 +794,12 @@ aws logs put-subscription-filter \
   --filter-pattern "ERROR" \
   --destination-arn "arn:aws:lambda:us-east-1:123456789012:function:ProcessErrors"
 
-# Stream logs to Kinesis Data Firehose (for S3, Elasticsearch, Splunk)
+# Stream logs to Amazon Data Firehose, formerly Kinesis Data Firehose (for S3, OpenSearch, Splunk)
+# --filter-pattern: empty = match all logs
 aws logs put-subscription-filter \
   --log-group-name "/myapp/production/api" \
   --filter-name "AllLogsToS3" \
-  --filter-pattern "" \                   # empty = match all logs
+  --filter-pattern "" \
   --destination-arn "arn:aws:firehose:us-east-1:123456789012:deliverystream/logs-to-s3" \
   --role-arn "arn:aws:iam::123456789012:role/CWLtoFirehoseRole"
 
@@ -802,12 +812,16 @@ aws logs put-subscription-filter \
   --role-arn "arn:aws:iam::123456789012:role/CWLtoKinesisRole"
 
 # Stream logs to an OpenSearch (Elasticsearch) domain
+# A subscription filter cannot target an OpenSearch domain ARN directly. Either use the
+# console's "Create Amazon OpenSearch Service subscription filter" (it creates a Lambda
+# function that writes to the domain), or subscribe a Firehose stream whose destination
+# is the OpenSearch domain:
 aws logs put-subscription-filter \
   --log-group-name "/myapp/production/api" \
   --filter-name "LogsToOpenSearch" \
   --filter-pattern "" \
-  --destination-arn "arn:aws:es:us-east-1:123456789012:domain/my-logs" \
-  --role-arn "arn:aws:iam::123456789012:role/CWLtoOpenSearchRole"
+  --destination-arn "arn:aws:firehose:us-east-1:123456789012:deliverystream/logs-to-opensearch" \
+  --role-arn "arn:aws:iam::123456789012:role/CWLtoFirehoseRole"
 ```
 
 ```
@@ -819,7 +833,7 @@ Subscription Filter Destinations:
                │ real-time streaming
                ├──► Lambda Function (real-time processing, alerting)
                ├──► Kinesis Data Stream (custom processing pipeline)
-               ├──► Kinesis Data Firehose (load to S3, OpenSearch, Splunk)
+               ├──► Amazon Data Firehose (load to S3, OpenSearch, Splunk)
                └──► CloudWatch Logs in another account (cross-account)
 ```
 
@@ -1289,7 +1303,7 @@ aws events put-rule \
 # Cron format: cron(Minutes Hours Day-of-month Month Day-of-week Year)
 # Fields:     min(0-59)  hr(0-23) dom(1-31)  mon(1-12) dow(SUN-SAT) yr(*)
 # Special:    * = all, ? = no specific value (required for dom OR dow)
-#             L = last, W = weekday, # = nth day (e.g., 3#2 = 2nd Wednesday)
+#             L = last, W = weekday, # = nth day (e.g., 3#2 = 2nd Tuesday; 1 = SUN)
 
 # Add Lambda target to the schedule
 aws events put-targets \
@@ -1317,10 +1331,10 @@ cron(0 0 ? * SUN *)
 cron(0 6 ? * MON *)
 
 # Run every 15 minutes during business hours (9 AM - 5 PM UTC, weekdays)
-# → Not possible with a single cron; use rate(15 minutes) + Lambda logic to check time
+cron(0/15 9-16 ? * MON-FRI *)   # minutes 0,15,30,45 of hours 9-16 → 9:00 to 16:45 UTC
 ```
 
-Correction to the last example: it **is** possible with one expression, because AWS cron fields accept both ranges and step values. `cron(0/15 9-16 ? * MON-FRI *)` means "minute 0, 15, 30 and 45, of hours 9 through 16, Monday to Friday", which covers 9:00 to 16:45 UTC. Reach for a `rate()` rule plus a time check in code only when the window cannot be written as ranges (a holiday calendar, for example).
+Ranges and step values combine in one expression. Reach for a `rate()` rule plus a time check in code only when the window cannot be written as ranges (a holiday calendar, for example).
 
 ---
 
@@ -1350,9 +1364,10 @@ aws ssm send-command \
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-config-wizard
 
 # Start the agent with a config file
+# -m: mode: ec2 or onPremise
 sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
   -a fetch-config \
-  -m ec2 \                                    # mode: ec2 or onPremise
+  -m ec2 \
   -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
   -s                                           # start the agent
 
@@ -1571,7 +1586,7 @@ Example CloudTrail event:
 Key facts for interviews:
 - **Event history:** Free, 90-day lookup of management events in the console
 - **Trails:** Required for long-term storage (S3) and advanced features
-- **Delivery delay:** Events typically appear within 15 minutes
+- **Delivery delay:** On average about 5 minutes after the API call (not guaranteed)
 - **CloudTrail is NOT real-time** — use CloudWatch Events/EventBridge for real-time reactions
 
 ### 8.2 Management Events vs Data Events
@@ -1611,12 +1626,14 @@ A trail captures CloudTrail events and delivers them to an S3 bucket (and option
 
 ```bash
 # Create a trail that logs to S3 (all regions)
+# --is-multi-region-trail: capture events from ALL regions
+# --include-global-service-events: IAM, STS, CloudFront (global services)
 aws cloudtrail create-trail \
   --name "my-org-trail" \
   --s3-bucket-name "my-cloudtrail-logs-bucket" \
   --s3-key-prefix "cloudtrail" \
-  --is-multi-region-trail \                    # capture events from ALL regions
-  --include-global-service-events \            # IAM, STS, CloudFront (global services)
+  --is-multi-region-trail \
+  --include-global-service-events \
   --enable-log-file-validation                 # digest files for integrity verification
 
 # Start logging (trail is created in a stopped state)
@@ -1724,7 +1741,7 @@ aws logs put-metric-filter \
 aws logs put-metric-filter \
   --log-group-name "CloudTrail/DefaultLogGroup" \
   --filter-name "UnauthorizedAPICalls" \
-  --filter-pattern '{ ($.errorCode = "*UnauthorizedAccess*") || ($.errorCode = "AccessDenied*") }' \
+  --filter-pattern '{ ($.errorCode = "*UnauthorizedOperation") || ($.errorCode = "AccessDenied*") }' \
   --metric-transformations '[{
     "metricNamespace": "CloudTrailMetrics",
     "metricName": "UnauthorizedAPICallCount",
@@ -1828,21 +1845,23 @@ Sampling Rules (controls cost):
 
 Instrument your application with the X-Ray SDK to capture traces. The SDK automatically traces AWS SDK calls, HTTP calls, and SQL queries.
 
+The X-Ray SDKs and daemon entered maintenance mode on 25 February 2026 (security fixes only, no new features). For new code, AWS recommends OpenTelemetry (for example the AWS Distro for OpenTelemetry, ADOT), which still sends traces to X-Ray. The SDK examples below show the concepts (segments, subsegments, annotations) that carry over.
+
 ```javascript
 // Node.js X-Ray SDK integration
 
 // 1. Install: npm install aws-xray-sdk
 
-// 2. Instrument the AWS SDK (captures all AWS service calls)
+// 2. Instrument an AWS SDK v3 client (v2, "aws-sdk", reached end of support on 8 Sep 2025)
 const AWSXRay = require("aws-xray-sdk");
-const AWS = AWSXRay.captureAWS(require("aws-sdk"));   // wraps ALL AWS SDK calls
+const { DynamoDBClient, GetItemCommand } = require("@aws-sdk/client-dynamodb");
+const dynamodb = AWSXRay.captureAWSv3Client(new DynamoDBClient({}));   // wrap each client
 
-// Now any DynamoDB, S3, SNS, etc. calls are automatically traced
-const dynamodb = new AWS.DynamoDB.DocumentClient();
-await dynamodb.get({                                    // ← auto-traced as subsegment
+// Now every call made through this client is automatically traced
+await dynamodb.send(new GetItemCommand({                // ← auto-traced as subsegment
   TableName: "orders",
-  Key: { id: "order-123" }
-}).promise();
+  Key: { id: { S: "order-123" } }
+}));
 
 // 3. Instrument outgoing HTTP calls
 const http = AWSXRay.captureHTTPs(require("http"));    // wraps http module
@@ -1903,13 +1922,15 @@ dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('orders')
 
 def lambda_handler(event, context):
-    # Add annotation for filtering traces
-    subsegment = xray_recorder.current_subsegment()
-    subsegment.put_annotation("order_id", event["order_id"])
+    # Open a subsegment and add an annotation for filtering traces.
+    # (current_subsegment() returns None here: Lambda's segment is not a subsegment,
+    # and annotations cannot be added to Lambda's own segment.)
+    with xray_recorder.in_subsegment("handler") as subsegment:
+        subsegment.put_annotation("order_id", event["order_id"])
 
-    # This DynamoDB call is automatically traced
-    response = table.get_item(Key={"id": event["order_id"]})
-    return response["Item"]
+        # This DynamoDB call is automatically traced
+        response = table.get_item(Key={"id": event["order_id"]})
+        return response["Item"]
 ```
 
 ```bash
@@ -1953,12 +1974,13 @@ Service Map Example (visual in X-Ray console):
 Each node shows:
   - Average latency
   - Request rate (requests/sec)
-  - Error rate (% of 5xx)
-  - Fault rate (% of 4xx)
+  - Error rate (% of 4xx client errors)
+  - Fault rate (% of 5xx server faults)
+  - Throttle rate (429)
   - Color coding: Green (healthy), Yellow (errors), Red (faults)
 ```
 
-The two rate lines above have the status codes swapped. In X-Ray, an **error** is a client error (a 4xx response) and a **fault** is a server fault (a 5xx response); throttling (429) is counted separately. That is why the filter `fault = true` below finds 5xx traces, and why a red node on the map means the service itself is failing rather than rejecting bad requests.
+In X-Ray, an **error** is a client error (a 4xx response) and a **fault** is a server fault (a 5xx response); throttling (429) is counted separately. That is why the filter `fault = true` below finds 5xx traces, and why a red node on the map means the service itself is failing rather than rejecting bad requests.
 
 ```bash
 # Get service graph (programmatic access to service map data)
@@ -2306,7 +2328,7 @@ CloudWatch collects metrics by querying the hypervisor (the virtualization layer
 2. **ALARM** — The metric has breached the threshold for the required number of evaluation periods.
 3. **INSUFFICIENT_DATA** — The alarm has just been created, the metric is not reporting data, or there are not enough data points to evaluate the alarm.
 
-Each state transition can trigger actions (SNS notifications, Auto Scaling policies, EC2 actions).
+Each state transition can trigger actions (SNS notifications, Lambda functions, Auto Scaling policies, EC2 actions).
 
 ---
 
@@ -2441,7 +2463,7 @@ I would implement a four-layer monitoring strategy:
 
 **Layer 3 — Distributed Tracing (X-Ray):**
 - Enable active tracing on API Gateway and all Lambda functions
-- X-Ray SDK in Lambda to trace DynamoDB and SQS calls
+- Instrument Lambda to trace DynamoDB and SQS calls (OpenTelemetry/ADOT for new code; the X-Ray SDKs are in maintenance mode)
 - Annotations: `orderId`, `userId`, `paymentMethod`
 - Custom sampling: 100% for `/api/checkout` (critical path), 5% for `/api/health`
 - X-Ray Groups: "SlowRequests" (responsetime > 2), "Errors" (fault = true)
@@ -2466,13 +2488,13 @@ CloudWatch Logs are retained **indefinitely** by default unless a retention poli
 
 For a cost-effective strategy:
 
-1. **Metrics:** Accept CloudWatch's built-in aggregation. For metrics you need at full resolution beyond 15 months, use `get-metric-data` to export to S3 via a scheduled Lambda function before they age out.
+1. **Metrics:** Accept CloudWatch's built-in aggregation. For long-term full-resolution data, stream metrics with CloudWatch Metric Streams (Firehose → S3), or export 1-minute data with `get-metric-data` via a scheduled Lambda function within 15 days (3 hours for 1-second data), before it is rolled up.
 
 2. **Logs:**
    - Set retention policies: 7 days (dev), 30 days (prod), 90 days (security/audit)
-   - Use subscription filters + Kinesis Firehose to stream logs to S3 in real-time for long-term archival
+   - Use subscription filters + Amazon Data Firehose (formerly Kinesis Data Firehose) to stream logs to S3 in real-time for long-term archival
    - S3 storage: use Intelligent-Tiering or Glacier for logs older than 90 days
-   - Use S3 Select or Athena to query archived logs when needed
+   - Use Athena to query archived logs when needed (S3 Select is closed to new customers)
 
 3. **Reduce ingestion volume:**
    - Use log levels (ERROR/WARN in prod, not DEBUG)
@@ -2528,7 +2550,7 @@ When to use static thresholds:
 **Step 3: Check the logs**
 - Use Log Insights to query for 504 status codes in the time range reported by users
 - Look at the `TargetResponseTime` metric — 504s from ALB mean the backend did not respond within the idle timeout (default 60s)
-- Check Lambda duration if backend is serverless — approaching the 29-second API Gateway timeout
+- Check Lambda duration if backend is serverless — approaching the API Gateway integration timeout (29 seconds by default; raisable for Regional and private REST APIs)
 
 **Step 4: Check X-Ray traces**
 - Filter: `http.status = 504` in the affected time window
@@ -2554,7 +2576,7 @@ Monitoring Account (hub): A dedicated AWS account for centralized observability.
 - Create cross-account dashboards in the monitoring account showing all 20 accounts
 
 **2. Centralized Logging:**
-- Each source account's log groups have subscription filters sending to a central Kinesis Data Firehose in the monitoring account
+- Each source account's log groups have subscription filters sending to a central Amazon Data Firehose stream in the monitoring account
 - Firehose delivers to: S3 (archival, Athena querying) and OpenSearch (real-time search)
 - Alternative: Use CloudWatch cross-account log viewing (no data copy needed for ad-hoc analysis)
 
@@ -2603,7 +2625,7 @@ Why it is more cost-effective:
 
 Limitations of EMF:
 - Maximum 100 metrics per log event
-- Maximum 9 dimensions per metric
+- Maximum 30 dimension keys per DimensionSet
 - Log line must be valid JSON with the `_aws` key
 - Only works when logs go to CloudWatch Logs (not if you redirect logs elsewhere)
 
