@@ -2966,3 +2966,16 @@ any trailer naming Claude or anthropic.com, keeps human co-authors, and trims th
 left behind. A pre-commit hook could not do this: it runs before the message exists.
 `verify:arch` #21 runs the hook on a sample message (when `sh` is available) and was probed by
 making the hook's pattern match nothing: the check failed, then passed once restored.
+
+## Frontend Deployment reorganised into basics, platforms, concepts (v1.7.18)
+
+Feedback after v1.7.17: the guide read as scattered (AWS first, Cloudflare and the PrepHub case
+study bolted on after it). It now runs Part 1 basics (§1 incl. key terms, §2 deployment types),
+Part 2 platforms simplest first (§3 GitHub Pages, §4 Cloudflare, §5 AWS with the old pieces /
+by-hand / CDK / CI sections nested as §5.1–5.4, §6 Amplify, §7 side-by-side), Part 3 concepts
+(§8–§14), Part 4 Q&A (§15). The move was scripted: sections were sliced and reassembled
+verbatim and every `§N.M` reference remapped in one pass, then question markers (21) and code
+fences (148) were counted before and after. New prose only fills the joins (intro, key terms,
+types incl. an nginx `try_files` config, GitHub Pages setup with `actions/upload-pages-artifact@v5`
+and `actions/deploy-pages@v5`, verified via the GitHub releases API, and a rollback table).
+Anchors changed, but nothing links into this guide's sections from elsewhere.

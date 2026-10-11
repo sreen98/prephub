@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { Lock, KeyRound, LogOut } from 'lucide-react';
+import { Lock, KeyRound, LogOut, Eye, EyeOff } from 'lucide-react';
 import { decryptText, isEncryptedDoc } from '../lib/adminCrypto';
 
 // Passphrase-protected personal section.
@@ -42,6 +42,7 @@ export default function AdminPage() {
   const [input, setInput] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [checking, setChecking] = useState(false);
+  const [showPassphrase, setShowPassphrase] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function attempt(e: React.FormEvent) {
@@ -52,7 +53,10 @@ export default function AdminPage() {
     unlock(input)
       .then((text) => {
         if (text === null) setError('Incorrect passphrase');
-        else setContent(text);
+        else {
+          setContent(text);
+          setShowPassphrase(false);
+        }
         setInput('');
       })
       .catch((err: unknown) => {
@@ -91,14 +95,24 @@ export default function AdminPage() {
               />
               <input
                 ref={inputRef}
-                type="password"
+                type={showPassphrase ? 'text' : 'password'}
                 autoComplete="current-password"
                 aria-label="Passphrase"
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setError(''); }}
                 placeholder="Passphrase"
-                className="w-full pl-10 pr-4 py-3 rounded-md border border-line bg-surface text-ink outline-none focus:border-accent transition-colors text-base"
+                className="w-full pl-10 pr-11 py-3 rounded-md border border-line bg-surface text-ink outline-none focus:border-accent transition-colors text-base"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassphrase((v) => !v)}
+                aria-label={showPassphrase ? 'Hide passphrase' : 'Show passphrase'}
+                aria-pressed={showPassphrase}
+                title={showPassphrase ? 'Hide passphrase' : 'Show passphrase'}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded text-muted hover:text-ink transition-colors"
+              >
+                {showPassphrase ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
             {error && (
               <p role="alert" className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>

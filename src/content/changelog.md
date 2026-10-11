@@ -1,5 +1,17 @@
 # What's New
 
+## v1.7.18 (October 2026)
+
+**The [Frontend Deployment](/aws/frontend-deployment) guide is reorganised so it reads from basics to platforms.** It now has four parts:
+- **The basics:** what deploying a frontend means, a short list of key terms (CDN, origin, DNS records, SPA fallback, preview deployments, rollback), and the three rules every host must follow.
+- **Types of frontend deployment,** with a decision diagram: static hosting behind a CDN, Git-connected platforms (Amplify, Cloudflare Pages, Vercel, Netlify), server-side rendering, and containers (with the nginx config for an SPA).
+- **One section per platform, simplest first:** GitHub Pages (PrepHub as the worked example, plus a setup for your own app with GitHub's official Pages actions), Cloudflare, AWS S3 + CloudFront, and Amplify. Each covers setup, SPA routing, deploying from GitHub Actions, custom domain, caching and rollback. A final table puts the same app on every platform.
+- **Concepts that apply everywhere:** config, caching, security, performance, monitoring, environments, a new rollback comparison, and cost.
+
+All interview questions and their numbers are unchanged.
+
+**Admin page: show or hide the passphrase.** An eye button next to the passphrase field reveals what you typed, so a typo is easy to spot.
+
 ## v1.7.17 (October 2026)
 
 **The [Frontend Deployment](/aws/frontend-deployment) guide is rewritten to be easier to follow, and now covers Cloudflare.**

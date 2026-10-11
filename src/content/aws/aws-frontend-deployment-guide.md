@@ -1,28 +1,40 @@
-# Deploying a Frontend (React SPA) — AWS and Cloudflare
+# Frontend Deployment — Basics, Hosting Types and Platforms
+
+How a React app gets from `npm run build` to a URL, explained once and then shown on the platforms you will meet in practice: GitHub Pages, Cloudflare and AWS. The guide has four parts:
+
+- **Part 1 — The basics** (§1–§2): what deploying a frontend means, the words you need, the three rules every host must follow, and the main *types* of deployment.
+- **Part 2 — Platforms** (§3–§7), simplest first. Each one covers the same ground: how it works, setup, SPA routing, deploying from GitHub Actions, custom domain, caching and rollback. §7 then puts the same app on every platform side by side.
+- **Part 3 — Concepts that apply everywhere** (§8–§14): configuration, caching, security, performance, monitoring, environments and cost.
+- **Part 4 — Interview questions** (§15).
 
 ## Table of Contents
 
-- [1. Overview — The Mental Model](#1-overview-the-mental-model)
-- [2. Choosing a Host](#2-choosing-a-host)
-- [3. S3 + CloudFront — The Pieces](#3-s3-cloudfront-the-pieces)
-- [4. Step-by-Step: S3 + CloudFront by Hand](#4-step-by-step-s3-cloudfront-by-hand)
-- [5. Infrastructure as Code (CDK)](#5-infrastructure-as-code-cdk)
-- [6. CI/CD: GitHub Actions to AWS](#6-cicd-github-actions-to-aws)
-- [7. Cloudflare Workers + GitHub Actions](#7-cloudflare-workers-github-actions)
-- [8. Case Study: How PrepHub Deploys](#8-case-study-how-prephub-deploys)
-- [9. Environment Variables and Config](#9-environment-variables-and-config)
-- [10. Caching Strategy](#10-caching-strategy)
-- [11. Security](#11-security)
-- [12. Performance Optimization](#12-performance-optimization)
-- [13. Monitoring](#13-monitoring)
-- [14. Multi-Environment Setup](#14-multi-environment-setup)
-- [15. AWS Amplify (Alternative)](#15-aws-amplify-alternative)
-- [16. Cost Breakdown](#16-cost-breakdown)
-- [17. Interview Questions & Answers](#17-interview-questions-answers)
+**Part 1 — The basics**
+- [1. What Deploying a Frontend Means](#1-what-deploying-a-frontend-means)
+- [2. Types of Frontend Deployment](#2-types-of-frontend-deployment)
+
+**Part 2 — Platforms**
+- [3. GitHub Pages — Worked Example: PrepHub](#3-github-pages-worked-example-prephub)
+- [4. Cloudflare Workers and Pages](#4-cloudflare-workers-and-pages)
+- [5. AWS: S3 + CloudFront](#5-aws-s3-cloudfront)
+- [6. AWS Amplify](#6-aws-amplify)
+- [7. The Same App on Every Platform](#7-the-same-app-on-every-platform)
+
+**Part 3 — Concepts that apply everywhere**
+- [8. Environment Variables and Config](#8-environment-variables-and-config)
+- [9. Caching Strategy](#9-caching-strategy)
+- [10. Security](#10-security)
+- [11. Performance Optimization](#11-performance-optimization)
+- [12. Monitoring](#12-monitoring)
+- [13. Multi-Environment Setup and Rollbacks](#13-multi-environment-setup-and-rollbacks)
+- [14. Cost Comparison](#14-cost-comparison)
+
+**Part 4 — Interview questions**
+- [15. Interview Questions & Answers](#15-interview-questions-answers)
 
 ---
 
-## 1. Overview — The Mental Model
+## 1. What Deploying a Frontend Means
 
 A React SPA (single-page application — one HTML page whose JavaScript swaps the content as you navigate, instead of the server sending a new page per URL) builds to plain static files: `npm run build` writes `index.html` plus an `assets/` folder of JavaScript, CSS and images into `dist/`. Nothing runs on a server per request, so "deploying" means putting those files somewhere and handing them out quickly. The cheapest, most reliable way to do that is file storage behind a **CDN** (content delivery network — cache servers spread around the world, so a user downloads from a nearby city rather than from your one data centre).
 
@@ -54,18 +66,33 @@ flowchart LR
   e7@{ animate: true }
 ```
 
-Every hosting option in this guide is a different way of providing those five steps. On AWS you assemble them from separate services; on Cloudflare one product does all of them.
+Every platform in this guide is a different way of providing those five steps. GitHub Pages and Cloudflare do most of them for you; on AWS you assemble them from separate services.
 
-| Job | AWS | Cloudflare |
-|-----|-----|------------|
-| Store the files | S3 bucket | Worker static assets |
-| Serve them worldwide | CloudFront | Cloudflare's network (automatic) |
-| HTTPS certificate | ACM (AWS Certificate Manager) | Automatic |
-| DNS for your domain | Route 53 | Cloudflare DNS |
-| SPA fallback | CloudFront error responses or a CloudFront Function | `not_found_handling: "single-page-application"` |
-| Deploy on every push | GitHub Actions or CodePipeline | GitHub Actions with `wrangler-action` |
+| Job | GitHub Pages | Cloudflare | AWS |
+|-----|--------------|------------|-----|
+| Store the files | A branch of your repository | Worker static assets | S3 bucket |
+| Serve them worldwide | GitHub's CDN (automatic) | Cloudflare's network (automatic) | CloudFront |
+| HTTPS certificate | Automatic | Automatic | ACM (AWS Certificate Manager) |
+| DNS for your domain | Any provider, one CNAME record | Cloudflare DNS | Route 53 |
+| SPA fallback | None built in: route shells or the `404.html` trick | `not_found_handling: "single-page-application"` | CloudFront error responses or a CloudFront Function |
+| Deploy on every push | GitHub Actions | GitHub Actions with `wrangler-action` | GitHub Actions or CodePipeline |
 
-### 1.2 Three rules every host must follow
+### 1.2 Key Terms
+
+These words come up on every platform, so here they are once:
+
+- **Build output** — what `npm run build` produces (`dist/` for Vite, `build/` for Create React App). It is the only thing you deploy; your `src/` folder never reaches the server.
+- **Static hosting** — a server that only hands out files as they are, without running your code per request. Every SPA can be hosted this way.
+- **CDN, edge location, origin** — a CDN is a network of cache servers around the world (each one an *edge location* or *point of presence*). When an edge does not have a file, it fetches it once from the *origin*, the place your files really live.
+- **DNS record** — the entry that turns `app.example.com` into an address. An **A/AAAA** record points at an IP address; a **CNAME** points one name at another name (`app.example.com → my-site.github.io`); an **alias** (AWS) or a flattened CNAME (Cloudflare) does the same on a bare domain like `example.com`, where a plain CNAME is not allowed.
+- **TLS certificate** — the file that lets the browser trust `https://app.example.com`. All three platforms issue and renew it for free.
+- **Cache headers** — `Cache-Control` tells browsers and CDNs how long they may reuse a file without asking again (§9).
+- **SPA fallback** — answering a request for a path that is not a file (`/dashboard`) with `index.html`, so the client-side router can draw the page.
+- **CI/CD** — continuous integration and delivery: a pipeline (here, GitHub Actions) that tests, builds and deploys on every push, so nobody uploads files by hand.
+- **Preview deployment** — a temporary copy of the site for one branch or pull request, at its own URL, so a change can be reviewed before it goes live.
+- **Rollback** — putting the previous version back after a bad deploy (§13).
+
+### 1.3 Three rules every host must follow
 
 1. **Unknown paths serve `index.html`.** `/dashboard` is not a file; it is a route React draws in the browser. If the host returns 404 for it, refreshing the page or opening a shared link breaks.
 2. **`index.html` is never cached for long; hashed assets are cached forever.** Vite names each built file after a hash of its contents (`index-a1b2c3.js`), so a changed file gets a new name and an old name can be cached for a year. `index.html` keeps its name every build, so it must be revalidated on every visit, or users keep loading the old app.
@@ -75,30 +102,503 @@ Keep these three in mind and every configuration below is just one host's way of
 
 ---
 
-## 2. Choosing a Host
+## 2. Types of Frontend Deployment
 
-| Feature | S3 + CloudFront | AWS Amplify | Cloudflare Workers | S3 website only |
-|---------|-----------------|-------------|--------------------|-----------------|
-| CDN | Yes (global) | Yes | Yes (global) | No |
-| HTTPS | Yes (ACM) | Yes (automatic) | Yes (automatic) | No |
-| SPA routing | You configure it | Rewrite rule | One config line | Error document hack |
-| Deploy on push | You write the pipeline | Built in | You write the pipeline (short) | You write the pipeline |
-| Preview URL per PR | Build it yourself | Built in | Version preview URLs | No |
-| Control over caching and edge logic | Full | Limited | Full (`_headers`, Worker code) | None |
-| Cost for a typical SPA | Usually within the free tier, then per GB | $0.15 per GB served after 15 GB | Static asset requests free and unlimited | Cheapest, but public bucket |
-| Setup effort | Highest | Lowest | Low | Low |
+"Deploying a frontend" covers four quite different setups. Which one you need depends mostly on one question: **does any of your code have to run on a server for each request?** A plain SPA does not, so it gets the simplest and cheapest option.
+
+```mermaid
+flowchart TD
+  Q1{"Server code<br/>per request?"}
+  Q1 e1@-->|"no: a plain SPA or static site"| Q2{"Platform builds<br/>on every push?"}
+  Q1 e2@-->|"yes: SSR, server components"| SSR["2.3 Server-side rendering<br/>Vercel, Netlify, Amplify SSR,<br/>Cloudflare Workers code, Lambda, containers"]
+  Q2 e3@-->|"no: CI builds and uploads"| STATIC["2.1 Static hosting + CDN<br/>GitHub Pages, Cloudflare Workers,<br/>S3 + CloudFront"]
+  Q2 e4@-->|"yes"| MANAGED["2.2 Git-connected platform<br/>Amplify, Cloudflare Pages,<br/>Vercel, Netlify"]
+  Q1 e5@-.->|"company runs everything<br/>on Kubernetes or ECS"| CONT["2.4 Container<br/>nginx image serving dist/"]
+  e1@{ animate: true }
+  e2@{ animate: true }
+  e3@{ animate: true }
+  e4@{ animate: true }
+  e5@{ animate: true }
+```
+
+### 2.1 Static Hosting Behind a CDN
+
+The build output is uploaded to file storage and served by a CDN. Your CI pipeline does the building, and the host only stores and serves files. This is the default for SPAs and static sites, and it is what most of this guide covers: **GitHub Pages** (§3), **Cloudflare Workers static assets** (§4) and **AWS S3 + CloudFront** (§5).
+
+- **Strengths:** nearly free, very fast (every file is served from a nearby edge), almost nothing can break at runtime, and scaling is the CDN's problem.
+- **Limits:** no server code, so anything secret or per-user (API keys, database access) has to live in a separate backend API.
+
+### 2.2 Git-Connected Platforms
+
+You connect a repository, and the platform runs the build itself on every push, deploys the result to its CDN and gives every branch or pull request a preview URL. **AWS Amplify** (§6), **Cloudflare Pages** (§4.7), **Vercel** and **Netlify** work this way. Underneath, the result is still static hosting plus a CDN, so the trade-off is convenience against control: less pipeline to write, but you only get the settings the platform exposes, and builds run on the platform's machines and are billed by the minute.
+
+### 2.3 Server-Side Rendering (SSR)
+
+Frameworks such as Next.js, Remix/React Router framework mode or Nuxt can render pages on a server per request, which helps SEO and first paint for content that changes. That needs compute, not just storage: a Node server, serverless functions (AWS Lambda) or edge functions (Cloudflare Workers code, Vercel's edge runtime). Static assets still go to a CDN; only the HTML rendering runs as code. Vercel and Netlify specialise in this, and Amplify and Cloudflare support it too. The [Next.js & RSC guide](/frontend/nextjs-rsc) covers rendering modes; this guide sticks to SPAs.
+
+### 2.4 Containers
+
+Some companies run everything as containers on Kubernetes or Amazon ECS, so the frontend becomes a small image too: a multi-stage Dockerfile builds the app and copies `dist/` into an nginx image. The same three rules apply, written as nginx config:
+
+```nginx
+server {
+  listen 80;
+  root /usr/share/nginx/html;
+
+  # Rule 2: hashed assets cached for a year
+  location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  # Rule 1: any path that is not a file falls back to index.html
+  location / {
+    add_header Cache-Control "no-cache";
+    try_files $uri $uri/ /index.html;
+  }
+}
+```
+
+This gives one deployment model for the whole company, at the cost of running servers for files a CDN could serve for free; in practice a CDN usually still sits in front. The [Docker, K8s & CI/CD guide](/backend/docker-kubernetes) covers building and running images.
+
+### 2.5 Choosing a Platform
+
+
+| Feature | GitHub Pages | Cloudflare Workers | S3 + CloudFront | AWS Amplify |
+|---------|--------------|--------------------|-----------------|-------------|
+| Type (§2) | Static + CDN | Static + CDN | Static + CDN | Git-connected |
+| CDN and HTTPS | Yes, automatic | Yes, automatic | Yes (CloudFront + ACM) | Yes, automatic |
+| SPA routing | Not built in (workarounds, §3.3) | One config line | You configure it | Rewrite rule |
+| Response headers | None, fixed 10-minute cache | `_headers` file | Full control | `customHttp.yml` |
+| Deploy on push | GitHub Actions | GitHub Actions (short) | GitHub Actions (longest) | Built in |
+| Preview URL per PR | No | Version preview URLs | Build it yourself | Built in |
+| CI credentials | None needed | API token | OIDC role (no stored secret) | None needed |
+| Cost for a typical SPA | Free | Free (static requests unlimited) | Usually within the free tier | $0.15 per GB after 15 GB |
+| Setup effort | Lowest | Low | Highest | Low |
 
 How to choose:
 
-- **Your company already runs on AWS**, or needs WAF rules, IAM-controlled access, multi-region failover or infrastructure reviewed as code: **S3 + CloudFront** (§3–§6).
-- **You want the least plumbing and your domain can use Cloudflare's DNS**: **Cloudflare Workers** (§7). There is no bucket, no certificate step and no cache invalidation, and static traffic is free.
-- **A team wants deploy-on-push and PR previews without writing a pipeline, inside AWS**: **Amplify** (§15).
-- **A free site straight from the repository, and you can live without custom headers or rewrites**: **GitHub Pages**. PrepHub itself runs this way, and §8 shows what that costs in workarounds.
-- **S3 static website hosting on its own** serves HTTP only from one region and needs a public bucket. Use it only for internal throwaway tools.
+- **A personal project, docs or a portfolio, free, straight from the repository**, and you can live without rewrites or custom headers: **GitHub Pages** (§3).
+- **The least plumbing with full control over caching and headers**, and your domain can use Cloudflare's DNS: **Cloudflare Workers** (§4). No bucket, no certificate step, no cache invalidation, and static traffic is free.
+- **Your company already runs on AWS**, or needs WAF rules, IAM-controlled access, multi-region failover or infrastructure reviewed as code: **S3 + CloudFront** (§5).
+- **A team inside AWS wants deploy-on-push and PR previews without writing a pipeline**: **Amplify** (§6).
+- **The app renders on the server** (Next.js SSR, server components): a platform with compute (§2.3), not plain static hosting.
+- **Avoid S3 static website hosting on its own**: it serves HTTP only, from one region, and needs a public bucket.
 
 ---
 
-## 3. S3 + CloudFront — The Pieces
+## 3. GitHub Pages — Worked Example: PrepHub
+
+**GitHub Pages** serves static files straight from a GitHub repository, for free, over HTTPS, on GitHub's own CDN. You publish by pushing the build output to a branch (or by uploading it with GitHub's official `actions/deploy-pages` action), and you can attach your own domain with one DNS record. It is the simplest platform in this guide, and also the most limited: there are no rewrite rules, so SPA fallback has to be faked, and no way to set response headers.
+
+The best way to see both sides is a real app, so this section walks through the site you are reading. PrepHub is a Vite + React SPA: about a hundred guides, each a lazily loaded chunk, installed as a PWA (progressive web app — a site that a service worker can run offline). It is hosted on **GitHub Pages**, with **Cloudflare for DNS only**. Every detail below is from the repository's `.github/workflows/deploy.yml` and from the live site's response headers.
+
+```mermaid
+flowchart LR
+  DEV["git push to main"] e1@--> GA["GitHub Actions<br/>quality gates, then vite build"]
+  GA e2@--> POST["route shells<br/>+ sitemap"]
+  POST e3@--> GHP["gh-pages branch<br/>dist/ + CNAME file"]
+  GHP e4@--> CDN["GitHub Pages CDN"]
+  USER["Browser"] e5@-->|"prephub.sreenathp.com?"| CF["Cloudflare DNS<br/>CNAME, not proxied"]
+  CF e6@-->|"sreen98.github.io"| USER
+  USER e7@==>|"HTTPS"| CDN
+  CDN e8@==>|"index.html + chunks"| SW["Service worker<br/>caches the app shell"]
+  e1@{ animate: true }
+  e2@{ animate: true }
+  e3@{ animate: true }
+  e4@{ animate: true }
+  e7@{ animate: true }
+  e8@{ animate: true }
+```
+
+### 3.1 The Pipeline
+
+One workflow runs on every push to `main`. Every check runs *before* the build, so a broken commit never reaches the site:
+
+```yaml
+# .github/workflows/deploy.yml (trimmed; the real file explains each step in comments)
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write          # lets the built-in GITHUB_TOKEN push the gh-pages branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: 'npm' }
+      - run: npm install
+      - run: npm run content:meta          # generated files the typecheck needs
+      - run: npm run playground:index
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run verify:arch           # repository invariants
+      - run: npm run verify:blocks         # every guide code block parses
+      - run: node scripts/prepare-content.js
+      - run: npm run verify:counts         # numbers quoted in prose match the content
+      - run: npm run build                 # vite build + route shells + sitemap
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          cname: prephub.sreenathp.com
+```
+
+Three choices worth copying:
+
+- **No deploy credentials at all.** The host is GitHub itself, so the token GitHub gives every workflow run (`GITHUB_TOKEN`), with `contents: write`, is enough to publish. There is no AWS role and no Cloudflare token to manage.
+- **The deploy step is a git push.** `peaceiris/actions-gh-pages` commits `dist/` to the `gh-pages` branch, and GitHub Pages serves that branch.
+- **The `cname:` input** writes a `CNAME` file into every deploy. Each deploy replaces the branch's contents, so without that file GitHub would forget the custom domain and fall back to `sreen98.github.io/prephub/`, where the site's root-based asset paths do not resolve.
+
+### 3.2 The Domain: Cloudflare DNS, GitHub HTTPS
+
+Cloudflare manages the `sreenathp.com` zone and holds one record, `CNAME prephub → sreen98.github.io`, set to **DNS only** (not proxied through Cloudflare). A lookup of `prephub.sreenathp.com` returns GitHub's own `185.199.108–111.153` addresses, and responses carry `Server: GitHub.com`, so Cloudflare answers the DNS question and then steps out of the way. GitHub issues and renews the HTTPS certificate for the custom domain.
+
+The site moved here from `sreen98.github.io/prephub/`. GitHub now 301-redirects the old address, and the move meant changing the base path from `/prephub/` to `/` in one place (`base` in `vite.config.js`), plus the PWA scope and a few absolute URLs.
+
+### 3.3 SPA Routing on a Host Without Rewrites
+
+GitHub Pages cannot rewrite unknown paths to `index.html`, so it breaks rule 1 from §1.3 out of the box: a request for `/frontend/react` finds no file and gets a real 404. PrepHub handles this in two layers.
+
+```mermaid
+flowchart TD
+  REQ["GET /frontend/react"] e1@--> Q{"Is it a known route?"}
+  Q e2@-->|"yes"| SHELL["dist/frontend/react/index.html exists<br/>301 to the trailing slash, then 200"]
+  Q e3@-->|"no"| NF["404.html<br/>rewrites the URL to /?/unknown/path"]
+  NF e4@--> IDX["index.html restores the path,<br/>the router redirects unknown routes home"]
+  SHELL e5@--> APP["React Router renders the guide"]
+  e1@{ animate: true }
+  e2@{ animate: true }
+  e3@{ animate: true }
+  e4@{ animate: true }
+  e5@{ animate: true }
+```
+
+1. **Route shells for every known route.** After `vite build`, `scripts/generate-route-shells.js` copies `index.html` to `dist/<route>/index.html` for every route the app has. A deep link then finds a real file: GitHub answers `/frontend/react` with a 301 to `/frontend/react/` and serves the shell with a 200. Before the shells existed, every deep link paid for a 404 plus a redirect, which Lighthouse measured at 978 ms on mobile.
+2. **`404.html` for everything else.** GitHub Pages serves `404.html` for missing paths. PrepHub's version is a tiny script that rewrites `/some/path` to `/?/some/path` and loads the app, and `index.html` turns that query string back into the real path before the router starts. This is the well-known "SPA on GitHub Pages" trick, and here it only handles genuinely unknown URLs.
+
+### 3.4 The Caching You Cannot Control
+
+GitHub Pages sends `Cache-Control: max-age=600` on **every** file, hashed or not, and offers no way to change it or add other headers:
+
+```bash
+curl -sI https://prephub.sreenathp.com/ | grep -i cache-control
+# cache-control: max-age=600
+curl -sI https://prephub.sreenathp.com/assets/app-CZwu4M6U.js | grep -i cache-control
+# cache-control: max-age=600   ← a hashed file that could safely be cached for a year
+```
+
+That breaks rule 2 in both directions: `index.html` can be up to ten minutes stale after a deploy, and hashed chunks are revalidated every ten minutes instead of being cached for a year. PrepHub compensates in the browser with a **service worker** (generated by `vite-plugin-pwa`, which uses Google's Workbox library): it precaches the app shell (the `app-*` and `vendor-*` chunks), caches each guide chunk the first time it is opened, and checks for a new version periodically, updating automatically when it finds one. Returning visitors therefore load the app from their own device. The other missing piece, security headers such as HSTS or a CSP header, cannot be fixed on GitHub Pages at all; a CSP could only be added as a `<meta>` tag.
+
+### 3.5 Setting It Up for Your Own App
+
+PrepHub publishes by pushing `dist/` to a `gh-pages` branch. A new project can skip the branch and use GitHub's official Pages actions instead: in the repository's **Settings → Pages**, set **Source** to **GitHub Actions**, then add this workflow.
+
+```yaml
+# .github/workflows/pages.yml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write       # publish to Pages
+  id-token: write    # Pages verifies the deployment with an OIDC token
+
+concurrency: pages
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - run: cp dist/index.html dist/404.html     # simplest SPA fallback (see below)
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+```
+
+Three things to get right:
+
+- **The base path.** Without a custom domain, a repository's site lives at `https://<user>.github.io/<repo>/`, not at the domain root, so set `base: '/<repo>/'` in `vite.config.js` (and `basename` on your router) or every asset URL 404s. With a custom domain, or a repository named `<user>.github.io`, the base stays `/`.
+- **SPA fallback.** Copying `index.html` to `404.html` makes every unknown path load the app, so deep links work. The response status is still 404, which search engines index badly and Lighthouse flags; PrepHub's route shells (§3.3) fix that for known routes.
+- **Custom domain.** Enter it under **Settings → Pages → Custom domain**, add a `CNAME` record pointing at `<user>.github.io` with your DNS provider (any provider works), and tick **Enforce HTTPS** once GitHub has issued the certificate.
+
+**Rollback.** Every run is a separate deployment in the `github-pages` environment. To go back, re-run the deploy workflow from the last good commit (**Actions → the run → Re-run all jobs**) or revert the bad commit and let the push redeploy. Both rebuild, so a rollback takes as long as a deploy.
+
+---
+
+## 4. Cloudflare Workers and Pages
+
+Cloudflare runs one of the largest CDNs, and its **Workers** platform can serve a folder of static files directly. A **Worker** is a small program Cloudflare runs at every one of its locations; a Worker with **static assets** may have no program at all, just your `dist/` folder plus a config file. Cloudflare uploads the files to its network, serves them over HTTPS with an automatic certificate, and does the SPA fallback with one setting.
+
+Cloudflare also has an older product for this, **Pages**. Pages is still supported, but Cloudflare's own documentation now says to start new projects on Workers, which it calls its primary platform. Pages is covered in §4.7 because many existing sites use it.
+
+The whole Cloudflare flow, for production pushes and for pull requests:
+
+```mermaid
+flowchart LR
+  PUSH["push to main"] e1@--> GA["GitHub Actions<br/>npm ci, test, build"]
+  PR["pull request"] e2@--> GA
+  GA e3@==>|"wrangler deploy"| CFN["Cloudflare network<br/>every location"]
+  GA e4@-.->|"wrangler versions upload<br/>--preview-alias pr-42"| PREV["pr-42-my-app.workers.dev"]
+  CFN e5@==>|"HTTPS, automatic certificate"| USER["Visitors on<br/>app.example.com"]
+  e1@{ animate: true }
+  e2@{ animate: true }
+  e3@{ animate: true }
+  e4@{ animate: true }
+  e5@{ animate: true }
+```
+
+### 4.1 How It Compares with AWS
+
+If you have used AWS, this table translates each AWS piece (explained in §5) into its Cloudflare equivalent. Most of the AWS work simply disappears:
+
+| AWS piece | Cloudflare equivalent |
+|-----------|-----------------------|
+| S3 bucket + OAC | The Worker's static assets (never publicly listable, nothing to lock down) |
+| CloudFront distribution | Automatic: every Worker is served from Cloudflare's whole network |
+| 403/404 → `index.html` | `"not_found_handling": "single-page-application"` |
+| Response headers policy | A `_headers` file in the build output |
+| ACM certificate | Issued automatically when you attach a custom domain |
+| Route 53 alias | A custom domain on the Worker (your zone must use Cloudflare DNS) |
+| Invalidation | Not needed: Cloudflare revalidates static files on each request by default (§4.3) |
+| OIDC role | Not available: a scoped API token stored as a GitHub secret |
+
+### 4.2 Project Setup
+
+Add a Wrangler config file at the project root. **Wrangler** is Cloudflare's CLI; it reads this file to know what to deploy.
+
+```json
+{
+  "name": "my-app",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist/",
+    "not_found_handling": "single-page-application"
+  }
+}
+```
+
+Save it as `wrangler.jsonc` (Wrangler also accepts `wrangler.toml`). What each key does:
+
+- `name` — the Worker's name; it also gives you a free URL, `my-app.<your-subdomain>.workers.dev`.
+- `compatibility_date` — pins Cloudflare's runtime behaviour to that date, so a platform change never alters a deployed site. Set it to the day you create the project.
+- `assets.directory` — the folder to upload: Vite's `dist/`.
+- `not_found_handling: "single-page-application"` — any request that matches no file gets `index.html` with a 200. This is rule 1 from §1.3 in one line.
+
+There is no `main` key, because an assets-only Worker has no code. If you later need server logic (an `/api` proxy, for example), add a script with `main` and list the paths it should handle in `assets.run_worker_first`; requests for files are still served without running your code.
+
+Headers go in a `_headers` file. Put it in Vite's `public/` folder, so the build copies it into `dist/`:
+
+```text
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+```
+
+Each block is a URL pattern followed by indented headers. The first block gives Vite's hashed files a one-year cache; without it Cloudflare would revalidate them on every request, which is correct but wasteful.
+
+### 4.3 First Deploy from Your Laptop
+
+```bash
+npm install --save-dev wrangler
+npx wrangler login          # opens the browser once to authorise this machine
+npm run build
+npx wrangler deploy         # uploads dist/ and prints the workers.dev URL
+```
+
+Only files whose content changed are uploaded on later deploys.
+
+Caching works differently from S3. Unless `_headers` says otherwise, Cloudflare sends static files with `Cache-Control: public, max-age=0, must-revalidate` and an `ETag` (a fingerprint of the file's contents). Browsers therefore re-check each file on every visit and get a tiny `304 Not Modified` when nothing changed. So `index.html` is always fresh after a deploy and there is **no invalidation step**.
+
+### 4.4 Deploy from GitHub Actions
+
+Cloudflare does not support GitHub OIDC for deploys, so CI authenticates with an **API token** — a long-lived secret, which makes scoping it narrowly matter:
+
+1. In the Cloudflare dashboard, go to **My Profile → API Tokens → Create Token** and use the **Edit Cloudflare Workers** template. Limit it to your one account (and zone, if you attach a custom domain).
+2. Copy your **Account ID** from the dashboard's Workers overview.
+3. In GitHub, add both as repository secrets: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+```yaml
+# .github/workflows/deploy-cloudflare.yml
+name: Deploy frontend to Cloudflare
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency: deploy-production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+```
+
+`cloudflare/wrangler-action` installs Wrangler (v4 by default, or the version in your `package.json`) and runs the command you give it, reading `wrangler.jsonc` from the repository. The build happens in GitHub Actions, so `VITE_*` values must be set on the build step, as here; variables set in the Cloudflare dashboard are never seen by a build that ran somewhere else.
+
+Compared with the AWS workflow in §5.4.2, there is no upload ordering to manage and no invalidation: Wrangler uploads the new files and then switches the Worker to the new version in one step.
+
+### 4.5 Preview URL for Every Pull Request
+
+`wrangler versions upload` uploads a new version *without* sending production traffic to it, and `--preview-alias` gives that version a readable URL:
+
+```yaml
+# .github/workflows/preview-cloudflare.yml
+name: Preview
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: versions upload --preview-alias pr-${{ github.event.number }}
+```
+
+Pull request 42 is then live at `pr-42-my-app.<your-subdomain>.workers.dev`. Two things to know: preview URLs are public unless you put Cloudflare Access (Cloudflare's login gateway) in front of them, and pull requests from forks get no repository secrets, so this job only works for branches in your own repository.
+
+### 4.6 Custom Domain
+
+Attaching your own domain requires the domain's DNS to be on Cloudflare (an active "zone": you point the registrar's nameservers at Cloudflare). Then add a route to `wrangler.jsonc`:
+
+```json
+{
+  "name": "my-app",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist/",
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [{ "pattern": "app.example.com", "custom_domain": true }]
+}
+```
+
+On the next deploy Cloudflare creates the DNS record and issues the certificate itself. The hostname must not already have a CNAME record. If your DNS has to stay with another provider, use Pages (§4.7), which accepts a subdomain CNAME from external DNS.
+
+### 4.7 Cloudflare Pages (Alternative)
+
+Pages differs in three ways: a project must exist before the first upload, SPA fallback is automatic (if `dist/` has no `404.html`, every unknown path gets `index.html`, so no `_redirects` rule is needed), and every deployment gets its own permanent URL (`<hash>.my-app.pages.dev`) plus a branch alias (`<branch>.my-app.pages.dev`).
+
+```bash
+npx wrangler pages project create my-app   # once
+```
+
+```yaml
+# .github/workflows/deploy-pages.yml
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+
+permissions:
+  contents: read
+  deployments: write     # lets the action show the deployment in GitHub
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=my-app
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+```
+
+A push to the project's production branch (normally `main`) updates the live site; a push to any other branch becomes a preview deployment. The API token needs **Account → Cloudflare Pages → Edit**. This "Direct Upload" style (building in GitHub Actions and uploading `dist/`) cannot later be switched to Cloudflare's own Git-connected builds for the same project.
+
+### 4.8 Rollback and Gotchas
+
+**Rollback.** Workers keep your recent versions: `npx wrangler deployments list` shows them and `npx wrangler rollback <version-id>` sends traffic back to one in seconds. On Pages, open the project's **Deployments**, choose a previous production deployment and select **Rollback to this deployment** (preview deployments cannot be rollback targets).
+
+**Gotchas:**
+
+- **Old chunks after a deploy.** On S3 you keep the previous build's files on purpose (§5.2 Step 9). Cloudflare does not document keeping the previous deployment's files, so assume each deploy serves only its own set: a tab opened before the deploy may get a `ChunkLoadError` on its next lazy route. Handle it in the app by reloading once (Q19).
+- **A missing asset returns `index.html`.** In SPA mode, a request that matches no file gets `index.html`, so a wrong script path shows up as an HTML parse error, as with Option A on CloudFront.
+- **`_headers` applies to static files only.** If you add Worker code, set headers on the responses it builds in that code.
+- **Limits.** 20,000 files per version on the Free plan (100,000 on Paid), and 25 MiB per file. A typical Vite build is far below both.
+
+---
+
+## 5. AWS: S3 + CloudFront
+
+AWS has no single "host my SPA" product (apart from Amplify, §6). Instead you combine five services: S3 stores the files, CloudFront serves them worldwide, ACM provides the certificate, Route 53 handles DNS, and IAM controls who may deploy. It is the most work of any platform here, and it is what many companies use, because everything stays inside their AWS account, under their IAM policies, reviewable as code and able to use WAF, origin failover and edge functions. This section builds it in four stages:
+
+1. **The pieces** (§5.1): what each service does and how they connect.
+2. **By hand** (§5.2): the ten steps once in the console and CLI, so you see what each piece is for.
+3. **As code** (§5.3): the same setup in AWS CDK, the way real projects do it.
+4. **Automated** (§5.4): GitHub Actions deploying on every push, with OIDC instead of stored keys.
+
+### 5.1 The Pieces
+
 
 The words below come up in every AWS step, so here they are once:
 
@@ -137,7 +637,7 @@ CloudFront distribution
   - Viewer protocol: redirect HTTP to HTTPS
   - Cache policy: CachingOptimized (respects the Cache-Control header on each file)
   - Compression: on (gzip + Brotli)
-  - SPA fallback: 403/404 → /index.html with 200, or a CloudFront Function (§4 Step 7)
+  - SPA fallback: 403/404 → /index.html with 200, or a CloudFront Function (§5.2 Step 7)
   - Alternate domain: app.example.com, certificate from ACM in us-east-1
   ↑
 Route 53 alias records (A + AAAA): app.example.com → the distribution
@@ -145,13 +645,12 @@ Route 53 alias records (A + AAAA): app.example.com → the distribution
 
 You do **not** turn on S3's "static website hosting" feature. It needs a public bucket and serves HTTP only, and CloudFront already handles routing and HTTPS.
 
----
+### 5.2 Step-by-Step by Hand
 
-## 4. Step-by-Step: S3 + CloudFront by Hand
 
-Doing it once by hand shows what each piece is for. In real projects you write the same thing as code (§5), because a console setup cannot be reviewed or recreated reliably.
+Doing it once by hand shows what each piece is for. In real projects you write the same thing as code (§5.3), because a console setup cannot be reviewed or recreated reliably.
 
-### Step 1: Build Your App
+#### Step 1: Build Your App
 
 ```bash
 npm run build
@@ -159,7 +658,7 @@ npm run build
 # Files from public/ (favicon.ico, robots.txt) are copied to dist/ unhashed.
 ```
 
-### Step 2: Create a Private Bucket
+#### Step 2: Create a Private Bucket
 
 Bucket names are global across all AWS accounts, so pick something unique.
 
@@ -173,7 +672,7 @@ aws s3api put-public-access-block \
   "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
 ```
 
-### Step 3: Request the Certificate (ACM, us-east-1)
+#### Step 3: Request the Certificate (ACM, us-east-1)
 
 The certificate has to exist before the distribution can use your domain. Request it in **us-east-1**, whatever region your bucket is in, or it will not appear in CloudFront.
 
@@ -187,7 +686,7 @@ aws acm request-certificate \
 
 ACM then asks you to prove you own the domain by adding one CNAME record that it gives you. If the domain is in Route 53, the console's **Create records in Route 53** button adds it for you. Validation usually takes a few minutes, and ACM renews the certificate automatically for as long as that record stays in place. The `*.example.com` name means one certificate also covers `dev.` and `qa.` later.
 
-### Step 4: Create the Origin Access Control
+#### Step 4: Create the Origin Access Control
 
 ```bash
 aws cloudfront create-origin-access-control \
@@ -197,9 +696,9 @@ aws cloudfront create-origin-access-control \
 
 The response contains an `Id` that you attach to the distribution's origin in the next step.
 
-### Step 5: Create the Distribution
+#### Step 5: Create the Distribution
 
-The CLI's shorthand (`aws cloudfront create-distribution --origin-domain-name … --default-root-object index.html`) creates a distribution with no OAC, no domain and no certificate, so for a first manual setup use the console, which walks through the same settings as §3:
+The CLI's shorthand (`aws cloudfront create-distribution --origin-domain-name … --default-root-object index.html`) creates a distribution with no OAC, no domain and no certificate, so for a first manual setup use the console, which walks through the same settings as §5.1:
 
 ```text
 Origin domain:           my-app-frontend.s3.us-east-1.amazonaws.com   (pick the bucket, not a website endpoint)
@@ -215,7 +714,7 @@ Default root object:     index.html
 Price class:             all edge locations, or North America + Europe only (cheaper; slower elsewhere)
 ```
 
-### Step 6: Let the Distribution Read the Bucket
+#### Step 6: Let the Distribution Read the Bucket
 
 The console shows this policy after you create the distribution, with your IDs filled in. It allows exactly one thing: *this* distribution may read objects.
 
@@ -243,7 +742,7 @@ The console shows this policy after you create the distribution, with your IDs f
 aws s3api put-bucket-policy --bucket my-app-frontend --policy file://bucket-policy.json
 ```
 
-### Step 7: SPA Routing
+#### Step 7: SPA Routing
 
 There is no file called `dashboard` in the bucket, so without this step a refresh or a shared deep link fails. There are two ways to do it, and the difference is *where* the request gets redirected:
 
@@ -291,7 +790,7 @@ function handler(event) {
 
 The catch: a route whose last segment contains a dot (`/users/jane.doe`) looks like a file to this rule. AWS's own published example only appends `index.html` to directory paths, which suits a multi-page static site rather than a client-side router, so adapt it as above.
 
-### Step 8: Point Your Domain at the Distribution
+#### Step 8: Point Your Domain at the Distribution
 
 If you registered the domain in Route 53, a hosted zone (the set of DNS records for the domain) already exists. If the domain is registered elsewhere, create a hosted zone in Route 53 and set your registrar's nameservers to the four `NS` values it lists.
 
@@ -319,7 +818,7 @@ aws route53 change-resource-record-sets \
 
 The `HostedZoneId` `Z2FDTNDATAQYW2` is not a typo and not yours: it is the fixed ID AWS uses for every CloudFront alias target. Alias queries to CloudFront are free.
 
-### Step 9: Upload the Build
+#### Step 9: Upload the Build
 
 This is the upload every later section reuses:
 
@@ -365,13 +864,13 @@ sequenceDiagram
 
 Why each choice:
 
-- **Order** follows rule 3 from §1.2: the assets go up first, so the new `index.html` never points at a file that is not there yet.
+- **Order** follows rule 3 from §1.3: the assets go up first, so the new `index.html` never points at a file that is not there yet.
 - **No `--delete` on assets.** Deleting the previous build's chunks means a user who opened the app before the deploy gets a `ChunkLoadError` when they navigate to a lazily loaded route (see Frontend Architecture tricky Q3). Prune builds older than a release or two in a separate cleanup job.
 - **`no-cache` rather than `no-store`.** `no-cache` means "you may keep a copy, but check with me before using it". The check is a small conditional request that comes back `304 Not Modified` when nothing changed, which is exactly what `index.html` needs. `no-store` forbids keeping a copy at all, so every visit downloads the full file again.
 - **Only `assets/` is immutable.** Splitting on `*.html` instead, as many tutorials do, would also give `favicon.ico` and `robots.txt` a one-year cache, even though their names never change.
 - **The invalidation** makes the edges fetch the new `index.html` at once. A path containing `*` counts as one path, and the first 1,000 paths a month are free per account.
 
-### Step 10: Check It Works
+#### Step 10: Check It Works
 
 ```bash
 curl -sI https://app.example.com/ | grep -iE "^(HTTP|cache-control|x-cache)"
@@ -384,11 +883,10 @@ curl -sI https://my-app-frontend.s3.us-east-1.amazonaws.com/index.html | head -1
 # HTTP/1.1 403 — the bucket is private, nobody can bypass CloudFront
 ```
 
----
+### 5.3 Infrastructure as Code (CDK)
 
-## 5. Infrastructure as Code (CDK)
 
-The same setup as §4, written as code. The **AWS CDK** (Cloud Development Kit) lets you describe infrastructure in TypeScript; `cdk deploy` turns it into a CloudFormation stack, AWS's format for a set of resources created, updated and deleted together. The certificate is created separately (once, in us-east-1) and imported by ARN, because a wildcard certificate is shared by every stage.
+The same setup as §5.2, written as code. The **AWS CDK** (Cloud Development Kit) lets you describe infrastructure in TypeScript; `cdk deploy` turns it into a CloudFormation stack, AWS's format for a set of resources created, updated and deleted together. The certificate is created separately (once, in us-east-1) and imported by ARN, because a wildcard certificate is shared by every stage.
 
 ```ts
 import * as cdk from 'aws-cdk-lib';
@@ -493,11 +991,10 @@ npx cdk deploy
 
 Uploading the site from CDK (`BucketDeployment`) is convenient for small projects. Larger teams usually let CDK own only the infrastructure and let CI upload each build with the script from Step 9, so a frontend release does not need a CloudFormation deploy.
 
----
+### 5.4 CI/CD: GitHub Actions with OIDC
 
-## 6. CI/CD: GitHub Actions to AWS
 
-### 6.1 One-Time Setup: Let GitHub Assume an AWS Role (OIDC)
+#### 5.4.1 One-Time Setup: Let GitHub Assume an AWS Role (OIDC)
 
 Do not store AWS access keys in GitHub. Use **OIDC** (OpenID Connect) instead: on each run, GitHub issues the job a short-lived signed token saying "this is repository `my-org/my-app`, branch `main`". AWS checks that token against a role's trust policy and hands back temporary credentials that expire within the hour. Nothing permanent is stored in GitHub, so there is no key to leak or rotate.
 
@@ -570,7 +1067,7 @@ The `sub` (subject) condition is the security boundary: without it, *any* GitHub
 
 If this role leaks, the worst anyone can do is overwrite one site, and only from your main branch.
 
-### 6.2 The Workflow
+#### 5.4.2 The Workflow
 
 ```yaml
 # .github/workflows/deploy.yml
@@ -620,7 +1117,7 @@ jobs:
 
 The bucket name, distribution ID and role ARN are not secrets, so they live in repository **variables** (`vars.*`), not secrets. The `permissions: id-token: write` line is the one people forget; without it the credentials step fails with "Could not load credentials".
 
-### 6.3 Multi-Environment Deployment
+#### 5.4.3 Multi-Environment Deployment
 
 One workflow, three environments. A **GitHub Environment** holds its own variables and secrets and can require a reviewer's approval, so production values exist only for jobs that deploy from `main`.
 
@@ -668,7 +1165,7 @@ jobs:
 
 Each environment has its own `AWS_DEPLOY_ROLE_ARN`, and each role's trust policy names its environment (`…:environment:production`), so a job on `develop` cannot assume the production role even if someone edits the workflow.
 
-### 6.4 AWS CodePipeline (Alternative)
+#### 5.4.4 AWS CodePipeline (Alternative)
 
 If the team's source and CI already live in AWS, CodePipeline does the same job. Its build step is a CodeBuild project driven by a `buildspec.yml`:
 
@@ -697,692 +1194,19 @@ phases:
       - aws cloudfront create-invalidation --distribution-id "${CLOUDFRONT_ID}" --paths "/*"
 ```
 
-CodeBuild runs with its own IAM service role, so no credentials appear anywhere; give that role the same permissions as §6.1 step 3. The [AWS CodePipeline & CodeBuild guide](/devops/aws-cicd) covers pipelines in depth.
+CodeBuild runs with its own IAM service role, so no credentials appear anywhere; give that role the same permissions as §5.4.1 step 3. The [AWS CodePipeline & CodeBuild guide](/devops/aws-cicd) covers pipelines in depth.
 
 ---
 
-## 7. Cloudflare Workers + GitHub Actions
+## 6. AWS Amplify
 
-Cloudflare runs one of the largest CDNs, and its **Workers** platform can serve a folder of static files directly. A **Worker** is a small program Cloudflare runs at every one of its locations; a Worker with **static assets** may have no program at all, just your `dist/` folder plus a config file. Cloudflare uploads the files to its network, serves them over HTTPS with an automatic certificate, and does the SPA fallback with one setting.
-
-Cloudflare also has an older product for this, **Pages**. Pages is still supported, but Cloudflare's own documentation now says to start new projects on Workers, which it calls its primary platform. Pages is covered in §7.7 because many existing sites use it.
-
-The whole Cloudflare flow, for production pushes and for pull requests:
-
-```mermaid
-flowchart LR
-  PUSH["push to main"] e1@--> GA["GitHub Actions<br/>npm ci, test, build"]
-  PR["pull request"] e2@--> GA
-  GA e3@==>|"wrangler deploy"| CFN["Cloudflare network<br/>every location"]
-  GA e4@-.->|"wrangler versions upload<br/>--preview-alias pr-42"| PREV["pr-42-my-app.workers.dev"]
-  CFN e5@==>|"HTTPS, automatic certificate"| USER["Visitors on<br/>app.example.com"]
-  e1@{ animate: true }
-  e2@{ animate: true }
-  e3@{ animate: true }
-  e4@{ animate: true }
-  e5@{ animate: true }
-```
-
-### 7.1 How It Maps to the AWS Setup
-
-| AWS piece | Cloudflare equivalent |
-|-----------|-----------------------|
-| S3 bucket + OAC | The Worker's static assets (never publicly listable, nothing to lock down) |
-| CloudFront distribution | Automatic: every Worker is served from Cloudflare's whole network |
-| 403/404 → `index.html` | `"not_found_handling": "single-page-application"` |
-| Response headers policy | A `_headers` file in the build output |
-| ACM certificate | Issued automatically when you attach a custom domain |
-| Route 53 alias | A custom domain on the Worker (your zone must use Cloudflare DNS) |
-| Invalidation | Not needed: Cloudflare revalidates static files on each request by default (§7.3) |
-| OIDC role | Not available: a scoped API token stored as a GitHub secret |
-
-### 7.2 Project Setup
-
-Add a Wrangler config file at the project root. **Wrangler** is Cloudflare's CLI; it reads this file to know what to deploy.
-
-```json
-{
-  "name": "my-app",
-  "compatibility_date": "2026-10-01",
-  "assets": {
-    "directory": "./dist/",
-    "not_found_handling": "single-page-application"
-  }
-}
-```
-
-Save it as `wrangler.jsonc` (Wrangler also accepts `wrangler.toml`). What each key does:
-
-- `name` — the Worker's name; it also gives you a free URL, `my-app.<your-subdomain>.workers.dev`.
-- `compatibility_date` — pins Cloudflare's runtime behaviour to that date, so a platform change never alters a deployed site. Set it to the day you create the project.
-- `assets.directory` — the folder to upload: Vite's `dist/`.
-- `not_found_handling: "single-page-application"` — any request that matches no file gets `index.html` with a 200. This is rule 1 from §1.2 in one line.
-
-There is no `main` key, because an assets-only Worker has no code. If you later need server logic (an `/api` proxy, for example), add a script with `main` and list the paths it should handle in `assets.run_worker_first`; requests for files are still served without running your code.
-
-Headers go in a `_headers` file. Put it in Vite's `public/` folder, so the build copies it into `dist/`:
-
-```text
-/assets/*
-  Cache-Control: public, max-age=31536000, immutable
-
-/*
-  X-Content-Type-Options: nosniff
-  X-Frame-Options: DENY
-  Referrer-Policy: strict-origin-when-cross-origin
-  Strict-Transport-Security: max-age=63072000; includeSubDomains
-```
-
-Each block is a URL pattern followed by indented headers. The first block gives Vite's hashed files a one-year cache; without it Cloudflare would revalidate them on every request, which is correct but wasteful.
-
-### 7.3 First Deploy from Your Laptop
-
-```bash
-npm install --save-dev wrangler
-npx wrangler login          # opens the browser once to authorise this machine
-npm run build
-npx wrangler deploy         # uploads dist/ and prints the workers.dev URL
-```
-
-Only files whose content changed are uploaded on later deploys.
-
-Caching works differently from S3. Unless `_headers` says otherwise, Cloudflare sends static files with `Cache-Control: public, max-age=0, must-revalidate` and an `ETag` (a fingerprint of the file's contents). Browsers therefore re-check each file on every visit and get a tiny `304 Not Modified` when nothing changed. So `index.html` is always fresh after a deploy and there is **no invalidation step**.
-
-### 7.4 Deploy from GitHub Actions
-
-Cloudflare does not support GitHub OIDC for deploys, so CI authenticates with an **API token** — a long-lived secret, which makes scoping it narrowly matter:
-
-1. In the Cloudflare dashboard, go to **My Profile → API Tokens → Create Token** and use the **Edit Cloudflare Workers** template. Limit it to your one account (and zone, if you attach a custom domain).
-2. Copy your **Account ID** from the dashboard's Workers overview.
-3. In GitHub, add both as repository secrets: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-
-```yaml
-# .github/workflows/deploy-cloudflare.yml
-name: Deploy frontend to Cloudflare
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: read
-
-concurrency: deploy-production
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-        env:
-          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
-
-      - uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-```
-
-`cloudflare/wrangler-action` installs Wrangler (v4 by default, or the version in your `package.json`) and runs the command you give it, reading `wrangler.jsonc` from the repository. The build happens in GitHub Actions, so `VITE_*` values must be set on the build step, as here; variables set in the Cloudflare dashboard are never seen by a build that ran somewhere else.
-
-Compared with the AWS workflow in §6.2, there is no upload ordering to manage and no invalidation: Wrangler uploads the new files and then switches the Worker to the new version in one step.
-
-### 7.5 Preview URL for Every Pull Request
-
-`wrangler versions upload` uploads a new version *without* sending production traffic to it, and `--preview-alias` gives that version a readable URL:
-
-```yaml
-# .github/workflows/preview-cloudflare.yml
-name: Preview
-
-on:
-  pull_request:
-
-permissions:
-  contents: read
-
-jobs:
-  preview:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with: { node-version: '24', cache: 'npm' }
-      - run: npm ci
-      - run: npm run build
-      - uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: versions upload --preview-alias pr-${{ github.event.number }}
-```
-
-Pull request 42 is then live at `pr-42-my-app.<your-subdomain>.workers.dev`. Two things to know: preview URLs are public unless you put Cloudflare Access (Cloudflare's login gateway) in front of them, and pull requests from forks get no repository secrets, so this job only works for branches in your own repository.
-
-### 7.6 Custom Domain
-
-Attaching your own domain requires the domain's DNS to be on Cloudflare (an active "zone": you point the registrar's nameservers at Cloudflare). Then add a route to `wrangler.jsonc`:
-
-```json
-{
-  "name": "my-app",
-  "compatibility_date": "2026-10-01",
-  "assets": {
-    "directory": "./dist/",
-    "not_found_handling": "single-page-application"
-  },
-  "routes": [{ "pattern": "app.example.com", "custom_domain": true }]
-}
-```
-
-On the next deploy Cloudflare creates the DNS record and issues the certificate itself. The hostname must not already have a CNAME record. If your DNS has to stay with another provider, use Pages (§7.7), which accepts a subdomain CNAME from external DNS.
-
-### 7.7 Cloudflare Pages (Alternative)
-
-Pages differs in three ways: a project must exist before the first upload, SPA fallback is automatic (if `dist/` has no `404.html`, every unknown path gets `index.html`, so no `_redirects` rule is needed), and every deployment gets its own permanent URL (`<hash>.my-app.pages.dev`) plus a branch alias (`<branch>.my-app.pages.dev`).
-
-```bash
-npx wrangler pages project create my-app   # once
-```
-
-```yaml
-# .github/workflows/deploy-pages.yml
-name: Deploy to Cloudflare Pages
-
-on:
-  push:
-
-permissions:
-  contents: read
-  deployments: write     # lets the action show the deployment in GitHub
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with: { node-version: '24', cache: 'npm' }
-      - run: npm ci
-      - run: npm run build
-      - uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=my-app
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-```
-
-A push to the project's production branch (normally `main`) updates the live site; a push to any other branch becomes a preview deployment. The API token needs **Account → Cloudflare Pages → Edit**. This "Direct Upload" style (building in GitHub Actions and uploading `dist/`) cannot later be switched to Cloudflare's own Git-connected builds for the same project.
-
-### 7.8 Rollback and Gotchas
-
-**Rollback.** Workers keep your recent versions: `npx wrangler deployments list` shows them and `npx wrangler rollback <version-id>` sends traffic back to one in seconds. On Pages, open the project's **Deployments**, choose a previous production deployment and select **Rollback to this deployment** (preview deployments cannot be rollback targets).
-
-**Gotchas:**
-
-- **Old chunks after a deploy.** On S3 you keep the previous build's files on purpose (§4 Step 9). Cloudflare does not document keeping the previous deployment's files, so assume each deploy serves only its own set: a tab opened before the deploy may get a `ChunkLoadError` on its next lazy route. Handle it in the app by reloading once (Q19).
-- **A missing asset returns `index.html`.** In SPA mode, a request that matches no file gets `index.html`, so a wrong script path shows up as an HTML parse error, as with Option A on CloudFront.
-- **`_headers` applies to static files only.** If you add Worker code, set headers on the responses it builds in that code.
-- **Limits.** 20,000 files per version on the Free plan (100,000 on Paid), and 25 MiB per file. A typical Vite build is far below both.
-
----
-
-## 8. Case Study: How PrepHub Deploys
-
-The site you are reading is itself a Vite + React SPA: about a hundred guides, each a lazily loaded chunk, installed as a PWA (progressive web app — a site that a service worker can run offline). It uses a third free option that this guide has not covered yet: **GitHub Pages** for hosting and **Cloudflare for DNS only**. Every detail below is from the repository's `.github/workflows/deploy.yml` and from the live site's response headers.
-
-```mermaid
-flowchart LR
-  DEV["git push to main"] e1@--> GA["GitHub Actions<br/>quality gates, then vite build"]
-  GA e2@--> POST["route shells<br/>+ sitemap"]
-  POST e3@--> GHP["gh-pages branch<br/>dist/ + CNAME file"]
-  GHP e4@--> CDN["GitHub Pages CDN"]
-  USER["Browser"] e5@-->|"prephub.sreenathp.com?"| CF["Cloudflare DNS<br/>CNAME, not proxied"]
-  CF e6@-->|"sreen98.github.io"| USER
-  USER e7@==>|"HTTPS"| CDN
-  CDN e8@==>|"index.html + chunks"| SW["Service worker<br/>caches the app shell"]
-  e1@{ animate: true }
-  e2@{ animate: true }
-  e3@{ animate: true }
-  e4@{ animate: true }
-  e7@{ animate: true }
-  e8@{ animate: true }
-```
-
-### 8.1 The Pipeline
-
-One workflow runs on every push to `main`. Every check runs *before* the build, so a broken commit never reaches the site:
-
-```yaml
-# .github/workflows/deploy.yml (trimmed; the real file explains each step in comments)
-name: Deploy to GitHub Pages
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write          # lets the built-in GITHUB_TOKEN push the gh-pages branch
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: 'npm' }
-      - run: npm install
-      - run: npm run content:meta          # generated files the typecheck needs
-      - run: npm run playground:index
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run test
-      - run: npm run verify:arch           # repository invariants
-      - run: npm run verify:blocks         # every guide code block parses
-      - run: node scripts/prepare-content.js
-      - run: npm run verify:counts         # numbers quoted in prose match the content
-      - run: npm run build                 # vite build + route shells + sitemap
-      - uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          cname: prephub.sreenathp.com
-```
-
-Three choices worth copying:
-
-- **No deploy credentials at all.** The host is GitHub itself, so the token GitHub gives every workflow run (`GITHUB_TOKEN`), with `contents: write`, is enough to publish. There is no AWS role and no Cloudflare token to manage.
-- **The deploy step is a git push.** `peaceiris/actions-gh-pages` commits `dist/` to the `gh-pages` branch, and GitHub Pages serves that branch.
-- **The `cname:` input** writes a `CNAME` file into every deploy. Each deploy replaces the branch's contents, so without that file GitHub would forget the custom domain and fall back to `sreen98.github.io/prephub/`, where the site's root-based asset paths do not resolve.
-
-### 8.2 The Domain: Cloudflare DNS, GitHub HTTPS
-
-Cloudflare manages the `sreenathp.com` zone and holds one record, `CNAME prephub → sreen98.github.io`, set to **DNS only** (not proxied through Cloudflare). A lookup of `prephub.sreenathp.com` returns GitHub's own `185.199.108–111.153` addresses, and responses carry `Server: GitHub.com`, so Cloudflare answers the DNS question and then steps out of the way. GitHub issues and renews the HTTPS certificate for the custom domain.
-
-The site moved here from `sreen98.github.io/prephub/`. GitHub now 301-redirects the old address, and the move meant changing the base path from `/prephub/` to `/` in one place (`base` in `vite.config.js`), plus the PWA scope and a few absolute URLs.
-
-### 8.3 SPA Routing on a Host Without Rewrites
-
-GitHub Pages cannot rewrite unknown paths to `index.html`, so it breaks rule 1 from §1.2 out of the box: a request for `/frontend/react` finds no file and gets a real 404. PrepHub handles this in two layers.
-
-```mermaid
-flowchart TD
-  REQ["GET /frontend/react"] e1@--> Q{"Is it a known route?"}
-  Q e2@-->|"yes"| SHELL["dist/frontend/react/index.html exists<br/>301 to the trailing slash, then 200"]
-  Q e3@-->|"no"| NF["404.html<br/>rewrites the URL to /?/unknown/path"]
-  NF e4@--> IDX["index.html restores the path,<br/>the router redirects unknown routes home"]
-  SHELL e5@--> APP["React Router renders the guide"]
-  e1@{ animate: true }
-  e2@{ animate: true }
-  e3@{ animate: true }
-  e4@{ animate: true }
-  e5@{ animate: true }
-```
-
-1. **Route shells for every known route.** After `vite build`, `scripts/generate-route-shells.js` copies `index.html` to `dist/<route>/index.html` for every route the app has. A deep link then finds a real file: GitHub answers `/frontend/react` with a 301 to `/frontend/react/` and serves the shell with a 200. Before the shells existed, every deep link paid for a 404 plus a redirect, which Lighthouse measured at 978 ms on mobile.
-2. **`404.html` for everything else.** GitHub Pages serves `404.html` for missing paths. PrepHub's version is a tiny script that rewrites `/some/path` to `/?/some/path` and loads the app, and `index.html` turns that query string back into the real path before the router starts. This is the well-known "SPA on GitHub Pages" trick, and here it only handles genuinely unknown URLs.
-
-### 8.4 The Caching You Cannot Control
-
-GitHub Pages sends `Cache-Control: max-age=600` on **every** file, hashed or not, and offers no way to change it or add other headers:
-
-```bash
-curl -sI https://prephub.sreenathp.com/ | grep -i cache-control
-# cache-control: max-age=600
-curl -sI https://prephub.sreenathp.com/assets/app-CZwu4M6U.js | grep -i cache-control
-# cache-control: max-age=600   ← a hashed file that could safely be cached for a year
-```
-
-That breaks rule 2 in both directions: `index.html` can be up to ten minutes stale after a deploy, and hashed chunks are revalidated every ten minutes instead of being cached for a year. PrepHub compensates in the browser with a **service worker** (generated by `vite-plugin-pwa`, which uses Google's Workbox library): it precaches the app shell (the `app-*` and `vendor-*` chunks), caches each guide chunk the first time it is opened, and checks for a new version periodically, updating automatically when it finds one. Returning visitors therefore load the app from their own device. The other missing piece, security headers such as HSTS or a CSP header, cannot be fixed on GitHub Pages at all; a CSP could only be added as a `<meta>` tag.
-
-### 8.5 The Same App on the Other Hosts
-
-| PrepHub's need | GitHub Pages (today) | S3 + CloudFront | Cloudflare Workers |
-|----------------|----------------------|-----------------|--------------------|
-| Deep links | Route shells + `404.html` trick | Error responses or a CloudFront Function | `not_found_handling: "single-page-application"` |
-| Cache headers per file | Fixed `max-age=600` | Set on upload (§4 Step 9) | `_headers` |
-| Security headers | Not possible | Response headers policy | `_headers` |
-| CI credentials | Built-in `GITHUB_TOKEN` | OIDC role | API token secret |
-| Custom domain | CNAME file + DNS record | ACM + Route 53 alias | Custom domain on the Worker |
-| Monthly cost | $0 | Roughly $0.50 (hosted zone) | $0 |
-
-The trade-off is visible in the table. GitHub Pages costs nothing and needs no credentials, but two of the three rules from §1.2 have to be worked around in code (route shells, the 404 redirect, a service worker). On Cloudflare Workers the same app would delete `generate-route-shells.js` and `404.html`, set a one-year cache on `assets/` and add security headers with one `_headers` file, at the price of creating an API token and moving the deploy step to `wrangler-action`.
-
----
-
-## 9. Environment Variables and Config
-
-### 9.1 Build-Time Variables (Vite)
-
-A frontend has no server process to read environment variables from at request time. Vite instead **copies the values into the JavaScript while building**, so the built file literally contains `"https://api.example.com"`. Only variables starting with `VITE_` are copied — that prefix is a safety catch, so a server secret sitting in the same `.env` file is not shipped to every browser by accident. The consequence to remember: anything in a `VITE_` variable is public.
-
-```bash
-# .env.production
-VITE_API_BASE_URL=https://api.example.com
-VITE_CDN_BASE_URL=https://cdn.example.com/data
-VITE_GOOGLE_MAPS_API_KEY=AIza...
-
-# Vite replaces these at BUILD time (embedded in JS bundle)
-# They are NOT secret — anyone can see them in the browser
-```
-
-Because the values are baked in where the build runs, set them on the build step in CI (as every workflow above does), not in the hosting provider's dashboard.
-
-### 9.2 Per-Environment Builds
-
-```bash
-# Option 1: .env files per environment
-.env.development        # VITE_API_BASE_URL=http://localhost:4000
-.env.staging            # VITE_API_BASE_URL=https://staging-api.example.com
-.env.production         # VITE_API_BASE_URL=https://api.example.com
-
-# Build with specific mode (loads .env.staging)
-npx vite build --mode staging
-
-# Option 2: CI environment variables (preferred)
-# Set VITE_API_BASE_URL per GitHub Environment (§6.3); Vite reads process.env during the build
-```
-
-Vite chooses which `.env.[mode]` file to load from the `--mode` flag; there is no environment variable that selects the mode, so if your `build` script wraps other steps, pass the flag through (`npm run build -- --mode staging`). Either way the result is one build per environment: the same code, compiled several times with different values baked in. Option 2 is preferred because the values live in the CI system's per-environment settings rather than in files committed to the repository.
-
-### 9.3 Runtime Config (No Rebuild)
-
-```text
-// public/config.js (plain JavaScript, no <script> tags)
-window.__APP_CONFIG__ = {
-  API_BASE_URL: 'https://api.example.com',
-  FEATURE_FLAGS: { newDashboard: true },
-};
-```
-
-```html
-<!-- index.html: load config.js before the app's module script -->
-<script src="/config.js"></script>
-<script type="module" src="/src/main.tsx"></script>
-```
-
-```ts
-// In app code
-const config = window.__APP_CONFIG__;
-```
-
-This lets you change config without rebuilding: replace `config.js` in the bucket (or redeploy just that file). It also means one build can be promoted unchanged from QA to production, so what you tested is exactly what ships. Two things make it work: `config.js` must be loaded by a plain `<script>` tag **before** the app bundle, so the value exists when the app starts; and it must be revalidated on every request like `index.html`, because its name never changes. The upload in §4 Step 9 already does that, since `config.js` sits outside `assets/`.
-
----
-
-## 10. Caching Strategy
-
-Every caching decision follows from rule 2 in §1.2:
-
-```text
-index.html                 → no-cache: keep a copy, but revalidate on every visit
-  ↓ loads
-assets/index-a1b2c3.js     → public, max-age=31536000, immutable: the name changes when the content does
-assets/logo-9f8e7d.png     → same (Vite hashes imported images too)
-favicon.ico, robots.txt    → no-cache (copied from public/, unhashed)
-config.js                  → no-cache (its whole point is to change without a rebuild)
-```
-
-`immutable` tells the browser not to revalidate the file even when the user presses reload, which saves a request per asset on every refresh.
-
-A returning visitor, the day after a deploy that changed nothing:
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant B as Browser cache
-  participant CDN as CDN
-  B->>CDN: GET /index.html, If-None-Match: "abc"
-  CDN-->>B: 304 Not Modified (a few hundred bytes)
-  Note over B: index.html still points at index-a1b2c3.js
-  B->>B: index-a1b2c3.js is immutable, use the local copy, no request
-  Note over B,CDN: After a real deploy, step 2 is a 200 with the new index.html,<br/>which names new files, so those are fetched once
-```
-
-**On AWS** there are two caches: the browser's and CloudFront's. CloudFront's **CachingOptimized** policy follows each file's `Cache-Control` header within its limits (minimum 1 second, maximum one year, 24 hours when the file has no header), compresses responses, and leaves query strings, headers and cookies out of the cache key. So the headers set during upload (§4 Step 9) drive both caches, and the invalidation after each deploy makes the edges drop their copy of `index.html` immediately. Invalidating `/*` counts as one path; the first 1,000 paths a month are free per account, then $0.005 per path.
-
-**On Cloudflare**, static files default to `max-age=0, must-revalidate` with an `ETag`, so new HTML is picked up immediately without a purge; the `_headers` rule in §7.2 adds the long cache for `assets/`.
-
-If you also proxy an API through the same CloudFront distribution, give that path its own behavior with the **CachingDisabled** policy and an origin request policy that forwards what the API needs (for example `AllViewerExceptHostHeader`), so responses for one user are never cached for another.
-
----
-
-## 11. Security
-
-A static site has no server code to attack, so the realistic threats are someone reading or overwriting your files, someone tampering with traffic, and a script injected into your page.
-
-### 11.1 Storage and Deploy Access
-
-```text
-1. Block ALL public access on the bucket; only CloudFront reads it, via OAC
-2. Keep default encryption (SSE-S3) on
-3. The deploy role can write to this one bucket and invalidate this one distribution, nothing else (§6.1)
-4. CI uses OIDC on AWS; on Cloudflare, a token scoped to one account, stored as a GitHub secret
-5. Turn on S3 versioning if you want to recover from a bad upload by restoring previous object versions
-```
-
-### 11.2 Transport and Headers
-
-```text
-1. Redirect HTTP to HTTPS (always)
-2. TLS 1.2 or newer (CloudFront security policy TLSv1.2_2021)
-3. AWS WAF on the distribution for rate limiting and bot blocking (optional)
-4. Security headers (CloudFront response headers policy, or _headers on Cloudflare):
-   - Strict-Transport-Security: max-age=63072000; includeSubDomains
-   - X-Content-Type-Options: nosniff
-   - X-Frame-Options: DENY
-   - Content-Security-Policy: default-src 'self'; ...
-   - Referrer-Policy: strict-origin-when-cross-origin
-```
-
-What each of these buys you:
-
-- **WAF** (Web Application Firewall) inspects requests at CloudFront before they reach anything else, and blocks the ones matching rules such as "more than N requests a minute from one IP". For a purely static site its main value is rate limiting and bot blocking, since there is no database to inject into. Cloudflare applies DDoS protection to every site by default.
-- **`Strict-Transport-Security`** (HSTS) tells the browser to use HTTPS for this domain for the next `max-age` seconds, even if someone types `http://` or follows an old link, so nobody can downgrade the connection on a café Wi-Fi.
-- **`X-Content-Type-Options: nosniff`** stops the browser guessing a file's type from its contents, so an uploaded "image" cannot be run as a script.
-- **`X-Frame-Options: DENY`** forbids other sites from loading your page in an `<iframe>`, which blocks clickjacking (a hostile page overlaying your buttons with invisible ones).
-- **`Content-Security-Policy`** lists where scripts, styles and requests may come from; it is the main defence if an attacker manages to inject a script (see Q15).
-- **`Referrer-Policy`** limits how much of your URL is sent to other sites when a user follows a link.
-- **`X-XSS-Protection`** is a legacy header: it switched on a filter that modern browsers have removed, and the filter itself could introduce vulnerabilities into otherwise safe pages. Current OWASP guidance is to omit it or explicitly turn it off with `0`, and rely on CSP instead. The CDK example below sends `0` (`protection: false`).
-
-### 11.3 CloudFront Response Headers Policy
-
-```ts
-import * as cdk from 'aws-cdk-lib';
-import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
-
-// Inside FrontendStack's constructor (§5); attach it with
-// defaultBehavior: { ..., responseHeadersPolicy: headersPolicy }
-const headersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeaders', {
-  securityHeadersBehavior: {
-    strictTransportSecurity: {
-      override: true,
-      accessControlMaxAge: cdk.Duration.days(730),
-      includeSubdomains: true,
-      preload: true,
-    },
-    contentTypeOptions: { override: true },
-    frameOptions: {
-      override: true,
-      frameOption: cloudfront.HeadersFrameOption.DENY,
-    },
-    xssProtection: {
-      override: true,
-      protection: false,   // sends "X-XSS-Protection: 0" — the legacy filter is off
-    },
-    referrerPolicy: {
-      override: true,
-      referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
-    },
-  },
-});
-```
-
----
-
-## 12. Performance Optimization
-
-A static SPA gets fast in two places: the build decides how many bytes there are, and the CDN decides how far they travel. Most of the work is already done by the defaults; the job is mostly not to undo it.
-
-### 12.1 Build Optimization
-
-Vite's production build already applies the standard techniques below, so there is little to switch on. What is worth doing is *measuring*: a bundle visualiser shows which dependency is taking the space, which is usually one large library imported for one small function.
-
-```bash
-# Vite already does:
-# - Tree shaking (remove unused code)
-# - Code splitting (lazy routes → separate chunks)
-# - Minification
-# - CSS minification
-# - Asset hashing (cache busting)
-
-# Check bundle size
-npx vite-bundle-visualizer
-```
-
-### 12.2 CloudFront Optimization
-
-Each item cuts either bytes (compression), round trips (HTTP/2 and HTTP/3 reuse one connection for many files) or trips back to S3 (cache TTLs, Origin Shield). Origin Shield is an extra caching layer in one region that all edge locations ask before they ask S3; it costs extra and mainly helps when many edges miss at once, so a small static site rarely needs it. On Cloudflare, compression, HTTP/2 and HTTP/3 are on by default.
-
-```text
-1. Compression (gzip + Brotli): automatic with CachingOptimized
-2. HTTP/2 and HTTP/3: enabled by default
-3. Long cache on hashed assets (§10)
-4. Price Class 100 if users are only in North America and Europe (cheaper; users elsewhere get slower responses)
-5. Origin Shield (additional caching layer, reduces origin requests)
-```
-
-### 12.3 S3 Transfer Acceleration
-
-This speeds up **uploads to** the bucket by routing them through the nearest edge location, which helps a CI runner far from the bucket's region. It does nothing for your users, who never talk to S3 directly, and it is billed per GB uploaded.
-
-```bash
-aws s3api put-bucket-accelerate-configuration \
-  --bucket my-app-frontend \
-  --accelerate-configuration Status=Enabled
-
-aws s3 sync dist/ s3://my-app-frontend --endpoint-url https://s3-accelerate.amazonaws.com
-```
-
----
-
-## 13. Monitoring
-
-A static site has no server logs of its own, so the CDN is where you see what users experienced. Watch two things: the error rate, which tells you a deploy broke something, and the cache hit ratio, which tells you whether the CDN is doing its job or passing everything through to storage. On Cloudflare, the Worker's **Metrics** tab shows requests and errors without any setup.
-
-### 13.1 CloudFront Metrics
-
-The default metrics are free and cover traffic and errors. Cache hit rate and origin latency are **additional metrics** you turn on per distribution for a monthly fee. CloudFront publishes its metrics to CloudWatch in `us-east-1`, whatever region your bucket is in, so create alarms there.
-
-```text
-Default (free):
-  - Requests
-  - Bytes downloaded / uploaded
-  - Error rate (4xx, 5xx, total)
-
-Additional metrics ($, per distribution):
-  - Cache hit rate
-  - Origin latency
-  - Error rate by status code (401, 403, 404, 502, 503, 504)
-
-Logs:
-  - Standard logs to S3 — no CloudFront charge, you pay for S3 storage
-  - Real-time logs (Kinesis) — charged
-```
-
-### 13.2 CloudWatch Alarms
-
-An alarm turns a metric into a notification. This one fires when more than 5% of requests fail for three periods in a row; requiring several periods avoids paging someone over a single bad minute.
-
-```ts
-import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
-import * as actions from 'aws-cdk-lib/aws-cloudwatch-actions';
-
-// Inside FrontendStack's constructor (§5), with an SNS topic named alertsTopic
-new cloudwatch.Alarm(this, 'HighErrorRate', {
-  metric: distribution.metricTotalErrorRate(),
-  threshold: 5,                            // 5% error rate
-  evaluationPeriods: 3,
-  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-}).addAlarmAction(new actions.SnsAction(alertsTopic));
-```
-
-### 13.3 CloudFront Access Logs
-
-Metrics tell you *that* something went wrong; logs tell you which URL, from where, and whether it was a cache hit. Standard logs arrive in batches, not live, so use them for investigation and reporting rather than alerting.
-
-```text
-Enable standard logging → S3 bucket
-Each log line includes:
-  - Date, time
-  - Edge location
-  - Client IP
-  - URI
-  - Status code
-  - Bytes sent
-  - Cache hit/miss
-  - User-Agent
-```
-
----
-
-## 14. Multi-Environment Setup
-
-### 14.1 Typical Setup
-
-```text
-Environment   Branch    AWS: bucket / distribution     Cloudflare: Worker     Domain
-development   develop   my-app-dev / E111...           my-app-dev             dev.example.com
-qa            qa        my-app-qa  / E222...           my-app-qa              qa.example.com
-production    main      my-app-prod / E333...          my-app                 app.example.com
-```
-
-On AWS each environment is its own stack; on Cloudflare each is its own Worker. Wrangler can generate them from one config with an `env` block per environment (`npx wrangler deploy --env qa`).
-
-### 14.2 CDK Multi-Stack
-
-```ts
-import * as cdk from 'aws-cdk-lib';
-import { FrontendStack } from './frontend-stack';   // the stack from §5
-
-const app = new cdk.App();
-
-new FrontendStack(app, 'FrontendDev', {
-  env: { account: '123456789012', region: 'us-east-1' },
-  stage: 'dev',
-  domainName: 'dev.example.com',
-  apiUrl: 'https://dev-api.example.com',
-});
-
-new FrontendStack(app, 'FrontendProd', {
-  env: { account: '123456789012', region: 'us-east-1' },
-  stage: 'prod',
-  domainName: 'app.example.com',
-  apiUrl: 'https://api.example.com',
-});
-```
-
----
-
-## 15. AWS Amplify (Alternative)
-
-### 15.1 Setup
+### 6.1 Setup
 
 For hosting a static SPA you need no CLI: in the console choose **Amplify → Create new app → GitHub**, pick the repository and branch, and Amplify detects the build settings. Every push to that branch then builds and deploys, and you can turn on a preview URL per pull request.
 
 The old Amplify CLI (`@aws-amplify/cli`, `amplify init`) belongs to **Amplify Gen 1**, which is in maintenance mode and reaches end of life on May 1, 2027. Amplify Gen 2 is about defining a backend in TypeScript; a frontend-only app does not need it.
 
-### 15.2 amplify.yml
+### 6.2 amplify.yml
 
 ```yaml
 version: 1
@@ -1418,9 +1242,9 @@ customHeaders:
         value: 'DENY'
 ```
 
-### 15.3 Amplify Rewrites (SPA Routing)
+### 6.3 Amplify Rewrites (SPA Routing)
 
-This rewrite sends every path that does not end in a known file extension to `index.html`, the same idea as the CloudFront Function in §4 Step 7:
+This rewrite sends every path that does not end in a known file extension to `index.html`, the same idea as the CloudFront Function in §5.2 Step 7:
 
 ```json
 [
@@ -1432,7 +1256,7 @@ This rewrite sends every path that does not end in a known file extension to `in
 ]
 ```
 
-### 15.4 Amplify vs S3 + CloudFront
+### 6.4 Amplify vs S3 + CloudFront
 
 | Feature | Amplify | S3 + CloudFront |
 |---------|---------|----------------|
@@ -1441,14 +1265,361 @@ This rewrite sends every path that does not end in a known file extension to `in
 | Branch and PR previews | Yes | Build it yourself |
 | Custom headers | `customHttp.yml` | Full control (response headers policy, Functions) |
 | WAF | Yes (added March 2025, extra monthly fee) | Yes |
-| Serving cost | $0.15 per GB after 15 GB free; builds $0.01 per minute after 1,000 free | CloudFront rates (§16) |
+| Serving cost | $0.15 per GB after 15 GB free; builds $0.01 per minute after 1,000 free | CloudFront rates (§14) |
 | IaC | Console or Amplify Gen 2 | CDK / CloudFormation / Terraform |
 
 ---
 
-## 16. Cost Breakdown
+## 7. The Same App on Every Platform
 
-### 16.1 S3 + CloudFront, Pay-as-You-Go
+Each platform section above expressed the same three rules from §1.3 in its own way. Here they are side by side for one app, PrepHub from §3:
+
+| PrepHub's need | GitHub Pages (today) | Cloudflare Workers | S3 + CloudFront | Amplify |
+|----------------|----------------------|--------------------|-----------------|---------|
+| Deep links | Route shells + `404.html` trick | `not_found_handling: "single-page-application"` | Error responses or a CloudFront Function | Rewrite rule |
+| Cache headers per file | Fixed `max-age=600` | `_headers` | Set on upload (§5.2 Step 9) | `customHttp.yml` |
+| Security headers | Not possible | `_headers` | Response headers policy | `customHttp.yml` |
+| Who builds | GitHub Actions | GitHub Actions | GitHub Actions or CodePipeline | Amplify |
+| CI credentials | Built-in `GITHUB_TOKEN` | API token secret | OIDC role | None (Amplify reads the repository) |
+| Preview per pull request | Not built in | `wrangler versions upload` | Build it yourself | Built in |
+| Custom domain | CNAME file + DNS record | Custom domain on the Worker | ACM + Route 53 alias | Built in |
+| Monthly cost | $0 | $0 | Roughly $0.50 (hosted zone) | Per GB served after 15 GB |
+
+The trade-off is visible in the table. GitHub Pages costs nothing and needs no credentials, but two of the three rules from §1.3 have to be worked around in code (route shells, the 404 redirect, a service worker). On Cloudflare Workers the same app would delete `generate-route-shells.js` and `404.html`, set a one-year cache on `assets/` and add security headers with one `_headers` file, at the price of creating an API token and moving the deploy step to `wrangler-action`.
+
+---
+
+## 8. Environment Variables and Config
+
+### 8.1 Build-Time Variables (Vite)
+
+A frontend has no server process to read environment variables from at request time. Vite instead **copies the values into the JavaScript while building**, so the built file literally contains `"https://api.example.com"`. Only variables starting with `VITE_` are copied — that prefix is a safety catch, so a server secret sitting in the same `.env` file is not shipped to every browser by accident. The consequence to remember: anything in a `VITE_` variable is public.
+
+```bash
+# .env.production
+VITE_API_BASE_URL=https://api.example.com
+VITE_CDN_BASE_URL=https://cdn.example.com/data
+VITE_GOOGLE_MAPS_API_KEY=AIza...
+
+# Vite replaces these at BUILD time (embedded in JS bundle)
+# They are NOT secret — anyone can see them in the browser
+```
+
+Because the values are baked in where the build runs, set them on the build step in CI (as every workflow above does), not in the hosting provider's dashboard.
+
+### 8.2 Per-Environment Builds
+
+```bash
+# Option 1: .env files per environment
+.env.development        # VITE_API_BASE_URL=http://localhost:4000
+.env.staging            # VITE_API_BASE_URL=https://staging-api.example.com
+.env.production         # VITE_API_BASE_URL=https://api.example.com
+
+# Build with specific mode (loads .env.staging)
+npx vite build --mode staging
+
+# Option 2: CI environment variables (preferred)
+# Set VITE_API_BASE_URL per GitHub Environment (§5.4.3); Vite reads process.env during the build
+```
+
+Vite chooses which `.env.[mode]` file to load from the `--mode` flag; there is no environment variable that selects the mode, so if your `build` script wraps other steps, pass the flag through (`npm run build -- --mode staging`). Either way the result is one build per environment: the same code, compiled several times with different values baked in. Option 2 is preferred because the values live in the CI system's per-environment settings rather than in files committed to the repository.
+
+### 8.3 Runtime Config (No Rebuild)
+
+```text
+// public/config.js (plain JavaScript, no <script> tags)
+window.__APP_CONFIG__ = {
+  API_BASE_URL: 'https://api.example.com',
+  FEATURE_FLAGS: { newDashboard: true },
+};
+```
+
+```html
+<!-- index.html: load config.js before the app's module script -->
+<script src="/config.js"></script>
+<script type="module" src="/src/main.tsx"></script>
+```
+
+```ts
+// In app code
+const config = window.__APP_CONFIG__;
+```
+
+This lets you change config without rebuilding: replace `config.js` in the bucket (or redeploy just that file). It also means one build can be promoted unchanged from QA to production, so what you tested is exactly what ships. Two things make it work: `config.js` must be loaded by a plain `<script>` tag **before** the app bundle, so the value exists when the app starts; and it must be revalidated on every request like `index.html`, because its name never changes. The upload in §5.2 Step 9 already does that, since `config.js` sits outside `assets/`.
+
+---
+
+## 9. Caching Strategy
+
+Every caching decision follows from rule 2 in §1.3:
+
+```text
+index.html                 → no-cache: keep a copy, but revalidate on every visit
+  ↓ loads
+assets/index-a1b2c3.js     → public, max-age=31536000, immutable: the name changes when the content does
+assets/logo-9f8e7d.png     → same (Vite hashes imported images too)
+favicon.ico, robots.txt    → no-cache (copied from public/, unhashed)
+config.js                  → no-cache (its whole point is to change without a rebuild)
+```
+
+`immutable` tells the browser not to revalidate the file even when the user presses reload, which saves a request per asset on every refresh.
+
+A returning visitor, the day after a deploy that changed nothing:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant B as Browser cache
+  participant CDN as CDN
+  B->>CDN: GET /index.html, If-None-Match: "abc"
+  CDN-->>B: 304 Not Modified (a few hundred bytes)
+  Note over B: index.html still points at index-a1b2c3.js
+  B->>B: index-a1b2c3.js is immutable, use the local copy, no request
+  Note over B,CDN: After a real deploy, step 2 is a 200 with the new index.html,<br/>which names new files, so those are fetched once
+```
+
+**On AWS** there are two caches: the browser's and CloudFront's. CloudFront's **CachingOptimized** policy follows each file's `Cache-Control` header within its limits (minimum 1 second, maximum one year, 24 hours when the file has no header), compresses responses, and leaves query strings, headers and cookies out of the cache key. So the headers set during upload (§5.2 Step 9) drive both caches, and the invalidation after each deploy makes the edges drop their copy of `index.html` immediately. Invalidating `/*` counts as one path; the first 1,000 paths a month are free per account, then $0.005 per path.
+
+**On Cloudflare**, static files default to `max-age=0, must-revalidate` with an `ETag`, so new HTML is picked up immediately without a purge; the `_headers` rule in §4.2 adds the long cache for `assets/`.
+
+If you also proxy an API through the same CloudFront distribution, give that path its own behavior with the **CachingDisabled** policy and an origin request policy that forwards what the API needs (for example `AllViewerExceptHostHeader`), so responses for one user are never cached for another.
+
+---
+
+## 10. Security
+
+A static site has no server code to attack, so the realistic threats are someone reading or overwriting your files, someone tampering with traffic, and a script injected into your page.
+
+### 10.1 Storage and Deploy Access
+
+```text
+1. Block ALL public access on the bucket; only CloudFront reads it, via OAC
+2. Keep default encryption (SSE-S3) on
+3. The deploy role can write to this one bucket and invalidate this one distribution, nothing else (§5.4.1)
+4. CI uses OIDC on AWS; on Cloudflare, a token scoped to one account, stored as a GitHub secret
+5. Turn on S3 versioning if you want to recover from a bad upload by restoring previous object versions
+```
+
+### 10.2 Transport and Headers
+
+```text
+1. Redirect HTTP to HTTPS (always)
+2. TLS 1.2 or newer (CloudFront security policy TLSv1.2_2021)
+3. AWS WAF on the distribution for rate limiting and bot blocking (optional)
+4. Security headers (CloudFront response headers policy, or _headers on Cloudflare):
+   - Strict-Transport-Security: max-age=63072000; includeSubDomains
+   - X-Content-Type-Options: nosniff
+   - X-Frame-Options: DENY
+   - Content-Security-Policy: default-src 'self'; ...
+   - Referrer-Policy: strict-origin-when-cross-origin
+```
+
+What each of these buys you:
+
+- **WAF** (Web Application Firewall) inspects requests at CloudFront before they reach anything else, and blocks the ones matching rules such as "more than N requests a minute from one IP". For a purely static site its main value is rate limiting and bot blocking, since there is no database to inject into. Cloudflare applies DDoS protection to every site by default.
+- **`Strict-Transport-Security`** (HSTS) tells the browser to use HTTPS for this domain for the next `max-age` seconds, even if someone types `http://` or follows an old link, so nobody can downgrade the connection on a café Wi-Fi.
+- **`X-Content-Type-Options: nosniff`** stops the browser guessing a file's type from its contents, so an uploaded "image" cannot be run as a script.
+- **`X-Frame-Options: DENY`** forbids other sites from loading your page in an `<iframe>`, which blocks clickjacking (a hostile page overlaying your buttons with invisible ones).
+- **`Content-Security-Policy`** lists where scripts, styles and requests may come from; it is the main defence if an attacker manages to inject a script (see Q15).
+- **`Referrer-Policy`** limits how much of your URL is sent to other sites when a user follows a link.
+- **`X-XSS-Protection`** is a legacy header: it switched on a filter that modern browsers have removed, and the filter itself could introduce vulnerabilities into otherwise safe pages. Current OWASP guidance is to omit it or explicitly turn it off with `0`, and rely on CSP instead. The CDK example below sends `0` (`protection: false`).
+
+### 10.3 CloudFront Response Headers Policy
+
+```ts
+import * as cdk from 'aws-cdk-lib';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+
+// Inside FrontendStack's constructor (§5.3); attach it with
+// defaultBehavior: { ..., responseHeadersPolicy: headersPolicy }
+const headersPolicy = new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeaders', {
+  securityHeadersBehavior: {
+    strictTransportSecurity: {
+      override: true,
+      accessControlMaxAge: cdk.Duration.days(730),
+      includeSubdomains: true,
+      preload: true,
+    },
+    contentTypeOptions: { override: true },
+    frameOptions: {
+      override: true,
+      frameOption: cloudfront.HeadersFrameOption.DENY,
+    },
+    xssProtection: {
+      override: true,
+      protection: false,   // sends "X-XSS-Protection: 0" — the legacy filter is off
+    },
+    referrerPolicy: {
+      override: true,
+      referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+    },
+  },
+});
+```
+
+---
+
+## 11. Performance Optimization
+
+A static SPA gets fast in two places: the build decides how many bytes there are, and the CDN decides how far they travel. Most of the work is already done by the defaults; the job is mostly not to undo it.
+
+### 11.1 Build Optimization
+
+Vite's production build already applies the standard techniques below, so there is little to switch on. What is worth doing is *measuring*: a bundle visualiser shows which dependency is taking the space, which is usually one large library imported for one small function.
+
+```bash
+# Vite already does:
+# - Tree shaking (remove unused code)
+# - Code splitting (lazy routes → separate chunks)
+# - Minification
+# - CSS minification
+# - Asset hashing (cache busting)
+
+# Check bundle size
+npx vite-bundle-visualizer
+```
+
+### 11.2 CloudFront Optimization
+
+Each item cuts either bytes (compression), round trips (HTTP/2 and HTTP/3 reuse one connection for many files) or trips back to S3 (cache TTLs, Origin Shield). Origin Shield is an extra caching layer in one region that all edge locations ask before they ask S3; it costs extra and mainly helps when many edges miss at once, so a small static site rarely needs it. On Cloudflare, compression, HTTP/2 and HTTP/3 are on by default.
+
+```text
+1. Compression (gzip + Brotli): automatic with CachingOptimized
+2. HTTP/2 and HTTP/3: enabled by default
+3. Long cache on hashed assets (§9)
+4. Price Class 100 if users are only in North America and Europe (cheaper; users elsewhere get slower responses)
+5. Origin Shield (additional caching layer, reduces origin requests)
+```
+
+### 11.3 S3 Transfer Acceleration
+
+This speeds up **uploads to** the bucket by routing them through the nearest edge location, which helps a CI runner far from the bucket's region. It does nothing for your users, who never talk to S3 directly, and it is billed per GB uploaded.
+
+```bash
+aws s3api put-bucket-accelerate-configuration \
+  --bucket my-app-frontend \
+  --accelerate-configuration Status=Enabled
+
+aws s3 sync dist/ s3://my-app-frontend --endpoint-url https://s3-accelerate.amazonaws.com
+```
+
+---
+
+## 12. Monitoring
+
+A static site has no server logs of its own, so the CDN is where you see what users experienced. Watch two things: the error rate, which tells you a deploy broke something, and the cache hit ratio, which tells you whether the CDN is doing its job or passing everything through to storage. On Cloudflare, the Worker's **Metrics** tab shows requests and errors without any setup.
+
+### 12.1 CloudFront Metrics
+
+The default metrics are free and cover traffic and errors. Cache hit rate and origin latency are **additional metrics** you turn on per distribution for a monthly fee. CloudFront publishes its metrics to CloudWatch in `us-east-1`, whatever region your bucket is in, so create alarms there.
+
+```text
+Default (free):
+  - Requests
+  - Bytes downloaded / uploaded
+  - Error rate (4xx, 5xx, total)
+
+Additional metrics ($, per distribution):
+  - Cache hit rate
+  - Origin latency
+  - Error rate by status code (401, 403, 404, 502, 503, 504)
+
+Logs:
+  - Standard logs to S3 — no CloudFront charge, you pay for S3 storage
+  - Real-time logs (Kinesis) — charged
+```
+
+### 12.2 CloudWatch Alarms
+
+An alarm turns a metric into a notification. This one fires when more than 5% of requests fail for three periods in a row; requiring several periods avoids paging someone over a single bad minute.
+
+```ts
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as actions from 'aws-cdk-lib/aws-cloudwatch-actions';
+
+// Inside FrontendStack's constructor (§5.3), with an SNS topic named alertsTopic
+new cloudwatch.Alarm(this, 'HighErrorRate', {
+  metric: distribution.metricTotalErrorRate(),
+  threshold: 5,                            // 5% error rate
+  evaluationPeriods: 3,
+  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+}).addAlarmAction(new actions.SnsAction(alertsTopic));
+```
+
+### 12.3 CloudFront Access Logs
+
+Metrics tell you *that* something went wrong; logs tell you which URL, from where, and whether it was a cache hit. Standard logs arrive in batches, not live, so use them for investigation and reporting rather than alerting.
+
+```text
+Enable standard logging → S3 bucket
+Each log line includes:
+  - Date, time
+  - Edge location
+  - Client IP
+  - URI
+  - Status code
+  - Bytes sent
+  - Cache hit/miss
+  - User-Agent
+```
+
+---
+
+## 13. Multi-Environment Setup and Rollbacks
+
+### 13.1 Typical Setup
+
+```text
+Environment   Branch    AWS: bucket / distribution     Cloudflare: Worker     Domain
+development   develop   my-app-dev / E111...           my-app-dev             dev.example.com
+qa            qa        my-app-qa  / E222...           my-app-qa              qa.example.com
+production    main      my-app-prod / E333...          my-app                 app.example.com
+```
+
+On AWS each environment is its own stack; on Cloudflare each is its own Worker. Wrangler can generate them from one config with an `env` block per environment (`npx wrangler deploy --env qa`).
+
+### 13.2 CDK Multi-Stack
+
+```ts
+import * as cdk from 'aws-cdk-lib';
+import { FrontendStack } from './frontend-stack';   // the stack from §5.3
+
+const app = new cdk.App();
+
+new FrontendStack(app, 'FrontendDev', {
+  env: { account: '123456789012', region: 'us-east-1' },
+  stage: 'dev',
+  domainName: 'dev.example.com',
+  apiUrl: 'https://dev-api.example.com',
+});
+
+new FrontendStack(app, 'FrontendProd', {
+  env: { account: '123456789012', region: 'us-east-1' },
+  stage: 'prod',
+  domainName: 'app.example.com',
+  apiUrl: 'https://api.example.com',
+});
+```
+
+### 13.3 Rollbacks
+
+A rollback is fastest when it only switches traffic back to files that already exist, and slowest when it has to rebuild an old commit:
+
+| Platform | How to roll back | Speed |
+|----------|------------------|-------|
+| Cloudflare Workers | `npx wrangler rollback <version-id>` (recent versions are kept) | Seconds |
+| Cloudflare Pages | Deployments → previous production deployment → **Rollback to this deployment** | Seconds |
+| Amplify | Redeploy an earlier build from the branch's deployment history in the console | About a minute |
+| S3 + CloudFront | Switch a versioned prefix back (Q11), or re-run the deploy for the last good commit | Seconds with prefixes, a full deploy without |
+| GitHub Pages | Re-run the deploy workflow from the last good commit, or revert and push | A full deploy |
+
+Two habits make any platform's rollback safer: keep each release's build output (for example with `actions/upload-artifact`), so going back never depends on rebuilding with today's dependencies, and keep the previous build's hashed chunks available, so tabs opened before the bad deploy keep working while you fix it (Q19, Q20).
+
+---
+
+## 14. Cost Comparison
+
+### 14.1 S3 + CloudFront, Pay-as-You-Go
 
 ```text
 Assumptions: 100K visitors/month, 5 pages/visit, ~2 MB per visit (most of it cached in the browser)
@@ -1471,7 +1642,7 @@ ACM certificate: free
 Total: ~$0.50–1/month; beyond 1 TB, data transfer is about $0.085/GB in North America and Europe
 ```
 
-### 16.2 CloudFront Flat-Rate Plans
+### 14.2 CloudFront Flat-Rate Plans
 
 Since November 2025 CloudFront also sells **flat-rate plans**: a fixed monthly price that bundles CloudFront, WAF, DDoS protection, Route 53 DNS and some S3 storage, with no overage charges.
 
@@ -1484,11 +1655,11 @@ Since November 2025 CloudFront also sells **flat-rate plans**: a fixed monthly p
 
 For a small SPA, pay-as-you-go's free allowance is more generous on data (1 TB vs 100 GB). The plans are worth it when you want a predictable bill or would otherwise pay separately for WAF rules.
 
-### 16.3 Cloudflare
+### 14.3 Cloudflare
 
 Requests for static assets on Workers are **free and unlimited** on every plan; only requests that run Worker code are billed, and an assets-only Worker has none. Custom domains and certificates are free. So the same 100K-visitor SPA costs $0, which is the strongest argument for Cloudflare when you do not need anything AWS-specific.
 
-### 16.4 Cost Optimization on AWS
+### 14.4 Cost Optimization on AWS
 
 ```text
 1. Price Class 100: excludes the most expensive edge locations; the saving depends on how much traffic came from them
@@ -1500,7 +1671,7 @@ Requests for static assets on Workers are **free and unlimited** on every plan; 
 
 ---
 
-## 17. Interview Questions & Answers
+## 15. Interview Questions & Answers
 
 ### Beginner
 
@@ -1518,7 +1689,7 @@ Short answer: put the built files in a private S3 bucket and serve them through 
 4. Create a CloudFront distribution with the bucket as its origin, OAC, HTTPS redirect, your domain and the certificate
 5. Configure SPA routing: 403/404 → `/index.html` with 200, or a CloudFront Function
 6. Point your domain at CloudFront with Route 53 alias records
-7. Upload assets first and `index.html` last, then invalidate (§4 Step 9)
+7. Upload assets first and `index.html` last, then invalidate (§5.2 Step 9)
 
 CloudFront serves as the CDN — caches files globally for fast delivery and handles HTTPS.
 
@@ -1542,7 +1713,7 @@ SPAs use client-side routing (React Router). When a user navigates to `/dashboar
 
 Solution: Configure CloudFront custom error responses to serve `/index.html` for 403 and 404 errors with a 200 status code. React Router then reads the URL and renders the correct page.
 
-The 403 matters more than the 404: a private bucket answers "no such file" with 403 Forbidden, because it will not reveal to a caller without list permission whether the file exists. The cost of this catch-all is that a genuinely missing asset also returns `index.html`, so a wrong script path shows up as a confusing parse error rather than a clean 404. A CloudFront Function that rewrites only extensionless paths to `/index.html` avoids that (§4 Step 7), and Amplify's rewrite rule works the same way (§15.3).
+The 403 matters more than the 404: a private bucket answers "no such file" with 403 Forbidden, because it will not reveal to a caller without list permission whether the file exists. The cost of this catch-all is that a genuinely missing asset also returns `index.html`, so a wrong script path shows up as a confusing parse error rather than a clean 404. A CloudFront Function that rewrites only extensionless paths to `/index.html` avoids that (§5.2 Step 7), and Amplify's rewrite rule works the same way (§6.3).
 
 ---
 
@@ -1581,7 +1752,7 @@ Using GitHub Actions:
 
 The order of the upload matters: hashed assets first and `index.html` last, so the new page never points at files that are not there yet. Invalidation is needed only because `index.html` keeps the same name; the hashed files never need it.
 
-For multiple environments: Use GitHub Environments with branch protection rules — `develop` deploys to dev, `main` to production. A GitHub Environment holds its own variables and secrets and can require an approval, and each environment's IAM role trusts only that environment, so production credentials are only available to jobs that deploy from `main`. On Cloudflare the same workflow ends with `cloudflare/wrangler-action` instead of the upload and invalidation steps (§7.4).
+For multiple environments: Use GitHub Environments with branch protection rules — `develop` deploys to dev, `main` to production. A GitHub Environment holds its own variables and secrets and can require an approval, and each environment's IAM role trusts only that environment, so production credentials are only available to jobs that deploy from `main`. On Cloudflare the same workflow ends with `cloudflare/wrangler-action` instead of the upload and invalidation steps (§4.4).
 
 ---
 
@@ -1616,12 +1787,12 @@ Hashed assets (JS/CSS) don't need invalidation — new builds produce new filena
 
 Short answer: they are the same kind of thing underneath — files on a CDN — and the choice is about who owns the plumbing. With S3 + CloudFront you own the bucket, the distribution and the pipeline, so everything is configurable and you pay only raw AWS prices. With Amplify, AWS owns them, so a new app is live in minutes, but you can only change what Amplify exposes.
 
-The reasons behind each trade-off (the feature-by-feature table is in §15.4):
+The reasons behind each trade-off (the feature-by-feature table is in §6.4):
 
 - **Control.** Amplify runs a CloudFront distribution for you, but you cannot edit it. So cache policies, CloudFront Functions (for A/B tests or blue-green switches, Q11 and Q13) and origin groups for failover (Q12) are only available when you own the distribution yourself.
 - **Cost.** S3 + CloudFront bills storage, requests and data transfer at CloudFront's rates, with 1 TB a month free. Amplify bills $0.15 per GB served after 15 GB, plus build minutes, so at low traffic the difference is pennies and at high traffic it becomes a real line item.
-- **Delivery workflow.** Amplify builds on every push and gives each branch or pull request its own preview URL. With S3 + CloudFront you write that pipeline yourself (§6), and preview environments mean a bucket or prefix per branch plus the wiring to create and delete them.
-- **Setup and ownership.** Amplify is minutes in the console. S3 + CloudFront takes 30–60 minutes the first time and is best written as IaC (§5), which is also what makes it reviewable and reproducible across environments.
+- **Delivery workflow.** Amplify builds on every push and gives each branch or pull request its own preview URL. With S3 + CloudFront you write that pipeline yourself (§5.4), and preview environments mean a bucket or prefix per branch plus the wiring to create and delete them.
+- **Setup and ownership.** Amplify is minutes in the console. S3 + CloudFront takes 30–60 minutes the first time and is best written as IaC (§5.3), which is also what makes it reviewable and reproducible across environments.
 
 Choose S3 + CloudFront when you need edge logic, specific caching behaviour, multi-region failover, or when the infrastructure must be reviewed as code for compliance. Choose Amplify when a team wants previews and deploy-on-push without owning a pipeline, which covers most prototypes and many small-to-medium production apps. Both can sit behind AWS WAF, so security alone is no longer a reason to pick one.
 
@@ -1789,7 +1960,7 @@ Start with `Content-Security-Policy-Report-Only` to monitor before enforcing: th
 
 Short answer: both put static files on a global CDN with HTTPS and SPA fallback. AWS makes you assemble it from five services and gives you fine-grained control inside the AWS account model; Cloudflare gives you the whole thing from one config file, with free static traffic, but needs your domain's DNS on Cloudflare.
 
-- **Setup.** AWS: bucket, OAC, certificate in us-east-1, distribution, bucket policy, error responses, DNS (§4). Cloudflare: `wrangler.jsonc` with `assets.directory` and `not_found_handling: "single-page-application"`, then `wrangler deploy` (§7.2).
+- **Setup.** AWS: bucket, OAC, certificate in us-east-1, distribution, bucket policy, error responses, DNS (§5.2). Cloudflare: `wrangler.jsonc` with `assets.directory` and `not_found_handling: "single-page-application"`, then `wrangler deploy` (§4.2).
 - **Deploys.** AWS needs the upload order (assets, then `index.html`) and an invalidation. Cloudflare switches to the new version atomically and revalidates static files by default, so neither step exists.
 - **CI credentials.** AWS supports GitHub OIDC, so no secret is stored. Cloudflare needs a long-lived API token, so scope it to one account and the Workers permission.
 - **Cost.** CloudFront has a 1 TB/month free allowance, then per GB. Cloudflare static asset requests are free and unlimited.
@@ -1875,19 +2046,19 @@ Whatever the platform, keep the build artifact for each release (for example wit
 
 **Q21: GitHub Pages cannot rewrite paths. How do you make deep links in an SPA work there?**
 
-GitHub Pages serves files from a branch and nothing else: no rewrite rules, no custom headers. A request for `/settings/profile` finds no file and gets the site's `404.html` with a 404 status. Two techniques, often combined (PrepHub uses both, §8.3):
+GitHub Pages serves files from a branch and nothing else: no rewrite rules, no custom headers. A request for `/settings/profile` finds no file and gets the site's `404.html` with a 404 status. Two techniques, often combined (PrepHub uses both, §3.3):
 
 1. **Route shells.** After the build, copy `index.html` to `dist/<route>/index.html` for every route the app knows. The deep link now hits a real file and gets a 200. GitHub first answers `/settings/profile` with a 301 to `/settings/profile/`, then serves the shell. This needs a list of routes at build time, so it suits apps whose routes are known in advance; it is not pre-rendering, since every shell is the same empty page.
 2. **The `404.html` redirect trick.** Make `404.html` a tiny script that rewrites `/settings/profile` to `/?/settings/profile` and loads the root. A matching script in `index.html` turns the query string back into the real path with `history.replaceState` before the router starts. It works for any path, but costs a 404 response and an extra round trip on every deep link, and search engines see the 404 status.
 
-Mentioning the second option's cost is the strong part of the answer: shells give known routes a clean 200, and the redirect trick is only the fallback for URLs nobody planned for. If you also need cache or security headers, the honest answer is a different host (§8.5).
+Mentioning the second option's cost is the strong part of the answer: shells give known routes a clean 200, and the redirect trick is only the fallback for URLs nobody planned for. If you also need cache or security headers, the honest answer is a different host (§7).
 
 ---
 
 ## References
 
 - [AWS CloudFront Developer Guide](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide) — CDN documentation
-- [Configuring OpenID Connect in AWS (GitHub Docs)](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services) — the trust policy behind §6.1
+- [Configuring OpenID Connect in AWS (GitHub Docs)](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services) — the trust policy behind §5.4.1
 - [Cloudflare Workers static assets](https://developers.cloudflare.com/workers/static-assets/) — `assets` config, SPA mode, `_headers`
 - [Cloudflare Workers with GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/) — API token and `wrangler-action`
 - [Cloudflare Pages](https://developers.cloudflare.com/pages/) — Direct Upload, previews and rollbacks
