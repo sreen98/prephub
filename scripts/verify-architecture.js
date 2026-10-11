@@ -10,7 +10,8 @@
  *
  * Run: npm run verify:arch
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { join, extname } from 'node:path';
 
@@ -805,6 +806,35 @@ check('the admin document ships only encrypted', () => {
     `${enc} is not in the encrypted format — regenerate it with npm run admin:encrypt`,
   );
   return 'plain text untracked; published copy is ciphertext';
+});
+
+// ---------------------------------------------------------------------------
+// 21. Commits carry no Claude co-author
+// ---------------------------------------------------------------------------
+// Public portfolio repo: a "Co-Authored-By: Claude" trailer lists claude as a GitHub
+// contributor for good. .githooks/commit-msg strips it. Run the hook on a sample
+// message when a POSIX shell is available (Git for Windows ships one); otherwise
+// fall back to checking the file still contains the strip.
+check('commit-msg hook strips Claude co-author trailers', () => {
+  const hook = read('.githooks/commit-msg');
+  assert(/grep -ivE/.test(hook) && /claude/i.test(hook) && /anthropic/i.test(hook),
+    '.githooks/commit-msg must remove Co-Authored-By trailers naming Claude or anthropic.com');
+
+  const sample = 'subject\n\nbody\n\nCo-Authored-By: Jane Doe <jane@example.com>\nCo-Authored-By: Claude <noreply@anthropic.com>\n';
+  const dir = mkdtempSync(join(tmpdir(), 'commit-msg-'));
+  const file = join(dir, 'MSG');
+  writeFileSync(file, sample);
+  try {
+    execSync(`sh .githooks/commit-msg "${file.replace(/\\/g, '/')}"`, { stdio: 'ignore' });
+  } catch {
+    rmSync(dir, { recursive: true, force: true });
+    return 'no POSIX shell here; strip present in the hook';
+  }
+  const out = readFileSync(file, 'utf8');
+  rmSync(dir, { recursive: true, force: true });
+  assert(!/claude/i.test(out), '.githooks/commit-msg left a Claude co-author trailer in the message');
+  assert(/Jane Doe/.test(out), '.githooks/commit-msg removed a human co-author too');
+  return 'Claude trailer removed, human co-author kept';
 });
 
 // ---------------------------------------------------------------------------

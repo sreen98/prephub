@@ -2931,3 +2931,38 @@ Roughly one in eight findings needed a FIX-CHANGE, which is why the second stage
 - raising multer's `files` limit to 50 would have allowed 500 MB in memoryStorage.
 Rejected: the Bitnami chart repo is still served, so its commands stay.
 Python and shell examples were checked against the docs, not executed (no runner in the gate).
+
+## Frontend Deployment rewrite, Cloudflare, animated diagrams (v1.7.17)
+
+The guide was reordered around how the setup is actually built (certificate before the
+distribution, OAC before the bucket policy) after a readability pass found the CDK code used
+ACM and Route 53 two sections before they were explained, the two-step upload repeated six
+times, and a third, contradictory variant in the caching section. The canonical upload now
+splits on `assets/` rather than `*.html`: the `*.html` split gave `favicon.ico`, `robots.txt`
+and `config.js` a one-year immutable cache. Cloudflare facts (Workers recommended over Pages,
+wrangler-action v4, no OIDC, `not_found_handling`, default `max-age=0, must-revalidate`) were
+verified against developers.cloudflare.com on 2026-10-11; old-asset retention across Worker
+deploys is undocumented, so the guide tells readers to handle ChunkLoadError instead.
+The PrepHub case study was checked against the live site: DNS resolves to GitHub's
+185.199.108–111.153 (Cloudflare record is DNS only) and GitHub Pages sends
+`Cache-Control: max-age=600` on every file, hashed or not.
+
+Diagrams use Mermaid 11 edge animation (`A e1@--> B` plus `e1@{ animate: true }`). Mermaid
+animates with a CSS `dash` keyframe, so the global reduced-motion block in index.css stops it;
+all 10 diagrams were parsed with `mermaid.parse` under jsdom and rendered in the dev server.
+
+**Untagged fences were drawn as inline code.** A fence with no language has no `language-*`
+class, so `code()` in markdownComponents gave it `inline-code`, and every line got its own
+bordered pill inside the dark block (present before the v1.7.13 redesign too). Fixed in CSS
+(`.code-block-body .inline-code` resets padding, border and background and uses the theme's
+base text colour) so every guide benefits without touching content.
+
+## commit-msg hook strips Claude co-author trailers (v1.7.17)
+
+Tools that write commits can append `Co-Authored-By: Claude <noreply@anthropic.com>` on their
+own; once pushed, GitHub lists "claude" as a contributor (this happened once, see the v1.7.12
+push). The rule used to live only in CLAUDE.md and memory. `.githooks/commit-msg` now removes
+any trailer naming Claude or anthropic.com, keeps human co-authors, and trims the blank lines
+left behind. A pre-commit hook could not do this: it runs before the message exists.
+`verify:arch` #21 runs the hook on a sample message (when `sh` is available) and was probed by
+making the hook's pattern match nothing: the check failed, then passed once restored.

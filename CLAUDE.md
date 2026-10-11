@@ -37,6 +37,9 @@ a temporary worktree: worktrees share `.git/config`, so it changes the main chec
   `git show HEAD:path`. To undo a temporary probe edit, capture the original text first and
   write it back.
 - Commits carry no Claude co-author trailer. This is a public portfolio repo.
+  `.githooks/commit-msg` strips any `Co-Authored-By:` line naming Claude or anthropic.com
+  (human co-authors stay), and `verify:arch` check #21 runs it on a sample message. A new
+  hook file needs `git update-index --chmod=+x` when staged (`core.filemode=false` on Windows).
 - Re-run `npm run typecheck` after `eslint --fix`. It has removed a load-bearing type before.
 
 ## Layout and layering
@@ -216,6 +219,10 @@ silently resolves to a `window` global and typechecks.
   ending `// ✗ TSnnnn: message`, checked by the compiler in `typescriptGuideTypes.test.ts`.
   Verify type claims with the compiler, not by eye.
 - **A nested fence must be indented to match its list item** (check #17).
+- **Diagrams** are ` ```mermaid ` fences (Mermaid 11, lazy-loaded). Animated edges
+  (`A e1@--> B` + `e1@{ animate: true }`) are fine for flows: the reduced-motion block in
+  `index.css` stops them. Parse new diagrams with `mermaid.parse` before shipping. Tag plain
+  text fences `text`.
 - **Tables need a first-column header**, never `| |` (check #14).
 - **Anchors** follow `slugify()` in `data.ts`, which collapses runs of dashes, so `A — B`
   becomes `a-b`. `verify:counts` checks every in-page anchor.

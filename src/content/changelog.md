@@ -1,5 +1,19 @@
 # What's New
 
+## v1.7.17 (October 2026)
+
+**The [Frontend Deployment](/aws/frontend-deployment) guide is rewritten to be easier to follow, and now covers Cloudflare.**
+- **Starts with the mental model:** what happens when someone opens your site, and the three rules every host must follow (deep links serve `index.html`, never cache `index.html` for long, upload assets before `index.html`), followed by a "which host should I pick" table.
+- **The AWS walkthrough is in the order you actually do it:** bucket, certificate, Origin Access Control, distribution, bucket policy, SPA routing, DNS, upload, then `curl` checks. Each step explains why it's there. The upload script is now written out once, correctly: before, `favicon.ico` was cached for a year.
+- **GitHub Actions to AWS with OIDC, end to end:** the identity provider, a trust policy limited to one repository and branch (including GitHub's new subject format), a least-privilege deploy policy and the workflow.
+- **New Cloudflare section:** Workers static assets with SPA mode, `_headers`, deploying with `cloudflare/wrangler-action`, a preview URL for every pull request, custom domains, rollback, and Cloudflare Pages as the alternative.
+- **New case study: how PrepHub itself deploys** (GitHub Pages with Cloudflare DNS), including how it makes deep links work without rewrites and what it would gain on another host.
+- **Animated diagrams** for the request flow, the AWS architecture, SPA fallback, deploy order, the OIDC handshake, the Cloudflare pipeline and caching. With reduced motion turned on, the animations don't play.
+- **Six new interview questions:** Cloudflare vs S3 + CloudFront, deploying to Cloudflare from GitHub Actions, Workers vs Pages, `ChunkLoadError` after a deploy, rollbacks, and deep links on GitHub Pages.
+- **Up to date:** CloudFront flat-rate plans, Amplify Gen 1 end of life, and current GitHub Action versions.
+
+**Fix:** code blocks with no language label no longer draw a separate bordered box around every line.
+
 ## v1.7.16 (October 2026)
 
 **Corrections across the Back End and DevOps guides.** All 32 guides were audited, and every finding was re-checked by running the code or against the official docs before anything changed (about 240 corrections). Highlights:

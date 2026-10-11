@@ -221,6 +221,14 @@ html {
   @apply px-1.5 py-0.5 rounded-md bg-ink/5 text-[0.875em] font-mono text-accent border border-line;
 }
 
+/* A fence with no language has no `language-*` class, so markdownComponents' `code()`
+   gives it `inline-code` too. Inside a code block it must look like the block: without
+   this, every line of an untagged fence was drawn as a separate bordered pill. */
+.code-block-body .inline-code {
+  @apply p-0 rounded-none bg-transparent border-0;
+  color: #adbac7;   /* github-dark-dimmed's base text, as on highlighted blocks */
+}
+
 /* ==================== Code Blocks ==================== */
 
 .code-block {
