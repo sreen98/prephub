@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap, RotateCcw, Terminal, Atom, Database, GraduationCap, ScrollText, ArrowRight, Flame } from 'lucide-react';
+import { Zap, RotateCcw, Terminal, Atom, Database, GraduationCap, ScrollText, ArrowRight, Flame, Timer } from 'lucide-react';
 import type { MenuSection, MenuItem } from '../data';
 import { menuStructure, cheatSheets, readMinFor, totalQuestionCount } from '../data';
 import { useProgress } from '../hooks/useProgress';
 import { useStudyStats } from '../hooks/useStudyStats';
 import { formatReadTime } from '../lib/formatReadTime';
+import { LAST_MINUTE_CARDS } from '../data/lastMinuteCards';
+import { cardsFor, readingMinutes } from '../lib/cardSet';
+
+const CORE_CARDS = cardsFor(LAST_MINUTE_CARDS, 'core').length;
 
 // Narrow type-guard so categories that have items keep that fact in TS.
 type CategoryWithItems = MenuSection & { items: MenuItem[] };
@@ -18,6 +22,7 @@ const TOOLS = [
   { to: '/playground/react', name: 'React Playground', Icon: Atom, what: 'Machine-coding challenges with a live preview and behaviour checks.' },
   { to: '/query-playground', name: 'Query Playground', Icon: Database, what: 'SQL on real PostgreSQL, plus MongoDB, in your browser.' },
   { to: '/interview', name: 'Interview Simulator', Icon: GraduationCap, what: 'A timed mock interview with random questions.' },
+  { to: '/last-minute', name: 'Last-Minute Cards', Icon: Timer, what: `${CORE_CARDS} flip cards to refresh the essentials in about ${readingMinutes(CORE_CARDS)} minutes, or all ${LAST_MINUTE_CARDS.length}.` },
   { to: '/cheatsheets', name: 'Cheat Sheets', Icon: ScrollText, what: `${cheatSheets.length} one-page references, from Git to Big-O.` },
 ];
 

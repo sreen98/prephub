@@ -1,5 +1,17 @@
 # What's New
 
+## v1.7.19 (October 2026)
+
+**New: [Last-Minute Cards](/last-minute), 48 flip cards for the minutes before a front-end interview.** Each card has a question on the front and a short answer on the back: the idea, a few lines of code, the gotcha, and the line worth saying out loud. No lectures. **Core** (the default) is the 30 most-asked cards, about 10 minutes; **All** adds the other 18, about 16 minutes. The page remembers your choice.
+- **JavaScript:** closures, debounce vs throttle, timers (`setTimeout` and `setInterval` delays in milliseconds: 10 seconds is `10000`), the event loop (including `process.nextTick` and `setImmediate`), event bubbling, capturing and delegation, `this`, a `call` / `apply` / `bind` table, hoisting and the TDZ, promises, prototypes, and shallow vs deep copy.
+- **TypeScript:** `type` vs `interface`, `any` / `unknown` / `never`, generics, utility types, discriminated unions, `as const` and `satisfies`, and structural typing.
+- **React:** what React is, reconciliation and the diffing algorithm, keys, `useMemo` vs `useCallback` vs `React.memo`, the React Compiler, `useEffect`, writing a custom hook and the rules of hooks, fetching data without a race condition, why an effect runs twice in StrictMode, batching, what causes a re-render, `useState` vs `useReducer` and where state should live, Context, code splitting, and React 19.
+- **CSS:** the box model, specificity (and why `:where()` counts for nothing), Flexbox vs Grid, and `position` with the `z-index` trap.
+- **Web fundamentals:** what happens when you type a URL, CORS, HTTP caching, cookies vs `localStorage` vs `sessionStorage` (and where a token belongs), XSS and CSRF, Core Web Vitals, accessibility basics, and CSR vs SSR vs SSG vs RSC.
+- **Rapid fire:** JavaScript one-liners (including what JavaScript and TypeScript are, and currying), React one-liners (stale closures, long lists, React Testing Library), and typing React in TypeScript.
+
+Tap a card or press Space to flip it. Swipe, or use the arrow keys, to move between cards, and jump to a deck from the tabs. Every output shown in a card's code has been run, and every TypeScript error has been checked with the compiler.
+
 ## v1.7.18 (October 2026)
 
 **The [Frontend Deployment](/aws/frontend-deployment) guide is reorganised so it reads from basics to platforms.** It now has four parts:

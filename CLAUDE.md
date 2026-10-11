@@ -310,6 +310,22 @@ as numbers. `solutions.test.ts` runs every reference solution and asserts that t
 wrong answer is rejected. **When adding a question, add the dataset row that makes the wrong
 answer wrong.** Every SQL question has a `mysqlNote`.
 
+## Last-minute cards (`/last-minute`)
+Hand-written flip cards in `src/data/lastMinuteCards.ts` (6 decks, 48 cards, 30 marked
+`core: true`), rendered by `LastMinutePage` + `features/lastMinute/` (`CardDeck` is keyed by
+mode, so a Core/All switch remounts it with a reducer sized for the new set). **Core** is the
+default ~10-minute pass (20 s a card, `readingMinutes` in `lib/cardSet.ts`); keep it near 30
+cards. The choice is stored under `last-minute-mode`, a pinned key. Keep each card a 20-second read: one idea, a few
+lines of code, at most one gotcha. Text fields take only `code` and **bold**
+(`lib/inlineMarkup.ts`). **Every output comment and every `✗ TSnnnn` in a card is executed
+or compiled in `lastMinuteCards.test.ts`**: add the expectation there when you add a card
+(an expression line ending `expr;  // value` is captured by `lineValues`). A deck's cards
+must stay contiguous, because the deck tabs jump to its first card. The card count is a
+`verify:counts` claim in both READMEs, and so is the core count. DOM and React-runtime
+claims (delegation, hooks, fetch races, StrictMode) are executed in jsdom in
+`lastMinuteCards.dom.test.tsx`. CSS samples are highlighted through `lib/cardHighlight.ts`,
+which registers the CSS grammar outside the playground chunk.
+
 ## Styling
 Tailwind with custom prose styles in `index.css`. No `@tailwindcss/typography`. Code blocks are
 always dark (`#22272e`), and the Code Playground is always dark like an IDE. When raising a base

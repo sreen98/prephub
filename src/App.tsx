@@ -40,6 +40,7 @@ const BookmarksPage      = lazy(() => import('./pages/BookmarksPage'));
 const CheckpointsPage    = lazy(() => import('./pages/CheckpointsPage'));
 const ReviewPage         = lazy(() => import('./pages/ReviewPage'));
 const InterviewSimulator = lazy(() => import('./pages/InterviewSimulator'));
+const LastMinutePage     = lazy(() => import('./pages/LastMinutePage'));
 const CheatSheetsIndex   = lazy(() => import('./pages/CheatSheetsIndex'));
 // PGlite (real PostgreSQL in WASM) is ~5 MB and lives behind this route's
 // own dynamic import, so it is never fetched unless someone opens it.
@@ -253,6 +254,7 @@ export default function App() {
       '/playground/react': 'React Playground · PrepHub',
       '/query-playground': 'Query Playground · PrepHub',
       '/interview': 'Interview Simulator · PrepHub',
+      '/last-minute': 'Last-Minute Cards · PrepHub',
       '/review': 'Spaced Repetition Review · PrepHub',
       '/bookmarks': 'Bookmarks · PrepHub',
       '/cheatsheets': 'Cheat Sheets · PrepHub',
@@ -426,6 +428,7 @@ export default function App() {
             <Route path="/quiz" element={<QuizMode />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/interview" element={<InterviewSimulator />} />
+            <Route path="/last-minute" element={<LastMinutePage />} />
             {/* Two playgrounds, one component. The key makes switching between
                 them a remount, so neither inherits the other's editor state. */}
             <Route path="/playground" element={<CodePlayground key="js" flavor="js" />} />

@@ -5,7 +5,7 @@ import {
   X, Sun, Moon, ChevronDown, BookOpen, Search, Megaphone, Type, Flame,
   GraduationCap, Bookmark, Flag, ScrollText, Lock, PanelLeftClose, FileText,
   CheckCircle, Circle, Zap, Terminal, List, Braces, Server, Layers, Monitor,
-  RotateCcw, Database, Atom,
+  RotateCcw, Database, Atom, Timer,
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcon';
 import { menuStructure, cheatSheets } from '../data';
@@ -64,6 +64,7 @@ const TOOLS: {
   { to: '/review', Icon: RotateCcw, label: 'Daily Review',
     badge: (c) => countBadge(c.dueCount, 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold') },
   { to: '/interview', Icon: GraduationCap, label: 'Interview Sim' },
+  { to: '/last-minute', Icon: Timer, label: 'Last-Minute Cards' },
   { to: '/playground', Icon: Terminal, label: 'JavaScript Playground' },
   { to: '/playground/react', Icon: Atom, label: 'React Playground' },
   { to: '/query-playground', Icon: Database, label: 'Query Playground' },

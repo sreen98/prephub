@@ -16,6 +16,7 @@ const EXPECTED_KEYS = [
   'bookmarks',
   'checkpoints',
   'guide-progress',
+  'last-minute-mode',
   'lastSeenChangelog',
   'playground-bracket-autoclose',
   'playground-last-session',

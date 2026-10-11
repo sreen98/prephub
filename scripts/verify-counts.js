@@ -61,6 +61,11 @@ for (let k = 0; k < labels.length - 1; k++) {
     .filter((l) => l.startsWith("        name: '")).length;
 }
 
+// Last-minute flip cards: one `id:` per card, at the card's own indent.
+const lastMinuteCards = [...read('src/data/lastMinuteCards.ts').matchAll(/^ {4}id: '/gm)].length;
+// …and the ones in the default "Core" pass.
+const lastMinuteCore = [...read('src/data/lastMinuteCards.ts').matchAll(/^ {4}core: true,$/gm)].length;
+
 const solutions = [...read('src/data/playground/playgroundSolutions.ts').matchAll(/^ {2}'/gm)].length;
 const solutionKeys = [...read('src/data/playground/playgroundSolutionKeys.ts').matchAll(/^ {2}'/gm)].length;
 
@@ -96,6 +101,8 @@ const truth = {
   solutions,
   trickyTotal,
   trickyGuides,
+  lastMinuteCards,
+  lastMinuteCore,
   ...categories,
 };
 
@@ -122,6 +129,10 @@ const claims = [
   ['trickyTotal',     'README.md',             (n) => `**${n} questions**`],
   ['trickyTotal',     'CLAUDE.md',             (n) => `${n} questions total`],
   ['trickyGuides',    'README.md',             (n) => `**${n} guides**`],
+  ['lastMinuteCards', 'README.md',             (n) => `**${n} flip cards**`],
+  ['lastMinuteCards', 'src/content/README.md', (n) => `**${n} flip cards**`],
+  ['lastMinuteCore',  'README.md',             (n) => `**${n} core cards**`],
+  ['lastMinuteCore',  'src/content/README.md', (n) => `**${n} core cards**`],
 ];
 
 console.log('Ground truth');
