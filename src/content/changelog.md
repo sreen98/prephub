@@ -3,6 +3,7 @@
 ## v1.7.23 (October 2026)
 
 - **New in [Docker, K8s & CI/CD](/backend/docker-kubernetes): Q10, what is Docker, why is it used, and what are its features, pros and cons?** It names the pieces (Dockerfile, image, container, registry, Engine, Compose), explains the "works on my machine" problem it solves, lists the key features, and compares pros and cons in a table, including the shared kernel, containers running as root by default, and when Docker Desktop needs a paid licence. It ends with two points that show depth: Docker didn't invent containers, and Kubernetes runs Docker-built images without Docker.
+- **New in [HTML](/frontend/html): Q21, what's the difference between `<div>`, `<section>` and `<article>`?** A table compares what each one means, when to use it and how screen readers treat it, followed by an example of all three nested in a blog post and a quick test for picking one.
 
 ## v1.7.22 (October 2026)
 

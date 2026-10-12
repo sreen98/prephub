@@ -814,6 +814,36 @@ HTML provides almost all of it: the element gives the role (`<button>` → butto
 
 ---
 
+**Q21: What's the difference between `<div>`, `<section>` and `<article>`?**
+
+All three are block containers that look identical with no CSS. The difference is what they tell the browser, and through it screen readers and search engines:
+
+| Element | Meaning | Use it for | Role in the accessibility tree |
+|---|---|---|---|
+| `<div>` | None. A box for styling or scripting | Layout wrappers, flex and grid containers | `generic` (screen readers ignore it) |
+| `<section>` | A thematic part of a larger whole, normally with its own heading | Chapters of an article, the "Pricing" or "FAQ" part of a landing page | `region` landmark, but only when it has an accessible name (`aria-labelledby` or `aria-label`) |
+| `<article>` | A self-contained piece that makes sense on its own | A blog post, a comment, a product card, a news item in a feed | `article` |
+
+```html
+<article>                              <!-- the whole post: could be syndicated alone -->
+  <h1>Shipping a design system</h1>
+  <section aria-labelledby="tokens">   <!-- one part of the post, with its own heading -->
+    <h2 id="tokens">Tokens</h2>
+    <div class="grid">…</div>          <!-- only here for the CSS grid -->
+  </section>
+  <section aria-labelledby="comments">
+    <h2 id="comments">Comments</h2>
+    <article>…</article>               <!-- each comment stands alone too -->
+  </section>
+</article>
+```
+
+The quick tests: if it would make sense **on its own** (in an RSS feed, shared as a link), it's an `<article>`. If it would get an entry in a **table of contents**, it's a `<section>`. If you only need a box to style, it's a `<div>`. They nest either way: an article can have sections, and a section can list articles.
+
+The common mistake is the reverse of "div soup": wrapping every block in `<section>` for the look of semantics. A section with no heading adds nothing a `<div>` doesn't. More detail is in [§3](#article-vs-section-vs-div).
+
+---
+
 ## 17. Tricky Questions
 
 ---
