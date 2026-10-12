@@ -6,6 +6,7 @@ import { slugify, getTextContent } from '../../data';
 import { cn } from '../../lib/cn';
 import MermaidBlock from '../../components/MermaidBlock';
 import PreBlock from './PreBlock';
+import LiveCssBlock from './LiveCssBlock';
 import { Link2, Bookmark, BookmarkCheck } from 'lucide-react';
 import type { Bookmark as BookmarkEntry } from '../../hooks/useBookmarks';
 
@@ -78,14 +79,13 @@ export function buildMarkdownComponents(opts: MarkdownComponentOptions): Compone
     h3: createHeading(3, opts),
     h4: createHeading(4, opts),
     pre({ children }) {
-      // ```mermaid blocks go to the lazy diagram renderer, not the code block.
+      // ```mermaid blocks go to the lazy diagram renderer, and ```css-live blocks to the
+      // editable preview, not the code block.
       const child = React.Children.toArray(children)[0];
-      if (
-        React.isValidElement<{ className?: string; children?: React.ReactNode }>(child)
-        && child.props?.className?.includes('language-mermaid')
-      ) {
+      if (React.isValidElement<{ className?: string; children?: React.ReactNode }>(child)) {
         const code = typeof child.props.children === 'string' ? child.props.children : '';
-        return <MermaidBlock chart={code} />;
+        if (child.props?.className?.includes('language-mermaid')) return <MermaidBlock chart={code} />;
+        if (child.props?.className?.includes('language-css-live')) return <LiveCssBlock source={code} />;
       }
       return <PreBlock>{children}</PreBlock>;
     },

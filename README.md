@@ -12,6 +12,7 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 - **Mermaid diagrams** — architecture diagrams rendered as interactive visuals
 - **Tricky Output Questions** — "Guess the Output" sections in **55 guides** totalling **460 questions**, each paired with a detailed explanation and followed by a cheat-sheet summary. Counts by guide: React 26, TypeScript 31, JavaScript 53, React Native 20, Node.js 14, Browser APIs 12, AI & LLM Engineering 10, Redux Toolkit 10, Redux Saga 10, Play Store Deployment 10, MongoDB 10, Express 10, Frontend System Design 8, Regex 8, Real-Time Web 8, OAuth & SSO 8, Microservices 8, Refactoring & Code Review 7, Modern CSS 6, Stripe 6, Accessibility 5, Frontend Architecture 5, **SQL 4**, **Web Performance 4**, Design Patterns 4, Next.js & RSC 4, Web Security 4, **Docker/K8s/CI-CD 3**, **Testing Strategy 3**, **Low-Level Design 3**, **Generative AI 6**, **RAG 6**, **Agentic AI 6**, **MCP 6**, **LangChain & LangGraph 6**, **AI-Augmented Development 6**
 - **Syntax-highlighted code blocks** with copy and "Try it" buttons
+- **Live CSS demos** in the CSS Fundamentals guide: edit the CSS (or HTML) under a question and the preview updates as you type, with the elements the question is about measured live (size, position, computed values and a box-model diagram) and every changed value shown next to what it was. A width slider shows responsive layouts reflowing
 - **Reading time estimates** on every guide
 - **Table of Contents** — auto-generated from headings, tracks active section while scrolling
 

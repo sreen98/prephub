@@ -2979,3 +2979,29 @@ fences (148) were counted before and after. New prose only fills the joins (intr
 types incl. an nginx `try_files` config, GitHub Pages setup with `actions/upload-pages-artifact@v5`
 and `actions/deploy-pages@v5`, verified via the GitHub releases API, and a rollback table).
 Anchors changed, but nothing links into this guide's sections from elsewhere.
+
+## Live CSS demos (v1.7.24)
+
+A ```` ```css-live ```` fence in a guide renders `LiveCssBlock` (`src/features/content/`): the
+first `<style>` is the editable CSS, the rest is the HTML, previewed in an iframe. Decisions and
+the measurements behind them:
+
+- **Sandbox `allow-same-origin` only.** The component must reach into the preview to swap the
+  stylesheet and measure elements; rebuilding `srcdoc` on every keystroke reloads the frame and
+  flashes. Without `allow-scripts`, neither `<script>` nor inline handlers run, even in HTML the
+  reader types.
+- **The "was" values are re-measured, not stored.** The first version captured a baseline on
+  load. The page's layout settles after that (fonts, the guide's own scrollbar), so every
+  demo reported "582 (was 567)" before any edit. Now, on every refresh, an edited demo is
+  laid out once with the original code and once with the current code, in the same document
+  and at the same width.
+- **`scrollbar-gutter: stable`** in the preview. Measuring the original code (often taller)
+  briefly added a vertical scrollbar, which narrowed every block by 15px and showed as a
+  fake change. Reserving the gutter keeps widths identical whether a scrollbar is shown or not.
+- **Height from the root's box**, not `scrollHeight`, which never drops below the iframe's
+  current height, so the preview could grow but never shrink.
+- **Checked by driving the real component.** Every "Try it:" edit was replayed over the Chrome
+  DevTools Protocol in headless Edge (native textarea value setter + an `input` event), and
+  the readout read back. That caught one wrong sentence: removing `align-items` from a flex
+  centring demo stretches the child to full height (the default is `stretch`), it doesn't
+  move it to the top.

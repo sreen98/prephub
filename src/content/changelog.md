@@ -1,5 +1,14 @@
 # What's New
 
+## v1.7.24 (October 2026)
+
+**Live CSS demos in [CSS Fundamentals](/frontend/css-fundamentals).** 18 questions now have a live demo: the CSS sits in an editable box, and the preview below it updates as you type. Each demo measures the elements the question is about (width, height, position, and values such as `font-size` or `color`) and puts the old value next to every one that changed, such as "400 (was 444)". Box-model questions also show a diagram of margin, border, padding and content.
+- Each demo has a **Try it** line with the edit to make: switch `box-sizing`, change `flex: 1` to `flex: auto`, add `display: flow-root`, and so on.
+- A width slider shrinks the preview, so you can watch a media query switch layouts or an `auto-fit` grid drop columns.
+- **Boxes** outlines every element, an **HTML** tab lets you change the markup, and **Reset** puts the original code back.
+
+Demos cover the box model, `display: none` vs `visibility` vs `opacity`, inline vs block, positioning, centring, `auto-fill` vs `auto-fit`, responsive layout, Flexbox vs Grid, and all 10 tricky questions.
+
 ## v1.7.23 (October 2026)
 
 - **New in [Docker, K8s & CI/CD](/backend/docker-kubernetes): Q10, what is Docker, why is it used, and what are its features, pros and cons?** It names the pieces (Dockerfile, image, container, registry, Engine, Compose), explains the "works on my machine" problem it solves, lists the key features, and compares pros and cons in a table, including the shared kernel, containers running as root by default, and when Docker Desktop needs a paid licence. It ends with two points that show depth: Docker didn't invent containers, and Kubernetes runs Docker-built images without Docker.

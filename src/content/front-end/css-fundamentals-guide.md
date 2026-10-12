@@ -623,6 +623,22 @@ Every element is a rectangular box with four layers: **content**, then **padding
 
 Most projects set `border-box` on everything, because "this card is 300px wide" should mean the whole card. Margins are outside both models and, vertically, can collapse ([§6](#6-normal-flow-margin-collapsing-and-bfcs)). Diagram and details: [§4](#4-the-box-model).
 
+**Try it:** change `padding`, `border` or `margin` and watch that layer of the diagram change. Then switch `content-box` to `border-box`: the rendered width becomes exactly 200px and the content area shrinks.
+
+```css-live
+<style>
+.box {
+  box-sizing: content-box;
+  width: 200px;
+  padding: 20px;
+  border: 5px solid #4338ca;
+  margin: 16px;
+  background: #c7d2fe;
+}
+</style>
+<div class="box" data-measure="box" data-box>Content</div>
+```
+
 ---
 
 **Q2: What's the difference between `display: none`, `visibility: hidden` and `opacity: 0`?**
@@ -633,6 +649,21 @@ Most projects set `border-box` on everything, because "this card is 300px wide" 
 
 To hide something visually but keep it for screen readers, use the visually-hidden (`.sr-only`) pattern. Comparison table: [§5](#5-the-display-property).
 
+**Try it:** replace `opacity: 0` with `visibility: hidden`, then with `display: none`. Watch the hidden item's size and where the third item starts.
+
+```css-live
+<style>
+.row    { display: flex; gap: 8px; }
+.item   { padding: 12px; background: #c7d2fe; }
+.hidden { opacity: 0; }
+</style>
+<div class="row">
+  <div class="item">One</div>
+  <div class="item hidden" data-measure="hidden item" data-props="display visibility opacity">Two</div>
+  <div class="item" data-measure="third item">Three</div>
+</div>
+```
+
 ---
 
 **Q3: What's the difference between `inline`, `block` and `inline-block`?**
@@ -641,6 +672,16 @@ To hide something visually but keep it for screen readers, use the visually-hidd
 
 A common follow-up: why is there a small gap between inline-block items? It's the whitespace between the tags in the HTML, rendered as a space ([Tricky Q6](#18-tricky-questions)). And an `<img>` has a few pixels under it inside a container because images are inline and sit on the text baseline, leaving room for descenders; `display: block` or `vertical-align: middle` removes it.
 
+**Try it:** change `display: inline` to `inline-block`, then to `block`. As inline, the span ignores its 120px width and 40px height; the other two respect them.
+
+```css-live
+<style>
+span { width: 120px; height: 40px; margin: 12px; padding: 4px; background: #fde68a; }
+.a   { display: inline; }
+</style>
+<p>Text before <span class="a" data-measure="span">a span</span> and text after it.</p>
+```
+
 ---
 
 **Q4: Explain the values of `position`.**
@@ -648,6 +689,19 @@ A common follow-up: why is there a small gap between inline-block items? It's th
 `static` is the default (normal flow, offsets ignored). `relative` keeps the element in flow and offsets it from where it would have been; it's mostly used to make an element the **containing block** for absolute children. `absolute` removes it from flow and positions it against the nearest positioned ancestor. `fixed` positions against the viewport (unless an ancestor has a `transform` or `filter`). `sticky` behaves like `relative` until its scroll container scrolls it to a threshold (`top: 0`), then sticks.
 
 The pattern to say out loud: "`position: relative` on the parent, `position: absolute` on the child." Table and pitfalls: [§7](#7-positioning).
+
+**Try it:** delete `position: relative` from `.parent` and the child jumps to the top-right of the whole preview, because its containing block is now the page. Then try `position: relative` on the child.
+
+```css-live
+<style>
+.parent { position: relative; height: 120px; margin-top: 30px; background: #e0e7ff; }
+.child  { position: absolute; top: 10px; right: 10px; padding: 8px; background: #fde68a; }
+</style>
+<div class="parent" data-measure="parent">
+  Parent
+  <div class="child" data-measure="child">Child</div>
+</div>
+```
 
 ---
 
@@ -702,6 +756,18 @@ For a child of a container: `display: grid; place-items: center` on the parent, 
 
 A good answer explains why `margin: auto` doesn't centre vertically in normal flow (auto vertical margins resolve to zero there) but does inside flex and grid. All six patterns: [§12](#12-centring).
 
+**Try it:** replace the grid lines with `display: flex; justify-content: center; align-items: center;`, then remove `align-items` and the child stretches to the parent's full height, because the default is `stretch`.
+
+```css-live
+<style>
+.parent { display: grid; place-items: center; height: 160px; background: #e0e7ff; }
+.child  { padding: 12px 20px; background: #fde68a; }
+</style>
+<div class="parent" data-measure="parent">
+  <div class="child" data-measure="child">Centred</div>
+</div>
+```
+
 ---
 
 **Q11: What does `flex: 1` mean, and how is it different from `flex: auto`?**
@@ -718,6 +784,20 @@ Both appear in `repeat(auto-fill | auto-fit, minmax(220px, 1fr))` and create as 
 
 For a card gallery that should look full with three cards, use `auto-fit`. To keep cards a consistent size however many there are, use `auto-fill`. See [§11](#11-grid-fundamentals).
 
+**Try it:** change `auto-fit` to `auto-fill` and the three cards shrink, leaving empty columns at the end. Drag the preview width to see columns appear and disappear.
+
+```css-live
+<style>
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.card  { padding: 12px; background: #c7d2fe; }
+</style>
+<div class="cards">
+  <div class="card" data-measure="card 1">1</div>
+  <div class="card">2</div>
+  <div class="card">3</div>
+</div>
+```
+
 ---
 
 **Q13: How do you approach responsive design?**
@@ -725,6 +805,22 @@ For a card gallery that should look full with three cards, use `auto-fit`. To ke
 Start with the viewport meta tag. Write **mobile-first**: the base CSS is the single-column phone layout, and `min-width` media queries add columns as space grows, with breakpoints set where the content breaks, not at device sizes. Prefer **intrinsic** techniques that need no breakpoints (`auto-fit` grids, `flex-wrap`, `clamp()` for type, `max-width: 100%` on media). Use `rem` so text respects user settings, and responsive images (`srcset`/`sizes`) so phones don't download desktop images.
 
 Then the details that show experience: `(hover: hover)` so touch devices don't get stuck hover states, `dvh` instead of `100vh` for full-height mobile layouts, touch targets of at least 24×24px, and container queries for components that live in different-sized slots. See [§13](#13-responsive-design).
+
+**Try it:** drag the preview width below 500px and the two-column layout becomes one column. Change the breakpoint, or the `160px` column, and drag again.
+
+```css-live
+<style>
+.page { display: grid; gap: 8px; }
+.page > * { padding: 12px; background: #c7d2fe; }
+@media (min-width: 500px) {
+  .page { grid-template-columns: 160px 1fr; }
+}
+</style>
+<div class="page">
+  <nav data-measure="nav">Nav</nav>
+  <main data-measure="main">Main content</main>
+</div>
+```
 
 ---
 
@@ -816,6 +912,22 @@ Both are layout modes you switch on with `display` on a **container**; its direc
 
 They're not rivals: a page is usually a grid whose cells contain flex rows. Both support `gap`, and both centre with `place-items: center` (Grid) or `justify-content` + `align-items` (Flexbox). Details are in [§10](#10-flexbox-fundamentals) and [§11](#11-grid-fundamentals), and how to choose between them in a harder interview is [Modern CSS Q2](/frontend/modern-css#17-interview-questions-answers).
 
+**Try it:** drag the preview width. The flex items wrap wherever their content runs out of room, so the rows don't line up; the grid keeps three aligned columns.
+
+```css-live
+<style>
+.flex { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.flex > *, .grid > * { padding: 8px; background: #c7d2fe; }
+</style>
+<div class="flex">
+  <div data-measure="flex item">Short</div><div>A much longer item</div><div>Mid item</div><div>X</div>
+</div>
+<div class="grid">
+  <div data-measure="grid item">Short</div><div>A much longer item</div><div>Mid item</div><div>X</div>
+</div>
+```
+
 ---
 
 ## 18. Tricky Questions
@@ -850,6 +962,18 @@ With the default `box-sizing: content-box`, `width: 100%` sizes only the **conte
 
 The fix is `box-sizing: border-box`, which makes `width` include padding and border, so the box is exactly 400px with a 356px content area. This is why nearly every stylesheet starts with `*, *::before, *::after { box-sizing: border-box; }`. Alternatively, drop `width: 100%` altogether: a block element fills its container's width by default, padding included.
 
+**Try it:** add `box-sizing: border-box;` to `.box` and watch its width drop to 400px, with the content area shrinking to 356px in the box-model diagram.
+
+```css-live
+<style>
+.parent { width: 400px; background: #e0e7ff; }
+.box    { width: 100%; padding: 20px; border: 2px solid; background: #fde68a; }
+</style>
+<div class="parent" data-measure="parent">
+  <div class="box" data-measure="box" data-box>Hello</div>
+</div>
+```
+
 **Takeaway:** under `content-box`, `width: 100%` plus padding or border always overflows; use `border-box` or let the block fill its container naturally.
 
 ---
@@ -878,6 +1002,20 @@ Two common ways it *doesn't* happen, which is also why it surprises people when 
 
 - **Inside a flex or grid container**, margins never collapse, so the same markup with `display: flex; flex-direction: column` on the parent gives `50px`.
 - **Horizontal margins never collapse**: two inline-blocks with `margin-right: 30px` and `margin-left: 20px` are 50px apart (plus the whitespace gap).
+
+**Try it:** the gap is `second`'s y minus the bottom of `first`. Add `display: flex; flex-direction: column;` to `.stack` and `second` moves down 20px, because flex items don't collapse margins.
+
+```css-live
+<style>
+.stack  { }
+.first  { margin-bottom: 30px; background: #c7d2fe; }
+.second { margin-top: 20px; background: #fde68a; }
+</style>
+<div class="stack">
+  <div class="first" data-measure="first">First</div>
+  <div class="second" data-measure="second">Second</div>
+</div>
+```
 
 **Takeaway:** adjacent vertical margins in normal flow collapse to the larger one, but never in flex or grid containers and never horizontally.
 
@@ -916,6 +1054,19 @@ Any of these stops the collapse, and the grey then starts at the top with 40px o
 .banner { display: flex; flex-direction: column; }   /* flex items don't collapse */
 ```
 
+**Try it:** add `display: flow-root;` to `.banner`. The banner moves up to y 0 and the heading stays at y 40, now inside the grey.
+
+```css-live
+<style>
+body    { margin: 0; }
+.banner { background: #ddd; }
+.title  { margin-top: 40px; }
+</style>
+<div class="banner" data-measure="banner">
+  <h2 class="title" data-measure="title">Sale</h2>
+</div>
+```
+
 **Takeaway:** a first child's top margin can escape through a parent with no border, padding or BFC, moving the parent instead of spacing the child inside it.
 
 ---
@@ -949,6 +1100,20 @@ For the `font-size` property, `em` means "times the **parent's** font size", and
 
 With `font-size: 1.5rem`, every level would be `16 × 1.5 = 24px`, because `rem` always refers to the root element. That's the reason to prefer `rem` for font sizes in reusable components: a component dropped inside another that also scales its text would otherwise compound.
 
+**Try it:** change `1.5em` to `1.5rem` and every level becomes 24px.
+
+```css-live
+<style>
+html  { font-size: 16px; }
+.nest { font-size: 1.5em; }
+</style>
+<div class="nest" data-measure="outer" data-props="font-size">
+  <div class="nest" data-measure="middle" data-props="font-size">
+    <span class="nest" data-measure="inner" data-props="font-size">Deep</span>
+  </div>
+</div>
+```
+
 **Takeaway:** `em` font sizes compound through nesting; `rem` refers to the root and doesn't.
 
 ---
@@ -979,6 +1144,18 @@ A child inherits the parent's **computed** value. How `line-height` computes dep
 | `1.5` (unitless) | the number 1.5 | `1.5` | 32 × 1.5 = **48px** |
 
 A percentage or `em` is resolved to a length **on the element where you set it**, and children inherit that fixed length. A unitless number is inherited as the *factor* and recomputed against each element's own font size.
+
+**Try it:** change `150%` to `1.5` and the heading's line height goes from 24px to 48px, so the lines stop overlapping.
+
+```css-live
+<style>
+.post    { font-size: 16px; line-height: 150%; width: 240px; }
+.post h2 { font-size: 32px; background: #fde68a; }
+</style>
+<article class="post">
+  <h2 data-measure="h2" data-props="line-height">A long heading that wraps onto a second line</h2>
+</article>
+```
 
 **Takeaway:** always write `line-height` unitless; percentages and `em` are computed once and inherited as a fixed length.
 
@@ -1016,6 +1193,22 @@ Fixes, from best to worst:
 
 or deleting the whitespace in the HTML itself (`</div><div>`), which is fragile because a formatter will put it back.
 
+**Try it:** cell 4 sits on a second line (a larger y). Add `display: flex;` to `.row` and it moves up beside the others.
+
+```css-live
+<style>
+*     { box-sizing: border-box; }
+.row  { width: 400px; background: #e0e7ff; }
+.cell { display: inline-block; width: 25%; background: #fde68a; outline: 1px solid #b45309; }
+</style>
+<div class="row" data-measure="row">
+  <div class="cell" data-measure="cell 1">1</div>
+  <div class="cell">2</div>
+  <div class="cell">3</div>
+  <div class="cell" data-measure="cell 4">4</div>
+</div>
+```
+
 **Takeaway:** whitespace between inline-block elements renders as a real space, so 4 × 25% doesn't fit; use Flexbox or Grid for rows of boxes.
 
 ---
@@ -1045,6 +1238,18 @@ This rule is the old intrinsic-ratio trick: `padding-top: 56.25%` (9 ÷ 16) on a
 
 ```css
 .video { aspect-ratio: 16 / 9; width: 100%; }
+```
+
+**Try it:** change the frame's `width` and the inner box's height follows it; changing the frame's `height` does nothing.
+
+```css-live
+<style>
+.frame { width: 400px; height: 600px; background: #e0e7ff; }
+.ratio { padding-top: 50%; background: #fde68a; }
+</style>
+<div class="frame" data-measure="frame">
+  <div class="ratio" data-measure="ratio"></div>
+</div>
 ```
 
 **Takeaway:** vertical padding and margin percentages are percentages of the container's width, not its height.
@@ -1086,6 +1291,18 @@ Fixes:
 
 The flex fix catches people out: `align-items: stretch` (the default) only stretches an item whose cross size is `auto`. With `height: 100%` still on the sidebar, the flex version stays one line tall. Grid treats the item's row as a definite height, so `100%` resolves and both versions give 300px. Usually the cleanest answer is to drop the percentage and let stretching do the work. The same rule explains the classic "`height: 100%` on `body` does nothing", which needs `html { height: 100% }` too, or `min-height: 100dvh` on the body.
 
+**Try it:** add `display: grid;` to `.panel` and the sidebar becomes 300px tall. Then try `display: flex;` instead: it stays short until you also delete `height: 100%`.
+
+```css-live
+<style>
+.panel   { min-height: 300px; background: #eee; }
+.sidebar { height: 100%; background: #c7d2fe; }
+</style>
+<div class="panel" data-measure="panel">
+  <aside class="sidebar" data-measure="sidebar">Menu</aside>
+</div>
+```
+
 **Takeaway:** `height: 100%` needs a parent with a definite height, and `min-height` isn't enough. Use grid, or flex with the percentage removed, so the item stretches.
 
 ---
@@ -1120,6 +1337,20 @@ The flex fix catches people out: `align-items: stretch` (the default) only stret
 | `.intro h2 + p` | `p.a` | Another way to say "the paragraph right after the heading" |
 
 The bug usually appears when someone adds a heading above a list of paragraphs styled with `:first-child`, and the styling silently disappears. The same applies to `:nth-child(2)` vs `:nth-of-type(2)`. In current browsers there's also `:nth-child(1 of p)`, which counts only the elements matching the selector after `of`.
+
+**Try it:** change `:first-child` to `:first-of-type` and paragraph `a` turns red. Or delete the `<h2>` in the HTML tab, and `p:first-child` starts matching.
+
+```css-live
+<style>
+.intro p:first-child { color: red; }
+.intro p:first-of-type { text-decoration: underline; }
+</style>
+<section class="intro">
+  <h2>About</h2>
+  <p class="a" data-measure="p.a" data-props="color text-decoration-line">First paragraph</p>
+  <p class="b" data-measure="p.b" data-props="color">Second paragraph</p>
+</section>
+```
 
 **Takeaway:** `:first-child` checks position among all siblings, so `p:first-child` fails when anything else comes first; use `:first-of-type` to count only `p` elements.
 
@@ -1157,6 +1388,21 @@ The bug usually appears when someone adds a heading above a list of paragraphs s
 | **Final A / B** | **300px / 300px** | **200px / 400px** |
 
 With `flex: 1`, the basis is zero, so *all* the space is shared equally and the widths end up equal, whatever the content or `width`. With `flex: auto`, each item keeps its starting size and only the leftover is split, so the size difference survives.
+
+**Try it:** change `flex: 1` to `flex: auto` and the widths go from 300 / 300 to 200 / 400.
+
+```css-live
+<style>
+.row    { display: flex; width: 600px; }
+.a      { width: 100px; background: #c7d2fe; }
+.b      { width: 300px; background: #fde68a; }
+.a, .b  { flex: 1; }
+</style>
+<div class="row">
+  <div class="a" data-measure="A">A</div>
+  <div class="b" data-measure="B">B</div>
+</div>
+```
 
 **Takeaway:** `flex: 1` gives equal widths because the basis is zero; `flex: auto` keeps each item's own size and shares only the leftover space.
 

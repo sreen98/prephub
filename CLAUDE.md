@@ -221,6 +221,16 @@ silently resolves to a `window` global and typechecks.
   size/position claim is measured in headless Edge or Chrome (`--headless=new --dump-dom` on a
   scratch page that writes its measurements into the DOM) before it ships; selector-matching
   claims are pinned in jsdom in `cssFundamentalsDemos.test.ts`.
+- **Live CSS demos:** a ` ```css-live ` fence renders `LiveCssBlock`: the first `<style>` is
+  editable CSS, the rest is HTML (an HTML tab edits it), previewed in an iframe sandboxed with
+  `allow-same-origin` only (no scripts). `data-measure="label"` elements are measured after
+  every edit, `data-props="font-size color"` adds computed values, `data-box` adds a
+  box-model diagram, and a value that differs from the original code shows "(was X)".
+  Labels must be unique in a block. Write the block as plain HTML, because Quiz and Review
+  show it raw. Run every "Try it:" sentence's edit in a real browser before shipping (drive
+  the textarea with the native value setter + an `input` event over CDP), and keep
+  `scrollbar-gutter: stable` in `LIVE_CSS_DOC` (`lib/liveCss.ts`), or a scrollbar shows up as
+  a fake "was" width. `liveCssBlocks.test.ts` checks every block's shape.
 - **TypeScript guide:** Try it cannot show type errors. A compile error is a commented line
   ending `// ✗ TSnnnn: message`, checked by the compiler in `typescriptGuideTypes.test.ts`.
   Verify type claims with the compiler, not by eye.
