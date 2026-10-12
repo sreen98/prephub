@@ -18,7 +18,7 @@ export const LAST_MINUTE_DECKS: readonly Deck[] = [
   { id: 'js', name: 'JavaScript' },
   { id: 'ts', name: 'TypeScript' },
   { id: 'react', name: 'React' },
-  { id: 'css', name: 'CSS' },
+  { id: 'css', name: 'HTML & CSS' },
   { id: 'web', name: 'Web fundamentals' },
   { id: 'git', name: 'Git' },
   { id: 'rapid', name: 'Rapid fire' },
@@ -513,7 +513,6 @@ const Row = memo(function Row({ item, onSelect }) { /* … */ });
   {
     id: 'strict-mode-double-effect',
     deck: 'react',
-    core: true,
     question: 'Why does my effect run twice?',
     answer: 'In development, `<StrictMode>` runs **one extra setup → cleanup cycle** for every effect when a component mounts (as if it mounted, unmounted and remounted). It exists to expose **missing cleanup**, and it never happens in production.',
     code: {
@@ -672,6 +671,73 @@ setCount(c => c + 1); setCount(c => c + 1);   // +2: each updater gets the lates
       ],
     },
     watch: '`z-index` only applies to **positioned** elements (and flex or grid items), and it only competes **inside the same stacking context**. A parent with `opacity` below 1, a `transform`, or `position` plus `z-index` starts a new context, and its children can never rise above the parent\'s siblings.',
+  },
+  {
+    id: 'semantic-html',
+    deck: 'css',
+    core: true,
+    question: 'Semantic vs non-semantic HTML?',
+    answer: '**Semantic** elements say what the content is (`<header>`, `<nav>`, `<main>`, `<article>`, `<button>`, `<h1>`). **Non-semantic** `<div>` and `<span>` say nothing: they are only hooks for CSS and JavaScript.',
+    code: {
+      lang: 'html',
+      source: `<div class="nav"><span onclick="go('/')">Home</span></div>   <!-- ❌ -->
+<nav><a href="/">Home</a></nav>                               <!-- ✅ -->`,
+    },
+    points: [
+      '**Accessibility:** `<a>` and `<button>` are focusable and work with the keyboard; screen readers jump between landmarks and headings.',
+      '**SEO** and reader modes use the structure to find the main content.',
+    ],
+    say: 'If I\'d need ARIA or a key handler to make a `<div>` behave, the right element already exists.',
+  },
+  {
+    id: 'id-vs-class',
+    deck: 'css',
+    question: '`id` vs `class`?',
+    answer: 'An **`id`** is **unique** on the page; a **`class`** can be shared, and an element can have several. Use `id` for things that need exactly one target, and `class` for styling.',
+    table: {
+      head: ['Aspect', '`id`', '`class`'],
+      rows: [
+        ['Per page', 'One element', 'Any number'],
+        ['Per element', 'One', 'Many (`class="btn primary"`)'],
+        ['Specificity', '**(1,0,0)**: hard to override', '(0,1,0)'],
+        ['Used by', '`<label for>`, `#anchor` links, `aria-labelledby`, `getElementById`', 'CSS, `querySelectorAll`, `classList`'],
+      ],
+    },
+    watch: 'Duplicate ids are not reported as an error: `getElementById` silently returns the **first** one.',
+  },
+  {
+    id: 'responsive-design',
+    deck: 'css',
+    question: 'How do you make a website responsive?',
+    answer: 'Add the **viewport meta tag**, write **mobile-first** CSS (one column by default, `min-width` media queries add more), and prefer layouts that adapt without breakpoints.',
+    code: {
+      lang: 'css',
+      source: `/* <meta name="viewport" content="width=device-width, initial-scale=1"> */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+h1     { font-size: clamp(1.5rem, 4vw, 2.5rem); }
+img    { max-width: 100%; height: auto; }
+@media (min-width: 768px) { .page { grid-template-columns: 240px 1fr; } }`,
+    },
+    points: [
+      'Use `rem` so text follows the user\'s font-size setting, and `srcset` so phones get smaller images.',
+      'Container queries (`@container`) for components that sit in slots of different widths.',
+    ],
+    say: 'I set breakpoints where the content breaks, not at device widths.',
+  },
+  {
+    id: 'display-visibility-opacity',
+    deck: 'css',
+    question: '`display: none` vs `visibility: hidden` vs `opacity: 0`?',
+    answer: 'All three hide an element; they differ in whether it keeps its space, can be clicked, and is read by screen readers.',
+    table: {
+      head: ['Property', 'Keeps its space?', 'Clickable?', 'Screen readers?'],
+      rows: [
+        ['`display: none`', 'No', 'No', 'No'],
+        ['`visibility: hidden`', 'Yes', 'No', 'No'],
+        ['`opacity: 0`', 'Yes', '**Yes**', '**Yes**'],
+      ],
+    },
+    watch: 'To hide something visually but keep it for screen readers, use a **visually-hidden** class (clip to 1px), not any of these three.',
   },
   // ────────────────────────── Web fundamentals ──────────────────────────
   {

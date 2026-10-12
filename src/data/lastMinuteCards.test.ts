@@ -58,18 +58,18 @@ function captureLogs(code: string): { logs: unknown[]; error?: unknown } {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('card set', () => {
-  it('has 53 cards with unique ids, every deck used, decks contiguous and in order', () => {
-    expect(LAST_MINUTE_CARDS).toHaveLength(53);
+  it('has 57 cards with unique ids, every deck used, decks contiguous and in order', () => {
+    expect(LAST_MINUTE_CARDS).toHaveLength(57);
     expect(new Set(LAST_MINUTE_CARDS.map(c => c.id)).size).toBe(LAST_MINUTE_CARDS.length);
     // The deck tabs jump to the first card of each deck, so a deck must not be split.
     const order = LAST_MINUTE_CARDS.map(c => c.deck).filter((d, i, all) => d !== all[i - 1]);
     expect(order).toEqual(LAST_MINUTE_DECKS.map(d => d.id));
   });
 
-  it('the core pass is 31 cards, about 10 minutes; all is about 18', () => {
+  it('the core pass is 31 cards, about 10 minutes; all is about 19', () => {
     expect(cardsFor(LAST_MINUTE_CARDS, 'core')).toHaveLength(31);
     expect(readingMinutes(31)).toBe(10);
-    expect(readingMinutes(LAST_MINUTE_CARDS.length)).toBe(18);
+    expect(readingMinutes(LAST_MINUTE_CARDS.length)).toBe(19);
   });
 
   it('every text field uses only closed `code` and **bold** markup', () => {

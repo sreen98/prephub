@@ -143,9 +143,9 @@ silently resolves to a `window` global and typechecks.
 
 ## Content and data
 - **`data.ts` is the source of truth.** It holds `menuStructure` (categories → items), the
-  `cheatSheets` array, and the loaders. Current counts: 10 categories (Front End 29, JS & TS 8,
+  `cheatSheets` array, and the loaders. Current counts: 10 categories (Front End 31, JS & TS 8,
   Back End 17, AI Engineering 6, AI-Augmented Development 1, DevOps 15, Git 2, DSA 1,
-  Behavioral 1, System Design 4) = 84 guides, plus the Introduction, plus 14 cheat sheets.
+  Behavioral 1, System Design 4) = 86 guides, plus the Introduction, plus 14 cheat sheets.
   Recount guides by counting `{ name: '` inside each `items: [...]`.
 - **Routes are a compatibility contract** (deep links, bookmarks, checkpoints, SEO). Category
   membership and URL are independent. AWS guides stay at `/aws/*` under DevOps, Docker/K8s at
@@ -191,7 +191,7 @@ silently resolves to a `window` global and typechecks.
   `dedupeIds()` suffixes the 2nd+ occurrences. **Never renumber**: ids key SM-2 review
   history. Append new questions at the *end* of a sequence, and rewrite existing ones in place
   so the id is unchanged.
-- Tricky Output sections: 53 guides, 441 questions total. Recount with:
+- Tricky Output sections: 55 guides, 460 questions total. Recount with:
   `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
 - After adding a `**QN:**` marker, run `npm run content:meta`, or the `totalQuestionCount`
   parity test fails and names the guide.
@@ -215,6 +215,12 @@ silently resolves to a `window` global and typechecks.
 - **An `**Output:**` claim must be executed, never written by hand.** Pin it in a test
   (`interviewAnswerDemos.test.ts`, `reactApiScenarioDemos.test.tsx`, `typescriptGuideTypes.test.ts`,
   etc.). Test markers must be unique in the whole guide.
+- **HTML and CSS guides:** examples are `html`/`css` fences (no Try it; the JS playground is a
+  Worker with no `document`). HTML outputs run as whole pages in jsdom, which parses with
+  parse5 (the spec algorithm), in `htmlGuideDemos.test.ts`. jsdom has no layout, so a CSS
+  size/position claim is measured in headless Edge or Chrome (`--headless=new --dump-dom` on a
+  scratch page that writes its measurements into the DOM) before it ships; selector-matching
+  claims are pinned in jsdom in `cssFundamentalsDemos.test.ts`.
 - **TypeScript guide:** Try it cannot show type errors. A compile error is a commented line
   ending `// ✗ TSnnnn: message`, checked by the compiler in `typescriptGuideTypes.test.ts`.
   Verify type claims with the compiler, not by eye.
@@ -311,7 +317,7 @@ wrong answer is rejected. **When adding a question, add the dataset row that mak
 answer wrong.** Every SQL question has a `mysqlNote`.
 
 ## Last-minute cards (`/last-minute`)
-Hand-written flip cards in `src/data/lastMinuteCards.ts` (7 decks, 53 cards, 31 marked
+Hand-written flip cards in `src/data/lastMinuteCards.ts` (7 decks, 57 cards, 31 marked
 `core: true`), rendered by `LastMinutePage` + `features/lastMinute/` (`CardDeck` is keyed by
 mode, so a Core/All switch remounts it with a reducer sized for the new set). **Core** is the
 default ~10-minute pass (20 s a card, `readingMinutes` in `lib/cardSet.ts`); keep it near 30

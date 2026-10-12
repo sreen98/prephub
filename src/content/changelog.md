@@ -1,5 +1,12 @@
 # What's New
 
+## v1.7.22 (October 2026)
+
+**Two new Front End guides: [HTML](/frontend/html) and [CSS Fundamentals](/frontend/css-fundamentals).** They sit with Modern CSS and Accessibility in a sidebar group now called HTML, CSS & Accessibility.
+- **[HTML](/frontend/html)** covers how the browser parses HTML and repairs broken markup, the `<head>`, semantic elements, forms (what gets submitted, validation, why a button submits by default), attributes vs properties, `async` vs `defer`, responsive images, `<dialog>` and `popover`, iframes, templates and web components, metadata for search and link previews, and HTML security. It has 20 interview questions and 9 tricky questions, such as why a `<div>` inside a `<p>` ends up outside it and what `FormData` leaves out. Every output is run in the tests.
+- **[CSS Fundamentals](/frontend/css-fundamentals)** covers selectors, inheritance, the box model, `display`, margin collapsing and block formatting contexts, positioning, floats, units and what percentages refer to, Flexbox and Grid basics, centring, responsive design, typography and animation performance. It has 21 interview questions (including the classics: the box model, Flexbox vs Grid, responsive design) and 10 tricky questions, such as why `height: 100%` does nothing and why `flex: 1` and `flex: auto` give different widths. Every layout answer was measured in a real browser engine.
+- **[Last-Minute Cards](/last-minute): the CSS deck is now HTML & CSS**, with four new cards: semantic vs non-semantic HTML (in the Core pass), `id` vs `class`, how to make a site responsive, and `display: none` vs `visibility: hidden` vs `opacity: 0`. There are now 57 cards. Core stays at 31 cards and about 10 minutes: "Why does my effect run twice?" moved to All to make room.
+
 ## v1.7.21 (October 2026)
 
 - **New in [Last-Minute Cards](/last-minute): a Git deck.** It has five cards: merge vs rebase (in the Core pass), what a worktree is and when to use one, `reset` vs `revert` vs `restore` (and getting a commit back with `reflog`), `fetch` vs `pull`, and Git one-liners such as `stash`, `cherry-pick`, `bisect`, detached HEAD and why `.gitignore` doesn't untrack a file. There are now 53 cards: Core is 31 cards and still about 10 minutes, and All takes about 18. Every claim on the Git cards was checked against a real repository.

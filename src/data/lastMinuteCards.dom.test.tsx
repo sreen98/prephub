@@ -170,3 +170,17 @@ describe('StrictMode double effect card', () => {
     expect(log).toEqual(['connect general']);
   });
 });
+
+describe('HTML & CSS cards: DOM claims', () => {
+  it('semantic-html: the <a> is in the tab order, the clickable <span> is not', () => {
+    document.body.innerHTML = source('semantic-html');
+    expect(document.querySelector('nav a')).toHaveProperty('tabIndex', 0);
+    expect(document.querySelector('.nav span')).toHaveProperty('tabIndex', -1);
+  });
+
+  it('id-vs-class: a duplicate id is not an error, and getElementById returns the first', () => {
+    document.body.innerHTML = '<p id="x">first</p><p id="x">second</p>';
+    expect(document.getElementById('x')?.textContent).toBe('first');
+    expect(LAST_MINUTE_CARDS.find(c => c.id === 'id-vs-class')?.watch).toMatch(/\*\*first\*\*/);
+  });
+});

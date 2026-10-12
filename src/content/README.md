@@ -2,7 +2,7 @@
 
 A comprehensive collection of guides covering everything a full-stack developer gets asked in interviews — from JavaScript fundamentals to frontend architecture, accessibility, security and AI engineering.
 
-**84 guides across 10 categories, plus 14 cheat sheets and an interactive Code Playground.**
+**86 guides across 10 categories, plus 14 cheat sheets and an interactive Code Playground.**
 
 ---
 
@@ -56,7 +56,7 @@ If you have limited time, this is the list. These twenty topics come up in almos
 
 ## 🗂️ What's In Here
 
-### 🎨 Front End (29 guides)
+### 🎨 Front End (31 guides)
 
 **Core React** — the React series: [React Guide](/frontend/react) (core concepts and hooks), [React Performance & Internals](/frontend/react-performance) (memoisation, concurrent features, reconciliation and Fiber), [React 19 & Patterns](/frontend/react-19-patterns) (React 19 through 19.3, component patterns), [React Interview Questions](/frontend/react-interview-questions) and [React Tricky Questions](/frontend/react-tricky-questions), [React Router](/frontend/react-router) (nested layouts, loaders, the URL as state), [Next.js & RSC](/frontend/nextjs-rsc)
 
@@ -64,7 +64,7 @@ If you have limited time, this is the list. These twenty topics come up in almos
 
 **Architecture & Platform** — [Frontend Architecture at Scale](/frontend/architecture) (monorepo vs multi-repo, micro-frontends, design systems, caching layers, real-time at scale, debugging the 1%), [Next.js & React Server Components](/frontend/nextjs-rsc) (the RSC model, App Router, the Next 16 caching model, auth defence-in-depth), [Design Patterns](/frontend/design-patterns), [Refactoring & Code Review](/frontend/refactoring-code-review)
 
-**Platform & Standards** — [Modern CSS](/frontend/modern-css) (cascade layers, container queries, `:has()`, `@scope`, OKLCH, anchor positioning, view transitions), [Accessibility](/frontend/accessibility) (WCAG 2.2, ARIA, keyboard and focus, testing), [Browser APIs](/frontend/browser-apis), [Real-Time Web](/frontend/realtime-web) (SSE, WebSockets, WebRTC, streaming)
+**Platform & Standards** — [HTML](/frontend/html) (the parser and its repairs, semantics, forms, attributes vs properties, script loading, web components), [CSS Fundamentals](/frontend/css-fundamentals) (box model, margin collapsing, positioning, units, Flexbox and Grid basics, centring, responsive design), [Modern CSS](/frontend/modern-css) (cascade layers, container queries, `:has()`, `@scope`, OKLCH, anchor positioning, view transitions), [Accessibility](/frontend/accessibility) (WCAG 2.2, ARIA, keyboard and focus, testing), [Browser APIs](/frontend/browser-apis), [Real-Time Web](/frontend/realtime-web) (SSE, WebSockets, WebRTC, streaming)
 
 **Performance & Quality** — [Web Performance](/frontend/web-performance) (Core Web Vitals, the loading pipeline, INP and the main thread, budgets in CI), [Testing Strategy & E2E](/frontend/testing-strategy) (the pyramid vs the trophy, Playwright, flake, contract testing, coverage)
 
@@ -129,7 +129,7 @@ If you have limited time, this is the list. These twenty topics come up in almos
 - **[Quiz Mode](/quiz)** — flashcard Q&A pulled from every guide, filterable by difficulty.
 - **[Daily Review](/review)** — spaced repetition using the SM-2 algorithm: a question you answer well comes back after a longer gap each time, one you miss comes back soon, so review time goes to what you are about to forget.
 - **[Interview Simulator](/interview)** — timed mock rounds with configurable scope.
-- **[Last-Minute Cards](/last-minute)** — **53 flip cards** for the minutes before an interview, with a **Core** pass of **31 core cards** that takes about 10 minutes: closures, debounce vs throttle, the event loop, event delegation, TypeScript essentials, reconciliation, keys and memoisation, custom hooks, effects and data fetching, state management, code splitting, CSS specificity and layout, cookies vs storage, XSS and CSRF, CORS, Web Vitals, and Git merge vs rebase. Switch to **All** for the rest. Say the answer, then flip to check.
+- **[Last-Minute Cards](/last-minute)** — **57 flip cards** for the minutes before an interview, with a **Core** pass of **31 core cards** that takes about 10 minutes: closures, debounce vs throttle, the event loop, event delegation, TypeScript essentials, reconciliation, keys and memoisation, custom hooks, effects and data fetching, state management, code splitting, CSS specificity and layout, semantic HTML, cookies vs storage, XSS and CSRF, CORS, Web Vitals, and Git merge vs rebase. Switch to **All** for the rest. Say the answer, then flip to check.
 - **[Cheat Sheets](/cheatsheets)** — 14 printable quick-reference cards: [TypeScript](/cheatsheets/typescript), [Python](/cheatsheets/python), [SQL](/cheatsheets/sql), [GraphQL](/cheatsheets/graphql), [Regex](/cheatsheets/regex), [Docker & Kubernetes](/cheatsheets/docker-kubernetes), [React Hooks](/cheatsheets/react-hooks), [JS ES6+](/cheatsheets/javascript-es6), [Big-O](/cheatsheets/big-o-notation), [CSS Flexbox/Grid](/cheatsheets/css-flexbox-grid), [HTTP Status Codes](/cheatsheets/http-status-codes), [Git Commands](/cheatsheets/git-commands), [Git Workflows](/cheatsheets/git-workflows) and [Comparison Tables](/cheatsheets/comparison-tables).
 - **Bookmarks & Checkpoints** — save any heading, or drop a "where I left off" marker on any guide.
 
