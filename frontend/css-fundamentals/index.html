@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f46e5'/><path d='M9 10h5M9 16h9M9 22h7' stroke='white' stroke-width='2.5' stroke-linecap='round'/></svg>" type="image/svg+xml" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Free interview preparation guides for full-stack developers: React, Node.js, TypeScript, System Design, AWS, Git, DSA & more. Interactive quizzes, code playground, and spaced repetition." />
+    <meta name="keywords" content="interview prep, frontend interview, backend interview, system design, react interview questions, javascript interview, typescript, node.js, aws, dsa, coding interview, full stack developer" />
+    <meta name="author" content="PrepHub" />
+    <meta name="theme-color" content="#4f46e5" />
+    <link rel="canonical" href="https://prephub.sreenathp.com/" />
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+    <link rel="dns-prefetch" href="https://www.google-analytics.com" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://prephub.sreenathp.com/" />
+    <meta property="og:title" content="PrepHub: Free Full-Stack Interview Prep Guides" />
+    <meta property="og:description" content="Free interview preparation guides for full-stack developers: React, Node.js, TypeScript, System Design, AWS, Git, DSA & more. Interactive quizzes, code playground, and spaced repetition." />
+    <meta property="og:image" content="https://prephub.sreenathp.com/og-image.png" />
+    <meta property="og:site_name" content="PrepHub" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://prephub.sreenathp.com/" />
+    <meta name="twitter:title" content="PrepHub: Free Full-Stack Interview Prep Guides" />
+    <meta name="twitter:description" content="Free interview preparation guides for full-stack developers: React, Node.js, TypeScript, System Design, AWS, Git, DSA & more." />
+    <meta name="twitter:image" content="https://prephub.sreenathp.com/og-image.png" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "PrepHub",
+      "url": "https://prephub.sreenathp.com/",
+      "description": "Free interview preparation guides for full-stack developers",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://prephub.sreenathp.com/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "EducationalOrganization",
+      "name": "PrepHub",
+      "url": "https://prephub.sreenathp.com/",
+      "description": "Comprehensive interview preparation platform for full-stack developers",
+      "sameAs": ["https://github.com/sreen98/prephub"]
+    }
+    </script>
+
+    <!-- Google Analytics (GA4) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XQ3GJERCB7"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XQ3GJERCB7');
+    </script>
+
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <title>PrepHub: Interview Prep</title>
+      <!--
+      Theme must be resolved BEFORE first paint. `body` is styled
+      `bg-canvas` (#0f1220 in dark mode), and the `dark` class was only added by
+      useDarkMode's effect — which runs after the main bundle downloads, parses
+      and mounts React. On a slow connection that left a white page for several
+      seconds before flipping to dark. This is the same blocking-script fix the
+      Theme Switcher playground template documents.
+
+      Keep it inline, synchronous and in <head>: a deferred or external script
+      would paint first and defeat the point. Wrapped in try/catch because
+      localStorage throws in some privacy modes.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var dark = stored
+            ? stored === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) {
+            document.documentElement.classList.add('dark');
+            // Paint the right colour even before the CSS bundle arrives.
+            document.documentElement.style.backgroundColor = '#0f1220';
+          }
+        } catch (e) { /* localStorage unavailable — fall through to light */ }
+      })();
+    </script>
+  <script type="module" crossorigin src="/assets/app-CKVVsKoV.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/vendor-react-DIYpROJ4.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-motion-DhS8urX8.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-icons-BH37-9gY.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-BtoupOW7.css">
+<link rel="manifest" href="/manifest.webmanifest"></head>
+  <body>
+    <!-- GitHub Pages SPA redirect handler (works with 404.html) -->
+    <script>
+      (function(l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function(s) {
+            return s.replace(/~and~/g, '&');
+          }).join('?');
+          window.history.replaceState(null, null,
+            l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location));
+    </script>
+    <div id="root"></div>
+  </body>
+</html>

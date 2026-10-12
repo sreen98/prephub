@@ -133,6 +133,18 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://prephub.sreenathp.com/frontend/html</loc>
+    <lastmod>2026-10-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://prephub.sreenathp.com/frontend/css-fundamentals</loc>
+    <lastmod>2026-10-12</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://prephub.sreenathp.com/frontend/modern-css</loc>
     <lastmod>2026-10-12</lastmod>
     <changefreq>weekly</changefreq>
