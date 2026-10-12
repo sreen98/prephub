@@ -61,7 +61,7 @@ describe('LastMinutePage', () => {
     expect(subtitle()).toContain(`${CORE.length} cards, about 10 minutes`);
     expect(button('Core').getAttribute('aria-pressed')).toBe('true');
     expect(button('Core').textContent).toBe('Core (~10 min)');
-    expect(button('All').textContent).toBe('All (~16 min)');
+    expect(button('All').textContent).toBe('All (~18 min)');
     expect(card()?.getAttribute('data-flipped')).toBe('false');
     expect(card()?.textContent).toContain(shown(CORE[0].question));
     expect(card()?.querySelector('.flip-card-back')?.hasAttribute('inert')).toBe(true);
@@ -118,7 +118,7 @@ describe('LastMinutePage', () => {
     expect(button('All').getAttribute('aria-pressed')).toBe('true');
     expect(counter()).toBe(`${ALL.findIndex(c => c.id === current.id) + 1} / ${ALL.length}`);
     expect(card()?.textContent).toContain(shown(current.question));
-    expect(subtitle()).toContain(`${ALL.length} cards, about 16 minutes`);
+    expect(subtitle()).toContain(`${ALL.length} cards, about 18 minutes`);
     expect(safeGet(MODE_KEY)).toBe('all');
 
     const again = mount();                     // a fresh visit reads the stored choice

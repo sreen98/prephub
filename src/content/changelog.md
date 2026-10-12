@@ -1,5 +1,10 @@
 # What's New
 
+## v1.7.21 (October 2026)
+
+- **New in [Last-Minute Cards](/last-minute): a Git deck.** It has five cards: merge vs rebase (in the Core pass), what a worktree is and when to use one, `reset` vs `revert` vs `restore` (and getting a commit back with `reflog`), `fetch` vs `pull`, and Git one-liners such as `stash`, `cherry-pick`, `bisect`, detached HEAD and why `.gitignore` doesn't untrack a file. There are now 53 cards: Core is 31 cards and still about 10 minutes, and All takes about 18. Every claim on the Git cards was checked against a real repository.
+- **New in [JavaScript Interview Questions](/javascript/interview-questions): Q47, can an object inherit from more than one object?** The short answer is no: an object has one prototype link, and setting a second one replaces the first. Q47 then shows three ways to get the same effect: object mixins with `Object.assign`, class mixins that stack into one prototype chain, and a `Proxy`. A table compares them, and the answer covers the two traps with `Object.assign`. Every output is run in the tests.
+
 ## v1.7.20 (October 2026)
 
 **Six new interview questions about React apps in production.**

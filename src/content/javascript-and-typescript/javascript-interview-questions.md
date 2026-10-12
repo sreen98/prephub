@@ -1697,3 +1697,93 @@ b 1 [ 'a', 'b' ]
 **The rule to state:** pass a function reference to `map`, `filter` or `forEach` only when it was written as a callback or takes exactly one argument (`Number`, `String`, `Boolean`, as in `filter(Boolean)`); everything else gets an arrow. `eslint-plugin-unicorn`'s `no-array-callback-reference` rule flags `.map(fn)`.
 
 [Tricky Q35](/javascript/tricky-questions) shows the same trap next to `sort()`'s text ordering, and Q28 compares `map`, `filter` and `reduce`.
+
+---
+
+**Q47: Can an object inherit from multiple objects in JavaScript?**
+
+**Short answer:** not directly. Every object has exactly **one** `[[Prototype]]` link (the hidden reference the engine follows when a property isn't on the object itself), so inheritance is a single chain, never a tree. You get the effect of several parents in three ways: copy their methods in (**mixins**), stack them into one chain (**class mixins**), or, rarely, look up properties in several objects with a `Proxy`.
+
+Setting a second prototype replaces the first; it doesn't add to it:
+
+```js
+const swimmer = { swim() { return 'swimming'; } };
+const flyer = { fly() { return 'flying'; } };
+
+const duck = Object.create(swimmer);   // one [[Prototype]], and only one
+console.log(duck.swim());
+console.log(typeof duck.fly);
+
+Object.setPrototypeOf(duck, flyer);    // replaces the link
+console.log(typeof duck.swim, duck.fly());
+```
+
+```text
+swimming
+undefined
+undefined flying
+```
+
+**1. Object mixins: copy the methods in.** `Object.assign` copies each source's own properties onto the target. They are copies, not links, so a later change to a mixin doesn't reach objects already built from it:
+
+```js
+const canSwim = { swim() { return `${this.name} swims`; } };
+const canFly = { fly() { return `${this.name} flies`; } };
+
+const duck = Object.assign({ name: 'Donald' }, canSwim, canFly);
+console.log(duck.swim(), '|', duck.fly());
+
+canFly.fly = () => 'changed';          // edit the mixin afterwards
+console.log(duck.fly());               // duck kept its own copy
+console.log(Object.getPrototypeOf(duck) === Object.prototype);
+```
+
+```text
+Donald swims | Donald flies
+Donald flies
+true
+```
+
+**2. Class mixins: a function that takes a class and returns a subclass of it.** Each mixin adds one link, so the "multiple parents" become one chain, and `super` and `instanceof` keep working for the base class:
+
+```js
+const Swimming = (Base) => class Swimming extends Base {
+  swim() { return `${this.name} swims`; }
+};
+const Flying = (Base) => class Flying extends Base {
+  fly() { return `${this.name} flies`; }
+};
+
+class Animal {
+  constructor(name) { this.name = name; }
+}
+
+class Duck extends Swimming(Flying(Animal)) {}
+
+const duck = new Duck('Daisy');
+console.log(duck.swim(), '|', duck.fly());
+console.log(duck instanceof Animal);
+
+// Still a single chain: each mixin is one link in it
+const chain = [];
+for (let p = Object.getPrototypeOf(duck); p !== Object.prototype; p = Object.getPrototypeOf(p)) {
+  chain.push(p.constructor.name);
+}
+console.log(chain.join(' → '));
+```
+
+```text
+Daisy swims | Daisy flies
+true
+Duck → Swimming → Flying → Animal
+```
+
+**The trade-offs, which are what the interviewer is after:**
+
+| Approach | Changes to a parent reach the object? | Name clashes | Use it for |
+|---|---|---|---|
+| `Object.assign` mixin | no, the methods are copied | the last source wins, silently | plain objects and small shared helpers |
+| Class mixin | yes, through the chain | the mixin applied last (outermost) wins, and it can call `super.method()` to reach the next one | class hierarchies that need several abilities |
+| `Proxy` over several objects | yes | your lookup order decides | almost never: it is slower and harder to debug |
+
+Two traps with `Object.assign`: it copies only **own, enumerable** properties, so methods on a class's prototype are skipped; and it **calls getters** and copies the value they return, so a computed property becomes a fixed one. When a design needs many parents, the usual answer is composition instead of inheritance: give the object the helpers it uses (`{ mover, logger }`) rather than making it inherit from them. Prototype chains are explained in [§6.2](/javascript/guide#62-prototypal-inheritance).

@@ -143,10 +143,10 @@ describe('repaired JavaScript guide demos actually print', () => {
 });
 
 /**
- * Interview Q41–Q46: each runnable block is followed by a `text` block giving
+ * Interview Q41–Q47: each runnable block is followed by a `text` block giving
  * its output. Run the block and compare, so no output is written by hand.
  */
-describe('JavaScript guide interview Q41–Q46 print their Output blocks', () => {
+describe('JavaScript guide interview Q41–Q47 print their Output blocks', () => {
   const md = readSeries('javascript');
   const fmt = (a: unknown[]) => a.map(v => typeof v === 'string' ? v : inspect(v)).join(' ');
 
@@ -178,7 +178,8 @@ describe('JavaScript guide interview Q41–Q46 print their Output blocks', () =>
     ['Q43', '**Q43:', '**Q44:', 1],
     ['Q44', '**Q44:', '**Q45:', 1],
     ['Q45', '**Q45:', '**Q46:', 6],
-    ['Q46', '**Q46:', '## 16. Tricky Output Questions', 3],
+    ['Q46', '**Q46:', '**Q47:', 3],
+    ['Q47', '**Q47:', '## 16. Tricky Output Questions', 3],
   ] as const)('%s', async (_label, from, to, count) => {
     const blocks = pairs(from, to);
     expect(blocks).toHaveLength(count);

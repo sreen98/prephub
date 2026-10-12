@@ -311,7 +311,7 @@ wrong answer is rejected. **When adding a question, add the dataset row that mak
 answer wrong.** Every SQL question has a `mysqlNote`.
 
 ## Last-minute cards (`/last-minute`)
-Hand-written flip cards in `src/data/lastMinuteCards.ts` (6 decks, 48 cards, 30 marked
+Hand-written flip cards in `src/data/lastMinuteCards.ts` (7 decks, 53 cards, 31 marked
 `core: true`), rendered by `LastMinutePage` + `features/lastMinute/` (`CardDeck` is keyed by
 mode, so a Core/All switch remounts it with a reducer sized for the new set). **Core** is the
 default ~10-minute pass (20 s a card, `readingMinutes` in `lib/cardSet.ts`); keep it near 30
@@ -323,7 +323,9 @@ or compiled in `lastMinuteCards.test.ts`**: add the expectation there when you a
 must stay contiguous, because the deck tabs jump to its first card. The card count is a
 `verify:counts` claim in both READMEs, and so is the core count. DOM and React-runtime
 claims (delegation, hooks, fetch races, StrictMode) are executed in jsdom in
-`lastMinuteCards.dom.test.tsx`. CSS samples are highlighted through `lib/cardHighlight.ts`,
+`lastMinuteCards.dom.test.tsx`. Git claims run against a real repository in a temp folder
+in `lastMinuteGitCards.test.ts`, which drops every inherited `GIT_*` variable (hooks export
+`GIT_DIR`) and ignores global config, so it can never touch this repo. CSS samples are highlighted through `lib/cardHighlight.ts`,
 which registers the CSS grammar outside the playground chunk.
 
 ## Styling

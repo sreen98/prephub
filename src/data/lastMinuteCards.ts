@@ -10,7 +10,7 @@
  * or type-checked in `lastMinuteCards.test.ts`; keep the two in step.
  */
 
-export type DeckId = 'js' | 'ts' | 'react' | 'css' | 'web' | 'rapid';
+export type DeckId = 'js' | 'ts' | 'react' | 'css' | 'web' | 'git' | 'rapid';
 
 export interface Deck { id: DeckId; name: string }
 
@@ -20,6 +20,7 @@ export const LAST_MINUTE_DECKS: readonly Deck[] = [
   { id: 'react', name: 'React' },
   { id: 'css', name: 'CSS' },
   { id: 'web', name: 'Web fundamentals' },
+  { id: 'git', name: 'Git' },
   { id: 'rapid', name: 'Rapid fire' },
 ];
 
@@ -814,6 +815,97 @@ index.html      Cache-Control: no-cache          # store, but revalidate every t
     },
     watch: '**Hydration** means attaching event handlers to HTML the server already rendered. Until it finishes, the page looks ready but does not respond.',
     say: 'SSR is about when and where HTML is rendered; RSC is about which components ship JavaScript. They are used together.',
+  },
+  // ──────────────────────────────── Git ────────────────────────────────
+  // Every claim in this deck is run against a real repository in lastMinuteGitCards.test.ts.
+  {
+    id: 'git-merge-rebase',
+    deck: 'git',
+    core: true,
+    question: 'Merge vs rebase?',
+    answer: 'Both bring one branch\'s work into another. **Merge** joins the two histories with a merge commit; **rebase** replays your commits on top of the other branch, so history is a straight line and **the replayed commits get new hashes**.',
+    table: {
+      head: ['Command', 'History', 'Use it for'],
+      rows: [
+        ['`git merge main`', 'Kept as it happened, with a merge commit that has **two parents**', 'Bringing a finished branch into a shared one'],
+        ['`git rebase main`', 'A straight line; your commits are rewritten', 'Updating **your own** branch before review'],
+      ],
+    },
+    code: {
+      lang: 'text',
+      source: `git switch feature
+git rebase main                 # replay feature's commits on top of main
+git switch main
+git merge --ff-only feature     # main just moves forward: no merge commit`,
+    },
+    watch: 'Never rebase commits someone else has pulled: their copies keep the old hashes. After rebasing your own pushed branch, push with `--force-with-lease`, which refuses if someone else pushed in the meantime.',
+    say: 'Merge keeps history as it happened; rebase rewrites it into a line. I rebase my own branch and merge into shared ones.',
+  },
+  {
+    id: 'git-worktree',
+    deck: 'git',
+    question: 'What is a Git worktree?',
+    answer: 'A **second working folder for the same repository**: another branch checked out side by side, sharing one `.git` (the same commits, branches and config). Switching tasks needs no stash and no second clone.',
+    code: {
+      lang: 'text',
+      source: `git worktree add ../app-hotfix hotfix   # branch hotfix, in its own folder
+git worktree list                       # every folder and its branch
+git worktree remove ../app-hotfix       # done: remove the folder`,
+    },
+    points: [
+      'A branch can be checked out in **one** worktree at a time; Git refuses a second.',
+      'Use one to review a PR or fix production while your feature work stays half-done.',
+      'Config is shared: `git config` run in a worktree changes the main checkout too.',
+    ],
+    watch: 'Remove a worktree with `git worktree remove`. If you delete the folder by hand, run `git worktree prune` so Git forgets it.',
+    say: 'Worktrees give me two branches open at once from one clone.',
+  },
+  {
+    id: 'git-reset-revert',
+    deck: 'git',
+    question: '`reset` vs `revert` vs `restore`?',
+    answer: '`revert` **adds** a commit that undoes an old one; `reset` **moves the branch back**, dropping commits; `restore` throws away changes you have not committed.',
+    table: {
+      head: ['Command', 'What it does', 'On a shared branch?'],
+      rows: [
+        ['`git revert <sha>`', 'Adds a new commit with the opposite change', '**Safe**: history only grows'],
+        ['`git reset --soft HEAD~1`', 'Moves the branch back one commit; its changes stay staged', 'No: it rewrites history'],
+        ['`git reset --hard HEAD~1`', 'Moves the branch back and **discards** the changes', 'No, and it deletes uncommitted work'],
+        ['`git restore <file>`', 'Discards uncommitted edits to the file', 'Local only'],
+      ],
+    },
+    watch: 'A commit dropped by `reset --hard` is not gone yet: `git reflog` lists where `HEAD` has been, and `git reset --hard <sha>` brings it back. Uncommitted changes are not in the reflog.',
+    say: 'On a pushed branch I revert; I reset only commits that never left my machine.',
+  },
+  {
+    id: 'git-fetch-pull',
+    deck: 'git',
+    question: '`git fetch` vs `git pull`?',
+    answer: '`fetch` downloads new commits into `origin/main` and **leaves your branch alone**; `pull` is a fetch followed by a **merge** (or a rebase, with `--rebase`) into your current branch.',
+    code: {
+      lang: 'text',
+      source: `git fetch                       # origin/main moves; main does not
+git log main..origin/main       # the commits that arrived
+git pull --rebase               # fetch, then replay your commits on top`,
+    },
+    watch: 'Plain `git pull` on a branch that has diverged adds a merge commit every time you sync. Pull with `--rebase` (or set `pull.rebase` to `true`) to keep your branch linear.',
+    say: 'Fetch is always safe; pull changes my branch.',
+  },
+  {
+    id: 'git-one-liners',
+    deck: 'git',
+    question: 'Git one-liners',
+    answer: 'Say each one in a sentence:',
+    points: [
+      '`git stash` shelves uncommitted changes; `git stash pop` brings them back.',
+      '`git cherry-pick <sha>` copies one commit onto the current branch, as a new commit with a new hash.',
+      '`git bisect` binary-searches the history for the commit that introduced a bug.',
+      '**Squash merge** turns a whole branch into one commit on `main`.',
+      '**Detached HEAD:** you checked out a commit, not a branch. Create a branch before committing, or the new commits are easy to lose.',
+      '`.gitignore` only affects untracked files; a file that is already tracked needs `git rm --cached` first.',
+      '`HEAD~1` is the previous commit; `HEAD^2` is a merge commit\'s second parent.',
+      '`git add -p` stages part of a file, hunk by hunk.',
+    ],
   },
   // ───────────────────────────── Rapid fire ─────────────────────────────
   {
