@@ -887,6 +887,60 @@ For a containerised service the same ideas grow into the full pipeline in Q5: bu
 
 ---
 
+### Docker Basics
+
+The opening question in many interviews, placed here so the numbering of earlier questions doesn't change.
+
+---
+
+**Q10: What is Docker, why is it used, and what are its features, pros and cons?**
+
+**Docker is a tool for packaging an application with everything it needs (runtime, libraries, config, OS files) into an image, and running that image as a container.** A container is an ordinary process on the host that the kernel isolates, so it sees its own filesystem, network and process list ([Q1](#13-interview-questions-answers), [§2.1](#21-containers-are-not-vms)).
+
+The pieces you'll be asked to name:
+
+| Piece | What it is |
+|---|---|
+| **Dockerfile** | The recipe: a text file of instructions (`FROM`, `COPY`, `RUN`, `CMD`) that builds an image |
+| **Image** | The built, read-only package, made of cached layers. Identified by a name and tag (`api:1.4.2`) |
+| **Container** | A running instance of an image, with a thin writable layer on top. Many containers can run from one image |
+| **Registry** | Where images are stored and shared: Docker Hub, GitHub Container Registry, AWS ECR |
+| **Docker Engine** | The daemon (`dockerd`) that builds and runs containers; underneath it, `containerd` and `runc` do the work |
+| **Docker Compose** | Runs several containers together (app + database + cache) from one `compose.yaml` ([§5](#5-docker-compose)) |
+
+```bash
+docker build -t api:1.4.2 .            # Dockerfile → image
+docker run -d -p 3000:3000 api:1.4.2   # image → running container
+docker push registry.example.com/api:1.4.2   # share it
+```
+
+**Why it's used.** It removes "works on my machine". The image that passed CI is the exact artefact that runs in staging and production, with the same Node version, the same system libraries and the same config layout. A new developer runs `docker compose up` instead of following a page of install steps, and two services that need different versions of the same runtime run side by side on one host.
+
+**Key features:**
+
+- **Portable images** built to the OCI standard (the Open Container Initiative's open image format), so they run on any OCI runtime: Docker, containerd, Podman, Kubernetes.
+- **Layered, cached builds:** an unchanged layer is reused, so a rebuild after a code change takes seconds ([§2.2](#22-images-layers-and-the-cache)).
+- **Isolation** through Linux namespaces (what a process can see) and cgroups (how much CPU and memory it can use).
+- **Lightweight:** containers start in milliseconds and share the host kernel, so one machine runs far more of them than VMs.
+- **Versioning and rollback:** every image is tagged, so rolling back means running the previous tag.
+- **Networking and volumes:** containers talk over virtual networks by service name, and volumes keep data after a container is removed.
+- **Multi-stage and multi-architecture builds:** a small final image without the build tools ([§3.1](#31-the-multi-stage-node-build)), and one tag that serves both `amd64` and `arm64` (`docker buildx`).
+
+| Aspect | Pros | Cons |
+|---|---|---|
+| **Consistency** | Same artefact in every environment | Still differs if config or secrets differ per environment |
+| **Speed and density** | Starts in milliseconds; many containers per host | Weaker isolation than a VM: the kernel is shared, so a kernel exploit escapes |
+| **Dependencies** | Each app carries its own runtime and libraries | Base images bring their own vulnerabilities and must be scanned and rebuilt |
+| **Data** | Containers are disposable and easy to replace | Anything written inside a container is lost when it's removed, so state needs volumes or an external database |
+| **Platform** | Runs anywhere with a Linux kernel | On macOS and Windows, Docker Desktop runs a hidden Linux VM, and file-sharing with the host can be slow |
+| **Operations** | Simple for one host | At scale you still need an orchestrator (Kubernetes, ECS) for scheduling, healing and scaling |
+| **Security defaults** | Isolation is on by default | Containers run as **root** unless the Dockerfile adds a `USER` ([§4.2](#42-the-rest-of-the-checklist)) |
+| **Cost** | Docker Engine is open source | Docker Desktop needs a paid subscription for commercial use at companies with more than 250 employees **or** more than $10 million in annual revenue |
+
+Two points that show depth. First, **Docker didn't invent containers**: the kernel features existed before it, and Docker made them easy with the Dockerfile, layered images and a registry. Second, **Kubernetes doesn't need Docker**. It removed its built-in Docker support (dockershim) in v1.24 and runs containers through containerd or CRI-O, but images built with Docker still run unchanged, because they're standard OCI images.
+
+---
+
 ## 14. Tricky Questions
 
 ---
