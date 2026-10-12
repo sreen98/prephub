@@ -1,5 +1,12 @@
 # What's New
 
+## v1.7.20 (October 2026)
+
+**Six new interview questions about React apps in production.**
+- **[Frontend Deployment](/aws/frontend-deployment):** Q22, an app that works in development but breaks after deploying, or throws only in production. It includes an example of code that breaks once minified, and the fix. Q23 asks why `npm run build` behaves differently from the dev server. Q24 covers an app that is slow only in production.
+- **[React Interview Questions](/frontend/react-interview-questions):** Q87, a page that takes 5 seconds to become interactive although its API answers in 200 ms, with a runnable request waterfall. Q88, loading a dashboard of 20 independent widgets, with a runnable demo where one widget fails and the rest still render. Q89, a memory leak that shows up only in production.
+- **Extended answers:** Frontend Deployment Q5 now explains why some users still run the old JavaScript after a deploy. Q7 now lists the precautions to take with secrets in `.env` files.
+
 ## v1.7.19 (October 2026)
 
 **New: [Last-Minute Cards](/last-minute), 48 flip cards for the minutes before a front-end interview.** Each card has a question on the front and a short answer on the back: the idea, a few lines of code, the gotcha, and the line worth saying out loud. No lectures. **Core** (the default) is the 30 most-asked cards, about 10 minutes; **All** adds the other 18, about 16 minutes. The page remembers your choice.

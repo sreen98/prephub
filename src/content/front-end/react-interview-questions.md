@@ -2432,3 +2432,142 @@ function Dashboard() {
 Hover for a second and then click: the chart appears at once. Click straight away and you see the fallback for the rest of the 800 ms. Judge the result by LCP and INP on a real device, not kilobytes saved.
 
 → Full explanation: [§13.3](/frontend/react-performance#133-code-splitting-lazy-loading), [§13.11](/frontend/react-performance#1311-tree-shaking-and-code-splitting-at-build-time)
+
+---
+
+**Q87: A React page takes 5 seconds to become interactive, but its API responds in 200 ms. Where would you investigate?**
+
+**The 200 ms is one request. The other 4.8 seconds is everything the browser does around it.** Record a trace in DevTools → Performance with CPU and network throttling on a mid-range phone profile, and read where the time goes. In the field, the same problem shows up as poor INP; in the lab, as a high Total Blocking Time.
+
+1. **JavaScript before anything can respond.** The initial bundle has to download, parse and execute on the main thread, and nothing can handle a click until it finishes. Look for long tasks (over 50 ms) at the start of the trace. Fix: split by route and lazy-load heavy widgets (Q25, Q86).
+2. **A request waterfall.** The fetch can't start until the bundle has run and the component has mounted. Then a child component mounts and starts its own fetch, and so on. Each 200 ms call is fast, but they run one after another. The example below shows the cost.
+3. **Hydration.** With server rendering, the page is visible early but ignores clicks until React has hydrated it, which means running every component again on the client ([Web Performance §8.3](/frontend/web-performance#83-the-cost-of-hydration)). Fix: ship less client JavaScript (Server Components, islands), and wrap slow parts in `<Suspense>` so React can hydrate them separately.
+4. **The render after the data arrives.** Parsing a large JSON response, sorting or filtering it during render, or rendering 5,000 rows is one long task. Fix: paginate or virtualise, memoise the derived data, and move heavy work into a Web Worker.
+5. **Third-party scripts** competing for the same main thread ([Web Performance §8.2](/frontend/web-performance#82-third-party-scripts)).
+
+The waterfall, with three 200 ms requests that don't depend on each other:
+
+```js
+// Stand-in for fetch: every request takes 200 ms, like the API in the question
+const api = (name) => new Promise((resolve) => setTimeout(() => resolve(name), 200));
+
+async function sequential() {
+  const user = await api('user');
+  const orders = await api('orders');                   // waits for user, though it doesn't need it
+  const recommendations = await api('recommendations');
+  return [user, orders, recommendations];
+}
+
+function parallel() {
+  return Promise.all([api('user'), api('orders'), api('recommendations')]);
+}
+
+async function time(label, load) {
+  const start = Date.now();
+  await load();
+  console.log(`${label}: ${Math.round((Date.now() - start) / 100) * 100} ms`);
+}
+
+time('sequential', sequential).then(() => time('parallel', parallel));
+```
+
+**Output:**
+```text
+sequential: 600 ms
+parallel: 200 ms
+```
+
+In a React app, the same waterfall appears when each component fetches in its own `useEffect`. Start the independent requests together instead: in a route loader, at the top of the page, or by prefetching with TanStack Query.
+
+---
+
+**Q88: You have a dashboard with 20 independent widgets. Would you load them all together or separately?**
+
+**Separately: each widget fetches its own data in parallel, and has its own loading state and its own error boundary.** Loading them together means the page waits for the slowest widget, and one failing API blanks the whole dashboard.
+
+- **Requests in parallel, not one after another.** Every widget starts its request at once. Over HTTP/2, 20 small requests share one connection. If the API supports it, a backend-for-frontend endpoint can return several widgets in one response.
+- **One `<Suspense>` boundary per widget**, with a skeleton of the widget's final size, so each widget appears as soon as its own data arrives and the layout doesn't shift.
+- **One error boundary per widget**, so a failure shows "unavailable" in that card and the other 19 keep working. Give it a retry button.
+- **Prioritise what is visible.** Load the code for widgets below the fold with `React.lazy` when they scroll into view, and keep rarely opened widgets out of the initial bundle.
+- **Refresh each widget on its own schedule** (TanStack Query's `refetchInterval` per query), so a live widget doesn't re-render the rest of the dashboard.
+- **Group what belongs together.** If three widgets always appear as a set, put them under one boundary. Otherwise the page pops in piece by piece.
+
+Three widgets: Revenue answers in 300 ms, Sign-ups in 1 second, and the Alerts API fails at 500 ms:
+
+```jsx
+import { Component, Suspense, use } from 'react';
+
+// Stand-ins for each widget's own request
+const wait = (ms, value) => new Promise((resolve) => setTimeout(() => resolve(value), ms));
+const revenue = wait(300, '$12,400');
+const signups = wait(1000, '86 new sign-ups');
+const alerts = wait(500).then(() => { throw new Error('alerts API is down'); });
+
+class WidgetBoundary extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? <p>{this.props.name} is unavailable</p> : this.props.children;
+  }
+}
+
+function Value({ data }) {
+  return <p>{use(data)}</p>;
+}
+
+function Widget({ name, data }) {
+  return (
+    <section>
+      <h3>{name}</h3>
+      <WidgetBoundary name={name}>
+        <Suspense fallback={<p>Loading {name.toLowerCase()}…</p>}>
+          <Value data={data} />
+        </Suspense>
+      </WidgetBoundary>
+    </section>
+  );
+}
+
+function Dashboard() {
+  return (
+    <div>
+      <Widget name="Revenue" data={revenue} />
+      <Widget name="Sign-ups" data={signups} />
+      <Widget name="Alerts" data={alerts} />
+    </div>
+  );
+}
+```
+
+Revenue appears at 300 ms, Alerts says "Alerts is unavailable" at 500 ms, and Sign-ups appears at 1 second. With one `<Suspense>` and one error boundary around all three instead, nothing shows until every widget is ready, and the Alerts failure replaces all three.
+
+---
+
+**Q89: A production app has a memory leak, but you can't reproduce it locally. How do you investigate?**
+
+**A leak you can't reproduce means your local session is missing a production condition: time, data, traffic or a script.** Q43 covers finding a leak once you can see it. This question is about getting there.
+
+1. **Measure it in the field.** Chromium's `performance.measureUserAgentSpecificMemory()` reports the page's memory, including its iframes and workers. It is experimental, Chromium-only, and works only on a cross-origin-isolated page. MDN suggests sampling at random intervals during a session, not once:
+
+   ```text
+   // Send a sample about every 5 minutes, at random intervals
+   async function sampleMemory() {
+     const { bytes } = await performance.measureUserAgentSpecificMemory();
+     sendToAnalytics({ bytes, route: location.pathname, minutesOpen: performance.now() / 60000 });
+     setTimeout(sampleMemory, -Math.log(Math.random()) * 5 * 60 * 1000);
+   }
+   if (crossOriginIsolated) sampleMemory();
+   ```
+
+   Without it, use indirect signals: out-of-memory crash reports, mobile tabs that reload when you switch back to them, and INP that gets worse the longer a session lasts.
+2. **Segment the data.** Plot memory against how long the tab has been open, then split it by route, browser, app version and feature flag. A line that only rises after a certain release, or only on one route, points at the change.
+3. **Recreate production conditions locally:**
+   - the production build (`vite preview`), not the dev server;
+   - real data volumes and shapes, such as a WebSocket feed that keeps pushing events;
+   - the same third-party scripts and feature flags;
+   - and time. Leave the tab open for hours, or script the suspect flow with Playwright to run 200 times.
+4. **Then compare heap snapshots** as in Q43, looking for detached DOM nodes and collections that only grow.
+
+The leaks that need production to show up: a listener or socket subscription added on every navigation and never removed; caches with no limit (a `Map` keyed by id, a query cache with `gcTime: Infinity`, a store that appends every event); timers in a dashboard left open overnight; and logging or session-replay scripts that keep references to old objects.

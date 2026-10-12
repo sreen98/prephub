@@ -324,3 +324,29 @@ describe('React guide §16.11 — the React 19.3 examples run on the installed R
     expect(host!.textContent).not.toContain('Loading your time zone');
   });
 });
+
+describe('React guide Q87–Q88 — production loading', () => {
+  it('Q87 — three independent 200 ms requests take 600 ms in sequence and 200 ms in parallel', async () => {
+    runJs(block(reactGuide, "const orders = await api('orders');"));
+    await settle(1000, 50);
+    expect(logs).toEqual(['sequential: 600 ms', 'parallel: 200 ms']);
+  });
+
+  it('Q88 — each widget appears on its own, and the failing one is contained', async () => {
+    // The playground strips the import and appends render(<LastComponent />); do the same here.
+    const src = block(reactGuide, "const signups = wait(1000, '86 new sign-ups');").replace(/^import .*$/m, '');
+    await mountTsx(`${src}\nrender(<Dashboard />);`);
+    const text = () => host!.textContent;
+    expect(text()).toContain('Loading revenue…');
+    await settle(300);
+    expect(text()).toContain('$12,400');
+    expect(text()).toContain('Loading sign-ups…');
+    expect(text()).toContain('Loading alerts…');
+    await settle(200);
+    expect(text()).toContain('Alerts is unavailable');
+    expect(text()).toContain('Loading sign-ups…');
+    await settle(500);
+    expect(text()).toContain('86 new sign-ups');
+    expect(text()).toContain('$12,400');
+  });
+});

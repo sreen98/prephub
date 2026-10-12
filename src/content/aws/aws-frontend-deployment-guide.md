@@ -1735,6 +1735,15 @@ Two-tier strategy:
 
 When you deploy: index.html changes → user gets new index.html → which loads new hashed assets → old assets are never requested again.
 
+**The follow-up: after a deploy, some users still see the old version (or old JavaScript) while others see the new one. Why?** A hashed file can't be stale, because a new build gives it a new name. So a user running old code was either handed an old `index.html` or never asked for a new one. Check, in this order:
+
+| Cause | How to spot it | Fix |
+|---|---|---|
+| `index.html` cached with a `max-age`, by the browser or the CDN | the response headers for `/` show `max-age` or a CDN `Age` header, and the HTML names last build's files | `Cache-Control: no-cache` on HTML; invalidate `/index.html` on the CDN after each deploy (Q8) |
+| The tab was open before the deploy | only users who never reloaded; navigating to a lazy route fails | it keeps running the old bundle until it reloads; handle the failed chunk (Q19) |
+| A service worker serves the precached shell | DevTools → Application shows a new worker "waiting to activate" | update and reload on the next visit, or ask the user to reload ([Browser APIs, tricky Q8](/frontend/browser-apis#17-tricky-questions)) |
+| A file without a content hash (`app.js`, `config.js`) cached for a long time | the old file comes back from cache although the HTML is new | add the hash, or give that file `no-cache` too |
+
 ---
 
 ### Intermediate
@@ -1766,6 +1775,14 @@ Options:
 3. **API-driven config**: Fetch config from an API on app startup
 
 Option 1 is most common and simplest. Option 2 is useful when you need to change config without rebuilding, and it lets you build once and promote the same artifact from QA to production — what you tested is byte-for-byte what ships. Option 3 costs an extra request before the app can start, so it is usually reserved for values that genuinely change often, such as feature flags.
+
+**Precautions with `.env` files**, the usual follow-up:
+
+1. **Assume every value the client reads is public.** Vite exposes only variables named `VITE_*` to client code, and their values are written into the bundle at build time. The Vite docs say they "should not contain sensitive information such as API keys". A secret key belongs on a server, a serverless function or an edge function that the browser calls.
+2. **Keep secrets out of git.** Put local values in `.env.local` or `.env.[mode].local`, and add `*.local` to `.gitignore`, as the Vite docs advise. Commit a `.env.example` with names and dummy values, so a new developer knows what to set.
+3. **Set CI and production values in the CI system or host** (GitHub Environments, Cloudflare or AWS secrets), not in a committed `.env.production`.
+4. **Don't widen the prefix.** `envPrefix` decides which variables reach the client. Vite throws an error on `''`, which would expose every variable, but a short prefix shared with CI variables leaks the same way.
+5. **Treat a leaked key as compromised.** Deleting it from the repository leaves it in git history and in bundles already deployed. Rotate it, then turn on secret scanning (GitHub push protection) so the next one is blocked before it lands.
 
 ---
 
@@ -2054,6 +2071,98 @@ GitHub Pages serves files from a branch and nothing else: no rewrite rules, no c
 Mentioning the second option's cost is the strong part of the answer: shells give known routes a clean 200, and the redirect trick is only the fallback for URLs nobody planned for. If you also need cache or security headers, the honest answer is a different host (§7).
 
 ---
+
+### Debugging Production
+
+---
+
+**Q22: Your React app works perfectly in development but breaks after deployment, or throws an error only in production. How do you investigate?**
+
+**Start by making the problem reproducible, then compare the two environments one difference at a time.**
+
+1. **Run the production build locally:** `npm run build`, then `npm run preview` (`vite preview` serves `dist/` the way a static host would). If it breaks there too, the cause is the build. If it works there, the cause is the host, the network or the environment, and the next steps narrow that down.
+2. **Read the real error.** Open the deployed site with DevTools: the Console for the exception, the Network tab for requests that fail (a 404 on a script, a CORS error, a call to `/undefined/users`). A minified stack trace like `at a (index-9f3c.js:1:20417)` needs source maps. Upload them to your error tracker on every deploy instead of serving them publicly (Vite's `build.sourcemap: 'hidden'`).
+3. **Check the usual causes:**
+
+| Cause | What you see | Fix |
+|---|---|---|
+| An environment variable missing at build time | requests to `undefined/...`; the feature flag is always off | CI sets the variable for the build, and the app validates required values at start-up (Q7) |
+| Routing or base path | a blank page with 404s for `/assets/...`; refreshing a deep link gives 404 | set `base` for a sub-path; add the SPA fallback (Q3, Q21) |
+| File-name case | the build fails on Linux CI but works on Windows and macOS | match the import to the file's exact case (`./Button` is not `./button`) |
+| CORS or mixed content | the console shows a CORS or "blocked: mixed content" error | add the production origin to the API's CORS list; call the API over HTTPS |
+| Content Security Policy | "Refused to execute inline script" | allow the source or remove the inline script (Q15) |
+| Minification | `TypeError: x is not a function`, or logic keyed by a function or class name takes the wrong branch | don't depend on `Function.name` (example below) |
+| Tree shaking dropped a side effect | a polyfill or a global CSS import is missing | `"sideEffects": ["*.css", "./src/polyfills.js"]` in `package.json` |
+| Different dependency versions | works on one machine, breaks in CI | commit the lockfile and install with `npm ci` |
+| Older browsers | only some users, on one browser | check the build target and the RUM breakdown by browser |
+
+**The minification trap.** The dev server leaves names as written, and the production minifier shortens them, so code that reads a function's `.name` changes behaviour:
+
+```js
+function AdminPanel() { return 'admin tools'; }
+function UserPanel() { return 'user home'; }
+
+const titles = { AdminPanel: 'Admin', UserPanel: 'Home' };
+
+// Keyed by the function's name: right in development, wrong once minified
+function titleForBroken(Component) {
+  return titles[Component.name] ?? 'Untitled';
+}
+
+console.log(titleForBroken(AdminPanel));   // 'Admin'; minified, 'Untitled'
+```
+
+Minified, `AdminPanel` becomes a one-letter name, so the lookup misses. Key by the function itself, which survives minification:
+
+```js
+function AdminPanel() { return 'admin tools'; }
+function UserPanel() { return 'user home'; }
+
+// Keyed by reference: renaming the function changes nothing
+const titles = new Map([[AdminPanel, 'Admin'], [UserPanel, 'Home']]);
+
+function titleFor(Component) {
+  return titles.get(Component) ?? 'Untitled';
+}
+
+console.log(titleFor(AdminPanel));   // 'Admin', minified or not
+```
+
+---
+
+**Q23: Why might an app behave differently after `npm run build` than under `npm start`?**
+
+`npm start` (Create React App) and `npm run dev` (Vite) run a **development server**. `npm run build` produces the **production bundle** that users get. They are different programs that happen to read the same source. Create React App has been deprecated for new apps since February 2025, so in a current project the comparison is `vite` against `vite build`.
+
+| Area | Development server | Production build |
+|---|---|---|
+| Modules | Vite serves each file on its own as a native ES module | bundled into chunks, with tree shaking and code splitting, so import order, circular imports and side-effect imports can behave differently |
+| Names and code size | names as written | minified (Q22) |
+| React | the development build: warnings, extra checks, and StrictMode running components and effects twice | the production build: no warnings, StrictMode is a no-op, faster |
+| Mode | `import.meta.env.DEV` is `true`; `.env.development` is loaded | `import.meta.env.PROD` is `true`; `.env.production` is loaded, so `if (import.meta.env.DEV)` branches disappear |
+| API calls | often through the dev server's `server.proxy`, so the browser sees one origin and CORS never comes up | straight to the API's origin, so CORS rules apply |
+| Routing | the dev server answers every path with `index.html` | the host serves only real files unless you add a fallback (Q3) |
+| CSS | injected per module as it is imported | extracted into files, so the order of rules (and which one wins) can change |
+
+The habit that catches most of these: run `npm run build && npm run preview` before you push. The Vite docs call `vite preview` a local check of the build, not a production server.
+
+---
+
+**Q24: A developer says, "The app is slow only in production." What would you check first?**
+
+**First, pin down what "slow" means:** which metric (slow first load is LCP; laggy clicks are INP; a slow server is TTFB), which pages and which users. Field data from real users (RUM, or the Chrome UX Report) answers that; a single lab run on a fast laptop doesn't ([Web Performance, lab vs field](/frontend/web-performance#3-lab-vs-field-data)).
+
+The development build is slower than production, so "slow only in production" almost always means the **conditions** differ, not the code. Check what production has and localhost doesn't:
+
+1. **The network and the host.** Look in DevTools → Network on the live site:
+   - `Content-Encoding`: missing `br` or `gzip` means uncompressed JavaScript.
+   - `Cache-Control`: `no-store` on hashed assets means a full download on every visit.
+   - The CDN's cache status (`cf-cache-status`, `X-Cache`): constant misses mean every request goes to an origin that may be on another continent.
+   - TTFB on the HTML itself.
+2. **Real data.** A local database with 20 rows hides a slow query, an N+1 API (one request per item) and a table that renders 5,000 rows. Compare the API timings in the Network tab, and add a `Server-Timing` header so the browser shows where the server spent its time.
+3. **Third-party scripts that only run in production:** analytics, a tag manager, a chat widget, A/B testing, session replay. Block them with DevTools request blocking and measure again.
+4. **Real devices.** Users on mid-range phones run JavaScript several times slower than a developer laptop. Record a Performance trace with CPU throttling, and look for long tasks.
+5. **What changed.** If it started on a date, compare that release's bundle with the previous one ([React Q85](/frontend/react-interview-questions#delivery-and-scale)), and check the deploy for a misconfiguration such as inline source maps or a development build.
 
 ## References
 
