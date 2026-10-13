@@ -112,6 +112,7 @@ export const playgroundSolutionKeys: ReadonlySet<string> = new Set([
   'getElementsByClassName from Scratch',
   'Find Matching Node in Identical Tree',
   'Lowest Common Ancestor of Two Nodes',
+  'Car Parking Lot',
   'MyPick and MyOmit',
   'Model an API Response',
   'DeepReadonly<T>',

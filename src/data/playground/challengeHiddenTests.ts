@@ -3098,4 +3098,41 @@ export const challengeHiddenTests: Record<string, HiddenTestData[]> = {
       "output": "solo"
     }
   ],
+  "Car Parking Lot": [
+    {
+      "label": "a parked plate can't park again as another type",
+      "run": "const lot = new ParkingLot({ car: 1, bike: 1 }); lot.park(\"car\", \"P-1\"); console.log([lot.park(\"bike\", \"P-1\"), lot.available(\"bike\")])",
+      "output": "[false,1]"
+    },
+    {
+      "label": "leaving twice fails the second time",
+      "run": "const lot = new ParkingLot({ car: 1 }); lot.park(\"car\", \"P-1\"); console.log([lot.leave(\"P-1\"), lot.leave(\"P-1\"), lot.available(\"car\")])",
+      "output": "[true,false,1]"
+    },
+    {
+      "label": "leaving frees the space of the vehicle's own type",
+      "run": "const lot = new ParkingLot({ car: 1, truck: 1 }); lot.park(\"truck\", \"T-1\"); lot.park(\"car\", \"C-1\"); lot.leave(\"T-1\"); console.log([lot.available(\"truck\"), lot.available(\"car\")])",
+      "output": "[1,0]"
+    },
+    {
+      "label": "inherited names are not vehicle types",
+      "run": "const lot = new ParkingLot({ car: 1 }); console.log([lot.park(\"toString\", \"X-1\"), lot.park(\"constructor\", \"X-2\"), lot.available(\"toString\")])",
+      "output": "[false,false,0]"
+    },
+    {
+      "label": "zero spaces and unknown types",
+      "run": "const lot = new ParkingLot({ car: 0, bike: 2 }); console.log([lot.park(\"car\", \"C-1\"), lot.available(\"car\"), lot.available(\"bus\"), lot.available(\"bike\")])",
+      "output": "[false,0,0,2]"
+    },
+    {
+      "label": "a freed space can be reused",
+      "run": "const lot = new ParkingLot({ bike: 1 }); console.log([lot.park(\"bike\", \"B-1\"), lot.leave(\"B-1\"), lot.park(\"bike\", \"B-2\"), lot.available(\"bike\")])",
+      "output": "[true,true,true,0]"
+    },
+    {
+      "label": "the constructor's object is not changed",
+      "run": "const spaces = { car: 2 }; const lot = new ParkingLot(spaces); console.log([lot.park(\"car\", \"C-1\"), spaces.car, lot.available(\"car\")])",
+      "output": "[true,2,1]"
+    }
+  ],
 };

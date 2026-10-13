@@ -170,6 +170,8 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'getElementsByClassName from Scratch',
   'Find Matching Node in Identical Tree',
   'Lowest Common Ancestor of Two Nodes',
+  // ===== Class design =====
+  'Car Parking Lot',
 
   // ===== React Machine Coding (36) — build-order walkthroughs =====
   'Responsive Images (srcset / AVIF)',

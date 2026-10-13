@@ -9069,6 +9069,115 @@ for (const [label, fn] of [["ancestor set", lowestCommonAncestor], ["equalise de
 //   another option is to climb from a until the node contains b.
 // - Without parent pointers this is a different problem: recurse from the
 //   root and return the node where a and b are found in different subtrees.`,
+  'Car Parking Lot': `// ===== SOLUTION: Car Parking Lot =====
+//
+// ┌──────────────────────────────┬────────────────┬────────────┬──────────┐
+// │ Approach                     │ park/available │ leave      │ Verdict  │
+// ├──────────────────────────────┼────────────────┼────────────┼──────────┤
+// │ 1. Free counter per type     │ O(1)           │ O(1)       │ BEST     │
+// │ 2. Count parked on demand    │ O(n) parked    │ O(1)       │ Simpler  │
+// └──────────────────────────────┴────────────────┴────────────┴──────────┘
+// Both keep plate → type in a Map: that one lookup answers "is this plate
+// already parked?" and tells leave() which type's space to free.
+
+// ----- Approach 1: Free counter per type (BEST) -----
+// free holds the spaces LEFT for each type. park takes one, leave gives one back,
+// so available() is a single lookup.
+// free is a Map, not a plain object: "toString" in {} is true, so an object
+// would accept inherited names like "toString" as vehicle types.
+class ParkingLot {
+  constructor(spaces) {
+    this.free = new Map(Object.entries(spaces)); // type -> free spaces left
+    this.parked = new Map();                     // plate -> type
+  }
+
+  park(type, plate) {
+    // Reject unknown vehicle types, full spaces, and duplicate plates
+    if (!this.free.has(type) || this.free.get(type) === 0 || this.parked.has(plate)) return false;
+    this.parked.set(plate, type);
+    this.free.set(type, this.free.get(type) - 1);
+    return true;
+  }
+
+  leave(plate) {
+    const type = this.parked.get(plate);
+    if (type === undefined) return false;
+    this.parked.delete(plate);
+    this.free.set(type, this.free.get(type) + 1);
+    return true;
+  }
+
+  available(type) {
+    return this.free.get(type) ?? 0;
+  }
+}
+
+// ----- Approach 2: Count parked vehicles on demand -----
+// Store only the capacity and the parked plates; available() counts the parked
+// vehicles of that type each time. One fewer thing to keep in sync, but every
+// park() pays an O(n) scan through available().
+// Object.hasOwn, not the in operator, so inherited names are not types.
+class ParkingLotCounting {
+  constructor(spaces) {
+    this.capacity = { ...spaces };
+    this.parkedVehicles = new Map(); // license plate -> vehicle type
+  }
+
+  park(type, plate) {
+    if (!Object.hasOwn(this.capacity, type)) return false;
+    if (this.available(type) === 0) return false;
+    if (this.parkedVehicles.has(plate)) return false;
+
+    this.parkedVehicles.set(plate, type);
+    return true;
+  }
+
+  leave(plate) {
+    // Map.prototype.delete already returns whether the key was there
+    return this.parkedVehicles.delete(plate);
+  }
+
+  available(type) {
+    if (!Object.hasOwn(this.capacity, type)) return 0;
+
+    let parkedCount = 0;
+    for (const parkedType of this.parkedVehicles.values()) {
+      if (parkedType === type) parkedCount++;
+    }
+    return this.capacity[type] - parkedCount;
+  }
+}
+
+// ===== TEST CASES =====
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+function runScenario(label, Lot) {
+  const lot = new Lot({ car: 2, bike: 1, truck: 1 });
+  test(label + " park the first car",   lot.park("car", "ABC-123"), true);
+  test(label + " park the second car",  lot.park("car", "XYZ-789"), true);
+  test(label + " car spaces are full",  lot.park("car", "CAR-3"),   false);
+  test(label + " no car spaces left",   lot.available("car"),       0);
+  test(label + " leaving frees a space", lot.leave("ABC-123"),      true);
+  test(label + " one car space free",   lot.available("car"),       1);
+  test(label + " same plate twice",     lot.park("car", "XYZ-789"), false);
+  test(label + " bike in a bike space", lot.park("bike", "BIKE-9"), true);
+  test(label + " unknown type",         lot.park("bus", "BUS-1"),   false);
+  test(label + " unknown plate leaves", lot.leave("NOPE-0"),        false);
+  test(label + " inherited name",       lot.park("toString", "X-1"), false);
+}
+runScenario("Approach 1 (counters)", ParkingLot);
+runScenario("Approach 2 (counting)", ParkingLotCounting);
+
+// ===== When to pick which =====
+// - Default → Approach 1. Every call is O(1), and the counters are the answer
+//   to the obvious follow-up: "what if available() is called on every request?"
+// - Approach 2 → fine for a small lot. It has one source of truth (the parked
+//   map), so the counts can never drift out of sync.
+// - Follow-ups: numbered spots (keep a free list per type and return the spot
+//   from park), or letting a bike take a car space when bike spaces are full
+//   (try a list of allowed types in order).`,
   'MyPick and MyOmit': `// ===== SOLUTION: MyPick and MyOmit =====
 //
 // ┌──────────────────────────────────────────────┬──────────────────────┬──────────┐

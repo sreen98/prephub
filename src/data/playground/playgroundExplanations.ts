@@ -16177,6 +16177,142 @@ const lowestCommonAncestorExpl: Explanation = {
   ],
 };
 
+// Car Parking Lot frame: one cell per vehicle type (free spaces, or capacity in
+// the counting approach) and the plate → type map. `changed` marks the type a
+// call touched; `plate` marks the map entry it added or read.
+const parkingLotFrame = (
+  counts: [number, number, number],
+  parked: [string, string][],
+  changed?: 'car' | 'bike' | 'truck',
+  plate?: { key: string; highlight: 'new' | 'hit' },
+): Pick<ExplanationStep, 'array' | 'map'> => ({
+  array: {
+    cells: (['car', 'bike', 'truck'] as const).map((type, k) => ({
+      value: `${type}: ${counts[k]}`,
+      highlight: type === changed ? 'new' as const : undefined,
+    })),
+  },
+  map: {
+    entries: parked.map(([key, value]) => ({ key, value, highlight: key === plate?.key ? plate.highlight : undefined })),
+  },
+});
+
+const carParkingLotExpl: Explanation = {
+  problem: 'Car Parking Lot',
+  problemStatement: 'Write a ParkingLot class that tracks free spaces by vehicle type. park(type, plate) and leave(plate) return true or false, and available(type) returns the free spaces of that type.',
+  approaches: [
+    {
+      id: 'free-counters',
+      name: 'Free counter per type',
+      badge: 'best',
+      intuition:
+        "**Keep two Maps: how many spaces are LEFT for each type, and which type every parked plate is.**\n\n" +
+        "• park(type, plate): refuse an unknown type, a type with 0 free, or a plate that is already in `parked`. Otherwise record the plate and take one from that type's counter.\n" +
+        "• leave(plate): look the plate up. Its type says which counter gets the space back.\n" +
+        "• available(type): read the counter, or 0 for an unknown type.\n\n" +
+        "**Why `free` is a Map, not a plain object:** `\"toString\" in { car: 2 }` is true, because the object inherits toString. With an object and the in operator, park(\"toString\", ...) would get past the type check. A Map only has the keys you put in it.",
+      complexity: { time: 'O(1) every call', space: 'O(types + parked)', verdict: 'Best' },
+      pseudocode: [
+        'constructor(spaces): free = new Map(Object.entries(spaces)); parked = new Map()',
+        'park(type, plate):',
+        '  if !free.has(type) || free.get(type) === 0 || parked.has(plate): return false',
+        '  parked.set(plate, type); free.set(type, free.get(type) - 1); return true',
+        'leave(plate):',
+        '  type = parked.get(plate); if type === undefined: return false',
+        '  parked.delete(plate); free.set(type, free.get(type) + 1); return true',
+        'available(type): return free.get(type) ?? 0',
+      ],
+      example: {
+        input: '{ car: 2, bike: 1, truck: 1 }; park car ABC-123, park car XYZ-789, park car CAR-3, available car, leave ABC-123, available car',
+        output: 'true, true, false, 0, true, 1',
+      },
+      steps: [
+        { title: 'new ParkingLot({ car: 2, bike: 1, truck: 1 }): every type starts with all its spaces free, and nothing is parked.', pseudoLine: 0,
+          ...parkingLotFrame([2, 1, 1], []) },
+        { title: 'park("car", "ABC-123"): car is a type, it has 2 free, and the plate is new → park it. car drops to 1.', pseudoLine: 3,
+          ...parkingLotFrame([1, 1, 1], [['ABC-123', 'car']], 'car', { key: 'ABC-123', highlight: 'new' }),
+          computation: { label: 'free car', lhs: '2', op: '-', rhs: '1', result: '1' },
+          result: { found: true, value: 'true' } },
+        { title: 'park("car", "XYZ-789"): 1 car space left and a new plate → park it. car drops to 0.', pseudoLine: 3,
+          ...parkingLotFrame([0, 1, 1], [['ABC-123', 'car'], ['XYZ-789', 'car']], 'car', { key: 'XYZ-789', highlight: 'new' }),
+          computation: { label: 'free car', lhs: '1', op: '-', rhs: '1', result: '0' },
+          result: { found: true, value: 'true, true' } },
+        { title: 'park("car", "CAR-3"): free.get("car") is 0 → return false. Nothing changes.', pseudoLine: 2,
+          ...parkingLotFrame([0, 1, 1], [['ABC-123', 'car'], ['XYZ-789', 'car']]),
+          result: { found: true, value: 'true, true, false' } },
+        { title: 'available("car"): read the counter → 0. No counting needed.', pseudoLine: 7,
+          ...parkingLotFrame([0, 1, 1], [['ABC-123', 'car'], ['XYZ-789', 'car']]),
+          result: { found: true, value: 'true, true, false, 0' } },
+        { title: 'leave("ABC-123"): the map says it parked as a car → delete it and give car its space back.', pseudoLine: 6,
+          detail: 'This lookup is why the map stores the type, not just the plate: leave() is only given the plate, and it has to know which counter to increase.',
+          ...parkingLotFrame([1, 1, 1], [['XYZ-789', 'car']], 'car'),
+          lookupOutcome: { kind: 'hit', key: 'ABC-123', at: 'car' },
+          computation: { label: 'free car', lhs: '0', op: '+', rhs: '1', result: '1' },
+          result: { found: true, value: 'true, true, false, 0, true' } },
+        { title: 'available("car"): read the counter → 1.', pseudoLine: 7,
+          ...parkingLotFrame([1, 1, 1], [['XYZ-789', 'car']]),
+          result: { found: true, value: 'true, true, false, 0, true, 1' } },
+      ],
+      tradeoffs: 'Two structures must stay in step: every change to `parked` is paired with a change to `free`. Follow-ups: numbered spots (keep a list of free spot numbers per type and return one from park), or letting a bike use a car space when bike spaces run out (try a list of allowed types in order).',
+    },
+    {
+      id: 'count-on-demand',
+      name: 'Count parked vehicles on demand',
+      badge: 'baseline',
+      intuition:
+        "**Store only the capacity and the parked plates, and count when asked.** available(type) walks the parked map and subtracts the number of vehicles of that type from the capacity.\n\n" +
+        "• park calls available, so it pays the same scan.\n" +
+        "• leave is just `parked.delete(plate)`, which already returns whether the plate was there.\n\n" +
+        "There is a single source of truth, so the numbers can never drift. The cost is O(n) per park and per available, where n is the number of parked vehicles. Check the type with `Object.hasOwn(capacity, type)`, not `type in capacity`, which also accepts inherited names like \"toString\".",
+      complexity: { time: 'O(n) park and available, O(1) leave', space: 'O(types + parked)', verdict: 'Fine for a small lot' },
+      pseudocode: [
+        'constructor(spaces): capacity = { ...spaces }; parked = new Map()',
+        'park(type, plate):',
+        '  if !Object.hasOwn(capacity, type) || available(type) === 0 || parked.has(plate): return false',
+        '  parked.set(plate, type); return true',
+        'leave(plate): return parked.delete(plate)',
+        'available(type):',
+        '  if !Object.hasOwn(capacity, type): return 0',
+        '  count = number of parked values equal to type',
+        '  return capacity[type] - count',
+      ],
+      example: {
+        input: '{ car: 2, bike: 1, truck: 1 }; park car ABC-123, park car XYZ-789, park car CAR-3, available car, leave ABC-123, available car',
+        output: 'true, true, false, 0, true, 1',
+      },
+      steps: [
+        { title: 'new ParkingLot({ car: 2, bike: 1, truck: 1 }): copy the capacities. They never change after this.', pseudoLine: 0,
+          ...parkingLotFrame([2, 1, 1], []) },
+        { title: 'park("car", "ABC-123"): available("car") counts 0 parked cars → 2 free, so park it.', pseudoLine: 3,
+          ...parkingLotFrame([2, 1, 1], [['ABC-123', 'car']], undefined, { key: 'ABC-123', highlight: 'new' }),
+          computation: { label: 'available car', lhs: '2', op: '-', rhs: '0', result: '2' },
+          result: { found: true, value: 'true' } },
+        { title: 'park("car", "XYZ-789"): the scan finds 1 car → 1 free, so park it.', pseudoLine: 3,
+          ...parkingLotFrame([2, 1, 1], [['ABC-123', 'car'], ['XYZ-789', 'car']], undefined, { key: 'XYZ-789', highlight: 'new' }),
+          computation: { label: 'available car', lhs: '2', op: '-', rhs: '1', result: '1' },
+          result: { found: true, value: 'true, true' } },
+        { title: 'park("car", "CAR-3"): the scan finds 2 cars → 0 free → return false.', pseudoLine: 2,
+          ...parkingLotFrame([2, 1, 1], [['ABC-123', 'car'], ['XYZ-789', 'car']]),
+          computation: { label: 'available car', lhs: '2', op: '-', rhs: '2', result: '0' },
+          result: { found: true, value: 'true, true, false' } },
+        { title: 'available("car"): scan again, 2 cars parked → 0.', pseudoLine: 8,
+          ...parkingLotFrame([2, 1, 1], [['ABC-123', 'car'], ['XYZ-789', 'car']]),
+          computation: { label: 'available car', lhs: '2', op: '-', rhs: '2', result: '0' },
+          result: { found: true, value: 'true, true, false, 0' } },
+        { title: 'leave("ABC-123"): parked.delete finds the plate and returns true. No counter to update.', pseudoLine: 4,
+          ...parkingLotFrame([2, 1, 1], [['XYZ-789', 'car']]),
+          lookupOutcome: { kind: 'hit', key: 'ABC-123', at: 'car' },
+          result: { found: true, value: 'true, true, false, 0, true' } },
+        { title: 'available("car"): the scan now finds 1 car → 1.', pseudoLine: 8,
+          ...parkingLotFrame([2, 1, 1], [['XYZ-789', 'car']]),
+          computation: { label: 'available car', lhs: '2', op: '-', rhs: '1', result: '1' },
+          result: { found: true, value: 'true, true, false, 0, true, 1' } },
+      ],
+      tradeoffs: 'Simpler state, slower queries. If available() is called on every request, or the lot has thousands of spaces, keep the counters from the first approach instead.',
+    },
+  ],
+};
+
 export const playgroundExplanations: Record<string, AnyExplanation> = {
   ...playgroundBuildExplanations,
   // Trees and DOM traversal
@@ -16186,6 +16322,8 @@ export const playgroundExplanations: Record<string, AnyExplanation> = {
   'getElementsByClassName from Scratch': getElementsByClassNameExpl,
   'Find Matching Node in Identical Tree': findMatchingNodeExpl,
   'Lowest Common Ancestor of Two Nodes': lowestCommonAncestorExpl,
+  // Class design
+  'Car Parking Lot': carParkingLotExpl,
   'Integer to Roman': integerToRomanExpl,
   'Reverse Integer': reverseIntegerExpl,
   'Isomorphic Strings': isomorphicExpl,

@@ -5472,6 +5472,46 @@ test("One is an ancestor of the other", idOf(lowestCommonAncestor(a, a1x)), "a")
 test("The same node twice", idOf(lowestCommonAncestor(b1, b1)), "b1");
 test("Nodes in different trees", idOf(lowestCommonAncestor(a1, withParents(el("other", el("x"))).children[0])), null);`,
       },
+      {
+        name: 'Car Parking Lot',
+        patterns: ['Hash Map / Set', 'Closure / State'],
+        difficulty: 'Easy',
+        code: `class ParkingLot {
+  constructor(spaces) {
+    // YOUR CODE HERE
+  }
+
+  park(type, plate) {
+    // YOUR CODE HERE
+  }
+
+  leave(plate) {
+    // YOUR CODE HERE
+  }
+
+  available(type) {
+    // YOUR CODE HERE
+  }
+}
+
+// ═════ TEST CASES ═════
+const test = (name, actual, expected) => {
+  const pass = JSON.stringify(actual) === JSON.stringify(expected);
+  console.log(pass ? "✅" : "❌", name, pass ? "" : \`Expected \${JSON.stringify(expected)}, got \${JSON.stringify(actual)}\`);
+};
+
+const lot = new ParkingLot({ car: 2, bike: 1, truck: 1 });
+test("Park the first car",        lot.park("car", "ABC-123"), true);
+test("Park the second car",       lot.park("car", "XYZ-789"), true);
+test("Car spaces are full",       lot.park("car", "CAR-3"),   false);
+test("No car spaces left",        lot.available("car"),       0);
+test("Leaving frees a space",     lot.leave("ABC-123"),       true);
+test("One car space free",        lot.available("car"),       1);
+test("Same plate can't park twice", lot.park("car", "XYZ-789"), false);
+test("Bike parks in a bike space", lot.park("bike", "BIKE-9"), true);
+test("Unknown vehicle type",      lot.park("bus", "BUS-1"),   false);
+test("Unknown plate can't leave", lot.leave("NOPE-0"),        false);`,
+      },
     ],
   },
   {

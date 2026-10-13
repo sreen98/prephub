@@ -1,5 +1,9 @@
 # What's New
 
+## v1.7.27 (October 2026)
+
+- **New JavaScript challenge, Car Parking Lot:** write a `ParkingLot` class that parks and releases vehicles by type and reports free spaces. It has a problem statement, hidden tests, a two-approach solution (a free counter per type vs counting on demand) and an Explain walkthrough.
+
 ## v1.7.26 (October 2026)
 
 - **Admin page:** the private admin prep document is reorganised (projects first, then questions about you, then stack by stack) with duplicate questions removed.

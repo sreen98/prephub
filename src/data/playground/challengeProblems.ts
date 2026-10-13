@@ -4181,6 +4181,30 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
       "O(h) time, where h is the tree height. O(1) extra space is a common follow-up."
     ]
   },
+  "Car Parking Lot": {
+    "summary": "Write a ParkingLot class that tracks free spaces by vehicle type: park, leave and available.",
+    "statement": "Implement the class ParkingLot. The constructor receives the number of spaces for each vehicle type, for example new ParkingLot({ car: 2, bike: 1, truck: 1 }). park(type, plate) parks a vehicle and returns true, or returns false if the type is unknown, that type has no free space, or the plate is already parked. leave(plate) removes the vehicle and returns true, or returns false if that plate is not parked. available(type) returns the number of free spaces for that type, and 0 for an unknown type. A vehicle can only use a space of its own type, and leaving frees the space of the type it parked as.",
+    "examples": [
+      {
+        "input": "spaces = { car: 2, bike: 1, truck: 1 }\npark(\"car\", \"ABC-123\"), park(\"car\", \"XYZ-789\"), park(\"car\", \"CAR-3\"), available(\"car\"), leave(\"ABC-123\"), available(\"car\")",
+        "output": "true\ntrue\nfalse\n0\ntrue\n1",
+        "explanation": "The third car finds both car spaces taken. When ABC-123 leaves, one car space is free again.",
+        "run": "const lot = new ParkingLot({ car: 2, bike: 1, truck: 1 });\nconsole.log(lot.park(\"car\", \"ABC-123\"));\nconsole.log(lot.park(\"car\", \"XYZ-789\"));\nconsole.log(lot.park(\"car\", \"CAR-3\"));\nconsole.log(lot.available(\"car\"));\nconsole.log(lot.leave(\"ABC-123\"));\nconsole.log(lot.available(\"car\"));"
+      },
+      {
+        "input": "spaces = { car: 1, bike: 1 }\npark(\"bike\", \"BIKE-9\"), park(\"car\", \"BIKE-9\"), park(\"bus\", \"BUS-1\"), leave(\"NOPE-0\")",
+        "output": "true\nfalse\nfalse\nfalse",
+        "explanation": "A plate that is already parked cannot park again, even as another type. bus is not a type of this lot, and NOPE-0 was never parked.",
+        "run": "const lot = new ParkingLot({ car: 1, bike: 1 });\nconsole.log(lot.park(\"bike\", \"BIKE-9\"));\nconsole.log(lot.park(\"car\", \"BIKE-9\"));\nconsole.log(lot.park(\"bus\", \"BUS-1\"));\nconsole.log(lot.leave(\"NOPE-0\"));"
+      }
+    ],
+    "constraints": [
+      "Only the types passed to the constructor are valid. An inherited name such as \"toString\" is not a vehicle type.",
+      "A plate can be parked at most once at a time.",
+      "Do not change the object passed to the constructor.",
+      "Aim for O(1) park, leave and available."
+    ]
+  },
   "MyPick and MyOmit": {
     "summary": "Write your own Pick and Omit with mapped types, then type pick() and omit() with them.",
     "statement": "TypeScript ships Pick<T, K> and Omit<T, K>; write them yourself as MyPick and MyOmit. MyPick<T, K> keeps only the keys K of T; MyOmit<T, K> keeps every key except K. Both must reject a key that T does not have (MyPick<Todo, \"nope\"> is a compile error), and both must keep each property's readonly and optional (?) modifiers. Then implement pick(obj, keys) and omit(obj, keys), whose return types are already written in terms of your types. When you press Run, the type tests are checked by the real TypeScript compiler, so an unfinished type shows up as a type error.",
