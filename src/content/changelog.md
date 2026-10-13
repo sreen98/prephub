@@ -1,5 +1,9 @@
 # What's New
 
+## v1.7.26 (October 2026)
+
+- **Admin page:** the private admin prep document is reorganised (projects first, then questions about you, then stack by stack) with duplicate questions removed.
+
 ## v1.7.25 (October 2026)
 
 - **Admin page:** the private admin prep document is updated.
