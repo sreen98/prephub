@@ -1,5 +1,9 @@
 # What's New
 
+## v1.7.25 (October 2026)
+
+- **Admin page:** the private admin prep document is updated.
+
 ## v1.7.24 (October 2026)
 
 **Live CSS demos in [CSS Fundamentals](/frontend/css-fundamentals).** 18 questions now have a live demo: the CSS sits in an editable box, and the preview below it updates as you type. Each demo measures the elements the question is about (width, height, position, and values such as `font-size` or `color`) and puts the old value next to every one that changed, such as "400 (was 444)". Box-model questions also show a diagram of margin, border, padding and content.
