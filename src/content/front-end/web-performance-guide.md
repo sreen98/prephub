@@ -802,6 +802,66 @@ The read-triggering properties are worth knowing by name: `offsetTop`/`offsetHei
 
 ---
 
+**Q13: What is the critical rendering path, and how do you optimise it?**
+
+The critical rendering path is **the work the browser must finish before it can paint anything**: download and parse the HTML into the DOM, download and parse the CSS into the CSSOM, combine them into the render tree (only the visible elements, with their computed styles), lay it out, and paint. The steps themselves are in [§4](#4-the-loading-pipeline) and, element by element, in the [HTML guide](/frontend/html). Optimising the path means **getting to the first paint (FCP, and usually LCP) with as little waiting as possible**.
+
+```text
+HTML ──► DOM ─────────┐
+                      ├──► render tree ──► layout ──► paint   (first paint)
+CSS  ──► CSSOM ───────┘
+          ▲
+sync <script> waits for the CSSOM above it, and blocks the DOM below it
+```
+
+**What sits on the path.** CSS in the `<head>` is render-blocking: nothing paints until every stylesheet there has loaded, because painting without it would flash unstyled content. A synchronous `<script>` is parser-blocking: the HTML parser stops until it has downloaded and run. And a script also waits for the stylesheets before it, because it might read styles. So a slow stylesheet followed by a sync script holds up both the DOM and the paint.
+
+**Three numbers describe how long the path is:**
+
+- **Critical resources**: how many files block the first paint (the HTML, each blocking stylesheet, each sync script).
+- **Critical path length**: how many network round trips they need *one after another*. A CSS `@import` inside a stylesheet adds a round trip, because the second file is only discovered once the first has been downloaded and parsed.
+- **Critical bytes**: the total size of those files.
+
+Every optimisation lowers one of the three:
+
+| Technique | What it does to the path |
+| --- | --- |
+| `defer`, `async` or `type="module"` on scripts | Takes the script off the path: it downloads in parallel and no longer blocks parsing |
+| Inline the critical CSS, load the rest without blocking | The CSS for the first screen arrives with the HTML, so one round trip is gone |
+| `media` on stylesheets (`media="print"`, `media="(min-width: 64em)"`) | A stylesheet whose media query does not match is still downloaded, but at low priority and without blocking rendering |
+| No `@import`; `<link>` every stylesheet from the HTML | Files download in parallel instead of in a chain |
+| Minify, compress (Brotli or gzip), remove unused CSS | Fewer critical bytes |
+| `preconnect` to the origin of a critical file, `preload` for a file found late (a font) | The connection or the download starts earlier |
+| Server-render the first screen | The HTML itself carries the content, instead of an empty shell that waits for JavaScript |
+
+A head with a long path, and the same page with a short one:
+
+```html
+<!-- ✗ 3 blocking files, and the @import inside main.css adds a 4th, one round trip later -->
+<head>
+  <link rel="stylesheet" href="/main.css">      <!-- contains @import url("/theme.css") -->
+  <link rel="stylesheet" href="/print.css">
+  <script src="/app.js"></script>
+</head>
+```
+
+```html
+<!-- ✓ Only the HTML blocks the first paint -->
+<head>
+  <style>/* critical CSS: just what the first screen needs */</style>
+  <link rel="preload" href="/main.css" as="style" onload="this.onload=null; this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="/main.css"></noscript>
+  <link rel="stylesheet" href="/print.css" media="print">
+  <script src="/app.js" defer></script>
+</head>
+```
+
+**How to find it.** In the DevTools Network panel, sort by the waterfall and look at what finishes before the first paint marker; Lighthouse lists the render-blocking requests and estimates what removing each one would save. The Performance panel shows how long the main thread spent parsing and running scripts before the first paint.
+
+**What to volunteer.** Inlining critical CSS trades caching for speed: the inlined CSS is downloaded again with every HTML page instead of once, so keep it to the first screen and keep it small (the first network round trip carries only about 14 KB of a fresh connection). Fonts are on the path for text: until a web font loads, the text may be invisible, which `font-display: swap` avoids ([§7](#7-fonts)). And in a client-rendered React app the longest part of the path is usually not CSS at all, but the JavaScript bundle that has to download and run before anything appears, which is why server rendering helps FCP so much ([§12](#12-rendering-strategy)).
+
+---
+
 ## 15. Tricky Questions
 
 ---

@@ -1,5 +1,12 @@
 # What's New
 
+## v1.7.28 (October 2026)
+
+- **New React Machine Coding challenge, Move Boxes:** boxes of different sizes on a grid, each with arrow buttons that swap it with its neighbour on that side. A swap that would make boxes overlap is refused, and a message says what happened. It has a problem statement, behaviour checks and a build-order walkthrough, and joins the Navigation & Layout track.
+- **Web Performance Q13:** what the critical rendering path is, what sits on it, and how to shorten it (fewer blocking files, fewer round trips, fewer bytes), with a before-and-after `<head>`.
+- **JavaScript Tricky Questions Q54:** two timers (0 ms and 600 ms) that each queue a promise, and why each promise prints right after its own timer instead of all timers first.
+- **Admin page:** the private admin prep document is rewritten to be shorter, covering only resume and behavioural questions.
+
 ## v1.7.27 (October 2026)
 
 - **New JavaScript challenge, Car Parking Lot:** write a `ParkingLot` class that parks and releases vehicles by type and reports free spaces. It has a problem statement, hidden tests, a two-approach solution (a free counter per type vs counting on demand) and an Explain walkthrough.

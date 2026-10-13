@@ -81,7 +81,7 @@ const REACT_TRACKS: Omit<ChallengeTrack, 'tag'>[] = [
     id: 'react-navigation',
     title: 'Navigation & Layout',
     idea: 'Structure and movement around an app: responsive navigation, guarded routes, recursive trees and drag-and-drop.',
-    names: ['Responsive Navbar', 'Sidebar Navigation (responsive + submenus)', 'Protected Route (Auth + RBAC)', 'Nested Comments (recursive replies)', 'Drag and Drop'],
+    names: ['Responsive Navbar', 'Sidebar Navigation (responsive + submenus)', 'Protected Route (Auth + RBAC)', 'Nested Comments (recursive replies)', 'Drag and Drop', 'Move Boxes (swap with neighbour)'],
   },
   {
     id: 'react-async',

@@ -12763,6 +12763,123 @@ render(<App />);
 //   - In production, Radix Select, React Aria's useSelect or Headless UI's
 //     Listbox already handle the screen-reader edge cases this one skips.`,
       },
+      {
+        name: 'Move Boxes (swap with neighbour)',
+        jsx: true,
+        code: `// MOVE BOXES. Each box has four arrows; pressing one swaps the box with the box
+// next to it on that side. A swap that would make two boxes overlap is refused.
+// Boxes are plain data in grid units (one unit = 100px).
+
+const UNIT = 100;
+
+const initialBoxes = [
+  { id: "A", x: 0, y: 0, w: 3, h: 2, color: "#fca5a5" },
+  { id: "B", x: 3, y: 0, w: 3, h: 2, color: "#93c5fd" },
+  { id: "C", x: 0, y: 2, w: 4, h: 2, color: "#86efac" },
+];
+
+const MOVES = {
+  up:    { dx: 0, dy: -1, arrow: "↑" },
+  left:  { dx: -1, dy: 0, arrow: "←" },
+  right: { dx: 1, dy: 0, arrow: "→" },
+  down:  { dx: 0, dy: 1, arrow: "↓" },
+};
+
+// The box covering grid cell (x, y), or undefined.
+function boxAt(boxes, x, y) {
+  return boxes.find((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h);
+}
+
+// Two boxes overlap when they share some area. Touching edges is fine.
+function overlaps(a, b) {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+function App() {
+  const [boxes, setBoxes] = useState(initialBoxes);
+  const [message, setMessage] = useState("");
+
+  function swap(box, direction) {
+    // Step one cell past this edge, from the top-left corner.
+    const { dx, dy } = MOVES[direction];
+    const x = dx === 1 ? box.x + box.w : box.x + dx;
+    const y = dy === 1 ? box.y + box.h : box.y + dy;
+    const other = boxAt(boxes, x, y);
+    if (!other) {
+      setMessage(\`There is no box \${direction} of \${box.id}.\`);
+      return;
+    }
+
+    // Trade top-left corners; each box keeps its own size.
+    const next = boxes.map((b) => {
+      if (b.id === box.id) return { ...b, x: other.x, y: other.y };
+      if (b.id === other.id) return { ...b, x: box.x, y: box.y };
+      return b;
+    });
+
+    const clash = next.some((a, i) => next.some((b, j) => i < j && overlaps(a, b)));
+    if (clash) {
+      setMessage(\`Can't swap \${box.id} \${direction}: it would overlap another box.\`);
+      return;
+    }
+
+    setBoxes(next);
+    setMessage(\`Swapped \${box.id} \${direction} with \${other.id}.\`);
+  }
+
+  const width = Math.max(...boxes.map((b) => b.x + b.w)) * UNIT;
+  const height = Math.max(...boxes.map((b) => b.y + b.h)) * UNIT;
+
+  return (
+    <main style={{ padding: 16, fontFamily: "system-ui", color: "#0f172a" }}>
+      <h1>Move boxes</h1>
+      <div style={{ position: "relative", width, height }}>
+        {boxes.map((box) => (
+          <div
+            key={box.id}
+            style={{
+              position: "absolute",
+              left: box.x * UNIT,
+              top: box.y * UNIT,
+              width: box.w * UNIT,
+              height: box.h * UNIT,
+              background: box.color,
+              border: "2px solid white",
+              boxSizing: "border-box",
+              textAlign: "center",
+            }}
+          >
+            <p><strong>{box.id}</strong></p>
+            {Object.entries(MOVES).map(([direction, { arrow }]) => (
+              <button
+                key={direction}
+                aria-label={\`Swap \${box.id} \${direction}\`}
+                onClick={() => swap(box, direction)}
+              >
+                {arrow}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+      <p aria-live="polite">{message}</p>
+    </main>
+  );
+}
+
+render(<App />);
+
+// TRY IT
+//   - A right: A and B swap. Then B right: they swap back.
+//   - A up: nothing is above A.
+//   - C up: C is 4 wide, so in A's place it would cover B. Refused.
+//
+// FOLLOW-UPS
+//   - Two boxes touch that side: this takes the one at the corner. The
+//     alternative is the one sharing the longest edge.
+//   - Only the two moved boxes can clash, so checking just them is O(n)
+//     instead of comparing every pair.`,
+      },
     ],
   },
 ];

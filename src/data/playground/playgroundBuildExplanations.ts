@@ -2085,6 +2085,65 @@ const dropdown: BuildExplanation = {
   ],
 };
 
+const moveBoxes: BuildExplanation = {
+  kind: 'build',
+  problem: 'Move Boxes (swap with neighbour)',
+  problemStatement:
+    'Lay out boxes of different sizes on a grid, and give each one an arrow button per direction that swaps it with its neighbour on that side. It is a 30-minute question: keep the boxes as data, find the neighbour with one lookup, and check for overlaps before accepting a swap. The interviewer is watching for that last part, because swapping two boxes of different sizes can make them overlap.',
+  buildOrder: [
+    {
+      title: 'Describe the boxes as data in grid units',
+      excerpt: { from: 'const initialBoxes = [', lines: 5 },
+      detail:
+        'Each box is { id, x, y, w, h } in grid cells, not pixels. The rendering multiplies by UNIT, so the logic works on small whole numbers, and the layout could be saved or loaded as it is.',
+    },
+    {
+      title: 'One table for the four directions',
+      excerpt: { from: 'const MOVES = {', lines: 6 },
+      detail:
+        'dx and dy say which way one step goes (up is dy -1, right is dx +1), and arrow is the button label. The buttons and the neighbour lookup both read this table.',
+    },
+    {
+      title: 'Two small helpers: which box is in a cell, and do two boxes overlap',
+      excerpt: { from: 'function boxAt(boxes, x, y) {', lines: 8 },
+      detail:
+        'A box covers the cells from x up to but not including x + w, and the same for y, so boxAt is one find. overlaps uses strict < on both axes, so boxes whose edges only touch do not count as overlapping.',
+    },
+    {
+      title: 'The neighbour is the box one cell past the edge',
+      excerpt: { from: 'const { dx, dy } = MOVES[direction];', lines: 4 },
+      detail:
+        'Start at the top-left corner and step one cell past the chosen edge. Right and down must clear the whole box, so they add the width or height; left and up are one cell back. If no box covers that cell, the message says so and nothing moves.',
+      pitfall: 'Stepping right with x + 1 lands inside the box itself whenever it is wider than one cell.',
+    },
+    {
+      title: 'Swap the top-left corners into a new array',
+      excerpt: { from: 'const next = boxes.map((b) => {', lines: 5 },
+      detail:
+        'Each box takes the other\'s x and y and keeps its own size. map returns a new array with new objects for the two moved boxes, so React sees the change and the old state is never mutated.',
+    },
+    {
+      title: 'Refuse the swap if anything would overlap',
+      excerpt: { from: 'const clash = next.some(', lines: 5 },
+      detail:
+        'Boxes of the same size always fit in each other\'s place, but a 4-wide box moving into a 3-wide box\'s place can cover a third box. Check the new layout first, and only call setBoxes when it is valid.',
+      pitfall: 'Setting state first and checking afterwards shows the broken layout for a render and needs a second update to undo it.',
+    },
+    {
+      title: 'Render from the data, and label the arrows',
+      excerpt: { from: 'aria-label={`Swap ${box.id} ${direction}`}', lines: 1 },
+      detail:
+        'Each box is absolutely positioned at x * UNIT, y * UNIT inside a relative board. An arrow alone means nothing to a screen reader, so each button is labelled "Swap A up", and the message sits in an aria-live region so the result is read out.',
+    },
+  ],
+  graded: [
+    { point: 'The layout is data, and rendering follows from it', why: 'Boxes as { x, y, w, h } in grid units keep the logic to whole numbers and make the swap a data change, not DOM work.' },
+    { point: 'The neighbour lookup is simple and explained', why: 'Stepping one cell past the edge is a few lines. Saying what happens when two boxes touch that side, and what the alternative is, matters more than extra code.' },
+    { point: 'Overlapping swaps are refused before they render', why: 'Different-sized boxes are the edge case the interviewer is waiting for.' },
+    { point: 'State is updated immutably', why: 'A new array with new objects is what lets React see the change. Mutating x and y in place renders nothing.' },
+  ],
+};
+
 export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Form with Dynamic Fields': dynamicFields,
   'Multi-Step Form (Wizard)': multiStepForm,
@@ -2133,4 +2192,5 @@ export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Shopping Cart (reducer + derived totals)': shoppingCart,
   'File Upload (progress + cancel)': fileUpload,
   'Dropdown (keyboard + click outside)': dropdown,
+  'Move Boxes (swap with neighbour)': moveBoxes,
 };

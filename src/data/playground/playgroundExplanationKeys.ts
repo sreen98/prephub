@@ -221,4 +221,5 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'Shopping Cart (reducer + derived totals)',
   'File Upload (progress + cancel)',
   'Dropdown (keyboard + click outside)',
+  'Move Boxes (swap with neighbour)',
 ]);

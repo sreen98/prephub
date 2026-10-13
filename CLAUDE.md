@@ -191,7 +191,7 @@ silently resolves to a `window` global and typechecks.
   `dedupeIds()` suffixes the 2nd+ occurrences. **Never renumber**: ids key SM-2 review
   history. Append new questions at the *end* of a sequence, and rewrite existing ones in place
   so the id is unchanged.
-- Tricky Output sections: 55 guides, 460 questions total. Recount with:
+- Tricky Output sections: 55 guides, 461 questions total. Recount with:
   `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
 - After adding a `**QN:**` marker, run `npm run content:meta`, or the `totalQuestionCount`
   parity test fails and names the guide.

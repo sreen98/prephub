@@ -1940,6 +1940,62 @@ The two usual mistakes: `D` is `1`, because the `count++` runs synchronously bef
 
 ---
 
+### Timers and Microtasks
+
+**Q54: Two timers, 0 ms and 600 ms, each queue a promise inside their callback. What is the full order?**
+
+```js
+console.log("top");
+
+Promise.resolve().then(() => {
+  console.log("promise between");
+});
+
+setTimeout(() => {
+  console.log("timeout 0");
+
+  Promise.resolve().then(() => {
+    console.log("promise inside timeout 0");
+  });
+}, 0);
+
+setTimeout(() => {
+  console.log("timeout 600");
+
+  Promise.resolve().then(() => {
+    console.log("promise inside timeout 600");
+  });
+}, 600);
+
+console.log("bottom");
+```
+
+**Output:**
+```text
+top
+bottom
+promise between
+timeout 0
+promise inside timeout 0
+timeout 600
+promise inside timeout 600
+```
+
+**Explanation:**
+
+| Phase | Prints | Why |
+|---|---|---|
+| synchronous | `top`, `bottom` | the `.then` and both timers are only registered |
+| microtask drain | `promise between` | the microtask queue empties before any timer, even a `0ms` one |
+| task: 0 ms timer | `timeout 0` | its callback queues a new microtask |
+| microtask drain | `promise inside timeout 0` | runs straight after this task, before the next one |
+| task: 600 ms timer, about 600 ms later | `timeout 600` | queues another microtask |
+| microtask drain | `promise inside timeout 600` | the same rule again |
+
+The trap is to group the output by kind: all timers, then all promises. The event loop never does that. It runs **one** task, then empties the microtask queue, then takes the next task. So each promise prints right after the timer that created it. Here the 600 ms timer can't even be due when the first one runs, but two timers that are due at the same time are still two separate tasks with a drain between them. Node behaves the same way since version 11. → [§11](/javascript/guide#11-the-event-loop)
+
+---
+
 ### Key Rules
 
 ```

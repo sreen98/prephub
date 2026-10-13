@@ -7421,4 +7421,122 @@ export const reactChecks: Record<string, ReactCheck[]> = {
       ]
     }
   ],
+  "Move Boxes (swap with neighbour)": [
+    {
+      "label": "A's right arrow swaps A and B, and B's right arrow then swaps them back",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap A right"
+          }
+        },
+        {
+          "expectText": "Swapped A right with B."
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap B right"
+          }
+        },
+        {
+          "expectText": "Swapped B right with A."
+        }
+      ]
+    },
+    {
+      "label": "a side with no box says so and nothing moves",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap A up"
+          }
+        },
+        {
+          "expectText": "There is no box up of A."
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap C down"
+          }
+        },
+        {
+          "expectText": "There is no box down of C."
+        }
+      ]
+    },
+    {
+      "label": "a swap that would overlap is refused and the layout stays as it was",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap C up"
+          }
+        },
+        {
+          "expectText": "Can't swap C up: it would overlap another box."
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap A right"
+          }
+        },
+        {
+          "expectText": "Swapped A right with B."
+        }
+      ]
+    },
+    {
+      "label": "boxes of different sizes swap when they fit",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap B down"
+          }
+        },
+        {
+          "expectText": "Swapped B down with C."
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap B up"
+          }
+        },
+        {
+          "expectText": "Swapped B up with A."
+        }
+      ]
+    },
+    {
+      "label": "every arrow button is named, and the message is announced",
+      "steps": [
+        {
+          "expect": {
+            "role": "button",
+            "name": "Swap"
+          },
+          "count": 12
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Swap A left"
+          }
+        },
+        {
+          "expect": {
+            "selector": "[aria-live]",
+            "text": "There is no box left of A."
+          }
+        }
+      ]
+    }
+  ],
 };

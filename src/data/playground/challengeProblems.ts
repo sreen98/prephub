@@ -4017,6 +4017,30 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
       "A list near the bottom of the screen opens upwards instead of off the edge."
     ]
   },
+  "Move Boxes (swap with neighbour)": {
+    "summary": "Boxes of different sizes on a grid, each with arrow buttons that swap it with its neighbour on that side, refusing swaps that would overlap.",
+    "statement": "Render boxes from data such as { id: \"A\", x: 0, y: 0, w: 3, h: 2 }, where every unit is 100 pixels, on a board sized to fit them. Start with A (3×2 at 0,0), B (3×2 at 3,0) and C (4×2 at 0,2). Each box has four arrow buttons, up, left, right and down. Pressing one finds the neighbouring box on that side and swaps the two boxes' top-left positions, each keeping its own size. If there is no box on that side, nothing moves. If the swap would make any two boxes overlap, it is refused and nothing moves. A message under the board says what happened.",
+    "examples": [
+      {
+        "input": "Press A's right arrow, then B's right arrow.",
+        "output": "\"Swapped A right with B.\" and the boxes change places. B is now on the left, so B's right arrow swaps them back: \"Swapped B right with A.\""
+      },
+      {
+        "input": "Press A's up arrow.",
+        "output": "\"There is no box up of A.\" Nothing moves."
+      },
+      {
+        "input": "Press C's up arrow.",
+        "output": "\"Can't swap C up: it would overlap another box.\" C is 4 wide, so in A's place it would cover part of B."
+      }
+    ],
+    "constraints": [
+      "Boxes whose edges only touch do not overlap; only a shared area counts.",
+      "A refused swap leaves the layout exactly as it was.",
+      "Every arrow button has an accessible name such as \"Swap A up\", and the message is announced to screen readers (aria-live).",
+      "Do not mutate the boxes in state; build a new array."
+    ]
+  },
   "DOM Tree Height": {
     "summary": "Return the height of a node tree: how many nodes lie on its longest root-to-leaf path.",
     "statement": "Write treeHeight(node). Each node is shaped { tag, children }, where children is an array (empty for a leaf). The height is the number of nodes on the longest path from the root down to a leaf, so a single node has height 1 and an empty tree (null) has height 0. The tree is made of plain objects standing in for DOM nodes, because the playground runs your code in a Web Worker, which has no DOM. The problem has exactly the same shape as it would on real elements.",

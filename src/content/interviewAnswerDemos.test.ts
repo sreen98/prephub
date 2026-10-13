@@ -277,6 +277,11 @@ describe('JavaScript guide interview answers print what they claim', () => {
   it('tricky Q53 — the count++ before the first await runs synchronously', async () => {
     expect(await captureAsync(block('console.log("B", result1, count);'), 100)).toEqual(['A 0', 'D 1', 'B 2 2', 'C 3 3']);
   });
+  it('tricky Q54 — each timer callback is followed by its own microtask drain', async () => {
+    expect(await captureAsync(block('console.log("promise inside timeout 600");'), 800)).toEqual([
+      'top', 'bottom', 'promise between', 'timeout 0', 'promise inside timeout 0', 'timeout 600', 'promise inside timeout 600',
+    ]);
+  });
   it('tricky Q27 — var shares one variable across the loop, let makes one per iteration', async () => {
     expect(await captureAsync(block("setTimeout(() => console.log('var:', i), 0);"), 50)).toEqual([
       'var: 3', 'var: 3', 'var: 3', 'let: 0', 'let: 1', 'let: 2',
