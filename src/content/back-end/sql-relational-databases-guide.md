@@ -242,7 +242,10 @@ SELECT * FROM (
 SELECT DISTINCT ON (user_id) * FROM orders ORDER BY user_id, created_at DESC;
 ```
 
-Know the difference between the three ranking functions, because it's a standard follow-up: `ROW_NUMBER()` is always distinct (1,2,3,4), `RANK()` leaves gaps after ties (1,2,2,4), `DENSE_RANK()` doesn't (1,2,2,3).
+> [!FOLLOWUP]
+> What is the difference between `ROW_NUMBER()`, `RANK()` and `DENSE_RANK()`?
+>
+> `ROW_NUMBER()` is always distinct (1,2,3,4), `RANK()` leaves gaps after ties (1,2,2,4), and `DENSE_RANK()` doesn't (1,2,2,3).
 
 And `ROWS` vs `RANGE` in a frame clause: `ROWS` counts physical rows, `RANGE` groups peers with equal `ORDER BY` values. The default frame when you specify `ORDER BY` without a frame is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`, which surprises people when duplicate timestamps make a "running total" jump.
 

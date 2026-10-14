@@ -1735,14 +1735,17 @@ Two-tier strategy:
 
 When you deploy: index.html changes → user gets new index.html → which loads new hashed assets → old assets are never requested again.
 
-**The follow-up: after a deploy, some users still see the old version (or old JavaScript) while others see the new one. Why?** A hashed file can't be stale, because a new build gives it a new name. So a user running old code was either handed an old `index.html` or never asked for a new one. Check, in this order:
-
-| Cause | How to spot it | Fix |
-|---|---|---|
-| `index.html` cached with a `max-age`, by the browser or the CDN | the response headers for `/` show `max-age` or a CDN `Age` header, and the HTML names last build's files | `Cache-Control: no-cache` on HTML; invalidate `/index.html` on the CDN after each deploy (Q8) |
-| The tab was open before the deploy | only users who never reloaded; navigating to a lazy route fails | it keeps running the old bundle until it reloads; handle the failed chunk (Q19) |
-| A service worker serves the precached shell | DevTools → Application shows a new worker "waiting to activate" | update and reload on the next visit, or ask the user to reload ([Browser APIs, tricky Q8](/frontend/browser-apis#17-tricky-questions)) |
-| A file without a content hash (`app.js`, `config.js`) cached for a long time | the old file comes back from cache although the HTML is new | add the hash, or give that file `no-cache` too |
+> [!FOLLOWUP]
+> After a deploy, some users still see the old version (or old JavaScript) while others see the new one. Why?
+>
+> A hashed file can't be stale, because a new build gives it a new name. So a user running old code was either handed an old `index.html` or never asked for a new one. Check, in this order:
+>
+> | Cause | How to spot it | Fix |
+> |---|---|---|
+> | `index.html` cached with a `max-age`, by the browser or the CDN | the response headers for `/` show `max-age` or a CDN `Age` header, and the HTML names last build's files | `Cache-Control: no-cache` on HTML; invalidate `/index.html` on the CDN after each deploy (Q8) |
+> | The tab was open before the deploy | only users who never reloaded; navigating to a lazy route fails | it keeps running the old bundle until it reloads; handle the failed chunk (Q19) |
+> | A service worker serves the precached shell | DevTools → Application shows a new worker "waiting to activate" | update and reload on the next visit, or ask the user to reload ([Browser APIs, tricky Q8](/frontend/browser-apis#17-tricky-questions)) |
+> | A file without a content hash (`app.js`, `config.js`) cached for a long time | the old file comes back from cache although the HTML is new | add the hash, or give that file `no-cache` too |
 
 ---
 

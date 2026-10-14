@@ -235,6 +235,7 @@ silently resolves to a `window` global and typechecks.
   ending `// ✗ TSnnnn: message`, checked by the compiler in `typescriptGuideTypes.test.ts`.
   Verify type claims with the compiler, not by eye.
 - **A nested fence must be indented to match its list item** (check #17).
+- **Callouts** are GitHub-alert blockquotes: `> [!FOLLOWUP]` (first paragraph is the question, then a blank `>` line, then the answer, which renders folded), `> [!TRAP]` (the common mistake), `> [!KEY]` (the line to say out loud), plus `NOTE`/`TIP`/`WARNING`. Parsed by `lib/callouts.ts`, rendered by `components/MarkdownCallout.tsx` in guides, Quiz, Review and the Simulator; `guideCallouts.test.tsx` rejects unknown kinds and a follow-up with no answer. Turn an existing "the usual follow-up"/"say this"/"the mistake" sentence into a callout rather than adding a second copy of it, and keep code fences out of callouts.
 - **Diagrams** are ` ```mermaid ` fences (Mermaid 11, lazy-loaded). Animated edges
   (`A e1@--> B` + `e1@{ animate: true }`) are fine for flows: the reduced-motion block in
   `index.css` stops them. Parse new diagrams with `mermaid.parse` before shipping. Tag plain

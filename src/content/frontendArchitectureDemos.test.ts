@@ -29,3 +29,24 @@ describe('Frontend Architecture §2.3 — the BFF home-screen demo', () => {
     ]);
   });
 });
+
+describe('Frontend Architecture Tricky Q1 — the closure counter', () => {
+  const run = (marker: string): string[] => {
+    const logs: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- running the guide's own snippet is the point
+    new Function('console', block(marker))({ log: (...a: unknown[]) => { logs.push(a.map(String).join(' ')); } });
+    return logs;
+  };
+
+  it('prints 2', () => {
+    expect(run('console.log(counter.getValue());')).toEqual(['2']);
+  });
+
+  it('keeps two counters separate, and obj private', () => {
+    expect(run('console.log(a.getValue(), b.getValue());')).toEqual(['2 0', 'undefined']);
+  });
+
+  it('loses privacy once obj is returned', () => {
+    expect(run('c.obj.value = 100;')).toEqual(['101']);
+  });
+});

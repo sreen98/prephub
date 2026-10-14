@@ -8,6 +8,7 @@ import { ArrowLeft, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RotateCcw, 
 import { getAllQuestions, type Question } from '../data';
 import { useSpacedRepetition } from '../hooks/useSpacedRepetition';
 import { useStudyStats } from '../hooks/useStudyStats';
+import { calloutComponents } from '../components/calloutComponents';
 
 export default function ReviewPage() {
   const { getDueQuestions, recordReview } = useSpacedRepetition();
@@ -145,7 +146,7 @@ export default function ReviewPage() {
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-ink/5 text-muted">{current.guide}</span>
                   </div>
                   <div className="flex-1 quiz-markdown">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{current.question}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>{current.question}</ReactMarkdown>
                   </div>
                   <p className="text-xs text-muted mt-4 text-center">Tap to reveal answer</p>
                 </div>
@@ -153,7 +154,7 @@ export default function ReviewPage() {
                 <div className="min-h-[250px] p-8 rounded-lg border border-emerald-200 dark:border-emerald-800/50 shadow-sm flex flex-col bg-accent-soft">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg mb-4 self-start">Answer</span>
                   <div className="flex-1 quiz-markdown overflow-auto max-h-[50vh]">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{current.answer}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>{current.answer}</ReactMarkdown>
                   </div>
                   <p className="text-xs text-muted mt-4 text-center">Tap to see question</p>
                 </div>

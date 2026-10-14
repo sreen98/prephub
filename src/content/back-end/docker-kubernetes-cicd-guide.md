@@ -394,10 +394,13 @@ resources:
   limits:   { cpu: 500m, memory: 512Mi }   # ceiling; enforced at RUNTIME
 ```
 
-The two behave **completely differently on exceeding the limit**, and this is a favourite follow-up:
+The two behave **completely differently on exceeding the limit**:
 
-- **CPU is compressible** — exceeding the CPU limit **throttles** the container: the Linux scheduler (CFS, the Completely Fair Scheduler) gives it a fixed slice of CPU time per 100 ms period and pauses it for the rest of the period once the slice is used. Your app gets slow, not killed. A too-low CPU limit is a classic cause of mysterious latency: p99 (the slowest 1% of requests) spikes with no error, because the process is being paused mid-request.
-- **Memory is not compressible** — exceeding the memory limit **kills the container** with `OOMKilled` (exit 137). Kubernetes then restarts it. A container that's `OOMKilled` in a loop is `CrashLoopBackOff`.
+> [!FOLLOWUP]
+> What happens when a container goes over its CPU limit? And over its memory limit?
+>
+> - **CPU is compressible** — exceeding the CPU limit **throttles** the container: the Linux scheduler (CFS, the Completely Fair Scheduler) gives it a fixed slice of CPU time per 100 ms period and pauses it for the rest of the period once the slice is used. Your app gets slow, not killed. A too-low CPU limit is a classic cause of mysterious latency: p99 (the slowest 1% of requests) spikes with no error, because the process is being paused mid-request.
+> - **Memory is not compressible** — exceeding the memory limit **kills the container** with `OOMKilled` (exit 137). Kubernetes then restarts it. A container that's `OOMKilled` in a loop is `CrashLoopBackOff`.
 
 Requests also determine the pod's **QoS (quality of service) class**, which decides eviction order under node pressure: `Guaranteed` (requests == limits) is evicted last, `BestEffort` (nothing set) first. Setting requests but no limits is common and reasonable for CPU; **always set a memory limit**, or one leaking pod can take down a whole node.
 

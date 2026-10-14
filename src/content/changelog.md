@@ -1,5 +1,11 @@
 # What's New
 
+## v1.7.29 (October 2026)
+
+- **New React Machine Coding challenge, Product CRUD:** a product manager where one form adds and edits products, each row has Edit and Delete, and everything lives in useState. It has a problem statement, behaviour checks and a build-order walkthrough covering immutable updates, stable keys and switching the form between add and edit.
+- **Frontend Architecture guide rewritten in plain English, without the repetition:** sections 1–9 now hold each explanation once, and the 21 interview answers are the short versions you would say out loud, each linking back to its section. Design systems are gathered into one section (layers, versioning, API rules, theming and packaging, rolling out a breaking change). Jargon is explained in plain sentences where it first appears, the real-time section has a live demo you can run, and Tricky Q1 (closures) is shorter and clearer.
+- **Interview callouts in the guides:** the follow-up questions interviewers ask now appear as **Interviewer follow-up** cards. You see the question, think of your answer, then press reveal. The mistakes most candidates make are red **Common trap** cards, and the line worth saying out loud is a **Say this in the interview** card. The Frontend Architecture guide has 23 of them (11 follow-ups), and the Git, CORS, Node.js, SQL, Docker & Kubernetes, AWS Frontend Deployment, AI & LLM and Behavioral guides have their first ones. They show in Quiz and Review answers too.
+
 ## v1.7.28 (October 2026)
 
 - **New React Machine Coding challenge, Move Boxes:** boxes of different sizes on a grid, each with arrow buttons that swap it with its neighbour on that side. A swap that would make boxes overlap is refused, and a message says what happened. It has a problem statement, behaviour checks and a build-order walkthrough, and joins the Navigation & Layout track.

@@ -7539,4 +7539,267 @@ export const reactChecks: Record<string, ReactCheck[]> = {
       ]
     }
   ],
+  "Product CRUD (add, edit, delete)": [
+    {
+      "label": "lists the starting products with their prices",
+      "steps": [
+        {
+          "expectText": "Keyboard: $49.00"
+        },
+        {
+          "expectText": "Mouse: $25.00"
+        },
+        {
+          "expectText": "Product list (2)"
+        }
+      ]
+    },
+    {
+      "label": "adds a product to the end of the list and clears the form",
+      "steps": [
+        {
+          "fill": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "text": "Monitor"
+        },
+        {
+          "fill": {
+            "role": "textbox",
+            "name": "Price"
+          },
+          "text": "199"
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Add product"
+          }
+        },
+        {
+          "expectText": "Monitor: $199.00"
+        },
+        {
+          "expectText": "Product list (3)"
+        },
+        {
+          "expect": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "value": ""
+        },
+        {
+          "expect": {
+            "role": "textbox",
+            "name": "Price"
+          },
+          "value": ""
+        }
+      ]
+    },
+    {
+      "label": "a blank name or a negative price is refused with a message",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Add product"
+          }
+        },
+        {
+          "expectText": "Enter a name and a price of 0 or more."
+        },
+        {
+          "fill": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "text": "Cable"
+        },
+        {
+          "fill": {
+            "role": "textbox",
+            "name": "Price"
+          },
+          "text": "-5"
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Add product"
+          }
+        },
+        {
+          "expect": {
+            "role": "alert"
+          },
+          "count": 1
+        },
+        {
+          "expectNoText": "Cable:"
+        },
+        {
+          "expectText": "Product list (2)"
+        }
+      ]
+    },
+    {
+      "label": "Edit fills the form, and Save changes updates the row in place",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Edit Keyboard"
+          }
+        },
+        {
+          "expect": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "value": "Keyboard"
+        },
+        {
+          "expect": {
+            "role": "textbox",
+            "name": "Price"
+          },
+          "value": "49"
+        },
+        {
+          "fill": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "text": "Laptop stand"
+        },
+        {
+          "fill": {
+            "role": "textbox",
+            "name": "Price"
+          },
+          "text": "79"
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Save changes"
+          }
+        },
+        {
+          "expectText": "Laptop stand: $79.00"
+        },
+        {
+          "expectNoText": "$49.00"
+        },
+        {
+          "expectText": "Product list (2)"
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Add product"
+          }
+        }
+      ]
+    },
+    {
+      "label": "Cancel leaves the product unchanged and goes back to adding",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Edit Mouse"
+          }
+        },
+        {
+          "fill": {
+            "role": "textbox",
+            "name": "Price"
+          },
+          "text": "1"
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Cancel"
+          }
+        },
+        {
+          "expectText": "Mouse: $25.00"
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Add product"
+          }
+        },
+        {
+          "expect": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "value": ""
+        }
+      ]
+    },
+    {
+      "label": "Delete removes rows, and an empty list says so",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Delete Mouse"
+          }
+        },
+        {
+          "expectNoText": "Mouse"
+        },
+        {
+          "expectText": "Product list (1)"
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Delete Keyboard"
+          }
+        },
+        {
+          "expectText": "No products yet."
+        }
+      ]
+    },
+    {
+      "label": "deleting the product being edited resets the form",
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Edit Mouse"
+          }
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Delete Mouse"
+          }
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Add product"
+          }
+        },
+        {
+          "expect": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "value": ""
+        }
+      ]
+    }
+  ],
 };

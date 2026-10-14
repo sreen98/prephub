@@ -57,7 +57,7 @@ const REACT_TRACKS: Omit<ChallengeTrack, 'tag'>[] = [
     id: 'react-state-basics',
     title: 'State & Rendering Basics',
     idea: 'Components that own a little state and re-render from it: the core loop of every React UI, and where re-render cost first shows up.',
-    names: ['Counter (optimized re-renders)', 'Star Rating', 'Stopwatch', 'Calculator', 'Tic-Tac-Toe', 'Button (variants + sizes)', 'Theme Switcher (dark/light)', 'Todo List (localStorage + memo)'],
+    names: ['Counter (optimized re-renders)', 'Star Rating', 'Stopwatch', 'Calculator', 'Tic-Tac-Toe', 'Button (variants + sizes)', 'Theme Switcher (dark/light)', 'Todo List (localStorage + memo)', 'Product CRUD (add, edit, delete)'],
   },
   {
     id: 'react-forms',

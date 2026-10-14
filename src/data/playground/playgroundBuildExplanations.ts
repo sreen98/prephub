@@ -2144,6 +2144,59 @@ const moveBoxes: BuildExplanation = {
   ],
 };
 
+const productCrud: BuildExplanation = {
+  kind: 'build',
+  problem: 'Product CRUD (add, edit, delete)',
+  problemStatement:
+    'Build a product list you can add to, edit and delete from, with all the data in useState. It is the most common first React round: about 30 minutes, and the interviewer is checking the basics. Controlled inputs, immutable updates with spread, map and filter, stable keys, and one form that switches between adding and editing.',
+  buildOrder: [
+    {
+      title: 'Start from data, and give every product an id',
+      excerpt: { from: 'const initialProducts = [', lines: 4 },
+      detail:
+        'Each product is { id, name, price }. The id is what Edit, Delete and the list key all use, so it must never change. A ref counter hands out new ids, because it changes nothing on screen and should not cause a render.',
+    },
+    {
+      title: 'Four pieces of state, no more',
+      excerpt: { from: 'const [products, setProducts] = useState(initialProducts);', lines: 5 },
+      detail:
+        'The list, the form values, which product is being edited (null while adding), and the error message. Anything else, such as whether the form is in edit mode or how many products there are, is worked out from these during render.',
+    },
+    {
+      title: 'Controlled inputs with one change handler',
+      excerpt: { from: 'function handleChange(e) {', lines: 4 },
+      detail:
+        'Each input\'s value comes from form, and its name attribute matches a key in form, so one handler covers every field with a computed key. Adding a field later means one more input, not one more handler.',
+    },
+    {
+      title: 'Validate, then add or update with a new array',
+      excerpt: { from: 'if (editingId === null) {', lines: 9 },
+      detail:
+        'Adding spreads the old list into a new one with the product at the end. Editing maps over the list and replaces only the matching product with a copy. Both pass an updater function, so they always start from the latest list. A blank name or a bad price returns early, before anything changes.',
+      pitfall: 'products.push(item) followed by setProducts(products) passes the same array back, so React sees no change and nothing renders.',
+    },
+    {
+      title: 'Edit fills the form; Delete filters the product out',
+      excerpt: { from: 'function startEdit(product) {', lines: 10 },
+      detail:
+        'Edit copies the product into the form and remembers its id, which flips the heading and the button to edit mode. Delete keeps every product whose id is different. If the deleted product was the one being edited, the form resets, or Save would update a product that no longer exists.',
+    },
+    {
+      title: 'Render the list with stable keys and named buttons',
+      excerpt: { from: '<li key={p.id} style={{ marginBottom: 8 }}>', lines: 8 },
+      detail:
+        'The key is the id, not the index: after a delete every index shifts, and React would match the wrong rows. Every row has buttons that say only Edit and Delete, so each gets an aria-label with the product\'s name, and the error uses role="alert" so it is read out.',
+    },
+  ],
+  graded: [
+    { point: 'All four operations work, and nothing reloads the page', why: 'This is the requirement itself: add, list, update and delete, rendered from state.' },
+    { point: 'State is never mutated', why: 'Spread to add, map to update, filter to delete. Mutating the array and setting it again is the bug this question is designed to catch.' },
+    { point: 'Keys are ids, not indexes', why: 'Interviewers often ask about this straight after a delete. Explaining what goes wrong with index keys shows you know how React matches rows.' },
+    { point: 'One form handles add and edit cleanly', why: 'An editingId that is null while adding keeps the two modes in one place, and the edge case of deleting the product being edited is handled.' },
+    { point: 'Bad input is refused with a message', why: 'An empty name or a negative price should not reach the list. A short validation message is a small touch that interviewers notice.' },
+  ],
+};
+
 export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'Form with Dynamic Fields': dynamicFields,
   'Multi-Step Form (Wizard)': multiStepForm,
@@ -2193,4 +2246,5 @@ export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'File Upload (progress + cancel)': fileUpload,
   'Dropdown (keyboard + click outside)': dropdown,
   'Move Boxes (swap with neighbour)': moveBoxes,
+  'Product CRUD (add, edit, delete)': productCrud,
 };

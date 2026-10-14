@@ -4041,6 +4041,31 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
       "Do not mutate the boxes in state; build a new array."
     ]
   },
+  "Product CRUD (add, edit, delete)": {
+    "summary": "A product manager with one form that adds and edits products, a live list, and delete buttons, all held in useState.",
+    "statement": "Build a Product Management screen. Start with two products, Keyboard ($49) and Mouse ($25). A form with Name and Price inputs adds a product to the end of the list (\"Add product\"). Each row shows the name and the price formatted as dollars, with Edit and Delete buttons. Edit fills the form with that product, and the submit button becomes \"Save changes\", which updates the row in place; Cancel goes back to adding. Delete removes the row. A blank name or a missing or negative price shows \"Enter a name and a price of 0 or more.\" and changes nothing. An empty list shows \"No products yet.\" Keep all the data in useState; nothing reloads the page.",
+    "examples": [
+      {
+        "input": "Type Monitor and 199, press Add product.",
+        "output": "Monitor: $199.00 appears at the end of the list, and the form is empty again."
+      },
+      {
+        "input": "Press Edit on Keyboard, change the price to 79, press Save changes.",
+        "output": "The Keyboard row now shows $79.00, in the same place, and the button reads Add product again."
+      },
+      {
+        "input": "Press Delete on Keyboard and on Mouse.",
+        "output": "\"No products yet.\""
+      }
+    ],
+    "constraints": [
+      "Use useState only: no server, no localStorage, no page reload.",
+      "Never mutate the products array or a product; build new ones with spread, map and filter.",
+      "Each row has a stable key (the product id), not its index.",
+      "Edit and Delete buttons are named for their product (\"Edit Keyboard\", \"Delete Mouse\"), and the error is announced (role=\"alert\").",
+      "Deleting the product being edited puts the form back into add mode."
+    ]
+  },
   "DOM Tree Height": {
     "summary": "Return the height of a node tree: how many nodes lie on its longest root-to-leaf path.",
     "statement": "Write treeHeight(node). Each node is shaped { tag, children }, where children is an array (empty for a leaf). The height is the number of nodes on the longest path from the root down to a leaf, so a single node has height 1 and an empty tree (null) has height 0. The tree is made of plain objects standing in for DOM nodes, because the playground runs your code in a Web Worker, which has no DOM. The problem has exactly the same shape as it would on real elements.",

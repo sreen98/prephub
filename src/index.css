@@ -193,6 +193,82 @@ html {
   @apply mb-0;
 }
 
+/* Callouts: `> [!FOLLOWUP]`, `> [!TRAP]` … (components/MarkdownCallout.tsx). Global, not
+   scoped to .prose-container, because Quiz and Review render the same answers. Status
+   colours are the only hues besides the tokens; each label shade is an AA pair per theme. */
+.callout {
+  @apply my-6 rounded-md border border-l-4 px-4 py-3 text-ink;
+}
+.callout p:last-child {
+  @apply mb-0;
+}
+.callout-label {
+  @apply flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide;
+  margin-bottom: 0.5rem !important;
+}
+.callout-followup {
+  @apply border-accent/30 border-l-accent bg-accent-soft;
+}
+.callout-followup .callout-label {
+  @apply text-accent;
+}
+.callout-question {
+  @apply font-semibold;
+}
+.callout-reveal {
+  @apply mt-3;
+}
+.callout-reveal > summary {
+  @apply inline-flex cursor-pointer select-none items-center rounded-md border border-accent/40 bg-surface px-3 py-1 text-sm font-medium text-accent;
+  list-style: none;
+}
+.callout-reveal > summary::-webkit-details-marker {
+  display: none;
+}
+.callout-reveal > summary:hover {
+  @apply border-accent bg-canvas;
+}
+.callout-reveal[open] > summary .when-closed,
+.callout-reveal:not([open]) > summary .when-open {
+  display: none;
+}
+.callout-answer {
+  @apply mt-3 border-t border-accent/20 pt-3;
+}
+.callout-trap {
+  @apply border-red-200 border-l-red-500 bg-red-50 dark:border-red-900 dark:bg-red-950/40;
+}
+.callout-trap .callout-label {
+  @apply text-red-700 dark:text-red-300;
+}
+.callout-key {
+  @apply border-pop/30 border-l-pop bg-pop-soft;
+}
+.callout-key .callout-label {
+  @apply text-pop-ink;
+}
+.callout-key .callout-body {
+  @apply font-medium;
+}
+.callout-note {
+  @apply border-line border-l-muted bg-canvas;
+}
+.callout-note .callout-label {
+  @apply text-muted;
+}
+.callout-tip {
+  @apply border-emerald-200 border-l-emerald-500 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40;
+}
+.callout-tip .callout-label {
+  @apply text-emerald-700 dark:text-emerald-300;
+}
+.callout-warning {
+  @apply border-amber-200 border-l-amber-500 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40;
+}
+.callout-warning .callout-label {
+  @apply text-amber-800 dark:text-amber-300;
+}
+
 .prose-container hr {
   @apply my-10 border-line;
 }

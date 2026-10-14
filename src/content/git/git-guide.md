@@ -236,7 +236,8 @@ git reflog                 # Find the commit hash
 git reset --hard HEAD@{1}  # Restore to before the reset
 ```
 
-> **Important**: Reflog entries expire after 90 days (30 days for unreachable commits). It's local only — not shared with remotes.
+> [!NOTE]
+> Reflog entries expire after 90 days (30 days for unreachable commits). It's local only — not shared with remotes.
 
 ### 2.5 Packfiles
 
@@ -400,7 +401,8 @@ git merge -X theirs feature  # Auto-resolve conflicts using theirs
 git merge -X patience feature # Use patience diff algorithm
 ```
 
-> **Note**: `-s ours` discards the other branch's changes entirely. `-X ours` only uses "ours" for conflicting hunks and keeps non-conflicting changes from both sides.
+> [!TRAP]
+> `-s ours` discards the other branch's changes entirely. `-X ours` only uses "ours" for conflicting hunks and keeps non-conflicting changes from both sides.
 
 ---
 
@@ -797,7 +799,8 @@ git commit --amend --no-edit    # Keep the same message
 git commit --amend --author="New Author <new@email.com>"
 ```
 
-> **Warning**: Amending changes the commit hash. Don't amend commits that have been pushed to a shared branch.
+> [!WARNING]
+> Amending changes the commit hash. Don't amend commits that have been pushed to a shared branch.
 
 ### 6.6 git clean
 
@@ -1353,7 +1356,8 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-> **Tip**: Use tools like **Husky** (Node.js) or **pre-commit** (Python) to manage hooks in a team-friendly way, since `.git/hooks/` is not tracked by Git.
+> [!TIP]
+> Use tools like **Husky** (Node.js) or **pre-commit** (Python) to manage hooks in a team-friendly way, since `.git/hooks/` is not tracked by Git.
 
 ### 11.6 Sparse Checkout
 
@@ -2354,7 +2358,8 @@ git reflog show feature-branch
 git cherry-pick e4f5g6h
 ```
 
-> **Important**: Reflog entries expire (90 days for reachable, 30 days for unreachable). Running `git gc --prune=now` will permanently delete unreachable objects. In practice, you usually have plenty of time to recover.
+> [!WARNING]
+> Reflog entries expire (90 days for reachable, 30 days for unreachable). Running `git gc --prune=now` will permanently delete unreachable objects. In practice, you usually have plenty of time to recover.
 
 ---
 

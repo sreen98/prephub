@@ -965,7 +965,12 @@ Node can execute `.ts` files directly. Type stripping arrived behind `--experime
 node app.ts          # just works on Node 24+
 ```
 
-The critical thing to understand — and the most common interview follow-up — is that this **strips types, it does not check them.** Node replaces type annotations with whitespace, one file at a time, with no type information and no cross-file view. There is no error if your types are wrong; the annotations are simply gone.
+> [!FOLLOWUP]
+> So Node 24 type-checks your TypeScript now?
+>
+> No. It **strips types, it does not check them.** Wrong types run without any error.
+
+Node replaces type annotations with whitespace, one file at a time, with no type information and no cross-file view. There is no error if your types are wrong; the annotations are simply gone.
 
 That has two consequences:
 

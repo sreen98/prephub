@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { slugify, getTextContent } from '../../data';
 import { cn } from '../../lib/cn';
 import MermaidBlock from '../../components/MermaidBlock';
+import { CalloutBlockquote } from '../../components/MarkdownCallout';
 import PreBlock from './PreBlock';
 import LiveCssBlock from './LiveCssBlock';
 import { Link2, Bookmark, BookmarkCheck } from 'lucide-react';
@@ -94,6 +95,10 @@ export function buildMarkdownComponents(opts: MarkdownComponentOptions): Compone
         return <code className={className} {...props}>{children}</code>;
       }
       return <code className="inline-code" {...props}>{children}</code>;
+    },
+    blockquote({ children }) {
+      // `> [!FOLLOWUP]`, `> [!TRAP]` … render as callout cards; other quotes are unchanged.
+      return <CalloutBlockquote>{children}</CalloutBlockquote>;
     },
     table({ children }) {
       // Wide tables scroll inside their own container so the page never does.

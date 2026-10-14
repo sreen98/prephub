@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Timer, Play, SkipForward, ThumbsUp, ThumbsDown, RotateCcw, Trophy } from 'lucide-react';
 import { menuStructure, getAllQuestions, type Question, type MenuSection } from '../data';
 import { useStudyStats } from '../hooks/useStudyStats';
+import { calloutComponents } from '../components/calloutComponents';
 
 interface InterviewConfig {
   questionCount: number;
@@ -233,7 +234,7 @@ export default function InterviewSimulator() {
             )}
           </div>
           <div className="quiz-markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{current.question}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>{current.question}</ReactMarkdown>
           </div>
         </div>
 
@@ -246,7 +247,7 @@ export default function InterviewSimulator() {
           >
             <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3 block">Answer</span>
             <div className="quiz-markdown overflow-auto max-h-[40vh]">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{current.answer}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>{current.answer}</ReactMarkdown>
             </div>
           </motion.div>
         )}

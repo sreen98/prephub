@@ -962,7 +962,10 @@ Grade in layers, preferring cheaper and more deterministic methods:
 
 Then: **offline evals run in CI on every prompt, model or retrieval change** — a prompt edit is a deploy and must pass the gate — and **online metrics** in production: thumbs down rate, regeneration rate (a strong implicit negative), abandonment, escalation to human, cost per resolved request.
 
-The judge caveats are the usual follow-up: judges favour longer answers and their own style, pairwise comparison is much more reliable than absolute scoring, position bias needs randomising, and you must never judge with the same model and prompt that generated the output.
+> [!FOLLOWUP]
+> What can go wrong when you use an LLM as the judge?
+>
+> Judges favour longer answers and their own style, pairwise comparison is much more reliable than absolute scoring, position bias needs randomising, and you must never judge with the same model and prompt that generated the output.
 
 ---
 

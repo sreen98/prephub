@@ -65,7 +65,8 @@ The browser ALLOWS (even without CORS):
   ✅ <video> / <audio>        → loading media
 ```
 
-> **Key insight:** SOP is enforced by the **browser**, not the server. For simple requests the server receives and processes the request, and SOP only stops the browser from exposing the response to JavaScript; for preflighted requests, a failed preflight stops the real request from being sent at all.
+> [!KEY]
+> SOP is enforced by the **browser**, not the server. For simple requests the server receives and processes the request, and SOP only stops the browser from exposing the response to JavaScript; for preflighted requests, a failed preflight stops the real request from being sent at all.
 
 ### Why SOP Exists — The Threat Model
 

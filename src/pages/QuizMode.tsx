@@ -13,6 +13,7 @@ import { useSpacedRepetition } from '../hooks/useSpacedRepetition';
 import { useStudyStats } from '../hooks/useStudyStats';
 import { useBookmarks } from '../hooks/useBookmarks';
 import QuizToolbar from '../features/quiz/QuizToolbar';
+import { calloutComponents } from '../components/calloutComponents';
 
 interface GuideOption {
   value: string;
@@ -256,7 +257,7 @@ export default function QuizMode() {
                       )}
                     </div>
                     <div className="flex-1 quiz-markdown">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>
                         {currentQuestion.question}
                       </ReactMarkdown>
                     </div>
@@ -273,7 +274,7 @@ export default function QuizMode() {
                       </span>
                     </div>
                     <div className="flex-1 quiz-markdown overflow-auto max-h-[50vh]">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>
                         {currentQuestion.answer}
                       </ReactMarkdown>
                     </div>

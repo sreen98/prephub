@@ -60,7 +60,8 @@ Companies use them to evaluate:
 | Growth mindset | Learning from failure, seeking feedback |
 | Teamwork | Elevating others, resolving conflict constructively |
 
-> **Bottom line:** Technical skills get you the interview. Behavioral skills get you the offer.
+> [!KEY]
+> Technical skills get you the interview. Behavioral skills get you the offer.
 
 ---
 

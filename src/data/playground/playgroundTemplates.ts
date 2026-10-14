@@ -12880,6 +12880,139 @@ render(<App />);
 //   - Only the two moved boxes can clash, so checking just them is O(n)
 //     instead of comparing every pair.`,
       },
+      {
+        name: 'Product CRUD (add, edit, delete)',
+        jsx: true,
+        code: `// PRODUCT CRUD. Add, list, edit and delete products. Everything lives in
+// useState, so every change re-renders the list without a page reload.
+// One form does both jobs: editingId says whether it adds or saves.
+
+const initialProducts = [
+  { id: 1, name: "Keyboard", price: 49 },
+  { id: 2, name: "Mouse", price: 25 },
+];
+
+const emptyForm = { name: "", price: "" };
+
+const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+function App() {
+  const [products, setProducts] = useState(initialProducts);
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState(null);
+  const [error, setError] = useState("");
+  const nextId = useRef(3);
+
+  // One handler for every input: the input's name says which field changed.
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  }
+
+  function resetForm() {
+    setForm(emptyForm);
+    setEditingId(null);
+    setError("");
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const name = form.name.trim();
+    const price = Number(form.price);
+    if (!name || form.price === "" || Number.isNaN(price) || price < 0) {
+      setError("Enter a name and a price of 0 or more.");
+      return;
+    }
+
+    if (editingId === null) {
+      const id = nextId.current++;
+      setProducts((list) => [...list, { id, name, price }]);
+    } else {
+      setProducts((list) =>
+        list.map((p) => (p.id === editingId ? { ...p, name, price } : p))
+      );
+    }
+    resetForm();
+  }
+
+  function startEdit(product) {
+    setEditingId(product.id);
+    setForm({ name: product.name, price: String(product.price) });
+    setError("");
+  }
+
+  function handleDelete(id) {
+    setProducts((list) => list.filter((p) => p.id !== id));
+    if (id === editingId) resetForm();
+  }
+
+  const isEditing = editingId !== null;
+
+  return (
+    <main style={{ padding: 16, fontFamily: "system-ui", color: "#0f172a", maxWidth: 480 }}>
+      <h1>Products</h1>
+
+      <form onSubmit={handleSubmit}>
+        <h2>{isEditing ? "Edit product" : "Add a product"}</h2>
+        <p>
+          <label>
+            Name <input name="name" value={form.name} onChange={handleChange} />
+          </label>
+        </p>
+        <p>
+          <label>
+            Price <input name="price" type="number" step="any" value={form.price} onChange={handleChange} />
+          </label>
+        </p>
+        <button type="submit">{isEditing ? "Save changes" : "Add product"}</button>
+        {isEditing && (
+          <button type="button" onClick={resetForm} style={{ marginLeft: 8 }}>
+            Cancel
+          </button>
+        )}
+        {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
+      </form>
+
+      <h2>Product list ({products.length})</h2>
+      {products.length === 0 ? (
+        <p>No products yet.</p>
+      ) : (
+        <ul>
+          {products.map((p) => (
+            <li key={p.id} style={{ marginBottom: 8 }}>
+              {p.name}: {money.format(p.price)}{" "}
+              <button aria-label={\`Edit \${p.name}\`} onClick={() => startEdit(p)}>
+                Edit
+              </button>{" "}
+              <button aria-label={\`Delete \${p.name}\`} onClick={() => handleDelete(p.id)}>
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  );
+}
+
+render(<App />);
+
+// TRY IT
+//   - Add "Monitor" at 199: it appears at the end of the list.
+//   - Press Add product with an empty name: the error shows, nothing is added.
+//   - Edit Keyboard, change the price, Save changes: the row updates in place.
+//   - Edit Mouse, then delete Mouse: the form goes back to adding.
+//
+// FOLLOW-UPS
+//   - Why a key of p.id, not the index? Deleting a row shifts every index, so
+//     React would reuse the wrong row's DOM and state.
+//   - Why the updater form, setProducts((list) => ...)? It always starts from
+//     the latest list, even if two updates land in the same render.
+//   - Backed by an API: call it, then update state from the response, or
+//     update first and roll back on failure (optimistic UI).
+//   - Bigger forms: useReducer for the state, or a form library.
+//   - Delete confirmation: an undo toast is kinder than a confirm dialog.`,
+      },
     ],
   },
 ];
