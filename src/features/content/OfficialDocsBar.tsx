@@ -16,9 +16,9 @@ export const OfficialDocsBar = ({ filePath }: { filePath: string }) => {
   if (!guide?.officialDocs?.length) return null;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 mb-6 rounded-md bg-accent-soft border border-accent/30 text-sm flex-wrap">
+    <div className="flex items-center gap-x-3 gap-y-1 mb-8 text-sm flex-wrap">
       <div className="flex items-center gap-2 text-muted shrink-0">
-        <BookOpen size={15} className="text-accent" />
+        <BookOpen size={14} aria-hidden="true" />
         <span>Official docs:</span>
       </div>
       {guide.officialDocs.map((doc, i) => (

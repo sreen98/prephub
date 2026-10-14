@@ -350,13 +350,16 @@ Tailwind with custom prose styles in `index.css`. No `@tailwindcss/typography`. 
 always dark (`#22272e`), and the Code Playground is always dark like an IDE. When raising a base
 colour, check that its `:hover` still differs. There is no `Github` icon in this lucide version,
 so use the inline `GithubIcon`.
-- **Design tokens** (v1.7.13, "Focused & vivid"): `canvas` (soft grey page), `surface` (white
-  cards), `ink`, `muted`, `line`, `accent` (indigo-violet: actions, links, focus, plus
-  `-strong`/`-soft`/`-contrast`) and `pop` (coral: progress, streaks, highlights, plus
-  `-ink`/`-soft`) are RGB triples on `:root` and `.dark` in `index.css`, mapped in
-  `tailwind.config.js`. UI code uses tokens (`bg-surface text-ink`), not raw slate/indigo, so a
-  palette change is one edit. **Coral is a fill: put ink on it, never white** (2.7:1). Status
-  colours (emerald/amber/red) and the per-category tags in `HomePage` are the only other hues.
+- **Design tokens** (v1.7.30, "Study notebook"): `canvas` (warm paper page), `surface`
+  (near-white cards), `ink` (warm near-black), `muted`, `line`, `accent` (deep teal, the ONLY
+  accent: actions, links, focus, plus `-strong`/`-soft`/`-contrast`) and `pop` (highlighter amber:
+  progress, streaks, "say this" callouts, plus `-ink`/`-soft`) are RGB triples on `:root` and
+  `.dark` in `index.css`, mapped in `tailwind.config.js`. UI code uses tokens (`bg-surface text-ink`),
+  not raw slate/indigo, so a palette change is one edit. **`pop` is a fill: never put text on it.**
+  No purple, no rainbow category tags. Status colours (emerald/amber/red) are the only other hues.
+- **Type:** headings use `font-display`, a serif system stack (Iowan/Charter on Apple,
+  Sitka/Cambria on Windows), body text the system sans. Hierarchy comes from size, weight and
+  space, not boxes: prefer hairline dividers and plain lists to grids of identical cards.
   No gradients, glow shadows or `backdrop-blur`. The playground and query playground surfaces
   stay always-dark and use fixed teal/slate shades, not tokens: a token's light-mode value
   would be dark-on-dark there.
