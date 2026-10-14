@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, X, PanelLeftOpen, Wand2, Braces, WrapText } from 'lucide-react';
-import Editor from 'react-simple-code-editor';
-import { highlightCode, decorateBrackets } from '../../lib/editorHighlight';
+import { ArrowLeft, X, PanelLeftOpen } from 'lucide-react';
+import SimpleCodeEditor from './SimpleCodeEditor';
+const MonacoCodeEditor = lazy(() => import('./MonacoCodeEditor'));
+import { canUseMonaco } from '../../lib/monacoSupport';
 import { formatCode } from '../../lib/playgroundFormat';
 import { buildReactScope, scopeNames } from '../../lib/playgroundScope';
 import {
@@ -36,6 +37,8 @@ import ExplanationModal from './ExplanationModal';
 import TemplateModal from './TemplateModal';
 import ChallengeBrowser from './ChallengeBrowser';
 import ChallengeProblemPanel from './ChallengeProblemPanel';
+import EditorToolbar from './EditorToolbar';
+import { usePreviewTab, useRemountOnTabMove } from './usePreviewTab';
 import PlaygroundActions from './PlaygroundActions';
 import ResumeBanner from './ResumeBanner';
 import NotesPanel from './NotesPanel';
@@ -64,6 +67,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
   const [initialState] = useState(() => resolveInitialPlaygroundState(flavor));
   const initialNeedsCode = initialState.needsCode;
   const [code, setCode] = useState<string>(initialState.code);
+  const [monacoEnabled] = useState(canUseMonaco);   // decided once: Monaco on desktop, the textarea editor elsewhere
   const [output, setOutput] = useState<OutputEntry[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -90,7 +94,12 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
   const [currentLang, setCurrentLang] = useState<TemplateLang>(initialState.lang);
   const previewRef = useRef<HTMLDivElement>(null);
   const reactRootRef = useRef<{ render: (n: React.ReactNode) => void; unmount: () => void } | null>(null);
-  const preview = usePreviewMount(previewRef, reactRootRef);
+  const previewTab = usePreviewTab();
+  const { root: tabRoot } = previewTab;
+  const previewTarget = useCallback(() => tabRoot() ?? previewRef.current, [tabRoot]);
+  const preview = usePreviewMount(previewTarget, reactRootRef);
+  useRemountOnTabMove(previewTab.isOpen, preview.remount);   // the live preview follows the tab
+  const [problemFor, setProblemFor] = useState<string | null>(null);   // the challenge whose statement dialog is open
   const { makeRenderFn, setProgram } = preview;
   const drawerSearchRef = useRef<HTMLInputElement>(null);
   const logsRef = useRef<OutputEntry[]>([]);
@@ -98,7 +107,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
   const splitContainerRef = useRef<HTMLDivElement>(null);
   // Persisted editor preferences (split width, wrap, bracket auto-close).
   const { editorPct, setEditorPct, wrapOn, toggleWrap,
-          bracketAutoClose, toggleBracketAutoClose } = useEditorPrefs();
+          bracketAutoClose, toggleBracketAutoClose, outputHidden, toggleOutputHidden, headerHidden, toggleHeaderHidden } = useEditorPrefs();
   const [isResizing, setIsResizing] = useState<boolean>(false);
   // Caret position in the editor textarea — drives matching-bracket highlight.
   // -1 = editor not focused (no match shown).
@@ -303,7 +312,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
     setOutput([...logsRef.current]);
   }, []);
   const reactCheck = useReactChallengeCheck({
-    previewRoot: () => previewRef.current, hasElement: preview.hasElement, remount: preview.remount,
+    previewRoot: previewTarget, hasElement: preview.hasElement, remount: preview.remount,
     onLines: appendLines, logCount: () => logsRef.current.length, onAllPassed: onChallengeSolved,
   });
 
@@ -512,6 +521,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
       });
     }
     setNotes(saved?.notes ?? '');
+    setProblemFor(allTemplates.find((t) => t.name === template.name)?.kind === 'challenge' && !opened?.restored ? template.name : null);
     // Decide language: explicit lang wins; legacy jsx flag → 'jsx'; else 'js'.
     setCurrentLang(template.lang ?? (template.jsx ? 'jsx' : 'js'));
     setOutput([]);
@@ -789,6 +799,8 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
     if (t) handleTemplate(t);
   }, [handleTemplate]);
 
+  const simpleEditor = <SimpleCodeEditor code={code} onChange={setCode} onKeyDown={handleEditorKeyDown} hljsLang={hljsLang} caretPos={caretPos} />;
+
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen relative">
       {/* Template picker — see features/playground/TemplateModal. */}
@@ -818,21 +830,21 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
       />
 
       {/* Header -- always dark like an IDE */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-[#2d333b] bg-[#1c2028] shrink-0 text-slate-200">
+      <div className={`${headerHidden ? 'hidden' : 'flex'} flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-[#262421] bg-[#181715] shrink-0 text-stone-200`}>
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => window.dispatchEvent(new Event('prephub:show-sidebar'))}
-            className="text-slate-400 hover:text-white transition-colors shrink-0 hidden md:flex p-1.5 rounded-lg hover:bg-[#2d333b]"
+            className="text-stone-400 hover:text-white transition-colors shrink-0 hidden md:flex p-1.5 rounded-lg hover:bg-[#262421]"
             title="Show sidebar"
           >
             <PanelLeftOpen size={16} />
           </button>
-          <Link to="/" className="text-slate-400 hover:text-white transition-colors shrink-0" title="Back to home">
+          <Link to="/" className="text-stone-400 hover:text-white transition-colors shrink-0" title="Back to home">
             <ArrowLeft size={18} />
           </Link>
           <PlaygroundFlavorSwitch flavor={flavor} />
           {selectedName && (
-            <span className="text-sm text-slate-500 font-normal truncate hidden sm:inline">
+            <span className="text-sm text-stone-500 font-normal truncate hidden sm:inline">
               · {selectedName}
             </span>
           )}
@@ -866,86 +878,17 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
         {/* Editor Panel — width controlled by --editor-pct on md+, full width on mobile */}
         <div
           style={{ ['--editor-pct' as string]: `${editorPct}%` }}
-          className="flex flex-col min-h-0 border-b md:border-b-0 border-[#2d333b] w-full md:w-[var(--editor-pct)] flex-1 md:flex-none"
+          className={`flex flex-col min-h-0 border-b md:border-b-0 border-[#262421] w-full flex-1 ${outputHidden ? '' : 'md:w-[var(--editor-pct)] md:flex-none'}`}
         >
-          {currentTemplate?.kind === 'challenge' && (
-            <ChallengeProblemPanel name={currentTemplate.name} isReact={currentTemplate.tag === 'React'}
-              active={challengeTrack.active} onGo={openChallengeByName} />
-          )}
-          <div className="px-4 py-2 h-10 text-xs font-medium text-slate-500 border-b border-[#2d333b] bg-[#22272e] shrink-0 flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2">
-              {langLabel}
-              {isLoadingTemplate && (
-                <span className="inline-flex items-center gap-1 text-slate-400">
-                  <Loader2 size={11} className="animate-spin" />
-                  loading template…
-                </span>
-              )}
-            </span>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={toggleBracketAutoClose}
-                className={
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
-                  (bracketAutoClose
-                    ? 'border-emerald-700/50 bg-emerald-900/20 text-emerald-400 hover:bg-emerald-900/30'
-                    : 'border-[#3d444d] text-slate-500 hover:bg-[#2d333b] hover:text-slate-300')
-                }
-                title={bracketAutoClose ? 'Bracket auto-close: ON (click to disable)' : 'Bracket auto-close: OFF (click to enable)'}
-              >
-                <Braces size={11} />
-                {bracketAutoClose ? 'Auto-close on' : 'Auto-close off'}
-              </button>
-              <button
-                onClick={toggleWrap}
-                className={
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
-                  (wrapOn
-                    ? 'border-teal-600/50 bg-teal-900/20 text-teal-300 hover:bg-teal-900/30'
-                    : 'border-[#3d444d] text-slate-500 hover:bg-[#2d333b] hover:text-slate-300')
-                }
-                title={wrapOn ? 'Word wrap: ON (long lines break visually)' : 'Word wrap: OFF (long lines scroll horizontally)'}
-              >
-                <WrapText size={11} />
-                {wrapOn ? 'Wrap on' : 'Wrap off'}
-              </button>
-              <button
-                onClick={handleFormat}
-                disabled={isFormatting}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white transition-colors disabled:opacity-60 whitespace-nowrap"
-                title="Format with Prettier (⌘⇧F)"
-              >
-                {isFormatting
-                  ? <Loader2 size={11} className="animate-spin" />
-                  : <Wand2 size={11} />}
-                Format
-              </button>
-              <span className="text-slate-600 whitespace-nowrap hidden xl:inline">
-                {code.split('\n').length} lines
-              </span>
-            </div>
-          </div>
-          <div className={`flex-1 overflow-auto bg-[#1e1e2e] min-h-[200px] playground-editor-wrap${wrapOn ? ' wrap-on' : ''}`}>
-            <Editor
-              value={code}
-              onValueChange={setCode}
-              onKeyDown={handleEditorKeyDown}
-              highlight={(c) => decorateBrackets(highlightCode(c, hljsLang), c, caretPos)}
-              padding={16}
-              tabSize={2}
-              insertSpaces={true}
-              textareaId="playground-editor"
-              textareaClassName="playground-editor-textarea"
-              preClassName="playground-editor-pre"
-              style={{
-                fontFamily: '"Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                fontSize: 14,
-                lineHeight: 1.6,
-                color: '#cdd6f4',
-                caretColor: '#fff',
-                minHeight: '100%',
-              }}
-            />
+          <EditorToolbar langLabel={langLabel} isLoadingTemplate={isLoadingTemplate} onProblem={currentTemplate?.kind === 'challenge' ? () => setProblemFor(currentTemplate.name) : undefined}
+            outputHidden={outputHidden} onToggleOutput={toggleOutputHidden} headerHidden={headerHidden} onToggleHeader={toggleHeaderHidden} bracketAutoClose={bracketAutoClose} onToggleAutoClose={toggleBracketAutoClose}
+            wrapOn={wrapOn} onToggleWrap={toggleWrap} isFormatting={isFormatting} onFormat={() => void handleFormat()} lineCount={code.split('\n').length} onRun={() => void runCode()} isRunning={isRunning} />
+          <div className={`flex-1 overflow-auto bg-[#121110] min-h-[200px] playground-editor-wrap${wrapOn ? ' wrap-on' : ''}`}>
+            {monacoEnabled ? (
+              <Suspense fallback={simpleEditor}>
+                <MonacoCodeEditor value={code} onChange={setCode} lang={currentLang} wordWrap={wrapOn} autoClose={bracketAutoClose} onRun={() => void runCode()} onFormat={() => void handleFormat()} fallback={simpleEditor} />
+              </Suspense>
+            ) : simpleEditor}
           </div>
 
           {selectedName && (
@@ -961,18 +904,23 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
           aria-orientation="vertical"
           aria-label="Resize editor and output panels"
           className={
-            'hidden md:flex items-center justify-center shrink-0 w-1.5 cursor-col-resize transition-colors group ' +
-            (isResizing ? 'bg-teal-800' : 'bg-[#2d333b] hover:bg-teal-500/70')
+            (outputHidden ? 'hidden ' : 'hidden md:flex ') + 'items-center justify-center shrink-0 w-1.5 cursor-col-resize transition-colors group ' +
+            (isResizing ? 'bg-teal-800' : 'bg-[#262421] hover:bg-teal-500/70')
           }
         >
-          <div className="w-0.5 h-8 rounded-full bg-slate-600 group-hover:bg-white transition-colors" />
+          <div className="w-0.5 h-8 rounded-full bg-stone-600 group-hover:bg-white transition-colors" />
         </div>
 
         {/* Output Panel — extracted + memoized so editor keystrokes don't re-render it */}
-        <OutputPanel output={output} hasPreview={hasPreview} previewRef={previewRef} />
+        <div className={outputHidden ? 'hidden' : 'contents'}>
+          <OutputPanel output={output} hasPreview={hasPreview} previewRef={previewRef} tabOpen={previewTab.isOpen} onOpenTab={() => { if (!previewTab.openTab()) setToastMsg('The browser blocked the new tab. Allow pop-ups for this site and try again.'); }} onCloseTab={previewTab.closeTab} />
+        </div>
 
       </div>
 
+      {currentTemplate?.kind === 'challenge' && (
+        <ChallengeProblemPanel name={currentTemplate.name} isReact={currentTemplate.tag === 'React'} active={challengeTrack.active} onGo={openChallengeByName} open={problemFor === currentTemplate.name} onClose={() => setProblemFor(null)} />
+      )}
       {/* Step-by-step explanation modal — opens on Explain button click */}
       <ExplanationModal
         open={explainOpen}

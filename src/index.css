@@ -7,24 +7,25 @@
 /*
  * Design tokens, as RGB triples so Tailwind's `/opacity` modifiers work
  * (tailwind.config.js maps them to bg-canvas, text-ink, text-accent, bg-pop…).
- * "Focused & vivid": soft grey page, white cards, indigo-violet for actions and
- * links, coral for progress and streaks. Every text pairing is WCAG AA or better
- * in both themes (lowest: pop-ink on pop-soft, 4.7:1). Coral itself is a FILL
- * colour only: put ink on it, never white (white on coral is 2.7:1).
+ * "Study notebook": warm paper page, near-white cards, warm near-black ink, ONE
+ * accent (deep teal: links, actions, focus) and a highlighter amber for progress,
+ * streaks and "say this" lines. Every text pairing is WCAG AA or better in both
+ * themes (lowest: accent on accent-soft, 4.8:1). `pop` is a FILL colour only:
+ * never put text on it.
  */
 :root {
-  --canvas: 245 246 250;        /* page background */
-  --surface: 255 255 255;       /* cards and panels */
-  --ink: 17 24 39;              /* body text and headings */
-  --muted: 75 85 99;            /* secondary text */
-  --line: 229 231 235;          /* borders and dividers */
-  --accent: 79 70 229;          /* links, the primary action, focus */
-  --accent-strong: 67 56 202;   /* accent on hover */
-  --accent-soft: 238 242 255;   /* tinted background for an active item */
+  --canvas: 247 245 240;        /* page background (warm paper) */
+  --surface: 255 254 251;       /* cards and panels */
+  --ink: 28 25 23;              /* body text and headings */
+  --muted: 87 83 78;            /* secondary text */
+  --line: 231 226 216;          /* borders and dividers */
+  --accent: 15 118 110;         /* links, the primary action, focus */
+  --accent-strong: 17 94 89;    /* accent on hover */
+  --accent-soft: 230 242 239;   /* tinted background for an active item */
   --accent-contrast: 255 255 255; /* text on a solid accent fill */
-  --pop: 249 115 98;            /* coral: progress bars, streaks, highlights (fill only) */
-  --pop-ink: 194 65 45;         /* coral as text */
-  --pop-soft: 255 241 238;      /* coral tint */
+  --pop: 245 184 61;            /* highlighter amber: progress bars, streaks (fill only) */
+  --pop-ink: 146 64 14;         /* amber as text */
+  --pop-soft: 253 241 214;      /* amber tint */
 
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
@@ -34,19 +35,20 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Dark: a true near-black page (not charcoal grey), cards one step lighter, warm text. */
 .dark {
-  --canvas: 15 18 32;
-  --surface: 23 27 46;
-  --ink: 230 232 242;
-  --muted: 163 169 191;
-  --line: 42 48 71;
-  --accent: 165 163 255;
-  --accent-strong: 196 194 255;
-  --accent-soft: 37 35 77;
-  --accent-contrast: 15 18 32;
-  --pop: 255 138 120;
-  --pop-ink: 255 155 138;
-  --pop-soft: 58 35 40;
+  --canvas: 10 10 9;
+  --surface: 20 19 17;
+  --ink: 240 236 229;
+  --muted: 166 160 151;
+  --line: 44 41 37;
+  --accent: 94 196 182;
+  --accent-strong: 138 219 208;
+  --accent-soft: 16 44 41;
+  --accent-contrast: 10 10 9;
+  --pop: 242 181 68;
+  --pop-ink: 246 199 107;
+  --pop-soft: 46 36 14;
 }
 
 /* Smooth anchor scrolling only for people who have not asked for less motion. */
@@ -127,12 +129,12 @@ html {
 /* ==================== Content / Prose ==================== */
 
 .prose-container {
-  @apply text-ink;
-  line-height: 1.8;
+  @apply text-ink text-[1.0625rem];
+  line-height: 1.75;
 }
 
 .prose-container h1 {
-  @apply text-3xl sm:text-4xl font-extrabold text-ink mb-6 mt-12 pb-4 border-b border-line;
+  @apply font-display text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.1] text-ink mb-6 mt-12 pb-5 border-b border-line;
 }
 
 .prose-container h1:first-child {
@@ -140,11 +142,24 @@ html {
 }
 
 .prose-container h2 {
-  @apply text-2xl sm:text-3xl font-bold text-ink mb-4 mt-10;
+  @apply font-display text-[1.75rem] sm:text-[2.1rem] font-semibold tracking-tight leading-tight text-ink mb-4 mt-10 pt-5;
+  position: relative;
+}
+
+/* A short accent bar above each section heading: the page's chapter marks. */
+.prose-container h2::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2.5rem;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(var(--accent));
 }
 
 .prose-container h3 {
-  @apply text-xl sm:text-2xl font-bold text-ink mb-3 mt-8;
+  @apply font-display text-xl sm:text-[1.6rem] font-semibold leading-snug text-ink mb-3 mt-8;
 }
 
 .prose-container h4 {
@@ -269,8 +284,18 @@ html {
   @apply text-amber-800 dark:text-amber-300;
 }
 
+/* Section and question breaks: a thin hairline with modest space, no ornament. A rule
+   next to a heading adds nothing (the heading already starts something new), and two rules
+   in a row (the TOC the page strips sat between them) would be an empty gap. */
 .prose-container hr {
-  @apply my-10 border-line;
+  @apply my-6 border-0 border-t border-line;
+}
+.prose-container hr + hr,
+.prose-container hr:has(+ h2),
+.prose-container hr:has(+ h3),
+.prose-container h2 + hr,
+.prose-container h3 + hr {
+  display: none;
 }
 
 .prose-container strong {
@@ -308,8 +333,14 @@ html {
 /* ==================== Code Blocks ==================== */
 
 .code-block {
-  @apply my-6 rounded-md overflow-hidden border border-line shadow-sm;
+  @apply my-6 rounded-lg overflow-hidden border border-line shadow-sm;
   background: #22272e;
+}
+
+/* On the near-black dark page the dimmed-grey block read as a grey slab: use
+   github-dark-dimmed's own darker canvas there. */
+.dark .code-block {
+  background: #1c2128;
 }
 
 .code-block-header {
@@ -448,11 +479,11 @@ html {
 }
 
 .prose-container thead {
-  @apply bg-canvas;
+  @apply bg-accent-soft/60;
 }
 
 .prose-container th {
-  @apply px-4 py-3 text-left font-semibold text-ink border-b-2 border-line;
+  @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink border-b border-line;
 }
 
 .prose-container td {

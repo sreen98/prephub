@@ -89,16 +89,11 @@ Two more structures you will hear named:
 
 **MySQL's default isolation level is `REPEATABLE READ`** — different from Postgres's `READ COMMITTED`, and a common source of cross-database confusion.
 
-The three anomalies in the table, in one line each: a **dirty read** sees another transaction's uncommitted change; a **non-repeatable read** reads the same row twice and gets different values because someone committed in between; a **phantom** runs the same range query twice (`WHERE age > 30`) and gets a new row the second time because someone inserted one.
+The four levels and the anomalies each one prevents (dirty read, non-repeatable read, phantom, write skew) are explained once in the [SQL guide's isolation section](/backend/sql#9-isolation-levels-and-the-anomalies). What is specific to InnoDB:
 
-| Level | Dirty read | Non-repeatable read | Phantom |
-|---|---|---|---|
-| READ UNCOMMITTED | possible | possible | possible |
-| READ COMMITTED | no | possible | possible |
-| **REPEATABLE READ** (default) | no | no | consistent reads: snapshot; locking reads: gap/next-key locks |
-| SERIALIZABLE | no | no | no |
-
-Unlike Postgres, MySQL genuinely implements `READ UNCOMMITTED`.
+- At the default **`REPEATABLE READ`**, plain `SELECT`s read a snapshot, and locking reads and writes block phantoms with **gap/next-key locks** rather than with the snapshot.
+- Unlike Postgres, MySQL genuinely implements `READ UNCOMMITTED`.
+- `SERIALIZABLE` turns plain `SELECT`s into shared-lock reads when autocommit is off, so conflicts show up as lock waits and deadlocks, not as Postgres-style serialization failures.
 
 Under `REPEATABLE READ`, a **consistent read** takes a snapshot at the first read of the transaction and reuses it, so plain `SELECT`s are repeatable. The behaviour that surprises everyone:
 
@@ -169,6 +164,8 @@ ALTER TABLE t ALTER INDEX idx_old INVISIBLE;   -- watch, then DROP or make VISIB
 ---
 
 ## 7. Reading EXPLAIN in MySQL
+
+`EXPLAIN` shows the *query plan*: how MySQL intends to run a statement, which index it will use for each table and in what order it joins them. It is the first thing to run on a slow query, because most slowness is a missing or unused index.
 
 ```sql
 EXPLAIN SELECT …;                      -- estimated plan
@@ -283,21 +280,15 @@ CTEs, window functions and `SKIP LOCKED` are the ones most likely to change how 
 
 ## 13. MySQL vs PostgreSQL
 
-| Aspect | MySQL (InnoDB) | PostgreSQL |
-|---|---|---|
-| Connections | thread per connection — cheap | process per connection — pooler required |
-| Row storage | **clustered by primary key** | heap |
-| Secondary index | index → PK → clustered index | index → heap tuple |
-| MVCC | undo log + purge thread | versions in the heap + `VACUUM` |
-| Default isolation | **Repeatable Read** | **Read Committed** |
-| Phantom prevention | next-key / gap locks | snapshot isolation |
-| Replication | logical, binlog-based; flexible | physical WAL, byte-exact; also logical |
-| Built-in HA | Group Replication / InnoDB Cluster | needs Patroni/repmgr |
-| Transactional DDL | no (atomic, not rollback-able) | **yes** |
-| Extensions | limited | first-class (`pgvector`, PostGIS) |
-| Strings | case-insensitive collation by default | case-sensitive |
+The full side-by-side table is in the [SQL guide's Postgres vs MySQL section](/backend/sql#14-postgres-vs-mysql). The three rows that change how you design for MySQL:
 
-Choose **MySQL** for high-throughput primary-key-centric OLTP, cheap connection counts, and its mature replication and HA tooling. Choose **Postgres** for complex queries, a rich type system, transactional DDL and extensions. Both are excellent; the differences that actually change your design are the clustered index, the connection model, and the default isolation level.
+| Difference | What it means on MySQL (InnoDB) |
+|---|---|
+| Rows are **clustered by primary key** | PK choice drives insert locality and every secondary-index lookup (§2) |
+| **Thread per connection** | thousands of connections are cheap; Postgres needs a pooler |
+| Default isolation is **Repeatable Read** | phantoms are blocked by gap/next-key locks, which changes deadlock behaviour (§4, §5) |
+
+Choose **MySQL** for high-throughput primary-key-centric OLTP, cheap connection counts, and its mature replication and HA tooling.
 
 ---
 

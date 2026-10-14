@@ -765,35 +765,21 @@ Full explanation: [§6](#6-the-caching-layers).
 
 **Short answer:** one login provider and one shared auth library; OAuth's Authorization Code flow with PKCE; tokens kept out of JavaScript; short-lived tokens that rotate, with reuse detection; and permissions checked by the server.
 
-**The OAuth flow.** Use **Authorization Code + PKCE** for every browser and mobile app. Never use:
-- the **implicit flow**, which is deprecated, because it puts tokens in the URL, where they end up in browser history and server logs;
-- **ROPC** (Resource Owner Password Credentials), the old flow where your app handles the user's actual password.
-
-**Where to keep tokens.** This is where most designs fail.
+- **The flow:** Authorization Code + PKCE for every browser and mobile app. Never the implicit flow (tokens in the URL, so in history and logs) or ROPC (your app handles the user's actual password).
+- **Tokens:** a **BFF** ([§2.3](#23-backend-for-frontend-bff)) holds the real tokens, and the browser gets only an `HttpOnly; Secure; SameSite=Lax` session cookie. Without a BFF, the access token lives in memory only.
+- **Rotation:** access tokens last 5–15 minutes; each refresh returns a new refresh token, and a used one coming back means theft, so cancel the whole chain.
+- **SSO and logout:** a silent redirect to the IdP means no second login between products; logout ends the IdP session, cancels refresh tokens and clears every product's session ([§2.2](#22-centralised-authentication)).
+- **Permissions (RBAC):** the server works them out and sends them with the session; the browser only hides UI, and every API checks again. Prefer permission strings such as `invoice:write` over role names, so a new role needs no frontend release.
 
 > [!TRAP]
 > Keeping tokens in `localStorage`. Any script on the page can read it, so one XSS bug lets an attacker copy the token and use the account from anywhere.
-
-My default is a **BFF** ([§2.3](#23-backend-for-frontend-bff)):
-- the browser holds only an `HttpOnly; Secure; SameSite=Lax` session cookie;
-- the BFF holds the real OAuth tokens and adds them to API calls on the server. These are usually **JWTs** (JSON Web Tokens: signed tokens that anyone holding them can read and use).
-
-Without a BFF, keep the access token in memory only, and the refresh token in an `HttpOnly` cookie limited to the refresh endpoint.
-
-**JWT rotation.**
-- **Short lives:** access tokens expire after 5–15 minutes, and **refresh tokens rotate**: each refresh returns a new refresh token and cancels the old one.
-- **Reuse detection** is what makes rotation worth having. If a refresh token that was already used shows up again, someone stole it. Cancel the whole chain of tokens and make the user log in again.
 
 > [!FOLLOWUP]
 > What happens when two tabs refresh the token at the same moment?
 >
 > With rotation, the second refresh sends a token the first one has just cancelled. Reuse detection sees a used token come back and logs the user out. So let only one refresh run at a time: share one promise inside the tab, and coordinate tabs with `navigator.locks` or a `BroadcastChannel`.
 
-**SSO and logout.** A shared parent-domain cookie and a silent redirect to the IdP mean no second login between products. Logout must end the IdP session, cancel refresh tokens and clear every product's session ([§2.2](#22-centralised-authentication)).
-
-**Role-based permissions (RBAC).** The server works out permissions and sends them with the session. The browser uses them only to hide UI, and every API checks them again. Prefer permission strings such as `invoice:write` over role names, so adding a role doesn't need a frontend release.
-
-More in the OAuth & SSO guide and the Web Security guide.
+Why each choice, with the storage comparison: [Web Security §5](/backend/web-security#5-tokens-sessions-and-cookies) and [OAuth & SSO §11](/backend/oauth-sso#11-refresh-tokens-rotation-and-theft-detection).
 
 ---
 
@@ -818,72 +804,30 @@ Full explanation: [§8](#8-observability-debugging-the-1).
 
 **Short answer:** four different threats, each needing its own defence. Treating them as one "security" bucket is the mistake.
 
-**XSS (cross-site scripting: an attacker's script running in your page).**
-- **Never insert untrusted HTML.** No `dangerouslySetInnerHTML` with user input; use DOMPurify when you really must show user HTML; and treat markdown and AI-generated output as untrusted.
-- **Add a strict CSP** (Content Security Policy: a header saying what the page may load and run). For example, `script-src 'self' 'nonce-<random>'; object-src 'none'; base-uri 'self'`.
-  - A **nonce** is a random value generated for each response. Only `<script>` tags carrying it may run, so an injected script is blocked.
-  - Prefer `'strict-dynamic'` (scripts loaded by a trusted script are trusted too) over a list of allowed domains. Such lists almost always include some CDN an attacker can use.
-- **Add Trusted Types**, a browser feature that makes risky assignments such as `innerHTML = text` throw an error unless the value went through a cleaning function you wrote.
-
-**CSRF (cross-site request forgery: another site making the user's browser send a request to yours, with their cookies).**
-- `SameSite=Lax` or `Strict` cookies block most of it, but not all (see the follow-up below).
-- Also require an anti-CSRF token on every request that changes data, using either pattern:
-  - **double-submit:** the same random value in a cookie and in a header, which another site can't read to copy;
-  - **synchroniser:** a per-session token that the server stores and checks.
-- Check the `Origin` header, and never let a `GET` change data.
+- **XSS (cross-site scripting: an attacker's script running in your page):** never insert untrusted HTML (DOMPurify when you must), then a strict nonce + `'strict-dynamic'` CSP and Trusted Types as the second and third layers.
+- **CSRF (cross-site request forgery: another site making the user's browser send a request to yours, with their cookies):** `SameSite` cookies plus an anti-CSRF token, an `Origin` check, and no `GET` that changes data.
+- **Token theft:** the BFF pattern with `HttpOnly` cookies (Q4), short-lived rotating tokens, and a CSP `connect-src` so an injected script can't send data anywhere.
+- **Supply chain (attacks through the packages you install):** `npm ci` from a committed lockfile, `--ignore-scripts`, provenance checks, reviewed dependency updates, and Subresource Integrity on CDN scripts.
 
 > [!FOLLOWUP]
 > Isn't a `SameSite` cookie enough on its own?
 >
 > Not quite. Your own subdomains count as the same site, so a hijacked `blog.acme.com` can still send requests with the cookie. And `Lax` still sends cookies on ordinary link clicks (`GET`). That is why the anti-CSRF token and the `Origin` check stay.
 
-**Token theft.**
-- Any token JavaScript can read can be stolen by XSS, so the fix is structural: the **BFF pattern** with `HttpOnly` cookies, and never tokens in `localStorage` (Q4).
-- Add short-lived tokens with rotation and reuse detection.
-- Set a CSP that limits where the page can send data (`connect-src`, `img-src`), so even a successful injection can't send the token anywhere.
-
-**Supply chain (attacks through the packages you install).** This is the one candidates skip:
-- **Pin installs:** commit the lockfile and run `npm ci` in CI, so CI installs exactly the versions you reviewed, not whatever is newest today.
-- **Verify provenance:** a signed record of which repository and build produced a package, so a package published from a stolen laptop can be detected.
-- **Use `--ignore-scripts` by default**, so a package's install script can't run code on your machine or in CI.
-- **Review dependency updates:** Dependabot or Renovate with human review, not auto-merge.
-- **Use Subresource Integrity** for any script loaded from a CDN: an `integrity="sha384-…"` hash on the `<script>` tag, so the browser refuses the file if its content changes.
-- **Have fewer dependencies**, prefer built-in browser APIs, and load marketing scripts through a tag manager you control.
-
-**For all four:** set these headers too:
-- `Strict-Transport-Security` (HTTPS only);
-- `X-Content-Type-Options: nosniff`;
-- `frame-ancestors` or `X-Frame-Options`, against **clickjacking** (your page loaded invisibly inside another site);
-- `Referrer-Policy`;
-- a `Permissions-Policy` that turns off browser features you don't use.
-
-Full detail in the Web Security guide.
+The full layered answer, with the security headers and the organisational half: [Web Security §12, Q7](/backend/web-security#12-interview-questions-answers).
 
 ---
 
 **Q7: How would you handle authentication in Next.js App Router with Server Components?**
 
-**Short answer:** check the session in several places, close to the data, and never rely on Next.js's Proxy (formerly middleware) alone. Real security holes, recorded as **CVEs** (public IDs for known vulnerabilities), have shown why.
+**Short answer:** check the session in several places, close to the data, and never rely on Next.js's Proxy (formerly middleware) alone, because it has been bypassed by real security bugs.
 
-**Proxy is a convenience, not security.** In Next.js 16, `middleware.ts` was renamed **`proxy.ts`**. It runs before a route is handled, and is the right place to quickly redirect users who are clearly not logged in. Next.js says plainly that it is not an authorization solution, and the CVE history proves it:
-- **CVE-2025-29927** let a crafted `x-middleware-subrequest` header skip middleware entirely, and every check in it with it.
-- **CVE-2026-45109** followed an incomplete fix for a prefetch bypass (patched in 15.5.18 and 16.2.6).
-- **CVE-2026-64642**, patched in the July 2026 release, was a bypass in App Router builds on Turbopack whose `i18n.locales` has a single entry.
+- **`proxy.ts`:** a quick redirect for users who clearly aren't logged in. A convenience, not a security boundary.
+- **A Data Access Layer:** every function that touches sensitive data calls `verifySession()` itself, so a request-pipeline bypass can't skip it.
+- **Server Actions and Route Handlers** each check login and permissions, because they are public HTTP endpoints.
+- **Never pass the session object as a prop** to a Client Component; those props are sent to the browser.
 
-**The layers to use:**
-1. **Proxy:** a quick redirect for requests that are clearly not logged in. It improves the experience; it doesn't protect anything.
-2. **A Data Access Layer:** every function that reads or writes sensitive data calls `verifySession()` itself, right next to the data. This is the real protection. A request-pipeline bug can't skip it, because it isn't in the pipeline.
-3. **Every Server Action and Route Handler checks login and permissions itself.** Server Actions are **public HTTP endpoints**: anyone can call one, even if no button in your UI does. This is the point most often missed.
-4. **Don't pass the session object as a prop to a Client Component** unless it is meant to be public. Props passed from Server Components to Client Components are sent to the browser.
-
-**In practice:**
-- keep the session in an `HttpOnly; Secure; SameSite=Lax` cookie;
-- read it with `cookies()` in a `verifySession()` helper wrapped in React's `cache()`, so one request doesn't check it ten times;
-- put `import 'server-only'` at the top of the data-access file, so it can never end up in browser code.
-
-And keep Next.js updated: this kind of bypass has happened more than once, so staying on an old version is itself the risk.
-
-Full detail in the Next.js & React Server Components guide.
+Full detail, with the CVE history and the code: [Next.js & RSC §9](/frontend/nextjs-rsc#9-authentication-defence-in-depth).
 
 ---
 

@@ -1,6 +1,6 @@
 # Google Play Store Deployment — Complete Guide
 
-A practical, end-to-end playbook for shipping any Android app to the Google Play Store — whether you're using React Native (Expo or bare), native Android (Kotlin/Java), Flutter, or any other framework. Covers everything from code-side preparation, Android build internals (AAB/APK/signing), Play Console forms, Closed Testing, the 14-day soak, and Production Access. Examples use Expo / EAS where they're most concrete, but the Play Console workflow is identical for every framework.
+A practical, end-to-end playbook for shipping any Android app to the Google Play Store — whether you're using React Native (Expo or bare), native Android (Kotlin/Java), Flutter, or any other framework. Covers everything from code-side preparation, Android build internals (AAB/APK/signing), Play Console forms, Closed Testing, the 14-day soak, and Production Access. Examples use Expo and EAS (Expo Application Services, Expo's cloud service for building, signing and submitting apps) where they're most concrete, but the Play Console workflow is identical for every framework.
 
 ## Table of Contents
 

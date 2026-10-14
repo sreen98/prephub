@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Undo2 } from 'lucide-react';
 
 export interface OutputEntry {
   type: 'log' | 'warn' | 'error' | 'result';
@@ -10,28 +10,32 @@ interface OutputPanelProps {
   output: OutputEntry[];
   hasPreview: boolean;
   previewRef: React.RefObject<HTMLDivElement | null>;
+  /** The preview is rendering in its own browser tab (usePreviewTab). */
+  tabOpen: boolean;
+  onOpenTab: () => void;
+  onCloseTab: () => void;
 }
 
 // Memoized: only re-renders when output / hasPreview / previewRef change.
 // Without this, every keystroke in the editor would re-render the whole
 // output list (which can be hundreds of rows for a chatty test run).
-function OutputPanelImpl({ output, hasPreview, previewRef }: OutputPanelProps) {
+function OutputPanelImpl({ output, hasPreview, previewRef, tabOpen, onOpenTab, onCloseTab }: OutputPanelProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Console — when React preview is shown, split vertical space evenly */}
       <div className={hasPreview ? 'flex-1 flex flex-col min-h-[160px] basis-0' : 'flex-1 flex flex-col min-h-[100px]'}>
-        <div className="px-4 py-2 h-10 text-xs font-medium text-slate-500 border-b border-[#2d333b] bg-[#22272e] shrink-0 flex items-center gap-2">
+        <div className="px-4 py-2 h-10 text-xs font-medium text-stone-500 border-b border-[#262421] bg-[#1a1917] shrink-0 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
           Console Output
-          {output.length > 0 && <span className="ml-1 text-[10px] text-slate-600">({output.length})</span>}
+          {output.length > 0 && <span className="ml-1 text-[10px] text-stone-600">({output.length})</span>}
         </div>
-        <div className="flex-1 overflow-auto p-4 bg-[#1e1e2e] font-mono text-sm min-h-0">
+        <div className="flex-1 overflow-auto p-4 bg-[#121110] font-mono text-sm min-h-0">
           {output.length === 0 && !hasPreview ? (
-            <div className="text-slate-500 italic">
+            <div className="text-stone-500 italic">
               Click "Run" or press ⌘+Enter to execute your code...
             </div>
           ) : output.length === 0 ? (
-            <div className="text-slate-600 italic text-xs">No console output yet. Logs appear here when you run your code.</div>
+            <div className="text-stone-600 italic text-xs">No console output yet. Logs appear here when you run your code.</div>
           ) : (
             output.map((entry, i) => (
               <OutputRow key={i} entry={entry} />
@@ -41,15 +45,30 @@ function OutputPanelImpl({ output, hasPreview, previewRef }: OutputPanelProps) {
       </div>
 
       {/* React Preview — always mounted, toggled via CSS */}
-      <div className={hasPreview ? 'flex-1 flex flex-col min-h-[160px] basis-0 border-t border-[#2d333b]' : 'h-0 overflow-hidden'}>
-        <div className="px-4 py-2 h-10 text-xs font-medium text-slate-500 border-b border-[#2d333b] bg-[#22272e] shrink-0 flex items-center gap-2">
+      <div className={hasPreview ? 'flex-1 flex flex-col min-h-[160px] basis-0 border-t border-[#262421]' : 'h-0 overflow-hidden'}>
+        <div className="px-4 py-2 h-10 text-xs font-medium text-stone-500 border-b border-[#262421] bg-[#1a1917] shrink-0 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-blue-500" />
           React Preview
+          <button
+            onClick={tabOpen ? onCloseTab : onOpenTab}
+            className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded border border-[#36332e] text-[10px] text-stone-300 hover:bg-[#262421] hover:text-white"
+            title={tabOpen ? 'Close the preview tab and show the preview here' : 'Show the preview in a separate browser tab'}
+          >
+            {tabOpen ? <><Undo2 size={11} /> Bring back</> : <><ExternalLink size={11} /> Open in new tab</>}
+          </button>
         </div>
-        <div
-          ref={previewRef}
-          className="flex-1 overflow-auto bg-white text-slate-900 p-2 min-h-0"
-        />
+        <div className="relative flex-1 min-h-0 flex flex-col">
+          <div
+            ref={previewRef}
+            className="flex-1 overflow-auto bg-white text-stone-900 p-2 min-h-0"
+          />
+          {tabOpen && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#121110] text-sm text-stone-400">
+              <ExternalLink size={18} />
+              The preview is open in a separate tab. Every Run updates it.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -62,7 +81,7 @@ const OutputRow = memo(function OutputRow({ entry }: { entry: OutputEntry }) {
     entry.type === 'result' ? 'text-blue-400' :
     'text-[#a6e3a1]';
   return (
-    <div className={`py-1 border-b border-slate-800/50 last:border-0 ${colorClass}`}>
+    <div className={`py-1 border-b border-stone-800/50 last:border-0 ${colorClass}`}>
       {entry.type === 'error' && <AlertTriangle size={12} className="inline mr-2" />}
       <span className="whitespace-pre-wrap">{entry.text}</span>
     </div>

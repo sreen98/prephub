@@ -68,11 +68,13 @@ Your JavaScript runs in a JS engine (Hermes by default since RN 0.70) on a backg
 | **Flutter** | Own rendering engine (Skia) for pixel-perfect consistency; Dart language; heavier bundle. |
 | **Native (Swift/Kotlin)** | Best performance & platform fit; 2× the teams and codebases. |
 | **Ionic / Capacitor** | Web tech in a WebView; great for content apps, weaker for interactions. |
-| **Expo** | React Native with a managed toolchain, OTA updates, and build service. Most RN projects start here today. |
+| **Expo** | React Native with a managed toolchain, OTA (over-the-air) updates, which ship new JavaScript to installed apps without a store release, and a build service. Most RN projects start here today. |
 
 ---
 
 ## 2. Project Setup — Expo vs Bare CLI
+
+There are two ways to start a React Native app: with Expo, which manages the native build tooling for you, or with the bare React Native CLI, where you own the native iOS and Android projects yourself. The choice decides how much Xcode and Gradle work your team takes on.
 
 ### Expo (recommended starting point)
 
@@ -92,7 +94,7 @@ npx expo start --android  # Android emulator
 npx expo prebuild
 ```
 
-Expo's sweet spot is **most apps**: it handles splash screens, icons, push notifications, over-the-air updates, builds via EAS, config via `app.json`, and hundreds of first-party modules. You only "eject" (now called `prebuild`) when you need a native module Expo doesn't ship.
+Expo's sweet spot is **most apps**: it handles splash screens, icons, push notifications, over-the-air updates, builds via EAS (Expo Application Services, Expo's cloud build, submit and update service), config via `app.json`, and hundreds of first-party modules. You only "eject" (now called `prebuild`) when you need a native module Expo doesn't ship.
 
 ### Bare React Native CLI
 
@@ -113,6 +115,8 @@ npm run android
 You now own the `ios/` and `android/` folders end-to-end. That includes Xcode schemes, Gradle configs, Podfile, signing, etc.
 
 ### Project structure (Expo)
+
+A new Expo project is a normal JavaScript project plus `app.json`, which holds the native settings (name, icons, permissions) that Expo turns into the iOS and Android projects at build time.
 
 ```
 MyApp/
@@ -177,6 +181,8 @@ Why the rule? Native text rendering on iOS (`UILabel` / `NSAttributedString`) is
 
 ### Image
 
+`Image` displays a picture from a bundled file (`require`) or a URL (`{ uri }`). Unlike an HTML `<img>`, a remote image has no intrinsic size in the layout, so you must give it a width and height or it renders at 0×0.
+
 ```tsx
 import { Image } from 'react-native';
 
@@ -213,6 +219,8 @@ import { ScrollView } from 'react-native';
 Key prop: `contentContainerStyle` styles the inner content wrapper; `style` styles the outer scroll view. Padding usually goes on `contentContainerStyle`.
 
 ### TextInput
+
+`TextInput` is the native text field, the counterpart of `<input>`. It is usually controlled: `value` comes from state and `onChangeText` receives the new string (not an event), while props such as `keyboardType`, `autoCapitalize` and `returnKeyType` choose which on-screen keyboard appears and how it behaves.
 
 ```tsx
 import { TextInput } from 'react-native';
@@ -289,6 +297,8 @@ import { Modal, View, Text, Pressable } from 'react-native';
 
 ### ActivityIndicator
 
+`ActivityIndicator` is the platform's native loading spinner.
+
 ```tsx
 import { ActivityIndicator } from 'react-native';
 
@@ -317,6 +327,8 @@ Styles in RN are **JavaScript objects**, not CSS. They look similar (camelCase k
 
 ### Inline vs StyleSheet.create
 
+Styles can be written inline as an object on the `style` prop, or defined once with `StyleSheet.create` and referenced by name. The second keeps render code readable, creates each style object only once, and gives a warning in development for an invalid style property.
+
 ```tsx
 import { StyleSheet, View, Text } from 'react-native';
 
@@ -338,6 +350,8 @@ const styles = StyleSheet.create({
 
 ### Combining styles
 
+The `style` prop also accepts an array of styles that are merged in order, so later entries override earlier ones. Falsy entries are skipped, which makes conditional styles a one-liner.
+
 ```tsx
 function Example() {
   return (
@@ -353,6 +367,8 @@ function Example() {
 ```
 
 ### Platform-specific styles
+
+When iOS and Android need different values, branch on `Platform.OS` or use `Platform.select({ ios, android })`, which returns the entry for the current platform.
 
 ```tsx
 import { Platform, StyleSheet } from 'react-native';
@@ -404,6 +420,8 @@ So on RN, `<View>` lays children **top-to-bottom** by default.
 
 ### Common patterns
 
+Most screens are built from a handful of Flexbox combinations: fill the space, centre a child, lay out a row, and wrap items into a grid.
+
 ```tsx
 function Example() {
   return (
@@ -437,6 +455,8 @@ function Example() {
 
 ### Absolute positioning
 
+An absolutely positioned view is taken out of the Flexbox flow and placed by `top`/`right`/`bottom`/`left`, which suits badges and overlays.
+
 ```tsx
 <View style={{ position: 'absolute', top: 10, right: 10, zIndex: 1 }}>
   <Badge />
@@ -446,6 +466,8 @@ function Example() {
 `position: absolute` takes the element out of flow and positions relative to the nearest ancestor (not the window). `position: fixed` does not exist.
 
 ### Responsive sizes
+
+Screen sizes vary widely and change on rotation or when a foldable opens, so read the current dimensions instead of hard-coding them. `useWindowDimensions` returns the window's width and height and re-renders the component when they change.
 
 ```tsx
 import { Dimensions, useWindowDimensions } from 'react-native';
@@ -469,6 +491,8 @@ function Card() {
 For anything longer than a screenful, `ScrollView` is wrong. It renders every child up front, eating memory and blocking the JS thread. Use a **virtualized list**, which only mounts items currently on (or near) the screen.
 
 ### FlatList
+
+`FlatList` renders a long, single-column (or grid) list from a `data` array. It mounts only the rows on or near the screen and unmounts rows that scroll far away, so memory stays flat however long the list is, whereas `ScrollView` with `.map()` would build every row up front. You give it `data`, a `renderItem` function and a `keyExtractor` that returns a stable key per item.
 
 ```tsx
 import { FlatList } from 'react-native';
@@ -547,6 +571,8 @@ React Native has **no built-in navigation**. The de facto standard is **React Na
 
 ### Install
 
+React Navigation is split into a core package, the native dependencies it relies on (`react-native-screens` for native screen containers, `react-native-safe-area-context` for notch insets), and one package per navigator type.
+
 ```bash
 npm install @react-navigation/native
 npx expo install react-native-screens react-native-safe-area-context
@@ -588,6 +614,8 @@ function DetailsScreen({ route }) {
 
 ### Typed navigation (TypeScript)
 
+A param list type maps each screen name to the params it accepts. Passing it to the navigator makes `navigate('Details', { id })` and `route.params` type-checked.
+
 ```tsx
 import { Text } from 'react-native';
 import {
@@ -612,6 +640,8 @@ function DetailsScreen({ route, navigation }: Props) {
 
 ### Tab & Drawer
 
+Besides the stack, React Navigation provides a bottom tab navigator (a tab bar along the bottom) and a drawer navigator (a menu that slides in from the side), each in its own package.
+
 ```tsx
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
@@ -623,6 +653,8 @@ const Drawer = createDrawerNavigator();
 Nest navigators to mix patterns — a common shape is a **root Stack** containing a **Tab navigator** as one screen, with modal screens pushed on top.
 
 ### Navigating without the prop
+
+Only screen components receive the `navigation` and `route` props. A component deeper in the tree gets the same objects from the `useNavigation` and `useRoute` hooks.
 
 ```tsx
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -692,7 +724,11 @@ AppState.addEventListener('change', (status) => {
 
 ## 9. Platform APIs
 
+React Native exposes many device features (platform detection, the status bar, dark mode, the Android back button, links, sharing) as JavaScript modules, so most apps need no native code for them.
+
 ### Platform module
+
+`Platform` tells you which OS the code is running on and its version, so you can branch where iOS and Android differ.
 
 ```tsx
 import { Platform } from 'react-native';
@@ -716,6 +752,8 @@ Button.android.tsx   // Android-only
 
 ### StatusBar
 
+The status bar is the strip at the top of the screen with the time and battery. The `StatusBar` component sets its text colour (light or dark content) and, on Android, its background.
+
 ```tsx
 import { StatusBar } from 'react-native';
 
@@ -725,6 +763,8 @@ import { StatusBar } from 'react-native';
 With Expo, prefer `expo-status-bar` which handles platform quirks.
 
 ### Appearance (dark mode)
+
+`useColorScheme` returns the user's system theme, `'light'` or `'dark'`, and re-renders the component when it changes, so the app can follow the system's dark mode.
 
 ```tsx
 import { useColorScheme } from 'react-native';
@@ -755,6 +795,8 @@ React Navigation already integrates this; only override when outside the navigat
 
 ### Linking
 
+`Linking.openURL` hands a URL to the operating system, which opens it in the browser, the phone dialler, the mail app or another installed app that handles it.
+
 ```tsx
 import { Linking } from 'react-native';
 
@@ -764,6 +806,8 @@ await Linking.openURL('mailto:hi@example.com');
 ```
 
 ### Clipboard, Share, Vibration
+
+Small device features with one-call APIs: copy text to the clipboard, open the system share sheet, and vibrate the phone.
 
 ```tsx
 import * as Clipboard from 'expo-clipboard';
@@ -777,6 +821,8 @@ Vibration.vibrate(400);
 ---
 
 ## 10. Handling Keyboard & Safe Areas
+
+On a phone, two things regularly hide your content: the on-screen keyboard, which covers the bottom half of the screen when a field is focused, and the hardware cut-outs (notch, home indicator). This section covers keeping inputs and content visible around both.
 
 ### Safe Area
 
@@ -819,6 +865,8 @@ import { KeyboardAvoidingView, Platform } from 'react-native';
 
 ### Dismiss keyboard on tap
 
+Users expect a tap outside a text field to close the keyboard. Wrapping the screen in a pressable that calls `Keyboard.dismiss` gives that behaviour.
+
 ```tsx
 import { Keyboard, TouchableWithoutFeedback } from 'react-native';
 
@@ -832,6 +880,8 @@ import { Keyboard, TouchableWithoutFeedback } from 'react-native';
 ---
 
 ## 11. Networking & Data Fetching
+
+Networking in React Native uses the same tools as the web (`fetch`, axios, WebSockets, TanStack Query), with mobile-specific concerns on top: flaky connections, apps returning from the background, and platform rules that block plain HTTP.
 
 ### fetch
 
@@ -879,6 +929,8 @@ function Feed() {
 
 ### WebSockets
 
+React Native includes the browser's `WebSocket` API, a persistent two-way connection for real-time data such as chat or live prices. Mobile apps should reconnect when the app returns to the foreground, because the OS may drop the socket in the background.
+
 ```tsx
 const ws = new WebSocket('wss://example.com/stream');
 ws.onopen = () => ws.send('hi');
@@ -913,6 +965,8 @@ For high-security apps, use `react-native-ssl-pinning` or platform-specific pinn
 
 ### AsyncStorage
 
+AsyncStorage is a simple key-value store that keeps strings on the device across app restarts, React Native's equivalent of `localStorage`, except that every call returns a promise. It is unencrypted and stores strings only, so objects go through `JSON.stringify`, and secrets belong in SecureStore.
+
 ```tsx
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -923,6 +977,8 @@ await AsyncStorage.removeItem('@theme');
 ```
 
 ### MMKV (preferred for modern apps)
+
+MMKV is a key-value storage engine from WeChat that writes through memory-mapped files. `react-native-mmkv` exposes it through JSI (direct calls from JavaScript into native code, without the old asynchronous bridge), so reads and writes are synchronous and much faster than AsyncStorage, and it supports encryption.
 
 ```tsx
 import { createMMKV } from 'react-native-mmkv';
@@ -987,6 +1043,8 @@ function LoginForm() {
 
 ### TextInput refs — focusing next field
 
+To move focus to the next field when the user presses the keyboard's "next" key, hold a ref to that field and call `focus()` on it in `onSubmitEditing`.
+
 ```tsx
 const passwordRef = useRef<TextInput>(null);
 
@@ -997,6 +1055,8 @@ const passwordRef = useRef<TextInput>(null);
 ---
 
 ## 14. Images & Media
+
+Images and media are where a mobile app most often feels slow: remote images need caching and placeholders, and video and the photo picker come from separate libraries.
 
 ### Remote image + placeholder + cache
 
@@ -1017,6 +1077,8 @@ import { Image } from 'expo-image';
 
 ### Local assets
 
+Images that ship inside the app are loaded with `require` and a static path, which tells the bundler to include the file in the build.
+
 ```tsx
 <Image source={require('./assets/logo.png')} />
 ```
@@ -1024,6 +1086,8 @@ import { Image } from 'expo-image';
 `require` resolves asset hashes at build time — this is how the bundler ships images.
 
 ### Video
+
+React Native has no built-in video component. With Expo, a video player component comes from Expo's media packages; it plays local or remote files with native controls.
 
 ```tsx
 import { Video, ResizeMode } from 'expo-av';
@@ -1040,6 +1104,8 @@ import { Video, ResizeMode } from 'expo-av';
 
 ### Picking images / camera
 
+`expo-image-picker` opens the system photo library or the camera and returns the chosen file's local URI, after the user grants permission.
+
 ```tsx
 import * as ImagePicker from 'expo-image-picker';
 
@@ -1054,6 +1120,8 @@ if (!result.canceled) setUri(result.assets[0].uri);
 ---
 
 ## 15. Animations
+
+Smooth animation on mobile means 60 frames per second or more, and the JavaScript thread is often busy. So the main question for each animation library is whether it can run the animation on the native UI thread without a round trip to JavaScript on every frame.
 
 ### Animated API (built-in)
 
@@ -1115,6 +1183,8 @@ setItems(items.filter(i => i.id !== id));
 ---
 
 ## 16. Gestures
+
+Gestures are touch interactions beyond a simple tap: dragging, swiping, pinching. They need to track the finger on every frame, so, as with animation, the libraries differ in whether that work runs on the UI thread or the busy JavaScript thread.
 
 ### PanResponder (legacy, built-in)
 
@@ -1214,6 +1284,8 @@ Mobile push requires integration with FCM (Android) and APNs (iOS). Expo abstrac
 
 ### Expo push (happy path)
 
+With Expo, the app asks for notification permission, then requests an Expo push token, an address for this app install on this device. Your backend stores the token and sends notifications to it through Expo's push service.
+
 ```tsx
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -1246,6 +1318,8 @@ const sub = Notifications.addNotificationResponseReceivedListener(r => {
 
 ### Server-side (Expo)
 
+To send a notification, your backend posts the token and message to Expo's push API, which forwards it to Apple's or Google's push service.
+
 ```ts
 await fetch('https://exp.host/--/api/v2/push/send', {
   method: 'POST',
@@ -1266,11 +1340,15 @@ Deep links let URLs (`myapp://user/42`) and universal / app links (`https://myap
 
 ### URL scheme — in app.json
 
+A custom URL scheme (`myapp://`) registers the app as the handler for links that start with it.
+
 ```json
 { "expo": { "scheme": "myapp" } }
 ```
 
 ### Handling in React Navigation
+
+The `linking` config maps URL paths to screens, so React Navigation opens the right screen with its params when the app is launched from a link.
 
 ```tsx
 const linking = {
@@ -1295,6 +1373,8 @@ Universal links open the app when installed, the browser when not — no custom 
 
 ### Testing
 
+Simulators and emulators can open a deep link from the command line, which is the quickest way to test the URL-to-screen mapping.
+
 ```bash
 # iOS simulator
 xcrun simctl openurl booted "myapp://user/42"
@@ -1310,6 +1390,8 @@ adb shell am start -W -a android.intent.action.VIEW -d "myapp://user/42"
 When JavaScript alone isn't enough (BLE, AR, specialized SDKs), you write a **native module** exposing Swift/Kotlin methods to JS.
 
 ### Old architecture (NativeModules)
+
+In the old architecture, a native module is a Kotlin/Java or Swift/Objective-C class registered with React Native, whose exported methods JavaScript calls through the asynchronous bridge via `NativeModules`.
 
 ```kotlin
 // Android — MyModule.kt
@@ -1394,6 +1476,8 @@ Runs the app without the legacy bridge. Two releases are involved, which is why 
 
 ## 22. Performance Optimization
 
+A React Native app feels slow when the JavaScript thread or the UI thread misses frames, or when start-up takes too long. Measure first, then apply the fixes for the cause you found.
+
 ### Measure first
 
 Don't optimize without data. Use:
@@ -1442,11 +1526,15 @@ useEffect(() => {
 
 ## 23. Debugging & Dev Tools
 
+The main debugging tools for React Native, from inspecting JavaScript and components to reading native crash logs.
+
 ### React Native DevTools (new, RN 0.76+)
 
 Opens in Chrome DevTools, connects directly to Hermes. Supports breakpoints, console, network, performance profile. Launch with `j` from the Metro terminal.
 
 ### React DevTools
+
+React DevTools is the same component inspector used for web React, run as a standalone app that connects to your device or simulator.
 
 ```bash
 npx react-devtools
@@ -1481,7 +1569,11 @@ Enabled by default. Saves a file → state-preserving reload. Class components l
 
 ## 24. Testing React Native Apps
 
+Testing follows the same layers as on the web: Jest for logic, React Native Testing Library for components, and an end-to-end tool driving the real app on a simulator for whole flows.
+
 ### Jest + React Native Testing Library (component tests)
+
+React Native Testing Library renders components in a Node test environment without a device and lets you query them by text, label or test id, following the same "test what the user sees" idea as the web version.
 
 ```tsx
 import { render, fireEvent, screen } from '@testing-library/react-native';
@@ -1529,6 +1621,8 @@ See the Jest & React Testing Library guide for patterns that carry over directly
 ---
 
 ## 25. Build, Release & App Stores
+
+Shipping an app means producing a signed binary for each store (an `.ipa` for the App Store, an `.aab` for Google Play) and submitting it for review. You can build in the cloud with Expo's EAS Build or locally with Xcode and Gradle.
 
 ### Expo — EAS Build
 
@@ -1582,6 +1676,8 @@ A superpower of React Native: you can ship JS & asset changes without going thro
 
 ### EAS Update (Expo)
 
+EAS Update is Expo's hosted OTA service: `eas update` publishes a new JavaScript bundle and assets to a branch, and installed apps on the matching channel download it and run it on a later launch.
+
 ```bash
 eas update --branch production --message "Fix crash on boot"
 ```
@@ -1614,68 +1710,33 @@ EAS Update has channels and percentage rollouts. Roll 5% → monitor → 25% →
 
 Accessibility is not optional: many users navigate entirely with the platform screen readers, VoiceOver (iOS) and TalkBack (Android), which read out each element's label and role. A `Pressable` with only an icon inside is announced as nothing useful unless you give it a label, so the props below are what make your UI usable for them.
 
+This section is a summary; the full treatment, with platform differences and testing, is the [Mobile Accessibility](/frontend/mobile-accessibility) guide.
+
 ### Labels & roles
 
-```tsx
-function Example() {
-  return (
-    <>
-      <Pressable
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel="Submit form"
-        accessibilityHint="Sends your answers to the server"
-        accessibilityState={{ disabled: isSubmitting }}
-        onPress={submit}
-      >
-        <Text>Submit</Text>
-      </Pressable>
-
-      <Image
-        source={{ uri }}
-        accessible
-        accessibilityLabel="Profile photo of Alice"
-      />
-    </>
-  );
-}
-```
+Give every interactive element an `accessibilityRole` (what it is, such as `button`) and an `accessibilityLabel` (its name, required whenever there is no visible text, as on an icon button or an image). `accessibilityHint` describes what happens on activation and can be switched off by users, so never put essential information in it; `accessibilityState` reports disabled, selected or busy. The full prop list is in [Mobile Accessibility §4](/frontend/mobile-accessibility#4-react-native-accessibility-props).
 
 ### Dynamic type / font scaling
 
-iOS and Android let users scale system font size. By default RN scales your `Text`. Keep it that way: where a layout can't grow without limit (even a logo), cap growth with `maxFontSizeMultiplier` instead of `allowFontScaling={false}`, which ignores the user's setting (see [Mobile Accessibility](/frontend/mobile-accessibility)).
-
-```tsx
-function Example() {
-  return (
-    <>
-      <Text maxFontSizeMultiplier={1.2}>LOGO</Text>
-      <Text maxFontSizeMultiplier={1.5}>Capped growth</Text>
-    </>
-  );
-}
-```
+iOS and Android let users scale system font size, and RN scales your `Text` with it by default. Keep it that way: where a layout can't grow without limit (even a logo), cap growth with `maxFontSizeMultiplier` instead of `allowFontScaling={false}`, which ignores the user's setting. See [Mobile Accessibility §9](/frontend/mobile-accessibility#9-dynamic-type-and-text-scaling).
 
 ### Reduce motion
 
-```tsx
-import { AccessibilityInfo } from 'react-native';
-
-const reduce = await AccessibilityInfo.isReduceMotionEnabled();
-if (!reduce) playFancyAnimation();
-```
+Both platforms have a Reduce Motion setting. Read it with `AccessibilityInfo.isReduceMotionEnabled()`, listen for `reduceMotionChanged`, and replace large movement with a fade or no animation when it is on. See [Mobile Accessibility §11](/frontend/mobile-accessibility#11-motion-and-vestibular-safety).
 
 ### Screen reader events
 
-```tsx
-AccessibilityInfo.announceForAccessibility('Saved');
-```
+Feedback that is only visual (a "Saved" toast) is silent to a screen reader; `AccessibilityInfo.announceForAccessibility('Saved')` speaks it. See [Mobile Accessibility §7](/frontend/mobile-accessibility#7-announcements-and-live-regions).
 
 ---
 
 ## 28. Internationalization (i18n)
 
+Internationalization means building the app so its text, dates, numbers and layout direction can change with the user's language and region. React Native has no built-in translation system, so apps combine a translation library with the device locale.
+
 ### i18n-js or react-i18next
+
+A translation library maps keys to strings for each language and fills in variables; `expo-localization` tells it which language the device is set to.
 
 ```bash
 npm install i18next react-i18next expo-localization

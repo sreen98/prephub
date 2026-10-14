@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap, RotateCcw, Terminal, Atom, Database, GraduationCap, ScrollText, ArrowRight, Flame, Timer } from 'lucide-react';
+import { Zap, RotateCcw, Terminal, Atom, Database, GraduationCap, ScrollText, ArrowRight, Flame, Timer, ChevronDown } from 'lucide-react';
 import type { MenuSection, MenuItem } from '../data';
 import { menuStructure, cheatSheets, readMinFor, totalQuestionCount } from '../data';
 import { useProgress } from '../hooks/useProgress';
@@ -26,33 +26,26 @@ const TOOLS = [
   { to: '/cheatsheets', name: 'Cheat Sheets', Icon: ScrollText, what: `${cheatSheets.length} one-page references, from Git to Big-O.` },
 ];
 
-/** A colour tag per category, so the list is easy to scan. Each pair is AA in its theme. */
-const CATEGORY_TAG: Record<string, string> = {
-  'Front End': 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
-  'JS & TS': 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-  'Back End': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-  'AI Engineering': 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
-  'AI-Augmented Development': 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-300',
-  'DevOps': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300',
-  'Git': 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
-  'DSA': 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
-  'Behavioral': 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
-  'System Design': 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
-};
-const DEFAULT_TAG = 'bg-accent-soft text-accent';
+/** Guides shown per category before "Show all": enough to see what is inside, not a wall. */
+const PREVIEW_COUNT = 6;
 
 const JS_GUIDE = '/javascript/guide';
+
+/** Kept outside the component: the purity lint treats Math.random inside one as render-time. */
+function pickRandom<T>(list: T[]): T {
+  return list[Math.floor(Math.random() * list.length)];
+}
 
 /** A real question from the JavaScript guide, answerable right here. */
 function SampleQuestion() {
   const [open, setOpen] = useState(false);
   return (
-    <figure className="rounded-xl border border-line bg-surface p-5 shadow-sm">
-      <figcaption className="inline-block rounded-full bg-pop-soft text-pop-ink text-xs font-semibold px-2.5 py-1 mb-3">
+    <figure className="rounded-lg border border-line bg-surface p-6">
+      <figcaption className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
         Try one
       </figcaption>
-      <p className="font-semibold mb-3">What does this return?</p>
-      <pre className="rounded-lg bg-[#22272e] text-[#e6edf3] text-sm px-4 py-3 overflow-x-auto">
+      <p className="font-display text-xl font-semibold mb-4">What does this return?</p>
+      <pre className="rounded-md bg-[#22272e] text-[#e6edf3] text-sm px-4 py-3 overflow-x-auto">
         <code>{"['1', '2', '3'].map(parseInt)"}</code>
       </pre>
       <button
@@ -60,12 +53,12 @@ function SampleQuestion() {
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
         aria-controls="sample-answer"
-        className="mt-4 px-3.5 py-2 rounded-lg bg-accent-soft text-accent text-sm font-semibold hover:bg-accent/20 transition-colors"
+        className="mt-4 px-3.5 py-2 rounded-md border border-accent/40 text-accent text-sm font-semibold hover:bg-accent-soft transition-colors"
       >
         {open ? 'Hide the answer' : 'Show the answer'}
       </button>
       {open && (
-        <div id="sample-answer" className="mt-3 text-sm leading-relaxed">
+        <div id="sample-answer" className="mt-4 text-sm leading-relaxed">
           <p>
             <code className="font-mono font-semibold">[1, NaN, NaN]</code>. <code className="font-mono">map</code> passes
             each item&apos;s index as a second argument, and <code className="font-mono">parseInt</code> reads it as the
@@ -77,6 +70,66 @@ function SampleQuestion() {
         </div>
       )}
     </figure>
+  );
+}
+
+/** One category: its name and size on the left, its guides as a plain list on the right. */
+function CategoryRow({ cat, getStatus, done }: {
+  cat: CategoryWithItems;
+  getStatus: (path: string) => string;
+  done: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const readTime = cat.items.reduce((sum, g) => sum + readMinFor(g.file), 0);
+  const hidden = cat.items.length - PREVIEW_COUNT;
+  const shown = expanded || hidden <= 0 ? cat.items : cat.items.slice(0, PREVIEW_COUNT);
+  const listId = `guides-${cat.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+
+  return (
+    <article className="grid gap-4 md:grid-cols-[16rem_1fr] md:gap-10 py-8 border-t border-line">
+      <div>
+        <h3 className="font-display text-2xl font-semibold tracking-tight">{cat.name}</h3>
+        <p className="mt-1 text-sm text-muted">
+          {cat.items.length} {cat.items.length === 1 ? 'guide' : 'guides'} · {formatReadTime(readTime)}
+          {done > 0 && <span className="text-pop-ink font-semibold"> · {done} finished</span>}
+        </p>
+        <p className="mt-3 text-sm text-muted leading-relaxed line-clamp-3">{cat.description}</p>
+      </div>
+      <div>
+        <ul id={listId} className="grid gap-x-8 sm:grid-cols-2">
+          {shown.map(item => {
+            const status = getStatus(item.path);
+            return (
+              <li key={item.path}>
+                <Link
+                  to={item.path}
+                  className="group flex items-baseline gap-2 py-2 border-b border-line/70 hover:border-accent transition-colors"
+                >
+                  {status === 'completed' && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 shrink-0 self-center" />}
+                  {status === 'in-progress' && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-pop shrink-0 self-center" />}
+                  <span className="font-medium group-hover:text-accent transition-colors">{item.name}</span>
+                  {status === 'completed' && <span className="sr-only">(finished)</span>}
+                  {status === 'in-progress' && <span className="sr-only">(in progress)</span>}
+                  <span className="ml-auto shrink-0 text-xs text-muted tabular-nums">{formatReadTime(readMinFor(item.file))}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        {hidden > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(e => !e)}
+            aria-expanded={expanded}
+            aria-controls={listId}
+            className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent hover:text-accent-strong"
+          >
+            {expanded ? 'Show fewer' : `Show all ${cat.items.length} guides`}
+            <ChevronDown size={15} aria-hidden="true" className={expanded ? 'rotate-180' : undefined} />
+          </button>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -96,34 +149,34 @@ export default function HomePage() {
     .sort((a, b) => (progress[b.path]?.lastVisited ?? '').localeCompare(progress[a.path]?.lastVisited ?? ''))[0];
 
   const handleRandomTopic = () => {
-    const random = allGuides[Math.floor(Math.random() * allGuides.length)];
-    navigate(random.path);
+    navigate(pickRandom(allGuides).path);
   };
 
   return (
-    <div className="px-6 py-10 md:px-12 md:py-12 max-w-6xl mx-auto text-ink">
+    <div className="px-6 py-12 md:px-12 md:py-16 max-w-6xl mx-auto text-ink">
       {/* Introduction, next to a working sample of the product */}
-      <section className="grid gap-8 lg:grid-cols-[1fr_24rem] lg:items-center mb-10">
+      <section className="grid gap-10 lg:grid-cols-[1fr_24rem] lg:items-center mb-14">
         <div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.1] mb-5">
-            Interview prep for <span className="text-accent whitespace-nowrap">full-stack</span> developers
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">
+            Free · no account · runs in your browser
+          </p>
+          <h1 className="font-display text-5xl sm:text-6xl font-semibold tracking-tight leading-[1.05] mb-6">
+            Interview prep for <em className="text-accent">full-stack</em> developers
           </h1>
-          <p className="text-lg text-muted leading-relaxed max-w-xl mb-7">
-            {allGuides.length} guides and {totalQuestionCount.toLocaleString('en-US')} interview questions, from React and
-            Node.js to system design. Test yourself, review what you missed, and practise in playgrounds that run in your
-            browser. Free, with no account.
+          <p className="text-lg text-muted leading-relaxed max-w-xl mb-8">
+            From React and Node.js to system design. Read a topic, test yourself on it, and come back to what you missed.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             {continueGuide ? (
-              <Link to={continueGuide.path} className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-accent text-accent-contrast text-sm font-semibold hover:bg-accent-strong transition-colors">
+              <Link to={continueGuide.path} className="inline-flex items-center gap-2 px-5 py-3 rounded-md bg-accent text-accent-contrast text-sm font-semibold hover:bg-accent-strong transition-colors">
                 Continue: {continueGuide.name} <ArrowRight size={16} />
               </Link>
             ) : (
-              <a href="#guides" className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-accent text-accent-contrast text-sm font-semibold hover:bg-accent-strong transition-colors">
+              <a href="#guides" className="inline-flex items-center gap-2 px-5 py-3 rounded-md bg-accent text-accent-contrast text-sm font-semibold hover:bg-accent-strong transition-colors">
                 Start studying <ArrowRight size={16} />
               </a>
             )}
-            <Link to="/quiz" className="px-5 py-3 rounded-lg border border-line bg-surface text-sm font-semibold hover:border-accent hover:text-accent transition-colors">
+            <Link to="/quiz" className="px-5 py-3 rounded-md border border-line bg-surface text-sm font-semibold hover:border-accent hover:text-accent transition-colors">
               Take a quiz
             </Link>
           </div>
@@ -131,102 +184,82 @@ export default function HomePage() {
         <SampleQuestion />
       </section>
 
-      {/* Progress, from this browser's own data */}
-      <section aria-labelledby="progress-heading" className="rounded-xl border border-line bg-surface p-5 mb-12 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
-          <h2 id="progress-heading" className="font-bold">Your progress</h2>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-            <span><span className="font-bold tabular-nums">{studyStats.totalQuestionsReviewed}</span> <span className="text-muted">questions reviewed</span></span>
-            {studyStats.currentStreak > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-pop-soft text-pop-ink px-2.5 py-1 font-semibold">
-                <Flame size={14} aria-hidden="true" /> {studyStats.currentStreak}-day streak
-              </span>
-            )}
+      {/* The size of the library, as plain numbers rather than a feature grid */}
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-6 mb-14">
+        {[
+          [allGuides.length, 'study guides'],
+          [totalQuestionCount, 'interview questions'],
+          [LAST_MINUTE_CARDS.length, 'last-minute cards'],
+          [cheatSheets.length, 'cheat sheets'],
+        ].map(([n, label]) => (
+          <div key={label} className="border-l border-line pl-5">
+            <dt className="sr-only">{label}</dt>
+            <dd className="font-display text-4xl sm:text-5xl font-semibold tracking-tight tabular-nums">{n.toLocaleString('en-US')}</dd>
+            <dd className="mt-1 text-sm text-muted">{label}</dd>
           </div>
+        ))}
+      </dl>
+
+      {/* Progress, from this browser's own data: one quiet strip, not a card */}
+      <section aria-labelledby="progress-heading" className="border-y border-line py-5 mb-16">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+          <h2 id="progress-heading" className="text-sm font-semibold uppercase tracking-wider text-muted">Your progress</h2>
+          <div className="flex-1 min-w-[12rem]">
+            <div
+              className="h-1.5 rounded-full bg-ink/10 overflow-hidden"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={overallStats.total}
+              aria-valuenow={overallStats.completed}
+              aria-label="Guides finished"
+            >
+              <div className="h-full rounded-full bg-pop" style={{ width: `${Math.max(percent, overallStats.completed ? 2 : 0)}%` }} />
+            </div>
+          </div>
+          <p className="text-sm text-muted">
+            <span className="font-semibold text-ink tabular-nums">{overallStats.completed}</span> of {overallStats.total} guides finished
+          </p>
+          <p className="text-sm text-muted">
+            <span className="font-semibold text-ink tabular-nums">{studyStats.totalQuestionsReviewed}</span> questions reviewed
+          </p>
+          {studyStats.currentStreak > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-pop-soft text-pop-ink px-2.5 py-1 text-sm font-semibold">
+              <Flame size={14} aria-hidden="true" /> {studyStats.currentStreak}-day streak
+            </span>
+          )}
         </div>
-        <div
-          className="h-2.5 rounded-full bg-ink/10 overflow-hidden"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={overallStats.total}
-          aria-valuenow={overallStats.completed}
-          aria-label="Guides finished"
-        >
-          <div className="h-full rounded-full bg-pop" style={{ width: `${Math.max(percent, overallStats.completed ? 2 : 0)}%` }} />
-        </div>
-        <p className="text-sm text-muted mt-2">
-          <span className="font-semibold text-ink tabular-nums">{overallStats.completed}</span> of {overallStats.total} guides finished
-        </p>
       </section>
 
-      {/* Practice tools */}
-      <section aria-labelledby="tools-heading" className="mb-14">
-        <h2 id="tools-heading" className="text-2xl font-bold tracking-tight mb-5">Practice tools</h2>
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {TOOLS.map(({ to, name, Icon, what }) => (
-            <li key={to}>
-              <Link to={to} className="group flex gap-3 h-full rounded-xl border border-line bg-surface p-4 hover:border-accent transition-colors">
-                <span className="shrink-0 w-9 h-9 rounded-lg bg-accent-soft text-accent flex items-center justify-center">
-                  <Icon size={18} aria-hidden="true" />
-                </span>
-                <span>
-                  <span className="block font-semibold group-hover:text-accent transition-colors">{name}</span>
-                  <span className="block text-sm text-muted leading-snug mt-0.5">{what}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {/* Guides, one card per category; CSS columns keep short and long cards from leaving gaps */}
-      <section id="guides" aria-labelledby="guides-heading" className="scroll-mt-20">
-        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-5">
-          <h2 id="guides-heading" className="text-2xl font-bold tracking-tight">Study guides</h2>
+      {/* Guides first: reading is the point; the tools come after */}
+      <section id="guides" aria-labelledby="guides-heading" className="scroll-mt-20 mb-16">
+        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-6">
+          <h2 id="guides-heading" className="font-display text-3xl sm:text-4xl font-semibold tracking-tight">Study guides</h2>
           <button type="button" onClick={handleRandomTopic} className="text-sm font-semibold text-accent hover:text-accent-strong">
             Open a random guide
           </button>
         </div>
+        {categories.map(cat => (
+          <CategoryRow key={cat.name} cat={cat} getStatus={getStatus} done={getCategoryStats(cat.items).completed} />
+        ))}
+      </section>
 
-        <div className="md:columns-2 gap-5">
-          {categories.map(cat => {
-            const readTime = cat.items.reduce((sum, g) => sum + readMinFor(g.file), 0);
-            const done = getCategoryStats(cat.items).completed;
-            return (
-              <article key={cat.name} className="break-inside-avoid mb-5 rounded-xl border border-line bg-surface p-5 shadow-sm">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <h3 className="text-lg font-bold mr-1">{cat.name}</h3>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${CATEGORY_TAG[cat.name] ?? DEFAULT_TAG}`}>
-                    {cat.items.length} {cat.items.length === 1 ? 'guide' : 'guides'}
-                  </span>
-                  <span className="text-xs text-muted">{formatReadTime(readTime)}</span>
-                  {done > 0 && <span className="text-xs font-semibold text-pop-ink">{done} finished</span>}
-                </div>
-                <p className="text-sm text-muted leading-relaxed mb-4">{cat.description}</p>
-                <ul className="flex flex-wrap gap-2">
-                  {cat.items.map(item => {
-                    const status = getStatus(item.path);
-                    return (
-                      <li key={item.path}>
-                        <Link
-                          to={item.path}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] font-medium hover:border-accent hover:text-accent transition-colors"
-                        >
-                          {status === 'completed' && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 shrink-0" />}
-                          {status === 'in-progress' && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-pop shrink-0" />}
-                          {item.name}
-                          {status === 'completed' && <span className="sr-only">(finished)</span>}
-                          {status === 'in-progress' && <span className="sr-only">(in progress)</span>}
-                          <span className="text-[11px] text-muted">{formatReadTime(readMinFor(item.file))}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </article>
-            );
-          })}
-        </div>
+      {/* Practice tools: a plain list with dividers, not a grid of identical cards */}
+      <section aria-labelledby="tools-heading">
+        <h2 id="tools-heading" className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mb-6">Practise</h2>
+        <ul className="grid gap-x-10 md:grid-cols-2 border-t border-line">
+          {TOOLS.map(({ to, name, Icon, what }) => (
+            <li key={to}>
+              <Link to={to} className="group flex items-start gap-4 py-5 border-b border-line">
+                <Icon size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-muted group-hover:text-accent transition-colors" />
+                <span className="flex-1">
+                  <span className="block font-semibold group-hover:text-accent transition-colors">{name}</span>
+                  <span className="block text-sm text-muted leading-snug mt-1">{what}</span>
+                </span>
+                <ArrowRight size={16} aria-hidden="true" className="mt-1 shrink-0 text-muted group-hover:text-accent transition-colors" />
+              </Link>
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );

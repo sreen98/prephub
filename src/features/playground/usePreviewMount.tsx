@@ -14,7 +14,8 @@ import PreviewErrorBoundary from './PreviewErrorBoundary';
 export interface PreviewRoot { render: (n: React.ReactNode) => void; unmount: () => void }
 
 export function usePreviewMount(
-  previewRef: React.RefObject<HTMLDivElement | null>,
+  // Where the preview renders: the pane, or the separate preview tab while it is open.
+  getTarget: () => HTMLElement | null,
   reactRootRef: React.RefObject<PreviewRoot | null>,
 ) {
   const lastElement = useRef<React.ReactElement | null>(null);
@@ -25,11 +26,12 @@ export function usePreviewMount(
   const program = useRef<(() => void) | null>(null);
 
   const mount = useCallback((element: React.ReactElement, reportError: (message: string) => void): boolean => {
-    if (!previewRef.current) return false;
+    const target = getTarget();
+    if (!target) return false;
     if (reactRootRef.current) {
       try { reactRootRef.current.unmount(); } catch { /* ignore */ }
     }
-    reactRootRef.current = ReactDOM.createRoot(previewRef.current, {
+    reactRootRef.current = ReactDOM.createRoot(target, {
       // React 19 routes errors it recovered from, and ones nothing caught,
       // through this, including ones an error boundary already handled, which
       // is how we log *and* show a fallback.
@@ -42,7 +44,7 @@ export function usePreviewMount(
       <PreviewErrorBoundary key={generation.current} onError={reportError}>{element}</PreviewErrorBoundary>,
     );
     return true;
-  }, [previewRef, reactRootRef]);
+  }, [getTarget, reactRootRef]);
 
   /** The `render()` a snippet calls. `onMounted` fires once the element is in the pane. */
   const makeRenderFn = useCallback((reportError: (message: string) => void, onMounted: () => void) =>
@@ -61,7 +63,7 @@ export function usePreviewMount(
     await new Promise((r) => setTimeout(r, 60));
   }, [mount]);
 
-  const hasElement = useCallback(() => lastElement.current !== null && !!previewRef.current?.firstChild, [previewRef]);
+  const hasElement = useCallback(() => lastElement.current !== null && !!getTarget()?.firstChild, [getTarget]);
 
   return { makeRenderFn, remount, hasElement, setProgram };
 }

@@ -70,7 +70,7 @@ export default function FlipCard({ card, deckName, flipped, onFlip, onSwipe }: F
           className="flip-card-face flex flex-col items-start justify-between gap-6 text-left min-h-[16rem] sm:min-h-[20rem] p-5 sm:p-8 hover:border-accent"
         >
           <DeckChip name={deckName} />
-          <span className="text-2xl sm:text-3xl font-bold tracking-tight leading-snug"><InlineText text={card.question} /></span>
+          <span className="font-display text-3xl sm:text-4xl font-semibold tracking-tight leading-snug"><InlineText text={card.question} /></span>
           <span className="inline-flex items-center gap-1.5 text-sm text-muted">
             <RotateCw size={14} aria-hidden="true" /> Tap to see the answer
           </span>
@@ -78,7 +78,7 @@ export default function FlipCard({ card, deckName, flipped, onFlip, onSwipe }: F
 
         <div inert={!flipped} aria-hidden={!flipped} className="flip-card-face flip-card-back p-5 sm:p-7">
           <div className="flex flex-wrap items-center gap-2 mb-3"><DeckChip name={deckName} /></div>
-          <h2 ref={backRef} tabIndex={-1} className="text-lg font-bold leading-snug mb-4 focus-visible:outline-none">
+          <h2 ref={backRef} tabIndex={-1} className="font-display text-xl font-semibold leading-snug mb-4 focus-visible:outline-none">
             <InlineText text={card.question} />
           </h2>
           <CardBack card={card} />

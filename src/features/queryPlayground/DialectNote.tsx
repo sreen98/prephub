@@ -6,7 +6,7 @@
 
 export default function DialectNote() {
   return (
-      <div className="mt-3 px-3 py-2.5 rounded-xl bg-sky-950/25 border border-sky-900/50 text-[13px] text-slate-300 max-w-3xl">
+      <div className="mt-3 px-3 py-2.5 rounded-xl bg-sky-950/25 border border-sky-900/50 text-[13px] text-stone-300 max-w-3xl">
         <p className="mb-2">
           <strong className="text-sky-300">Because it is the one that runs in a browser.</strong>{' '}
           This page executes a real PostgreSQL build compiled to WebAssembly. There is no
@@ -20,7 +20,7 @@ export default function DialectNote() {
           <code>WITH RECURSIVE</code> and the <code>NOT IN</code>-with-NULL trap all behave identically.
         </p>
         <p className="mb-1">Where they diverge, each question says so under its explanation. The differences worth carrying into an interview:</p>
-        <ul className="list-disc pl-5 space-y-0.5 text-slate-400">
+        <ul className="list-disc pl-5 space-y-0.5 text-stone-400">
           <li><code>DISTINCT ON</code> and <code>FILTER (WHERE …)</code> are PostgreSQL-only. Use <code>ROW_NUMBER()</code> and <code>SUM(CASE WHEN …)</code> for portable answers.</li>
           <li>String concat is <code>||</code> in Postgres, <code>CONCAT()</code> in MySQL, where <code>||</code> means OR.</li>
           <li><code>STRING_AGG</code> vs <code>GROUP_CONCAT</code>, and MySQL silently truncates at 1024 bytes.</li>

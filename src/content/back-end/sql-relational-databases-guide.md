@@ -33,6 +33,8 @@ SQL is asked in almost every backend and full-stack loop, and it's the area wher
 
 ### 1.1 Keys and Constraints
 
+A *primary key* uniquely identifies each row; a *foreign key* is a column that must match a primary key in another table. *Constraints* (`NOT NULL`, `UNIQUE`, `CHECK`, `REFERENCES`) are rules the database enforces on every write, so bad data is rejected no matter which code path tried to write it.
+
 ```sql
 CREATE TABLE users (
   id          BIGSERIAL PRIMARY KEY,          -- surrogate key
@@ -113,6 +115,8 @@ Other `NULL` behaviours worth knowing: aggregates **ignore** `NULL` (so `COUNT(c
 
 ### 2.3 Pagination
 
+Pagination returns a large result one page at a time. There are two ways to ask for the next page: skip a number of rows (`OFFSET`), or continue from the last row you saw (*keyset* or *cursor* pagination).
+
 ```sql
 -- ✗ OFFSET pagination: the database must scan and discard 100,000 rows
 SELECT * FROM posts ORDER BY created_at DESC LIMIT 20 OFFSET 100000;
@@ -133,6 +137,8 @@ The trade-off to name: keyset pagination can't jump to an arbitrary page number.
 ---
 
 ## 3. JOINs
+
+A join combines rows from two tables where a condition matches, usually a foreign key equal to a primary key. The join type decides what happens to rows with no match: `INNER` drops them, `LEFT` keeps every left row and fills the right side with `NULL`, and `CROSS` pairs every row with every row.
 
 ```sql
 -- INNER: only matching rows from both sides
@@ -184,6 +190,8 @@ LEFT JOIN (SELECT user_id, SUM(total) AS total FROM orders GROUP BY user_id) o
 The general rule: **joining two one-to-many relationships to the same parent multiplies them.** Joining users→orders and users→addresses in one query gives you `orders × addresses` rows per user, and every aggregate is wrong. Aggregate in subqueries, or use `COUNT(DISTINCT …)` as a patch, or run separate queries.
 
 ### 3.3 `EXISTS` vs `IN` vs `JOIN`
+
+All three can answer "which users have at least one order?", but they differ in how they treat duplicates and `NULL`s.
 
 ```sql
 -- EXISTS: semi-join. Stops at the first match. NULL-safe. Usually the best choice
@@ -252,6 +260,8 @@ And `ROWS` vs `RANGE` in a frame clause: `ROWS` counts physical rows, `RANGE` gr
 ---
 
 ## 5. CTEs and Subqueries
+
+A *subquery* is a query nested inside another. A *CTE* (common table expression) is a named subquery declared up front with `WITH`, so a long query reads as a series of named steps instead of nested brackets.
 
 ```sql
 WITH recent_orders AS (
@@ -337,6 +347,8 @@ This is one of the highest-return optimisations for a hot read path. In MySQL/In
 
 ### 6.4 The Other Index Types (Postgres)
 
+A B-tree suits values that sort in a line. Postgres has other index structures for data that doesn't: values that contain many keys (a `jsonb` document, an array, a text's words), shapes and ranges, and huge tables stored in time order.
+
 | Type | For |
 |---|---|
 | **B-tree** | the default — equality, ranges, sorting, prefix `LIKE` |
@@ -407,6 +419,8 @@ Other red flags: `Sort` with `Sort Method: external merge Disk` (raise `work_mem
 
 ## 8. Transactions and ACID
 
+A *transaction* groups several statements into one unit that either fully happens or not at all: if anything fails before `COMMIT`, `ROLLBACK` undoes every change. ACID names the four guarantees a transaction gives.
+
 ```sql
 BEGIN;
   UPDATE accounts SET balance = balance - 100 WHERE id = 1;
@@ -475,6 +489,8 @@ Each transaction read a consistent snapshot and wrote a *different row*, so ther
 
 ### 9.2 Optimistic vs Pessimistic Concurrency
 
+Two strategies for a read-modify-write that others may touch at the same time. *Pessimistic* locking takes a row lock when it reads, so nobody else can change the row until it commits. *Optimistic* concurrency takes no lock and instead checks at write time that the row hasn't changed, usually with a version column, retrying if it has.
+
 ```sql
 -- Pessimistic: lock the row for the duration. Blocks others; risks deadlock.
 BEGIN;
@@ -536,6 +552,8 @@ The classic outage: `ALTER TABLE users ADD COLUMN … NOT NULL DEFAULT 'x'` on a
 Safer patterns: add columns nullable, backfill in batches, add the `NOT NULL` afterwards via a validated `CHECK`; use `CREATE INDEX CONCURRENTLY`; add foreign keys as `NOT VALID` then `VALIDATE CONSTRAINT` separately; and always set a short `lock_timeout` so a migration fails fast instead of queueing traffic behind it.
 
 ### 10.4 Why a `UNIQUE` Constraint Beats a Check-Then-Insert
+
+"Check whether the email exists, then insert" is two separate statements, and another request can insert the same email between them. A `UNIQUE` constraint makes the database itself reject the second insert, atomically, so the application only has to handle the error. The block below simulates the race with a stand-in client.
 
 ```js
 // Stand-in for a pg client: a users table with a UNIQUE constraint on email
@@ -682,18 +700,25 @@ A useful framing: **vertical scaling is underrated.** Modern hardware runs a ver
 
 ## 14. Postgres vs MySQL
 
+This is the canonical comparison; the [PostgreSQL](/backend/postgresql) and [MySQL](/backend/mysql) guides link here and go deeper on their own engine.
+
 | Aspect | **PostgreSQL** | **MySQL (InnoDB)** |
 |---|---|---|
+| Connections | process per connection; a pooler is required | thread per connection; cheaper |
 | Default isolation | Read Committed | **Repeatable Read** |
+| Phantom prevention | at Repeatable Read, via snapshot isolation | at Repeatable Read, via **next-key/gap locks** |
 | MVCC | row versions in the heap; needs `VACUUM` | undo log + purge thread; no table bloat, but long transactions grow the undo log |
 | Primary key storage | heap + separate indexes | **clustered** — PK *is* the row order |
+| Secondary index lookup | index → heap tuple | index → PK → clustered index (double lookup) |
 | `JOIN` support | full, incl. `FULL OUTER` | no `FULL OUTER JOIN` |
 | JSON | **`jsonb`** — binary, indexable with GIN | `JSON` — functional, less powerful |
 | Types | rich: arrays, ranges, `ENUM`, custom, extensions | narrower |
 | Full-text search | built in (`tsvector` + GIN) | built in, weaker |
 | Extensions | **PostGIS, pgvector, TimescaleDB, pg_cron** | limited |
 | DDL transactions | **transactional** — a failed migration rolls back | mostly not (atomic DDL since 8.0, not transactional) |
-| Replication | logical + physical | mature, long-established |
+| Replication | physical WAL (byte-exact) + logical | binlog-based logical; mature, long-established |
+| Built-in HA | needs external tooling (Patroni, repmgr) | Group Replication / InnoDB Cluster |
+| String comparison | case-sensitive by default | case-insensitive default collation |
 
 **When Postgres:** complex queries, `jsonb`, geospatial, vector search (pgvector — see the AI & LLM guide), correctness-sensitive work, transactional migrations. It's the default recommendation for new projects in 2026.
 

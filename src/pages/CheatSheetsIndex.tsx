@@ -7,7 +7,7 @@ export default function CheatSheetsIndex() {
       <Link to="/" className="inline-block text-sm text-muted hover:text-ink transition-colors mb-4">
         Back to home
       </Link>
-      <h1 className="text-3xl font-bold tracking-tight mb-2">Cheat Sheets</h1>
+      <h1 className="font-display text-4xl font-semibold tracking-tight mb-2">Cheat Sheets</h1>
       <p className="text-muted mb-8 max-w-2xl">
         {cheatSheets.length} one-page references for common interview topics, short enough to scan before an interview
         and to print.

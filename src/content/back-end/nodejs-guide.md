@@ -50,9 +50,11 @@ The split follows from one fact: all your JavaScript runs on **one thread**. Tha
 
 ### 2.1 Event Loop
 
-The event loop is how one thread serves many requests at once. When your code starts a slow operation — reading a file, querying a database — Node hands it off (to the operating system or to libuv's thread pool, §2.2) and moves on instead of waiting. When the operation finishes, its callback is put in a queue, and the event loop is the loop that keeps picking the next ready callback and running it on the main thread.
+The event loop is how one thread serves many requests at once. When your code starts a slow operation — reading a file, querying a database — Node hands it off (to the operating system or to the thread pool of libuv, the C library Node uses for its event loop and asynchronous I/O, §2.2) and moves on instead of waiting. When the operation finishes, its callback is put in a queue, and the event loop is the loop that keeps picking the next ready callback and running it on the main thread.
 
 It goes round in fixed **phases**, each with its own queue: expired timers first, then I/O callbacks (the *poll* phase), then `setImmediate` callbacks (the *check* phase), then close handlers, and round again. The practical rule that follows: a callback that runs for a long time blocks the whole loop, so no other request makes progress until it returns.
+
+The language-level model (call stack, task queue, microtask queue) that these phases plug into is in the JavaScript guide: [§1.6 What Is the Event Loop?](/javascript/guide#16-what-is-the-event-loop).
 
 ```mermaid
 graph TD
@@ -70,6 +72,8 @@ graph TD
 > **Microtask queues** drain after every callback the loop runs (since Node 11; before that, only between phases): `process.nextTick` (highest priority), then Promise callbacks.
 
 ### 2.2 libuv and Thread Pool
+
+libuv is the C library underneath Node that runs the event loop and talks to the operating system's asynchronous I/O. For work the OS cannot do asynchronously (file system calls, DNS lookups, some crypto), libuv keeps a small **thread pool**: background threads that do the blocking call and queue the callback when it finishes, so the main JavaScript thread never waits.
 
 ```mermaid
 graph TD
@@ -117,6 +121,8 @@ Why that order: synchronous code always finishes first (`1`, `6`). Then, before 
 
 ### 3.1 CommonJS (CJS) — Traditional Node.js
 
+CommonJS is Node's original module system: a file exports by assigning to `module.exports`, and another file loads it with `require()`, which reads and runs it synchronously. You still meet it in older code bases and in many npm packages.
+
 ```js
 // math.js — export
 function add(a, b) { return a + b; }
@@ -136,6 +142,8 @@ const express = require('express');
 
 ### 3.2 ES Modules (ESM) — Modern
 
+ES Modules are the module system built into the JavaScript language itself (`import` / `export`), the same one browsers use. Use it for new Node code: it supports top-level `await` and lets tools see the dependency graph without running anything.
+
 ```js
 // math.mjs (or .js with "type": "module" in package.json)
 export function add(a, b) { return a + b; }
@@ -150,16 +158,19 @@ import { readFile } from 'fs/promises';
 
 ### 3.3 CJS vs ESM
 
-| Feature | CommonJS | ES Modules |
-|---------|----------|------------|
-| Syntax | `require()` / `module.exports` | `import` / `export` |
-| Loading | Synchronous | Asynchronous |
-| Top-level await | No | Yes |
-| Tree-shaking | No | Yes |
-| `__dirname` / `__filename` | Available | Must use `import.meta.url` |
-| When Node uses it | `.cjs` files, and by default `.js` files when `package.json` has no `"type"` field | `.mjs` files, and `.js` files when `package.json` has `"type": "module"` (recent Node also runs a type-less `.js` file as ESM if it contains `import`/`export`) |
+The language-level differences (syntax, static vs dynamic loading, top-level `await`, tree-shaking) are compared in the JavaScript guide: [§12.3 Key Differences](/javascript/guide#123-key-differences). What is specific to Node is how it decides which system a file uses, and one CJS convenience ESM lacks:
+
+| File | How Node treats it |
+|------|--------------------|
+| `.cjs` | Always CommonJS |
+| `.mjs` | Always ES Module |
+| `.js`, nearest `package.json` has `"type": "module"` | ES Module |
+| `.js`, `"type": "commonjs"` or no `"type"` field | CommonJS (recent Node also runs a type-less `.js` file as ESM if it contains `import`/`export`) |
+| `__dirname` / `__filename` | Available in CJS; in ESM derive them from `import.meta.url` (or use `import.meta.dirname` / `import.meta.filename` on recent Node) |
 
 ### 3.4 Built-in Modules
+
+Built-in (core) modules ship with Node itself, so they need no `npm install`. Recent code often writes them with the `node:` prefix (`require('node:fs')`), which makes it explicit that the name refers to a core module and not an npm package.
 
 ```js
 const fs = require('fs');           // File system
@@ -348,7 +359,9 @@ Streams process data piece by piece (chunks) instead of loading everything into 
 
 ### 6.1 Four Types of Streams
 
-```
+Every Node stream is one of four types, depending on which way data flows: out of it, into it, both ways independently, or through it with a change on the way.
+
+```text
 Readable  → data source (fs.createReadStream, http request)
 Writable  → data sink (fs.createWriteStream, http response)
 Duplex    → both readable and writable (TCP socket)
@@ -419,6 +432,8 @@ process.stdin.pipe(upperCase).pipe(process.stdout);
 
 ### 7.1 EventEmitter
 
+`EventEmitter` is Node's built-in publish/subscribe mechanism inside one process: an object calls `emit('name', data)` and every listener registered with `on('name', fn)` runs, synchronously and in registration order. Use it to decouple the code that something happened in from the code that reacts to it; streams, HTTP servers and sockets are all EventEmitters.
+
 ```js
 const EventEmitter = require('events');
 
@@ -476,6 +491,8 @@ emitter.on('error', (err) => {
 ## 8. Process and Environment
 
 ### 8.1 process Object
+
+`process` is a global object describing the running Node process: its environment variables, command-line arguments, memory use and exit code. It is also an EventEmitter, which is how you hear about signals and uncaught errors (§8.2).
 
 ```js
 // Environment variables
@@ -584,6 +601,8 @@ const slice = buf2.subarray(0, 3);         // 'Hel' (same memory)
 
 ### 10.1 Child Processes
 
+A child process is a separate operating-system process started from Node, with its own memory and (for Node children) its own event loop. Use one to run another program (a shell command, `ffmpeg`, a Python script) or to isolate work so a crash cannot take the parent down; data passes through stdio or an IPC (inter-process communication) channel as copies.
+
 ```js
 const { exec, execFile, spawn, fork } = require('child_process');
 
@@ -609,6 +628,8 @@ process.on('message', (msg) => {
 ```
 
 ### 10.2 Worker Threads
+
+Worker threads run JavaScript on extra threads inside the same process, each with its own V8 instance and event loop. Use them for CPU-heavy JavaScript (parsing, hashing, image work) that would otherwise block the main event loop; they are lighter to start than a process and can share memory through `SharedArrayBuffer` or transfer `ArrayBuffer`s without copying.
 
 ```js
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
@@ -708,7 +729,9 @@ class ValidationError extends AppError {
 
 ### 11.3 Operational vs Programmer Errors
 
-```
+An operational error is a failure the program should expect and handle (the network, the disk, bad input); a programmer error is a bug in the code itself. The split decides the response: handle the first, crash and restart on the second, because after a bug the process state can no longer be trusted.
+
+```text
 Operational errors (expected, recoverable):
   - File not found
   - Network timeout
@@ -727,64 +750,27 @@ Programmer errors (bugs, unexpected):
 
 ## 12. Package Management (npm)
 
+npm is the package manager that ships with Node: it installs dependencies listed in `package.json`, pins exact versions in `package-lock.json`, and runs project scripts. The full treatment (npm vs yarn vs pnpm, lockfiles, `npm ci`, every `package.json` field) is in the Frontend Tooling guide; this section keeps only what a Node interview expects you to say.
+
 ### 12.1 Essential Commands
 
-```bash
-npm init -y                    # create package.json
-npm install express            # install dependency
-npm install -D typescript      # install dev dependency
-npm install -g nodemon         # install globally
-npm uninstall express          # remove
-npm update                     # update all
-npm outdated                   # check for updates
-npm audit                      # security vulnerabilities
-npm audit fix                  # auto-fix vulnerabilities
-npm ls                         # dependency tree
-npm run <script>               # run script from package.json
-npx <command>                  # run package binary without installing
-```
+`npm install <pkg>` adds a dependency (`-D` for a dev dependency), `npm ci` does a clean install exactly from the lockfile (use it in CI), `npm run <script>` runs a script from `package.json`, `npm audit` lists known vulnerabilities, and `npx <command>` runs a package's binary without installing it globally. → Full list: [Key npm Commands](/frontend/tooling#key-npm-commands) and [§7 npx](/frontend/tooling#7-npx).
 
 ### 12.2 package.json
 
-```json
-{
-  "name": "my-app",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "dist/index.js",
-  "scripts": {
-    "dev": "node --watch src/index.js",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "vitest"
-  },
-  "dependencies": {
-    "express": "^4.18.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.0.0"
-  },
-  "engines": {
-    "node": ">=20"
-  }
-}
-```
+The fields that matter most for a Node service: `"type": "module"` (makes `.js` files ES Modules, §3.3), `"scripts"`, `"dependencies"` vs `"devDependencies"`, and `"engines"` (the Node versions you support). → [§8 package.json Deep Dive](/frontend/tooling#8-packagejson-deep-dive).
 
 ### 12.3 Version Ranges
 
-```
-^1.2.3  → >=1.2.3 <2.0.0  (minor + patch updates)
-~1.2.3  → >=1.2.3 <1.3.0  (patch updates only)
-1.2.3   → exactly 1.2.3
-*       → any version
->=1.0.0 → 1.0.0 and above
-```
+Versions follow semver, `MAJOR.MINOR.PATCH`: `^1.2.3` accepts any `1.x.x` from 1.2.3 up, `~1.2.3` accepts only `1.2.x` patches, and `1.2.3` pins exactly. → [§8.3 Semantic Versioning](/frontend/tooling#83-semantic-versioning-semver).
 
 ---
 
 ## 13. Performance and Best Practices
 
 ### 13.1 Don't Block the Event Loop
+
+All JavaScript runs on one thread (§2.1), so a request handler that computes for 2 seconds delays every other request by 2 seconds. Move CPU-heavy work off the main thread (a worker thread, §10.2) or split it into chunks.
 
 ```js
 // BAD: CPU-intensive on main thread
@@ -1043,45 +1029,21 @@ No, Node.js is not a programming language. It's a **runtime environment** that a
 
 **Short answer:** it is the loop that lets one JavaScript thread handle many requests. Slow work (disk, network) is handed off, and when it finishes its callback is queued; the event loop runs queued callbacks one at a time whenever the call stack is empty.
 
-The loop has phases: timers -> pending callbacks -> poll (I/O) -> check (setImmediate) -> close callbacks. Microtasks (process.nextTick, then Promise callbacks) are drained after every callback the loop runs (since Node 11; before that, only between phases).
-
-The consequence to volunteer: because callbacks run one at a time on one thread, a slow synchronous callback (a big `JSON.parse`, a CPU-heavy loop, `readFileSync`) stalls every other request until it returns. "Don't block the event loop" (§13.1) is the whole performance model of Node in one sentence.
+The consequence to volunteer: a slow synchronous callback (a big `JSON.parse`, a CPU-heavy loop, `readFileSync`) stalls every other request until it returns ("Don't block the event loop", §13.1). Phases and microtask timing: [§2.1 Event Loop](#21-event-loop).
 
 ---
 
 **Q3: What is the difference between `require` and `import`?**
 
-- `require` is CommonJS (CJS) — synchronous, dynamic, traditional Node.js
-- `import` is ES Modules (ESM) — asynchronous, static (analyzed at parse time), supports tree-shaking
+**Short answer:** `require` is CommonJS: a synchronous function call that can sit anywhere and take a computed path. `import` is ES Modules: static (top level, fixed string), so tools can see the dependency graph without running the code, which is what enables tree-shaking. Full comparison: [§12.3 Key Differences](/javascript/guide#123-key-differences) in the JavaScript guide.
 
-```js
-// CJS
-const express = require('express');
-```
-
-```js
-// ESM
-import express from 'express';
-```
-
-"Static" is the difference that matters. An `import` must sit at the top level with a fixed string, so tools can see the whole dependency graph without running the code — which is what lets a bundler drop exports nobody uses (tree-shaking). A `require` is an ordinary function call that can appear inside an `if` or take a computed path, so nothing can be known about it until it runs.
-
-ESM is the modern standard. Use `"type": "module"` in package.json or `.mjs` extension.
+The Node-specific part: `.cjs` is always CommonJS, `.mjs` is always ESM, and a `.js` file follows the nearest `package.json` `"type"` field (`"module"` → ESM, absent or `"commonjs"` → CJS). ESM is the modern standard for new code (§3.3).
 
 ---
 
 **Q4: What is `process.nextTick()` and how does it differ from `setImmediate()`?**
 
-- `process.nextTick()`: Executes **before** the event loop continues to the next phase. It runs at the end of the current operation, before any I/O.
-- `setImmediate()`: Executes in the **check** phase of the event loop, after the poll phase (I/O).
-
-```js
-setImmediate(() => console.log('immediate'));
-process.nextTick(() => console.log('nextTick'));
-// Output: nextTick, immediate
-```
-
-`process.nextTick` has higher priority. Overusing it can starve I/O: Node empties the whole nextTick queue before the event loop is allowed to move on, including ticks added while it is emptying it, so a callback that keeps scheduling another `nextTick` stops timers and I/O from ever running (tricky Q4 in §15 shows this). The names are backwards from what they suggest — `nextTick` runs sooner than `setImmediate`.
+**Short answer:** `process.nextTick()` runs as soon as the current operation finishes, before the event loop moves on; `setImmediate()` waits for the **check** phase, after I/O polling. So `nextTick` runs first; the names are backwards from what they suggest. The catch: Node drains the whole nextTick queue (including ticks added meanwhile) before moving on, so recursive `nextTick` starves timers and I/O. Worked example: [§2.3 Execution Order](#23-execution-order); step-by-step traces: [Event Loop Ordering](#event-loop-ordering) in §15 (tricky Q1–Q4).
 
 ---
 

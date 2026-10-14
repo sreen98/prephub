@@ -17,8 +17,8 @@ export default defineConfig({
         name: 'PrepHub: Interview Prep',
         short_name: 'PrepHub',
         description: 'Comprehensive interview preparation guides for full-stack development',
-        theme_color: '#4f46e5',
-        background_color: '#0f1220',
+        theme_color: '#0f766e',
+        background_color: '#0a0a09',
         display: 'standalone',
         scope: '/',
         start_url: '/',
@@ -71,7 +71,8 @@ export default defineConfig({
             // Lazily-loaded JS: guide content, the playground, Babel, Mermaid.
             // CacheFirst because every filename is content-hashed, so a given
             // URL is immutable — a new build produces a new name.
-            urlPattern: ({ url }) => url.pathname.startsWith('/assets/') && url.pathname.endsWith('.js'),
+            // Monaco's icon font (codicon .ttf) is cached here too, so the editor's icons work offline.
+            urlPattern: ({ url }) => url.pathname.startsWith('/assets/') && /\.(js|ttf)$/.test(url.pathname),
             handler: 'CacheFirst',
             options: {
               cacheName: 'app-chunks',

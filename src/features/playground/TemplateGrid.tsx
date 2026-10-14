@@ -161,7 +161,7 @@ export default function TemplateGrid({
                         JSX
                       </span>
                     )}
-                    <ChevronRight size={12} className="text-slate-300 group-hover:text-accent-strong transition-colors shrink-0" />
+                    <ChevronRight size={12} className="text-stone-300 group-hover:text-accent-strong transition-colors shrink-0" />
                   </button>
                 );
               })}

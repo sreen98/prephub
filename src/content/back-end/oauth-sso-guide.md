@@ -401,30 +401,21 @@ If the auth server EVER sees an already-used (rotated-out) refresh token, that m
 
 The server can't distinguish, so the safe move is: **invalidate the entire refresh-token chain for that user**. Force a re-login. Auth0 and Okta implement this (when rotation is enabled). Microsoft Entra ID issues a new refresh token on each use but does not revoke the old one, so there is no reuse detection to rely on.
 
+One client-side consequence: two tabs refreshing at once would trip reuse detection and log the user out, so refreshes must be single-flight. That race and the rest of session design (lifetimes, revocation, session fixation) are covered in [Web Security §5.3](/backend/web-security#53-session-and-token-design).
+
 ---
 
 ## 12. Where to Store Tokens in the Browser
 
-This is the #1 question in OAuth implementation, and the answer is contested.
+In a browser, any token JavaScript can read can be stolen by XSS (cross-site scripting), so the safest place for OAuth tokens is not the browser at all. The storage comparison (`localStorage`, memory, `HttpOnly` cookies) and the cookie attributes are explained once in [Web Security §5](/backend/web-security#5-tokens-sessions-and-cookies). This section covers what the recommended BFF (Backend for Frontend) pattern means for the OAuth flow itself.
 
-| Storage | Pros | Cons |
-|---|---|---|
-| **localStorage** | Easy, persists across reloads | XSS attacker can read it — same-origin script wins |
-| **sessionStorage** | Same as localStorage but tab-scoped | Same XSS risk |
-| **In-memory (JS variable)** | XSS attacker can read it only during the session; lost on reload | Lost on reload — need silent renewal |
-| **HttpOnly cookie** | Inaccessible to JS — XSS-safe | CSRF risk (mitigated with SameSite=Lax/Strict) |
-| **HttpOnly cookie + BFF pattern** | Tokens never reach the browser at all | Most complex; needs backend |
+1. The SPA sends the user to the BFF's `/login`, which redirects to the IdP's `/authorize` with `state` and PKCE.
+2. The IdP redirects back to the **BFF's** callback, not the SPA's, so the authorization code never reaches JavaScript.
+3. The BFF, a confidential client with its own `client_secret`, exchanges the code and stores the tokens server-side.
+4. The BFF gives the SPA a session cookie (`HttpOnly`, `Secure`, `SameSite=Lax`, ideally with the `__Host-` prefix).
+5. The SPA calls the BFF with that cookie. The BFF attaches the access token, proxies the call to the real API, and refreshes (with rotation, §11) on the server.
 
-**Modern best practice (BFF — Backend for Frontend):**
-
-1. SPA does OIDC login via the browser.
-2. Tokens are received and stored by a **lightweight backend** (a "BFF" proxy).
-3. The BFF issues the SPA a session cookie (HttpOnly, Secure, SameSite=Lax).
-4. SPA calls its own backend (the BFF) with the session cookie; BFF attaches the access token and proxies to the real API.
-
-The tokens never live in JS-accessible storage. XSS can't steal them. `SameSite=Lax` is the CSRF baseline; add an anti-CSRF token or an `Origin`/`Sec-Fetch-Site` check on state-changing BFF routes, and use the `__Host-` cookie prefix (see the Web Security guide §4). Logout invalidates the session server-side.
-
-This is what most enterprise SaaS apps do in 2026. It's more infrastructure but materially safer than putting tokens in localStorage.
+The BFF's routes are cookie-authenticated, so they need an anti-CSRF token or an `Origin`/`Sec-Fetch-Site` check on top of `SameSite` ([Web Security §4](/backend/web-security#4-csrf)). Logout deletes the server-side session and revokes the refresh token ([§13](#13-logout-harder-than-you-think)). If you can't run a backend, the fallback is the access token in memory with silent renewal.
 
 ---
 
@@ -622,49 +613,36 @@ The two-tier design exists so leaked access tokens have a small blast radius (ex
 
 **Q4: Walk through the Authorization Code flow with PKCE step by step.**
 
-PKCE is the modern default for SPAs and mobile apps. The flow:
+1. The client generates a random `code_verifier` and sends its SHA-256 hash (`code_challenge`, method `S256`) to `/authorize`, along with `client_id`, `redirect_uri`, `scope` and `state`.
+2. The user logs in and consents.
+3. The auth server redirects back with `?code=…&state=…`, and the client checks `state`.
+4. The client POSTs the `code` **plus the original verifier** to `/token`. The server hashes the verifier, compares it with the stored challenge, and returns the access, refresh and (with OIDC) ID tokens.
 
-1. **Client generates** a random `code_verifier` (43-128 chars). Computes `code_challenge = SHA-256(verifier)` base64-url-encoded.
-2. **Redirects user to `/authorize`** with `client_id`, `redirect_uri`, `scope`, `state`, `code_challenge`, `code_challenge_method=S256`.
-3. **User authenticates** with the auth server (typing password, MFA, etc.) and consents to the requested scopes.
-4. **Auth server redirects back** to `redirect_uri` with `?code=xyz&state=...`. The client verifies `state` matches.
-5. **Client POSTs `/token`** with `code`, `redirect_uri`, `client_id`, AND `code_verifier`. The auth server hashes the verifier and compares against the stored challenge.
-6. **Auth server returns** access token, refresh token, and (if OIDC) ID token.
-
-PKCE's win: even if step 4's authorization code is intercepted (browser extension, network), it's useless without the `code_verifier` — which never left the client's memory.
+The point to land: an intercepted code is useless without the verifier, which never left the client. The diagram and code are in [§4](#4-authorization-code-flow-the-default) and [§5](#5-pkce-code-flow-for-public-clients).
 
 ---
 
 **Q5: Where should you store tokens in a browser-based SPA?**
 
-**Short answer:** preferably nowhere. Use the BFF (Backend for Frontend) pattern, where a small server you own keeps the tokens and the browser holds only an HttpOnly session cookie. If you truly cannot run a backend, keep the access token in memory and renew it silently. The reason is XSS (cross-site scripting): any storage JavaScript can read, a malicious script running in your page can read too.
+**Short answer:** preferably nowhere. Use the BFF (Backend for Frontend) pattern, where a small server you own keeps the tokens and the browser holds only an `HttpOnly` session cookie. If you truly cannot run a backend, keep the access token in memory and renew it silently.
 
-How the options compare:
+- **`localStorage` / `sessionStorage`:** any XSS (a malicious script running in your page) reads the token.
+- **A JavaScript variable:** gone on reload, so the attacker's window is shorter, but XSS can still read it.
+- **`HttpOnly` cookie:** XSS can't read it, but cookies need CSRF protection.
 
-- **localStorage / sessionStorage:** persistent and easy, but ANY XSS gives an attacker the token. The default attack surface is "any malicious script that runs in your origin."
-- **In-memory JavaScript variable:** safer from XSS (the token disappears on reload), but lost on reload — requires silent renewal.
-- **HttpOnly cookie:** the JS can't read it, so XSS can't steal it directly. But you need CSRF protection (SameSite=Lax minimum).
-- **BFF pattern (best practice 2026):** the SPA's backend keeps the tokens; the SPA only sees a server-issued session cookie. Tokens never enter JS at all.
-
-For a greenfield SPA today, the BFF pattern is the recommended approach. For pure-static SPAs that can't run a backend, in-memory + silent renewal is the next best.
+The full comparison is in [Web Security §5.1](/backend/web-security#51-the-storage-question); the OAuth flow through a BFF is in [§12](#12-where-to-store-tokens-in-the-browser).
 
 ---
 
 **Q6: What is the BFF (Backend for Frontend) pattern in OAuth?**
 
-The BFF is a small backend service that owns the OAuth flow on behalf of the browser. The flow:
+The BFF is a small backend that owns the OAuth flow for the browser. The IdP redirects back to the BFF, which exchanges the code, keeps the tokens server-side and gives the SPA only an `HttpOnly; Secure; SameSite=Lax` session cookie. The SPA calls the BFF, which attaches the access token and proxies to the real API.
 
-1. SPA clicks Login → opens the IdP's authorization page.
-2. After consent, the IdP redirects back to the BFF (NOT the SPA).
-3. The BFF exchanges the code for tokens, stores them server-side, and issues the SPA a session cookie (HttpOnly, Secure, SameSite=Lax).
-4. SPA makes API calls to the BFF using the session cookie. The BFF attaches the access token and proxies the request to the real API.
+- Tokens never enter JavaScript, so XSS can't steal them.
+- Refresh-token rotation happens on the server, not in the SPA.
+- Logout can revoke everything server-side.
 
-Benefits:
-- Tokens never enter JavaScript memory; XSS can't steal them.
-- Refresh-token rotation happens server-side; SPA doesn't have to manage it.
-- Logout can revoke everything server-side cleanly.
-
-Cost: you need to run a backend (even if just a thin proxy). For pure-static deployments this isn't viable.
+The cost is running a backend, even a thin proxy, so it doesn't fit a purely static deployment. Step by step: [§12](#12-where-to-store-tokens-in-the-browser).
 
 ---
 

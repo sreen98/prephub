@@ -4,6 +4,8 @@ import { safeGet, safeSet } from '../lib/storage';
 const SPLIT_KEY = 'playground-split-pct';
 const WRAP_KEY = 'playground-wrap';
 const AUTOCLOSE_KEY = 'playground-bracket-autoclose';
+const OUTPUT_HIDDEN_KEY = 'playground-output-hidden';
+const HEADER_HIDDEN_KEY = 'playground-header-hidden';
 
 /** Editor pane width is clamped to this range, on read and on drag. */
 const MIN_PCT = 20;
@@ -18,6 +20,12 @@ export interface UseEditorPrefsReturn {
   toggleWrap: () => void;
   bracketAutoClose: boolean;
   toggleBracketAutoClose: () => void;
+  /** The console/preview side is hidden and the editor takes the full width. */
+  outputHidden: boolean;
+  toggleOutputHidden: () => void;
+  /** The page header (title and action buttons) is collapsed for more editor room. */
+  headerHidden: boolean;
+  toggleHeaderHidden: () => void;
 }
 
 /**
@@ -41,6 +49,10 @@ export function useEditorPrefs(): UseEditorPrefsReturn {
     () => safeGet(AUTOCLOSE_KEY) !== '0',
   );
 
+  // Default shown: only an explicit '1' hides the output side.
+  const [outputHidden, setOutputHidden] = useState<boolean>(() => safeGet(OUTPUT_HIDDEN_KEY) === '1');
+  const [headerHidden, setHeaderHidden] = useState<boolean>(() => safeGet(HEADER_HIDDEN_KEY) === '1');
+
   const setEditorPct = useCallback((pct: number) => {
     setEditorPctState(Math.max(MIN_PCT, Math.min(MAX_PCT, pct)));
   }, []);
@@ -48,6 +60,8 @@ export function useEditorPrefs(): UseEditorPrefsReturn {
   useEffect(() => { safeSet(SPLIT_KEY, String(editorPct)); }, [editorPct]);
   useEffect(() => { safeSet(WRAP_KEY, wrapOn ? '1' : '0'); }, [wrapOn]);
   useEffect(() => { safeSet(AUTOCLOSE_KEY, bracketAutoClose ? '1' : '0'); }, [bracketAutoClose]);
+  useEffect(() => { safeSet(OUTPUT_HIDDEN_KEY, outputHidden ? '1' : '0'); }, [outputHidden]);
+  useEffect(() => { safeSet(HEADER_HIDDEN_KEY, headerHidden ? '1' : '0'); }, [headerHidden]);
 
   return {
     editorPct,
@@ -56,5 +70,9 @@ export function useEditorPrefs(): UseEditorPrefsReturn {
     toggleWrap: useCallback(() => setWrapOn((w) => !w), []),
     bracketAutoClose,
     toggleBracketAutoClose: useCallback(() => setBracketAutoClose((v) => !v), []),
+    outputHidden,
+    toggleOutputHidden: useCallback(() => setOutputHidden((v) => !v), []),
+    headerHidden,
+    toggleHeaderHidden: useCallback(() => setHeaderHidden((v) => !v), []),
   };
 }

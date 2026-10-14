@@ -168,7 +168,7 @@ export default function ChallengeBrowser({ open, onClose, selectedName, getEntry
             initial={{ opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 8 }}
             transition={{ type: 'spring', damping: 26, stiffness: 320 }}
             onKeyDown={(e) => e.key === 'Escape' && onClose()}
-            className="fixed inset-0 m-auto w-[min(1040px,95vw)] h-[min(680px,90vh)] bg-surface dark:bg-[#0f0f1a] text-ink rounded-lg border border-line shadow-2xl z-[90] flex flex-col overflow-hidden"
+            className="fixed inset-0 m-auto w-[min(1040px,95vw)] h-[min(680px,90vh)] bg-surface dark:bg-[#0d0c0b] text-ink rounded-lg border border-line shadow-2xl z-[90] flex flex-col overflow-hidden"
           >
             <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-4 border-b border-line">
               <div className="flex flex-1 items-center gap-3 min-w-0">

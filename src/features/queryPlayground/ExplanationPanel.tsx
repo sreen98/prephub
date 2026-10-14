@@ -19,11 +19,11 @@ export default function ExplanationPanel({
   if (!showSolution && !showExplanation) return null;
 
   return (
-    <div className="shrink-0 max-h-[42vh] overflow-y-auto border-t border-[#2d333b] bg-[#161a21] px-5 py-4">
+    <div className="shrink-0 max-h-[42vh] overflow-y-auto border-t border-[#262421] bg-[#141311] px-5 py-4">
       {showSolution && (
         <>
-          <h3 className="text-xs uppercase tracking-wider text-slate-500 mb-2">Reference solution</h3>
-          <pre className="text-[13px] font-mono bg-[#22272e] border border-[#2d333b] rounded-xl p-3 overflow-x-auto text-slate-200">
+          <h3 className="text-xs uppercase tracking-wider text-stone-500 mb-2">Reference solution</h3>
+          <pre className="text-[13px] font-mono bg-[#1a1917] border border-[#262421] rounded-xl p-3 overflow-x-auto text-stone-200">
             {question.solution}
           </pre>
         </>
@@ -31,7 +31,7 @@ export default function ExplanationPanel({
 
       {showExplanation ? (
         <div className="mt-4">
-          <h3 className="text-xs uppercase tracking-wider text-slate-500 mb-2">Explanation</h3>
+          <h3 className="text-xs uppercase tracking-wider text-stone-500 mb-2">Explanation</h3>
           <div className="quiz-markdown text-[14px]">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{question.explanation}</ReactMarkdown>
           </div>

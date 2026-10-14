@@ -87,18 +87,12 @@ A **checkpoint** flushes all dirty buffers and records a WAL position; recovery 
 
 ## 4. Transactions and Isolation in Postgres
 
-Postgres implements three of the four SQL isolation levels; **`READ UNCOMMITTED` behaves as `READ COMMITTED`** because MVCC gives no way to see uncommitted data.
-
-| Level | Dirty read | Non-repeatable read | Phantom | Serialization anomaly |
-|---|---|---|---|---|
-| Read Committed **(default)** | no | possible | possible | possible |
-| Repeatable Read | no | no | **no** | possible |
-| Serializable | no | no | no | no |
+The isolation levels and the anomalies each one prevents are explained once in the [SQL guide's isolation section](/backend/sql#9-isolation-levels-and-the-anomalies). Postgres implements three of the four levels; **`READ UNCOMMITTED` behaves as `READ COMMITTED`** because MVCC gives no way to see uncommitted data.
 
 Three Postgres-specific facts worth stating:
 
 - **The default is `READ COMMITTED`**, and each *statement* gets a fresh snapshot. So two identical `SELECT`s in one transaction can return different data.
-- **Postgres's `REPEATABLE READ` also prevents phantom reads**, which the SQL standard does not require — it is implemented as full snapshot isolation. But snapshot isolation still permits **write skew**: two transactions each read a condition, each write, and the combination violates an invariant neither could see being broken. The classic case is two doctors both dropping off-call because each sees one other on call.
+- **Postgres's `REPEATABLE READ` also prevents phantom reads**, which the SQL standard does not require — it is implemented as full snapshot isolation. But snapshot isolation still permits **write skew** (two doctors both going off call because each saw the other on call; see [write skew](/backend/sql#91-write-skew-the-one-worth-understanding)).
 - **`SERIALIZABLE`** uses Serializable Snapshot Isolation, which detects dangerous read/write dependencies and aborts one transaction with a serialization failure (`40001`) rather than locking. So the application **must be prepared to retry**; that is the price of using it.
 
 ```sql
@@ -154,6 +148,8 @@ Note `CONCURRENTLY` cannot run inside a transaction block, takes two table passe
 ---
 
 ## 6. Reading EXPLAIN in Postgres
+
+`EXPLAIN` shows the *query plan*: the tree of steps (scans, joins, sorts) the planner chose to run a statement, with its estimated cost and row counts. Reading it is how you find out why a query is slow rather than guessing.
 
 ```sql
 EXPLAIN (ANALYZE, BUFFERS, VERBOSE) SELECT …;
@@ -254,6 +250,8 @@ Extensions are Postgres's real differentiator — the engine is pluggable in way
 
 ### pgvector — RAG on the database you already run
 
+`pgvector` is a Postgres extension that adds a `vector` column type and nearest-neighbour search over it. RAG (retrieval-augmented generation) stores text as embeddings, which are vectors of numbers that capture meaning, and retrieves the closest ones to give a language model relevant context, so pgvector lets you do that without running a separate vector database.
+
 ```sql
 CREATE EXTENSION vector;
 
@@ -318,20 +316,15 @@ Column removal follows expand/contract: stop writing it, deploy, stop reading it
 
 ## 13. Postgres vs MySQL
 
-| Aspect | PostgreSQL | MySQL (InnoDB) |
-|---|---|---|
-| Connections | process per connection; pooler required | thread per connection; cheaper |
-| Row storage | heap; indexes point at tuples | **clustered by primary key** |
-| Secondary index lookup | index → heap | index → PK → clustered index (double lookup) |
-| MVCC | new tuple versions in the heap; needs `VACUUM` | undo log; purge thread |
-| Default isolation | **Read Committed** | **Repeatable Read** |
-| Phantom prevention | at Repeatable Read (snapshot isolation) | via **next-key/gap locks** |
-| DDL transactional | **yes** | mostly no (atomic DDL, but not rollback-able in a txn) |
-| Extensions | first-class (`pgvector`, PostGIS) | limited |
-| JSON | `jsonb` binary + GIN indexing | `JSON` type, functional indexes |
-| Strictness | strict types by default | historically lenient; strict mode now default |
+The full side-by-side table is in the [SQL guide's Postgres vs MySQL section](/backend/sql#14-postgres-vs-mysql). The three rows that change how you design for Postgres:
 
-The short version: Postgres favours **correctness, extensibility and complex queries**; MySQL favours **simple high-throughput primary-key access** and cheap connections. Choose Postgres for a rich domain model, complex queries, JSON plus relational, or vector search alongside your data. See the [MySQL guide](/backend/mysql) for the InnoDB side, including why the clustered index makes primary-key choice so consequential.
+| Difference | What it means on PostgreSQL |
+|---|---|
+| **Process per connection** | each connection costs memory, so production needs a pooler (§8) |
+| MVCC keeps old row versions **in the heap** | update-heavy tables bloat, and autovacuum must keep up (§2) |
+| **Transactional DDL** and first-class extensions | a failed migration rolls back cleanly; `pgvector` and PostGIS run inside the database (§11, §12) |
+
+Postgres favours **correctness, extensibility and complex queries**; MySQL favours simple high-throughput primary-key access. See the [MySQL guide](/backend/mysql) for the InnoDB side, including why the clustered index makes primary-key choice so consequential.
 
 ---
 

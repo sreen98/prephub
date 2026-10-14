@@ -339,7 +339,7 @@ const dashboardRoute = {
 };
 ```
 
-**The failure mode to name:** after a deploy, hashed chunk filenames change, and a tab that has been open since before the deploy requests a file that no longer exists. That is `ChunkLoadError`, it is routine rather than exotic, and the fix is an error boundary that offers a reload.
+**The failure mode to name:** after a deploy, a tab opened before it requests an old chunk that no longer exists (`ChunkLoadError`); the fix is an error boundary that offers a reload. Why it happens and the deployment-side fixes: [Frontend Architecture, Tricky Q3](/frontend/architecture#11-tricky-questions).
 
 ---
 
@@ -442,7 +442,7 @@ Client-side routing means the browser asks your server for `/products/42`, and a
 | **Vercel** | a rewrite in `vercel.json` |
 | **GitHub Pages** | no server config at all — see below |
 
-**GitHub Pages has no rewrite rules**, which is why the usual workaround is a `404.html` that stores the path and redirects to `index.html`, where the router restores it. It works, and it costs a redirect on every deep link — measurably around a second on mobile. The better fix for a known set of routes is to emit a real `index.html` at each one at build time, so the server finds a file and no redirect happens.
+**GitHub Pages has no rewrite rules**, which is why the usual workaround is a `404.html` that stores the path and redirects to `index.html`, where the router restores it. It works, and it costs a redirect on every deep link — measurably around a second on mobile. The better fix for a known set of routes is to emit a real `index.html` at each one at build time, so the server finds a file and no redirect happens. Host-by-host setups (route shells on GitHub Pages, CloudFront error responses or a CloudFront Function, Cloudflare's `not_found_handling`) are in [Frontend Deployment §3.3](/aws/frontend-deployment#33-spa-routing-on-a-host-without-rewrites) and [§5.2 Step 7](/aws/frontend-deployment#step-7-spa-routing).
 
 Set `basename` when the app is not at the domain root:
 
@@ -565,7 +565,7 @@ In v5, `<Switch>` rendered the first matching route, so `/products/:id` declared
 
 **Q9: What breaks when you deploy a React Router app to static hosting?**
 
-Deep links. The browser asks the server for `/products/42` and there is no such file, so you get a 404 — even though the app handles that route perfectly once loaded. The fix is a server rewrite that serves `index.html` for unknown paths. GitHub Pages has no rewrite rules at all, so the common workaround is a `404.html` that stashes the path and bounces through `index.html`, at the cost of a redirect on every deep link. Emitting a real HTML file per known route at build time avoids the redirect entirely. `HashRouter` sidesteps the problem because nothing after `#` reaches the server, but the URLs are worse and so is SEO.
+Deep links. The browser asks the server for `/products/42` and there is no such file, so you get a 404 — even though the app handles that route perfectly once loaded. The fix is a server rewrite that serves `index.html` for unknown paths; on a host without rewrites, a `404.html` bounce or a real HTML file per known route. `HashRouter` sidesteps it at the cost of worse URLs and SEO. Per-host config is in [§13](#13-deploying-a-spa).
 
 ---
 

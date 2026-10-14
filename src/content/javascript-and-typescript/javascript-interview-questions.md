@@ -2,7 +2,7 @@
 
 Interview questions and model answers, from beginner to advanced. Each answer links to the section that explains it in depth.
 
-Part of the JavaScript series: [JavaScript Guide](/javascript/guide) · **JavaScript Interview Questions** · [JavaScript Tricky Questions](/javascript/tricky-questions)
+Part of the JavaScript series: [JavaScript Guide](/javascript/guide) · **JavaScript Interview Questions** · [JavaScript Output Questions](/javascript/tricky-questions)
 
 ---
 
@@ -49,7 +49,7 @@ console.log(inc()); // 1
 console.log(inc()); // 2 (count persists because of closure)
 ```
 
-`count` survives because it lives in a scope object on the heap and `inc` holds a reference to that scope, so the garbage collector cannot free it while `inc` is reachable. Each `outer()` call makes a fresh scope, so two counters never share a `count`. Worth volunteering: closures are how JavaScript gets private state, and the same reference causes stale values and memory leaks (Q25, Q29). → Full explanation: [§5.2](/javascript/guide#52-closures)
+`count` survives because `inc` still references the scope it was created in, so that scope cannot be garbage-collected. Why you would want this (private state, function factories, memoization) is Q40 under [About the Language Itself](#about-the-language-itself); stale values and leaks are Q25 and Q29. → Full explanation: [§5.2](/javascript/guide#52-closures), patterns in [§5.4](/javascript/guide#54-closures-in-the-wild)
 
 ---
 
@@ -1164,7 +1164,7 @@ It buys mistakes caught in the editor (wrong arguments, a missing property, a fo
 
 **Q40: Why do we need closures? What would you use them for?**
 
-**Short answer:** closures let a function **keep data between calls without making it global**. Without them, remembered data would be a global variable or an object property, both of which any code can change. A closure gives a third option: data only the functions created alongside it can reach. Q2 covers *what* a closure is; this is *why*.
+**Short answer:** closures let a function **keep data between calls without making it global**. Without them, remembered data would be a global variable or an object property, both of which any code can change. A closure gives a third option: data only the functions created alongside it can reach. Q2 ([Beginner](#beginner)) covers *what* a closure is; this is *why*.
 
 ```js
 // 1. Private state: nothing outside can change `balance` except through the methods.
@@ -1351,7 +1351,7 @@ poll 3
 | `requestIdleCallback` | when the browser has nothing else to do | low-priority work such as analytics |
 | `setImmediate` (Node only) | after the current I/O phase | yielding inside Node's event loop |
 
-Debounce (Q16) and `once` (Q26) are built on `setTimeout` plus a closure, and [tricky Q27](/javascript/tricky-questions) shows how `var` and `let` change what timer callbacks print.
+Debounce (Q16) and `once` (Q26) are built on `setTimeout` plus a closure, and [Output Q27](/javascript/tricky-questions) shows how `var` and `let` change what timer callbacks print.
 
 ---
 
@@ -1469,7 +1469,7 @@ address is required
 - **Know where it comes from:** `document.querySelector` finding nothing, `localStorage.getItem` for a missing key, `JSON.parse('null')`, a database `NULL`, API fields. `JSON.stringify` keeps `null` but drops `undefined` properties.
 - **In TypeScript**, `strictNullChecks` makes `null` part of the type (`string | null`) until you handle it ([TypeScript Q19 and Q29](/javascript/typescript-interview-questions)).
 
-Q3 covers `null` versus `undefined`; [tricky Q39 and Q49](/javascript/tricky-questions) show default parameters ignoring `null` and how far `?.` short-circuits.
+Q3 covers `null` versus `undefined`; [Output Q39 and Q49](/javascript/tricky-questions) show default parameters ignoring `null` and how far `?.` short-circuits.
 
 ---
 
@@ -1696,7 +1696,7 @@ b 1 [ 'a', 'b' ]
 
 **The rule to state:** pass a function reference to `map`, `filter` or `forEach` only when it was written as a callback or takes exactly one argument (`Number`, `String`, `Boolean`, as in `filter(Boolean)`); everything else gets an arrow. `eslint-plugin-unicorn`'s `no-array-callback-reference` rule flags `.map(fn)`.
 
-[Tricky Q35](/javascript/tricky-questions) shows the same trap next to `sort()`'s text ordering, and Q28 compares `map`, `filter` and `reduce`.
+[Output Q35](/javascript/tricky-questions) shows the same trap next to `sort()`'s text ordering, and Q28 compares `map`, `filter` and `reduce`.
 
 ---
 

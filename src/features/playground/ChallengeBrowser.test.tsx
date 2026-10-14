@@ -50,22 +50,23 @@ describe('ChallengeProblemPanel — track navigation', () => {
     next: index < track.names.length - 1 ? track.names[index + 1] : null,
   });
 
-  // The statement and the editor share the column; the reader sets the split.
-  it('has a keyboard-reachable resize handle with a sized content area', () => {
-    const html = renderToStaticMarkup(<ChallengeProblemPanel name={track.names[0]} isReact={false} active={null} onGo={noop} />);
-    expect(html).toMatch(/role="separator"[^>]*aria-orientation="horizontal"/);
-    expect(html).toContain('tabindex="0"');
-    expect(html).toMatch(/style="height:\d+px"/);
+  // The statement is a dialog opened from the editor toolbar, so the editor keeps the column.
+  it('renders nothing while closed, and a labelled dialog with a Start coding button when open', () => {
+    expect(renderToStaticMarkup(<ChallengeProblemPanel name={track.names[0]} isReact={false} active={null} onGo={noop} open={false} onClose={noop} />)).toBe('');
+    const html = renderToStaticMarkup(<ChallengeProblemPanel name={track.names[0]} isReact={false} active={null} onGo={noop} open onClose={noop} />);
+    expect(html).toMatch(/role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="problem-title"/);
+    expect(html).toContain('Start coding');
+    expect(html).toContain('aria-label="Close the problem"');
   });
 
   it('shows the position in the track, and disables Prev on the first challenge', () => {
-    const html = renderToStaticMarkup(<ChallengeProblemPanel name={track.names[0]} isReact={track.tag === 'React'} active={at(0)} onGo={noop} />);
+    const html = renderToStaticMarkup(<ChallengeProblemPanel name={track.names[0]} isReact={track.tag === 'React'} active={at(0)} onGo={noop} open onClose={noop} />);
     expect(html).toContain(`1 of ${track.names.length}`);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*Prev/);
   });
 
   it('hides the navigation when the challenge was not opened from a track', () => {
-    const html = renderToStaticMarkup(<ChallengeProblemPanel name={track.names[0]} isReact={false} active={null} onGo={noop} />);
+    const html = renderToStaticMarkup(<ChallengeProblemPanel name={track.names[0]} isReact={false} active={null} onGo={noop} open onClose={noop} />);
     expect(html).not.toContain('Prev');
   });
 });

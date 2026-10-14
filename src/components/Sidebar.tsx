@@ -40,7 +40,7 @@ export interface SidebarProps {
 }
 
 /** The one active-link style, shared by Home, guides and tools. */
-const ACTIVE = 'bg-accent-soft text-accent';
+const ACTIVE = 'bg-accent-soft text-accent font-semibold shadow-[inset_2px_0_0_rgb(var(--accent))]';
 /** Inactive links: muted text that darkens on hover. */
 const INACTIVE = 'text-muted hover:text-ink hover:bg-ink/5';
 
@@ -99,11 +99,11 @@ export default function Sidebar({
         )}>
           <div className="p-5 border-b border-line">
             <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center gap-2.5 font-bold text-lg group">
-                <div className="w-8 h-8 rounded-md bg-accent flex items-center justify-center">
+              <Link to="/" className="flex items-center gap-2.5 group">
+                <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
                   <BookOpen size={16} className="text-accent-contrast" />
                 </div>
-                <span>PrepHub</span>
+                <span className="font-display text-xl font-semibold tracking-tight">PrepHub</span>
               </Link>
               <div className="flex items-center gap-1">
                 <button onClick={cycleFontSize} className="hidden md:flex p-2 hover:bg-ink/5 rounded-lg transition-colors relative" title={`Font size: ${fontSize}`}>

@@ -360,7 +360,7 @@ Context is a way to *pass* a value down the tree, not a state manager — every 
 
 | Feature | Context API | Redux (Toolkit) | Zustand |
 |---|---|---|---|
-| **Bundle size** | 0 KB (built-in) | ~11 KB (RTK) | ~1 KB |
+| **Bundle size** (min+gzip, approx.) | 0 KB (built-in) | ~18 KB (@reduxjs/toolkit + react-redux) | <1 KB |
 | **Boilerplate** | Minimal | Moderate (slices, store config) | Minimal |
 | **DevTools** | React DevTools only | Redux DevTools (time-travel) | Redux DevTools (via middleware) |
 | **Middleware** | None built-in | Thunk, Saga, custom | Built-in middleware support |
@@ -465,24 +465,7 @@ These are not three alternatives on one axis. A cookie is a *transport* (the bro
 
 ### 3.4 Monolith vs Microservices
 
-A monolith is one deployable app; microservices split it into separately deployed services that talk over the network. Microservices buy independent deploys and scaling per team, and cost you everything a network brings: latency, partial failures, and much harder debugging.
-
-| Feature | Monolith | Microservices |
-|---|---|---|
-| **Deployment** | Single unit — deploy everything | Independent — deploy each service separately |
-| **Codebase** | Single repository (usually) | Multiple repositories or monorepo |
-| **Scaling** | Scale the whole application | Scale individual services independently |
-| **Technology** | Single tech stack | Polyglot (different languages/frameworks per service) |
-| **Data** | Single shared database | Database-per-service pattern |
-| **Communication** | In-process function calls | Network calls (HTTP, gRPC, message queues) |
-| **Complexity** | Simple to develop, test, deploy initially | Distributed systems complexity (networking, observability) |
-| **Latency** | Lower (in-process) | Higher (network hops, serialization) |
-| **Team structure** | Single team or overlapping teams | Small autonomous teams per service |
-| **Failure isolation** | One bug can crash everything | Failures are isolated to individual services |
-| **Testing** | Simple end-to-end testing | Complex integration testing, contract testing |
-| **Operational overhead** | Low (one deployment pipeline) | High (container orchestration, service mesh, monitoring) |
-
-**When to use which:** Start with a monolith — it's simpler to build, test, and deploy. Migrate to microservices when you need independent scaling, team autonomy, or your monolith has become too large to iterate on quickly. The "modular monolith" is a strong middle ground.
+One deployable app vs separately deployed services that each own their data. Table and trade-offs: [System Design Comparisons](/system-design/comparisons#monolith-vs-microservices).
 
 ---
 

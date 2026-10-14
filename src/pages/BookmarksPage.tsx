@@ -31,7 +31,7 @@ export default function BookmarksPage() {
           <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors mb-2">
             <ArrowLeft size={14} /> Back
           </Link>
-          <h1 className="text-2xl font-extrabold">Bookmarks</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Bookmarks</h1>
           <p className="text-sm text-muted mt-1">{bookmarks.length} saved item{bookmarks.length !== 1 ? 's' : ''}</p>
         </div>
         <button

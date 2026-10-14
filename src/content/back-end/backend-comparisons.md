@@ -79,25 +79,9 @@ Three approaches to "who is this user" across requests. Cookies are a *transport
 
 ## Monolith vs Microservices
 
-Monolith = one deployable app. Microservices = many small services each owning a bounded context, communicating over network. The tradeoff is simplicity vs. team autonomy + independent scaling.
+Monolith = one deployable app. Microservices = many small services, each owning a bounded context and its own database, communicating over the network. The trade-off is simplicity against team autonomy and independent scaling, paid for with network latency and partial failures.
 
-| Feature | Monolith | Microservices |
-|---|---|---|
-| **Deployment** | Single unit | Independent per service |
-| **Scaling** | Scale the whole app | Scale individual services |
-| **Technology** | Single stack | Polyglot |
-| **Data** | Single shared database | Database-per-service |
-| **Communication** | In-process function calls | Network calls (HTTP, gRPC, queues) |
-| **Complexity** | Simple initially | Distributed systems complexity |
-| **Failure isolation** | One bug can crash all | Isolated to individual services |
-
-**Why database-per-service is the key microservices rule**: sharing a DB across services re-couples them — one service's schema change breaks another. The whole point of microservices is independent evolution, which means services own their data and expose APIs, not tables.
-
-**Why network calls change everything**: in-process calls are ~1ns. HTTP across a network is ~1ms. That's a 1,000,000× slowdown. It also introduces failure modes that didn't exist: timeouts, partial failures, retries, ordering issues, cascading outages. Patterns like circuit breakers, retries with jitter, and bulkheads exist to manage this.
-
-**The "distributed monolith" trap**: microservices that are tightly coupled — they must be deployed together, share a DB, or one's release waits on another's. You paid the microservices tax without getting the benefits. Watch for this.
-
-**When to use which**: Start with a well-structured monolith. Move to microservices when (a) the team is large enough that a single deploy cadence is a bottleneck, (b) parts of the system have genuinely different scaling profiles, or (c) you need true failure isolation between domains. A *modular monolith* — one deploy, clear internal boundaries — is often the right middle ground.
+The comparison table is in [System Design Comparisons](/system-design/comparisons#monolith-vs-microservices); the modular-monolith middle ground and when to split are in the [Microservices guide](/backend/microservices#2-monolith-vs-microservice-vs-modular-monolith).
 
 ---
 

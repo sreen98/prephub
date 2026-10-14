@@ -32,7 +32,7 @@ export default function CheckpointsPage() {
           <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors mb-2">
             <ArrowLeft size={14} /> Back
           </Link>
-          <h1 className="text-2xl font-extrabold">Checkpoints</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Checkpoints</h1>
           <p className="text-sm text-muted mt-1">{entries.length} saved checkpoint{entries.length !== 1 ? 's' : ''}</p>
         </div>
         <button

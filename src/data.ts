@@ -235,11 +235,11 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'JS & TS',
     icon: Braces,
-    description: 'JavaScript and TypeScript (core guides, interview questions and tricky output questions), Regex and comparisons',
+    description: 'JavaScript and TypeScript (core guides, interview questions, JavaScript output questions and TypeScript tricky questions), Regex and comparisons',
     items: [
       { name: 'JavaScript Guide', path: '/javascript/guide', group: 'Languages', file: './content/javascript-and-typescript/javascript-guide.md', officialDocs: [{ label: 'MDN JavaScript', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }] },
       { name: 'JavaScript Interview Questions', path: '/javascript/interview-questions', group: 'Languages', file: './content/javascript-and-typescript/javascript-interview-questions.md', officialDocs: [{ label: 'MDN JavaScript', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }] },
-      { name: 'JavaScript Tricky Questions', path: '/javascript/tricky-questions', group: 'Languages', file: './content/javascript-and-typescript/javascript-tricky-questions.md', officialDocs: [{ label: 'MDN JavaScript', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }] },
+      { name: 'JavaScript Output Questions', path: '/javascript/tricky-questions', group: 'Languages', file: './content/javascript-and-typescript/javascript-tricky-questions.md', officialDocs: [{ label: 'MDN JavaScript', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }] },
       { name: 'TypeScript Guide', path: '/javascript/typescript', group: 'Languages', file: './content/javascript-and-typescript/typescript-guide.md', officialDocs: [{ label: 'TypeScript', url: 'https://www.typescriptlang.org/docs' }] },
       { name: 'TypeScript Interview Questions', path: '/javascript/typescript-interview-questions', group: 'Languages', file: './content/javascript-and-typescript/typescript-interview-questions.md', officialDocs: [{ label: 'TypeScript', url: 'https://www.typescriptlang.org/docs' }] },
       { name: 'TypeScript Tricky Questions', path: '/javascript/typescript-tricky-questions', group: 'Languages', file: './content/javascript-and-typescript/typescript-tricky-questions.md', officialDocs: [{ label: 'TypeScript', url: 'https://www.typescriptlang.org/docs' }] },

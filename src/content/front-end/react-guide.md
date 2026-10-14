@@ -1557,7 +1557,7 @@ The most useful framing for state management: **server state and client state ar
 The split has three concrete consequences:
 
 1. **Don't put server data in Redux/Zustand.** Caching, de-duplication, refetch-on-focus, optimistic updates, retry and cancellation are *the entire job* of TanStack Query; rebuilding them on Redux is a lot of buggy boilerplate.
-2. **Client state libraries can be tiny.** Once API data lives in TanStack Query, the remaining client state is a few booleans, a selected ID, the open modal. Zustand handles that in about 3 KB with no provider tree, actions or reducers; atomic libraries (Jotai) scope it per atom.
+2. **Client state libraries can be tiny.** Once API data lives in TanStack Query, the remaining client state is a few booleans, a selected ID, the open modal. Zustand handles that in under 1 KB (min+gzip) with no provider tree, actions or reducers; atomic libraries (Jotai) scope it per atom.
 3. **Redux is no longer the default.** Reach for Redux Toolkit for a genuinely large, complex client state that benefits from its devtools and conventions, or in a codebase that already uses it.
 
 So the answer that lands to "what state management would you use?" is: *server state in TanStack Query, client state in Zustand or Context, Redux only for a specific reason.*

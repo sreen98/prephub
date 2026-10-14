@@ -23,8 +23,8 @@ export default function QuestionList({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-[#2d333b] shrink-0">
-        <div className="flex items-center gap-1 bg-[#1c2028] rounded-xl p-0.5 mb-2">
+      <div className="p-3 border-b border-[#262421] shrink-0">
+        <div className="flex items-center gap-1 bg-[#181715] rounded-xl p-0.5 mb-2">
           {([
             { id: 'postgres' as const, label: 'PostgreSQL', Icon: Database },
             { id: 'mongo' as const, label: 'MongoDB', Icon: Leaf },
@@ -35,15 +35,15 @@ export default function QuestionList({
               className={cn(
                 'flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                 engine === id
-                  ? 'bg-[#2d333b] text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200',
+                  ? 'bg-[#262421] text-white shadow-sm'
+                  : 'text-stone-400 hover:text-stone-200',
               )}
             >
               <Icon size={13} /> {label}
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] text-stone-500">
           {solvedInScope} / {inScope.length} solved
         </p>
       </div>
@@ -60,15 +60,15 @@ export default function QuestionList({
                 'w-full text-left px-3 py-2 rounded-lg transition-colors border',
                 isActive
                   ? 'bg-teal-900/40 border-teal-600/60'
-                  : 'border-transparent hover:bg-[#2d333b]/60',
+                  : 'border-transparent hover:bg-[#262421]/60',
               )}
             >
               <div className="flex items-start gap-2">
                 {isSolved
                   ? <CheckCircle2 size={14} className="text-emerald-400 mt-0.5 shrink-0" />
-                  : <Circle size={14} className="text-slate-600 mt-0.5 shrink-0" />}
+                  : <Circle size={14} className="text-stone-600 mt-0.5 shrink-0" />}
                 <div className="min-w-0 flex-1">
-                  <div className={cn('text-[13px] font-medium truncate', isActive ? 'text-white' : 'text-slate-300')}>
+                  <div className={cn('text-[13px] font-medium truncate', isActive ? 'text-white' : 'text-stone-300')}>
                     {q.title}
                   </div>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -76,7 +76,7 @@ export default function QuestionList({
                       {q.difficulty}
                     </span>
                     {q.topics.slice(0, 2).map((t) => (
-                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-[#2d333b] text-slate-400">
+                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-[#262421] text-stone-400">
                         {t}
                       </span>
                     ))}

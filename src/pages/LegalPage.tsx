@@ -169,7 +169,7 @@ export default function LegalPage({ doc }: { doc: Doc }) {
   const { title, openItems, sections } = doc === 'privacy' ? PRIVACY : TERMS;
   return (
     <article className="px-6 py-12 md:px-12 max-w-2xl mx-auto text-ink">
-      <h1 className="text-3xl font-bold tracking-tight mb-6">{title}</h1>
+      <h1 className="font-display text-4xl font-semibold tracking-tight mb-6">{title}</h1>
 
       <section aria-labelledby="draft-heading" className="mb-10 border border-line bg-surface rounded-md p-5">
         <h2 id="draft-heading" className="text-sm font-semibold mb-2">Draft for review</h2>

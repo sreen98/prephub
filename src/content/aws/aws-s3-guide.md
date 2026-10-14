@@ -1700,64 +1700,10 @@ aws s3 website s3://www.example.com/ \
   --error-document error.html
 
 # Step 5: Upload website files
-aws s3 sync ./build/ s3://www.example.com/ \
-  --cache-control "max-age=86400" \
-  --delete
-
-# Upload with correct content types
-aws s3 cp ./build/index.html s3://www.example.com/index.html \
-  --content-type "text/html" \
-  --cache-control "no-cache"    # don't cache index.html (SPA routing)
-
-aws s3 sync ./build/static/ s3://www.example.com/static/ \
-  --cache-control "max-age=31536000"    # cache static assets for 1 year
+aws s3 sync ./build/ s3://www.example.com/ --delete
 ```
 
-```
-Production architecture for static website:
-
-  Route 53 (DNS)
-      |
-      v
-  CloudFront (CDN + HTTPS)
-      |
-      ├── Origin: S3 bucket (via Origin Access Control)
-      ├── HTTPS certificate (ACM)
-      ├── Custom domain (www.example.com)
-      ├── Edge caching (750+ points of presence)
-      └── Custom error responses (SPA: 404 → /index.html)
-
-  Advantages over raw S3 hosting:
-    - HTTPS support
-    - Global edge caching (faster loads)
-    - DDoS protection (AWS Shield)
-    - Custom domain with SSL
-    - No need for public bucket policy (use OAC)
-```
-
-```json
-// CloudFront + S3 with Origin Access Control (OAC)
-// Bucket policy: allow only CloudFront to access S3 (no public access needed)
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowCloudFrontServicePrincipal",
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "cloudfront.amazonaws.com"
-      },
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::www.example.com/*",
-      "Condition": {
-        "StringEquals": {
-          "AWS:SourceArn": "arn:aws:cloudfront::123456789012:distribution/E1ABCDEF"
-        }
-      }
-    }
-  ]
-}
-```
+**For production, put CloudFront in front instead.** The website endpoint is HTTP-only, needs a public bucket and serves from one region. The production setup keeps the bucket private (not website-enabled), lets CloudFront read it through Origin Access Control, adds HTTPS from ACM, and handles the SPA fallback (403/404 → `index.html`) at CloudFront. That build, with the OAC bucket policy, cache headers per file and the upload order, is walked through once in [Frontend Deployment §5](/aws/frontend-deployment#5-aws-s3-cloudfront).
 
 ---
 

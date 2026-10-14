@@ -40,7 +40,7 @@ export default function QuizToolbar({
           <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors mb-2">
             <ArrowLeft size={14} /> Back
           </Link>
-          <h1 className="text-2xl font-extrabold">Quiz Mode</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Quiz Mode</h1>
         </div>
         <div className="flex items-center gap-2">
           <select

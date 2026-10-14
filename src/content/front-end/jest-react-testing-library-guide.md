@@ -27,6 +27,8 @@
 
 Jest is a **zero-config JavaScript testing framework** by Meta (Facebook). It provides a test runner, assertion library, mocking utilities, and code coverage — all in one package.
 
+Component tests run in **jsdom**, a JavaScript implementation of the browser DOM that runs inside Node. It lets tests render and query elements without opening a real browser, but it has no layout engine, so sizes and visibility are not computed.
+
 ```bash
 npm install --save-dev jest @types/jest ts-jest jest-environment-jsdom   # jsdom env is a separate package since Jest 28
 # or with Vitest (Jest-compatible, faster with Vite)
@@ -39,7 +41,11 @@ npm install --save-dev vitest
 
 ## 2. Jest Fundamentals
 
+Every Jest test file is built from the same few pieces: blocks that group tests, the tests themselves, assertions, and hooks that run code around them. Once you know them, any test file reads at a glance.
+
 ### 2.1 Test Structure
+
+A test file groups related tests in `describe` blocks. Each `it` (an alias of `test`) is one test case: a name plus a function. Inside it, `expect(value)` returns an object of matchers such as `toBe`, and a matcher throws when its check fails, which is what fails the test.
 
 ```ts
 describe('Calculator', () => {
@@ -83,6 +89,8 @@ describe('Calculator', () => {
 
 ### 2.2 Test Lifecycle
 
+Lifecycle hooks run setup and cleanup code around your tests: `beforeAll` and `afterAll` once per `describe` block, `beforeEach` and `afterEach` around every single test. Use them to give each test fresh state and to tear it down afterwards, so one test cannot leak into the next.
+
 ```
 beforeAll()          ← once before all tests
   ├── beforeEach()   ← before EACH test
@@ -95,6 +103,8 @@ afterAll()           ← once after all tests
 ```
 
 ### 2.3 Describe Nesting
+
+`describe` blocks can nest, so a file can be grouped by unit and then by method or scenario. Hooks declared in an outer block also run for every test in the inner blocks, and the nested names join into the test's full name in the report.
 
 ```ts
 describe('UserService', () => {
@@ -112,6 +122,8 @@ describe('UserService', () => {
 ```
 
 ### 2.4 Test.each (Parameterized Tests)
+
+`it.each` runs the same test body once for every row of a table of inputs, so you write one test instead of copy-pasting it per case. Placeholders such as `%i` (array rows) or `$a` (tagged-template rows) put each row's values into the test's title.
 
 ```ts
 it.each([
@@ -138,7 +150,11 @@ it.each`
 
 ## 3. Matchers (Assertions)
 
+A matcher is the method you call on `expect(value)` to state what the value should be. Picking the specific one gives a failure message that says exactly what was expected and what was received.
+
 ### 3.1 Common Matchers
+
+The everyday matchers compare values (`toBe` checks identity with `Object.is`, `toEqual` checks deep equality) and check truthiness, numbers, strings, arrays and thrown errors. Any matcher can be inverted with `.not`.
 
 ```ts
 // Exact equality
@@ -189,6 +205,8 @@ expect(arr).not.toContain('x');
 
 ### 3.2 Jest-DOM Matchers (for DOM assertions)
 
+The `@testing-library/jest-dom` package adds matchers that read DOM state, such as `toBeInTheDocument`, `toBeDisabled` and `toHaveTextContent`. They read like the requirement and fail with a clearer message than checking DOM properties by hand.
+
 ```ts
 // Install: @testing-library/jest-dom
 import '@testing-library/jest-dom';
@@ -211,6 +229,8 @@ expect(element).toContainHTML('<span>hi</span>'); // contains HTML string
 ```
 
 ### 3.3 Asymmetric Matchers
+
+An asymmetric matcher, such as `expect.any(Number)` or `expect.objectContaining({ ... })`, matches a shape or a type instead of one exact value. Use it where part of a value is unpredictable (a generated id, a timestamp) or irrelevant to what the test checks.
 
 ```ts
 expect(fn).toHaveBeenCalledWith(
@@ -235,7 +255,11 @@ expect(user).toEqual({
 
 ## 4. Mocking
 
+Mocking replaces a real dependency (a function, a module, the clock) with a fake that the test controls. It keeps tests fast and repeatable, and lets you check how your code used the dependency.
+
 ### 4.1 Mock Functions (jest.fn / vi.fn)
+
+`jest.fn()` creates a mock function: a fake that records every call (its arguments, return values and `this`) and returns whatever you configure. Pass it wherever your code expects a callback or dependency, then assert on how it was called.
 
 ```ts
 const mockFn = jest.fn();
@@ -297,6 +321,8 @@ mockedAxios.get.mockResolvedValue({ data: { results: [] } });
 
 ### 4.3 Spy (jest.spyOn / vi.spyOn)
 
+`jest.spyOn(object, 'method')` wraps an existing method so you can watch its calls, and by default the real implementation still runs. Unlike a bare `jest.fn()`, a spy can be undone: `mockRestore()` puts the original method back.
+
 ```ts
 const obj = {
   method: (x: number) => x * 2,
@@ -324,6 +350,8 @@ consoleSpy.mockRestore();
 ```
 
 ### 4.4 Timer Mocks
+
+Timer mocks replace `setTimeout`, `setInterval` and `Date` with a fake clock that only moves when the test moves it (`jest.advanceTimersByTime`, `jest.runAllTimers`). A debounce or a 30-second poll can then be tested instantly and without flakiness.
 
 ```ts
 beforeEach(() => {
@@ -362,6 +390,8 @@ jest.clearAllTimers();                         // clear all timers
 
 ### 4.5 Clearing & Resetting Mocks
 
+A mock keeps its recorded calls and its configured behaviour until you clear them, so state can leak from one test into the next. There are three levels: clear forgets the calls, reset also drops the implementation, and restore also puts back a spied method's original.
+
 ```ts
 const mockFn = jest.fn();
 
@@ -383,7 +413,11 @@ afterEach(() => {
 
 ## 5. Async Testing
 
+Jest ends a test as soon as its function returns, so asynchronous code has to tell Jest when it has finished: by returning a promise, by using `async`/`await`, or by calling `done`. If it does not, the test passes before the assertion has run.
+
 ### 5.1 Promises
+
+When the code under test returns a promise, return it from the test or `await` it so Jest waits for it to settle. `.resolves` and `.rejects` unwrap a promise inside `expect`.
 
 ```ts
 // Approach 1: return the promise
@@ -411,6 +445,8 @@ it('throws on invalid id', () => {
 
 ### 5.2 Callbacks (done)
 
+For callback-style APIs, give the test function a `done` parameter. Jest then waits until you call `done()`, fails the test if you call `done(error)`, and fails it on timeout if you never call it.
+
 ```ts
 it('calls back with data', (done) => {
   fetchData((error, data) => {
@@ -426,6 +462,8 @@ it('calls back with data', (done) => {
 ```
 
 ### 5.3 Async with Fake Timers
+
+Code that mixes timers and promises needs the fake clock advanced and pending promises settled between ticks. The async timer methods, such as `jest.advanceTimersByTimeAsync`, do both in one awaited call.
 
 ```ts
 it('polls until complete', async () => {
@@ -457,6 +495,8 @@ npm install --save-dev @testing-library/react @testing-library/jest-dom @testing
 
 ### 6.1 Core Philosophy
 
+RTL's guiding rule is to test what the user sees and does: find elements by role, label or text, interact as a user would, and assert on the visible result. Tests written that way survive refactors and fail only when behaviour changes.
+
 ```
 "The more your tests resemble the way your software is used,
  the more confidence they can give you."
@@ -467,6 +507,8 @@ npm install --save-dev @testing-library/react @testing-library/jest-dom @testing
 ```
 
 ### 6.2 What RTL Provides
+
+RTL itself is a small set of functions for rendering components, finding elements and simulating events. The assertions come from Jest, plus the DOM matchers from jest-dom.
 
 ```
 render()           — render a component into a virtual DOM (jsdom)
@@ -484,7 +526,11 @@ renderHook()       — test custom hooks in isolation
 
 ## 7. Rendering & Queries
 
+Rendering mounts a component into jsdom, and queries then find elements in it the way a user would: by role, label or text. Choosing the right query is most of the craft of writing RTL tests.
+
 ### 7.1 Render
+
+`render(<Component />)` mounts the component into a container attached to `document.body` and returns helpers such as `rerender` and `unmount`. Query what it rendered through the global `screen` object.
 
 ```tsx
 import { render, screen } from '@testing-library/react';
@@ -502,6 +548,8 @@ it('renders the component', () => {
 ```
 
 ### 7.2 Query Types
+
+Every query comes in three variants that differ in what happens when no element matches: `getBy` throws, `queryBy` returns `null`, and `findBy` returns a promise that waits for the element. Each also has an `All` form that returns every match.
 
 ```
               | 0 matches    | 1 match       | 1+ matches    | Async?
@@ -521,6 +569,8 @@ findAllBy...| ❌ throw      | ✅ return []   | ✅ return []   | Yes ✅
 
 ### 7.3 Query Priority (Most Important!)
 
+RTL recommends an order for choosing a query: prefer the ones that find elements the way users and assistive technology do, and fall back to test ids only when nothing else works.
+
 ```
 1. getByRole        — best, mirrors accessibility tree
 2. getByLabelText   — form inputs (associated label)
@@ -535,6 +585,8 @@ findAllBy...| ❌ throw      | ✅ return []   | ✅ return []   | Yes ✅
 The order follows how a real person finds things. `getByRole` looks elements up in the accessibility tree — the structure a screen reader uses — so `getByRole('button', { name: /submit/i })` only passes if the button really is announced as "Submit", and your test doubles as a basic accessibility check. `data-testid` is invisible to users, so a test that relies on it proves nothing about what they experience.
 
 ### 7.4 Query Examples
+
+The same form queried each way, from the preferred role query down to the test-id fallback.
 
 ```tsx
 render(<LoginForm />);
@@ -584,6 +636,8 @@ const name = within(card).getByText('Alice');
 
 ### 7.5 within() — Scoped Queries
 
+`within(element)` returns the same queries limited to one part of the page. Use it when the same text appears several times, for example to find the Delete button inside one particular row or dialog.
+
 ```tsx
 import { within } from '@testing-library/react';
 
@@ -602,7 +656,11 @@ it('shows user info in the card', () => {
 
 ## 8. User Interactions (userEvent)
 
+The `@testing-library/user-event` package simulates real user interactions. A click fires the pointer, mouse, focus and click events a browser would fire, and typing fires key events for every character, so your handlers see what they would see in production.
+
 ### 8.1 Setup
+
+Call `userEvent.setup()` once per test, before rendering, and `await` every interaction on the returned `user` object, because all of its methods return promises.
 
 ```tsx
 import userEvent from '@testing-library/user-event';
@@ -618,6 +676,8 @@ it('handles user input', async () => {
 ```
 
 ### 8.2 Common Interactions
+
+The `user` object has a method for each common interaction: clicking, typing, clearing a field, selecting options, tabbing between fields, pressing keys and hovering.
 
 ```tsx
 const user = userEvent.setup();
@@ -672,6 +732,8 @@ await user.pointer({ target: element, keys: '[MouseLeft]' });
 
 ### 8.3 userEvent vs fireEvent
 
+`fireEvent` dispatches one DOM event, while `userEvent` performs a whole interaction the way a browser does. Prefer `userEvent`, and keep `fireEvent` for events a user cannot produce directly, such as `scroll` or a custom event.
+
 ```
                 userEvent                  fireEvent
 ─────────────────────────────────────────────────────────
@@ -695,7 +757,11 @@ Recommended    ✅ Yes (primary choice)      Only for edge cases
 
 ## 9. Async Utilities (waitFor, findBy)
 
+UI often changes after a promise resolves (a fetch, a timer). RTL's async utilities poll the DOM until the expected state appears, so a test waits for the outcome instead of sleeping for a fixed time.
+
 ### 9.1 waitFor
+
+`waitFor(callback)` retries the callback (every 50 ms by default) until it stops throwing, or until the timeout (1000 ms by default) runs out and it fails with the last error. Use it to wait for an assertion that becomes true after async work.
 
 ```tsx
 import { waitFor } from '@testing-library/react';
@@ -722,6 +788,8 @@ await waitFor(() => {
 
 ### 9.2 waitForElementToBeRemoved
 
+`waitForElementToBeRemoved` waits until an element, typically a loading spinner, leaves the DOM. It throws at once if the element is not there to begin with, so a spinner that never appeared fails the test instead of passing it silently.
+
 ```tsx
 import { waitForElementToBeRemoved } from '@testing-library/react';
 
@@ -734,6 +802,8 @@ await waitForElementToBeRemoved(screen.getByText('Loading...'));
 
 ### 9.3 findBy (getBy + waitFor)
 
+A `findBy` query is a `getBy` query wrapped in `waitFor`: it returns a promise that resolves with the element once it appears, or rejects when the timeout runs out.
+
 ```tsx
 // These are equivalent:
 const element = await screen.findByText('Loaded!');
@@ -743,6 +813,8 @@ const elementV2 = await waitFor(() => screen.getByText('Loaded!'));
 ```
 
 ### 9.4 Common Async Patterns
+
+Most async tests take one of three shapes: loading gives way to data, a submit leads to a message, or a debounced input leads to results.
 
 ```tsx
 // Pattern 1: Loading → Loaded
@@ -789,7 +861,11 @@ it('searches after debounce', async () => {
 
 ## 10. Testing Patterns — Components
 
+These are the component tests you will write most often. Each one renders the component, acts as a user, and asserts on what appears on screen, never on props or state.
+
 ### 10.1 Basic Component Test
+
+Start with what the component shows and what it does when used: a button renders its label, calls `onClick` when clicked, and does not call it when disabled.
 
 ```tsx
 // Button.tsx
@@ -837,6 +913,8 @@ describe('Button', () => {
 
 ### 10.2 Conditional Rendering
 
+For a component that renders different output for different props, render it once per case and assert on what is present and, with `queryBy`, on what is absent.
+
 ```tsx
 // Alert.tsx
 function Alert({ type, message }: { type: 'success' | 'error'; message: string }) {
@@ -864,6 +942,8 @@ describe('Alert', () => {
 ```
 
 ### 10.3 List Rendering
+
+For a list, pass known data and check that every item appears, typically by counting `listitem` roles and spot-checking text.
 
 ```tsx
 // UserList.test.tsx
@@ -897,6 +977,8 @@ describe('UserList', () => {
 ```
 
 ### 10.4 Modal / Dialog
+
+A dialog test checks visibility through the `dialog` role and that each button calls the right callback.
 
 ```tsx
 describe('ConfirmDialog', () => {
@@ -937,7 +1019,11 @@ describe('ConfirmDialog', () => {
 
 ## 11. Testing Patterns — Hooks
 
+A custom hook can only run inside a component, so RTL provides `renderHook`, which mounts a throwaway component that calls your hook and exposes what it returns. Prefer testing a hook through a real component when one exists; use `renderHook` for reusable hooks.
+
 ### 11.1 renderHook
+
+`renderHook(() => useMyHook())` returns `result`, and `result.current` holds the hook's latest return value. Wrap calls that update state in `act()` so React applies the update before you assert.
 
 ```tsx
 import { renderHook, act } from '@testing-library/react';
@@ -999,6 +1085,8 @@ describe('useCounter', () => {
 
 ### 11.2 Hooks with Timers
 
+For a hook that uses timers (a debounce, an interval), turn on fake timers and advance the clock inside `act()`, then read `result.current`.
+
 ```tsx
 // useDebounce.test.ts
 describe('useDebounce', () => {
@@ -1029,6 +1117,8 @@ describe('useDebounce', () => {
 
 ### 11.3 Hooks with Context/Providers
 
+A hook that reads context needs its provider around it. Pass a `wrapper` component to `renderHook`, and the hook renders inside it.
+
 ```tsx
 // Hook that uses Redux store
 function renderHookWithProviders(hook: () => any, preloadedState?: Partial<RootState>) {
@@ -1055,7 +1145,11 @@ it('reads user from store', () => {
 
 ## 12. Testing Patterns — Redux
 
+Redux logic splits into pure pieces (reducers and selectors), which are tested as plain functions, and connected components, which are tested by rendering them with a real store.
+
 ### 12.1 Testing Slices (Reducers)
+
+A slice reducer is a pure function: call it with a state and an action and check the state it returns. No store and no rendering are needed.
 
 ```ts
 import reducer, {
@@ -1096,6 +1190,8 @@ describe('counterSlice', () => {
 
 ### 12.2 Testing Selectors
 
+A selector is a pure function of the state, so build a sample state object and assert on what the selector returns.
+
 ```ts
 import { selectActiveUsers, selectUserCount } from './users.selectors';
 
@@ -1134,6 +1230,8 @@ describe('selectActiveUsers', () => {
 ```
 
 ### 12.3 Testing Components with Redux
+
+Render the component with a real store, built from your reducers with test-specific `preloadedState`, instead of mocking `useSelector`. The test then exercises the same wiring the app uses.
 
 ```tsx
 // test-utils.tsx — custom render with providers
@@ -1181,6 +1279,8 @@ it('dispatches action on button click', async () => {
 
 ## 13. Testing Patterns — React Query
 
+A component that fetches with React Query needs a `QueryClientProvider` in the test and a fake server response. The patterns below set up both so that every test is isolated.
+
 ### 13.1 Setup QueryClient for Tests
 
 Give every test its own `QueryClient` with retries turned off. The fresh client is what keeps tests apart: React Query caches results inside the client, so a shared client would let one test's cached data show up in the next. Retries matter because React Query retries a failed query three times, with a growing delay between tries (exponential backoff), before it reports an error. A test that checks your error state would sit through all of those retries and could hit the test timeout. `gcTime` (how long a cached result is kept once no component is using it; called `cacheTime` before v5) is set to `0` here so unused entries are dropped straight away instead of lingering after the test.
@@ -1209,7 +1309,7 @@ function renderWithQuery(ui: React.ReactElement) {
 
 ### 13.2 Mocking API Calls
 
-Mocking your own endpoint module works, but it is the fallback, not the default: for network calls prefer MSW (§13.3), which leaves your request code running, and keep `jest.mock` for modules you genuinely can't run in a test (an analytics SDK, a native API).
+Mocking your own endpoint module works, but it is the fallback, not the default: for network calls prefer MSW (Mock Service Worker, a library that intercepts HTTP requests and answers them from handlers you write; §13.3), which leaves your request code running, and keep `jest.mock` for modules you genuinely can't run in a test (an analytics SDK, a native API).
 
 ```tsx
 // Mock the endpoint module
@@ -1247,6 +1347,8 @@ describe('UserList', () => {
 ```
 
 ### 13.3 MSW (Mock Service Worker) — Recommended
+
+MSW answers HTTP requests from handlers you define: in Node through a request interceptor (`setupServer`), in the browser through a service worker. All of your request code runs for real; only the server is fake.
 
 ```ts
 // mocks/handlers.ts
@@ -1302,7 +1404,11 @@ it('handles server error', async () => {
 
 ## 14. Testing Patterns — Forms
 
+Form tests fill in the fields with `userEvent`, submit, and assert on the outcome: a callback called with the values, or a validation message on screen.
+
 ### 14.1 Basic Form Test
+
+Find each field by its label, type into it, click submit, and check what the form did with the values.
 
 ```tsx
 describe('LoginForm', () => {
@@ -1342,6 +1448,8 @@ describe('LoginForm', () => {
 
 ### 14.2 Select / Dropdown
 
+`user.selectOptions(select, value)` picks an option in a native `<select>` (role `combobox`) and fires the same events a user's choice would.
+
 ```tsx
 it('selects a department', async () => {
   const user = userEvent.setup();
@@ -1357,6 +1465,8 @@ it('selects a department', async () => {
 ```
 
 ### 14.3 File Upload
+
+`user.upload(input, file)` puts a `File` object on a file input and fires its change event, as if the user had picked the file in the dialog.
 
 ```tsx
 it('uploads a file', async () => {
@@ -1379,7 +1489,11 @@ it('uploads a file', async () => {
 
 ## 15. Testing Patterns — Routing
 
+Components that use React Router hooks or `<Link>` must render inside a router. In tests, `MemoryRouter` provides one that keeps its history in memory and starts at the URL you pass in `initialEntries`.
+
 ### 15.1 Components with Links/Navigation
+
+To test navigation, declare the routes involved, click the link, and assert that the destination's content appeared.
 
 ```tsx
 import { MemoryRouter } from 'react-router-dom';
@@ -1404,6 +1518,8 @@ it('navigates to profile on click', async () => {
 
 ### 15.2 Components Using useParams
 
+A component that reads `useParams` gets its parameters from the matched route, so start the `MemoryRouter` at a URL that fills them in.
+
 ```tsx
 it('shows job detail for given ID', async () => {
   render(
@@ -1421,6 +1537,8 @@ it('shows job detail for given ID', async () => {
 ---
 
 ## 16. Best Practices & Anti-Patterns
+
+A checklist of what keeps tests reliable and readable, and of the habits that make them brittle.
 
 ### 16.1 Do's
 
@@ -1454,6 +1572,8 @@ it('shows job detail for given ID', async () => {
 ```
 
 ### 16.3 Common Mistakes
+
+The mistakes below all couple a test to implementation details or to timing, each shown next to its fix.
 
 ```tsx
 // ❌ BAD: Using container queries
@@ -1498,7 +1618,11 @@ The ⚠️ pair is a style point, not a bug: `getBy` inside `waitFor` works. `wa
 
 ## 17. Configuration & Setup
 
+Before the first test runs, the runner needs to know the environment (jsdom), how to compile TypeScript and JSX, and which setup file to load. These files are written once per project.
+
 ### 17.1 Jest Config (jest.config.ts)
+
+`jest.config.ts` tells Jest which environment to run in, how to transform TypeScript, which setup file to run, and how to resolve path aliases such as `@/`.
 
 ```ts
 export default {
@@ -1522,6 +1646,8 @@ export default {
 
 ### 17.2 Vitest Config (vitest.config.ts)
 
+Vitest reads its test settings from the `test` key of a Vite config, so it reuses the app's plugins and aliases.
+
 ```ts
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
@@ -1542,6 +1668,8 @@ export default defineConfig({
 ```
 
 ### 17.3 Setup File (setup.ts)
+
+The setup file runs before every test file. Use it to register the jest-dom matchers, start MSW, and stub browser APIs that jsdom lacks.
 
 ```ts
 import '@testing-library/jest-dom/vitest';     // or '@testing-library/jest-dom' for Jest
@@ -1585,6 +1713,8 @@ Object.defineProperty(window, 'ResizeObserver', {
 ```
 
 ### 17.4 Custom Render (test-utils.tsx)
+
+A custom render wraps the component in every provider the app uses (store, query client, router) so each test does not repeat that boilerplate. Export it from one file and import it in place of RTL's `render`.
 
 ```tsx
 import { render, RenderOptions } from '@testing-library/react';
