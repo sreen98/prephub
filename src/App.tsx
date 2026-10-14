@@ -317,7 +317,8 @@ export default function App() {
       // Don't navigate when focus is in an input, textarea, or search-related element
       const active = document.activeElement as HTMLElement | null;
       const tag = active?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || tag === 'select' || active?.isContentEditable) return;
+      // Monaco types into a plain div (EditContext), so it needs its own check.
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || active?.isContentEditable || active?.closest('.monaco-editor')) return;
 
       const currentIndex = flatGuidePaths.indexOf(location.pathname);
       if (currentIndex === -1) return;

@@ -71,7 +71,8 @@ export default defineConfig({
             // Lazily-loaded JS: guide content, the playground, Babel, Mermaid.
             // CacheFirst because every filename is content-hashed, so a given
             // URL is immutable — a new build produces a new name.
-            urlPattern: ({ url }) => url.pathname.startsWith('/assets/') && url.pathname.endsWith('.js'),
+            // Monaco's icon font (codicon .ttf) is cached here too, so the editor's icons work offline.
+            urlPattern: ({ url }) => url.pathname.startsWith('/assets/') && /\.(js|ttf)$/.test(url.pathname),
             handler: 'CacheFirst',
             options: {
               cacheName: 'app-chunks',

@@ -319,6 +319,24 @@ silently resolves to a `window` global and typechecks.
 - Editor behaviours (auto-close, bracket rules, Reset gating) live in
   `playgroundAutoClose.ts` and are tested by keystroke replay. Read that test before changing
   them.
+- **Two editors.** Desktop (fine pointer, ≥768px, Workers: `lib/monacoSupport.ts`) gets **Monaco**,
+  the VS Code editor (`MonacoCodeEditor.tsx`, set up in `lib/monacoSetup.ts`); phones, touch
+  tablets and jsdom keep the textarea editor (`SimpleCodeEditor.tsx`), which is also shown while
+  Monaco loads or if it fails. The auto-close rules above apply to the textarea editor only;
+  Monaco uses its own (`autoClosingBrackets`), driven by the same Auto-close toggle.
+  - Monaco is **bundled, never from a CDN** (offline PWA), and reached only through
+    `import('../../lib/monacoSetup')`, so it never enters `app-*` or `vendor-*`. Elsewhere import
+    Monaco with `import type` only.
+  - IntelliSense types come from `@types/react` (+ react-dom) via `?raw`, with a csstype stub;
+    the injected globals are DERIVED from React's runtime exports, like `playgroundScope.ts`.
+    JS/JSX share one `.jsx` model with `checkJs` off; TS/TSX are strict, like the grader. Keep
+    `diagnosticCodesToIgnore` aligned with what the runner accepts (redeclared globals, top-level
+    await, stripped imports, TS syntax in JS).
+  - Monaco types into a `div` (the EditContext API), not a `textarea`: a global key handler that
+    skips "typing" targets by tag name must also skip `.monaco-editor`. Playground shortcuts are
+    registered with `editor.addCommand`, because Monaco swallows the keys it handles.
+  - An outside change (template, Reset, Format) is pushed between `pushStackElement()` calls so
+    it is its own undo step.
 
 ## Query Playground (`/query-playground`)
 Real PostgreSQL (PGlite, ~5 MB, dynamically imported) and mingo for MongoDB. The engine must

@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, X, PanelLeftOpen, Wand2, Braces, WrapText } from 'lucide-react';
-import Editor from 'react-simple-code-editor';
-import { highlightCode, decorateBrackets } from '../../lib/editorHighlight';
+import SimpleCodeEditor from './SimpleCodeEditor';
+const MonacoCodeEditor = lazy(() => import('./MonacoCodeEditor'));
+import { canUseMonaco } from '../../lib/monacoSupport';
 import { formatCode } from '../../lib/playgroundFormat';
 import { buildReactScope, scopeNames } from '../../lib/playgroundScope';
 import {
@@ -64,6 +65,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
   const [initialState] = useState(() => resolveInitialPlaygroundState(flavor));
   const initialNeedsCode = initialState.needsCode;
   const [code, setCode] = useState<string>(initialState.code);
+  const [monacoEnabled] = useState(canUseMonaco);   // decided once: Monaco on desktop, the textarea editor elsewhere
   const [output, setOutput] = useState<OutputEntry[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -789,6 +791,8 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
     if (t) handleTemplate(t);
   }, [handleTemplate]);
 
+  const simpleEditor = <SimpleCodeEditor code={code} onChange={setCode} onKeyDown={handleEditorKeyDown} hljsLang={hljsLang} caretPos={caretPos} />;
+
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen relative">
       {/* Template picker — see features/playground/TemplateModal. */}
@@ -926,26 +930,11 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
             </div>
           </div>
           <div className={`flex-1 overflow-auto bg-[#121110] min-h-[200px] playground-editor-wrap${wrapOn ? ' wrap-on' : ''}`}>
-            <Editor
-              value={code}
-              onValueChange={setCode}
-              onKeyDown={handleEditorKeyDown}
-              highlight={(c) => decorateBrackets(highlightCode(c, hljsLang), c, caretPos)}
-              padding={16}
-              tabSize={2}
-              insertSpaces={true}
-              textareaId="playground-editor"
-              textareaClassName="playground-editor-textarea"
-              preClassName="playground-editor-pre"
-              style={{
-                fontFamily: '"Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                fontSize: 14,
-                lineHeight: 1.6,
-                color: '#cdd6f4',
-                caretColor: '#fff',
-                minHeight: '100%',
-              }}
-            />
+            {monacoEnabled ? (
+              <Suspense fallback={simpleEditor}>
+                <MonacoCodeEditor value={code} onChange={setCode} lang={currentLang} wordWrap={wrapOn} autoClose={bracketAutoClose} onRun={() => void runCode()} onFormat={() => void handleFormat()} fallback={simpleEditor} />
+              </Suspense>
+            ) : simpleEditor}
           </div>
 
           {selectedName && (
