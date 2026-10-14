@@ -68,6 +68,25 @@ export async function signOutOfAccount(): Promise<void> {
   safeRemove(HINT_KEY);
 }
 
+/**
+ * Delete the signed-in Firebase user. Google requires a recent sign-in for
+ * this, so after an older one it asks again in a popup and retries.
+ * The caller deletes the synced data first (lib/firestoreRemote.ts).
+ */
+export async function deleteSignedInUser(): Promise<void> {
+  const { auth: a, authSdk } = await auth();
+  const user = a.currentUser;
+  if (!user) return;
+  try {
+    await authSdk.deleteUser(user);
+  } catch (err) {
+    if (errorCode(err) !== 'auth/requires-recent-login') throw err;
+    await authSdk.reauthenticateWithPopup(user, new authSdk.GoogleAuthProvider());
+    await authSdk.deleteUser(user);
+  }
+  safeRemove(HINT_KEY);
+}
+
 /** Subscribe to sign-in state. Resolves to the unsubscribe function once the SDK has loaded. */
 export async function watchAccount(onChange: (user: AccountUser | null) => void): Promise<() => void> {
   const { auth: a, authSdk } = await auth();

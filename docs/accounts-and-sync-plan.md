@@ -243,7 +243,17 @@ Original plan:
 - **Security rules:** a user can read and write only `users/{their own uid}/**`. Test the rules
   in CI with the Firebase emulator.
 
-### Phase 4: a proper account (1–2 days)
+### Phase 4: a proper account (built 2026-10-14)
+
+Built: an account menu (⋯ next to the name) with **Export my data** (`lib/exportData.ts`, the
+synced keys as JSON, from this device's copy), **Sign out** and **Delete account**
+(`DeleteAccountDialog`: stops sync, batch-deletes `users/{uid}/data/*`, clears `sync-base`,
+deletes the Firebase user, re-authenticating in a popup if Google asks; progress on the device
+is kept). `/privacy` gains "If you sign in with Google" and `/terms` mentions the optional
+account, both only when `ACCOUNTS_ENABLED`. The home line reads "no account needed". GA never
+receives the email or uid (nothing sends them). Not yet tested by hand: Delete account.
+
+Original plan:
 - Export my data as JSON, and Delete my account and data, with no support email needed.
 - **Rewrite `/privacy` and `/terms`:** today they say "no accounts" and "data stays in your
   browser". They must say what is stored, where, for how long, and how to delete it.

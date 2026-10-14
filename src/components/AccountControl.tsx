@@ -1,10 +1,26 @@
 import { useState } from 'react';
-import { LogIn, LogOut, X } from 'lucide-react';
+import { Download, LogIn, LogOut, MoreHorizontal, Trash2, X } from 'lucide-react';
 import { useAccount } from '../hooks/useAccount';
 import { useSync } from '../hooks/useSync';
 import type { AccountUser } from '../lib/account';
+import { buildExport, exportFileName } from '../lib/exportData';
 import { removeSyncedProgress, type SyncStatus } from '../lib/syncEngine';
+import DeleteAccountDialog from './DeleteAccountDialog';
 import SignOutDialog, { type SignOutChoice } from './SignOutDialog';
+
+const MENU_ITEM = 'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-ink/5 hover:text-ink';
+
+/** "Export my data": this device's progress (kept equal to the account copy) as a JSON file. */
+function downloadExport(): void {
+  const blob = new Blob([JSON.stringify(buildExport(), null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = exportFileName();
+  link.click();
+  // Revoking in the same tick can cancel the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 
 const SYNC_LABEL: Record<SyncStatus, string> = {
   connecting: 'Connecting to your account…',
@@ -46,11 +62,18 @@ function Avatar({ user }: { user: AccountUser }) {
 export default function AccountControl() {
   const { state, busy, error, signIn, signOut } = useAccount();
   const sync = useSync(state.status === 'signed-in' ? state.user.uid : null);
-  const [askingSignOut, setAskingSignOut] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The uid is captured on open: deleting the account signs out while the dialog still shows.
+  const [dialog, setDialog] = useState<{ kind: 'sign-out' } | { kind: 'delete'; uid: string } | null>(null);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
 
+  const openDialog = (next: NonNullable<typeof dialog>): void => {
+    setMenuOpen(false);
+    setDialog(next);
+  };
+
   const finishSignOut = async (choice: SignOutChoice): Promise<void> => {
-    setAskingSignOut(false);
+    setDialog(null);
     if (!(await signOut())) return;
     // Stop before touching storage: the engine would read removed keys as deletions.
     sync.stop();
@@ -72,13 +95,14 @@ export default function AccountControl() {
           </div>
           <button
             type="button"
-            onClick={() => setAskingSignOut(true)}
+            onClick={() => setMenuOpen((open) => !open)}
             disabled={busy}
-            aria-label="Sign out"
-            title="Sign out"
+            aria-label={menuOpen ? 'Hide account options' : 'Account options'}
+            aria-expanded={menuOpen}
+            aria-controls="account-options"
             className="rounded-md p-1.5 text-muted transition-colors hover:bg-ink/5 hover:text-ink disabled:opacity-50"
           >
-            <LogOut size={15} />
+            <MoreHorizontal size={15} />
           </button>
         </div>
       ) : (
@@ -91,6 +115,29 @@ export default function AccountControl() {
           <LogIn size={16} />
           <span>{state.status === 'checking' ? 'Checking account…' : busy ? 'Signing in…' : 'Sign in with Google'}</span>
         </button>
+      )}
+      {state.status === 'signed-in' && menuOpen && (
+        <ul id="account-options" className="mx-1 mb-1 space-y-0.5">
+          <li>
+            <button type="button" onClick={() => { setMenuOpen(false); downloadExport(); }} className={MENU_ITEM}>
+              <Download size={14} /> Export my data
+            </button>
+          </li>
+          <li>
+            <button type="button" onClick={() => openDialog({ kind: 'sign-out' })} className={MENU_ITEM}>
+              <LogOut size={14} /> Sign out
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              onClick={() => openDialog({ kind: 'delete', uid: state.user.uid })}
+              className={`${MENU_ITEM} text-red-700 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300`}
+            >
+              <Trash2 size={14} /> Delete account
+            </button>
+          </li>
+        </ul>
       )}
       {sync.state?.addedLocalProgress && !noticeDismissed && (
         <p className="mx-3 mb-1 flex items-start gap-2 rounded-md bg-accent-soft px-2.5 py-2 text-[11px] text-ink">
@@ -105,8 +152,11 @@ export default function AccountControl() {
           {error}
         </p>
       )}
-      {askingSignOut && (
-        <SignOutDialog flush={sync.flush} onChoose={(choice) => void finishSignOut(choice)} onCancel={() => setAskingSignOut(false)} />
+      {dialog?.kind === 'sign-out' && (
+        <SignOutDialog flush={sync.flush} onChoose={(choice) => void finishSignOut(choice)} onCancel={() => setDialog(null)} />
+      )}
+      {dialog?.kind === 'delete' && (
+        <DeleteAccountDialog uid={dialog.uid} stopSync={sync.stop} onClose={() => setDialog(null)} />
       )}
     </div>
   );

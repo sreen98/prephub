@@ -1,6 +1,7 @@
 import type { DocumentSnapshot } from 'firebase/firestore';
 import { FIREBASE_CONFIG } from './firebaseConfig';
 import type { RemoteStore } from './syncEngine';
+import { SYNCED_KEYS } from './syncKeys';
 
 /**
  * The Firestore implementation of the sync engine's RemoteStore. Each synced
@@ -11,6 +12,16 @@ import type { RemoteStore } from './syncEngine';
  *
  * Like lib/account.ts, the SDK is reached only through import().
  */
+/** "Delete my account": remove every synced document of this user in one batch. */
+export async function deleteSyncedData(uid: string): Promise<void> {
+  const [appSdk, fs] = await Promise.all([import('firebase/app'), import('firebase/firestore')]);
+  const app = appSdk.getApps()[0] ?? appSdk.initializeApp(FIREBASE_CONFIG);
+  const db = fs.getFirestore(app);
+  const batch = fs.writeBatch(db);
+  for (const key of SYNCED_KEYS) batch.delete(fs.doc(db, 'users', uid, 'data', key));
+  await batch.commit();
+}
+
 export async function createFirestoreRemote(uid: string): Promise<RemoteStore> {
   const [appSdk, fs] = await Promise.all([import('firebase/app'), import('firebase/firestore')]);
   const app = appSdk.getApps()[0] ?? appSdk.initializeApp(FIREBASE_CONFIG);

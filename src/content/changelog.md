@@ -1,5 +1,10 @@
 # What's New
 
+## v1.7.31 (October 2026)
+
+- **A tidier sidebar.** The "View on GitHub" and "Admin" links are gone from the bottom of the sidebar, leaving the version and the Privacy and Terms links.
+- The home page now says "no account needed" rather than "no account".
+
 ## v1.7.30 (October 2026)
 
 - **A calmer, warmer look.** The violet is gone: the site now uses a warm paper background, one deep-teal accent and serif headings, so a guide reads more like a well-set book than a dashboard. Dark mode is a true near-black page with warm text, and code blocks sit darker in it instead of looking like grey slabs. Section headings carry a short teal mark, sections are separated by a quiet ornament, every guide shows its category above the title, the contents panel marks the section you are reading, and page titles across the site use the same serif. The code and query playgrounds lost their violet-navy tint and now match the near-black theme.

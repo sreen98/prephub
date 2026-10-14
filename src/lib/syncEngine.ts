@@ -50,6 +50,11 @@ function readBases(uid: string): Record<string, unknown> {
   return isRecord(stored) && stored.uid === uid && isRecord(stored.values) ? stored.values : {};
 }
 
+/** After deleting the account copy: nothing is agreed with it any more. */
+export function forgetSyncBase(): void {
+  safeRemove(BASE_KEY);
+}
+
 /** The reader chose "Remove it from this device" when signing out. */
 export function removeSyncedProgress(): void {
   for (const key of SYNCED_KEYS) safeRemove(key);

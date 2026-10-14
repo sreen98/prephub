@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { ACCOUNTS_ENABLED } from '../lib/account';
 
 /**
  * Privacy Policy and Terms of Use. Both are DRAFTS: they describe what the site
  * actually does today (static site, no accounts, browser-only storage, Google
- * Analytics), and every fact the code cannot tell us is listed under "Open items"
+ * Analytics, and the optional Google account only in builds where ACCOUNTS_ENABLED
+ * shows it), and every fact the code cannot tell us is listed under "Open items"
  * for the owner to settle. Do not add a commitment here that the site does not keep.
  */
 
@@ -20,6 +22,38 @@ const ext = (href: string, label: string) => (
 
 const ISSUES_URL = 'https://github.com/sreen98/prephub/issues';
 
+const ACCOUNT_SECTION: Section = {
+  heading: 'If you sign in with Google',
+  body: (
+    <>
+      <p>
+        Signing in is optional. If you sign in, PrepHub uses Google's Firebase service to keep your account and a copy of
+        your progress:
+      </p>
+      <ul>
+        <li>
+          your Google account's name, email address and profile photo, and an account ID, held by Firebase Authentication
+        </li>
+        <li>
+          a copy of the progress listed above (guides, bookmarks, checkpoints, review schedule and streak, playground code
+          and solved challenges, Interview Simulator attempts), held in a Cloud Firestore database in Mumbai, India.
+          Preferences such as theme and text size stay on your device.
+        </li>
+      </ul>
+      <p>
+        Security rules let only your signed-in account read or change your progress. The site's owner can see the
+        database through the Firebase console. PrepHub does not send your email address or account ID to Google Analytics.
+        Google processes this data under the {ext('https://firebase.google.com/support/privacy', 'Firebase privacy and security terms')}.
+      </p>
+      <p>
+        It is kept until you delete it. In the account menu, Export my data downloads your progress as a file, and Delete
+        account removes your stored progress and your sign-in straight away. No backups of the database are kept. When you
+        sign out you choose whether this device keeps its copy.
+      </p>
+    </>
+  ),
+};
+
 const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
   title: 'Privacy Policy',
   openItems: [
@@ -27,14 +61,18 @@ const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
     'Decide whether visitors from the EU or UK must give consent before Google Analytics loads. It currently loads for everyone.',
     'Check how long the Google Analytics property keeps data (its data retention setting) and state it here.',
     'Confirm whether Cloudflare only provides DNS for the domain or also proxies traffic. If it proxies, add it under "Hosting".',
+    ...(ACCOUNTS_ENABLED
+      ? ['Review and accept the Google Cloud data processing terms in the Firebase console, and decide whether EU and UK visitors need more notice before signing in.']
+      : []),
   ],
   sections: [
     {
       heading: 'In short',
       body: (
         <p>
-          PrepHub has no accounts and no server of its own. Your progress stays in your browser. The site uses Google
-          Analytics to count page views.
+          {ACCOUNTS_ENABLED
+            ? 'PrepHub works without an account, and your progress stays in your browser. If you choose to sign in with Google, a copy of your progress is stored in your account so it follows you to other devices. The site uses Google Analytics to count page views.'
+            : 'PrepHub has no accounts and no server of its own. Your progress stays in your browser. The site uses Google Analytics to count page views.'}
         </p>
       ),
     },
@@ -43,7 +81,8 @@ const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
       body: (
         <>
           <p>
-            PrepHub saves the following in your browser's local storage, on your device only. It is never sent to us.
+            PrepHub saves the following in your browser's local storage.{' '}
+            {ACCOUNTS_ENABLED ? 'Unless you sign in, it stays on your device and is never sent to us.' : 'It stays on your device and is never sent to us.'}
           </p>
           <ul>
             <li>which guides you have started or finished, your bookmarks and checkpoints</li>
@@ -52,12 +91,13 @@ const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
             <li>preferences such as theme, text size and editor settings</li>
           </ul>
           <p>
-            Because it lives in one browser, it does not follow you to another browser or device. Clearing this site's data
-            in your browser settings deletes it.
+            Because it lives in one browser, it does not follow you to another browser or device
+            {ACCOUNTS_ENABLED ? ' unless you sign in' : ''}. Clearing this site's data in your browser settings deletes it.
           </p>
         </>
       ),
     },
+    ...(ACCOUNTS_ENABLED ? [ACCOUNT_SECTION] : []),
     {
       heading: 'Code and queries you run',
       body: (
@@ -119,7 +159,12 @@ const TERMS: typeof PRIVACY = {
   sections: [
     {
       heading: 'Using PrepHub',
-      body: <p>PrepHub is free to use for your own study. You do not need an account.</p>,
+      body: (
+        <p>
+          PrepHub is free to use for your own study. You do not need an account.
+          {ACCOUNTS_ENABLED && ' Signing in with Google is optional, and you can delete your account at any time from the account menu.'}
+        </p>
+      ),
     },
     {
       heading: 'The content',
@@ -152,8 +197,8 @@ const TERMS: typeof PRIVACY = {
       heading: 'Changes',
       body: (
         <p>
-          The site and these terms may change or stop at any time. Your saved progress lives in your browser, so it is
-          not affected by changes to these terms. See the <Link to="/privacy" className="text-accent underline underline-offset-2 hover:text-accent-strong">Privacy Policy</Link> for
+          The site and these terms may change or stop at any time. Your saved progress lives in your browser
+          {ACCOUNTS_ENABLED ? ' (and, if you signed in, in your account)' : ''}, so it is not affected by changes to these terms. See the <Link to="/privacy" className="text-accent underline underline-offset-2 hover:text-accent-strong">Privacy Policy</Link> for
           what the site stores.
         </p>
       ),

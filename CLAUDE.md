@@ -413,6 +413,8 @@ so use the inline `GithubIcon`.
 - **Active links are marked `aria-current="page"`**, which is also what `Sidebar.test.tsx` checks.
 - `/privacy` and `/terms` (`LegalPage.tsx`) are drafts with an "Open items" list. Describe only
   what the site does (localStorage, GA4, GitHub Pages); never add a commitment it doesn't keep.
+  The Google-account wording is shown only when `ACCOUNTS_ENABLED`, so a build without sign-in
+  never describes it.
 
 ## Performance and deployment
 - **Domain:** `prephub.sreenathp.com`, a Cloudflare DNS `CNAME` to `sreen98.github.io`, set as
@@ -426,6 +428,7 @@ so use the inline `GithubIcon`.
   `robots.txt`, `SITE_URL` in `generate-sitemap.js`).
 - `scripts/generate-route-shells.js` writes `dist/<route>/index.html`
   for every route so deep links return 200. `/admin` is excluded. `public/404.html` stays.
+- **`/admin` has no link anywhere** (removed from the sidebar in v1.7.31); the owner types the URL.
 - **`/admin` is encrypted, not passcode-gated.** A check in the browser hides nothing on a
   static site. The plain document is the gitignored `private/admin-prep.md`, and only
   `public/admin-prep.enc.json` ships (AES-GCM, key from the passphrase by PBKDF2). After
