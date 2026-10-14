@@ -142,7 +142,7 @@ html {
 }
 
 .prose-container h2 {
-  @apply font-display text-[1.75rem] sm:text-[2.1rem] font-semibold tracking-tight leading-tight text-ink mb-4 mt-14 pt-5;
+  @apply font-display text-[1.75rem] sm:text-[2.1rem] font-semibold tracking-tight leading-tight text-ink mb-4 mt-10 pt-5;
   position: relative;
 }
 
@@ -159,7 +159,7 @@ html {
 }
 
 .prose-container h3 {
-  @apply font-display text-xl sm:text-[1.6rem] font-semibold leading-snug text-ink mb-3 mt-10;
+  @apply font-display text-xl sm:text-[1.6rem] font-semibold leading-snug text-ink mb-3 mt-8;
 }
 
 .prose-container h4 {
@@ -286,8 +286,14 @@ html {
 
 /* Section breaks: a quiet centred ornament instead of a full-width rule. */
 .prose-container hr {
-  @apply my-12 border-0 text-center text-muted;
+  @apply my-8 border-0 text-center text-muted;
   height: auto;
+}
+/* Two rules in a row (the TOC the page strips sat between them) or a rule right before a
+   section heading (which already carries its own accent mark) would only add empty space. */
+.prose-container hr + hr,
+.prose-container hr:has(+ h2) {
+  display: none;
 }
 .prose-container hr::after {
   content: '·  ·  ·';
