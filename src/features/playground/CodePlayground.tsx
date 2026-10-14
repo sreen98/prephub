@@ -818,21 +818,21 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
       />
 
       {/* Header -- always dark like an IDE */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-[#2d333b] bg-[#1c2028] shrink-0 text-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-[#262421] bg-[#181715] shrink-0 text-stone-200">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => window.dispatchEvent(new Event('prephub:show-sidebar'))}
-            className="text-slate-400 hover:text-white transition-colors shrink-0 hidden md:flex p-1.5 rounded-lg hover:bg-[#2d333b]"
+            className="text-stone-400 hover:text-white transition-colors shrink-0 hidden md:flex p-1.5 rounded-lg hover:bg-[#262421]"
             title="Show sidebar"
           >
             <PanelLeftOpen size={16} />
           </button>
-          <Link to="/" className="text-slate-400 hover:text-white transition-colors shrink-0" title="Back to home">
+          <Link to="/" className="text-stone-400 hover:text-white transition-colors shrink-0" title="Back to home">
             <ArrowLeft size={18} />
           </Link>
           <PlaygroundFlavorSwitch flavor={flavor} />
           {selectedName && (
-            <span className="text-sm text-slate-500 font-normal truncate hidden sm:inline">
+            <span className="text-sm text-stone-500 font-normal truncate hidden sm:inline">
               · {selectedName}
             </span>
           )}
@@ -866,17 +866,17 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
         {/* Editor Panel — width controlled by --editor-pct on md+, full width on mobile */}
         <div
           style={{ ['--editor-pct' as string]: `${editorPct}%` }}
-          className="flex flex-col min-h-0 border-b md:border-b-0 border-[#2d333b] w-full md:w-[var(--editor-pct)] flex-1 md:flex-none"
+          className="flex flex-col min-h-0 border-b md:border-b-0 border-[#262421] w-full md:w-[var(--editor-pct)] flex-1 md:flex-none"
         >
           {currentTemplate?.kind === 'challenge' && (
             <ChallengeProblemPanel name={currentTemplate.name} isReact={currentTemplate.tag === 'React'}
               active={challengeTrack.active} onGo={openChallengeByName} />
           )}
-          <div className="px-4 py-2 h-10 text-xs font-medium text-slate-500 border-b border-[#2d333b] bg-[#22272e] shrink-0 flex items-center justify-between gap-2">
+          <div className="px-4 py-2 h-10 text-xs font-medium text-stone-500 border-b border-[#262421] bg-[#1a1917] shrink-0 flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
               {langLabel}
               {isLoadingTemplate && (
-                <span className="inline-flex items-center gap-1 text-slate-400">
+                <span className="inline-flex items-center gap-1 text-stone-400">
                   <Loader2 size={11} className="animate-spin" />
                   loading template…
                 </span>
@@ -889,7 +889,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
                   'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
                   (bracketAutoClose
                     ? 'border-emerald-700/50 bg-emerald-900/20 text-emerald-400 hover:bg-emerald-900/30'
-                    : 'border-[#3d444d] text-slate-500 hover:bg-[#2d333b] hover:text-slate-300')
+                    : 'border-[#36332e] text-stone-500 hover:bg-[#262421] hover:text-stone-300')
                 }
                 title={bracketAutoClose ? 'Bracket auto-close: ON (click to disable)' : 'Bracket auto-close: OFF (click to enable)'}
               >
@@ -902,7 +902,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
                   'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
                   (wrapOn
                     ? 'border-teal-600/50 bg-teal-900/20 text-teal-300 hover:bg-teal-900/30'
-                    : 'border-[#3d444d] text-slate-500 hover:bg-[#2d333b] hover:text-slate-300')
+                    : 'border-[#36332e] text-stone-500 hover:bg-[#262421] hover:text-stone-300')
                 }
                 title={wrapOn ? 'Word wrap: ON (long lines break visually)' : 'Word wrap: OFF (long lines scroll horizontally)'}
               >
@@ -912,7 +912,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
               <button
                 onClick={handleFormat}
                 disabled={isFormatting}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white transition-colors disabled:opacity-60 whitespace-nowrap"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border border-[#36332e] text-stone-300 hover:bg-[#262421] hover:text-white transition-colors disabled:opacity-60 whitespace-nowrap"
                 title="Format with Prettier (⌘⇧F)"
               >
                 {isFormatting
@@ -920,12 +920,12 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
                   : <Wand2 size={11} />}
                 Format
               </button>
-              <span className="text-slate-600 whitespace-nowrap hidden xl:inline">
+              <span className="text-stone-600 whitespace-nowrap hidden xl:inline">
                 {code.split('\n').length} lines
               </span>
             </div>
           </div>
-          <div className={`flex-1 overflow-auto bg-[#1e1e2e] min-h-[200px] playground-editor-wrap${wrapOn ? ' wrap-on' : ''}`}>
+          <div className={`flex-1 overflow-auto bg-[#121110] min-h-[200px] playground-editor-wrap${wrapOn ? ' wrap-on' : ''}`}>
             <Editor
               value={code}
               onValueChange={setCode}
@@ -962,10 +962,10 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
           aria-label="Resize editor and output panels"
           className={
             'hidden md:flex items-center justify-center shrink-0 w-1.5 cursor-col-resize transition-colors group ' +
-            (isResizing ? 'bg-teal-800' : 'bg-[#2d333b] hover:bg-teal-500/70')
+            (isResizing ? 'bg-teal-800' : 'bg-[#262421] hover:bg-teal-500/70')
           }
         >
-          <div className="w-0.5 h-8 rounded-full bg-slate-600 group-hover:bg-white transition-colors" />
+          <div className="w-0.5 h-8 rounded-full bg-stone-600 group-hover:bg-white transition-colors" />
         </div>
 
         {/* Output Panel — extracted + memoized so editor keystrokes don't re-render it */}

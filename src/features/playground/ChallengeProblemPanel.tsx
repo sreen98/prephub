@@ -18,9 +18,9 @@ export interface ChallengeProblemPanelProps {
 }
 
 function TrackNav({ active, onGo }: { active: ActiveTrack; onGo: (name: string) => void }) {
-  const step = 'inline-flex items-center gap-0.5 px-2 py-0.5 rounded border border-[#3d444d] text-[11px] text-slate-300 hover:bg-[#2d333b] disabled:opacity-40 disabled:hover:bg-transparent';
+  const step = 'inline-flex items-center gap-0.5 px-2 py-0.5 rounded border border-[#36332e] text-[11px] text-stone-300 hover:bg-[#262421] disabled:opacity-40 disabled:hover:bg-transparent';
   return (
-    <span className="flex items-center gap-2 text-[11px] text-slate-400">
+    <span className="flex items-center gap-2 text-[11px] text-stone-400">
       <span className="hidden sm:inline">Track: <span className="text-emerald-300 font-medium">{active.track.title}</span> · {active.index + 1} of {active.track.names.length}</span>
       <button className={step} disabled={!active.prev} onClick={() => active.prev && onGo(active.prev)} title={active.prev ?? undefined}>
         <ChevronLeft size={12} /> Prev
@@ -80,9 +80,9 @@ export default function ChallengeProblemPanel({ name, isReact, active, onGo }: C
   const problem = problems?.[name];
 
   return (
-    <div className="border-b border-[#2d333b] bg-[#1a1c25] shrink-0 text-slate-200">
+    <div className="border-b border-[#262421] bg-[#171614] shrink-0 text-stone-200">
       <div className="flex items-center justify-between gap-3 px-4 py-2">
-        <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="inline-flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white">
+        <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="inline-flex items-center gap-2 text-xs font-medium text-stone-300 hover:text-white">
           <FileText size={13} /> Problem
           <ChevronDown size={13} className={open ? 'transition-transform' : '-rotate-90 transition-transform'} />
         </button>
@@ -90,25 +90,25 @@ export default function ChallengeProblemPanel({ name, isReact, active, onGo }: C
       </div>
       {open && (
         <div style={{ height }} className="px-4 pb-3 overflow-y-auto text-sm leading-relaxed">
-          {!problems && <p className="text-slate-500">Loading the problem…</p>}
-          {problems && !problem && <p className="text-slate-500">The statement for this challenge is in the comments at the top of the code.</p>}
+          {!problems && <p className="text-stone-500">Loading the problem…</p>}
+          {problems && !problem && <p className="text-stone-500">The statement for this challenge is in the comments at the top of the code.</p>}
           {problem && (
             <>
-              <p className="text-slate-200">{problem.statement}</p>
+              <p className="text-stone-200">{problem.statement}</p>
               <div className="mt-3 grid gap-2 md:grid-cols-2">
                 {problem.examples.map((ex, i) => (
-                  <div key={i} className="rounded-lg border border-[#2d333b] bg-[#22272e] p-2.5 font-mono text-[12.5px]">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-500 font-sans mb-1">Example {i + 1}</p>
-                    <p><span className="text-slate-500">{isReact ? 'You do: ' : 'Input: '}</span><span className="text-sky-300 whitespace-pre-wrap">{ex.input}</span></p>
-                    <p><span className="text-slate-500">{isReact ? 'You see: ' : 'Output: '}</span><span className="text-emerald-300 whitespace-pre-wrap">{ex.output}</span></p>
-                    {ex.explanation && <p className="mt-1 font-sans text-xs text-slate-400">{ex.explanation}</p>}
+                  <div key={i} className="rounded-lg border border-[#262421] bg-[#1a1917] p-2.5 font-mono text-[12.5px]">
+                    <p className="text-[10px] uppercase tracking-wider text-stone-500 font-sans mb-1">Example {i + 1}</p>
+                    <p><span className="text-stone-500">{isReact ? 'You do: ' : 'Input: '}</span><span className="text-sky-300 whitespace-pre-wrap">{ex.input}</span></p>
+                    <p><span className="text-stone-500">{isReact ? 'You see: ' : 'Output: '}</span><span className="text-emerald-300 whitespace-pre-wrap">{ex.output}</span></p>
+                    {ex.explanation && <p className="mt-1 font-sans text-xs text-stone-400">{ex.explanation}</p>}
                   </div>
                 ))}
               </div>
               {problem.constraints && problem.constraints.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{isReact ? 'Requirements' : 'Constraints'}</p>
-                  <ul className="list-disc pl-5 text-xs text-slate-300 space-y-0.5">
+                  <p className="text-[10px] uppercase tracking-wider text-stone-500 mb-1">{isReact ? 'Requirements' : 'Constraints'}</p>
+                  <ul className="list-disc pl-5 text-xs text-stone-300 space-y-0.5">
                     {problem.constraints.map((c) => <li key={c}>{c}</li>)}
                   </ul>
                 </div>
@@ -125,7 +125,7 @@ export default function ChallengeProblemPanel({ name, isReact, active, onGo }: C
           className="group h-2 -mb-1 relative z-10 cursor-row-resize flex items-center justify-center focus:outline-none"
           {...handlers}
         >
-          <div className="w-10 h-0.5 rounded-full bg-slate-600 group-hover:bg-white group-focus-visible:bg-white transition-colors" />
+          <div className="w-10 h-0.5 rounded-full bg-stone-600 group-hover:bg-white group-focus-visible:bg-white transition-colors" />
         </div>
       )}
     </div>

@@ -180,6 +180,8 @@ Only the first is automatic. The other two are systems **you** build: something 
 
 **What it costs:** token spend multiplies — a supervisor plus workers can use an order of magnitude more tokens than one agent; latency is bounded by the slowest branch; errors compound across handoffs; and debugging means reconstructing several interleaved trajectories. Add coordination failures — two agents doing the same work, or each assuming the other handled something.
 
+**The figures to quote.** Princeton NLP found a **single agent matched or outperformed multi-agent systems on 64% of benchmarked tasks** given the same tools and context, and across benchmarks multi-agent buys roughly **2 percentage points of accuracy at about double the cost**. Topology matters too: swarm/handoff topologies distribute control and cost measurably more — around 7+ calls and 14,000+ tokens on multi-domain tasks versus ~5 calls and ~9,000 tokens for a supervisor with parallel workers.
+
 **The design rules if you do it:** make handoffs explicit and structured (a schema, not prose), give each agent the narrowest tool set it needs, put the budget on the *whole system* rather than per agent, and trace with a shared correlation id so one run is one trace.
 
 ---

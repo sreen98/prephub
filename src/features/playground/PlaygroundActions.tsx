@@ -37,7 +37,7 @@ export interface PlaygroundActionsProps {
   isRunning: boolean;
 }
 
-const quiet = 'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white transition-colors';
+const quiet = 'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border border-[#36332e] text-stone-300 hover:bg-[#262421] hover:text-white transition-colors';
 
 export default function PlaygroundActions(p: PlaygroundActionsProps) {
   return (
@@ -65,14 +65,14 @@ export default function PlaygroundActions(p: PlaygroundActionsProps) {
           has been autosaved: it used to be missing exactly when someone had just
           mangled their code and the 800 ms autosave had not fired yet. */}
       {p.currentTemplate && (
-        <button onClick={p.onReset} className={quiet.replace('text-slate-300', 'text-slate-400')} title="Discard edits and restore this template's original code">
+        <button onClick={p.onReset} className={quiet.replace('text-stone-300', 'text-stone-400')} title="Discard edits and restore this template's original code">
           <RotateCcw size={14} /> Reset
         </button>
       )}
 
       <SummaryPill summary={p.runSummary} />
 
-      <button onClick={p.onClear} aria-label="Clear output" className="p-2 rounded-xl border border-[#3d444d] text-slate-400 hover:text-white hover:bg-[#2d333b] transition-colors" title="Clear output">
+      <button onClick={p.onClear} aria-label="Clear output" className="p-2 rounded-xl border border-[#36332e] text-stone-400 hover:text-white hover:bg-[#262421] transition-colors" title="Clear output">
         <Trash2 size={16} />
       </button>
 
@@ -147,7 +147,7 @@ function AnswerButtons(p: PlaygroundActionsProps) {
             'flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors disabled:opacity-60' +
             (p.showingSolution
               ? 'border-amber-500 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-              : 'border-[#3d444d] text-slate-300 hover:bg-[#2d333b] hover:text-white')
+              : 'border-[#36332e] text-stone-300 hover:bg-[#262421] hover:text-white')
           }
           title={p.showingSolution ? 'Switch back to the challenge' : 'Reveal the solution'}
         >

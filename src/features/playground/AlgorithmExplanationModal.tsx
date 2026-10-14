@@ -82,7 +82,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
             exit={{ scale: 0.96, opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={e => e.stopPropagation()}
-            className="w-full max-w-5xl max-h-[90vh] bg-surface dark:bg-[#0f1117] rounded-lg shadow-2xl border border-line flex flex-col overflow-hidden"
+            className="w-full max-w-5xl max-h-[90vh] bg-surface dark:bg-[#0c0b0a] rounded-lg shadow-2xl border border-line flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-start justify-between px-6 py-4 border-b border-line shrink-0">
@@ -137,9 +137,9 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
               {/* Example */}
               <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
                 <span className="px-2 py-1 rounded-md bg-ink/5 text-muted font-medium">Example</span>
-                <code className="px-2 py-1 rounded-md bg-slate-900 text-emerald-300 font-mono">{approach.example.input}</code>
+                <code className="px-2 py-1 rounded-md bg-stone-900 text-emerald-300 font-mono">{approach.example.input}</code>
                 <span className="text-muted">→</span>
-                <code className="px-2 py-1 rounded-md bg-slate-900 text-amber-300 font-mono">{approach.example.output}</code>
+                <code className="px-2 py-1 rounded-md bg-stone-900 text-amber-300 font-mono">{approach.example.output}</code>
               </div>
 
               {/* Visual + pseudocode side by side */}
@@ -147,9 +147,9 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                 {/* Pseudocode — single column OR side-by-side comparison */}
                 {approach.pseudocodeCompare && approach.pseudocodeCompare.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-md border border-accent/30 bg-[#0f1117] overflow-hidden">
-                      <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-teal-300 border-b border-slate-800">
-                        {approach.pseudocodeLabel ?? 'Primary'} <span className="text-slate-400">· this one</span>
+                    <div className="rounded-md border border-accent/30 bg-[#0c0b0a] overflow-hidden">
+                      <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-teal-300 border-b border-stone-800">
+                        {approach.pseudocodeLabel ?? 'Primary'} <span className="text-stone-400">· this one</span>
                       </div>
                       <pre className="p-2 text-[11px] leading-relaxed font-mono">
                         {approach.pseudocode.map((line, i) => (
@@ -159,7 +159,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                               'px-1.5 py-0.5 rounded transition-colors ' +
                               (i === step.pseudoLine
                                 ? 'bg-teal-500/20 text-teal-100 border-l-2 border-teal-400 -ml-0.5'
-                                : 'text-slate-400 border-l-2 border-transparent -ml-0.5')
+                                : 'text-stone-400 border-l-2 border-transparent -ml-0.5')
                             }
                           >
                             {line || ' '}
@@ -168,9 +168,9 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                       </pre>
                     </div>
                     {approach.pseudocodeCompare.map(block => (
-                      <div key={block.label} className="rounded-md border border-line bg-[#0f1117] overflow-hidden">
-                        <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-slate-400 border-b border-slate-800">
-                          {block.label} <span className="text-slate-400">· compare</span>
+                      <div key={block.label} className="rounded-md border border-line bg-[#0c0b0a] overflow-hidden">
+                        <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-stone-400 border-b border-stone-800">
+                          {block.label} <span className="text-stone-400">· compare</span>
                         </div>
                         <pre className="p-2 text-[11px] leading-relaxed font-mono">
                           {block.lines.map((line, i) => (
@@ -180,7 +180,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                                 'px-1.5 py-0.5 rounded transition-colors ' +
                                 (i === block.highlightLine
                                   ? 'bg-amber-500/15 text-amber-200 border-l-2 border-amber-500/60 -ml-0.5'
-                                  : 'text-slate-400 border-l-2 border-transparent -ml-0.5')
+                                  : 'text-stone-400 border-l-2 border-transparent -ml-0.5')
                               }
                             >
                               {line || ' '}
@@ -191,8 +191,8 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                     ))}
                   </div>
                 ) : (
-                <div className="rounded-md border border-line bg-[#0f1117] overflow-hidden">
-                  <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-slate-400 border-b border-slate-800">Pseudocode</div>
+                <div className="rounded-md border border-line bg-[#0c0b0a] overflow-hidden">
+                  <div className="px-3 py-2 text-[10px] uppercase tracking-wider font-semibold text-stone-400 border-b border-stone-800">Pseudocode</div>
                   <pre className="p-3 text-xs leading-relaxed font-mono">
                     {approach.pseudocode.map((line, i) => (
                       <div
@@ -201,7 +201,7 @@ export default function AlgorithmExplanationModal({ open, explanation, onClose, 
                           'px-2 py-0.5 rounded transition-colors ' +
                           (i === step.pseudoLine
                             ? 'bg-teal-500/20 text-teal-100 border-l-2 border-teal-400 -ml-0.5'
-                            : 'text-slate-400 border-l-2 border-transparent -ml-0.5')
+                            : 'text-stone-400 border-l-2 border-transparent -ml-0.5')
                         }
                       >
                         {line || ' '}

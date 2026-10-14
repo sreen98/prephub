@@ -13,8 +13,8 @@ export default function SchemaPanel({
   mongo?: MongoDataset;
 }) {
   return (
-    <div className="text-[13px] text-slate-300 space-y-4">
-      <div className="flex items-center gap-2 text-slate-400">
+    <div className="text-[13px] text-stone-300 space-y-4">
+      <div className="flex items-center gap-2 text-stone-400">
         <Database size={13} />
         <span className="font-semibold">{sql?.name ?? mongo?.name}</span>
       </div>
@@ -24,10 +24,10 @@ export default function SchemaPanel({
           <div className="flex items-center gap-1.5 font-mono font-semibold text-teal-300 mb-1">
             <Table2 size={12} /> {table.name}
           </div>
-          <ul className="pl-5 space-y-0.5 font-mono text-[12px] text-slate-400">
+          <ul className="pl-5 space-y-0.5 font-mono text-[12px] text-stone-400">
             {table.columns.map((c) => <li key={c}>{c}</li>)}
           </ul>
-          {table.note && <p className="pl-5 mt-1 text-[11px] text-slate-500 italic">{table.note}</p>}
+          {table.note && <p className="pl-5 mt-1 text-[11px] text-stone-500 italic">{table.note}</p>}
         </div>
       ))}
 
@@ -35,12 +35,12 @@ export default function SchemaPanel({
         <div key={name}>
           <div className="flex items-center gap-1.5 font-mono font-semibold text-emerald-300 mb-1">
             <Table2 size={12} /> {name}
-            <span className="text-slate-500 font-sans font-normal">({docs.length} docs)</span>
+            <span className="text-stone-500 font-sans font-normal">({docs.length} docs)</span>
           </div>
-          <pre className="pl-2 text-[11px] text-slate-400 overflow-x-auto bg-[#1c2028] rounded-lg p-2 border border-[#2d333b]">
+          <pre className="pl-2 text-[11px] text-stone-400 overflow-x-auto bg-[#181715] rounded-lg p-2 border border-[#262421]">
             {JSON.stringify(docs[0], null, 2)}
           </pre>
-          <p className="pl-2 mt-1 text-[11px] text-slate-500 italic">First document shown. The rest share this shape.</p>
+          <p className="pl-2 mt-1 text-[11px] text-stone-500 italic">First document shown. The rest share this shape.</p>
         </div>
       ))}
     </div>

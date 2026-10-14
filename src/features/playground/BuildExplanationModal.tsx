@@ -74,7 +74,7 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
             exit={{ scale: 0.96, opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={e => e.stopPropagation()}
-            className="w-full max-w-4xl max-h-[90vh] bg-surface dark:bg-[#0f1117] rounded-lg shadow-2xl border border-line flex flex-col overflow-hidden"
+            className="w-full max-w-4xl max-h-[90vh] bg-surface dark:bg-[#0c0b0a] rounded-lg shadow-2xl border border-line flex flex-col overflow-hidden"
           >
             <div className="flex items-start justify-between px-6 py-4 border-b border-line shrink-0">
               <div>
@@ -128,7 +128,7 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
                     <div className="px-4 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted">
                       From this template
                     </div>
-                    <pre className="text-[12.5px] leading-relaxed p-4 overflow-x-auto bg-[#22272e] text-slate-200 hljs">
+                    <pre className="text-[12.5px] leading-relaxed p-4 overflow-x-auto bg-[#1a1917] text-stone-200 hljs">
                       <code dangerouslySetInnerHTML={{ __html: highlightCode(excerpt, 'tsx') }} />
                     </pre>
                   </div>
@@ -160,7 +160,7 @@ export default function BuildExplanationModal({ open, explanation, templateCode,
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-6 py-3 border-t border-line shrink-0 bg-canvas dark:bg-[#0b0d12]">
+            <div className="flex items-center justify-between px-6 py-3 border-t border-line shrink-0 bg-canvas dark:bg-[#090908]">
               <span className="text-xs text-muted tabular-nums">
                 Step {stepIdx + 1} of {total}
               </span>

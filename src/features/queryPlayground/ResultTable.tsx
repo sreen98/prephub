@@ -20,7 +20,7 @@ export default function ResultTable({
   emptyMessage?: string;
 }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-slate-400 italic px-4 py-3">{emptyMessage}</p>;
+    return <p className="text-sm text-stone-400 italic px-4 py-3">{emptyMessage}</p>;
   }
   const cols = columns.length > 0 ? columns : [...new Set(rows.flatMap((r) => Object.keys(r)))];
 
@@ -28,10 +28,10 @@ export default function ResultTable({
     // Wide result sets scroll inside their own container so the page never does.
     <div className="overflow-auto max-h-full">
       <table className="w-full text-left border-collapse text-[13px]">
-        <thead className="sticky top-0 bg-[#22272e] z-10">
+        <thead className="sticky top-0 bg-[#1a1917] z-10">
           <tr>
             {cols.map((c) => (
-              <th key={c} className="px-3 py-2 font-semibold text-slate-300 border-b border-[#3d444d] whitespace-nowrap">
+              <th key={c} className="px-3 py-2 font-semibold text-stone-300 border-b border-[#36332e] whitespace-nowrap">
                 {c}
               </th>
             ))}
@@ -39,7 +39,7 @@ export default function ResultTable({
         </thead>
         <tbody className="font-mono tabular-nums">
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-[#2d333b] last:border-0 hover:bg-[#2d333b]/40">
+            <tr key={i} className="border-b border-[#262421] last:border-0 hover:bg-[#262421]/40">
               {cols.map((c) => {
                 const v = row[c];
                 return (
@@ -47,7 +47,7 @@ export default function ResultTable({
                     key={c}
                     className={
                       'px-3 py-1.5 whitespace-nowrap '
-                      + (v === null || v === undefined ? 'text-slate-600 italic' : 'text-slate-200')
+                      + (v === null || v === undefined ? 'text-stone-600 italic' : 'text-stone-200')
                     }
                   >
                     {renderCell(v)}

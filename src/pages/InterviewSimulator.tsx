@@ -131,7 +131,7 @@ export default function InterviewSimulator() {
         <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors mb-4">
           <ArrowLeft size={14} /> Back
         </Link>
-        <h1 className="text-2xl font-extrabold mb-2">Interview Simulator</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight mb-2">Interview Simulator</h1>
         <p className="text-muted mb-8">Simulate a timed mock interview with random questions.</p>
 
         <div className="space-y-6">
@@ -300,7 +300,7 @@ export default function InterviewSimulator() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <div className="text-center mb-8">
           <Trophy size={48} className={`mx-auto mb-4 ${score >= 70 ? 'text-amber-500' : 'text-muted'}`} />
-          <h1 className="text-3xl font-extrabold mb-2">Interview Complete!</h1>
+          <h1 className="font-display text-4xl font-semibold tracking-tight mb-2">Interview Complete!</h1>
           <p className="text-muted">You scored <strong className={score >= 70 ? 'text-emerald-600' : 'text-amber-600'}>{score}%</strong> in {formatTime(timeTaken)}</p>
         </div>
 

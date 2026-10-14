@@ -767,7 +767,7 @@ RQ:     "Server data has its own lifecycle. Let me handle fetch, cache, sync, GC
 | **Devtools** | Redux DevTools | React Query DevTools |
 | **Boilerplate** | High (action, reducer, saga, selector) | Low (one hook call) |
 | **Learning curve** | Steep (Redux + middleware concepts) | Moderate (cache concepts) |
-| **Bundle size** (min+gzip, approx.) | @reduxjs/toolkit + react-redux + redux-saga ~22KB | @tanstack/react-query ~13KB |
+| **Bundle size** (min+gzip, approx.) | @reduxjs/toolkit + react-redux ~18KB, plus redux-saga | @tanstack/react-query ~13KB |
 
 "Stale-while-revalidate" in the table means: show the cached copy immediately, refetch in the background, and swap in the new data when it arrives (Q7 walks through it). The real difference in every row is the same one: Redux is a general container that knows nothing about where the data came from, so every server-data behaviour has to be written by you; TanStack Query knows the data is a copy of something on a server, so it can provide those behaviours itself.
 

@@ -527,7 +527,7 @@ Without an index, MongoDB answers a query by reading every document in the colle
 
 ### 6.1 Index Types
 
-Most indexes are single-field or compound (several fields, where the order decides which queries they serve). The options change behaviour: **unique** rejects duplicates, **partial** indexes only documents matching a filter, **TTL** deletes documents once a date field is older than a set age, and **text**, **wildcard** and **2dsphere** (geospatial) indexes serve special query types.
+Most indexes are single-field or compound (several fields, where the order decides which queries they serve). Indexing an array field makes a **multikey** index, with one entry per array element. The options change behaviour: **unique** rejects duplicates, **sparse** skips documents that lack the field, **partial** indexes only documents matching a filter, **TTL** deletes documents once a date field is older than a set age, and **text**, **wildcard** and **2dsphere** (geospatial) indexes serve special query types.
 
 ```js
 // Single field index
@@ -535,16 +535,30 @@ db.users.createIndex({ email: 1 });                // ascending
 db.users.createIndex({ createdAt: -1 });            // descending
 
 // Compound index (field order matters)
-db.users.createIndex({ department: 1, createdAt: -1 });
+db.jobs.createIndex({ tenantId: 1, status: 1, createdAt: -1 });
+// Supports queries on its prefixes:
+// - { tenantId }
+// - { tenantId, status }
+// - { tenantId, status, createdAt }
+// Does NOT efficiently support:
+// - { status } alone
+// - { createdAt } alone
 
-// Unique index
+// Unique index (also works on a compound key, e.g. unique per tenant)
 db.users.createIndex({ email: 1 }, { unique: true });
+db.users.createIndex({ email: 1, tenantId: 1 }, { unique: true });
+
+// Sparse index (only indexes documents that have the field)
+db.users.createIndex({ phoneNumber: 1 }, { sparse: true });
 
 // Partial index (index only matching documents)
 db.users.createIndex(
   { email: 1 },
   { partialFilterExpression: { isActive: true } }
 );
+
+// Multikey index (created automatically when the field holds an array)
+db.jobs.createIndex({ "skills.name": 1 });
 
 // TTL index (auto-delete documents after time)
 db.sessions.createIndex(
@@ -563,6 +577,8 @@ db.articles.createIndex(
 
 // Wildcard index (index all fields)
 db.logs.createIndex({ "$**": 1 });
+// ...or every field under one path (dynamic attributes)
+db.products.createIndex({ "attributes.$**": 1 });
 
 // Geospatial index
 db.places.createIndex({ location: "2dsphere" });

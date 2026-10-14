@@ -8,7 +8,7 @@ export default function PlaygroundFlavorSwitch({ flavor }: { flavor: PlaygroundF
   return (
     <div className="flex items-center gap-2 shrink-0">
       <h1 className="text-lg font-bold text-white">{FLAVORS[flavor].title}</h1>
-      <nav aria-label="Playground language" className="flex items-center p-0.5 rounded-lg bg-[#2d333b] border border-[#3d444d]">
+      <nav aria-label="Playground language" className="flex items-center p-0.5 rounded-lg bg-[#262421] border border-[#36332e]">
         {(['js', 'react'] as const).map((f) => (
           <Link
             key={f}
@@ -16,7 +16,7 @@ export default function PlaygroundFlavorSwitch({ flavor }: { flavor: PlaygroundF
             aria-current={f === flavor ? 'page' : undefined}
             className={
               'px-2.5 py-1 rounded-md text-xs font-medium transition-colors ' +
-              (f === flavor ? 'bg-[#1c2028] text-white shadow-sm' : 'text-slate-300 hover:text-white')
+              (f === flavor ? 'bg-[#181715] text-white shadow-sm' : 'text-stone-300 hover:text-white')
             }
           >
             {f === 'js' ? 'JavaScript' : 'React'}

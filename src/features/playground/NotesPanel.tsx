@@ -12,10 +12,10 @@ export interface NotesPanelProps {
 
 export default function NotesPanel({ notes, onChange, open, onToggle }: NotesPanelProps) {
   return (
-    <div className="border-t border-[#2d333b] bg-[#1a1c25] shrink-0">
+    <div className="border-t border-[#262421] bg-[#171614] shrink-0">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-[#22272e] transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2 text-xs text-stone-400 hover:text-stone-200 hover:bg-[#1a1917] transition-colors"
         title={open ? 'Collapse notes' : 'Expand notes'}
       >
         <span className="inline-flex items-center gap-2">
@@ -30,7 +30,7 @@ export default function NotesPanel({ notes, onChange, open, onToggle }: NotesPan
           value={notes}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Notes on this challenge: approach, gotchas, complexity. Saved with your code."
-          className="w-full h-32 px-4 py-2 bg-[#1e1e2e] text-slate-200 text-sm font-mono resize-none outline-none border-t border-[#2d333b]"
+          className="w-full h-32 px-4 py-2 bg-[#121110] text-stone-200 text-sm font-mono resize-none outline-none border-t border-[#262421]"
           spellCheck={false}
         />
       )}

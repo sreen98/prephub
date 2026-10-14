@@ -77,10 +77,10 @@ export const TableOfContents = ({ content, isCollapsed, onToggle }: { content: s
               }}
               className={cn(
                 "block w-full text-left text-[12px] leading-snug py-1.5 transition-colors truncate",
-                heading.level === 3 && "pl-3",
+                // The active item slides left over the rail and draws its own accent segment on it.
                 activeId === heading.id
-                  ? "text-accent font-semibold"
-                  : "text-muted hover:text-ink"
+                  ? cn("-ml-[18px] border-l-2 border-accent text-accent font-semibold", heading.level === 3 ? "pl-7" : "pl-4")
+                  : cn("text-muted hover:text-ink", heading.level === 3 && "pl-3")
               )}
               title={heading.text}
             >

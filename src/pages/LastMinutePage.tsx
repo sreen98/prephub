@@ -22,7 +22,7 @@ export default function LastMinutePage() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-12 text-ink">
       <header className="mb-6">
-        <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-extrabold tracking-tight">
+        <h1 className="flex items-center gap-2.5 font-display text-3xl sm:text-4xl font-semibold tracking-tight">
           <Timer size={26} className="text-accent shrink-0" aria-hidden="true" /> Last-minute cards
         </h1>
         <p className="text-muted mt-2 leading-relaxed">

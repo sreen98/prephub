@@ -361,7 +361,7 @@ so use the inline `GithubIcon`.
   Sitka/Cambria on Windows), body text the system sans. Hierarchy comes from size, weight and
   space, not boxes: prefer hairline dividers and plain lists to grids of identical cards.
   No gradients, glow shadows or `backdrop-blur`. The playground and query playground surfaces
-  stay always-dark and use fixed teal/slate shades, not tokens: a token's light-mode value
+  stay always-dark and use fixed warm near-black hexes and `stone` greys (no violet-navy, no `slate`), not tokens: a token's light-mode value
   would be dark-on-dark there.
 - **Font is a system stack.** No web font, so nothing blocks first paint. Don't reintroduce Inter.
 - **Motion:** `<MotionConfig reducedMotion="user">` in `main.tsx` and the

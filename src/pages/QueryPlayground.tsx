@@ -140,17 +140,17 @@ export default function QueryPlayground() {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen bg-[#1c2028] text-slate-200">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2d333b] shrink-0">
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen bg-[#181715] text-stone-200">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#262421] shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => window.dispatchEvent(new Event('prephub:show-sidebar'))}
-            className="text-slate-400 hover:text-white hidden md:flex p-1.5 rounded-lg hover:bg-[#2d333b]"
+            className="text-stone-400 hover:text-white hidden md:flex p-1.5 rounded-lg hover:bg-[#262421]"
             title="Show sidebar"
           >
             <PanelLeftOpen size={16} />
           </button>
-          <Link to="/" className="text-slate-400 hover:text-white shrink-0"><ArrowLeft size={16} /></Link>
+          <Link to="/" className="text-stone-400 hover:text-white shrink-0"><ArrowLeft size={16} /></Link>
           <h1 className="text-lg font-bold truncate">Query Playground</h1>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-teal-900/50 text-teal-300 border border-teal-900/60">
             {question.engine === 'postgres' ? 'PostgreSQL' : 'MongoDB'}
@@ -159,13 +159,13 @@ export default function QueryPlayground() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => { setShowSolution((s) => !s); }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-[#3d444d] text-slate-400 hover:text-white hover:bg-[#2d333b]"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-[#36332e] text-stone-400 hover:text-white hover:bg-[#262421]"
           >
             <Lightbulb size={14} /> {showSolution ? 'Hide' : 'Show'} solution
           </button>
           <button
             onClick={() => { setCode(question.starter ?? ''); setResult(null); setCheck(null); }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-[#3d444d] text-slate-400 hover:text-white hover:bg-[#2d333b]"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border border-[#36332e] text-stone-400 hover:text-white hover:bg-[#262421]"
           >
             <RotateCcw size={14} /> Reset
           </button>
@@ -181,7 +181,7 @@ export default function QueryPlayground() {
       </div>
 
       <div className="flex-1 flex min-h-0">
-        <aside className="w-[260px] shrink-0 border-r border-[#2d333b] hidden lg:block">
+        <aside className="w-[260px] shrink-0 border-r border-[#262421] hidden lg:block">
           <QuestionList
             questions={ALL_QUERY_QUESTIONS}
             selectedId={question.id}
@@ -193,12 +193,12 @@ export default function QueryPlayground() {
         </aside>
 
         <main className="flex-1 flex flex-col min-w-0">
-          <div className="px-5 py-4 border-b border-[#2d333b] shrink-0">
+          <div className="px-5 py-4 border-b border-[#262421] shrink-0">
             <h2 className="font-semibold text-white mb-1">{question.title}</h2>
-            <p className="text-sm text-slate-300">{question.prompt}</p>
+            <p className="text-sm text-stone-300">{question.prompt}</p>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               {!question.orderMatters && (
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-stone-500">
                   Only the rows are checked, in any order.
                 </p>
               )}
@@ -216,8 +216,8 @@ export default function QueryPlayground() {
           </div>
 
           <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-            <div className="flex-1 flex flex-col min-h-0 border-b lg:border-b-0 lg:border-r border-[#2d333b]">
-              <div className="px-4 py-1.5 text-[11px] uppercase tracking-wider text-slate-500 border-b border-[#2d333b]">
+            <div className="flex-1 flex flex-col min-h-0 border-b lg:border-b-0 lg:border-r border-[#262421]">
+              <div className="px-4 py-1.5 text-[11px] uppercase tracking-wider text-stone-500 border-b border-[#262421]">
                 {question.engine === 'postgres' ? 'SQL' : 'Aggregation pipeline (JSON)'}
               </div>
               <div className="flex-1 overflow-auto playground-editor-wrap wrap-on">
@@ -234,10 +234,10 @@ export default function QueryPlayground() {
             </div>
 
             <div className="flex-1 flex flex-col min-h-0 lg:max-w-[48%]">
-              <div className="px-4 py-1.5 text-[11px] uppercase tracking-wider text-slate-500 border-b border-[#2d333b] flex items-center justify-between">
+              <div className="px-4 py-1.5 text-[11px] uppercase tracking-wider text-stone-500 border-b border-[#262421] flex items-center justify-between">
                 <span>Result</span>
                 {result && !result.error && (
-                  <span className="text-slate-600 normal-case">
+                  <span className="text-stone-600 normal-case">
                     {result.rows.length} row{result.rows.length === 1 ? '' : 's'} · {result.elapsedMs.toFixed(0)} ms
                   </span>
                 )}

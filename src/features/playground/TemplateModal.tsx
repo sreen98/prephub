@@ -83,7 +83,7 @@ export default function TemplateModal({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97, y: 8 }}
                 transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-                className="fixed inset-0 m-auto w-[min(960px,94vw)] h-[min(620px,88vh)] bg-surface dark:bg-[#0f0f1a] rounded-lg border border-line shadow-2xl z-[90] flex flex-col overflow-hidden"
+                className="fixed inset-0 m-auto w-[min(960px,94vw)] h-[min(620px,88vh)] bg-surface dark:bg-[#0d0c0b] rounded-lg border border-line shadow-2xl z-[90] flex flex-col overflow-hidden"
               >
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-line">

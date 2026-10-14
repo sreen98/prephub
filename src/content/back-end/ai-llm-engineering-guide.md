@@ -938,84 +938,43 @@ A judgement question, and both extremes read badly.
 
 **Q15: What is MCP, and when would you use it instead of just writing tool functions in your own backend?**
 
-MCP (Model Context Protocol) is an open JSON-RPC protocol that standardises how an LLM application connects to external tools and data. It exists to solve an **N×M problem**: without a standard, every client (Claude Desktop, an IDE, your app) needs a bespoke integration for every data source. Write an MCP server once and any MCP client can use it — "USB-C for AI applications".
+MCP (Model Context Protocol) is an open JSON-RPC protocol for connecting an LLM application to tools and data. It solves an **N×M problem**: write a server once and any MCP client (a desktop assistant, an IDE, your app) can use it. A server exposes **tools** (the model decides to call them, so they are the security-sensitive surface), **resources** (the host attaches them as context) and **prompts** (the user invokes them), over **stdio** locally or **HTTP** remotely; since the 2026-07-28 spec the core is stateless, so a remote server scales like any HTTP workload.
 
-A server exposes three primitives, and the distinction is *who decides to use them*:
+**Use it** when the same capability must be reachable from several clients, or third parties should integrate without per-client code. **Don't** for one application with a fixed set of internal functions: plain tool calling is simpler and keeps authorization in one place, and saying "MCP would be over-engineering here" is a better answer than enthusiasm.
 
-| Primitive | Driven by | Analogy |
-|---|---|---|
-| **Tools** | the **model**, at run time | a POST endpoint |
-| **Resources** | the **host application** attaches it as context | a GET endpoint / a file |
-| **Prompts** | the **user** invokes it deliberately | a slash command |
-
-That split matters because tools are the model-driven, security-sensitive surface, while a resource can't surprise you — the host chose it.
-
-Transports: **stdio** (the server runs as a local subprocess over stdin/stdout — the model for filesystem, git, local DB servers) and **HTTP** (one endpoint, optional SSE for server-to-client streaming). The **2026-07-28 spec** made the protocol core **stateless** — session management left the transport layer and identity/version/capabilities now ride in a `_meta` param per request. That's the operationally important change: a stateful protocol needs sticky sessions and shared session storage to scale, whereas a stateless remote MCP server is just another HTTP workload behind an ordinary load balancer.
-
-**When to use it:** when the same capability must be reachable from multiple clients, or when you want third parties to integrate with your product without you writing per-client code.
-
-**When not to:** a single application with a fixed set of internal functions. Plain tool calling in your own backend is simpler, has fewer moving parts, and keeps authorization in one place. Saying "MCP would be over-engineering here" is a better answer than enthusiasm.
+Depth: [MCP §3 The Primitives](/ai/mcp#3-the-primitives), [§4 the control model](/ai/mcp#4-who-decides-what-the-control-model), [§6 the stateless core](/ai/mcp#6-the-2026-07-28-stateless-core) and [§13 When MCP Is the Wrong Answer](/ai/mcp#13-when-mcp-is-the-wrong-answer).
 
 ---
 
 **Q16: When would you use multiple agents instead of one? Be specific about the trade-off.**
 
-Lead with the counter-evidence, because it is the strongest thing you can say: Princeton NLP found a **single agent matched or outperformed multi-agent systems on 64% of benchmarked tasks** given the same tools and context, and across benchmarks multi-agent buys roughly **2 percentage points of accuracy at about double the cost**. Most failed multi-agent pilots failed by decomposing a problem that didn't decompose.
+Lead with the counter-evidence: given the same tools and context, a single agent matched or beat multi-agent systems on **64% of benchmarked tasks** (Princeton NLP), and multi-agent buys roughly **2 points of accuracy at about double the cost**. So **multi-agent is a context-window and specialisation technique, not an intelligence technique**. Use it when one agent's context would be overwhelmed, when sub-tasks genuinely parallelise, or when they need different tools and permissions.
 
-So the honest framing: **multi-agent is a context-window and specialisation technique, not an intelligence technique.** It helps when (a) a single agent's context would be overwhelmed, (b) sub-tasks genuinely parallelise so you win wall-clock, or (c) sub-tasks need genuinely different tools and instructions. It does not make the model smarter.
+If you do, use **orchestrator–worker (supervisor)**, keep it shallow (one supervisor, wide fan-out), and expect four failures: context lost at every handoff (use typed, structured handoffs), random routing from vague worker descriptions, multiplied cost, and plausible-but-wrong worker results accepted without verification. Swarm/handoff topologies cost measurably more calls and tokens than a supervisor.
 
-If you do need it, **orchestrator–worker (supervisor) is the 2026 default** because control flow lives in exactly one place, so a trace reads top to bottom. Swarm/handoff topologies distribute control and cost measurably more — around 7+ calls and 14,000+ tokens on multi-domain tasks versus ~5 calls and ~9,000 tokens for a supervisor with parallel workers.
-
-What actually breaks, in order of how often:
-
-1. **Context loss compounds at every handoff** — each transfer either re-sends everything (expensive, dilutes attention) or summarises (lossy). Three hops deep you're working from a summary of a summary. Fix: structured, typed handoffs carrying task + constraints + relevant context + expected output shape, not prose.
-2. **Vague worker descriptions produce random routing** — the supervisor selects a worker the way a model selects a tool, from the description.
-3. **Cost is multiplicative** — every agent carries its own system prompt and tool definitions on top of the real work.
-4. **Errors propagate silently** — a plausible-but-wrong worker result gets accepted and built upon unless verification is explicit at each boundary.
-
-And keep it **shallow** — one supervisor, wide fan-out rather than nested supervisors, because depth is where debuggability dies.
+The figures, topologies and design rules are in [Agentic AI §8 Multi-Agent Systems](/ai/agents#8-multi-agent-systems).
 
 ---
 
 **Q17: LangChain, LangGraph, or the provider SDK directly — how do you decide?**
 
-First, get the relationship right, because candidates often present LangChain and LangGraph as competitors. They're not: LangChain's `create_agent` is the fast path to a working agent **and it runs on the LangGraph runtime**. LangChain supplies integrations and an opinionated high-level API; LangGraph is the low-level graph/state-machine engine underneath. Both hit v1.0, and `create_react_agent` from `langgraph.prebuilt` is deprecated in favour of `langchain.agents.create_agent`.
+They are not competitors: LangChain's `create_agent` is the fast path to a working agent **and runs on the LangGraph runtime**, which is the low-level graph/state-machine engine underneath. The rule is **LangChain for what's linear, LangGraph for what's cyclic**: drop to `StateGraph` when you need durable checkpointed execution, human-in-the-loop interrupts, explicit typed state, or time-travel replay.
 
-The working rule: **LangChain for what's linear, LangGraph for what's cyclic.** Start with `create_agent`, and drop to `StateGraph` when you hit one of the four things the high-level API hides badly — inspecting state mid-execution, human-in-the-loop interrupts, conditional retry logic, or multi-agent handoffs.
+- **Simple feature** (summarise, classify, extract, a straightforward tool loop) → the **provider SDK directly**; a framework adds a dependency to save fifty lines.
+- **Front-end streaming and tool-calling UI** → the **Vercel AI SDK**.
+- **Long-running, resumable, human-approved or genuinely multi-agent** → **LangGraph**, because durable execution and interrupts are infrastructure you shouldn't rebuild.
 
-What LangGraph actually buys, stated precisely (because "it's a graph" isn't an answer):
-
-- **Durable execution / checkpointing** — state persisted per step, so a run survives a process restart and resumes instead of starting over. For a multi-minute agent run that's the difference between a retriable job and a lost one.
-- **Human-in-the-loop as a first-class interrupt** — pause at a node, surface the pending action, resume with the decision, without hand-rolling a state machine and a queue.
-- **Explicit typed state** rather than an ever-growing message array.
-- **Time travel** — replay from a checkpoint, which is the only realistic way to debug a non-deterministic loop.
-
-And the decision I'd actually make:
-
-- **Simple feature** (summarise, classify, extract, single-turn chat, a straightforward tool loop) → **provider SDK directly.** A framework adds a dependency and a layer of indirection to save fifty lines.
-- **Front-end streaming and tool-calling UI** → **Vercel AI SDK**, because that problem has genuinely fiddly detail.
-- **Long-running, resumable, human-approved, or genuinely multi-agent** → **LangGraph**, because durable execution and interrupts are real infrastructure you shouldn't rebuild.
-
-The cost to name either way: frameworks obscure the exact tokens you sent, which is the first thing you need when output is wrong. Whatever you pick, keep the ability to introspect the exact prompt and response.
+Whatever you pick, keep the ability to see the exact prompt and response, which frameworks tend to hide. Depth: [LangChain & LangGraph §1](/ai/langchain-langgraph#1-what-each-piece-is), [§10 Persistence and Time Travel](/ai/langchain-langgraph#10-persistence-threads-and-time-travel), [§11 Interrupts](/ai/langchain-langgraph#11-interrupts-and-human-in-the-loop) and [§16 When Not to Use a Framework](/ai/langchain-langgraph#16-when-not-to-use-a-framework).
 
 ---
 
 **Q18: Your RAG chatbot handles "what is our refund policy?" well but fails on "how does our refund policy differ from our cancellation policy?". Why, and what do you change?**
 
-It fails because **no single chunk contains the comparison.** The question embeds to a vector somewhere between two topics, so nearest-neighbour search returns a muddle of both — or, worse, the strongest match on one topic and nothing useful on the other. Naive retrieve-once-then-answer has no mechanism to fetch two things.
+**No single chunk contains the comparison.** The question embeds somewhere between two topics, so one nearest-neighbour search returns a muddle of both, or the best match on one and nothing on the other. The fix is **query decomposition**: a cheap model call splits it into `retrieve("refund policy")` and `retrieve("cancellation policy")`, and you answer over the union. Pair it with **query rewriting**, because a follow-up like "and the enterprise one?" contains nothing retrievable until it is rewritten against the history.
 
-The fix is **query decomposition**: a cheap small-model call splits the question into independent retrievals, and you answer over the union.
+Where it sits in the order I'd reach for fixes, by return on effort:
 
-```
-"How does our refund policy differ from our cancellation policy?"
-  → retrieve("refund policy") + retrieve("cancellation policy") → answer over both
-```
-
-Pair it with **query rewriting** for the closely related failure: conversational follow-ups like "and the enterprise one?" contain no retrievable content at all, so you rewrite them into standalone queries using the conversation history first.
-
-Then the ordered list of what else I'd reach for, because the point is knowing the return on effort:
-
-```
+```text
 1. Escape hatch + citations        ← fixes most "hallucination" complaints, costs nothing
 2. Hybrid search (vector + BM25)   ← fixes exact-match failures: codes, names, errors
 3. Better chunking + prepended context ← fixes the majority of genuinely bad retrievals
@@ -1024,9 +983,7 @@ Then the ordered list of what else I'd reach for, because the point is knowing t
 6. Agentic RAG or GraphRAG         ← only when queries are multi-hop or graph-shaped
 ```
 
-**Agentic RAG** — making retrieval a tool the model can call repeatedly, so it can search, evaluate, refine and search again — is the more general solution and handles genuine multi-hop ("who signed off on the policy that governs X?"). But it costs agent-shaped money and debuggability, so cap the retrieval turns and log every query issued. For a two-part comparison, decomposition is cheaper and deterministic.
-
-The one to *not* propose here is **GraphRAG**. It's the right tool when questions are genuinely relationship-shaped ("which customers are affected by the region-X outage, and who owns those accounts?"), but entity extraction over the whole corpus is expensive to build and keep fresh. Reaching for it to answer a two-part policy comparison is solving the wrong problem.
+Agentic RAG would also work but costs agent-shaped latency and debuggability, and GraphRAG is for relationship-shaped questions, not a two-part comparison. Depth: [RAG §9 Query Transformation](/ai/rag#9-query-transformation) and [RAG §12 Beyond Naive RAG](/ai/rag#12-beyond-naive-rag).
 
 ---
 

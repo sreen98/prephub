@@ -586,50 +586,12 @@ Statics live on the model and answer questions about the collection (`Job.findBy
 
 ### Index Types
 
-An index is a sorted copy of one or more fields with a pointer back to each document, so a query can jump to matching entries instead of scanning the whole collection; every index also slows writes and uses memory. The types differ in what they store: one field, several fields in a fixed order (compound), only documents that have the field (sparse) or match a filter (partial), or entries that expire (TTL).
+An index is a sorted copy of one or more fields with a pointer back to each document, so a query can jump to matching entries instead of scanning the whole collection; every index also slows writes and uses memory. The syntax for every type (single field, compound, unique, sparse, partial, TTL, multikey, text, wildcard, geospatial) is in the [MongoDB guide](/backend/mongodb#61-index-types). For schema design, the decision is which ones your queries need:
 
-```javascript
-// 1. Single field index
-db.users.createIndex({ email: 1 });        // ascending
-db.jobs.createIndex({ createdAt: -1 });    // descending
-
-// 2. Compound index (field order matters!)
-db.jobs.createIndex({ tenantId: 1, status: 1, createdAt: -1 });
-// Supports queries on:
-// - { tenantId }
-// - { tenantId, status }
-// - { tenantId, status, createdAt }
-// Does NOT efficiently support:
-// - { status } alone
-// - { createdAt } alone
-
-// 3. Unique index
-db.users.createIndex({ email: 1, tenantId: 1 }, { unique: true });
-
-// 4. Sparse index (only indexes documents that have the field)
-db.users.createIndex({ phoneNumber: 1 }, { sparse: true });
-
-// 5. TTL index (auto-delete documents after time)
-db.sessions.createIndex({ createdAt: 1 }, { expireAfterSeconds: 86400 });
-
-// 6. Text index (full-text search)
-db.jobs.createIndex({ title: 'text', description: 'text' });
-
-// 7. Wildcard index (dynamic schemas)
-db.products.createIndex({ 'attributes.$**': 1 });
-
-// 8. Partial index (index subset of documents)
-db.jobs.createIndex(
-  { createdAt: -1 },
-  { partialFilterExpression: { status: { $in: ['open', 'under_assessment'] } } }
-);
-
-// 9. Multikey index (arrays)
-db.jobs.createIndex({ 'skills.name': 1 });
-
-// 10. Geospatial index
-db.offices.createIndex({ location: '2dsphere' });
-```
+- **Compound** for the filters you run together, in the order set by the ESR rule below. A compound index serves its prefixes only: `{ tenantId, status, createdAt }` helps `{ tenantId }` but not `{ status }` alone.
+- **Unique** to enforce a business rule in the database, scoped per tenant in a multi-tenant schema (`{ email: 1, tenantId: 1 }`).
+- **Partial** when queries only ever touch a hot subset (open jobs, not the archive), so the index stays small.
+- **TTL** for data that has a lifetime (sessions, tokens), so no cron job is needed to delete it.
 
 ### ESR Rule (Equality, Sort, Range)
 

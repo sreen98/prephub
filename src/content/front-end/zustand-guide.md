@@ -24,7 +24,7 @@ A small store that lives outside React, with **selector-level subscriptions** �
 
 ## 1. Why Zustand Exists
 
-Zustand (German for "state") is a ~1 KB store built on `useSyncExternalStore` — React's built-in hook for letting a component read from, and re-render on changes to, data that lives outside React. The store lives **outside** React; components subscribe to the slices they care about by passing a **selector**, a small function such as `s => s.theme` that picks the one value the component needs out of the whole state.
+Zustand (German for "state") is a store of under 1 KB (min+gzip) built on `useSyncExternalStore` — React's built-in hook for letting a component read from, and re-render on changes to, data that lives outside React. The store lives **outside** React; components subscribe to the slices they care about by passing a **selector**, a small function such as `s => s.theme` that picks the one value the component needs out of the whole state.
 
 **The problem it solves is a specific one.** React Context has no partial subscription: when the context value changes, **every** consumer re-renders, regardless of which field it reads. Split a context into five and you have five providers to nest and five decisions to maintain. Zustand keeps one store and makes the *selector* the unit of subscription — a component re-renders only when the value it selected actually changed.
 
@@ -342,7 +342,7 @@ Most store logic can be tested exactly like that — no rendering at all, becaus
 | DevTools / time travel | No | Via middleware | Built in, best in class | Via middleware |
 | Enforced update path | No | No | Yes — actions and reducers | No |
 | Async | Plain functions | Plain functions | Thunks / RTK Query / Saga | Plain functions |
-| Bundle | 0 — built in | ~1 KB | ~13 KB (+ RTK Query) | ~3 KB |
+| Bundle (min+gzip, approx.) | 0 — built in | <1 KB | ~18 KB (@reduxjs/toolkit + react-redux; RTK Query extra) | ~3 KB |
 | Model | Tree-scoped value | One external store | One external store | Bottom-up atoms |
 
 **Context is not a state manager.** It is dependency injection — a way to pass a value down without prop drilling. It is the right tool for something that rarely changes: the theme, the locale, a configured client. It becomes the wrong tool the moment the value changes often, because it cannot subscribe partially.

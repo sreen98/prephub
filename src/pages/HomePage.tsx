@@ -31,6 +31,11 @@ const PREVIEW_COUNT = 6;
 
 const JS_GUIDE = '/javascript/guide';
 
+/** Kept outside the component: the purity lint treats Math.random inside one as render-time. */
+function pickRandom<T>(list: T[]): T {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 /** A real question from the JavaScript guide, answerable right here. */
 function SampleQuestion() {
   const [open, setOpen] = useState(false);
@@ -144,8 +149,7 @@ export default function HomePage() {
     .sort((a, b) => (progress[b.path]?.lastVisited ?? '').localeCompare(progress[a.path]?.lastVisited ?? ''))[0];
 
   const handleRandomTopic = () => {
-    const random = allGuides[Math.floor(Math.random() * allGuides.length)];
-    navigate(random.path);
+    navigate(pickRandom(allGuides).path);
   };
 
   return (
@@ -160,8 +164,7 @@ export default function HomePage() {
             Interview prep for <em className="text-accent">full-stack</em> developers
           </h1>
           <p className="text-lg text-muted leading-relaxed max-w-xl mb-8">
-            {allGuides.length} guides and {totalQuestionCount.toLocaleString('en-US')} interview questions, from React and
-            Node.js to system design. Read a topic, test yourself on it, and come back to what you missed.
+            From React and Node.js to system design. Read a topic, test yourself on it, and come back to what you missed.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             {continueGuide ? (
@@ -180,6 +183,22 @@ export default function HomePage() {
         </div>
         <SampleQuestion />
       </section>
+
+      {/* The size of the library, as plain numbers rather than a feature grid */}
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-6 mb-14">
+        {[
+          [allGuides.length, 'study guides'],
+          [totalQuestionCount, 'interview questions'],
+          [LAST_MINUTE_CARDS.length, 'last-minute cards'],
+          [cheatSheets.length, 'cheat sheets'],
+        ].map(([n, label]) => (
+          <div key={label} className="border-l border-line pl-5">
+            <dt className="sr-only">{label}</dt>
+            <dd className="font-display text-4xl sm:text-5xl font-semibold tracking-tight tabular-nums">{n.toLocaleString('en-US')}</dd>
+            <dd className="mt-1 text-sm text-muted">{label}</dd>
+          </div>
+        ))}
+      </dl>
 
       {/* Progress, from this browser's own data: one quiet strip, not a card */}
       <section aria-labelledby="progress-heading" className="border-y border-line py-5 mb-16">

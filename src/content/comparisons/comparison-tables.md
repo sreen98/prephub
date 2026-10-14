@@ -360,7 +360,7 @@ Context is a way to *pass* a value down the tree, not a state manager — every 
 
 | Feature | Context API | Redux (Toolkit) | Zustand |
 |---|---|---|---|
-| **Bundle size** | 0 KB (built-in) | ~11 KB (RTK) | ~1 KB |
+| **Bundle size** (min+gzip, approx.) | 0 KB (built-in) | ~18 KB (@reduxjs/toolkit + react-redux) | <1 KB |
 | **Boilerplate** | Minimal | Moderate (slices, store config) | Minimal |
 | **DevTools** | React DevTools only | Redux DevTools (time-travel) | Redux DevTools (via middleware) |
 | **Middleware** | None built-in | Thunk, Saga, custom | Built-in middleware support |

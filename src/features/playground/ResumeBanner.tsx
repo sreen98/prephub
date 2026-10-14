@@ -35,8 +35,8 @@ export default function ResumeBanner({ lastSessionName, selectedName, dismissed,
       <button onClick={() => onResume(tpl)} className="text-teal-300 hover:text-teal-200 hover:underline font-medium">
         Resume &quot;{lastSessionName}&quot;
       </button>
-      <span className="text-slate-500">· last edited {ago(entry.updatedAt)}</span>
-      <button onClick={onDismiss} className="ml-auto text-slate-500 hover:text-slate-300" aria-label="Dismiss" title="Dismiss for this session">
+      <span className="text-stone-500">· last edited {ago(entry.updatedAt)}</span>
+      <button onClick={onDismiss} className="ml-auto text-stone-500 hover:text-stone-300" aria-label="Dismiss" title="Dismiss for this session">
         <X size={12} />
       </button>
     </div>

@@ -122,7 +122,7 @@ These all solve "share state across the component tree without prop-drilling" bu
 
 | Feature | Context API | Redux (Toolkit) | Zustand |
 |---|---|---|---|
-| **Bundle size** | 0 KB (built-in) | ~11 KB (RTK) | ~1 KB |
+| **Bundle size** (min+gzip, approx.) | 0 KB (built-in) | ~18 KB (@reduxjs/toolkit + react-redux) | <1 KB |
 | **Boilerplate** | Minimal | Moderate (slices, store config) | Minimal |
 | **DevTools** | React DevTools only | Redux DevTools (time-travel) | Redux DevTools (via middleware) |
 | **Performance** | All consumers re-render on any context change | Selectors prevent unnecessary re-renders | Selectors prevent unnecessary re-renders |

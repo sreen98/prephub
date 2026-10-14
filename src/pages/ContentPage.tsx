@@ -23,6 +23,7 @@ import PreBlock from '../features/content/PreBlock';
 import TableOfContents from '../features/content/TableOfContents';
 import MobileToc from '../features/content/MobileToc';
 import OfficialDocsBar from '../features/content/OfficialDocsBar';
+import GuideEyebrow from '../features/content/GuideEyebrow';
 import SaveCheckpointFab from '../features/content/SaveCheckpointFab';
 import { findNearestHeadingAbove } from '../features/content/findNearestHeadingAbove';
 import { stripMarkdownToc } from '../features/content/stripMarkdownToc';
@@ -329,7 +330,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
           )}
         </div>
 
-        <OfficialDocsBar filePath={filePath} />
+        <OfficialDocsBar filePath={filePath} /><GuideEyebrow filePath={filePath} />
 
         {checkpoint && guidePath && (
           <div
