@@ -1,5 +1,12 @@
 # What's New
 
+## v1.7.31 (October 2026)
+
+- **A tidier sidebar.** The "View on GitHub" and "Admin" links are gone from the bottom of the sidebar, leaving the version and the Privacy and Terms links.
+- The home page now says "no account needed" rather than "no account".
+- **No more Google Analytics.** It set cookies before asking, which EU and UK rules don't allow. PrepHub now sets no tracking cookies at all; visits may be counted with Cloudflare Web Analytics, which uses no cookies and stores nothing on your device.
+- **A complete Privacy Policy.** It now says who runs the site and how to reach them, the legal basis for each use of data, where data is processed, your rights (see, correct, delete, export, complain), the policy on children and Do Not Track, and when it was last updated. It also covers India's data protection law and Brazil's (how to complain to each country's authority). The Terms name the owner and a contact email, and link a list of the open-source software PrepHub is built with and its licences.
+
 ## v1.7.30 (October 2026)
 
 - **A calmer, warmer look.** The violet is gone: the site now uses a warm paper background, one deep-teal accent and serif headings, so a guide reads more like a well-set book than a dashboard. Dark mode is a true near-black page with warm text, and code blocks sit darker in it instead of looking like grey slabs. Section headings carry a short teal mark, sections are separated by a quiet ornament, every guide shows its category above the title, the contents panel marks the section you are reading, and page titles across the site use the same serif. The code and query playgrounds lost their violet-navy tint and now match the near-black theme.

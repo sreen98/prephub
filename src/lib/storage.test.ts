@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { safeGet, safeSet, safeRemove, getJSON, setJSON, getEnum, isStorageAvailable } from './storage';
+import { safeGet, safeSet, safeRemove, getJSON, setJSON, getEnum, isStorageAvailable, onSyncedWrite } from './storage';
 
 /** A minimal in-memory Storage stand-in. */
 function memoryStorage(): Storage {
@@ -107,6 +107,40 @@ describe('storage — when access throws (private mode / blocked site data)', ()
 
   it('reports storage as unavailable', () => {
     expect(isStorageAvailable()).toBe(false);
+  });
+});
+
+describe('storage — synced-write notifications', () => {
+  beforeEach(() => { install(memoryStorage()); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('reports writes and removals of synced keys only, in localStorage only', () => {
+    const seen: string[] = [];
+    const stop = onSyncedWrite((key) => seen.push(key));
+    setJSON('bookmarks', []);
+    safeRemove('guide-progress');
+    safeSet('theme', 'dark');
+    safeSet('sr-schedule', '{}', 'session');
+    stop();
+    setJSON('bookmarks', []);
+    expect(seen).toEqual(['bookmarks', 'guide-progress']);
+  });
+
+  it('a throwing listener cannot fail the save', () => {
+    const stop = onSyncedWrite(() => { throw new Error('sync broke'); });
+    expect(safeSet('bookmarks', '[]')).toBe(true);
+    expect(safeGet('bookmarks')).toBe('[]');
+    stop();
+  });
+
+  it('a write that did not happen is not reported', () => {
+    install(() => { throw new DOMException('denied', 'SecurityError'); });
+    const seen: string[] = [];
+    const stop = onSyncedWrite((key) => seen.push(key));
+    safeSet('bookmarks', '[]');
+    safeRemove('bookmarks');
+    stop();
+    expect(seen).toEqual([]);
   });
 });
 

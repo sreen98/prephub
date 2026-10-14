@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
+import { SYNCED_KEYS, DEVICE_KEYS } from './syncKeys';
 
 /**
  * The localStorage keys ARE the user's saved data: reading progress, bookmarks,
@@ -13,6 +14,7 @@ import { readFileSync, readdirSync } from 'node:fs';
  * new one.
  */
 const EXPECTED_KEYS = [
+  'account-hint',
   'bookmarks',
   'checkpoints',
   'guide-progress',
@@ -31,6 +33,7 @@ const EXPECTED_KEYS = [
   'readingFontSize',
   'sr-schedule',
   'study-stats',
+  'sync-base',
   'theme',
 ].sort();
 
@@ -50,7 +53,12 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 }
 
 describe('localStorage key contract', () => {
-  const bodies = sourceFiles('src').map((f) => readFileSync(f, 'utf8')).join('\n');
+  // syncKeys.ts names every key on purpose; counting it would keep a key "referenced"
+  // after the code that actually reads it was deleted.
+  const bodies = sourceFiles('src')
+    .filter((f) => !f.endsWith('lib/syncKeys.ts'))
+    .map((f) => readFileSync(f, 'utf8'))
+    .join('\n');
 
   it('every expected key is still referenced somewhere in the source', () => {
     const missing = EXPECTED_KEYS.filter((k) => !bodies.includes(`'${k}'`));
@@ -60,6 +68,11 @@ describe('localStorage key contract', () => {
   it('every session key is still referenced', () => {
     const missing = EXPECTED_SESSION_KEYS.filter((k) => !bodies.includes(`'${k}'`));
     expect(missing).toEqual([]);
+  });
+
+  it('every key is either synced to the account or kept on the device, never both or neither', () => {
+    const classified = [...SYNCED_KEYS, ...DEVICE_KEYS].sort();
+    expect(classified, 'add the new key to SYNCED_KEYS or DEVICE_KEYS in lib/syncKeys.ts').toEqual(EXPECTED_KEYS);
   });
 
   it('storage access is funnelled through src/lib/storage.ts', () => {

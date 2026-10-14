@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getJSON, setJSON } from '../lib/storage';
+import { useSyncedReload } from './useSyncedReload';
 
 const STORAGE_KEY = 'study-stats' as const;
 const MILESTONES = [3, 7, 14, 30, 60, 100, 365] as const;
@@ -84,6 +85,10 @@ export function useStudyStats(): UseStudyStatsReturn {
     setJSON(STORAGE_KEY, next);
     setStats(next);
   }, []);
+
+  // Another device changed it (account sync): show the merged value.
+  const reload = useCallback((): void => setStats(load()), []);
+  useSyncedReload(STORAGE_KEY, reload);
 
   const recordVisit = useCallback((): void => {
     const current = load();

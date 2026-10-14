@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getJSON, setJSON } from '../lib/storage';
+import { useSyncedReload } from './useSyncedReload';
 
 const STORAGE_KEY = 'bookmarks' as const;
 
@@ -56,6 +57,10 @@ export function useBookmarks(): UseBookmarksReturn {
     setJSON(STORAGE_KEY, next);
     setBookmarks(next);
   }, []);
+
+  // Another device changed it (account sync): show the merged value.
+  const reload = useCallback((): void => setBookmarks(load()), []);
+  useSyncedReload(STORAGE_KEY, reload);
 
   const isBookmarked = useCallback((id: string): boolean => {
     return bookmarks.some(b => b.id === id);

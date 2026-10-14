@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { getJSON, setJSON, safeGet, safeSet, safeRemove } from '../lib/storage';
 import { FLAVORS, lastSessionFor, type PlaygroundFlavor } from '../lib/playgroundFlavor';
 import { stripChallengeHeader } from '../lib/challengeHeader';
+import { useSyncedReload } from './useSyncedReload';
 
 const STORAGE_KEY = 'playground-progress' as const;
 const LAST_SESSION_KEY = 'playground-last-session' as const;
@@ -154,6 +155,10 @@ export function usePlaygroundProgress(flavor?: PlaygroundFlavor): UsePlaygroundP
     setJSON(STORAGE_KEY, next);
     setProgress(next);
   }, []);
+
+  // Another device changed it (account sync): show the merged value.
+  const reload = useCallback((): void => setProgress(load()), []);
+  useSyncedReload(STORAGE_KEY, reload);
 
   const getEntry = useCallback((name: string): ProgressEntry | null => {
     return progress[name] ?? null;

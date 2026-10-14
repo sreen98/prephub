@@ -7,6 +7,10 @@ import App from './App.jsx'
 import { applyGuideSplitMigration, movedAnchorUrl } from './lib/guideSplitMigration'
 // Registers the service worker and reloads the page when a new build is live.
 import './pwa'
+import { startAnalytics } from './lib/analytics'
+
+// Cookieless visitor statistics, only when a Cloudflare beacon token is set.
+startAnalytics();
 
 // React (v1.7.14), JavaScript and TypeScript (v1.7.15) were split into guide series. Move saved
 // review history, bookmarks and checkpoints to the new question ids and pages, and send an old

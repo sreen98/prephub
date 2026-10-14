@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getJSON, setJSON } from '../lib/storage';
+import { useSyncedReload } from './useSyncedReload';
 
 const STORAGE_KEY = 'checkpoints' as const;
 
@@ -31,6 +32,10 @@ export function useCheckpoints(): UseCheckpointsReturn {
     setJSON(STORAGE_KEY, next);
     setCheckpoints(next);
   }, []);
+
+  // Another device changed it (account sync): show the merged value.
+  const reload = useCallback((): void => setCheckpoints(load()), []);
+  useSyncedReload(STORAGE_KEY, reload);
 
   const getCheckpoint = useCallback((guidePath: string): Checkpoint | null => {
     return checkpoints[guidePath] ?? null;

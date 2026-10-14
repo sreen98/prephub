@@ -158,7 +158,7 @@ export default function HomePage() {
       <section className="grid gap-10 lg:grid-cols-[1fr_24rem] lg:items-center mb-14">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">
-            Free · no account · runs in your browser
+            Free · no account needed · runs in your browser
           </p>
           <h1 className="font-display text-5xl sm:text-6xl font-semibold tracking-tight leading-[1.05] mb-6">
             Interview prep for <em className="text-accent">full-stack</em> developers

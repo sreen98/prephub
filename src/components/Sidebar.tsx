@@ -3,11 +3,12 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Sun, Moon, ChevronDown, BookOpen, Search, Megaphone, Type, Flame,
-  GraduationCap, Bookmark, Flag, ScrollText, Lock, PanelLeftClose, FileText,
+  GraduationCap, Bookmark, Flag, ScrollText, PanelLeftClose, FileText,
   CheckCircle, Circle, Zap, Terminal, List, Braces, Server, Layers, Monitor,
   RotateCcw, Database, Atom, Timer,
 } from 'lucide-react';
-import { GithubIcon } from './GithubIcon';
+import AccountControl from './AccountControl';
+import { ACCOUNTS_ENABLED } from '../lib/account';
 import { menuStructure, cheatSheets } from '../data';
 import type { MenuItem, MenuSection } from '../data';
 import { cn } from '../lib/cn';
@@ -266,27 +267,8 @@ export default function Sidebar({
           </nav>
 
           <div className="p-4 border-t border-line space-y-0.5">
-            <a
-              href="https://github.com/sreen98/prephub"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm text-muted hover:text-ink hover:bg-ink/5 transition-all"
-            >
-              <GithubIcon size={16} />
-              <span>View on GitHub</span>
-            </a>
-            {/* Passphrase-protected; the page ships only ciphertext. See AdminPage.tsx. */}
-            <Link
-              to="/admin"
-              aria-current={location.pathname === '/admin' ? 'page' : undefined}
-              className={cn(
-                "flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm transition-colors",
-                location.pathname === '/admin' ? ACTIVE : INACTIVE
-              )}
-            >
-              <Lock size={14} />
-              <span>Admin</span>
-            </Link>
+            {ACCOUNTS_ENABLED && <AccountControl />}
+            {/* /admin has no link on purpose: it is reached by typing the URL (AdminPage.tsx). */}
 
             {/* Which build is being served. Useful when a cached service worker
                 is still handing out an older bundle than the latest deploy. */}

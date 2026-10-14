@@ -266,16 +266,6 @@ export default function App() {
     if (title) document.title = title;
   }, [location.pathname]);
 
-  // Track SPA page views in Google Analytics
-  useEffect(() => {
-    if (typeof window.gtag === 'function') {
-      window.gtag('event', 'page_view', {
-        page_path: location.pathname,
-        page_title: document.title,
-      });
-    }
-  }, [location.pathname]);
-
   useEffect(() => {
     // Closing the mobile sidebar is a response to navigation, not derived state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
