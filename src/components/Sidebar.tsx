@@ -8,6 +8,8 @@ import {
   RotateCcw, Database, Atom, Timer,
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcon';
+import AccountControl from './AccountControl';
+import { ACCOUNTS_ENABLED } from '../lib/account';
 import { menuStructure, cheatSheets } from '../data';
 import type { MenuItem, MenuSection } from '../data';
 import { cn } from '../lib/cn';
@@ -266,6 +268,7 @@ export default function Sidebar({
           </nav>
 
           <div className="p-4 border-t border-line space-y-0.5">
+            {ACCOUNTS_ENABLED && <AccountControl />}
             <a
               href="https://github.com/sreen98/prephub"
               target="_blank"

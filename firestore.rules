@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// PrepHub progress sync (docs/accounts-and-sync-plan.md).
+// One document per synced localStorage key, at users/{uid}/data/{key}:
+//   { value: <the key's JSON as a string>, updatedAt: <server time> }
+// A signed-in user can read and write only their own documents; everything else is denied.
+// The key list must match SYNCED_KEYS in src/lib/syncKeys.ts (pinned by firestoreRules.test.ts).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/data/{key} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+
+      allow read, delete: if isOwner();
+
+      allow create, update: if isOwner()
+        && key in ['bookmarks', 'checkpoints', 'guide-progress', 'playground-interview-history',
+                   'playground-progress', 'sr-schedule', 'study-stats']
+        && request.resource.data.keys().hasOnly(['value', 'updatedAt'])
+        && request.resource.data.value is string
+        // Firestore's own limit is 1 MiB per document; stay well under it.
+        && request.resource.data.value.size() <= 900000
+        && request.resource.data.updatedAt == request.time;
+    }
+  }
+}

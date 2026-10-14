@@ -76,7 +76,19 @@ The numbering is referenced from code comments, so keep it stable.
 5. **Web storage only through `src/lib/storage.ts`** (`safeGet`/`safeSet`/`getJSON`/`setJSON`/
    `getEnum`/`safeRemove`), tests included. The accessor *throws* in private mode, often during
    render. **Key names are a compatibility contract** (user progress), pinned by
-   `storageKeys.test.ts`. Renaming one needs a migration.
+   `storageKeys.test.ts`. Renaming one needs a migration. A new key also goes in
+   `SYNCED_KEYS` or `DEVICE_KEYS` (`lib/syncKeys.ts`); a synced key needs a rule in
+   `mergeSyncedValue` (`lib/syncMerge.ts`, a three-way merge against the last-synced base).
+   Plan: `docs/accounts-and-sync-plan.md`.
+   **Firebase (optional Google sign-in) is reached only through `import()` in `lib/account.ts`**;
+   elsewhere `import type` only (`account.test.ts`). It loads on Sign in or when `account-hint`
+   says this device was signed in, never for a guest. Visible only when `ACCOUNTS_ENABLED`
+   (dev, or `VITE_ACCOUNTS=on`) until sync ships. Sync: `lib/syncEngine.ts` (+
+   `firestoreRemote.ts`, also `import()` only). A synced key's hook calls `useSyncedReload`.
+   **Never remove synced keys while the engine runs** (it would push the removal as deletions);
+   stop it first, as `AccountControl` does. `firestore.rules` repeats `SYNCED_KEYS`
+   (`firestoreRules.test.ts`); `npm run test:rules` (emulator, Java 21+) before
+   `npm run deploy:rules`.
 6. **Layering** as above.
 7. **Bulk data lives in `src/data/`.** `verify:arch` fails on a `.ts` file over 1,200 lines under
    `components/`, `features/` or `pages/`.

@@ -15,7 +15,47 @@
  * Every function here is total: it returns a fallback rather than throwing.
  */
 
+import { isSyncedKey, type SyncedKey } from './syncKeys';
+
 type Store = 'local' | 'session';
+
+/**
+ * `fromSync` is true when the sync layer itself wrote the value (a change that
+ * arrived from another device), so the sync layer can skip re-uploading it and
+ * the hooks know to re-read it.
+ */
+type SyncedWriteListener = (key: SyncedKey, fromSync: boolean) => void;
+const syncedWriteListeners = new Set<SyncedWriteListener>();
+let writingFromSync = false;
+
+/**
+ * Be told whenever a synced key (lib/syncKeys) is written or removed in
+ * localStorage. This file is the one place every write passes through, so the
+ * sync layer listens here instead of every hook reporting its own saves.
+ * Returns the unsubscribe function.
+ */
+export function onSyncedWrite(listener: SyncedWriteListener): () => void {
+  syncedWriteListeners.add(listener);
+  return () => { syncedWriteListeners.delete(listener); };
+}
+
+function notifySyncedWrite(key: string, store: Store): void {
+  if (store !== 'local' || !isSyncedKey(key)) return;
+  for (const listener of syncedWriteListeners) {
+    // A failing listener must not turn a successful save into a thrown error.
+    try { listener(key, writingFromSync); } catch { /* the sync layer reports its own errors */ }
+  }
+}
+
+/** Store a value that came from the account copy. Listeners see `fromSync: true`. */
+export function setJSONFromSync(key: SyncedKey, value: unknown): boolean {
+  writingFromSync = true;
+  try {
+    return setJSON(key, value);
+  } finally {
+    writingFromSync = false;
+  }
+}
 
 /** Resolve a backing store, or null when storage is unusable in this context. */
 function backing(store: Store): Storage | null {
@@ -46,6 +86,7 @@ export function safeSet(key: string, value: string, store: Store = 'local'): boo
     // write that never happened. A test caught exactly that.
     if (s === null) return false;
     s.setItem(key, value);
+    notifySyncedWrite(key, store);
     return true;
   } catch {
     // Most often QuotaExceededError, or Safari private mode.
@@ -56,7 +97,10 @@ export function safeSet(key: string, value: string, store: Store = 'local'): boo
 /** Delete a key. Never throws. */
 export function safeRemove(key: string, store: Store = 'local'): void {
   try {
-    backing(store)?.removeItem(key);
+    const s = backing(store);
+    if (s === null) return;
+    s.removeItem(key);
+    notifySyncedWrite(key, store);
   } catch {
     /* nothing to do */
   }

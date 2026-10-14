@@ -23,6 +23,11 @@ declare module '@babel/standalone' {
   export default babel;
 }
 
+interface ImportMetaEnv {
+  /** "on" shows Google sign-in in a production build (lib/account.ts). */
+  readonly VITE_ACCOUNTS?: string;
+}
+
 interface Window {
   gtag: (...args: unknown[]) => void;
 }

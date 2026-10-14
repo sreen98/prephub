@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getJSON, setJSON } from '../lib/storage';
+import { useSyncedReload } from './useSyncedReload';
 
 const STORAGE_KEY = 'sr-schedule' as const;
 
@@ -87,6 +88,10 @@ export function useSpacedRepetition(): UseSpacedRepetitionReturn {
     setJSON(STORAGE_KEY, next);
     setSchedule(next);
   }, []);
+
+  // Another device changed it (account sync): show the merged value.
+  const reload = useCallback((): void => setSchedule(load()), []);
+  useSyncedReload(STORAGE_KEY, reload);
 
   // quality: 1 = "Study Again", 4 = "Got It"
   const recordReview = useCallback((questionId: string, quality: number): void => {

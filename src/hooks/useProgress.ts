@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getJSON, setJSON } from '../lib/storage';
+import { useSyncedReload } from './useSyncedReload';
 
 const STORAGE_KEY = 'guide-progress' as const;
 
@@ -46,6 +47,10 @@ export function useProgress(): UseProgressReturn {
     setJSON(STORAGE_KEY, next);
     setProgress(next);
   }, []);
+
+  // Another device changed it (account sync): show the merged value.
+  const reload = useCallback((): void => setProgress(load()), []);
+  useSyncedReload(STORAGE_KEY, reload);
 
   const getStatus = useCallback((path: string): ProgressStatus => {
     return progress[path]?.status || 'not-started';
