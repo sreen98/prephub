@@ -26,6 +26,7 @@ A comprehensive, modern web app for full-stack developer interview preparation. 
 - **Graded like an interview** — every JavaScript challenge has **4–6 hidden tests** (empty input, duplicates, negatives, large inputs, each problem's trap) whose expected outputs are derived from the reference solution; Run shows `3/3 passed · 🔒 5/7 hidden`, and only a full pass marks a challenge solved. **React challenges have a Check button** that drives your live preview by role, label and visible text (click, type, Tab, Escape, paste, drag) and reports which behaviours work. **TypeScript challenges are type-checked by the real TypeScript compiler** in a background worker, loaded on first use (~1 MB gzipped). **Interview mode** runs a 15/30/45-minute timer with Explain, Compare and Show Solution hidden until you finish, and records your best time. **Compare** puts your code beside the reference solution with matching lines aligned
 - **Auto-saved progress per challenge** — your code is auto-saved every keystroke (debounced) and restored when you come back. Notes scratchpad per challenge for thoughts. Reset Code button to revert to the stub. Test pass/fail summary pill after each Run. "X / 94 solved" counter, status badges, Continue-last-session pill on /playground entry
 - **A VS Code editor in the playgrounds** — on desktop the JS, TS and React playgrounds use Monaco, the editor inside VS Code: IntelliSense from the real React types, hover docs, errors as you type (strict type errors in TypeScript challenges), multi-cursor, find and replace, folding, the minimap and VS Code shortcuts, with Ctrl/Cmd+Enter to run and Ctrl/Cmd+Shift+F to format. It loads only when a playground opens and is cached for offline use; phones keep a lightweight touch-friendly editor
+- **Problem dialog, hideable output, preview in its own tab** — a challenge's statement opens as a dialog from the Problem button (and on its own when you start fresh); Hide output gives the editor the full width; Open in new tab renders the React preview in a separate browser tab that updates on every Run
 - **Resizable editor + word-wrap toggle** — drag the divider between editor and output to resize, and the handle under a challenge's Problem panel to split the statement and the code; toggle word-wrap on/off when the pane gets narrow
 
 ### Study Effectiveness
@@ -160,7 +161,7 @@ npm run verify         # All six of the above, in order — what CI runs
 | `playground-split-pct` | Editor / output split percentage |
 | `playground-interview-active` | The running interview-mode session (challenge, start time, length), so a reload keeps the clock |
 | `playground-interview-history` | Interview-mode attempts per challenge (time taken, outcome), for the best-time badge |
-| `playground-problem-height` | Height in px of the challenge Problem panel above the editor (drag handle; double-click resets) |
+| `playground-output-hidden` | `1` while the console and preview side of the playground is hidden, so the editor takes the full width |
 | `sr-schedule` | Spaced repetition schedule |
 | `study-stats` | Streak and gamification data |
 | `interview-history` | Past interview sim results |

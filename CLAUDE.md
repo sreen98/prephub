@@ -319,6 +319,7 @@ silently resolves to a `window` global and typechecks.
 - Editor behaviours (auto-close, bracket rules, Reset gating) live in
   `playgroundAutoClose.ts` and are tested by keystroke replay. Read that test before changing
   them.
+- **Problem, output, preview tab.** A challenge's statement is a dialog (`ChallengeProblemPanel.tsx`), opened by the toolbar's Problem button and automatically when a challenge opens without restored work. `useEditorPrefs` keeps `outputHidden` (`playground-output-hidden`); hiding uses CSS, never unmounting, because the preview pane must stay mounted. `usePreviewTab` renders the preview into a same-origin `about:blank` tab: usePreviewMount and the React checks ask `previewTarget()` (the tab's root, else the pane), so the runner and the console stay single. Moving between targets re-mounts on the next tick (`useRemountOnTabMove`); doing it inside the effect logs React's "synchronously unmount a root while already rendering".
 - **Two editors.** Desktop (fine pointer, ≥768px, Workers: `lib/monacoSupport.ts`) gets **Monaco**,
   the VS Code editor (`MonacoCodeEditor.tsx`, set up in `lib/monacoSetup.ts`); phones, touch
   tablets and jsdom keep the textarea editor (`SimpleCodeEditor.tsx`), which is also shown while
