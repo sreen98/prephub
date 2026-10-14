@@ -196,23 +196,13 @@ Don't recite this whole list in an interview. Pick the three or four items that 
 
 - **HTTP/2 or HTTP/3** — multiplexed requests over a single connection.
 - **CDN** — for static assets and (when applicable) API responses.
-- **Service Worker caching** — cache-first for build assets (when the filename carries a content hash, a new version gets a new name, so a cached copy is never out of date), network-first for API data (fresh when online, cached copy as the offline fallback), stale-while-revalidate for data where a slightly old answer now beats a fresh one later (serve the cache, update it in the background).
+- **Service Worker caching** — cache-first for hashed build assets, network-first for API data, stale-while-revalidate where a slightly old answer now beats a fresh one later.
 - **Compression** — Brotli > gzip.
 - **Prefetch / preconnect** — `<link rel="prefetch">` for next-likely navigation, `<link rel="preconnect">` for third-party origins.
 
 ### Caching layers
 
-```
-[Browser memory cache] (TanStack Query / Apollo)
-        ↓
-[Browser disk cache] (Cache API via Service Worker)
-        ↓
-[CDN edge cache]
-        ↓
-[Origin server / DB]
-```
-
-Each layer has different invalidation rules. The closer to the user, the faster but harder to invalidate. Use cache headers (`Cache-Control: max-age=...`, `ETag`, `Last-Modified`) to coordinate.
+In a design answer, name the layers your data passes through (query cache, service worker, browser HTTP cache, CDN, server) and say how each one is invalidated: the closer to the user, the faster but harder to clear. The rules per layer (hashed assets `immutable`, `index.html` `no-cache`, `ETag`/`304`, `s-maxage` + `stale-while-revalidate` at the CDN, purge by tag) are in [Frontend Architecture §6](/frontend/architecture#6-the-caching-layers).
 
 ---
 

@@ -1,5 +1,13 @@
 # What's New
 
+## v1.7.30 (October 2026)
+
+- **A calmer, warmer look.** The violet is gone: the site now uses a warm paper background, one deep-teal accent and serif headings, so a guide reads more like a well-set book than a dashboard. Dark mode follows the same palette.
+- **A less cluttered home page.** Each category is now a row with its first six guides and a "Show all" button, instead of a wall of tags; the practice tools are a simple list; and your progress is one slim strip.
+- **No more reading the same thing twice.** About 30 topics were explained in full in several guides (token storage and BFF, SPA caching headers, CORS, Postgres vs MySQL, isolation levels, circuit breakers and sagas, WebSocket vs SSE, REST vs GraphQL, SOLID, temperature 0, prompt injection and more). Each now has one full explanation, and the other guides give a short version with a link to it. The AI & LLM Engineering guide now points to the dedicated AI guides instead of repeating them.
+- **Definitions before examples.** Jest & React Testing Library, Redux Saga, Redux Toolkit, TanStack Query, Storybook, React Native, Node.js, Express, CORS, AWS Lambda, MongoDB and Database Schema used to open many sections straight with code. Over 400 sections now start with a plain sentence saying what the thing is and when you would use it.
+- **Fix:** the Redux Saga "Polling with Exponential Backoff" example made the wait shorter each round instead of longer. It now doubles the wait up to a 30-second ceiling.
+
 ## v1.7.29 (October 2026)
 
 - **New React Machine Coding challenge, Product CRUD:** a product manager where one form adds and edits products, each row has Edit and Delete, and everything lives in useState. It has a problem statement, behaviour checks and a build-order walkthrough covering immutable updates, stable keys and switching the form between add and edit.

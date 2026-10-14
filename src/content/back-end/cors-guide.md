@@ -50,7 +50,9 @@ Example base URL: https://example.com
 
 ### What SOP Blocks
 
-```
+SOP draws its line between *embedding* and *reading*: a page may load cross-origin images, scripts and styles into itself and may send cross-origin requests, but its JavaScript may not read what comes back.
+
+```text
 Without CORS, the browser BLOCKS JavaScript from:
   ❌ Reading the response of a cross-origin fetch() / XMLHttpRequest
      (the request itself is usually still sent)
@@ -96,7 +98,9 @@ Three things to internalize about this threat model:
 
 ### The History — How We Got Here
 
-```
+The same-origin policy dates back to 1995 and CORS is a much later addition to it; the timeline shows why workarounds such as JSONP existed in between.
+
+```text
 1995: Netscape introduces JavaScript and the same-origin policy together.
       Originally just protecting cookies and document.cookie access.
 
@@ -135,7 +139,9 @@ With CORS:
 
 ### The CORS Flow
 
-```
+Every CORS check is a two-header conversation: the browser states where the page came from (`Origin`), and the server states which origin may read the answer (`Access-Control-Allow-Origin`).
+
+```text
 ┌─────────┐                          ┌─────────┐
 │ Browser  │                          │ Server  │
 │ (JS at   │                          │ (API at │
@@ -167,7 +173,11 @@ With CORS:
 
 ## 3. How Origins Work
 
+The origin is the unit both SOP and CORS compare, so the exact rule for what counts as "the same origin" decides every result in this guide.
+
 ### Origin Components
+
+An origin is exactly three parts of a URL: the scheme (`https`), the host (`app.example.com`) and the port (`443`). Path, query string and fragment play no part, and a scheme's default port is left out, so `https://x.com` and `https://x.com:443` are the same origin.
 
 ```javascript
 // An origin is: protocol + host + port
@@ -184,7 +194,9 @@ new URL("https://app.example.com:8443").origin  // "https://app.example.com:8443
 
 ### Origin Comparison Examples
 
-```
+Two URLs are same-origin only when scheme, host and port all match exactly; anything else, including a different subdomain, is cross-origin.
+
+```text
 Base: https://www.example.com
 
 URL                                 Same Origin?   Reason
@@ -199,7 +211,9 @@ https://www.example.com:8080        ❌ No          Different port
 
 ### The `null` Origin
 
-```
+`Origin: null` is what a browser sends when the request comes from a context it will not name as a real origin: an *opaque* origin such as a sandboxed iframe or a `file:` page, or a request that was redirected across origins.
+
+```text
 Requests that send Origin: null:
   - Sandboxed iframes and CSP sandbox documents
   - file:, data: and blob: documents
@@ -222,7 +236,9 @@ The list below looks arbitrary until you see the rule behind it: **a simple requ
 
 ### Conditions for a Simple Request
 
-```
+A request counts as simple only when every condition below holds; failing any one of them makes the browser send a preflight first (§5).
+
+```text
 ALL conditions must be true:
 
 1. Method is one of:
@@ -250,7 +266,9 @@ ALL conditions must be true:
 
 ### Simple Request Flow
 
-```
+A simple request is sent straight away with an `Origin` header; the browser checks the CORS headers only when the response arrives.
+
+```text
 Browser                                Server
   │                                      │
   │  GET /api/data HTTP/1.1              │
@@ -269,7 +287,9 @@ Browser                                Server
 
 ### Why POST with `application/json` Is NOT Simple
 
-```
+`application/json` is not one of the three content types an HTML form can send, so a JSON `POST` always gets a preflight, even though `POST` itself is a simple method.
+
+```text
 // ❌ This triggers a preflight:
 fetch("https://api.example.com/data", {
   method: "POST",
@@ -296,7 +316,9 @@ Why ask first, instead of sending the request and checking the response as with 
 
 ### What Triggers a Preflight
 
-```
+Anything a plain HTML form could not have sent before CORS existed triggers a preflight.
+
+```text
 Any of these triggers a preflight:
 
 ✦ Methods: PUT, DELETE, PATCH, or any custom method
@@ -306,7 +328,9 @@ Any of these triggers a preflight:
 
 ### Preflight Flow
 
-```
+A preflighted request is two round trips: an `OPTIONS` request describing the method and headers the real request will use, then, only if the server's answer allows them, the real request.
+
+```text
 Browser                                  Server
   │                                        │
   │  ① OPTIONS /api/users HTTP/1.1         │  ← Preflight
@@ -343,7 +367,9 @@ Browser                                  Server
 
 ### Preflight Caching
 
-```
+`Access-Control-Max-Age` tells the browser how many seconds it may reuse a preflight answer, so repeated requests skip the extra `OPTIONS` round trip.
+
+```text
 Access-Control-Max-Age: 86400    (24 hours)
 
 Browser caches the preflight result per:
@@ -363,9 +389,13 @@ skip the preflight and go directly.
 
 ## 6. CORS Headers
 
+CORS lives entirely in HTTP headers: the browser adds request headers that describe the cross-origin request, and the server answers with response headers that grant or withhold access.
+
 ### Response Headers (Server → Browser)
 
-```
+Response headers are set by **your server** (or the middleware, proxy or gateway in front of it). They are the server's answer: which origin may read the response, and what the real request may contain.
+
+```text
 Header                              Purpose
 ──────────────────────────────────────────────────────────────────
 
@@ -394,7 +424,9 @@ Vary                                Must include "Origin" when CORS responses di
 
 ### Request Headers (Browser → Server, auto-set)
 
-```
+Request headers are set by **the browser**, never by your code: `Origin` is a forbidden header that JavaScript cannot set, and the two `Access-Control-Request-*` headers appear only on preflight requests.
+
+```text
 Header                              Purpose
 ──────────────────────────────────────────────────────────────────
 
@@ -410,7 +442,9 @@ Access-Control-Request-Headers      Custom headers the actual request will send
 
 ### CORS-Safe Response Headers
 
-```
+Even when a cross-origin response is allowed, the page's JavaScript can read only a short safelist of its response headers unless the server names more in `Access-Control-Expose-Headers`.
+
+```text
 By default, JS can only access these response headers:
   - Cache-Control
   - Content-Language
@@ -438,6 +472,8 @@ By default, cross-origin requests do NOT include cookies, HTTP auth, or client c
 
 ### Client Side
 
+On the client, credentials are opt-in per request: each API has its own switch for sending cookies cross-origin.
+
 ```javascript
 // Fetch API
 fetch("https://api.example.com/data", {
@@ -457,7 +493,9 @@ axios.get("https://api.example.com/data", {
 
 ### Server Side
 
-```
+The server must opt in as well, by naming the exact origin and sending `Access-Control-Allow-Credentials: true`; without both, the browser hides the response.
+
+```text
 HTTP/1.1 200 OK
 Access-Control-Allow-Origin: https://app.example.com   ← MUST be specific origin
 Access-Control-Allow-Credentials: true                  ← MUST be true
@@ -465,7 +503,9 @@ Access-Control-Allow-Credentials: true                  ← MUST be true
 
 ### Credential Rules
 
-```
+When a request carries credentials, `*` stops being a wildcard in every CORS response header, so each value must be spelled out.
+
+```text
 When credentials: true:
 
   ❌ Access-Control-Allow-Origin: *           → CANNOT use wildcard
@@ -485,7 +525,9 @@ More precisely, the danger is *reading*: with `*` plus credentials, any site cou
 
 ### Cookie Behavior
 
-```
+For a cookie to travel on a cross-origin request, the request mode, the CORS response and the cookie's own attributes must all allow it.
+
+```text
 Cross-origin cookies require:
   1. credentials: "include" on the request
   2. Access-Control-Allow-Credentials: true in the response
@@ -503,9 +545,13 @@ Set-Cookie: session=abc123; SameSite=None; Secure; HttpOnly; Path=/
 
 ## 8. Common CORS Patterns
 
+Most APIs use one of these five set-ups; choose by who calls the API and whether its requests carry cookies.
+
 ### Pattern 1: Public API (Any Origin)
 
-```
+Allow every origin with `*` when the data is public and requests carry no cookies or other credentials.
+
+```text
 Access-Control-Allow-Origin: *
 
 Use for:
@@ -521,7 +567,9 @@ Limitations:
 
 ### Pattern 2: Single Trusted Origin
 
-```
+Name one origin when a single front end calls the API.
+
+```text
 Access-Control-Allow-Origin: https://app.example.com
 Vary: Origin
 
@@ -531,6 +579,8 @@ Use for:
 ```
 
 ### Pattern 3: Dynamic Origin Allowlist
+
+`Access-Control-Allow-Origin` accepts one origin, not a list, so when several known front ends call one API the server checks the request's `Origin` against an allowlist and echoes it back only on a match.
 
 ```javascript
 // Server checks Origin against a whitelist
@@ -552,6 +602,8 @@ app.use((req, res, next) => {
 
 ### Pattern 4: Subdomain Matching
 
+To allow every subdomain, parse the origin with `URL` and compare the hostname; a substring check or an unanchored regex lets attacker domains through (§11).
+
 ```javascript
 // Allow all subdomains of example.com
 function isAllowedOrigin(origin) {
@@ -567,7 +619,9 @@ function isAllowedOrigin(origin) {
 
 ### Pattern 5: Proxy to Avoid CORS
 
-```
+A proxy lets the browser talk only to its own origin while your server calls the other API. CORS never applies, because it is a browser rule and server-to-server requests are not subject to it.
+
+```text
 Instead of:
   Browser → fetch("https://api.external.com/data")  ← CORS!
 
@@ -594,7 +648,11 @@ export default {
 
 ## 9. CORS in Express.js
 
+In Express you either use the `cors` package or set the headers yourself in a middleware.
+
 ### Using the `cors` Middleware
+
+The `cors` package is Express middleware that sets the CORS response headers and answers preflight `OPTIONS` requests, all from one options object.
 
 ```javascript
 const express = require("express");
@@ -651,6 +709,8 @@ app.get("/api/private", cors({ origin: "https://app.example.com" }), (req, res) 
 
 ### Manual CORS Without Middleware
 
+Doing it by hand shows what the package does: echo an allowed origin, add `Vary: Origin`, and answer `OPTIONS` with `204`.
+
 ```javascript
 app.use((req, res, next) => {
   const allowedOrigins = ["https://app.example.com"];
@@ -679,9 +739,13 @@ app.use((req, res, next) => {
 
 ## 10. CORS Errors & Debugging
 
+CORS errors appear only in the browser, and each message names the header that failed the check.
+
 ### Common Error Messages
 
-```
+Each message below is Chrome's wording; the fix is on the server's response, not in the `fetch` call.
+
+```text
 ❌ "Access to fetch at 'https://api.example.com' from origin
     'https://app.example.com' has been blocked by CORS policy:
     No 'Access-Control-Allow-Origin' header is present on the
@@ -709,7 +773,9 @@ app.use((req, res, next) => {
 
 ### Debugging Checklist
 
-```
+Debug from the Network tab rather than the console: the console hides the response, but the Network tab shows the preflight and every header the server actually sent.
+
+```text
 1. Open DevTools → Network tab
 2. Look for the OPTIONS preflight request
 3. Check these response headers:
@@ -723,6 +789,8 @@ app.use((req, res, next) => {
 ```
 
 ### Using `curl` to Debug
+
+curl ignores CORS, so it shows exactly which headers the server returns for a given `Origin`, with no browser in the way.
 
 ```bash
 # Test a simple CORS request
@@ -744,7 +812,9 @@ curl -v -X OPTIONS \
 
 ### Common Mistakes
 
-```
+Most CORS bugs are an exact-match failure: the origin string, the method or a header name differs from what the server allows.
+
+```text
 Mistake                              Fix
 ─────────────────────────────────────────────────────────────────
 
@@ -763,7 +833,11 @@ On the trailing-slash row: an origin has no path, so the browser sends `Origin: 
 
 ## 11. Security Best Practices
 
+CORS relaxes the same-origin policy, so every mistake in its configuration widens who can read your users' data.
+
 ### Origin Validation
+
+Validate `Origin` by exact match against a list or by parsing it as a URL; substring checks and unanchored regexes accept attacker-controlled domains.
 
 ```javascript
 // ❌ BAD: Regex that can be bypassed
@@ -794,7 +868,9 @@ function isAllowedV2(origin) {
 
 ### Security Checklist
 
-```
+Run through this list before shipping a CORS configuration; the last two items matter most, because CORS is not access control.
+
+```text
 ✅ Use an explicit allowlist — never reflect Origin blindly
 ✅ Always set Vary: Origin when the response depends on origin
 ✅ Never allow Access-Control-Allow-Origin: null
@@ -811,7 +887,9 @@ function isAllowedV2(origin) {
 
 ### The `Vary: Origin` Header
 
-```
+`Vary: Origin` tells every cache (browser, CDN, proxy) that the response depends on the request's `Origin` header, so it must keep a separate copy per origin. Without it, a cache can serve the response built for one origin to a page from another, which then fails the CORS check.
+
+```text
 Why it matters:
   If your server returns different CORS headers based on the Origin,
   caches (CDN, browser) MUST know that the response varies by Origin.
@@ -830,9 +908,13 @@ Rule: If Access-Control-Allow-Origin is NOT *, always send Vary: Origin
 
 ## 12. CORS vs Other Cross-Origin Mechanisms
 
+CORS is one of several ways to cross origins; which one fits depends on whether you need an HTTP response or a message between windows.
+
 ### CORS vs JSONP
 
-```
+JSONP (JSON with Padding) was the pre-CORS workaround: because `<script>` tags may load from any origin, the server returned JavaScript that called a function the page had defined, passing the data as its argument. It is unsafe because the page runs whatever code the other server sends, and it can only do `GET`.
+
+```text
 Feature                CORS                    JSONP
 ──────────────────────────────────────────────────────────────
 Mechanism              HTTP headers             <script> tag
@@ -847,7 +929,9 @@ POST data              Yes                     No
 
 ### CORS vs Proxy
 
-```
+A proxy avoids CORS by moving the cross-origin call from the browser to your own server.
+
+```text
 CORS (direct):
   Browser ──fetch──► API server (different origin)
   + No extra infrastructure
@@ -866,7 +950,9 @@ Proxy (indirect):
 
 ### CORS vs `postMessage`
 
-```
+`postMessage` lets windows and iframes from different origins send each other messages; it is not for HTTP requests.
+
+```text
 CORS:        For HTTP requests between different origins
 postMessage: For communication between windows/iframes at different origins
 
@@ -885,7 +971,11 @@ window.addEventListener("message", (event) => {
 
 ## 13. CORS in Different Environments
 
+The headers are the same everywhere; what changes is which layer (gateway, function, web server, edge worker or dev server) sets them.
+
 ### AWS (API Gateway + Lambda)
+
+API Gateway can answer preflight requests from its CORS settings, but with a Lambda proxy integration the function's own responses must still carry the CORS headers.
 
 ```yaml
 # SAM template
@@ -915,6 +1005,8 @@ exports.handler = async (event) => {
 
 ### Nginx
 
+Nginx can add the headers as a reverse proxy in front of the app; `always` makes it add them to error responses too.
+
 ```nginx
 server {
     location /api/ {
@@ -936,6 +1028,8 @@ server {
 ```
 
 ### Cloudflare Workers
+
+A Worker runs at the edge in front of the origin, so it can answer preflights itself and add CORS headers to the origin's responses.
 
 ```javascript
 export default {
@@ -963,6 +1057,8 @@ export default {
 ```
 
 ### Development Environment
+
+In development, a dev-server proxy makes the API look same-origin to the browser, so no CORS configuration is needed locally.
 
 ```javascript
 // Vite proxy (avoids CORS in development)

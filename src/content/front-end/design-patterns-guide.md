@@ -909,108 +909,29 @@ In JavaScript the same idea is often written without `accept()`: the visitor is 
 
 ## 6. React-Specific Patterns
 
-React has its own canon that doesn't map cleanly to GoF.
+React has its own canon that doesn't map cleanly to GoF. This section maps each React pattern to its GoF ancestor; the how-to, with runnable code and the trade-offs, is in [React §15 Patterns and Best Practices](/frontend/react-19-patterns#15-patterns-and-best-practices).
 
 ### Higher-Order Component (HOC)
 
-**Intent:** A function that takes a component and returns a new enhanced component. Same idea as the Decorator pattern.
+**Intent:** A function that takes a component and returns a new enhanced component (`withAuth(Dashboard)`). **GoF mapping: Decorator** ([§4.4](#44-decorator)), applied to components instead of objects.
 
-```jsx
-// stand-ins so this example runs on its own
-const useUser = () => ({ name: 'Ada' });
-const LoginPrompt = () => <p>Please log in</p>;
-const Dashboard = ({ user, title }) => <h2>{title}: welcome, {user.name}</h2>;
-
-function withAuth(Component) {
-  return function AuthGated(props) {
-    const user = useUser();
-    if (!user) return <LoginPrompt />;
-    return <Component {...props} user={user} />;
-  };
-}
-const ProtectedDashboard = withAuth(Dashboard);
-
-render(<ProtectedDashboard title="Reports" />);
-```
-
-Rare in modern React — hooks made HOCs largely obsolete for state injection. Still useful for **structural** wrapping (error boundaries, suspense boundaries, theme providers).
+Rare in modern React, because hooks made HOCs largely obsolete for state injection. Still useful for **structural** wrapping that must render something *else* (error boundaries, Suspense boundaries, auth gates). Code and the rules for writing one: [React §15.4](/frontend/react-19-patterns#154-higher-order-components-hocs).
 
 ### Render Props
 
-**Intent:** Share code by passing a function as a child or prop that receives state and returns JSX.
+**Intent:** Share behaviour by passing a function that receives internal state and returns JSX. **GoF mapping: Strategy** ([§5.8](#58-strategy)) for rendering: the component owns the algorithm (track the mouse), the caller supplies the step that varies (the markup), close to a Template Method hook.
 
-```jsx
-function MouseTracker({ children }) {
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  return <div onMouseMove={e => setPos({ x: e.clientX, y: e.clientY })}>{children(pos)}</div>;
-}
-
-function Demo() {
-  return (
-    <MouseTracker>
-      {pos => <p style={{ padding: 40, border: '1px dashed' }}>Move the mouse here: {pos.x}, {pos.y}</p>}
-    </MouseTracker>
-  );
-}
-
-render(<Demo />);
-```
-
-Largely replaced by custom hooks (`useMouse()` instead). Still common in libraries that need to render custom JSX based on internal state (Headless UI, Radix UI primitives use a hybrid of compound + render-prop patterns).
+Largely replaced by custom hooks; still used by libraries that must render your JSX from their state (Headless UI, Radix). Code: [React §15.2](/frontend/react-19-patterns#152-render-props).
 
 ### Custom Hook
 
-**Intent:** Share stateful logic between components without component nesting. The modern React way to do what HOCs and render props used to.
-
-```jsx
-function useFetch(url) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch(url).then(r => r.json()).then(d => !cancelled && setData(d), setError);
-    return () => { cancelled = true; };
-  }, [url]);
-  return { data, error };
-}
-```
-
-The dominant React pattern post-2019. Most modern libraries (TanStack Query, Zustand, React Hook Form) expose hooks as their primary API.
+**Intent:** Share stateful logic between components without nesting components. It has no clean GoF ancestor: it is plain function composition, which is why it replaced both patterns above, and most modern libraries (TanStack Query, Zustand, React Hook Form) expose hooks as their primary API. Code: [React §15.3](/frontend/react-19-patterns#153-custom-hook-pattern-preferred-over-render-props).
 
 ### Compound Components
 
-**Intent:** Multiple components that work together to express one concept (Tabs / Tab / TabPanel) and share implicit state via Context.
+**Intent:** Several components that express one concept (`Tabs` / `Tabs.Tab` / `Tabs.Panel`) and share implicit state through Context. **GoF mapping: Composite** ([§4.3](#43-composite)) for the structure, with the parent acting as a **Mediator** ([§5.4](#54-mediator)) the children talk through instead of to each other.
 
-```jsx
-const TabsContext = createContext();
-function Tabs({ children, defaultIndex = 0 }) {
-  const [active, setActive] = useState(defaultIndex);
-  return <TabsContext.Provider value={{ active, setActive }}>{children}</TabsContext.Provider>;
-}
-Tabs.List = ({ children }) => <div className="tabs-list">{children}</div>;
-Tabs.Tab = ({ index, children }) => {
-  const { active, setActive } = useContext(TabsContext);
-  return <button className={active === index ? 'active' : ''} onClick={() => setActive(index)}>{children}</button>;
-};
-Tabs.Panel = ({ index, children }) => {
-  const { active } = useContext(TabsContext);
-  return active === index ? <div>{children}</div> : null;
-};
-
-function Demo() {
-  return (
-    <Tabs>
-      <Tabs.List><Tabs.Tab index={0}>One</Tabs.Tab><Tabs.Tab index={1}>Two</Tabs.Tab></Tabs.List>
-      <Tabs.Panel index={0}>Content 1</Tabs.Panel>
-      <Tabs.Panel index={1}>Content 2</Tabs.Panel>
-    </Tabs>
-  );
-}
-
-render(<Demo />);
-```
-
-**Real-world:** Radix UI, Headless UI, React Aria — every modern component library uses this pattern. The user composes; the library wires the Context.
+**Real-world:** Radix UI, Headless UI, React Aria: the user composes, the library wires the Context. Runnable Tabs example: [React §15.1](/frontend/react-19-patterns#151-compound-components).
 
 ### Container / Presentational
 

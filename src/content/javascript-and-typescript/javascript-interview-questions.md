@@ -49,7 +49,7 @@ console.log(inc()); // 1
 console.log(inc()); // 2 (count persists because of closure)
 ```
 
-`count` survives because it lives in a scope object on the heap and `inc` holds a reference to that scope, so the garbage collector cannot free it while `inc` is reachable. Each `outer()` call makes a fresh scope, so two counters never share a `count`. Worth volunteering: closures are how JavaScript gets private state, and the same reference causes stale values and memory leaks (Q25, Q29). → Full explanation: [§5.2](/javascript/guide#52-closures)
+`count` survives because `inc` still references the scope it was created in, so that scope cannot be garbage-collected. Why you would want this (private state, function factories, memoization) is Q40 under [About the Language Itself](#about-the-language-itself); stale values and leaks are Q25 and Q29. → Full explanation: [§5.2](/javascript/guide#52-closures), patterns in [§5.4](/javascript/guide#54-closures-in-the-wild)
 
 ---
 
@@ -1164,7 +1164,7 @@ It buys mistakes caught in the editor (wrong arguments, a missing property, a fo
 
 **Q40: Why do we need closures? What would you use them for?**
 
-**Short answer:** closures let a function **keep data between calls without making it global**. Without them, remembered data would be a global variable or an object property, both of which any code can change. A closure gives a third option: data only the functions created alongside it can reach. Q2 covers *what* a closure is; this is *why*.
+**Short answer:** closures let a function **keep data between calls without making it global**. Without them, remembered data would be a global variable or an object property, both of which any code can change. A closure gives a third option: data only the functions created alongside it can reach. Q2 ([Beginner](#beginner)) covers *what* a closure is; this is *why*.
 
 ```js
 // 1. Private state: nothing outside can change `balance` except through the methods.

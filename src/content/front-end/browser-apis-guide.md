@@ -387,11 +387,7 @@ Type something, press **Send**, and it comes straight back. Press **Close** and 
 
 **Two practical notes.** It is a React component rather than a plain script for a mechanical reason: the playground runs plain JavaScript in a Web Worker that stops about 400 ms after your synchronous code finishes, and a real handshake takes longer than that — so a `js` version would print nothing at all. And `wss://echo.websocket.org` works the same way if Postman's is ever down, except that it greets you with a `Request served by …` line before it starts echoing.
 
-**Things you'll learn the hard way:**
-
-- **No automatic reconnect.** When the connection drops (mobile networks, server restart, idle timeout in proxies), `onclose` fires and you have to reopen yourself — typically with exponential backoff.
-- **No request/response semantics.** Just a stream. Add a `requestId` to messages if you want correlation.
-- **Backpressure**: `ws.bufferedAmount` tells you how many bytes are queued in the send buffer. Flooding with `send` faster than the network drains causes memory growth — check this before pushing more.
+**API surface to remember:** there is no automatic reconnect (you reopen on `close`, with backoff), no request/response pairing (add a `requestId` yourself), and `ws.bufferedAmount` reports bytes still queued, so check it before sending more. The production versions of each are in the Real-Time Web guide: [reconnection](/frontend/realtime-web#reconnection-logic-you-have-to-write-this-yourself), [close codes](/frontend/realtime-web#close-codes-you-should-know) and [backpressure](/frontend/realtime-web#114-backpressure).
 
 ### 3.4 Server-Sent Events (SSE)
 
@@ -405,37 +401,15 @@ es.onerror = () => console.log('disconnected, will retry');
 es.close();
 ```
 
-Server format:
-
-```
-event: user-joined
-data: {"id":42,"name":"Ana"}
-id: 1234
-retry: 5000
-
-```
-
-The blank line terminates an event. `id` is sent back as `Last-Event-ID` on reconnect so the server can replay missed events. `retry` overrides the client's default reconnect interval.
+`EventSource` reconnects on its own and sends the last event `id` back as `Last-Event-ID`, so the server can replay what was missed. The wire format (`data:`, `event:`, `id:`, `retry:`) and the server side are in [Real-Time Web §4](/frontend/realtime-web#frame-format).
 
 ### 3.5 Real-time comparison: WebSocket vs SSE vs Polling
 
-```
-| Mechanism      | Direction          | Protocol         | Auto-reconnect | Binary? | Through proxies? |
-|----------------|--------------------|--------------------|---------------|---------|-------------------|
-| Long polling   | Client request     | HTTP request loop  | n/a           | Yes     | Always            |
-| SSE            | Server → client    | HTTP (text only)   | Yes (built-in)| No      | Usually*          |
-| WebSocket      | Bidirectional      | TCP after upgrade  | No            | Yes     | Often blocked     |
-| Webhook        | Server → server    | HTTP POST          | n/a           | Yes     | n/a (server-only) |
+- **One-way server push** (notifications, tickers, log tail, AI streaming) → SSE: plain HTTP with free reconnect.
+- **Two-way and fast** (chat, collaborative editing, games) → WebSocket.
+- **Behind firewalls that block both, or rare updates** → polling.
 
-* A proxy that buffers responses holds events back until its buffer fills,
-  so the stream looks frozen. Turn response buffering off for the SSE route.
-```
-
-**Pick by use case:**
-
-- **Notifications, score tickers, log tail, AI streaming** → SSE. Simpler than WebSocket, free reconnect, and it is ordinary HTTP, so it passes proxies and firewalls that block WebSocket upgrades (make sure none of them buffer the response).
-- **Chat, collaborative editing, multiplayer games** → WebSocket. You need bidirectional and you need it fast.
-- **Anything else, especially behind weird corporate firewalls** → polling. Boring and reliable. (Long polling means the client sends a request, the server holds it open until it has something to say, replies, and the client immediately sends the next one — push built out of ordinary requests.)
+The full comparison, including fetch streaming, WebRTC and Push, is the [decision table in the Real-Time Web guide](/frontend/realtime-web#10-decision-table-picking-a-transport).
 
 ---
 
@@ -1024,9 +998,7 @@ Pinch points to remember about `fetch`:
 
 CORS is enforced by the **browser**, not the server. The fix is always on the **server** — set the right `Access-Control-Allow-*` headers.
 
-For a simple GET, the server needs `Access-Control-Allow-Origin: <your origin>` (or `*`). For non-simple requests (custom headers, methods like PUT/DELETE), the browser sends a **preflight OPTIONS** request first; the server must respond with `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers` listing what's allowed, then the real request goes through.
-
-If you need cookies cross-origin: client uses `credentials: 'include'`, server responds with `Access-Control-Allow-Credentials: true` AND a non-wildcard `Access-Control-Allow-Origin`.
+The server returns `Access-Control-Allow-Origin` for your origin, answers the `OPTIONS` preflight that non-simple requests trigger, and, for cookies, sends `Access-Control-Allow-Credentials: true` with a non-wildcard origin while the client uses `credentials: 'include'`. The mechanism is in the CORS guide: [preflight](/backend/cors#5-preflight-requests), [credentials](/backend/cors#7-credentialed-requests) and [error messages](/backend/cors#10-cors-errors-debugging).
 
 For local dev, a proxy (Vite's `server.proxy`, Webpack DevServer's `proxy`) avoids the issue entirely by making the browser see same-origin.
 
@@ -1056,20 +1028,7 @@ list.addEventListener('click', e => {
 
 **Q6: What's the difference between WebSockets and Server-Sent Events?**
 
-| Aspect | WebSocket | SSE |
-|---|---|---|
-| Direction | Bidirectional | Server → client only |
-| Protocol | TCP after HTTP upgrade | Plain HTTP, long-lived response |
-| Reconnect | You implement | Built-in (browser auto-retries) |
-| Binary | Yes | No (text only) |
-| Through proxies | Often blocked | Usually works (plain HTTP), but a buffering proxy delays events |
-| Browser API | `WebSocket` | `EventSource` |
-
-Pick **SSE** for one-way streams: notifications, logs, AI token streaming, score tickers. The free auto-reconnect with `Last-Event-ID` replay is a huge win.
-
-Pick **WebSockets** when you need bidirectional or when latency matters (chat, multiplayer, collab editing). Plan on writing your own reconnect logic with backoff.
-
-For most "real-time" features, SSE is enough and simpler than people assume.
+A WebSocket (`WebSocket` API) is a two-way channel over TCP after an HTTP upgrade; you write reconnection yourself, and it carries binary. SSE (`EventSource` API) is one-way server push over a plain long-lived HTTP response, with built-in reconnect and `Last-Event-ID` replay, text only. Pick SSE for one-way streams (notifications, logs, AI tokens) and WebSocket when the client also sends a stream (chat, multiplayer, collaborative editing). For most "real-time" features, SSE is enough. Full comparison: [Real-Time Web §10](/frontend/realtime-web#10-decision-table-picking-a-transport).
 
 ---
 

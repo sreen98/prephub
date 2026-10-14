@@ -61,6 +61,8 @@ There are really three points on a spectrum, not two.
 
 Shopify, GitHub, and Stack Overflow ran/run as modular monoliths at enormous scale. The microservices argument is real but oversold.
 
+The feature-by-feature two-way comparison table is in [System Design Comparisons](/system-design/comparisons#monolith-vs-microservices).
+
 ---
 
 ## 3. Service Boundaries — Where to Cut
@@ -367,7 +369,7 @@ Combined with timeouts and retries, the breaker prevents cascading failure: when
 
 In a monolith, you can throw a stack trace and read the whole call. In microservices, a single user request might touch 8 services and 3 databases. You can't debug what you can't see.
 
-The "three pillars" of observability:
+The "three pillars" are logs, metrics and traces; the general model (Prometheus, alerting, sampling) is in the [Observability & SRE guide](/devops/observability-sre#1-monitoring-vs-observability). What changes with many services:
 
 ### Logs
 
@@ -389,22 +391,11 @@ logger.info({ traceId: req.traceId, userId, action: 'order.created' });
 
 ### Metrics
 
-Counters and histograms aggregated over time. Prometheus is the de facto standard. Standard metrics every service should emit:
-
-- **RED metrics, for each service:** Rate (requests per second), Errors (the share of requests failing), Duration (latency at p50/p95/p99, meaning the time within which 50%, 95% and 99% of requests finish). These three describe what the service's *callers* experience, which makes them the right basis for alerts.
-- **USE metrics, for each resource (CPU, memory, disk, connection pool):** Utilization (how busy it is), Saturation (how much work is queued waiting for it), Errors. These explain *why* a RED number moved: a latency spike with the connection pool saturated points at the database, not the code.
-
-Watch the high percentiles, not the average. An average of 80ms can hide 1% of requests taking 3 seconds, and in a system where one page makes eight backend calls, far more than 1% of pages hit at least one slow call.
-
-Dashboards: Grafana. Alerting: Alertmanager or PagerDuty integrations.
+Every service emits **RED** metrics (rate, errors, duration) and every resource **USE** metrics (utilisation, saturation, errors); the definitions and PromQL are in [Observability & SRE §2](/devops/observability-sre#2-metrics-and-the-prometheus-model). The microservices-specific point: watch the high percentiles, not the average. An average of 80ms can hide 1% of requests taking 3 seconds, and when one page makes eight backend calls, far more than 1% of pages hit at least one slow call.
 
 ### Traces
 
-A single user request becomes a "trace" — a tree of spans (one per service hop). You can see "this request took 1200ms; payment-service took 800ms of that; inside payment-service, the Stripe call was 600ms."
-
-Standard: **OpenTelemetry** (OTel). It's the cross-language SDK for emitting traces; backends include Jaeger, Tempo, AWS X-Ray, Datadog APM.
-
-Without traces, you'll spend hours guessing which service slowed down a request. With them, you click and see.
+A single user request becomes a **trace**, a tree of spans with one per service hop, so you can see that a 1200ms request spent 800ms in payment-service and 600ms of that on the Stripe call. It only works if every service forwards the trace context header; one hop that drops it splits the trace into fragments. OpenTelemetry, context propagation and sampling: [Observability & SRE §8](/devops/observability-sre#8-traces-and-opentelemetry).
 
 ---
 
@@ -441,25 +432,23 @@ In practice, most production systems combine: network policies for blast-radius 
 
 ## 12. Deployment Strategies
 
-Independent deployability is the headline microservices benefit. To realize it:
+Independent deployability is the headline microservices benefit. The strategies, their cost and their rollback story are compared in [Docker, Kubernetes & CI/CD §9](/backend/docker-kubernetes#9-deployment-strategies); in short:
 
 ### Rolling deploys
 
-The default. Replace instances one at a time with the new version. Zero downtime if requests can route around the deploying instance.
+Replace instances one at a time. The default, with zero downtime.
 
 ### Blue-green
 
-Run TWO complete environments. Deploy new version to green. Smoke-test. Switch the load balancer from blue to green. Roll back instantly by flipping the LB back.
+Two full environments; switch the load balancer to the new one, and flip it back to roll back instantly.
 
 ### Canary
 
-Deploy to a small percentage of traffic. Watch metrics. If errors spike, roll back. Otherwise gradually increase.
+Send a small share of traffic to the new version, watch that cohort's metrics, then widen or roll back.
 
 ### Feature flags
 
-Decouple deploy from release. Ship the code; the feature is dark behind a flag. Enable for 1% of users, then 5%, then everyone. Roll back by flipping the flag, not by redeploying.
-
-**LaunchDarkly, GrowthBook, or homegrown.** Every mature microservice org has feature flags integrated into every service.
+Decouple deploy from release: ship the code dark and roll back by flipping the flag. In a microservice org every service reads the same flag system (LaunchDarkly, GrowthBook or homegrown).
 
 ### Service versioning
 

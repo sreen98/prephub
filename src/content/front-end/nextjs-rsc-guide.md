@@ -734,34 +734,14 @@ Getting this wrong produces a specific, recognisable bug: using `revalidateTag` 
 
 **Q4: How would you handle authentication in the App Router with Server Components?**
 
-**Defence in depth, and never trust the proxy layer alone.** That's the whole answer, and the CVE history makes the argument for me.
+**Defence in depth, and never trust the proxy layer alone.** `proxy.ts` (called `middleware.ts` before Next 16) is the right place for a cheap early redirect, but it isn't an authorization solution, and it has been bypassed more than once ([§9.1](#91-never-trust-the-proxymiddleware-layer-alone)).
 
-`middleware.ts` became **`proxy.ts`** in Next 16. It runs before route processing and is the right place for a cheap early redirect. It is explicitly **not** an authorization solution, and it has been bypassable more than once: **CVE-2025-29927** let a crafted `x-middleware-subrequest` header skip middleware entirely, taking every middleware-based check with it; **CVE-2026-45109** was an incomplete fix for a segment-prefetch bypass; **CVE-2026-64642** was a proxy bypass on Turbopack App Router builds configured with a single locale, patched in 16.2.11.
+1. **`proxy.ts`:** a UX optimisation for obviously unauthenticated requests.
+2. **A Data Access Layer:** every function that reads or writes sensitive data calls `verifySession()` itself. This is the actual boundary: it isn't in the request pipeline, so a pipeline bypass can't skip it. Wrap `verifySession` in React's `cache()` and mark the file `import 'server-only'`.
+3. **Every Server Action and Route Handler** authenticates and authorises on its own, because they are public HTTP endpoints.
+4. **The payload:** never pass a session or secret as a prop to a Client Component.
 
-So the layers:
-
-1. **`proxy.ts`** — cheap redirect for obviously-unauthenticated requests. A UX optimisation.
-2. **A Data Access Layer** — every function that reads or writes sensitive data calls `verifySession()` itself, right next to the data. **This is the actual boundary**, and it's robust precisely because it isn't in the request pipeline, so a pipeline bypass can't skip it.
-3. **Every Server Action and Route Handler** authenticates and authorises independently.
-4. **The payload** — never pass a session or secret as a prop to a Client Component.
-
-```ts
-import 'server-only';
-export const verifySession = cache(async () => {
-  const token = (await cookies()).get('session')?.value;
-  return token ? decryptAndValidate(token) : null;
-});
-
-export async function getInvoices() {
-  const session = await verifySession();
-  if (!session) throw new Error('Unauthorised');
-  return db.invoices.findMany({ where: { orgId: session.orgId } });  // scope the QUERY
-}
-```
-
-Three details that distinguish a good answer. Wrap `verifySession` in React's **`cache()`** so one request verifies once even if ten components ask. Use **`import 'server-only'`** so the module can never be pulled into a client bundle — that turns a hope into a build error. And **scope the query to the session** rather than validating an ID from the caller, because `getInvoice(params.id)` without an ownership check is a textbook IDOR (insecure direct object reference: change the id, read another customer's data).
-
-One subtle trap worth volunteering: **layouts persist across navigations**, so an auth check in a layout does *not* re-run on every client-side navigation to a child route. Authorization belongs in the data layer, not in a layout you assume runs each time.
+Two traps worth volunteering: scope the query to the session instead of trusting an id from the caller (IDOR), and remember that layouts persist across navigations, so an auth check in a layout doesn't re-run. Code and detail: [§9](#9-authentication-defence-in-depth).
 
 ---
 

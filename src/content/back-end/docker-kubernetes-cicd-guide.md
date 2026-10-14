@@ -593,24 +593,13 @@ The four signals to expose: **RED** for services (Rate, Errors, Duration) and **
 
 ## 12. Infrastructure as Code
 
-```hcl
-resource "aws_ecs_service" "api" {
-  name            = "api"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 3
-}
-```
+Infrastructure as code (Terraform, CloudFormation, CDK, Pulumi) describes the infrastructure you want declaratively, and `plan`/`apply` converge reality to it: the same reconciliation idea as Kubernetes. The points that matter for a delivery pipeline:
 
-The concepts worth holding, without pretending to be a Terraform specialist:
+- **Remote state with locking**, encrypted, because the state file maps config to real resources and holds secrets in plaintext ([Terraform §3](/devops/terraform#3-state-the-core-concept)).
+- **`plan` on every PR, `apply` gated on merge**, so reviewers see the infrastructure diff ([Terraform §13](/devops/terraform#13-terraform-in-cicd)).
+- **A scheduled `plan` to detect drift** from changes made in the console.
 
-- **Declarative and idempotent** — you describe desired state; `plan` shows the diff; `apply` converges. Same reconciliation idea as Kubernetes.
-- **State is the crux.** Terraform's state file maps config to real resources. It must be in **remote storage with locking** (S3 with native `use_lockfile` locking, where DynamoDB is the deprecated older way, or HCP Terraform, formerly Terraform Cloud), or two engineers applying simultaneously corrupt it. State also **contains secrets in plaintext**, so it needs encryption and tight access.
-- **`plan` in CI on every PR** so reviewers see the infrastructure diff; `apply` gated on merge.
-- **Modules** for reuse; **workspaces** or separate state per environment.
-- **Drift** — someone changes something in the console and reality diverges from code. Detect it with a scheduled `plan`.
-- **Terraform vs CloudFormation vs CDK/Pulumi**: Terraform is multi-cloud with a huge provider ecosystem; CloudFormation is AWS-native with no state file to manage; CDK and Pulumi let you write infrastructure in a real programming language, which is a genuine advantage for loops and abstractions and a genuine hazard for the same reason.
-
+Modules, environments and Terraform vs CloudFormation vs CDK/Pulumi are in the [Terraform guide](/devops/terraform).
 
 ---
 

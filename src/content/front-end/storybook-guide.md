@@ -60,13 +60,17 @@ Storybook is not a replacement for testing — it's a development environment th
 | End-to-end             | Playwright / Cypress       | Full user flows, authentication, routes  |
 ```
 
-Storybook sits at layers 2 and 3. The play function (§6) drives interaction tests against rendered components; tools like Chromatic compare snapshots of every story across PRs to catch unintended visual changes. Visual regression at the *component* level is much faster and more deterministic than at the *page* level — you're snapshotting one button, not a whole flow.
+Storybook sits at layers 2 and 3. The play function (§6) drives interaction tests against rendered components; tools like Chromatic (a hosted visual-testing service from the Storybook maintainers, §11.1) compare snapshots of every story across PRs to catch unintended visual changes. Visual regression at the *component* level is much faster and more deterministic than at the *page* level — you're snapshotting one button, not a whole flow.
 
 ---
 
 ## 2. Setup
 
+Storybook installs into an existing project with one command, and two files in `.storybook/` control it: `main.ts` (where stories live, which addons and framework to use) and `preview.ts` (what wraps every story).
+
 ### 2.1 Installation
+
+`npx storybook@latest init` detects your framework and bundler, installs the matching packages, writes the `.storybook/` config and adds example stories.
 
 ```bash
 # Initialize Storybook in an existing project (auto-detects framework)
@@ -133,6 +137,8 @@ export default config;
 ```
 
 ### 2.4 Preview Configuration (.storybook/preview.ts)
+
+`preview.ts` runs inside the story canvas, so it is where you import global CSS and set options for every story: default parameters, global decorators and global args.
 
 ```ts
 import type { Preview } from '@storybook/react-vite';
@@ -306,6 +312,8 @@ export const WithForm: Story = {
 
 ### 3.3 Story with Args and Render
 
+A story can combine both: a `render` function for custom layout, or plain `args` that Storybook passes to the component as props and exposes in the Controls panel.
+
 ```tsx
 // badge.stories.tsx
 export const AllVariants: Story = {
@@ -333,7 +341,11 @@ export const WithArgs: Story = {
 
 ## 4. Args and Controls
 
+**Args** are a story's inputs: an object of props that Storybook passes to the component. **Controls** are the panel Storybook generates from those args, with a text box, toggle or dropdown per prop, so anyone can change a prop in the browser and watch the component update without editing code.
+
 ### 4.1 ArgTypes (Control Configuration)
+
+`argTypes` describes each arg: which control edits it (a select, a colour picker, a range slider), its allowed options, and its description and category on the docs page. Storybook infers basic argTypes from the component's TypeScript props; you write them only to override or refine that guess.
 
 ```tsx
 const meta: Meta<typeof MyComponent> = {
@@ -392,6 +404,8 @@ const meta: Meta<typeof MyComponent> = {
 
 ### 4.2 Control Types
 
+The `control` value of an argType picks the editor shown in the Controls panel:
+
 | Control | Data Type | Usage |
 |---------|-----------|-------|
 | `boolean` | boolean | Toggle switch |
@@ -409,6 +423,8 @@ const meta: Meta<typeof MyComponent> = {
 | `file` | file | File input |
 
 ### 4.3 Actions (Event Handlers)
+
+Actions log calls to a component's event-handler props (`onClick`, `onChange`) to the Actions panel, with their arguments, so you can see a handler fire without wiring up real behaviour. Use `fn()` from `storybook/test` for a handler you also want to assert on in a play function.
 
 ```tsx
 const meta: Meta<typeof Button> = {
@@ -438,6 +454,8 @@ Decorators wrap stories with additional rendering context (providers, layout, th
 
 ### 5.1 Story-Level Decorator
 
+A decorator in one story's `decorators` array wraps only that story.
+
 ```tsx
 export const InDarkMode: Story = {
   decorators: [
@@ -452,6 +470,8 @@ export const InDarkMode: Story = {
 ```
 
 ### 5.2 Component-Level Decorator
+
+A decorator in the `meta` (the default export) wraps every story in the file.
 
 ```tsx
 const meta: Meta<typeof Sidebar> = {
@@ -468,6 +488,8 @@ const meta: Meta<typeof Sidebar> = {
 ```
 
 ### 5.3 Global Decorators (preview.ts)
+
+A decorator in `preview.ts` wraps every story in the project, which is where app-wide providers such as a theme, a router or a query client belong.
 
 ```tsx
 // .storybook/preview.ts
@@ -574,7 +596,11 @@ export const Search: Story = {
 
 ## 7. Addons
 
+Addons are plugins that add panels, toolbar buttons and behaviour to Storybook: controls, accessibility checks, viewport switching, themes and more. Since Storybook 9 the most common ones are built into the core package; others are installed and listed in `addons` in `main.ts`.
+
 ### 7.1 Essential Addons (Included by Default)
+
+These ship with Storybook itself and need no configuration:
 
 ```
 Built into Storybook 9+ (nothing to install):
@@ -591,6 +617,8 @@ Installed separately:
 ```
 
 ### 7.2 Popular Addons
+
+Commonly added addons, each installed as a package and registered in `main.ts`:
 
 ```bash
 # Accessibility
@@ -612,6 +640,8 @@ npx storybook@latest add @storybook/addon-vitest
 ```
 
 ### 7.3 Accessibility Addon
+
+`@storybook/addon-a11y` runs the axe-core accessibility checker against every story and lists violations (missing labels, low contrast) in a panel. Rules can be tuned or disabled per story through `parameters.a11y`.
 
 ```tsx
 // Automatically checks every story for a11y violations
@@ -641,6 +671,8 @@ export const Decorative: Story = {
 ```
 
 ### 7.4 Viewport Addon
+
+The viewport toolbar resizes the story canvas to preset device sizes. Setting `globals.viewport` on a story makes it always open at that size, which is handy for mobile-only states.
 
 ```tsx
 // Test responsive behavior: choose a viewport per story with globals
@@ -688,7 +720,11 @@ const preview = {
 
 ## 8. Documentation (Autodocs)
 
+Storybook can turn stories into documentation pages: a props table read from your TypeScript types and comments, every story rendered live, and the code for each.
+
 ### 8.1 Enable Autodocs
+
+Autodocs generates a Docs page for a component from its stories and prop types. Turn it on with the `autodocs` tag, per component in its `meta` or for every component in `preview.ts`.
 
 ```tsx
 // Per component (add 'autodocs' tag)
@@ -705,6 +741,8 @@ const preview: Preview = {
 ```
 
 ### 8.2 Custom Documentation (MDX)
+
+For hand-written docs, an MDX file (Markdown that can contain JSX) can mix prose with live stories and doc blocks such as `<Canvas>` and `<Controls>`.
 
 ```mdx
 {/* button.mdx */}
@@ -743,6 +781,8 @@ import { Button } from '@/components/ui/button';
 
 ### 8.3 JSDoc for Auto-Docs
 
+Autodocs reads JSDoc comments (`/** ... */`) on your prop types and shows them as each prop's description in the props table.
+
 ```tsx
 interface ButtonProps {
   /** Visual style of the button */
@@ -764,7 +804,11 @@ JSDoc comments on props automatically appear in the docs table.
 
 ## 9. Component Patterns
 
+Which story style to use depends on the component: args for simple ones, a render function for composed ones, mocked data for data-driven ones.
+
 ### 9.1 Simple Component (Args-based)
+
+For a component whose output depends only on its props, each story is just a set of args.
 
 ```tsx
 // For components with straightforward props
@@ -777,6 +821,8 @@ export const Default: Story = {
 ```
 
 ### 9.2 Composed Component (Render-based)
+
+A component built from several parts (a trigger, content, a footer) needs a `render` function that assembles them.
 
 ```tsx
 // For components that require composition (Dialog, Dropdown, Tabs)
@@ -798,6 +844,8 @@ export const Default: Story = {
 ```
 
 ### 9.3 Data-Driven Component
+
+For a component that displays data, pass in fixed mock data so every story is reproducible, including the empty and loading states.
 
 ```tsx
 // For components that display data (tables, lists, cards)
@@ -830,6 +878,8 @@ export const Loading: Story = {
 
 ### 9.4 Form Component
 
+For a form, write one story per state the user can see (empty, prefilled, showing validation errors), with `fn()` as the submit handler so the Actions panel records each submission.
+
 ```tsx
 export const EmptyForm: Story = {
   args: {
@@ -860,6 +910,8 @@ export const WithValidationErrors: Story = {
 
 ### 9.5 Showcase All Variants
 
+One story that renders every variant side by side makes visual review and visual-regression snapshots quick.
+
 ```tsx
 export const AllVariants: Story = {
   render: () => (
@@ -887,7 +939,11 @@ export const AllVariants: Story = {
 
 ## 10. Theming and Styling
 
+Stories should look the way the app does, so Storybook needs the app's global CSS, its theme switching and, optionally, its brand on the Storybook interface itself.
+
 ### 10.1 Dark Mode Toggle
+
+`@storybook/addon-themes` adds a toolbar switch that toggles a class (or data attribute) on the story's root, so each story can be checked in light and dark mode.
 
 ```ts
 // .storybook/preview.ts
@@ -908,6 +964,8 @@ const preview: Preview = {
 
 ### 10.2 Tailwind CSS with Storybook
 
+With a Vite builder, Tailwind needs no special Storybook setup: import the stylesheet that loads Tailwind in `preview.ts` and Vite processes it as it does in the app.
+
 ```ts
 // .storybook/main.ts
 import type { StorybookConfig } from '@storybook/react-vite';
@@ -925,6 +983,8 @@ import '../src/app/globals.css';           // import Tailwind styles
 ```
 
 ### 10.3 Custom Storybook Theme
+
+`manager.ts` configures the Storybook interface itself (sidebar, toolbar), not your components; `create` from `storybook/theming` gives it your brand's colours and logo.
 
 ```ts
 // .storybook/manager.ts
@@ -963,6 +1023,8 @@ Visual testing answers a question unit tests cannot: *does it still look right?*
 
 ### 11.1 Chromatic (Official Visual Testing)
 
+Chromatic is a hosted visual-regression service from the Storybook maintainers. On every push it renders each story in real browsers, compares the screenshot with the approved baseline, and lists the stories that changed for a reviewer to accept or reject, usually as a check on the pull request.
+
 ```bash
 npm install -D chromatic
 
@@ -986,6 +1048,8 @@ npx test-storybook --coverage
 
 ### 11.3 Snapshot Testing
 
+A snapshot test saves a component's rendered output to a file and fails when a later render differs from it. `composeStories` turns stories into ordinary components, so Jest or Vitest can render and snapshot them.
+
 ```tsx
 // test-runner does not snapshot stories by itself: it checks that each story
 // renders and its play function passes. Add snapshots with a postVisit hook in
@@ -1007,7 +1071,11 @@ test('Primary renders correctly', () => {
 
 ## 12. Configuration
 
+Project-level settings in `.storybook/main.ts`: where static files come from, how imports resolve, and how to build Storybook as a static site.
+
 ### 12.1 Static Assets
+
+`staticDirs` lists folders whose files Storybook serves as-is, so images and fonts referenced by URL load in stories as they do in the app.
 
 ```ts
 // .storybook/main.ts
@@ -1017,6 +1085,8 @@ const config: StorybookConfig = {
 ```
 
 ### 12.2 Webpack/Vite Aliases
+
+If the app imports through path aliases such as `@/components`, Storybook's bundler needs the same aliases, set in `viteFinal` (or `webpackFinal`).
 
 ```ts
 // .storybook/main.ts (Vite)
@@ -1032,6 +1102,8 @@ viteFinal: async (config) => {
 
 ### 12.3 Build Storybook
 
+The `build-storybook` script (which runs `storybook build`) outputs a static website that can be hosted anywhere, so designers and reviewers can browse the stories without running the project.
+
 ```bash
 # Build static site
 npm run build-storybook
@@ -1044,7 +1116,11 @@ npm run build-storybook
 
 ## 13. Best Practices
 
+Conventions that keep a Storybook useful as it grows: a predictable structure, clear story names and a checklist of states to cover.
+
 ### 13.1 Story Organization
+
+Keep each story file next to its component, and use `title` to group components in the sidebar.
 
 ```
 src/components/ui/
@@ -1067,6 +1143,8 @@ Sidebar hierarchy:
 
 ### 13.2 Naming Stories
 
+Name a story after the state it shows, since the name becomes its label in the sidebar.
+
 ```tsx
 // Use descriptive names that explain the STATE, not the implementation
 export const Default: Story = {};
@@ -1080,6 +1158,8 @@ export const Mobile: Story = {};
 ```
 
 ### 13.3 Coverage Checklist
+
+A component is well covered when every state a user can reach has a story:
 
 ```
 For every component, cover:

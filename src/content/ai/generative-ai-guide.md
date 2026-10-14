@@ -139,7 +139,14 @@ The model outputs a probability for every token in its vocabulary. **Sampling** 
 | `stop` sequences | end generation when this string appears | structured output, agent loops |
 | `seed` | request reproducibility | best-effort only — see below |
 
-**"Temperature 0 is deterministic" is the single most common wrong answer here.** It makes sampling *greedy* — always take the highest-probability token — which removes one source of randomness. It does not make the system deterministic, because batching on the provider's side changes floating-point accumulation order, mixture-of-experts routing (in models that send each token to a few of many sub-networks) varies, and hardware kernels differ. A `seed` improves your odds; nothing guarantees it. **Design your tests around this**: assert on structure and semantics, never on exact strings.
+**"Temperature 0 is deterministic" is the single most common wrong answer here.** It makes sampling *greedy* — always take the highest-probability token — which removes one source of randomness. It does not make the system deterministic:
+
+- **Batched floating-point arithmetic.** The provider batches your request with other users', and floating-point addition is not associative (`(a + b) + c` can differ from `a + (b + c)` in the last bits). A different batch composition changes the logits slightly; where two tokens are nearly tied, that flips the choice, and the rest of the generation diverges. You do not control batch composition.
+- **Mixture-of-experts routing** (in models that send each token to a few of many sub-networks) varies, and hardware kernels and serving stacks differ.
+- **Model updates.** An unpinned model alias changes under you without a deploy.
+- **The setting is not always honoured.** Many reasoning models accept only their default temperature; the API rejects 0, or a client library quietly drops the parameter.
+
+A `seed` improves your odds; nothing guarantees it. **Design around this**: assert on structure and semantics, never on exact strings; pin model versions; and if you need the same answer twice, **cache the output** rather than regenerating it.
 
 ---
 
@@ -299,7 +306,7 @@ Everything else is a consequence. There is no memory between calls, so conversat
 
 The model produces a distribution, not an answer, and sampling chooses from it — so randomness is built into the design. Temperature reshapes that distribution: low sharpens it toward the most likely tokens, high flattens it toward variety.
 
-Temperature 0 makes sampling **greedy** — always take the top token — which removes sampling randomness but does **not** give you determinism. Providers batch requests together, and floating-point addition is not associative, so the same request in a different batch can produce slightly different logits (the raw score the model gives each token before it becomes a probability) and occasionally a different token. Mixture-of-experts routing and hardware differences add more. A `seed` parameter is best-effort.
+Temperature 0 makes sampling **greedy**, which removes sampling randomness but does **not** give determinism: batching changes floating-point accumulation order, which can flip a near-tied token (full list of causes in [§6](#6-sampling-why-the-same-prompt-gives-different-answers)).
 
 Practically: use temperature 0 for extraction and classification because it is *stabler*, not because it is deterministic, and never write a test that asserts an exact output string. Assert on schema, on required fields, and on semantic checks.
 
@@ -415,7 +422,7 @@ They are also not memory problems or reasoning problems, which is why prompting 
 
 **Q1: A colleague says "we set temperature to 0, so our outputs are reproducible and we can snapshot-test them." What is wrong with this?**
 
-Temperature 0 makes token selection greedy, which removes sampling randomness — but the system is still non-deterministic. Providers batch requests, and floating-point accumulation is order-dependent, so identical inputs in different batches can produce slightly different logits; where two tokens are nearly tied, that flips the output. Mixture-of-experts routing, kernel and hardware differences, and silent model updates behind a non-pinned alias all add variance.
+Temperature 0 removes sampling randomness, but batched floating-point arithmetic, mixture-of-experts routing and silent model updates still change the output, so the system is not deterministic. The mechanism is in [§6](#6-sampling-why-the-same-prompt-gives-different-answers).
 
 The concrete failure is a test suite that is green locally and flaky in CI, with no way to distinguish "the model changed" from "the batch changed". The fix is to test properties rather than strings: valid JSON, schema conformance, required fields present, forbidden content absent, numeric values within range, and semantic similarity above a threshold for free text. Pin an explicit model version, and keep a golden set with a *score* threshold rather than exact-match expectations.
 

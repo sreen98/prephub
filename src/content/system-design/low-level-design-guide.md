@@ -99,7 +99,7 @@ Trace a request end to end, then attack your own design: "What if two cars arriv
 
 ## 3. SOLID, Usefully
 
-SOLID gets recited and rarely applied. What each principle actually buys you:
+SOLID gets recited and rarely applied. The definitions, with fuller examples and when SOLID itself becomes the problem, are in [Design Patterns §2](/frontend/design-patterns#2-solid-the-principles-the-patterns-serve). Here is what each one looks like in an LLD round, on the parking lot:
 
 ### S — Single Responsibility
 
@@ -146,18 +146,7 @@ class StrategyFeeCalculator {
 
 ### L — Liskov Substitution
 
-A subtype must be usable wherever the base type is, **without the caller knowing**. The canonical violation:
-
-```ts
-class Rectangle { setWidth(w) {} setHeight(h) {} }
-class Square extends Rectangle {
-  setWidth(w)  { this.w = this.h = w; }   // breaks the caller's expectation
-  setHeight(h) { this.w = this.h = h; }
-}
-// Any caller doing setWidth(5); setHeight(4); expects area 20 and gets 16.
-```
-
-The lesson isn't about rectangles — it's that **"is-a" in English is not "is-a" in code.** A square *is* a rectangle mathematically and is not a substitutable `Rectangle` if `Rectangle` promises independent dimensions. Practical tell: if a subclass throws `UnsupportedOperationException`, narrows an accepted input, or strengthens a precondition, it's violating LSP and the hierarchy is wrong.
+A subtype must be usable wherever the base type is, **without the caller knowing**; "is-a" in English is not "is-a" in code (the Square/Rectangle case is in [Design Patterns §2.3](/frontend/design-patterns#23-l-liskov-substitution)). In an LLD round the tell is a subclass that throws `UnsupportedOperationException`, narrows an accepted input or strengthens a precondition: a `CompactSpot extends Spot` whose `park()` throws for trucks breaks every caller that iterates spots. Model the size as data the allocator checks instead.
 
 ### I — Interface Segregation
 

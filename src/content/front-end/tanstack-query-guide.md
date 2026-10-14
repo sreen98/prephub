@@ -28,6 +28,8 @@ npm install @tanstack/react-query
 
 ### Setup
 
+A `QueryClient` is the object that holds the query cache and the default options for every query and mutation. `QueryClientProvider` puts that client into React context so every `useQuery` below it shares the same cache. Create the client once, outside any component, so a re-render does not replace it and wipe the cache.
+
 ```tsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -53,6 +55,8 @@ function App() {
 ---
 
 ## 2. Core Concepts
+
+Four ideas explain everything TanStack Query does: how cached data is named (keys), how it is fetched (query functions), when it counts as out of date (stale time), and which state a query is in.
 
 ### 2.1 Query Keys
 
@@ -104,6 +108,8 @@ Fetch -> Fresh (within staleTime) -> Stale -> Background refetch on trigger -> F
 
 ### 2.4 Query States
 
+Every query has a `status`: `pending` (no data yet), `error` (the last fetch failed after its retries) or `success` (data is available). Whether a request is in flight right now is tracked separately, by `fetchStatus` and `isFetching`, so a query can be `success` and fetching at the same time while it refreshes in the background and keeps showing the cached data.
+
 ```
            +---------------+
            |   pending     |  No cached data, fetching for the first time
@@ -135,7 +141,11 @@ On error at any fetch:
 
 ## 3. Queries (Reading Data)
 
+`useQuery` is the hook for reading server data. Give it a key and a function that fetches; it caches the result under the key and returns the data together with the request's state.
+
 ### 3.1 Basic Query
+
+Pass a `queryKey` and a `queryFn`. The hook fetches when the component mounts and returns `data` plus flags for the pending and error states, which the component checks before rendering the data.
 
 ```tsx
 import { useQuery } from '@tanstack/react-query';
@@ -161,6 +171,8 @@ function TodoList() {
 
 ### 3.2 Query with Parameters
 
+Put every variable the query function uses into the key. A different key is a different cache entry, so when `todoId` changes the hook fetches that item, and `enabled: false` holds the query back while there is no id.
+
 ```tsx
 import { useQuery } from '@tanstack/react-query';
 
@@ -176,6 +188,8 @@ function TodoDetail({ todoId }: { todoId: string }) {
 ```
 
 ### 3.3 All useQuery Return Values
+
+Besides `data`, `useQuery` returns the error, the status flags and helpers such as `refetch`:
 
 ```ts
 const {
@@ -211,6 +225,8 @@ const {
 
 ### 3.4 Important Distinction: isPending vs isFetching vs isLoading
 
+`isPending` means there is no data yet. `isFetching` means a request is in flight, including background refetches. `isLoading` is both at once (`isPending && isFetching`), which is the very first load.
+
 ```
 First visit (no cache):
   isPending = true, isFetching = true, isLoading = true
@@ -226,6 +242,8 @@ Cached and fresh:
 ```
 
 ### 3.5 Parallel Queries
+
+Queries that do not depend on each other run in parallel on their own when a component calls several `useQuery` hooks. `useQueries` does the same for a list of queries whose length is only known at runtime.
 
 ```tsx
 // Option 1: Multiple useQuery hooks (run in parallel automatically)
@@ -249,6 +267,8 @@ function JobCandidates({ jobIds }: { jobIds: string[] }) {
 
 ### 3.6 Dependent (Serial) Queries
 
+A dependent query needs a value from another query before it can run. Set `enabled` to that condition (here, the user's id existing): while it is `false` the query waits in `pending` without fetching, and it starts by itself as soon as the condition becomes `true`.
+
 ```tsx
 function UserProfile({ userId }: { userId: string }) {
   // First: fetch user
@@ -267,6 +287,8 @@ function UserProfile({ userId }: { userId: string }) {
 ```
 
 ### 3.7 Polling (Auto Refetch at Interval)
+
+`refetchInterval` refetches a query every N milliseconds while it is in use, which turns it into a simple poll. Passing a function instead of a number lets the poll stop itself, for example once a job is complete.
 
 ```tsx
 const { data } = useQuery({
@@ -322,6 +344,8 @@ useQuery({
 
 ### 3.9 Select (Transform Data)
 
+`select` transforms the cached data, or picks part of it, before the component receives it. The cache keeps the full response, so other components can select different parts of the same query, and a component re-renders only when its selected value changes.
+
 ```tsx
 // Only re-renders when the selected value changes
 const { data: todoCount } = useQuery({
@@ -341,7 +365,11 @@ const { data: activeTodos } = useQuery({
 
 ## 4. Mutations (Writing Data)
 
+A mutation is a request that changes data on the server: a create, update or delete. Unlike a query, `useMutation` does not run by itself. It returns a `mutate` function you call from an event handler, plus the state of that request.
+
 ### 4.1 Basic Mutation
+
+Call `mutate(variables)` to send the request. After it succeeds, invalidate the queries that show the changed data so they refetch with the change.
 
 ```tsx
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -372,6 +400,8 @@ function AddTodo() {
 
 ### 4.2 All useMutation Return Values
 
+The object `useMutation` returns has the trigger functions and the state of the latest call:
+
 ```ts
 const {
   // Actions
@@ -399,6 +429,8 @@ const {
 ```
 
 ### 4.3 Mutation Callbacks
+
+Callbacks run at each stage: `onMutate` before the request, `onSuccess` or `onError` after it, and `onSettled` in both cases. Callbacks passed to `useMutation` run first; those passed to `mutate()` run after them, and only if the component is still mounted.
 
 ```tsx
 useMutation({
@@ -478,6 +510,8 @@ const updateTodoMutation = useMutation({
 
 ## 5. Cache Management
 
+After a write, the cache has to be brought back in line with the server. You can mark entries stale so they refetch, or read and write them directly through the `QueryClient`.
+
 ### 5.1 Query Invalidation
 
 Invalidation marks cached data as stale and triggers a refetch if there are active subscribers.
@@ -501,6 +535,8 @@ queryClient.invalidateQueries();
 
 ### 5.2 Direct Cache Manipulation
 
+`getQueryData` and `setQueryData` read and write a cache entry synchronously, without sending a request. Use them to put a mutation's response straight into the cache or to write an optimistic update; `prefetchQuery` fills an entry ahead of time, for example when the user hovers a link.
+
 ```ts
 // Read from cache (synchronous)
 const todos = queryClient.getQueryData<Todo[]>(['todos']);
@@ -522,6 +558,8 @@ queryClient.prefetchQuery({
 
 ### 5.3 Cache Invalidation Strategies
 
+There are four ways to keep the cache in sync after a write:
+
 ```
 Strategy 1: Invalidate after mutation (most common)
   mutate -> onSuccess -> invalidateQueries -> auto refetch -> fresh data
@@ -542,7 +580,11 @@ How to choose: start with Strategy 1 — it costs one extra request, but the ser
 
 ## 6. Advanced Patterns
 
+Patterns for paginated lists, reusable query hooks, Suspense, cancellation, retries and refetching on focus.
+
 ### 6.1 Infinite Queries (Pagination / Load More)
+
+`useInfiniteQuery` caches a list as a series of pages under one key. `getNextPageParam` looks at the pages loaded so far and returns the next page's parameter, or `undefined` when there are no more, and `fetchNextPage` loads it. "Load more" buttons and infinite scroll then need no hand-written page bookkeeping.
 
 ```tsx
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -615,6 +657,8 @@ function Todos() {
 
 ### 6.3 Suspense Mode
 
+`useSuspenseQuery` makes the component suspend while its data loads instead of returning `isPending`: the nearest `<Suspense>` boundary shows its fallback, and a failed fetch is thrown to the nearest error boundary. Inside the component, `data` is therefore always defined.
+
 ```tsx
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Suspense } from 'react';
@@ -640,6 +684,8 @@ function App() {
 
 ### 6.4 Query Cancellation
 
+TanStack Query passes every query function an `AbortSignal` and aborts it when the result is no longer wanted, for example when the component unmounts before the request finishes.
+
 ```ts
 useQuery({
   queryKey: ['todos'],
@@ -655,6 +701,8 @@ useQuery({
 Note the cancellation is not automatic in the sense of "free": TanStack Query creates the `AbortSignal` and passes it to your query function, but the request is only aborted because this function hands `signal` on to axios. A query function that ignores `signal` lets the request run to completion.
 
 ### 6.5 Retry Configuration
+
+A failed query is retried 3 times by default, with a delay that doubles each time (capped at 30 s), before it reports an error. `retry` and `retryDelay` change that per query or for the whole client.
 
 ```ts
 useQuery({
@@ -853,13 +901,7 @@ mutation.mutate(updatedTodo);
 
 ### 7.4 What Redux Does Better
 
-| Scenario | Why Redux Wins |
-|----------|---------------|
-| **Complex async orchestration** | Sagas can model multi-step workflows (poll -> wait -> retry -> branch) as sequential code with `yield` |
-| **Cross-cutting client state** | Auth session, theme, sidebar open/close - truly global UI state shared by unrelated components |
-| **Time-travel debugging** | Redux DevTools let you replay actions and inspect every state change |
-| **Predictable updates** | Single-direction data flow with strict action -> reducer -> state pattern |
-| **Middleware pipeline** | Intercept any action for logging, analytics, error tracking |
+Redux wins on what is *not* server data: client state shared by unrelated components (auth session, theme, sidebar), multi-step async orchestration with sagas, time-travel debugging, and one enforced action → reducer path with middleware. Whether that client state belongs in Redux, Zustand or Context is a separate question, answered in [Zustand §10](/frontend/zustand#10-zustand-vs-redux-toolkit-vs-context-vs-jotai).
 
 ### 7.5 What TanStack Query Does Better
 
@@ -896,6 +938,8 @@ Is the data from an API/server?
                         +-- NO -> Use local state
                                   (useState, useReducer)
 ```
+
+"Use Redux" here stands for any client-state store: for shared client state, Zustand or (for rarely-changing values) Context may fit better. That choice is in [Zustand §10](/frontend/zustand#10-zustand-vs-redux-toolkit-vs-context-vs-jotai); this guide's point is only that server data does not go in any of them.
 
 ### Recommended Architecture
 

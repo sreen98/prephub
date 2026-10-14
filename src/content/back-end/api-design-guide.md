@@ -730,49 +730,13 @@ router.post('/login', async (req, res) => {
     results: { accessToken, user: { id: user.id, name: user.name } },
   });
 });
-
-// Auth middleware
-function authenticate(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ status: 'error', message: 'No token' });
-
-  try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
-    next();
-  } catch (err) {
-    if (err.name === 'TokenExpiredError') {
-      return res.status(401).json({ status: 'error', message: 'Token expired' });
-    }
-    res.status(401).json({ status: 'error', message: 'Invalid token' });
-  }
-}
 ```
+
+The verifying middleware is in [Express.js §11.1](/backend/expressjs#111-jwt-authentication). The API-design point is its error contract: answer an expired token (`TokenExpiredError`) with a distinct message such as `Token expired`, so the client knows to call the refresh endpoint rather than send the user to the login page.
 
 ### Cookie-Based Auth
 
-```javascript
-import session from 'express-session';
-import MongoStore from 'connect-mongo';
-
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI,
-    ttl: 24 * 60 * 60,
-  }),
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 24 * 60 * 60 * 1000,
-  },
-}));
-
-// All API calls use cookie-based auth
-// Frontend sends: credentials: 'include' or withCredentials: true
-```
+The server keeps the session (in a shared store such as Redis or MongoDB, so every instance sees it) and the browser holds only an `httpOnly`, `secure`, `sameSite` session-id cookie. The frontend must send `credentials: 'include'` (or `withCredentials: true`), and a cross-origin API must then answer with a specific origin plus `Access-Control-Allow-Credentials: true`. Prefer it for a first-party web app; prefer tokens when non-browser clients call the API. The `express-session` setup is in [Express.js §11.2](/backend/expressjs#112-cookie-based-sessions).
 
 ### Role-Based Access Control (RBAC)
 
@@ -1241,7 +1205,7 @@ router.post('/roles', authenticate, upload.array('poolFiles', 5), async (req, re
 
 ## 14. Real-Time APIs
 
-Three ways to push updates, in order of complexity. **Long polling**: the client asks, and the server holds the request open until there is news or a timeout. **SSE** (Server-Sent Events): one long-lived HTTP response the server keeps writing events into; one-way, server to client, with automatic reconnection built into the browser. **WebSocket**: a persistent two-way connection, needed when the client also sends a stream of messages (chat, collaborative editing). Pick the simplest one that covers the direction of traffic you have.
+Pick the simplest transport that covers the direction of traffic: long polling, SSE (one-way server push over HTTP) or WebSocket (two-way). How each works, with client and server code, is in the Real-Time Web guide, and the [decision table](/frontend/realtime-web#10-decision-table-picking-a-transport) compares them. This section keeps the API-design concerns: authenticating the connection and shaping the endpoints.
 
 ### WebSocket API
 
@@ -1294,66 +1258,11 @@ function broadcastToChannel(channel, data) {
 
 ### Server-Sent Events (SSE)
 
-```javascript
-router.get('/events/jobs/:jobId', authenticate, (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  });
-
-  const jobId = req.params.jobId;
-
-  // Send initial data
-  res.write(`event: connected\ndata: ${JSON.stringify({ jobId })}\n\n`);
-
-  // Subscribe to updates
-  const handler = (data) => {
-    res.write(`event: ${data.type}\ndata: ${JSON.stringify(data)}\n\n`);
-  };
-
-  eventEmitter.on(`job:${jobId}`, handler);
-
-  // Heartbeat
-  const heartbeat = setInterval(() => {
-    res.write(': heartbeat\n\n');
-  }, 30000);
-
-  req.on('close', () => {
-    eventEmitter.off(`job:${jobId}`, handler);
-    clearInterval(heartbeat);
-  });
-});
-```
+Scope the stream to one resource behind the normal auth middleware (`GET /events/jobs/:jobId`), name events after domain changes (`event: job.status_changed`), and give each event an `id:` so a reconnecting client's `Last-Event-ID` can resume. Because SSE is a plain GET, the session cookie authenticates it with no ticket. The server code (headers, frame format, heartbeat, cleanup on close) is in [Real-Time Web §4](/frontend/realtime-web#4-server-sent-events-sse).
 
 ### Polling Endpoints
 
-```javascript
-// Long polling for async operations
-router.get('/processing/:jobId/status', authenticate, async (req, res) => {
-  const timeout = 30000; // 30s long poll timeout
-  const pollInterval = 1000;
-  const startTime = Date.now();
-
-  const checkStatus = async () => {
-    const status = await processingService.getStatus(req.params.jobId);
-
-    // If terminal state or timeout, respond immediately
-    if (status.state === 'completed' || status.state === 'failed') {
-      return res.json({ status: 'success', results: status });
-    }
-
-    if (Date.now() - startTime >= timeout) {
-      return res.json({ status: 'success', results: status });
-    }
-
-    // Otherwise, check again after interval
-    setTimeout(checkStatus, pollInterval);
-  };
-
-  checkStatus();
-});
-```
+A long-poll status endpoint (`GET /processing/:jobId/status`) answers at once when the job reaches a terminal state, and otherwise holds the request up to a timeout (say 30 s) and returns the current status, so the client simply asks again. The mechanics and their cost are in [Real-Time Web §3](/frontend/realtime-web#3-long-polling); for one-off jobs, the `202 Accepted` pattern in [Async Operations](#async-operations) is often enough.
 
 ---
 
@@ -1424,37 +1333,7 @@ type JobConnection {
 
 ### REST vs GraphQL
 
-```
-REST:
-- Multiple endpoints per resource
-- Server defines response shape
-- Over-fetching (get all fields)
-- Under-fetching (need multiple calls)
-- Caching is straightforward (HTTP caching)
-- Simpler to implement
-
-GraphQL:
-- Single endpoint (/graphql)
-- Client defines response shape
-- No over/under-fetching
-- Complex queries in one request
-- Caching is harder (POST requests)
-- Type system built-in
-- Introspection/self-documenting
-
-When to use GraphQL:
-- Multiple clients with different data needs (mobile vs web)
-- Deeply nested relational data
-- Rapid frontend iteration
-- Real-time subscriptions needed
-
-When to use REST:
-- Simple CRUD operations
-- File upload/download
-- Caching is critical
-- Simpler backend requirements
-- Public APIs (more universal)
-```
+REST gives each resource its own URL and a server-defined response, so HTTP caching, file transfer and public consumption work out of the box. GraphQL exposes one endpoint where the client picks the fields, which suits several clients with different needs over nested data, at the price of server-side batching, query-cost limits and harder caching. The side-by-side table and when each trade is worth it are in [GraphQL §2](/backend/graphql#2-graphql-vs-rest) and [§16 When Not to Use GraphQL](/backend/graphql#16-when-not-to-use-graphql).
 
 ---
 
@@ -2137,10 +2016,7 @@ Key principles: avoid breaking changes when possible (additive-only), deprecate 
 
 Short answer: rate limiting caps how many requests one client can make in a time window, so one misbehaving script or one heavy customer cannot use up capacity everyone else needs. It also makes brute-force attacks on login and scraping slow enough to be impractical.
 
-**Algorithms** — the choice is about how bursts are treated:
-- **Fixed window**: count requests per clock window (say, per minute) and reset at the boundary. Simplest, but a client can send a full quota at 0:59 and another at 1:00, doubling the rate for a moment.
-- **Sliding window**: count requests in the last 60 seconds from *now*, which removes the boundary burst at the cost of storing more data (timestamps, or counts for two windows).
-- **Token bucket**: each client has a bucket that refills at a steady rate; each request spends a token. It allows short bursts up to the bucket size while holding the long-run average — usually what you want for real clients.
+**Algorithms**: the choice is about how bursts are treated. A fixed window is simplest but allows a double burst at the boundary, a sliding window removes that burst, and a token bucket allows short bursts while holding the long-run average. The algorithms, with code and trade-offs, are in [LLD §7.2](/system-design/low-level-design#72-the-algorithms-and-the-trade-off).
 
 **Implementation**: Use Redis for distributed rate limiting across multiple servers. Track request count per client (by IP, API key, or user ID) with TTL-based expiry. Return the IETF draft headers: `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` (seconds until the window resets). Return `429 Too Many Requests` with `Retry-After` header when exceeded.
 
@@ -2167,9 +2043,7 @@ CORS (Cross-Origin Resource Sharing) is the mechanism by which a server tells th
 
 Note what CORS is *not*: it does not protect your API from other servers, curl or scripts — only browsers enforce it. It protects users, by stopping a malicious site from using the user's logged-in browser to read your API's responses.
 
-**Simple requests** (GET, HEAD, or POST with a `Content-Type` of `application/x-www-form-urlencoded`, `multipart/form-data` or `text/plain`, and no custom headers) include an `Origin` header. `application/json` is not in that list, so a JSON POST is preflighted. The server responds with `Access-Control-Allow-Origin`.
-
-**Preflight requests** (PUT, DELETE, custom headers) trigger an `OPTIONS` request first. The browser checks the response headers (`Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) before sending the actual request.
+Simple requests go straight through with an `Origin` header; anything else (a JSON POST, PUT, DELETE, custom headers) is preceded by an `OPTIONS` preflight. The rules are in the CORS guide: [simple requests](/backend/cors#4-simple-requests), [preflight](/backend/cors#5-preflight-requests) and [credentialed requests](/backend/cors#7-credentialed-requests).
 
 Configure CORS with specific origins (not `*`), allowed methods, and `credentials: true` for cookie-based auth. Set `Access-Control-Max-Age` to cache preflight results.
 
@@ -2192,11 +2066,7 @@ Key concerns: ensure all queries are scoped to the tenant (middleware that adds 
 
 **Q12: Compare REST and GraphQL. When would you choose each?**
 
-**REST**: Multiple endpoints, server-defined response shapes, HTTP caching built-in, simpler to implement, better for public APIs. Best when: resources map cleanly to endpoints, caching is important, operations are straightforward CRUD.
-
-**GraphQL**: Single endpoint, client-defined response shapes, no over/under-fetching, built-in type system, introspection (clients can query the schema itself, which powers autocomplete and generated docs). Over-fetching is getting fields you don't need (a mobile list screen receiving full user profiles); under-fetching is needing several round trips to assemble one screen (user, then their orders, then each order's items). In GraphQL the client names the fields it wants, nested, in one request. Best when: multiple clients need different data shapes, deeply nested relational data, need to reduce API calls.
-
-Downsides of GraphQL: complex caching (all POST requests), potential for expensive nested queries (need depth limiting), steeper learning curve, harder to implement rate limiting.
+Choose **REST** when resources map cleanly to endpoints, HTTP caching matters and the API is public or simple CRUD. Choose **GraphQL** when several clients need different shapes of deeply nested data, because the client names the fields it wants in one request (no over-fetching of unused fields, no under-fetching that needs extra round trips). The cost moves to the server: caching, depth limits and N+1 batching. The full comparison table is in [GraphQL §2](/backend/graphql#2-graphql-vs-rest).
 
 Many teams use both: REST for simple CRUD and file operations, GraphQL for complex data-fetching scenarios.
 

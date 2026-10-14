@@ -84,7 +84,11 @@ app.listen(3000);
 
 ## 3. Routing
 
+Routing is how Express decides which handler runs for a request: each route pairs an HTTP method with a URL path pattern, and Express checks routes in the order you registered them and runs the first match (a later match runs only if that handler calls `next()`).
+
 ### 3.1 HTTP Methods
+
+Each method on `app` (`get`, `post`, `put`, `patch`, `delete`) registers a route for that HTTP verb; `app.all` matches every verb.
 
 ```js
 app.get('/users', handler);        // Read
@@ -101,6 +105,8 @@ app.get('/users', authenticate, authorize('admin'), handler);
 ```
 
 ### 3.2 Route Parameters
+
+Route parameters are named segments of the path itself (`/users/:userId`), read from `req.params`. Use them for the identity of the resource being addressed: without the segment it is a different URL.
 
 ```js
 // Required params
@@ -124,6 +130,8 @@ app.get('/files/*filePath', (req, res) => {
 
 ### 3.3 Query Strings
 
+The query string is the optional `?key=value&…` part after the path, read from `req.query`. Use it for options on the same resource (search terms, filters, sorting, pagination); the route matches with or without it, and every value arrives as a string.
+
 ```js
 // GET /search?q=node&page=2&sort=date
 app.get('/search', (req, res) => {
@@ -134,6 +142,8 @@ app.get('/search', (req, res) => {
 ```
 
 ### 3.4 Router (Modular Routes)
+
+An `express.Router()` is a mini-application with its own routes and middleware but no server of its own. You mount it on a path prefix with `app.use('/prefix', router)`, which lets each feature keep its routes in its own file.
 
 ```js
 // routes/users.js
@@ -188,6 +198,8 @@ Middleware functions have access to `req`, `res`, and `next`. They execute in or
 
 ### 4.1 Application-Level Middleware
 
+Application-level middleware is registered on `app` itself with `app.use()`, so it runs for every request (or every request under a path prefix) before the routes registered after it.
+
 ```js
 // Runs on EVERY request
 app.use((req, res, next) => {
@@ -204,6 +216,8 @@ app.use('/api', (req, res, next) => {
 
 ### 4.2 Built-in Middleware
 
+Built-in middleware ships inside the `express` package itself, so it needs no extra install. It covers body parsing and static files.
+
 ```js
 app.use(express.json());                   // parse JSON body
 app.use(express.urlencoded({ extended: true })); // parse URL-encoded body
@@ -213,6 +227,8 @@ app.use(express.text());                   // parse text body
 ```
 
 ### 4.3 Third-Party Middleware
+
+Third-party middleware is a separate npm package you install and `app.use()` the same way. Express deliberately keeps its core small, so CORS, security headers, logging, compression and rate limiting all come from packages like these.
 
 ```js
 const cors = require('cors');
@@ -272,7 +288,9 @@ app.get('/admin', authenticate, authorize('admin'), (req, res) => {
 
 ### 4.5 Middleware Execution Order
 
-```
+Express runs middleware and route handlers in the order they were registered, each one handing over to the next by calling `next()`.
+
+```text
 Request → middleware1 → middleware2 → route handler → Response
 
 app.use(logger);        // 1st: runs on all requests
@@ -505,6 +523,8 @@ app.get('/users', asyncHandler(async (req, res) => {
 
 ### 6.3 Custom Error Classes
 
+A custom error class extends `Error` with the fields your error handler needs, such as an HTTP status code and whether the error is expected. Routes then just `throw new NotFoundError(...)`, and one error-handling middleware turns any of them into the right response.
+
 ```js
 class AppError extends Error {
   constructor(message, statusCode) {
@@ -552,6 +572,8 @@ app.use((req, res) => {
 
 ## 7. Template Engines
 
+A template engine turns an HTML file with placeholders into finished HTML on the server, by filling in data per request. Use one when the server renders pages itself rather than returning JSON to a front-end app.
+
 ```js
 // Setup (EJS example)
 app.set('view engine', 'ejs');
@@ -588,6 +610,8 @@ Popular engines: **EJS**, **Pug** (formerly Jade), **Handlebars**, **Nunjucks**.
 
 ## 8. Static Files
 
+Static files are files sent exactly as they sit on disk (CSS, images, client-side JavaScript, downloads). `express.static(dir)` maps URL paths onto a folder, so you serve them without writing a route per file.
+
 ```js
 // Serve files from 'public' directory
 app.use(express.static('public'));
@@ -617,6 +641,8 @@ app.use(express.static('public', {
 
 ### 9.1 Helmet (Security Headers)
 
+Helmet is a middleware package that sets a batch of HTTP security headers on every response (content sniffing, framing, HTTPS-only, Content Security Policy). It is one line that closes several common browser-side attack routes, so most production Express apps add it first.
+
 ```js
 const helmet = require('helmet');
 app.use(helmet());
@@ -629,6 +655,8 @@ app.use(helmet());
 ```
 
 ### 9.2 CORS
+
+CORS (Cross-Origin Resource Sharing) is the browser rule that lets a page read a response from another origin only when the response's `Access-Control-Allow-*` headers allow it. The `cors` package sets those headers and answers preflight `OPTIONS` requests; the mechanism itself (simple vs preflighted requests, credentials, caching) is in the [CORS guide](/backend/cors).
 
 ```js
 const cors = require('cors');
@@ -646,6 +674,8 @@ app.use(cors({
 ```
 
 ### 9.3 Rate Limiting
+
+Rate limiting caps how many requests one client (usually identified by IP) may make in a time window, answering `429 Too Many Requests` beyond it. It blunts brute-force login attempts and stops one client from exhausting the server.
 
 ```js
 const rateLimit = require('express-rate-limit');
@@ -987,6 +1017,8 @@ appV2.listen(3000);
 
 ### 14.1 Compression
 
+The `compression` middleware compresses response bodies (gzip, for example) for clients whose `Accept-Encoding` header says they can decode it, which shrinks text such as JSON and HTML at a small CPU cost. Behind a reverse proxy or CDN that already compresses, leave it to them instead.
+
 ```js
 const compression = require('compression');
 app.use(compression());                   // gzip responses
@@ -1173,21 +1205,7 @@ This separates HTTP concerns from business logic, making services testable witho
 
 **Q8: How do you handle CORS in Express?**
 
-CORS (Cross-Origin Resource Sharing) controls which domains can make requests to your API.
-
-```js
-const cors = require('cors');
-
-// Allow all
-app.use(cors());
-
-// Allow specific origins with credentials
-app.use(cors({
-  origin: ['https://myapp.com'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-}));
-```
+CORS (Cross-Origin Resource Sharing) controls which other origins' pages may read your API's responses. In Express you add the `cors` middleware: `app.use(cors())` for any origin, or `cors({ origin: [...], credentials: true })` for a list of trusted origins (the code is in [§9.2 CORS](#92-cors)).
 
 Two details make this answer precise. First, CORS is enforced by the **browser**, not by your server: the request usually still reaches Express, but unless the response carries the right `Access-Control-Allow-*` headers, the browser refuses to let the page's JavaScript read it. The `cors` middleware's job is to add those headers (and to answer the `OPTIONS` preflight request the browser sends first for non-simple requests). Second, `cors()` with no options allows every origin, which is fine for a public read-only API but wrong for anything using cookies: list the origins you trust instead. Tools like curl or Postman ignore CORS entirely, which is why an API can "work in Postman" and fail in the browser. See the [CORS guide](/backend/cors) for the full mechanism.
 

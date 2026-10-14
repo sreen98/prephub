@@ -239,7 +239,7 @@ MCP's risks are the general agent risks plus one structural addition: **the tool
 
 **Confused deputy.** The server acts with its own credentials on behalf of a user who may have fewer. Authorisation must be checked inside the server against the authenticated identity, never assumed from the fact that the model asked.
 
-**The lethal trifecta** applies directly, and MCP makes it easy to assemble by accident: connect a server with access to private data, a server that reads untrusted content, and a server that can send things outward, and you have built an exfiltration path out of three individually reasonable integrations. **The composition is the vulnerability**, and no single server is at fault.
+**The lethal trifecta** ([AI & LLM Engineering §11.2](/backend/ai-llm-engineering#112-the-lethal-trifecta)) is easy to assemble by accident in MCP, because one host puts every connected server into the same context: a server with private data, one that reads untrusted content, and one that can send outward form an exfiltration path out of three individually reasonable integrations. **The composition is the vulnerability**, and no single server is at fault (Tricky Q1).
 
 **Supply chain.** Installing an MCP server is installing software. A local stdio server runs with your user's privileges and environment — including every credential in it. Prefer known-provenance servers, read what you install, and run untrusted ones in a sandbox.
 
@@ -322,7 +322,7 @@ The standard agent risks, plus one that is specific to MCP: **the tool definitio
 
 **Confused deputy**: the server acts with its own credentials for a user who may have fewer, so authorisation must happen inside the server against the authenticated identity, never inferred from the model having asked.
 
-And the **lethal trifecta**, which MCP makes easy to assemble accidentally — a server with private data, a server that reads untrusted content, and a server that can send things out. Each is reasonable alone; the *combination* is an exfiltration path, and no individual server is at fault. So the audit has to be over the set of connected servers, not each one.
+And the **lethal trifecta** assembled across servers: private data from one, untrusted content from another, an outbound channel from a third. Each is reasonable alone, so the audit has to be over the set of connected servers (Tricky Q1).
 
 Practically: show users full descriptions and diff them on change, pin versions, authorise per user inside the server, approve writes and spends, keep one isolated client per server with least privilege, log every call, and treat installing a server as installing software.
 

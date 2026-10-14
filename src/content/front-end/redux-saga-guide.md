@@ -32,6 +32,8 @@ npm install redux-saga
 
 ### Setup
 
+Create the saga middleware, add it to the store, and then start your root saga with `sagaMiddleware.run`. The root saga is the one entry point that starts every other saga.
+
 ```ts
 import createSagaMiddleware from 'redux-saga';
 import { configureStore } from '@reduxjs/toolkit';
@@ -55,6 +57,8 @@ Sagas are built on JavaScript generators — functions that can pause and resume
 
 ### 2.1 Generator Basics
 
+A generator function (`function*`) returns an iterator instead of running straight through. Each call to `next()` runs the body until the next `yield`, pauses there, and returns `{ value, done }`.
+
 ```js
 function* numberGenerator() {
   yield 1;
@@ -70,6 +74,8 @@ gen.next(); // { value: undefined, done: true }
 ```
 
 ### 2.2 Two-Way Communication
+
+Values flow both ways: `yield` sends a value out to the caller, and the argument the caller passes to the next `next(arg)` becomes the result of that `yield` expression inside the generator.
 
 ```js
 function* conversation() {
@@ -87,6 +93,8 @@ gen.next(30);        // { value: 'Alice is 30 years old', done: true }
 This is how sagas work: `yield` an effect (instruction), the saga middleware executes it, and passes the result back via `next()`.
 
 ### 2.3 Why Generators for Side Effects?
+
+Because the caller decides when a generator resumes and what value it receives, the saga middleware can run the effect a saga asked for, feed the result back in, or never resume it at all.
 
 ```js
 // With generators, async code reads like sync
@@ -111,6 +119,8 @@ Effects are plain JavaScript objects (instructions) that the saga middleware int
 
 ### 3.1 call — Call a Function
 
+`call(fn, ...args)` asks the middleware to call `fn` with the arguments. It is **blocking**: if `fn` returns a promise, the saga pauses until it settles and then receives the resolved value, or has the rejection thrown at the `yield`.
+
 ```ts
 import { call } from 'redux-saga/effects';
 
@@ -130,6 +140,8 @@ function* saga() {
 
 ### 3.2 put — Dispatch an Action
 
+`put(action)` asks the middleware to dispatch an action to the store, the saga equivalent of `dispatch`. It is **non-blocking**: the saga continues straight after the action is dispatched.
+
 ```ts
 import { put } from 'redux-saga/effects';
 
@@ -141,6 +153,8 @@ function* saga() {
 ```
 
 ### 3.3 select — Read from Store
+
+`select(selector, ...args)` runs a selector against the current Redux state and returns the result. It does not wait for anything: the saga gets the value immediately and continues.
 
 ```ts
 import { select } from 'redux-saga/effects';
@@ -162,6 +176,8 @@ function* saga() {
 
 ### 3.4 take — Wait for an Action
 
+`take(pattern)` pauses the saga until an action matching the pattern is dispatched, and returns that action. It is **blocking**, which lets a saga describe a flow step by step ("wait for login, then wait for logout").
+
 ```ts
 import { take } from 'redux-saga/effects';
 
@@ -180,6 +196,8 @@ function* saga() {
 
 ### 3.5 fork — Non-Blocking Call
 
+`fork(fn, ...args)` starts `fn` as a separate background task and returns a task object at once. It is **non-blocking**, but the task stays attached: the parent does not finish until its forks finish, and an error in a fork aborts the parent too.
+
 ```ts
 import { fork } from 'redux-saga/effects';
 
@@ -196,6 +214,8 @@ function* saga() {
 ```
 
 ### 3.6 delay — Wait for Time
+
+`delay(ms)` pauses the saga for the given number of milliseconds. It is **blocking**, the saga version of awaiting a timer.
 
 ```ts
 import { delay } from 'redux-saga/effects';
@@ -215,6 +235,8 @@ function* saga() {
 
 ### 3.7 all — Run in Parallel
 
+`all([...effects])` starts several effects at the same time and **blocks** until every one has finished, returning their results in the same order. If one of them fails, the others are cancelled and the error is thrown into the saga.
+
 ```ts
 import { all, call } from 'redux-saga/effects';
 
@@ -232,6 +254,8 @@ function* saga() {
 ```
 
 ### 3.8 race — First to Complete Wins
+
+`race({ ...effects })` starts several effects and **blocks** only until the first one finishes. That one's key holds its result, the others are `undefined`, and the losing effects are cancelled automatically.
 
 ```ts
 import { race, call, delay } from 'redux-saga/effects';
@@ -254,6 +278,8 @@ function* saga() {
 ```
 
 ### 3.9 Effects Summary
+
+Whether an effect blocks decides whether the saga waits on that line or moves on, so it is the first thing to know about each one.
 
 ```
 call(fn, ...args)      — Call function, wait for result (blocking)
@@ -331,7 +357,11 @@ function* watchFetchUser() {
 
 ## 5. Concurrency Helpers
 
+Concurrency helpers are ready-made watchers built from `take` and `fork`. They decide what happens when the same action arrives again while an earlier one is still being handled: run both, cancel the old one, ignore the new one, or wait until things calm down. Picking the right one prevents duplicate requests and stale responses.
+
 ### 5.1 takeEvery
+
+`takeEvery` forks a new worker for every matching action, so several can run at once and none is cancelled.
 
 ```ts
 function* saga() {
@@ -344,6 +374,8 @@ function* saga() {
 ```
 
 ### 5.2 takeLatest
+
+`takeLatest` forks a worker for each action but first cancels the one still running, so only the most recent action's result ever lands.
 
 ```ts
 function* saga() {
@@ -358,6 +390,8 @@ function* saga() {
 
 ### 5.3 takeLeading
 
+`takeLeading` runs a worker for the first action and ignores every matching action until that worker finishes.
+
 ```ts
 function* saga() {
   // Ignores new actions while saga is running
@@ -369,6 +403,8 @@ function* saga() {
 ```
 
 ### 5.4 debounce
+
+`debounce(ms, pattern, worker)` waits until no matching action has arrived for `ms` milliseconds, then runs the worker once with the latest action.
 
 ```ts
 function* saga() {
@@ -382,6 +418,8 @@ function* saga() {
 ```
 
 ### 5.5 throttle
+
+`throttle(ms, pattern, worker)` runs the worker for an action and then, for the next `ms` milliseconds, keeps only the newest incoming action, which it runs when the window ends. The worker therefore runs at most once per window.
 
 ```ts
 function* saga() {
@@ -407,7 +445,11 @@ throttle:    A-A-A → handles first, waits, handles next allowed
 
 ## 6. Error Handling
 
+When a `call`ed function throws or its promise rejects, the error is thrown back into the saga at that `yield`, so ordinary `try/catch` handles it. An error the saga does not catch ends it and travels up through its attached forks to the parent; if it reaches the root saga, the whole saga tree stops, and every watcher with it. So catch errors inside each worker.
+
 ### 6.1 Try/Catch in Worker Saga
+
+The standard shape: the worker wraps its effects in `try/catch`, dispatches a success action on the happy path and a failure action in `catch`, so the error becomes state the UI can show.
 
 ```ts
 function* fetchUsersSaga() {
@@ -423,6 +465,8 @@ function* fetchUsersSaga() {
 ```
 
 ### 6.2 Safe Wrapper
+
+A wrapper saga that runs any worker inside `try/catch` gives every watcher the same error handling without repeating it in each worker.
 
 ```ts
 function* safeSaga(saga, ...args) {
@@ -441,6 +485,8 @@ function* watchFetchUsers() {
 ```
 
 ### 6.3 Retry Pattern
+
+To retry a flaky call, loop over the attempts, `delay` a growing amount between them (exponential backoff: 1 s, 2 s, 4 s), and rethrow after the last one. Redux Saga also ships a built-in `retry(maxTries, delayMs, fn, ...args)` effect with a fixed delay.
 
 ```ts
 function* fetchWithRetry(fn, ...args) {
@@ -489,7 +535,11 @@ function* pollingSaga() {
 
 ## 7. Advanced Patterns
 
+These are real-world workflows built by combining the core effects: polling, multi-step processes, authentication, search and dashboards.
+
 ### 7.1 Polling
+
+Polling means asking the server for status again and again until a job is done. In a saga it is a loop of `call` + `delay`; starting it with `takeLatest` means a new start cancels the old poll.
 
 ```ts
 function* pollingSaga(action) {
@@ -520,11 +570,13 @@ function* watchPolling() {
 
 ### 7.2 Polling with Exponential Backoff
 
+Instead of a fixed gap, the delay between polls doubles each round, up to a ceiling. A job that finishes quickly is noticed quickly, and a long-running one isn't asked about every two seconds for ten minutes, which eases the load on the server.
+
 ```ts
 function* pollWithBackoff(action) {
   const { conversationId } = action.payload;
-  let interval = 15000;                      // start at 15s
-  const minInterval = 2000;
+  let interval = 2000;                       // start at 2s
+  const maxInterval = 30000;                 // never wait longer than 30s
 
   while (true) {
     try {
@@ -540,7 +592,7 @@ function* pollWithBackoff(action) {
       }
 
       yield delay(interval);
-      interval = Math.max(interval / 2, minInterval); // decrease interval
+      interval = Math.min(interval * 2, maxInterval); // 2s, 4s, 8s, 16s, 30s, 30s…
     } catch (error) {
       yield put(statusError(error.message));
       break;
@@ -550,6 +602,8 @@ function* pollWithBackoff(action) {
 ```
 
 ### 7.3 Multi-Step Workflow
+
+A workflow whose steps depend on each other reads as a sequence of blocking `call`s, with one `try/catch/finally` around the whole thing for failure and cleanup.
 
 ```ts
 function* createJobSaga(action) {
@@ -594,6 +648,8 @@ function* createJobSaga(action) {
 
 ### 7.4 Login/Logout Flow
 
+Because `take` blocks, a single loop can describe a whole session: wait for login, start it with `fork`, then wait for logout or failure and clean up. The order of the steps is enforced by the code itself.
+
 ```ts
 function* authFlowSaga() {
   while (true) {
@@ -628,6 +684,8 @@ function* loginSaga(credentials) {
 
 ### 7.5 Debounced Search
 
+Search-as-you-type combines `debounce` in the watcher (to wait for a pause in typing) with a worker that fetches and stores the results.
+
 ```ts
 function* searchSaga(action) {
   // Debounce is handled by the watcher
@@ -655,6 +713,8 @@ function* watchSearch() {
 ```
 
 ### 7.6 Parallel and Sequential Tasks
+
+Use `all` for independent requests that can run at once, and a run of blocking `call`s when each step needs the previous step's result.
 
 ```ts
 // Parallel: all run simultaneously
@@ -684,6 +744,8 @@ A channel is a queue that a saga can `take` from, the same way it takes Redux ac
 
 ### 8.1 Action Channel (Buffered Actions)
 
+`actionChannel(pattern)` buffers every matching action in a queue. A loop that `take`s from the channel and `call`s a worker then handles them one at a time, in order, with none dropped.
+
 ```ts
 import { actionChannel } from 'redux-saga/effects';
 
@@ -701,6 +763,8 @@ function* watchUpload() {
 ```
 
 ### 8.2 Event Channel (External Events)
+
+`eventChannel(subscribe)` turns an outside event source (a WebSocket, a browser event, a timer) into a channel a saga can `take` from. The subscribe function wires the source to `emit`, emitting `END` closes the channel, and the function it returns is the cleanup that runs when the channel closes.
 
 ```ts
 import { eventChannel } from 'redux-saga';
@@ -739,6 +803,8 @@ One of the biggest advantages of sagas: they yield plain objects, making them ea
 
 ### 9.1 Step-by-Step Testing
 
+Since a saga yields plain effect objects, a test can drive the generator by hand: call `next()`, compare the yielded effect with the expected one, and pass in a fake result for the next step. No network or store is involved.
+
 ```ts
 import { call, put, select } from 'redux-saga/effects';
 import { fetchUsersSaga } from './users.saga';
@@ -773,6 +839,8 @@ describe('fetchUsersSaga', () => {
 
 ### 9.2 Testing with redux-saga-test-plan
 
+`redux-saga-test-plan` runs the whole saga with `expectSaga` and lets you stub effects with "providers", then assert on the actions it dispatched. Unlike step-by-step tests, these do not break when effects are reordered.
+
 ```ts
 import { expectSaga } from 'redux-saga-test-plan';
 import * as matchers from 'redux-saga-test-plan/matchers';
@@ -802,6 +870,8 @@ describe('fetchUsersSaga', () => {
 ```
 
 ### 9.3 Testing with Select
+
+When a saga reads the store with `select`, the step-by-step test passes the fake state value into the `next()` call that follows the `select` effect.
 
 ```ts
 it('should use current user from store', () => {
@@ -838,6 +908,8 @@ it('should use current user from store', () => {
 
 ### 10.2 When to Use What
 
+The choice follows the shape of the async logic, from one-shot fetches up to long-running flows that must be cancelled or that consume outside events.
+
 ```
 Simple async (fetch + dispatch):
   → Thunk or Listener Middleware
@@ -862,6 +934,8 @@ External event sources (WebSocket, SSE):
 ```
 
 ### 10.3 Code Comparison
+
+The same fetch written three ways, to compare how much code each approach needs.
 
 ```ts
 // THUNK
@@ -896,6 +970,8 @@ listenerMiddleware.startListening({
 ---
 
 ## 11. Best Practices
+
+Conventions that keep a saga codebase organised and its workers safe.
 
 ### 11.1 Structure
 

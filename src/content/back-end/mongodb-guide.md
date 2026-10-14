@@ -49,6 +49,8 @@ Key characteristics:
 
 ### 2.1 Documents
 
+A *document* is one record: a set of field-value pairs, like a JSON object, that can nest objects and arrays. MongoDB stores it as BSON (binary JSON), which is faster to scan than text and adds types JSON lacks, such as dates and `ObjectId`. One document is capped at 16 MB.
+
 ```json
 // A MongoDB document (stored as BSON)
 {
@@ -85,6 +87,8 @@ db.createCollection("logs", {
 
 ### 2.3 ObjectId
 
+An `ObjectId` is the 12-byte value MongoDB generates for `_id` when you don't supply one. Its first 4 bytes are the creation time in seconds, so ids sort roughly by insertion order and you can read a document's creation time from its id without storing a separate field.
+
 ```js
 // ObjectId is a 12-byte unique identifier
 // Structure: 4-byte timestamp | 5-byte random | 3-byte counter
@@ -95,6 +99,8 @@ id.toString();        // "65a1b2c3d4e5f6a7b8c9d0e1"
 ```
 
 ### 2.4 Data Types
+
+BSON supports more types than JSON. The ones that matter in interviews: numbers are stored as 32-bit int, 64-bit int or double, `Decimal128` is exact (use it for money), and dates are real date values rather than strings, so they sort and compare correctly.
 
 ```js
 const bsonTypes = {
@@ -170,6 +176,8 @@ db.users.distinct("city");                  // ["New York", "London", ...]
 
 ### 3.3 Update
 
+An update takes a *filter* (which documents) and an *update document* of operators such as `$set` (§4.6). An *upsert* is an update with `{ upsert: true }`: if no document matches the filter, MongoDB inserts a new one built from the filter and the update, so "create or update" is a single atomic call.
+
 ```js
 // Update one
 db.users.updateOne(
@@ -226,6 +234,8 @@ db.users.drop();
 
 ### 4.1 Comparison
 
+Query operators are the `$`-prefixed keys inside a filter. Comparison operators test a field against a value: equal, not equal, greater or less than, and membership in a list (`$in`, `$nin`).
+
 ```js
 db.users.find({ age: { $eq: 30 } });       // equal (same as { age: 30 })
 db.users.find({ age: { $ne: 30 } });       // not equal
@@ -238,6 +248,8 @@ db.users.find({ age: { $nin: [25, 30] } }); // not in array
 ```
 
 ### 4.2 Logical
+
+Logical operators combine conditions. Listing several fields in one filter is already an implicit AND; you need explicit `$and` only to apply two conditions to the same field, and `$or`/`$nor` to match either or neither of several conditions.
 
 ```js
 // AND (implicit)
@@ -258,12 +270,16 @@ db.users.find({ $nor: [{ isActive: false }, { isDeleted: true }] });
 
 ### 4.3 Element
 
+Element operators test the field itself rather than its value: whether it exists at all (`$exists`) and what BSON type it holds (`$type`). They are useful in a flexible schema where older documents may lack a field.
+
 ```js
 db.users.find({ email: { $exists: true } });     // field exists
 db.users.find({ age: { $type: "number" } });      // field is number type
 ```
 
 ### 4.4 Array
+
+Array operators query inside arrays. A plain equality like `{ skills: "React" }` already matches any element; `$all` requires every listed value, `$size` matches an exact length, and `$elemMatch` requires that one single element satisfy all the conditions together.
 
 ```js
 // Match array containing value
@@ -285,6 +301,8 @@ db.users.find({
 
 ### 4.5 String / Regex
 
+`$regex` matches strings against a regular expression; only a case-sensitive pattern anchored with `^` can use an index efficiently. `$text` runs full-text search (word stemming, relevance score) and needs a text index on the field.
+
 ```js
 db.users.find({ name: { $regex: /^ali/i } });     // starts with "ali" (case insensitive)
 db.users.find({ name: /alice/i });                  // shorthand regex
@@ -294,6 +312,8 @@ db.users.find({ $text: { $search: "senior developer" } });
 ```
 
 ### 4.6 Update Operators
+
+Update operators say *how* to change a document, so the change happens atomically on the server instead of read-modify-write in your code. Field operators (`$set`, `$unset`, `$inc`, `$mul`, `$min`/`$max`, `$rename`) change values; array operators (`$push`, `$pull`, `$addToSet`, `$pop`) change arrays in place.
 
 ```json
 // Set fields
@@ -386,6 +406,8 @@ db.orders.aggregate([
 
 ### 5.2 Common Stages
 
+Each stage is one object with a single `$`-prefixed key. Put `$match` (and `$sort` where possible) first, because only stages at the start of the pipeline can use an index; everything after works on the documents the earlier stages passed along.
+
 ```json
 // $match - filter documents
 { $match: { age: { $gte: 18 } } }
@@ -449,6 +471,8 @@ db.orders.aggregate([
 
 ### 5.3 Aggregation Expressions
 
+Expressions compute a value from fields inside a stage such as `$project`, `$addFields` or `$group`. A string starting with `$` (`"$price"`) means "the value of that field", and `$$` refers to a variable, such as the per-element name defined by `$filter`.
+
 ```js
 // String
 ({ $concat: ["$firstName", " ", "$lastName"] });
@@ -503,6 +527,8 @@ Without an index, MongoDB answers a query by reading every document in the colle
 
 ### 6.1 Index Types
 
+Most indexes are single-field or compound (several fields, where the order decides which queries they serve). The options change behaviour: **unique** rejects duplicates, **partial** indexes only documents matching a filter, **TTL** deletes documents once a date field is older than a set age, and **text**, **wildcard** and **2dsphere** (geospatial) indexes serve special query types.
+
 ```js
 // Single field index
 db.users.createIndex({ email: 1 });                // ascending
@@ -544,6 +570,8 @@ db.places.createIndex({ location: "2dsphere" });
 
 ### 6.2 Index Management
 
+`explain("executionStats")` is how you check that a query uses the index you expect: the winning plan should show an `IXSCAN` stage, and `totalDocsExamined` should be close to the number of documents returned.
+
 ```js
 // List indexes
 db.users.getIndexes();
@@ -559,6 +587,8 @@ db.users.find({ email: "alice@example.com" }).explain("executionStats");
 
 ### 6.3 Index Strategies
 
+The ESR rule orders a compound index's fields as Equality, then Sort, then Range, so the index can narrow to exact matches, return them already sorted, and only then scan a range. A *covered query* is one whose filter and projection use only indexed fields, so MongoDB answers from the index without reading documents.
+
 ```
 1. Index fields used in queries (filter, sort, join)
 2. Compound index order: Equality → Sort → Range (ESR rule)
@@ -572,105 +602,35 @@ db.users.find({ email: "alice@example.com" }).explain("executionStats");
 
 ## 7. Schema Design
 
+Schema design in MongoDB means deciding what goes inside one document and what lives in its own collection. It is covered in full, with worked examples, in the [Database Schema guide](/backend/database-schema#3-embedding-vs-referencing); this section is the short version.
+
 ### 7.1 Embedding vs Referencing
 
-```json
-// EMBEDDING (denormalized) — good for 1:few, data read together
-{
-  _id: ObjectId("..."),
-  name: "Alice",
-  address: {                               // embedded
-    street: "123 Main St",
-    city: "NYC"
-  },
-  orders: [                                // embedded array
-    { product: "Widget", qty: 2, price: 9.99 },
-    { product: "Gadget", qty: 1, price: 24.99 }
-  ]
-}
-
-// REFERENCING (normalized) — good for 1:many, many:many, large/growing data
-// User document
-{
-  _id: ObjectId("user1"),
-  name: "Alice"
-}
-// Order documents (separate collection)
-{
-  _id: ObjectId("order1"),
-  userId: ObjectId("user1"),               // reference
-  product: "Widget",
-  qty: 2
-}
-```
+*Embedding* puts related data inside the parent document (a user's address), so one read returns everything and one write updates it atomically. *Referencing* stores only the other document's `_id` (an order's `userId`) and fetches it separately with `populate()` or `$lookup`, much like a foreign key in SQL. Examples of both are in [When to Embed](/backend/database-schema#when-to-embed) and [When to Reference](/backend/database-schema#when-to-reference).
 
 ### 7.2 When to Embed vs Reference
 
-| Embed | Reference |
-|-------|-----------|
-| Data is read together | Data is read independently |
-| 1:1 or 1:few relationship | 1:many or many:many |
-| Data rarely changes | Data changes frequently |
-| Document stays under 16MB | Sub-documents could grow unbounded |
-| Need atomic updates | Need to query sub-documents independently |
+Embed when the data is read together, belongs to one parent and stays small (1:1 or 1:few). Reference when it is read on its own, is shared by many parents, or can grow without limit, because one document is capped at 16 MB. The full checklist is the [Decision Matrix](/backend/database-schema#decision-matrix).
 
 ### 7.3 Common Patterns
 
-Each pattern is a named answer to one recurring schema problem. The rule behind all of them is the same: shape the document around how the application reads it, not around how the data is related.
+Each pattern is a named answer to one recurring schema problem, and the rule behind all of them is the same: shape the document around how the application reads it. Each one has an example in [Common Schema Patterns](/backend/database-schema#4-common-schema-patterns).
 
-- **Subset**: a document that embeds everything grows large, and every read pays to load it. Embed only the part you show every time (the last few orders) and keep the full history in its own collection.
-- **Bucket**: one document per reading gives millions of tiny documents, each with its own index entry. Grouping a fixed window (a day of sensor readings) into one document cuts the document and index count, and storing `count`, `sum`, `min` and `max` lets summaries skip the array entirely.
-- **Polymorphic**: things that are mostly alike but differ in a few fields (articles, videos, podcasts) live in one collection with a `type` field, so a single query lists them all instead of one query per collection.
-- **Attribute**: when each product has different fields, you cannot index them all by name. Storing them as an array of `{ key, value }` pairs lets one compound index on `attributes.key` and `attributes.value` serve every attribute.
-
-```json
-// Pattern 1: Subset pattern — embed frequently accessed fields, reference the rest
-// User profile (embedded subset)
-{
-  _id: ObjectId("..."),
-  name: "Alice",
-  avatarUrl: "/img/alice.jpg",
-  recentOrders: [/* last 5 orders */]      // subset
-}
-// Full order history in separate collection
-
-// Pattern 2: Bucket pattern — group time-series data
-{
-  sensorId: "temp-01",
-  date: ISODate("2024-01-15"),
-  readings: [
-    { time: ISODate("2024-01-15T00:00:00Z"), value: 22.5 },
-    { time: ISODate("2024-01-15T00:05:00Z"), value: 22.7 },
-    // ... up to 288 readings per day (5-min intervals)
-  ],
-  count: 288,
-  sum: 6480,
-  min: 20.1,
-  max: 25.3
-}
-
-// Pattern 3: Polymorphic pattern — different shapes in same collection
-// All "content" types in one collection
-{ type: "article", title: "...", body: "..." }
-{ type: "video", title: "...", url: "...", duration: 120 }
-{ type: "podcast", title: "...", url: "...", episodes: 50 }
-
-// Pattern 4: Attribute pattern — dynamic key-value pairs
-{
-  name: "Laptop",
-  attributes: [
-    { key: "cpu", value: "M3 Pro", unit: null },
-    { key: "ram", value: 36, unit: "GB" },
-    { key: "storage", value: 1, unit: "TB" }
-  ]
-}
-```
+- **Subset**: embed only the part you show every time (the last few orders) and keep the full history in its own collection.
+- **Bucket**: group a fixed window of readings (a day per sensor) into one document, with `count`/`sum`/`min`/`max` precomputed.
+- **Polymorphic**: things that are mostly alike (articles, videos, podcasts) share one collection with a `type` field.
+- **Attribute**: store varying fields as `{ key, value }` pairs so one compound index serves every attribute.
+- **Computed**, **Outlier** and **Tree** patterns are in the same section.
 
 ---
 
 ## 8. Mongoose ODM
 
+Mongoose is an ODM (object document mapper) for Node.js: it adds schemas, validation, hooks and joins on top of the MongoDB driver, which on its own accepts any document shape. This section is the reference for its API; the [Database Schema guide](/backend/database-schema#5-mongoose-odm) applies it to a full recruitment-domain model.
+
 ### 8.1 Connection
+
+`mongoose.connect()` opens a connection pool that every model shares, so you call it once at startup rather than per request.
 
 ```js
 const mongoose = require('mongoose');
@@ -684,6 +644,8 @@ mongoose.connection.on('error', (err) => console.error(err));
 ```
 
 ### 8.2 Schema and Model
+
+A *schema* declares the fields, types, defaults and validators for a collection's documents; a *model* is the class compiled from it that you query with (`User.find()`). Validation runs in your application (on `save()`, and on updates that pass `runValidators: true`), not in the database.
 
 ```js
 const userSchema = new mongoose.Schema({
@@ -723,6 +685,8 @@ const User = mongoose.model('User', userSchema);
 
 ### 8.3 CRUD with Mongoose
 
+Model methods mirror the driver's CRUD calls but return Mongoose documents with validation and hooks attached. Add `.lean()` to a read when you only need plain objects, which skips building those documents and is noticeably faster.
+
 ```js
 // Create
 const user = await User.create({ name: 'Alice', email: 'a@b.com' });
@@ -752,6 +716,8 @@ await User.deleteMany({ isActive: false });
 
 ### 8.4 Population (Joins)
 
+`populate()` is Mongoose's stand-in for a join. A field declared with `ref: 'User'` stores only an `ObjectId`; `populate('user')` runs a second query for those ids and swaps the full documents into the result. It is convenient, but it is still one extra round trip per populated path, so for heavy reporting use the `$lookup` aggregation stage instead.
+
 ```js
 // Schema with reference
 const orderSchema = new mongoose.Schema({
@@ -772,36 +738,75 @@ const orderV2 = await Order.findById(id)
     select: 'name department',
     populate: { path: 'department', select: 'name' }
   });
+
+// Conditional populate: filter, project, sort and limit the referenced docs
+const job = await Job.findById(jobId)
+  .populate({
+    path: 'candidates',
+    match: { status: 'active' },
+    select: 'name matchPercentage',
+    options: { sort: { matchPercentage: -1 }, limit: 10 },
+  });
 ```
 
 ### 8.5 Middleware (Hooks)
 
+Hooks (Mongoose calls them middleware) are functions Mongoose runs before (`pre`) or after (`post`) an operation such as `save`, `find` or `aggregate`. Inside a document hook like `save`, `this` is the document; inside a query hook like `find`, `this` is the query being built, so you can add conditions to it before it runs.
+
+The soft-delete filter is the reason hooks are worth knowing. With soft delete, a "deleted" record is still in the collection with `deletedAt` set. If every caller had to remember `{ deletedAt: null }`, one forgotten filter would show deleted records to users. A `pre(/^find/)` hook (the regex matches `find`, `findOne`, `findOneAndUpdate` and the rest) adds the filter in one place, so the default is safe and a caller has to ask explicitly for deleted rows. `aggregate` does not go through the find hooks, which is why it needs its own hook that prepends a `$match` stage.
+
+The hooks below are written without a `next` callback: they throw to report an error and use `async` for async work. That form works in current Mongoose versions, and Mongoose 9 removed the `next` parameter from `pre` hooks altogether.
+
 ```js
-// Pre-save hook
+// Pre-save hook: hash the password only when it changed
 userSchema.pre('save', async function () {
   if (this.isModified('password')) {
     this.password = await bcrypt.hash(this.password, 12);
   }
 });
 
-// Post-save hook
-userSchema.post('save', function(doc) {
-  console.log(`User ${doc.name} saved`);
+// Pre-save hook: validation that spans two fields.
+// Throwing aborts the save, and save() rejects with this error.
+jobSchema.pre('save', async function () {
+  if (this.salary.min && this.salary.max && this.salary.min > this.salary.max) {
+    throw new Error('Minimum salary cannot exceed maximum salary');
+  }
+  // Mongoose sets isNew to false once save() succeeds, so remember it for the post hook
+  this.$locals.wasNew = this.isNew;
 });
 
-// Pre-find hook (e.g., exclude deleted)
-userSchema.pre(/^find/, function () {
-  this.where({ isDeleted: { $ne: true } });
+// Post-save hook (side effects)
+jobSchema.post('save', async function (doc) {
+  if (doc.$locals.wasNew) {
+    await notifyTeam(doc.department, `New job created: ${doc.title}`);
+  }
 });
 
-// Pre-remove hook
+// Pre-find hook (auto-exclude soft-deleted)
+jobSchema.pre(/^find/, function () {
+  // Only apply if not explicitly querying deleted docs
+  if (!this.getQuery().deletedAt) {
+    this.where({ deletedAt: null });
+  }
+});
+
+// Pre-aggregate hook: aggregate skips the find hooks
+jobSchema.pre('aggregate', function () {
+  this.pipeline().unshift({ $match: { deletedAt: null } });
+});
+
+// Pre-delete hook: cascade delete
 userSchema.pre('findOneAndDelete', async function () {
   const user = await this.model.findOne(this.getQuery());
-  if (user) await Order.deleteMany({ user: user._id });   // cascade delete
+  if (user) await Order.deleteMany({ user: user._id });
 });
 ```
 
+Two bugs this version avoids. The older callback style needed `return next(err)`: without the `return`, the function carried on and called `next()` a second time after reporting the error. And checking `doc.isNew` in a `post('save')` hook never fires, because by then the save has succeeded and Mongoose has already set `isNew` to `false`; the flag has to be captured in the `pre` hook (here in `$locals`, a per-document scratch object Mongoose provides for exactly this).
+
 ### 8.6 Virtual Properties
+
+A virtual is a property defined on the schema but never stored in MongoDB: Mongoose computes it from other fields each time you read it. Use one for derived values (a full name, an "is active" flag) and for *virtual populate*, a reverse lookup that finds the documents pointing at this one without storing an array of their ids.
 
 ```js
 userSchema.virtual('fullName').get(function() {
@@ -815,10 +820,22 @@ userSchema.virtual('orders', {
   foreignField: 'user',
 });
 
+// Same join, but populate() fills in a number instead of the documents
+userSchema.virtual('orderCount', {
+  ref: 'Order',
+  localField: '_id',
+  foreignField: 'user',
+  count: true,
+});
+
 const user = await User.findById(id).populate('orders');
 ```
 
+Virtuals are left out of `toJSON()` output unless the schema sets `toJSON: { virtuals: true }`, as the schema in §8.2 does.
+
 ### 8.7 Static and Instance Methods
+
+A *static* is a function on the Model, for queries about the collection (`User.findByEmail`). An *instance method* is a function on each document, for behaviour of one record (`user.comparePassword`). Both keep query and domain logic next to the schema instead of scattered through route handlers.
 
 ```js
 // Static method (on the Model)
@@ -868,7 +885,11 @@ try {
 
 ## 10. Replication and Sharding
 
+Replication and sharding solve different problems. **Replication** keeps identical copies of the data on several servers, for availability and read capacity. **Sharding** splits one collection's data across several servers, for when the data or write load outgrows one machine. A production cluster usually uses both: every shard is itself a replica set.
+
 ### 10.1 Replica Sets
+
+A *replica set* is a group of `mongod` servers holding the same data. One **primary** takes all writes and records them in its oplog (operation log); the **secondaries** copy and replay that log, and if the primary fails they elect a new one.
 
 ```
 Primary (reads + writes) ←→ Secondary (reads) ←→ Secondary (reads)
@@ -884,6 +905,8 @@ Primary (reads + writes) ←→ Secondary (reads) ←→ Secondary (reads)
 An election needs a strict majority of voting members, so that two halves of a split network can never both elect a primary. That is why replica sets use an odd number of voters, and why an arbiter exists: it is a cheap extra vote for a set that has an even number of data-bearing members, without the cost of storing another copy of the data.
 
 ### 10.2 Sharding (Horizontal Scaling)
+
+*Sharding* splits a collection across several replica sets called shards, by a field you choose called the **shard key**: each shard holds a range (or hash range) of key values. Clients connect to **`mongos`**, a router that sends each query to the shard or shards that hold the matching keys.
 
 ```
 Client → mongos (router) → Shard 1 (replica set)
@@ -910,6 +933,8 @@ Good shard key: high cardinality (many distinct values, so the data can be split
 ## 11. Performance
 
 ### 11.1 Query Optimization
+
+Most slow MongoDB queries are a missing or unusable index, or a query that returns more data than the caller needs. The checks below go in that order: confirm the plan with `explain()`, then cut what is read and sent.
 
 ```js
 // Use explain() to analyze queries

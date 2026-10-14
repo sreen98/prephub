@@ -94,6 +94,8 @@ An element that is visually hidden but still in the tree is a common defect: an 
 
 ## 4. React Native Accessibility Props
 
+React Native exposes the platform accessibility APIs as props on its components. They set what a screen reader announces for an element: its name (label), its type (role), its current state and value, and what happens when it is activated (hint).
+
 ```jsx
 <Pressable
   accessible={true}                          // treat as a single element

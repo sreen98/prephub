@@ -63,9 +63,13 @@ Example: 128MB function, 200ms avg, 10M invocations/month
 
 ## 2. Core Concepts
 
+These are the mechanics every later section builds on: how an event reaches your code, how long the environment that runs it lives, and the hard limits.
+
 ### 2.1 Execution Model
 
-```
+Lambda runs your code inside an **execution environment**: an isolated micro-VM holding the language runtime, your code and a scratch `/tmp` disk. Each environment handles one request at a time; Lambda reuses an idle (warm) one when it can and creates a new one (a cold start) when it cannot.
+
+```text
 Event (HTTP, S3, SQS, etc.)
     |
     v
@@ -92,7 +96,9 @@ Response returned to caller
 
 ### 2.2 Execution Environment Lifecycle
 
-```
+Every execution environment goes through three phases: **Init** (start the runtime and run your module-level code, once per environment), **Invoke** (run the handler, once per event) and **Shutdown** (when Lambda retires the environment).
+
+```text
 INIT Phase (cold start):
   1. Download code/layers
   2. Create execution environment
@@ -128,7 +134,11 @@ SHUTDOWN Phase:
 
 ## 3. Lambda Function Structure
 
+A Lambda function is built around a **handler**: one exported function that receives the triggering `event` plus a `context` object and returns (or resolves to) the result.
+
 ### 3.1 Node.js Handler
+
+The handler is the function Lambda calls for each event. The function's configuration names it as `file.export`, for example `index.handler`.
 
 ```js
 // index.mjs (ES Modules)
@@ -230,6 +240,8 @@ The `event` structure depends on the trigger:
 ```
 
 ### 3.3 Context Object
+
+The `context` object describes the current invocation and its environment: the request id, function name, memory size, and how much time is left before the timeout.
 
 ```js
 export const handler = async (event, context) => {
@@ -334,7 +346,11 @@ Other:       Alexa, Lex, Step Functions
 
 ## 5. API Gateway + Lambda
 
+API Gateway is the managed HTTP front door most Lambda APIs sit behind: it receives the HTTP request, turns it into an event, invokes the function, and turns the return value back into an HTTP response.
+
 ### 5.1 REST API (v1) vs HTTP API (v2)
+
+API Gateway has two HTTP products: REST APIs (v1), with more features, and HTTP APIs (v2), which are cheaper and faster but simpler.
 
 | Feature | REST API (v1) | HTTP API (v2) |
 |---------|--------------|--------------|
@@ -412,6 +428,8 @@ function response(statusCode: number, body: unknown): APIGatewayProxyResult {
 
 ### 5.4 Lambda Function URLs (No API Gateway)
 
+A function URL is a dedicated HTTPS endpoint attached directly to one function, with no API Gateway in between. It suits webhooks and simple single-function APIs.
+
 ```ts
 // Simple HTTPS endpoint directly on Lambda (no API Gateway needed)
 // event format is similar to HTTP API v2
@@ -432,7 +450,11 @@ export const handler = async (event) => {
 
 ## 6. Environment and Configuration
 
+Configuration is everything about a function except its code: environment variables, memory (which also sets CPU), timeout, temporary disk, and what runs once at start-up.
+
 ### 6.1 Environment Variables
+
+Environment variables are key/value settings stored in the function's configuration and read through `process.env`, so the same code can run with different settings per stage.
 
 ```text
 // Set via console, CLI, or IaC
@@ -450,7 +472,9 @@ process.env._HANDLER;                      // 'index.handler'
 
 ### 6.2 Memory and Timeout
 
-```
+Memory is the one sizing setting, and Lambda allocates CPU in proportion to it; the timeout is how long a single invocation may run before Lambda stops it.
+
+```text
 Memory:  128 MB to 10,240 MB (1 MB increments)
          CPU scales proportionally with memory
          At 1,769 MB you get 1 full vCPU
@@ -468,6 +492,8 @@ The rule-of-thumb figures are starting points, not limits. Memory is also the CP
 
 ### 6.3 /tmp Storage
 
+Each execution environment has its own writable `/tmp` directory. It survives across warm invocations in that environment, but it is never shared between environments, so treat it as a cache, not storage.
+
 ```ts
 import { writeFileSync, readFileSync } from 'fs';
 
@@ -480,6 +506,8 @@ const cached = JSON.parse(readFileSync('/tmp/cache.json', 'utf8'));
 ```
 
 ### 6.4 Initialization (Outside Handler)
+
+Code at module level, outside the handler, runs once per execution environment during Init, and whatever it creates stays in memory for every warm invocation that environment serves. Put expensive setup there (SDK clients, database connections, parsed config) so you pay for it once per environment instead of once per request.
 
 ```ts
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -569,7 +597,9 @@ A cold start occurs when Lambda creates a new execution environment (no warm con
 
 ### 8.1 What Causes Cold Starts
 
-```
+A cold start happens whenever Lambda has to create an environment instead of reusing a warm one:
+
+```text
 1. First invocation (no environment exists)
 2. Scaling up (need more concurrent environments)
 3. Code or config change (new environment needed)
@@ -589,7 +619,7 @@ Java                500ms-5s+
 Factors that increase cold start:
   - Larger deployment package
   - More dependencies
-  - VPC configuration (historically several seconds; since 2019 ENIs are pre-created at deploy time, so the cold-start cost is negligible)
+  - VPC configuration (historically several seconds; since 2019 the ENIs, elastic network interfaces that plug the function into your VPC, are pre-created at deploy time, so the cold-start cost is negligible)
   - Too little memory allocated (CPU scales with memory, so init code runs slower)
   - Layers (slightly slower init)
 ```
@@ -617,7 +647,8 @@ export const handler = async (event) => {
 };
 
 // 6. Use Lambda SnapStart (Java 11+, Python 3.12+, .NET 8+)
-// Snapshots the initialized environment for instant restore
+// SnapStart runs Init once when you publish a version, snapshots the initialized
+// environment, and starts new environments from that snapshot instead of re-running Init
 
 // 7. Keep functions warm (invoke periodically — not recommended, use Provisioned Concurrency)
 ```
@@ -630,7 +661,9 @@ Concurrency is the number of requests your function is handling at the same mome
 
 ### 9.1 Concurrency Model
 
-```
+Each request in flight needs its own environment, so a function's concurrency is also the number of environments it is running.
+
+```text
 Each concurrent invocation = 1 execution environment
 
 100 simultaneous requests = 100 environments
@@ -644,7 +677,9 @@ Account default: 1,000 concurrent executions per region
 
 ### 9.2 Reserved Concurrency
 
-```
+Reserved concurrency is a per-function cap carved out of the account's concurrency pool: the function can never run more environments than that, and no other function can use them. It costs nothing extra, and setting it to 0 stops the function from being invoked at all.
+
+```text
 Sets a MAX concurrent executions for a function.
 Guarantees capacity AND limits impact.
 
@@ -656,7 +691,9 @@ Example: Reserve 100 for payment processing
 
 ### 9.3 Provisioned Concurrency
 
-```
+Provisioned concurrency keeps a set number of environments initialized ahead of time, so requests up to that number skip the cold start. You pay for those environments for as long as the setting is on, whether or not they serve traffic.
+
+```text
 Pre-initializes N execution environments (always warm).
 Eliminates cold starts for those N environments.
 
@@ -673,7 +710,11 @@ Use for: APIs needing consistent latency, scheduled traffic spikes
 
 ## 10. Database and Storage
 
+Environments are short-lived and many run at once, so state lives in external services. DynamoDB and S3 suit Lambda best because each call is a stateless HTTPS request with no connection to hold open; relational databases need connection management (§10.3).
+
 ### 10.1 DynamoDB (Recommended for Lambda)
+
+DynamoDB is AWS's serverless key-value and document database. It pairs well with Lambda because every call is an independent HTTPS request, so there is no connection pool to exhaust when concurrency spikes.
 
 ```ts
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -708,6 +749,8 @@ export const handler = async (event) => {
 ```
 
 ### 10.2 S3
+
+S3 is AWS's object storage: the function reads and writes objects through the SDK, and S3 can also trigger the function when an object is created or deleted.
 
 ```ts
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -768,7 +811,11 @@ export const handler = async (event) => {
 
 ## 11. Error Handling and Retries
 
+What happens when a handler fails depends on the invocation model from §4: the caller retries synchronous calls, Lambda retries asynchronous ones, and poll-based sources retry by reading the batch again.
+
 ### 11.1 Synchronous Invocations
+
+In a synchronous invocation the caller receives whatever the function returns or throws, and nobody retries for it. Behind API Gateway, return an error response yourself rather than throwing.
 
 ```ts
 // Throw an error → caller receives error response
@@ -789,7 +836,9 @@ export const handler = async (event) => {
 
 ### 11.2 Asynchronous Invocations
 
-```
+In an asynchronous invocation Lambda queues the event, retries a failed one itself, and can then hand it to a dead-letter queue (DLQ) or a failure destination so it is not lost.
+
+```text
 On failure:
   1. Lambda retries up to 2 times (configurable: 0, 1, or 2)
   2. After all retries fail:
@@ -806,7 +855,9 @@ Configuration:
 
 ### 11.3 SQS Trigger Error Handling
 
-```
+With an SQS trigger, Lambda polls the queue and deletes a batch only when the handler succeeds; on failure the messages reappear after the queue's visibility timeout and are processed again. A **dead-letter queue (DLQ)** is a second queue that receives a message once it has failed `maxReceiveCount` times, so a message that can never succeed stops retrying and waits there for inspection.
+
+```text
 On failure:
   1. Message becomes invisible (visibility timeout)
   2. After timeout, message reappears in queue
@@ -821,6 +872,8 @@ Configure on SQS queue:
 ```
 
 ### 11.4 Partial Batch Failure (SQS)
+
+By default one failed message fails its whole batch, so messages that succeeded are processed again. With `ReportBatchItemFailures` enabled on the event source mapping, the handler returns the ids of only the failed messages and Lambda retries just those.
 
 ```ts
 import { SQSEvent, SQSBatchResponse } from 'aws-lambda';
@@ -850,7 +903,11 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
 
 ## 12. Monitoring and Logging
 
+Lambda sends logs and metrics to CloudWatch automatically; tracing is opt-in.
+
 ### 12.1 CloudWatch Logs
+
+Everything the function writes to stdout or stderr (every `console.log`) goes to a CloudWatch Logs group named after the function. Logging JSON makes those lines searchable by field.
 
 ```text
 // All console.log output goes to CloudWatch Logs automatically
@@ -865,7 +922,7 @@ const log = (level, message, context, data = {}) => {
     message,
     timestamp: new Date().toISOString(),
     requestId: context.awsRequestId,          // Lambda request ID
-    traceId: process.env._X_AMZN_TRACE_ID,    // X-Ray trace header
+    traceId: process.env._X_AMZN_TRACE_ID,    // trace id from X-Ray, AWS's distributed tracing service (§12.3)
     ...data,
   }));
 };
@@ -877,7 +934,9 @@ export const handler = async (event, context) => {
 
 ### 12.2 CloudWatch Metrics
 
-```
+Lambda publishes these metrics to CloudWatch for every function, with no code.
+
+```text
 Built-in metrics (automatic):
   - Invocations         — number of invocations
   - Duration            — execution time
@@ -890,6 +949,8 @@ Custom metrics: Use CloudWatch embedded metric format or AWS SDK
 ```
 
 ### 12.3 X-Ray Tracing
+
+AWS X-Ray is AWS's distributed tracing service: it records how long each part of a request took (the function itself and every AWS SDK or HTTP call it made) and joins them into one trace across services. Turn on Active tracing in the function's configuration to send traces.
 
 ```ts
 // Enable active tracing in Lambda config
@@ -907,7 +968,11 @@ The X-Ray SDKs are in maintenance mode (end of support February 2027). For new c
 
 ## 13. Security
 
+Lambda security comes down to three things: what the function may do (its IAM execution role), where its secrets live, and which network it runs in.
+
 ### 13.1 IAM Execution Role
+
+The execution role is the IAM role the function assumes when it runs; its policies decide which AWS resources the code may call, so grant only what this function needs.
 
 ```json
 {
@@ -945,6 +1010,8 @@ The X-Ray SDKs are in maintenance mode (end of support February 2027). For new c
 
 ### 13.2 Secrets Management
 
+Keep secrets in Secrets Manager or Parameter Store rather than in plain environment variables, and cache them in module scope so each environment fetches them once rather than on every invocation.
+
 ```ts
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
@@ -971,7 +1038,9 @@ export const handler = async (event) => {
 
 ### 13.3 VPC Configuration
 
-```
+By default a function runs in a network AWS manages: it can reach the internet and public AWS endpoints, but not private resources inside your VPC. Attaching it to your VPC's subnets lets it reach those through an **ENI** (elastic network interface, a virtual network card placed in your subnet), at the cost of direct internet access.
+
+```text
 When Lambda needs to access private resources (RDS, ElastiCache, internal APIs):
   - Configure VPC, subnets, and security groups
   - Lambda gets ENI in your VPC
@@ -986,7 +1055,11 @@ When Lambda only accesses AWS services (DynamoDB, S3, SQS):
 
 ## 14. Deployment
 
+Real projects describe functions, triggers and permissions as code, so a deployment is repeatable and reviewable; these are the three common tools.
+
 ### 14.1 AWS SAM (Serverless Application Model)
+
+AWS SAM is an extension of CloudFormation with short-hand resource types for functions, APIs and tables, plus a CLI that builds, runs functions locally and deploys.
 
 ```yaml
 # template.yaml
@@ -1069,6 +1142,8 @@ sam local start-api                        # local API Gateway on port 3000
 
 ### 14.2 Serverless Framework
 
+The Serverless Framework is a third-party tool that describes functions and their triggers in `serverless.yml` and deploys them through CloudFormation.
+
 ```yaml
 # serverless.yml
 service: my-api
@@ -1130,6 +1205,8 @@ serverless logs -f getUsers --tail
 
 ### 14.3 CDK (Cloud Development Kit)
 
+The AWS CDK defines infrastructure in a general-purpose language (TypeScript here) and synthesizes it into a CloudFormation template.
+
 ```ts
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -1163,9 +1240,13 @@ export class MyApiStack extends cdk.Stack {
 
 ## 15. Patterns and Best Practices
 
+These habits follow from the execution model: environments are reused, events can arrive more than once, and you pay per millisecond of run time.
+
 ### 15.1 Single-Purpose Functions
 
-```
+A single-purpose function handles one action, which keeps its package small, its IAM permissions narrow and its metrics specific.
+
+```text
 GOOD: One function per action
   getUser, createUser, deleteUser
 
@@ -1217,7 +1298,9 @@ export const handler = async (event) => {
 
 ### 15.3 Keep Functions Small and Fast
 
-```
+A smaller, faster function means shorter cold starts and a smaller bill, since Lambda charges for duration.
+
+```text
 1. Minimize deployment package (tree-shake, exclude dev deps)
 2. Initialize SDK clients outside handler
 3. Use environment variables for config (not parameter store on every invocation)

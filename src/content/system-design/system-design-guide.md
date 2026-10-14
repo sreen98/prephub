@@ -768,9 +768,18 @@ class OrderAggregate {
 
 ## 7. Microservices Architecture
 
+The full treatment lives in the [Microservices guide](/backend/microservices); this section keeps the system-design view of which pattern to reach for.
+
+| Topic | The one-line answer | Full explanation |
+|---|---|---|
+| **Monolith vs microservices** | Start with a (modular) monolith; split when teams or scaling needs diverge | [Microservices §2](/backend/microservices#2-monolith-vs-microservice-vs-modular-monolith), [comparison table](/system-design/comparisons#monolith-vs-microservices) |
+| **Service communication** | Synchronous calls chain availability; asynchronous events decouple it at the cost of eventual consistency | [Microservices §4](/backend/microservices#4-communication-sync-vs-async) |
+| **Circuit breaker** | Stop calling a failing service and fail fast: closed → open → half-open | [Microservices §9](/backend/microservices#circuit-breaker) |
+| **Saga** | Local transactions plus compensating actions, run in reverse order when a later step fails | [Microservices §8](/backend/microservices#sagas) |
+
 ### Monolith vs Microservices
 
-A monolith is one application with one database. Microservices split the system into separately deployed services that each own their data and talk over the network. The diagrams show the structural difference; the trade-off is covered in Q9 below.
+A monolith is one application with one database. Microservices are separately deployed services that each own their data and talk over the network. The diagrams show the structural difference; the trade-off is in [Microservices §2](/backend/microservices#2-monolith-vs-microservice-vs-modular-monolith).
 
 **Monolith:**
 
@@ -802,40 +811,11 @@ graph TD
 
 ### Service Communication
 
-Synchronous calls are the simplest, but the caller waits, and it fails when the service it calls is down, so a chain of five synchronous services fails whenever any one of them does, making it less available than each service on its own. Asynchronous events decouple that: the order is saved even if the email service is down, at the cost of the rest happening later. gRPC is a synchronous option that sends compact binary messages over HTTP/2, with typed client code generated from a shared `.proto` schema file.
-
-```javascript
-// 1. Synchronous (HTTP/REST)
-// Service A calls Service B directly
-async function getUserOrders(userId) {
-  const user = await fetch('http://user-service/users/' + userId);
-  const orders = await fetch('http://order-service/orders?userId=' + userId);
-  return { user: await user.json(), orders: await orders.json() };
-}
-
-// 2. Asynchronous (Message Queue)
-// Service A publishes event, Service B consumes
-async function createOrder(orderData) {
-  const order = await db.orders.create(orderData);
-
-  // Publish event — other services react independently
-  await messageQueue.publish('order.created', {
-    orderId: order.id,
-    userId: order.userId,
-    amount: order.total,
-  });
-
-  return order;
-}
-
-// 3. gRPC (high-performance binary protocol)
-// Defined via .proto files, generates typed clients
-// Best for internal service-to-service calls
-```
+Synchronous calls are the simplest, but the caller fails whenever the service it calls is down, so a chain of five synchronous services is less available than any one of them. Asynchronous events decouple that (the order is saved even while the email service is down), and gRPC is the typed, binary option for internal calls. When to use each: [Microservices §4](/backend/microservices#4-communication-sync-vs-async).
 
 ### Circuit Breaker Pattern
 
-A circuit breaker stops calling a service that keeps failing, so your requests are not all stuck waiting on timeouts and the failing service gets room to recover. After a set number of failures it "opens" and fails every call instantly; after a cool-down it lets a trial call through ("half-open") and closes again if that succeeds. Q8 below walks through the three states.
+A circuit breaker stops calling a service that keeps failing, so callers fail fast instead of waiting on timeouts. The three states and why retries alone make an outage worse are in [Microservices §9](/backend/microservices#circuit-breaker); this is the minimal implementation interviewers ask you to write.
 
 ```javascript
 class CircuitBreaker {
@@ -894,55 +874,7 @@ async function callExternalService() {
 
 ### Saga Pattern (Distributed Transactions)
 
-You cannot wrap one database transaction around three services that each own a separate database. A saga runs each step as its own local transaction, and if a later step fails, it runs a compensating action for every earlier step: refund the payment, release the stock. In choreography, each service reacts to the previous service's event and nothing is in charge; in orchestration, one coordinator runs the sequence (both are sketched below), which is easier to follow and debug. Compensation is not a rollback: the customer may briefly see a charge before the refund arrives.
-
-```javascript
-// Choreography-based saga (event-driven)
-// Each service listens for events and publishes compensating events on failure
-
-// Orchestration-based saga (coordinator)
-class OrderSaga {
-  async execute(orderData) {
-    const steps = [];
-
-    try {
-      // Step 1: Reserve inventory
-      const reservation = await inventoryService.reserve(orderData.items);
-      steps.push({ service: 'inventory', action: 'release', data: reservation });
-
-      // Step 2: Process payment
-      const payment = await paymentService.charge(orderData.amount);
-      steps.push({ service: 'payment', action: 'refund', data: payment });
-
-      // Step 3: Create shipping
-      const shipping = await shippingService.create(orderData.address);
-      steps.push({ service: 'shipping', action: 'cancel', data: shipping });
-
-      return { success: true, orderId: orderData.id };
-    } catch (error) {
-      // Compensate — undo steps in reverse order
-      for (const step of steps.reverse()) {
-        await this.compensate(step);
-      }
-      return { success: false, error: error.message };
-    }
-  }
-
-  async compensate(step) {
-    switch (step.service) {
-      case 'inventory':
-        await inventoryService.release(step.data);
-        break;
-      case 'payment':
-        await paymentService.refund(step.data);
-        break;
-      case 'shipping':
-        await shippingService.cancel(step.data);
-        break;
-    }
-  }
-}
-```
+One database transaction cannot span three services that each own a database. A saga runs each step as a local transaction and, if a later step fails, runs a compensating action for every completed step in reverse order: refund the payment, release the stock. Choreography vs orchestration, why compensation is not a rollback, and the outbox pattern that makes the events reliable: [Microservices §8](/backend/microservices#8-sagas-and-the-outbox-pattern).
 
 ---
 
@@ -1090,25 +1022,11 @@ const distribution = {
 // index.html          → no-cache, always revalidate
 ```
 
-Two parts of that config carry the design. Hashed filenames (`index-a1b2c3d4.js`) change whenever the content changes, so they can be cached for a year without ever serving an outdated file, while `index.html` is always revalidated so that after a deploy it points at the new hashes. The 403 → `/index.html` rule is for single-page apps: S3 answers 403 for a path such as `/settings` that has no file behind it, and returning `index.html` instead lets the app's client-side router show the right page.
+Two parts of that config carry the design. Hashed filenames can be cached for a year while `index.html` is always revalidated (next section). The 403 → `/index.html` rule is the single-page-app deep-link fallback: S3 has no file at `/settings`, so it returns `index.html` and the client-side router renders the page. The same fix for other hosts: [React Router §13](/frontend/react-router#13-deploying-a-spa).
 
 ### Caching Headers
 
-Careful with the names: `no-cache` does not mean "do not cache". The browser may keep the file but must check with the server before using it, which is a cheap request that returns 304 Not Modified when nothing changed. `no-store` is the one that means never keep a copy. `stale-while-revalidate` lets the cache serve the old copy instantly while it fetches a fresh one in the background.
-
-```
-Cache-Control: public, max-age=31536000, immutable
-  → Static assets with content hash (JS, CSS, images)
-
-Cache-Control: no-cache
-  → HTML files (may be stored, but revalidated with the server before every use)
-
-Cache-Control: no-store
-  → Sensitive data (never cache)
-
-Cache-Control: public, max-age=3600, stale-while-revalidate=86400
-  → API responses (serve stale while fetching fresh)
-```
+Hashed assets get `public, max-age=31536000, immutable`; `index.html` gets `no-cache`, which means "store it but revalidate before every use" (`no-store` is the one that means never keep a copy); shared API responses can add `stale-while-revalidate` so the CDN serves the old copy while it refreshes. Why each layer is set that way, and what breaks when `index.html` is cached: [Frontend Architecture §6](/frontend/architecture#6-the-caching-layers).
 
 ---
 
@@ -1120,71 +1038,15 @@ A rate limiter caps how many requests one client can make in a period. It protec
 
 #### Token Bucket
 
-Picture a bucket that holds up to `capacity` tokens and refills at a steady rate. Each request takes a token, and an empty bucket means the request is rejected. The capacity decides how large a burst you allow; the refill rate decides the long-run average.
-
-```javascript
-class TokenBucket {
-  constructor(capacity, refillRate) {
-    this.capacity = capacity;
-    this.tokens = capacity;
-    this.refillRate = refillRate; // tokens per second
-    this.lastRefill = Date.now();
-  }
-
-  consume(tokens = 1) {
-    this.refill();
-    if (this.tokens >= tokens) {
-      this.tokens -= tokens;
-      return true;
-    }
-    return false;
-  }
-
-  refill() {
-    const now = Date.now();
-    const elapsed = (now - this.lastRefill) / 1000;
-    this.tokens = Math.min(this.capacity, this.tokens + elapsed * this.refillRate);
-    this.lastRefill = now;
-  }
-}
-```
+A bucket holds up to `capacity` tokens and refills at a steady rate; each request takes one, and an empty bucket rejects. Capacity sets the burst you allow, the refill rate the long-run average. Typed implementations of this and the other algorithms, with the memory/burst trade-off table: [Low-Level Design §7.2](/system-design/low-level-design#72-the-algorithms-and-the-trade-off).
 
 #### Sliding Window
 
-Keep the timestamp of every recent request and count the ones inside the last window. It is exact and has no burst at window edges, but storing every timestamp costs memory for each user.
-
-```javascript
-class SlidingWindowRateLimiter {
-  constructor(windowMs, maxRequests) {
-    this.windowMs = windowMs;
-    this.maxRequests = maxRequests;
-    this.requests = new Map(); // userId → timestamps[]
-  }
-
-  isAllowed(userId) {
-    const now = Date.now();
-    const windowStart = now - this.windowMs;
-
-    // Get user's request timestamps
-    const timestamps = this.requests.get(userId) || [];
-
-    // Filter to current window
-    const recent = timestamps.filter((t) => t > windowStart);
-
-    if (recent.length >= this.maxRequests) {
-      return false;
-    }
-
-    recent.push(now);
-    this.requests.set(userId, recent);
-    return true;
-  }
-}
-```
+Keep the timestamp of every recent request and count those inside the last window: exact, with no burst at window edges, but memory grows with the limit for every user. The sliding window *counter* gets close to that precision with two counters ([Low-Level Design §7.2](/system-design/low-level-design#72-the-algorithms-and-the-trade-off)).
 
 ### Redis-based Rate Limiting
 
-The limiters above keep their counts in one server's memory, so with several API servers each would count separately and a client could get several times the limit. Redis gives every server one shared counter. This version is a fixed window: the counter resets when the key expires, so a client can send 100 requests at the end of one window and 100 more at the start of the next, 200 in a few seconds. That is often acceptable; when it is not, use a sliding window or a token bucket stored in Redis.
+In-memory limiters keep their counts in one server's memory, so with several API servers each would count separately and a client could get several times the limit. Redis gives every server one shared counter. This version is a fixed window: the counter resets when the key expires, so a client can send 100 requests at the end of one window and 100 more at the start of the next, 200 in a few seconds. That is often acceptable; when it is not, use a sliding window or a token bucket stored in Redis.
 
 ```javascript
 import Redis from 'ioredis';
@@ -1231,28 +1093,13 @@ async function rateLimitMiddleware(req, res, next) {
 
 ### Three Pillars
 
-```
-1. Logging (What happened)
-   - Structured JSON logs
-   - Log levels: error, warn, info, debug
-   - Centralized log aggregation (ELK, CloudWatch)
+Logs say what happened, metrics say how much and how fast (RED for services, USE for resources), and traces show where the time went. The model, the RED/USE checklists and why the pillars are storage shapes rather than purposes: [Observability & SRE §1](/devops/observability-sre#1-monitoring-vs-observability) and [§2](/devops/observability-sre#2-metrics-and-the-prometheus-model).
 
-2. Metrics (What's the system doing)
-   - Request rate, error rate, latency (RED)
-   - Utilization, saturation, errors (USE)
-   - Business metrics (signups, orders)
-
-3. Tracing (How did it flow)
-   - Distributed request tracing
-   - Trace ID propagated across services
-   - Span timing for each service hop
-```
-
-The two acronyms are checklists for what to graph. RED (rate, errors, duration) is for services: how many requests, how many fail, how long they take. USE (utilization, saturation, errors) is for resources such as CPU, memory and disks: how busy they are, how much work is queued waiting for them, and how many errors they report. Tracing ties the pillars together across services: every request carries one trace ID, so you can see which of six services made it slow.
+The system-design point is the trace ID: the edge assigns one per request and every service propagates it, so you can see which of six services made a request slow ([Observability & SRE §8](/devops/observability-sre#8-traces-and-opentelemetry)).
 
 ### Structured Logging
 
-Structured logs are JSON objects instead of free-text sentences, so a log tool can filter `orderId = 456` across millions of lines instead of you searching text. Put the trace ID on every line so one request can be followed across services. Log ids rather than personal data such as emails: logs are copied into many tools and kept for a long time, and every copy of personal data is one more place a privacy rule applies.
+JSON log lines that carry the trace ID on every line, and ids rather than personal data. Why, and what to keep out of logs: [Observability & SRE §7](/devops/observability-sre#7-logs). A Node setup:
 
 ```javascript
 import winston from 'winston';
@@ -1430,59 +1277,15 @@ wss.on('connection', (ws, req) => {
 
 ### Server-Sent Events (SSE)
 
-Server-Sent Events are the simpler, one-way option. The client opens an ordinary HTTP request, the server keeps it open, and writes a `data: ...` line whenever it has something to send. The browser's `EventSource` reconnects on its own if the connection drops. Use it when only the server needs to push (notifications, live scores): it is plain HTTP, so it passes through most proxies unchanged.
-
-```javascript
-// Server
-app.get('/events', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  });
-
-  const sendEvent = (data) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  };
-
-  // Send updates
-  const interval = setInterval(() => {
-    sendEvent({ type: 'heartbeat', timestamp: Date.now() });
-  }, 30000);
-
-  req.on('close', () => clearInterval(interval));
-});
-
-// Client
-const eventSource = new EventSource('/events');
-eventSource.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('Received:', data);
-};
-```
+SSE is the one-way option: an ordinary HTTP response the server keeps open and writes `data:` lines to, with reconnection built into the browser's `EventSource`. Server and client code, `Last-Event-ID` replay and the HTTP/1.1 connection limit: [Real-Time Web §4](/frontend/realtime-web#4-server-sent-events-sse).
 
 ### Comparison
 
-```
-WebSocket:
-- Full duplex (bidirectional)
-- Binary + text data
-- Custom protocol (ws://)
-- Use for: chat, gaming, collaboration
+WebSocket for two-way traffic, SSE for server-only push over plain HTTP, long polling as the fallback; the full transport table is [Real-Time Web §10](/frontend/realtime-web#10-decision-table-picking-a-transport). At system scale the hard part is the connection, not the protocol:
 
-SSE (Server-Sent Events):
-- Server → Client only (unidirectional)
-- Text data only
-- HTTP protocol
-- Auto-reconnect built-in
-- Use for: notifications, live feeds, dashboards
-
-Long Polling:
-- Client polls repeatedly
-- Higher latency, more overhead
-- Works everywhere
-- Use for: fallback when WS/SSE unavailable
-```
+- Each open connection holds memory on one server, so connections need sticky routing and servers need raised file-descriptor limits.
+- A message for a user connected to another server needs a **pub/sub backbone** (Redis Pub/Sub, Kafka) to fan out across servers.
+- A **user → server map** (in Redis) tells you where to deliver, and heartbeats clean up dead entries. Q17 sizes this for a million connections.
 
 ---
 
@@ -1904,9 +1707,7 @@ Most production systems use horizontal scaling for the application tier and a mi
 
 **Q3: Explain caching. What is cache-aside pattern?**
 
-Caching stores frequently accessed data in a faster storage layer (like Redis) to reduce load on the primary database and improve response times.
-
-**Cache-aside** (lazy loading): The application checks the cache first. On a cache hit, it returns the cached data. On a cache miss, it reads from the database, populates the cache, and returns the data. This pattern is simple and only caches data that's actually requested, but the first request for any item is always slower (cold cache), and data can become stale if the database changes without the cache being invalidated.
+Caching keeps frequently read data in a faster store (like Redis) in front of the database. **Cache-aside**: the application checks the cache, and on a miss reads the database and fills the cache itself. Only requested data gets cached, but the first read is slow and a value stays stale until its TTL runs out or the key is deleted. Code, and how write-through and write-behind differ: [§4](#cache-aside-lazy-loading).
 
 ---
 
@@ -1935,15 +1736,9 @@ Layer 4 load balancers route based on IP/port (faster), while Layer 7 route base
 
 **Q6: What are WebSockets and when would you use them over REST?**
 
-WebSockets provide a persistent, full-duplex communication channel over a single TCP connection. Unlike REST (request-response), WebSockets allow both client and server to send messages at any time.
+A WebSocket is a persistent, two-way connection: either side can send at any time, unlike REST's request-response.
 
-The deciding question is who starts the conversation. If the server must push updates the moment they happen, REST forces the client to poll, which either wastes requests or adds delay, so a persistent connection wins. If the client asks and the server answers, REST is simpler, cacheable and needs no long-lived connection per user.
-
-Use WebSockets for: real-time chat, live notifications, collaborative editing, gaming, live dashboards, stock tickers.
-
-Use REST for: CRUD operations, data fetching, file uploads, operations that don't need real-time updates.
-
-SSE (Server-Sent Events) is a lighter alternative when you only need server-to-client streaming.
+The deciding question is who starts the conversation. If the server must push updates the moment they happen (chat, live dashboards, collaboration), REST forces polling, so a persistent connection wins. If the client asks and the server answers, REST is simpler, cacheable and needs no long-lived connection per user. For server-only push, SSE is lighter. Scaling the connections: [§13](#13-real-time-communication); the transport comparison: [Real-Time Web §10](/frontend/realtime-web#10-decision-table-picking-a-transport).
 
 ---
 
@@ -1951,25 +1746,15 @@ SSE (Server-Sent Events) is a lighter alternative when you only need server-to-c
 
 **Q7: How would you design a rate limiter?**
 
-A rate limiter controls the rate of requests a user/client can make to an API.
+A rate limiter caps how many requests a client can make in a period. Pick the algorithm by the burst you allow: a **token bucket** permits bursts up to its capacity while holding an average rate; a **sliding window** is exact but stores a timestamp per request. (Algorithm details: [Low-Level Design §7](/system-design/low-level-design#7-worked-design-rate-limiter).)
 
-**Token Bucket algorithm**: A bucket holds tokens up to a maximum capacity. Each request consumes a token. Tokens are added at a fixed rate. If the bucket is empty, the request is rejected. This allows bursts (up to bucket capacity) while maintaining an average rate.
-
-**Sliding Window**: Track timestamps of recent requests per user. Count requests within the window. If count exceeds the limit, reject. More precise than fixed windows but uses more memory.
-
-For distributed systems, keep the counter in Redis so every API server shares it, and run INCR and EXPIRE together in one Lua script so they are atomic (as two separate calls, a crash between them leaves a key that never expires). Return `429 Too Many Requests` with `Retry-After` and `X-RateLimit-*` headers.
+For distributed systems, keep the counter in Redis so every API server shares it, and run INCR and EXPIRE together in one Lua script so they are atomic (as two separate calls, a crash between them leaves a key that never expires). Return `429 Too Many Requests` with `Retry-After` and `X-RateLimit-*` headers. Code: [§10](#redis-based-rate-limiting).
 
 ---
 
 **Q8: Explain the circuit breaker pattern.**
 
-The circuit breaker prevents cascading failures when a downstream service is unhealthy. It has three states:
-
-1. **Closed** (normal): Requests flow through. Failures are counted.
-2. **Open** (tripped): After exceeding the failure threshold, all requests immediately fail without calling the downstream service. A timer starts.
-3. **Half-Open** (testing): After the timer expires, a limited number of test requests are allowed through. If they succeed, the circuit closes. If they fail, it reopens.
-
-This prevents a failing service from being overwhelmed with retries and allows it time to recover, while the caller gets fast failure responses instead of hanging.
+It stops a caller from hammering a failing downstream service. Three states: **closed** (calls flow, failures are counted), **open** (past the threshold, every call fails instantly while a timer runs) and **half-open** (after the timer, a few trial calls; success closes the breaker, failure reopens it). The caller fails fast instead of hanging, and the failing service gets room to recover. Implementation: [§7](#circuit-breaker-pattern); full treatment: [Microservices §9](/backend/microservices#circuit-breaker).
 
 ---
 
@@ -1977,11 +1762,7 @@ This prevents a failing service from being overwhelmed with retries and allows i
 
 **Short answer:** a monolith is one deployable unit and is the right starting point; microservices split it into independently deployed services, which pays off only once separate teams need to ship and scale separately, because you buy that independence with the cost of a distributed system.
 
-**Monolith**: Single deployable unit. All features share one codebase, one database, one deployment. Simpler to develop, test, debug, and deploy initially. But as it grows: longer build times, harder to scale individual features, one bug can take down everything, technology lock-in.
-
-**Microservices**: Each feature is an independent service with its own database, deployment, and potentially tech stack. Benefits: independent scaling, team autonomy, isolated failures, technology diversity. Costs: distributed system complexity (networking, data consistency, debugging), operational overhead (many services to deploy/monitor), inter-service communication latency.
-
-Start with a monolith and extract microservices when you have clear bounded contexts (areas of the business with their own data and vocabulary, such as billing or search) and team scaling needs.
+Start with a (modular) monolith and extract services when you have clear bounded contexts (areas of the business with their own data and vocabulary, such as billing or search) and team-scaling needs. The comparison table: [System Design Comparisons](/system-design/comparisons#monolith-vs-microservices); the full trade-off, including the modular monolith: [Microservices §2](/backend/microservices#2-monolith-vs-microservice-vs-modular-monolith) and [§14](/backend/microservices#14-when-to-choose-microservices-and-when-not-to).
 
 ---
 
@@ -2063,11 +1844,9 @@ The write database syncs to the read database (eventually consistent). Use CQRS 
 
 Options from simplest to most complex:
 
-1. **Saga pattern**: Break the transaction into a sequence of local transactions. Each service completes its step and publishes an event. If a step fails, compensating transactions undo previous steps. Two flavors: choreography (event-driven, no coordinator) and orchestration (a saga coordinator manages the flow).
-
-2. **Two-phase commit (2PC)**: A coordinator asks all participants to prepare (phase 1), then commit or rollback (phase 2). Strong consistency but blocks on coordinator failure and has poor performance.
-
-3. **Outbox pattern**: Write the event to an "outbox" table in the same database transaction as the business data. A separate process reads the outbox and publishes to the message broker. Guarantees at-least-once delivery without distributed transactions.
+1. **Saga pattern**: a sequence of local transactions, each with a compensating action that undoes it if a later step fails; choreographed by events or orchestrated by a coordinator ([Microservices §8](/backend/microservices#sagas)).
+2. **Two-phase commit (2PC)**: a coordinator asks every participant to prepare, then commit or roll back. Strongly consistent, but it blocks when the coordinator fails and performs poorly.
+3. **Outbox pattern**: write the event to an outbox table in the same transaction as the business data, and publish it from there, so the data and the event cannot disagree ([Microservices §8](/backend/microservices#the-outbox-pattern)).
 
 In practice, most microservice systems use sagas with eventual consistency and idempotent operations.
 

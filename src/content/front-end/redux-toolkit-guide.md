@@ -33,20 +33,17 @@ npm install @reduxjs/toolkit react-redux
 
 ## 2. Core Principles
 
+Redux rests on three rules about where state lives and how it may change. Every RTK API is a convenience built on top of them, so they explain why the APIs look the way they do.
+
 ### 2.1 Three Principles
 
-```
-1. Single source of truth
-   → One store holds the entire application state
-
-2. State is read-only
-   → Only way to change state is to dispatch an action
-
-3. Changes are made with pure functions
-   → Reducers take (state, action) and return new state (no mutations)
-```
+1. **Single source of truth.** The whole application state lives in one object, the store. Every component reads from the same place, so two parts of the UI cannot disagree about the data.
+2. **State is read-only.** Nothing changes the state directly; the only way to change it is to dispatch an action, a plain object that describes what happened. Every change is therefore visible and can be logged or replayed.
+3. **Changes are made with pure functions.** A reducer takes the current state and an action and returns the next state, without side effects and without modifying its inputs. Given the same inputs it always returns the same result, which makes updates predictable and easy to test.
 
 ### 2.2 Data Flow
+
+Data moves in one direction only: the UI dispatches an action, the reducer computes the next state, and the UI re-renders from that state. Nothing writes to the state by any other route.
 
 ```
                     ┌──────────┐
@@ -70,6 +67,8 @@ npm install @reduxjs/toolkit react-redux
 
 ### 2.3 Key Terminology
 
+The handful of terms every Redux discussion uses:
+
 ```
 Store      — Single object holding the entire app state
 Action     — Plain object { type: string, payload?: any } describing what happened
@@ -84,7 +83,11 @@ Middleware — Code that runs between dispatch and reducer (for side effects)
 
 ## 3. Redux Toolkit Setup
 
+Setting up RTK takes two steps: create the store from your slice reducers, then make it available to every component with `<Provider>`.
+
 ### 3.1 Minimal Setup
+
+The **store** is the single object that holds the whole app state; it also runs the reducers when an action arrives and notifies subscribers when the state changes. `configureStore` creates it from a map of slice reducers, one key per feature, and turns on the Redux DevTools and the default middleware. Wrapping the app in `<Provider store={store}>` lets any component reach it.
 
 ```ts
 // store.ts
@@ -115,6 +118,8 @@ import { store } from './store';
 
 ### 3.2 Typed Hooks
 
+Declaring typed versions of `useDispatch` and `useSelector` once means every component gets the right `RootState` and `AppDispatch` types without annotating them each time.
+
 ```ts
 // hooks.ts
 import { useDispatch, useSelector } from 'react-redux';
@@ -131,6 +136,8 @@ export const useAppSelector = useSelector.withTypes<RootState>();
 A slice is a collection of Redux reducer logic and actions for a single feature.
 
 ### 4.1 Basic Slice
+
+`createSlice` takes a name, an initial state and an object of reducer functions, and generates the reducer **and** a matching action creator for each case together, so action types and reducers can never drift apart. The action types are named `<slice name>/<reducer name>`, such as `counter/increment`. Each reducer may "mutate" `state` directly because RTK runs it through **Immer**, a library that records those changes on a draft and produces a new, immutable state from them (§4.3).
 
 ```ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
@@ -239,7 +246,7 @@ const immutableReducers = {
 
 ### 4.4 Extra Reducers (Handle External Actions)
 
-`reducers` defines actions that the slice *owns*: RTK generates an action creator for each. `extraReducers` is for reacting to actions defined *elsewhere*, most often the `pending` / `fulfilled` / `rejected` actions of an async thunk (§7), or another slice's action (for example, clearing data on `auth/logout`). No action creators are generated here, because the actions already exist.
+`reducers` defines actions that the slice *owns*: RTK generates an action creator for each. `extraReducers` is for reacting to actions defined *elsewhere*, most often the `pending` / `fulfilled` / `rejected` actions of an async thunk (a dispatched function that runs async code; §7), or another slice's action (for example, clearing data on `auth/logout`). No action creators are generated here, because the actions already exist.
 
 ```ts
 const usersSlice = createSlice({
@@ -270,6 +277,8 @@ const usersSlice = createSlice({
 
 ### 5.1 configureStore
 
+`configureStore` wraps the plain Redux `createStore` with good defaults: it combines the slice reducers, adds the thunk middleware and development-only checks for accidental mutation and non-serializable values, and connects the Redux DevTools. Pass `middleware` to customise that list, for example to add saga middleware.
+
 ```ts
 import { configureStore } from '@reduxjs/toolkit';
 import createSagaMiddleware from 'redux-saga';
@@ -298,6 +307,8 @@ sagaMiddleware.run(rootSaga);
 
 ### 5.2 Store Methods
 
+The store exposes three methods. Components rarely call them directly, because the React-Redux hooks call them for you.
+
 ```ts
 store.getState();                          // get current state
 store.dispatch(action);                    // dispatch an action
@@ -311,6 +322,8 @@ store.subscribe(listener);                 // listen for changes (returns unsubs
 Selectors are functions that extract and derive data from the store.
 
 ### 6.1 Basic Selectors
+
+A basic selector takes the root state and returns one piece of it. Defining it once, next to its slice, means components never need to know the shape of the state.
 
 ```ts
 // Simple selectors (inline)
@@ -357,6 +370,8 @@ const user = useAppSelector(state => selectUserById(state, '123'));
 
 ### 6.3 Selector Composition
 
+Selectors can be built from other selectors: `createSelector` takes the input selectors and a function that combines their results, and memoizes that result.
+
 ```ts
 const selectUsers = (state: RootState) => state.users.items;
 const selectFilter = (state: RootState) => state.users.filter;
@@ -384,7 +399,11 @@ const selectUserCount = createSelector(
 
 ## 7. Async Logic (Thunks)
 
+A reducer cannot do async work, so async logic lives in **thunks**. A thunk is a function you dispatch instead of a plain action object; the thunk middleware (on by default in `configureStore`) calls it with `dispatch` and `getState`, so it can await an API call and then dispatch ordinary actions with the result.
+
 ### 7.1 createAsyncThunk
+
+`createAsyncThunk(type, payloadCreator)` builds a thunk around an async function and dispatches three actions for you: `pending` when it starts, then `fulfilled` with the returned value or `rejected` with the error. `rejectWithValue` lets you choose the payload of the `rejected` action.
 
 ```ts
 import { createAsyncThunk } from '@reduxjs/toolkit';
@@ -425,6 +444,8 @@ export const fetchUsersV2 = createAsyncThunk(
 
 ### 7.2 Handling Thunk States
 
+A slice reacts to a thunk's three actions in `extraReducers`, typically setting a loading flag on `pending`, storing data on `fulfilled` and storing the error on `rejected`.
+
 ```ts
 const usersSlice = createSlice({
   name: 'users',
@@ -453,6 +474,8 @@ const usersSlice = createSlice({
 ```
 
 ### 7.3 Dispatching Thunks
+
+A component dispatches a thunk exactly like an action. `dispatch` returns a promise for it, and `.unwrap()` on that promise gives back the payload or throws the error, which is handy right after a form submit.
 
 ```tsx
 import { useEffect } from 'react';
@@ -488,6 +511,8 @@ Components talk to the store through two hooks from `react-redux`: `useSelector`
 
 ### 8.1 useSelector
 
+`useSelector(selector)` reads a value from the store and subscribes the component to it. After every dispatched action the selector runs again, and the component re-renders only when the result is a different value (compared with `===`).
+
 ```tsx
 import { useAppSelector } from './hooks';
 import { selectActiveUsers } from './users.slice';
@@ -508,6 +533,8 @@ function UserProfile() {
 
 ### 8.2 useDispatch
 
+`useDispatch()` returns the store's `dispatch` function, which a component calls in its event handlers to send an action or a thunk.
+
 ```tsx
 import { useAppDispatch } from './hooks';
 import { loginRequest, type LoginData } from './auth.slice';
@@ -524,6 +551,8 @@ function LoginForm() {
 ```
 
 ### 8.3 Component Pattern
+
+A typical connected component reads its data with selectors, fetches it in an effect by dispatching a thunk, and renders the loading, error and data states.
 
 ```tsx
 import { useEffect } from 'react';
@@ -574,6 +603,8 @@ function TodoList() {
 Middleware sits between dispatch and reducer, enabling side effects.
 
 ### 9.1 Custom Middleware
+
+A middleware is a function in three layers, `store => next => action`. It sees every dispatched action, and it can log it, change it, stop it, or call `next(action)` to pass it on to the next middleware and finally to the reducer.
 
 ```ts
 import { Middleware } from '@reduxjs/toolkit';
@@ -648,6 +679,8 @@ Cache freshness works through **tags**: a query says which data it *provides* (`
 
 ### 10.1 API Definition
 
+`createApi` declares a whole API in one place: a `baseQuery` (usually `fetchBaseQuery`, a small wrapper around `fetch`), and `endpoints` split into queries (reads) and mutations (writes). From that definition it generates a hook for each endpoint, such as `useGetUsersQuery`, plus a reducer and middleware that you add to the store.
+
 ```ts
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
@@ -715,6 +748,8 @@ export const {
 
 ### 10.2 Using RTK Query Hooks
 
+A query hook fetches on mount and returns `data`, `isLoading`, `error` and more; components using the same endpoint and arguments share one cached request. A mutation hook returns a trigger function plus the request state.
+
 ```tsx
 import { useGetUsersQuery, useCreateUserMutation } from './api.slice';
 import { Spinner } from './Spinner';
@@ -746,7 +781,11 @@ function UserList() {
 
 ## 11. Patterns and Best Practices
 
+Conventions that keep a Redux codebase easy to find your way around and quick to render.
+
 ### 11.1 Feature-Based Structure
+
+Group Redux code by feature (a folder per slice, with its selectors and thunks beside it) rather than by type (all actions in one folder, all reducers in another).
 
 ```
 src/store/
@@ -767,6 +806,8 @@ src/store/
 ```
 
 ### 11.2 Normalizing State
+
+Normalizing means storing each entity once, in a lookup table keyed by id, and referring to it by id everywhere else, as a database does. An update then touches one place, and lookups by id are instant. RTK's `createEntityAdapter` generates this shape and its update functions.
 
 ```json
 // BAD: nested/duplicated data
@@ -870,7 +911,11 @@ const { order } = useGetOrdersQuery(status, {
 
 ## 12. Testing
 
+Reducers and selectors are pure functions, so most Redux logic is tested without React. Components are tested by rendering them with a real store.
+
 ### 12.1 Testing Slices
+
+Call the slice's reducer with a state and an action created by its action creators, and assert on the state it returns.
 
 ```ts
 import counterReducer, { increment, decrement, incrementByAmount } from './counter.slice';
@@ -896,6 +941,8 @@ describe('counterSlice', () => {
 
 ### 12.2 Testing Selectors
 
+Build a small state object by hand and assert on what each selector returns from it.
+
 ```ts
 import { selectActiveUsers, selectUserCount } from './users.selectors';
 
@@ -918,6 +965,8 @@ describe('selectActiveUsers', () => {
 ```
 
 ### 12.3 Testing Components with Redux
+
+Render the component inside a `Provider` with a real store made by `configureStore` and test-specific `preloadedState`, then assert on what the user sees.
 
 ```tsx
 import { render, screen } from '@testing-library/react';

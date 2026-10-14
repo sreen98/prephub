@@ -521,81 +521,38 @@ The two attacks named in the isolation comment: **XS-Leaks** (cross-site leaks) 
 
 **Q1: What is XSS and how do you prevent it?**
 
-XSS is executing attacker-controlled JavaScript in your origin. The impact is total: the attacker's script gets any token JavaScript can read, can make authenticated requests as the user, can read the DOM and can capture keystrokes.
+XSS (cross-site scripting) is an attacker's JavaScript running in your origin, so it gets everything the user has: any token JavaScript can read, authenticated requests as the user, the DOM and the keyboard. There are three types (stored, reflected and DOM-based), and DOM-based is the one server-side defences miss, because a payload in the URL fragment (`#...`) is never sent to the server.
 
-Three types, and the third is the one that defeats server-side defences:
+- **Fix the sink.** Frameworks encode output for you, so modern XSS is almost always a way around the framework: `dangerouslySetInnerHTML`, or an interpolated `href`/`src`. React escapes text, not URL schemes, so allowlist `https:`, `mailto:` and relative URLs yourself.
+- **Sanitise HTML you must render** (rich text, markdown, CMS content) with DOMPurify, never a regex, and sanitise on output rather than on input.
+- **Add defence in depth.** A strict nonce + `strict-dynamic` CSP limits what an injection can do, and Trusted Types makes the dangerous DOM sinks refuse plain strings. Neither excuses fixing the sink.
 
-- **Stored** — the payload is in your database and served to every viewer.
-- **Reflected** — the payload is in the request and echoed into the response.
-- **DOM-based** — the payload **never reaches the server**. `element.innerHTML = location.hash` is exploitable via the fragment, which browsers don't send to the server, so your WAF, your server-side escaping and your logs never see it.
-
-The real fix is **contextual output encoding**, and frameworks do it for you — which is why modern XSS is almost always a case of escaping the framework. In React that means `dangerouslySetInnerHTML`, and the one people miss:
-
-```jsx
-<a href={userUrl}>Link</a>   // userUrl = "javascript:alert(1)" → XSS on click
-```
-
-React escapes *text*, not URL schemes. You need your own allowlist (`/^(https?:|mailto:|\/)/i`), and the same applies to `src`, `formaction` and `srcdoc`.
-
-When you genuinely must render HTML — a rich-text editor, markdown, CMS content — sanitise with **DOMPurify**, never a regex. HTML isn't a regular language, and the bypass space includes `<img onerror>`, `<svg onload>`, mutation XSS where the browser's parser rewrites your "sanitised" output into something executable, and a long tail of encoding variants. Maintained sanitisers exist because people keep finding new bypasses.
-
-**Sanitise on output, not input** — input sanitisation loses information, breaks legitimate content, and gets applied inconsistently as new write paths appear. Store what the user typed; encode for the context you render into.
-
-Then defence in depth: a **strict CSP** (nonce + `strict-dynamic`) limits what an injection can do, and **Trusted Types** makes the dangerous DOM sinks refuse plain strings entirely. Neither excuses the sink fix — they're the second layer.
+The encoding rules per context, the DOM sink list and the modern cases (LLM output, SVG uploads, `postMessage`) are in [§2](#2-xss).
 
 ---
 
 **Q2: What is CSRF and how is it different from XSS?**
 
-They're often confused and are almost opposites.
+They're almost opposites. **XSS** is the attacker's code running in your origin, so they can read and write anything the user can. **CSRF** (cross-site request forgery) makes the victim's browser send a request the victim didn't intend. The attacker can't read the response, so it's a write-only attack, and it works because the browser attaches cookies by destination, whichever site started the request.
 
-**XSS** is an attacker running **their code in your origin.** They get read *and* write, and full access to whatever the user has.
+- **`SameSite=Lax`** (set it explicitly) is the baseline, but not enough on its own: `Lax` still sends the cookie on a top-level cross-site `GET`, and subdomains count as the same site.
+- **An anti-CSRF token** (a synchroniser token or a signed double-submit cookie) is the actual control, plus an `Origin`/`Sec-Fetch-Site` check and a rule that `GET` never changes state.
+- **A token in an `Authorization` header isn't CSRF-exposed**, but `HttpOnly` cookie auth is, whatever shape your API has. That's why you need both the XSS and the CSRF controls.
 
-**CSRF** is an attacker causing **the victim's browser to send a request the victim didn't intend.** The attacker cannot read the response — the same-origin policy prevents that — so CSRF is a **write-only** attack. It's about side effects, not data theft.
-
-It works because **cookies are attached automatically** by the browser based on the destination, regardless of which site initiated the request:
-
-```html
-<!-- on evil.com — the victim's bank.com session cookie rides along -->
-<form action="https://bank.com/transfer" method="POST">…</form>
-<script>document.forms[0].submit();</script>
-```
-
-Defences, layered:
-
-1. **`SameSite=Lax` cookies** (set it explicitly: only Chromium browsers default a missing attribute to `Lax`) block the cookie on cross-site POST. Necessary but **not sufficient**: `Lax` still sends it on a top-level cross-site **GET** navigation, `SameSite` is *site*-scoped so subdomains count as same-site, and older or non-browser clients may not enforce it.
-2. **Anti-CSRF tokens** — the actual control. The attacker can cause a request but cannot read a value from your origin. Synchroniser token (server-side state) or signed double-submit cookie.
-3. **Validate `Origin`** or `Sec-Fetch-Site` on state-changing requests.
-4. **Never let `GET` mutate state** — that removes half the exposure.
-
-And the useful nuance: if your API authenticates via a **token in an `Authorization` header**, it isn't CSRF-vulnerable, because the browser doesn't attach that header automatically. But many SPAs correctly use `HttpOnly` cookies to resist XSS and *then* wrongly assume they're CSRF-immune because "we're an API." Cookie auth means CSRF applies, whatever shape your endpoints are — which is exactly why you need both controls rather than picking one.
+Full explanation, with the forged-form example: [§4](#4-csrf).
 
 ---
 
 **Q3: Where should you store a JWT in a browser?**
 
-The answer that scores refuses the premise: **any token JavaScript can read is XSS-exfiltratable**, so this is a question about the size of the attacker's window, not about whether they get the token.
+The answer that scores refuses the premise: **any token JavaScript can read can be stolen by XSS**, so `localStorage` versus memory only changes how long the attacker's window is. `localStorage` is the worst common choice because it persists; memory is better, but it's a mitigation, not a fix.
 
-| Storage | XSS-readable | CSRF-exposed |
-|---|---|---|
-| `localStorage` | **yes** | no |
-| Non-`HttpOnly` cookie | **yes** | yes |
-| **`HttpOnly` cookie** | **no** | yes |
-| JS memory | yes (same context) | no |
+- **Recommend the BFF (backend-for-frontend) pattern.** The browser holds only an opaque `HttpOnly; Secure; SameSite=Lax` session cookie, and a small server you own holds the real tokens. The browser never sees an access token.
+- **Without a BFF:** access token in memory only, refresh token in an `HttpOnly` cookie scoped to the refresh endpoint's path, short access-token lifetimes.
+- **Cookies bring CSRF**, so add a CSRF token and the `__Host-` cookie prefix.
+- **A stateless JWT can't be revoked** before it expires, so for most products an opaque session token with a server-side store is the better default.
 
-`localStorage` is the worst common choice: persistent, so a single injection at any point captures a token the attacker can replay from anywhere until it expires. In-memory is better — it doesn't survive a reload, so a one-shot injection may miss it — but it's a mitigation, not a fix.
-
-**What I'd actually recommend is the BFF pattern:**
-
-```
-Browser ──[HttpOnly session cookie]──▶ Your BFF ──[access token]──▶ API
-```
-
-The browser holds only an opaque `HttpOnly; Secure; SameSite=Lax` session cookie; the backend-for-frontend holds the real tokens and attaches them server-side. **The browser never sees an access token.** The best an injected script can then do is make requests *through* your BFF as the user — bad, but far better than a stealable bearer token replayable from anywhere.
-
-If a BFF isn't possible: access token in memory only, refresh token in an `HttpOnly` cookie scoped to the refresh endpoint path, short access-token lifetimes.
-
-Because cookies bring CSRF, add `SameSite` plus a CSRF token, and use the **`__Host-` prefix** so the cookie can't be set by a subdomain. And note the JWT trade-off directly: a stateless JWT **cannot be revoked** before expiry, so you get "no database hit per request" and lose "log this person out." For most products an opaque session token with a server-side store is the better default.
+The storage table and the BFF diagram are in [§5.1](#51-the-storage-question); cookie attributes and token design are in [§5.2](#52-cookie-attributes) and [§5.3](#53-session-and-token-design).
 
 ---
 

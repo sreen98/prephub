@@ -28,6 +28,8 @@ A comprehensive guide to database schema design for MongoDB and relational datab
 
 ### Data Modeling Process
 
+*Data modeling* is deciding which things (entities) your system stores, what facts each one has, and how they relate, before you write any schema. The order below matters: access patterns come before the embed-or-reference choice, because in a document database the right shape depends on how the data is read.
+
 ```
 1. Identify entities (users, jobs, candidates, etc.)
 2. Define attributes for each entity
@@ -70,6 +72,8 @@ The idea behind every principle below: **design the storage around the questions
 
 ### Document Structure
 
+A MongoDB document is one record stored as BSON (binary JSON): field-value pairs that can nest objects and arrays, up to 16 MB. The job below shows the usual mix: a small related record embedded (`department`), a bounded array (`skills`), and references by `ObjectId` to records that live elsewhere (`createdBy`).
+
 ```json
 // A MongoDB document is a JSON-like object
 {
@@ -98,6 +102,8 @@ The idea behind every principle below: **design the storage around the questions
 ```
 
 ### Data Types
+
+BSON adds types that JSON lacks. The ones that affect schema design are real dates (which sort and compare correctly), `ObjectId` for references, and `Decimal128` for exact decimal values such as money, where a double would introduce rounding errors.
 
 ```json
 // Common MongoDB/BSON types
@@ -227,6 +233,8 @@ const jobWithDenormalisedDepartment = {
 
 ### Decision Matrix
 
+The matrix sums up the two sections above: each row is one question about the relationship, and the column whose answer matches yours is the usual choice. When the rows disagree, the access pattern and unbounded growth usually win.
+
 ```
                        Embed              Reference
 ─────────────────────────────────────────────────────
@@ -266,6 +274,21 @@ Use this when documents in one collection have different sets of fields: a shirt
 
 // Index: { "attributes.key": 1, "attributes.value": 1 }
 // Query: db.products.find({ attributes: { $elemMatch: { key: "color", value: "red" } } })
+```
+
+### Subset Pattern
+
+A document that embeds everything grows large, and every read pays to load all of it. The subset pattern embeds only the part you show every time (a user's last five orders) and keeps the full history in its own collection, which is read only when someone opens it.
+
+```json
+// User profile: embeds a small, bounded subset
+{
+  _id: ObjectId("..."),
+  name: "Alice",
+  avatarUrl: "/img/alice.jpg",
+  recentOrders: [/* last 5 orders */]
+}
+// The full order history lives in the orders collection
 ```
 
 ### Bucket Pattern
@@ -453,6 +476,8 @@ There are several ways to store a hierarchy (an org chart, categories), and each
 
 ### Schema Definition
 
+A Mongoose schema declares each field's type, defaults and validators, and the indexes the collection needs; `mongoose.model()` compiles it into the model you query with. The job schema below is the domain model the rest of this guide builds on. The Mongoose API itself is covered in the [MongoDB guide's Mongoose section](/backend/mongodb#8-mongoose-odm).
+
 ```javascript
 import mongoose from 'mongoose';
 
@@ -541,142 +566,27 @@ export const Job = mongoose.model('Job', jobSchema);
 
 ### Virtuals
 
-```javascript
-// Computed properties not stored in DB
-jobSchema.virtual('isActive').get(function () {
-  return ['open', 'under_assessment'].includes(this.status);
-});
-
-jobSchema.virtual('primarySkills').get(function () {
-  return this.skills.filter((s) => s.isPrimary);
-});
-
-// Virtual populate (reference without storing)
-jobSchema.virtual('candidates', {
-  ref: 'Candidate',
-  localField: '_id',
-  foreignField: 'jobId',
-});
-
-// Same join, but populate() fills in a number instead of the documents
-jobSchema.virtual('candidateCount', {
-  ref: 'Candidate',
-  localField: '_id',
-  foreignField: 'jobId',
-  count: true, // only get count, not full docs
-});
-```
+A virtual is a property computed from other fields and never stored, such as a job's `isActive` flag derived from `status`. A *virtual populate* (`jobSchema.virtual('candidates', { ref: 'Candidate', localField: '_id', foreignField: 'jobId' })`) lets a job list its candidates without storing their ids, which is how the unbounded one-to-many from [When to Reference](#when-to-reference) stays readable. The API, including the `count: true` variant, is in the [MongoDB guide's Virtual Properties](/backend/mongodb#86-virtual-properties).
 
 ### Middleware (Hooks)
 
-Hooks (Mongoose calls them middleware) are functions Mongoose runs before (`pre`) or after (`post`) an operation such as `save`, `find` or `aggregate`. Inside a document hook like `save`, `this` is the document; inside a query hook like `find`, `this` is the query being built, so you can add conditions to it before it runs.
-
-The soft-delete filter is the reason hooks are worth knowing. With soft delete, a "deleted" job is still in the collection with `deletedAt` set. If every caller had to remember `{ deletedAt: null }`, one forgotten filter would show deleted jobs to users. A `pre(/^find/)` hook (the regex matches `find`, `findOne`, `findOneAndUpdate` and the rest) adds the filter in one place, so the default is safe and a caller has to ask explicitly for deleted rows. `aggregate` does not go through the find hooks, which is why it needs its own hook that prepends a `$match` stage.
-
-The hooks below are written without a `next` callback: they throw to report an error and use `async` for async work. That form works in current Mongoose versions, and Mongoose 9 removed the `next` parameter from `pre` hooks altogether.
-
-```javascript
-// Pre-save hook: validation that spans two fields.
-// Throwing aborts the save, and save() rejects with this error.
-jobSchema.pre('save', async function () {
-  if (this.salary.min && this.salary.max && this.salary.min > this.salary.max) {
-    throw new Error('Minimum salary cannot exceed maximum salary');
-  }
-  // Mongoose sets isNew to false once save() succeeds, so remember it for the post hook
-  this.$locals.wasNew = this.isNew;
-});
-
-// Pre-find hook (auto-exclude soft-deleted)
-jobSchema.pre(/^find/, function () {
-  // Only apply if not explicitly querying deleted docs
-  if (!this.getQuery().deletedAt) {
-    this.where({ deletedAt: null });
-  }
-});
-
-// Post-save hook (side effects)
-jobSchema.post('save', async function (doc) {
-  if (doc.$locals.wasNew) {
-    await notifyTeam(doc.department, `New job created: ${doc.title}`);
-  }
-});
-
-// Pre-aggregate hook
-jobSchema.pre('aggregate', function () {
-  this.pipeline().unshift({ $match: { deletedAt: null } });
-});
-```
-
-Two bugs this version avoids. The older callback style needed `return next(err)`: without the `return`, the function carried on and called `next()` a second time after reporting the error. And checking `doc.isNew` in a `post('save')` hook never fires, because by then the save has succeeded and Mongoose has already set `isNew` to `false`; the flag has to be captured in the `pre` hook (here in `$locals`, a per-document scratch object Mongoose provides for exactly this).
+Hooks are functions Mongoose runs before (`pre`) or after (`post`) an operation. For schema design the one that matters is the soft-delete filter: a `pre(/^find/)` hook adds `{ deletedAt: null }` to every find, and a `pre('aggregate')` hook prepends the same `$match`, so a forgotten filter can never show deleted jobs. The full hook code, and the two bugs it avoids, are in the [MongoDB guide's Middleware section](/backend/mongodb#85-middleware-hooks).
 
 ### Static Methods & Instance Methods
 
-```javascript
-// Static methods (on the Model)
-jobSchema.statics.findByDepartment = function (departmentId, tenantId) {
-  return this.find({ department: departmentId, tenantId })
-    .sort({ createdAt: -1 })
-    .populate('createdBy', 'name email');
-};
-
-jobSchema.statics.getStatusCounts = function (tenantId) {
-  return this.aggregate([
-    { $match: { tenantId, deletedAt: null } },
-    { $group: { _id: '$status', count: { $sum: 1 } } },
-  ]);
-};
-
-// Instance methods (on a document)
-jobSchema.methods.close = function (reason) {
-  this.status = 'closed';
-  this.closedAt = new Date();
-  this.closeReason = reason;
-  return this.save();
-};
-
-jobSchema.methods.isExpired = function () {
-  return this.dueDate && this.dueDate < new Date();
-};
-
-// Usage
-const jobs = await Job.findByDepartment(deptId, tenantId);
-const counts = await Job.getStatusCounts(tenantId);
-await job.close('Position filled');
-```
+Statics live on the model and answer questions about the collection (`Job.findByDepartment(deptId, tenantId)`); instance methods live on a document and change one record (`job.close('Position filled')`). See [Static and Instance Methods](/backend/mongodb#87-static-and-instance-methods) for the API.
 
 ### Population (Joins)
 
-```javascript
-// Basic populate
-const job = await Job.findById(jobId)
-  .populate('department')        // Full department document
-  .populate('createdBy', 'name email');  // Only name and email
-
-// Nested populate
-const jobV2 = await Job.findById(jobId)
-  .populate({
-    path: 'department',
-    populate: {
-      path: 'manager',
-      select: 'name email',
-    },
-  });
-
-// Conditional populate
-const jobV2V2 = await Job.findById(jobId)
-  .populate({
-    path: 'candidates',
-    match: { status: 'active' },
-    select: 'name matchPercentage',
-    options: { sort: { matchPercentage: -1 }, limit: 10 },
-  });
-```
+`populate()` replaces a stored `ObjectId` such as `job.department` with the referenced document, at the cost of one extra query per path. It supports field selection, nesting and filtered, sorted, limited populates; all are shown in the [MongoDB guide's Population section](/backend/mongodb#84-population-joins).
 
 ---
 
 ## 6. Indexing Strategies
 
 ### Index Types
+
+An index is a sorted copy of one or more fields with a pointer back to each document, so a query can jump to matching entries instead of scanning the whole collection; every index also slows writes and uses memory. The types differ in what they store: one field, several fields in a fixed order (compound), only documents that have the field (sparse) or match a filter (partial), or entries that expire (TTL).
 
 ```javascript
 // 1. Single field index
@@ -749,6 +659,8 @@ db.jobs.createIndex({
 
 ### Index Analysis
 
+`explain('executionStats')` runs the query and reports the plan MongoDB chose and how much work it did. The number to compare is documents examined against documents returned: when they are close, the index is doing its job.
+
 ```javascript
 // Explain a query to see if it uses indexes
 const explanation = await db.jobs
@@ -771,6 +683,8 @@ const explanation = await db.jobs
 ## 7. Data Modeling for Common Domains
 
 ### User Management
+
+The models in this section are complete schemas for features most SaaS apps need, each with the indexes its main queries use. Users are scoped by `tenantId`, which is why email is unique per tenant (a compound unique index) rather than globally.
 
 ```javascript
 const userSchema = new mongoose.Schema({
@@ -795,6 +709,8 @@ userSchema.index({ tenantId: 1, role: 1, isActive: 1 });
 ```
 
 ### Job & Candidates (Recruitment Domain)
+
+A job can attract thousands of candidates and one candidate can apply to many jobs, so this is a many-to-many relationship. It is modelled with a separate join collection (one document per application) instead of an array on either side, which also gives each application its own status and match score.
 
 ```javascript
 // Job Description
@@ -890,6 +806,8 @@ candidateSchema.index({ tenantId: 1, 'skills.name': 1 });
 
 ### Audit Trail
 
+An *audit trail* is an append-only log of who did what to which record and when, kept for security reviews and compliance. Entries are written once and never updated, so each entry stores the actor's details and the `before`/`after` values themselves rather than references to state that may later change. A TTL index deletes entries once they pass the retention period.
+
 ```javascript
 const auditLogSchema = new mongoose.Schema({
   action: {
@@ -927,6 +845,8 @@ auditLogSchema.index({ tenantId: 1, 'actor.userId': 1, timestamp: -1 });
 
 ### Notifications
 
+A notification is a message addressed to one user, with a read/unread state. The main query is "this user's unread notifications, newest first", so the first compound index serves exactly that query.
+
 ```javascript
 const notificationSchema = new mongoose.Schema({
   recipientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -953,6 +873,8 @@ notificationSchema.index({ tenantId: 1, type: 1, createdAt: -1 });
 ## 8. Schema Migrations
 
 ### MongoDB Migration Strategies
+
+Because MongoDB does not enforce one shape per collection, a schema change does not have to rewrite every document at once. A *lazy* migration upgrades each document when the app next reads it; a *batch* migration rewrites them all with a script. Both use a `schemaVersion` field to tell which shape a document is in, so code can handle old and new documents side by side.
 
 ```javascript
 // 1. Lazy migration (on read/write)
@@ -1015,6 +937,8 @@ async function migrateUsersV2() {
 
 ### Migration Framework (migrate-mongo)
 
+migrate-mongo is a Node.js tool that runs versioned migration files in order and records which ones have run in a changelog collection, much like SQL migration tools. Each file exports an `up` function that applies the change and a `down` function that reverses it.
+
 ```javascript
 // migrations/20260306-add-user-profile-fields.js
 module.exports = {
@@ -1053,6 +977,8 @@ module.exports = {
 
 ### Zero-Downtime Migration Strategy
 
+During a rolling deploy, old and new versions of the app run at the same time against the same data, so the schema must suit both. This sequence (often called expand and contract) adds the new shape first, moves the data, and removes the old shape only after no running code needs it.
+
 ```
 1. Deploy code that reads BOTH old and new schema
 2. Run migration script (batch update)
@@ -1067,6 +993,8 @@ module.exports = {
 ## 9. Relational Database Design
 
 ### SQL Schema Example
+
+The same recruitment domain in a relational database (PostgreSQL syntax). Each entity is a table, relationships are foreign-key columns, a many-to-many relationship gets its own join table, and `CHECK` and `UNIQUE` constraints let the database itself reject bad data.
 
 ```sql
 -- Users table
@@ -1164,6 +1092,8 @@ CREATE INDEX idx_users_tenant_role ON users(tenant_id, role, is_active);
 
 ### Foreign Keys & Constraints
 
+A *foreign key* is a column whose value must match a primary key in another table, so the database refuses a row that points at something that does not exist. The `ON DELETE` rule decides what happens to child rows when the parent is deleted: block it (`RESTRICT`), delete them too (`CASCADE`), or clear the reference (`SET NULL`).
+
 ```sql
 -- Referential integrity
 ALTER TABLE jobs
@@ -1244,6 +1174,8 @@ BCNF (Boyce-Codd Normal Form):
 
 ### When to Normalize vs Denormalize
 
+*Normalizing* stores each fact once and links records by key; *denormalizing* copies data into the places it is read, trading extra writes and a risk of inconsistency for fewer joins. Most real schemas normalize by default and denormalize the few read paths that need it.
+
 ```
 Normalize when:
 - Data integrity is critical (financial, medical)
@@ -1314,6 +1246,8 @@ async function getDashboardStats(tenantId) {
 
 ### MongoDB Aggregation for Reporting
 
+Reports such as a hiring funnel are computed with the aggregation pipeline: documents pass through stages that filter (`$match`), group and count (`$group`), and reshape (`$project`), all inside the database so only the summary is sent to the app.
+
 ```javascript
 // Complex analytics query using aggregation pipeline
 const hiringFunnel = await JobTalent.aggregate([
@@ -1361,6 +1295,8 @@ const applicationTrend = await JobTalent.aggregate([
 
 ### Approaches
 
+*Multi-tenancy* means one deployment serves many customer organisations (tenants), each of which must only ever see its own data. The three approaches trade isolation against cost: the more you share, the cheaper it runs and the more the application must enforce the tenant boundary itself.
+
 ```
 1. Database per tenant
    ┌──────────┐  ┌──────────┐  ┌──────────┐
@@ -1393,6 +1329,8 @@ const applicationTrend = await JobTalent.aggregate([
 ```
 
 ### Shared Table Implementation (MongoDB)
+
+With shared collections, every query must filter by `tenantId`, and one forgotten filter leaks another customer's data. The plugin below handles that in one place: it adds the field to every schema it is applied to, and `Model.forTenant(id)` returns a scoped model whose queries always include the tenant filter.
 
 ```javascript
 // Middleware to enforce tenant scoping

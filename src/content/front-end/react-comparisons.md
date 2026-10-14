@@ -129,13 +129,13 @@ These all solve "share state across the component tree without prop-drilling" bu
 | **Learning curve** | Low | Medium-High | Low |
 | **Best for** | Theme, locale, auth — low-frequency updates | Large apps, complex state, big teams | Small-to-large apps, simplicity preference |
 
-**Why Context isn't a state manager**: Context re-renders **every consumer** whenever the value reference changes. A single global "app state" context that updates often will tank performance. Splitting into many small contexts works but becomes unwieldy. Redux / Zustand / Jotai solve this by exposing a selector API: components subscribe to a *slice* and only re-render when that slice changes, using `Object.is` comparison internally.
+**The why, in three lines:**
 
-**Why Redux Toolkit over classic Redux**: RTK ships with `createSlice` (auto-generates action creators + reducers), `configureStore` (DevTools + middleware set up automatically), and built-in Immer for immutable updates. It cuts boilerplate 80% without giving up any Redux power.
+- **Context is not a state manager.** It re-renders every consumer when the value reference changes, so it suits rarely-changing values; Redux and Zustand let a component subscribe to a *slice* through a selector.
+- **Redux Toolkit** when the constraints are organisational (one enforced update path, action log, time travel); **Zustand** when you want a store without the ceremony (no provider, call `set()` with the changed fields).
+- **Server data belongs in TanStack Query**, not in any of the three.
 
-**Why Zustand is the trendy middle ground**: Single store, hook-based API, no providers needed, ~1 KB. No action types or dispatch — you call `set()` with the changed fields, which still updates immutably like React state (direct mutation needs the `immer` middleware). Gets you 90% of Redux's benefits with 10% of the code.
-
-**When to use which**: Use Context for low-frequency global data (theme, locale, auth user object). Use Redux Toolkit when you have complex state flows, want time-travel debugging, or need the strict patterns a large team benefits from. Use Zustand when you want a lightweight global store without ceremony. For server data, reach for **TanStack Query** instead of any of these — it's purpose-built for that and handles caching, revalidation, and deduping automatically.
+The full comparison (with Jotai) and the interview framing are in [Zustand §10](/frontend/zustand#10-zustand-vs-redux-toolkit-vs-context-vs-jotai).
 
 ---
 

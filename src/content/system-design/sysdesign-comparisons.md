@@ -116,6 +116,7 @@ A monolith is one deployable unit — one codebase, one build, one process. Micr
 | **Team model** | Works for small teams | Enables independent teams |
 | **Scaling** | Scale the whole app | Scale each service independently |
 | **Failure isolation** | One bug can crash everything | Failures contained to a service |
+| **Data** | One shared database | Database per service (sharing one re-couples the services) |
 | **Network** | In-process calls (fast) | Network calls (slow, unreliable) |
 | **Transactions** | ACID easy | Distributed transactions (saga) |
 | **Complexity** | Simple to build and deploy | Complex: service mesh, tracing, discovery |
