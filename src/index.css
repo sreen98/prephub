@@ -284,22 +284,18 @@ html {
   @apply text-amber-800 dark:text-amber-300;
 }
 
-/* Section breaks: a quiet centred ornament instead of a full-width rule. */
+/* Section and question breaks: a thin hairline with modest space, no ornament. A rule
+   next to a heading adds nothing (the heading already starts something new), and two rules
+   in a row (the TOC the page strips sat between them) would be an empty gap. */
 .prose-container hr {
-  @apply my-8 border-0 text-center text-muted;
-  height: auto;
+  @apply my-6 border-0 border-t border-line;
 }
-/* Two rules in a row (the TOC the page strips sat between them) or a rule right before a
-   section heading (which already carries its own accent mark) would only add empty space. */
 .prose-container hr + hr,
-.prose-container hr:has(+ h2) {
+.prose-container hr:has(+ h2),
+.prose-container hr:has(+ h3),
+.prose-container h2 + hr,
+.prose-container h3 + hr {
   display: none;
-}
-.prose-container hr::after {
-  content: '·  ·  ·';
-  font-size: 1.5rem;
-  letter-spacing: 0.25em;
-  color: rgb(var(--ink) / 0.35);
 }
 
 .prose-container strong {
