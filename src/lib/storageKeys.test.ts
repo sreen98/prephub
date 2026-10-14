@@ -21,6 +21,7 @@ const EXPECTED_KEYS = [
   'playground-bracket-autoclose',
   'playground-last-session',
   'playground-last-session-react',
+  'playground-header-hidden',
   'playground-interview-active',
   'playground-interview-history',
   'playground-output-hidden',

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Loader2, X, PanelLeftOpen, Wand2, Braces, WrapText, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { ArrowLeft, X, PanelLeftOpen } from 'lucide-react';
 import SimpleCodeEditor from './SimpleCodeEditor';
 const MonacoCodeEditor = lazy(() => import('./MonacoCodeEditor'));
 import { canUseMonaco } from '../../lib/monacoSupport';
@@ -36,7 +36,8 @@ import { useEditorPrefs } from '../../hooks/useEditorPrefs';
 import ExplanationModal from './ExplanationModal';
 import TemplateModal from './TemplateModal';
 import ChallengeBrowser from './ChallengeBrowser';
-import ChallengeProblemPanel, { ProblemButton } from './ChallengeProblemPanel';
+import ChallengeProblemPanel from './ChallengeProblemPanel';
+import EditorToolbar from './EditorToolbar';
 import { usePreviewTab, useRemountOnTabMove } from './usePreviewTab';
 import PlaygroundActions from './PlaygroundActions';
 import ResumeBanner from './ResumeBanner';
@@ -106,7 +107,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
   const splitContainerRef = useRef<HTMLDivElement>(null);
   // Persisted editor preferences (split width, wrap, bracket auto-close).
   const { editorPct, setEditorPct, wrapOn, toggleWrap,
-          bracketAutoClose, toggleBracketAutoClose, outputHidden, toggleOutputHidden } = useEditorPrefs();
+          bracketAutoClose, toggleBracketAutoClose, outputHidden, toggleOutputHidden, headerHidden, toggleHeaderHidden } = useEditorPrefs();
   const [isResizing, setIsResizing] = useState<boolean>(false);
   // Caret position in the editor textarea — drives matching-bracket highlight.
   // -1 = editor not focused (no match shown).
@@ -829,7 +830,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
       />
 
       {/* Header -- always dark like an IDE */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-[#262421] bg-[#181715] shrink-0 text-stone-200">
+      <div className={`${headerHidden ? 'hidden' : 'flex'} flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-b border-[#262421] bg-[#181715] shrink-0 text-stone-200`}>
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => window.dispatchEvent(new Event('prephub:show-sidebar'))}
@@ -879,63 +880,9 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
           style={{ ['--editor-pct' as string]: `${editorPct}%` }}
           className={`flex flex-col min-h-0 border-b md:border-b-0 border-[#262421] w-full flex-1 ${outputHidden ? '' : 'md:w-[var(--editor-pct)] md:flex-none'}`}
         >
-          <div className="px-4 py-2 h-10 text-xs font-medium text-stone-500 border-b border-[#262421] bg-[#1a1917] shrink-0 flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2">
-              {currentTemplate?.kind === 'challenge' && <ProblemButton onClick={() => setProblemFor(currentTemplate.name)} />}
-              {langLabel}
-              {isLoadingTemplate && (
-                <span className="inline-flex items-center gap-1 text-stone-400">
-                  <Loader2 size={11} className="animate-spin" />
-                  loading template…
-                </span>
-              )}
-            </span>
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={toggleOutputHidden} aria-pressed={outputHidden} className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border border-[#36332e] text-stone-300 hover:bg-[#262421] hover:text-white whitespace-nowrap" title={outputHidden ? 'Show the console and preview' : 'Hide the console and preview, so the editor takes the full width'}>
-                {outputHidden ? <PanelRightOpen size={11} /> : <PanelRightClose size={11} />}{outputHidden ? 'Show output' : 'Hide output'}
-              </button>
-              <button
-                onClick={toggleBracketAutoClose}
-                className={
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
-                  (bracketAutoClose
-                    ? 'border-emerald-700/50 bg-emerald-900/20 text-emerald-400 hover:bg-emerald-900/30'
-                    : 'border-[#36332e] text-stone-500 hover:bg-[#262421] hover:text-stone-300')
-                }
-                title={bracketAutoClose ? 'Bracket auto-close: ON (click to disable)' : 'Bracket auto-close: OFF (click to enable)'}
-              >
-                <Braces size={11} />
-                {bracketAutoClose ? 'Auto-close on' : 'Auto-close off'}
-              </button>
-              <button
-                onClick={toggleWrap}
-                className={
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors whitespace-nowrap ' +
-                  (wrapOn
-                    ? 'border-teal-600/50 bg-teal-900/20 text-teal-300 hover:bg-teal-900/30'
-                    : 'border-[#36332e] text-stone-500 hover:bg-[#262421] hover:text-stone-300')
-                }
-                title={wrapOn ? 'Word wrap: ON (long lines break visually)' : 'Word wrap: OFF (long lines scroll horizontally)'}
-              >
-                <WrapText size={11} />
-                {wrapOn ? 'Wrap on' : 'Wrap off'}
-              </button>
-              <button
-                onClick={handleFormat}
-                disabled={isFormatting}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border border-[#36332e] text-stone-300 hover:bg-[#262421] hover:text-white transition-colors disabled:opacity-60 whitespace-nowrap"
-                title="Format with Prettier (⌘⇧F)"
-              >
-                {isFormatting
-                  ? <Loader2 size={11} className="animate-spin" />
-                  : <Wand2 size={11} />}
-                Format
-              </button>
-              <span className="text-stone-600 whitespace-nowrap hidden xl:inline">
-                {code.split('\n').length} lines
-              </span>
-            </div>
-          </div>
+          <EditorToolbar langLabel={langLabel} isLoadingTemplate={isLoadingTemplate} onProblem={currentTemplate?.kind === 'challenge' ? () => setProblemFor(currentTemplate.name) : undefined}
+            outputHidden={outputHidden} onToggleOutput={toggleOutputHidden} headerHidden={headerHidden} onToggleHeader={toggleHeaderHidden} bracketAutoClose={bracketAutoClose} onToggleAutoClose={toggleBracketAutoClose}
+            wrapOn={wrapOn} onToggleWrap={toggleWrap} isFormatting={isFormatting} onFormat={() => void handleFormat()} lineCount={code.split('\n').length} onRun={() => void runCode()} isRunning={isRunning} />
           <div className={`flex-1 overflow-auto bg-[#121110] min-h-[200px] playground-editor-wrap${wrapOn ? ' wrap-on' : ''}`}>
             {monacoEnabled ? (
               <Suspense fallback={simpleEditor}>

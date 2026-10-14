@@ -162,6 +162,7 @@ npm run verify         # All six of the above, in order — what CI runs
 | `playground-interview-active` | The running interview-mode session (challenge, start time, length), so a reload keeps the clock |
 | `playground-interview-history` | Interview-mode attempts per challenge (time taken, outcome), for the best-time badge |
 | `playground-output-hidden` | `1` while the console and preview side of the playground is hidden, so the editor takes the full width |
+| `playground-header-hidden` | `1` while the playground header (title and action buttons) is collapsed; Run moves into the editor strip |
 | `sr-schedule` | Spaced repetition schedule |
 | `study-stats` | Streak and gamification data |
 | `interview-history` | Past interview sim results |
