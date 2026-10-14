@@ -7,9 +7,12 @@
  * bookmarks. Heading bookmarks and checkpoints key on a guide path plus a heading anchor, and
  * those anchors moved to new routes. Every function here is pure and idempotent, so the
  * migration can run on every start-up without a "done" flag or a new storage key.
+ *
+ * Renamed guides (GUIDE_RENAMES) ride on the same machinery: their ids move from the old name
+ * to the new one.
  */
 import { getJSON, setJSON } from './storage';
-import { GUIDE_SPLITS, type GuideSplit } from '../data/guideSplits';
+import { GUIDE_RENAMES, GUIDE_SPLITS, type GuideSplit } from '../data/guideSplits';
 
 // The stored shapes, declared here because lib/ sits below hooks/ in the layering and may not
 // import from it. They mirror Bookmark (useBookmarks.ts) and CheckpointsMap (useCheckpoints.ts).
@@ -21,8 +24,19 @@ type CheckpointsMap = Record<string, Checkpoint>;
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** The post-split id for a pre-split question id, and the guide it now belongs to. */
+/** A question id saved under a guide's old name, moved to its current name. */
+function renameQuestion(id: string): { id: string; guideName: string } | null {
+  for (const r of GUIDE_RENAMES) {
+    const m = new RegExp(`^${escape(r.from)}-q(\\d+(?:-\\d+)?)$`).exec(id);
+    if (m) return { id: `${r.to}-q${m[1]}`, guideName: r.to };
+  }
+  return null;
+}
+
+/** The post-split (or post-rename) id for an old question id, and the guide it now belongs to. */
 function moveQuestion(id: string, splits: readonly GuideSplit[]): { id: string; guideName: string } | null {
+  const renamed = renameQuestion(id);
+  if (renamed) return renamed;
   for (const s of splits) {
     const m = new RegExp(`^${escape(s.oldName)}-q(\\d+)(-2)?$`).exec(id);
     if (!m) continue;

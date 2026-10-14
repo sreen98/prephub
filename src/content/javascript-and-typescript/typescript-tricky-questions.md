@@ -655,7 +655,7 @@ string
 
 | Line | Why |
 |---|---|
-| `51` | at runtime `n` is the string `'5'`, and `'5' + 1` joins strings ([JavaScript tricky Q34](/javascript/tricky-questions)) |
+| `51` | at runtime `n` is the string `'5'`, and `'5' + 1` joins strings ([JavaScript Output Q34](/javascript/tricky-questions)) |
 | `string` | `typeof` looks at the real value, which the assertion never touched |
 | `6` | `Number(input)` actually converts, so this is real arithmetic |
 
@@ -878,7 +878,7 @@ console.log(size(null), size(['a']));
 
 **Explanation:**
 
-`typeof null` is `'object'` ([JavaScript tricky Q33](/javascript/tricky-questions)), and TypeScript knows it, so this check does not remove `null`.
+`typeof null` is `'object'` ([JavaScript Output Q33](/javascript/tricky-questions)), and TypeScript knows it, so this check does not remove `null`.
 
 | Line | Why |
 |---|---|

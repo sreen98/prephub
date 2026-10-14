@@ -2,7 +2,7 @@
 
 Interview questions and model answers, from beginner to advanced. Each answer links to the section that explains it in depth.
 
-Part of the JavaScript series: [JavaScript Guide](/javascript/guide) · **JavaScript Interview Questions** · [JavaScript Tricky Questions](/javascript/tricky-questions)
+Part of the JavaScript series: [JavaScript Guide](/javascript/guide) · **JavaScript Interview Questions** · [JavaScript Output Questions](/javascript/tricky-questions)
 
 ---
 
@@ -1351,7 +1351,7 @@ poll 3
 | `requestIdleCallback` | when the browser has nothing else to do | low-priority work such as analytics |
 | `setImmediate` (Node only) | after the current I/O phase | yielding inside Node's event loop |
 
-Debounce (Q16) and `once` (Q26) are built on `setTimeout` plus a closure, and [tricky Q27](/javascript/tricky-questions) shows how `var` and `let` change what timer callbacks print.
+Debounce (Q16) and `once` (Q26) are built on `setTimeout` plus a closure, and [Output Q27](/javascript/tricky-questions) shows how `var` and `let` change what timer callbacks print.
 
 ---
 
@@ -1469,7 +1469,7 @@ address is required
 - **Know where it comes from:** `document.querySelector` finding nothing, `localStorage.getItem` for a missing key, `JSON.parse('null')`, a database `NULL`, API fields. `JSON.stringify` keeps `null` but drops `undefined` properties.
 - **In TypeScript**, `strictNullChecks` makes `null` part of the type (`string | null`) until you handle it ([TypeScript Q19 and Q29](/javascript/typescript-interview-questions)).
 
-Q3 covers `null` versus `undefined`; [tricky Q39 and Q49](/javascript/tricky-questions) show default parameters ignoring `null` and how far `?.` short-circuits.
+Q3 covers `null` versus `undefined`; [Output Q39 and Q49](/javascript/tricky-questions) show default parameters ignoring `null` and how far `?.` short-circuits.
 
 ---
 
@@ -1696,7 +1696,7 @@ b 1 [ 'a', 'b' ]
 
 **The rule to state:** pass a function reference to `map`, `filter` or `forEach` only when it was written as a callback or takes exactly one argument (`Number`, `String`, `Boolean`, as in `filter(Boolean)`); everything else gets an arrow. `eslint-plugin-unicorn`'s `no-array-callback-reference` rule flags `.map(fn)`.
 
-[Tricky Q35](/javascript/tricky-questions) shows the same trap next to `sort()`'s text ordering, and Q28 compares `map`, `filter` and `reduce`.
+[Output Q35](/javascript/tricky-questions) shows the same trap next to `sort()`'s text ordering, and Q28 compares `map`, `filter` and `reduce`.
 
 ---
 

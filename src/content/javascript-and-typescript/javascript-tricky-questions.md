@@ -1,8 +1,8 @@
-# JavaScript — Tricky Output Questions
+# JavaScript — Output Questions
 
-Predict-the-output puzzles on coercion, scope, closures, `this`, promises and the event loop, each with a short explanation of why.
+What does this code print? Each question shows a snippet and asks for the output and the reason. Try it yourself first, then check the output and the explanation. Topics: coercion, references, scope and closures, `this`, promises, the browser event loop and the Node.js event loop.
 
-Part of the JavaScript series: [JavaScript Guide](/javascript/guide) · [JavaScript Interview Questions](/javascript/interview-questions) · **JavaScript Tricky Questions**
+Part of the JavaScript series: [JavaScript Guide](/javascript/guide) · [JavaScript Interview Questions](/javascript/interview-questions) · **JavaScript Output Questions**
 
 ---
 
@@ -20,7 +20,7 @@ Practice questions testing your understanding of JavaScript quirks — type coer
 
 ---
 
-**Q1: Why does the chained comparison `3 > 2 > 1` return `false` even though 3, 2, and 1 appear to be in strictly decreasing order?**
+**Q1: What does `console.log(3 > 2 > 1)` print, and why?**
 
 ```js
 console.log(3 > 2 > 1);
@@ -34,7 +34,7 @@ JavaScript has no chained comparison. `>` is a binary, left-associative operator
 
 ---
 
-**Q2: Why does `[] == ![]` evaluate to `true` when an empty array is truthy but also appears to be equal to its own negation?**
+**Q2: What does `console.log([] == ![])` print, and why?**
 
 ```js
 console.log([] == ![]);
@@ -57,7 +57,7 @@ Truthiness and `==` are separate rule sets, so one object can be truthy and loos
 
 ---
 
-**Q3: How can `null >= 0` be `true` while both `null > 0` and `null == 0` are `false` — isn't that mathematically inconsistent?**
+**Q3: What do `null >= 0`, `null > 0` and `null == 0` print, and why?**
 
 ```js
 console.log(null >= 0);
@@ -78,7 +78,7 @@ Relational operators and `==` use different algorithms. `>=` and `>` call `ToNum
 
 ---
 
-**Q4: Why does `NaN == NaN` return `false` when every other value in JavaScript is equal to itself?**
+**Q4: What does `console.log(NaN == NaN)` print, and why?**
 
 ```js
 console.log(NaN == NaN);
@@ -92,7 +92,7 @@ This comes from the **IEEE 754** floating-point standard, not from JavaScript: `
 
 ---
 
-**Q5: What does each of `[] + []`, `[] + {}`, `{} + []`, and `true + true` produce — and why does `{} + []` give a different answer depending on where you write it?**
+**Q5: What do `[] + []`, `[] + {}`, `{} + []` and `true + true` produce, and what changes when `{} + []` starts a statement? Explain why.**
 
 ```js
 console.log(JSON.stringify([] + []));
@@ -134,7 +134,7 @@ The famous `{} + []` → `0` is a **parsing** artefact, not a coercion one. It o
 
 ---
 
-**Q6: Why does `{} === {}` return `false` — aren't two empty objects "the same"?**
+**Q6: What do `{} === {}` and `[] === []` print, and why?**
 
 ```js
 console.log({} === {});
@@ -159,7 +159,7 @@ These questions test your understanding of the execution order between synchrono
 
 ---
 
-**Q7: In what order will `"A"`, `"B"`, and `"C"` print when an async function logs `"A"`, awaits a resolved promise, then logs `"B"`, and the calling code logs `"C"` after invoking the function?**
+**Q7: An async function logs `"A"`, awaits a resolved promise, then logs `"B"`; the caller logs `"C"` right after calling it. What is the printed order, and why?**
 
 ```js
 async function test() {
@@ -184,7 +184,7 @@ An `async` function runs synchronously until its first `await`, so `A` prints du
 
 ---
 
-**Q8: When a `console.log(3)` happens before an `async` function is called and `console.log(4)` happens after, in what order do `1`, `2`, `3`, and `4` appear?**
+**Q8: The code logs `3`, calls an async function that logs `1`, awaits, then logs `2`, and finally logs `4`. What is the printed order, and why?**
 
 ```js
 async function test() {
@@ -212,7 +212,7 @@ Calling `test()` defers only the part **after** `await`. So `1` prints inside th
 
 ---
 
-**Q9: Given a `setTimeout` that internally schedules a Promise, plus a top-level Promise and surrounding synchronous logs, what is the exact printing order?**
+**Q9: A `setTimeout` callback that schedules a promise, a top-level promise, and synchronous logs around them: what is the printed order, and why?**
 
 ```js
 console.log("A");
@@ -249,7 +249,7 @@ Microtasks are promise callbacks, `queueMicrotask` and `MutationObserver`; macro
 
 ---
 
-**Q10: When an `async` function with `await` is called and then a separate `Promise.then()` is chained afterwards, which one's callback runs first in the microtask queue?**
+**Q10: An async function with an `await`, followed by a separate `Promise.then()`: what is the printed order, and why?**
 
 ```js
 async function foo() {
@@ -279,7 +279,7 @@ The microtask queue is FIFO, and `await` and `.then()` have equal priority. `foo
 
 ---
 
-**Q11: Given a mix of synchronous logs, a `setTimeout`, an `async` function with `await`, and a `Promise.then`, what is the full execution order from start to finish?**
+**Q11: Synchronous logs, a `setTimeout`, an `async` function with `await` and a `Promise.then`: what is the full printed order, and why?**
 
 ```js
 console.log("1");
@@ -319,7 +319,7 @@ Synchronous logs first, in source order (`1`, `3` from inside `foo` before its `
 
 ---
 
-**Q12: Grouping three rows by `id` with `Object.groupBy` produces only two keys and the result has no `hasOwnProperty` — why?**
+**Q12: The rows are grouped by `id` with `Object.groupBy`. What do the three logs print, and why?**
 
 ```js
 const rows = [{ id: 1 }, { id: '1' }, { id: null }];
@@ -351,7 +351,7 @@ The null prototype is for safety: a group named `"__proto__"` or `"constructor"`
 
 ---
 
-**Q13: Why do the `map` and `filter` side effects interleave here, instead of all the `map` logs coming first?**
+**Q13: In what order do the `map` and `filter` logs appear when this iterator chain is consumed, and why?**
 
 ```js
 const chain = [1, 2, 3].values()
@@ -387,7 +387,7 @@ An array chain would print all three `map` lines first. One more trap: on reachi
 
 ---
 
-**Q14: In what order do the disposals run when the function body throws?**
+**Q14: In what order do `body` and the two disposals print when the function body throws, and why?**
 
 ```js
 function make(name) {
@@ -427,7 +427,7 @@ Related traps:
 
 ---
 
-**Q15: Why does the date not change on the first log, and why is the second result February 28 rather than March 3?**
+**Q15: What do the three logs print for "January 31 plus one month", and why?**
 
 ```js
 const d = Temporal.PlainDate.from('2026-01-31');
@@ -462,7 +462,7 @@ Pass `{ overflow: 'reject' }` to get a `RangeError` instead of the clamp. Clampi
 
 ---
 
-**Q16: Why does this take about 60 ms rather than about 30 ms, and why is the result in source order?**
+**Q16: Roughly how long does this take, in what order do the values arrive, and why?**
 
 ```js
 async function* gen() {
@@ -498,7 +498,7 @@ Given a **sync** iterable of promises, `Array.fromAsync([p1, p2, p3])` awaits th
 
 ### Async Performance
 
-**Q17: Promises are asynchronous, so how can a chain of already-resolved Promises freeze the UI?**
+**Q17: A chain of already-resolved promises does 200 ms of work. What does the 0 ms timer log, and what does that mean for the page? Explain why.**
 
 ```js
 const start = Date.now();
@@ -553,7 +553,7 @@ Now input, timers and paint can run between steps, and the timer fires after abo
 
 These build on Q6. Each one turns on the same question: is this a new object, or another reference to one that already exists?
 
-**Q18: Two different objects are used as keys, so why does `a[b]` print `456` and why is there only one key?**
+**Q18: What does `a[b]` print, and what keys does `a` end up with? Explain why.**
 
 ```js
 const a = {};
@@ -588,7 +588,7 @@ console.log(m.get(b), m.size); // 123 2
 
 ---
 
-**Q19: In what order does `Object.keys` return these keys, and why is it not the order they were written?**
+**Q19: In what order does `Object.keys` return these keys, and why?**
 
 ```js
 const obj = { b: 'b', 2: 'two', a: 'a', 1: 'one', '-1': 'minus one', '01': 'zero one' };
@@ -606,7 +606,7 @@ console.log(JSON.stringify(Object.keys(obj)));
 
 ---
 
-**Q20: The copy was made with spread, so why did changing the copy's city and tags change the original, but changing its name did not?**
+**Q20: The copy's name, city and tags are changed. What do the original's name, city and tags print, and why?**
 
 ```js
 const original = { name: 'Asha', address: { city: 'Pune' }, tags: ['admin'] };
@@ -651,7 +651,7 @@ For a full independent copy of plain data, use `structuredClone(original)` (Q24)
 
 ---
 
-**Q21: The function sets `age` to 30 and later to 100, so why does the original end up with 30 and not 100?**
+**Q21: What does `person` look like after `update(person)` runs, and why?**
 
 ```js
 function update(user) {
@@ -677,7 +677,7 @@ Arguments are passed by value, and an object's value is a reference (*pass by sh
 
 ---
 
-**Q22: Only `grid[0]` was incremented, so why did `grid[1]` and `grid[2]` change too, and why does `Array.from` not have the problem?**
+**Q22: Only the first item of each array is incremented. What do the two logs print, and why?**
 
 ```js
 const grid = new Array(3).fill({ count: 0 });
@@ -701,7 +701,7 @@ console.log(fixed[1].count, fixed[2].count);
 
 ---
 
-**Q23: Why is `JSON.parse(JSON.stringify(obj))` not a real deep clone? Predict what survives.**
+**Q23: What does the `JSON.parse(JSON.stringify(obj))` round trip keep, change or drop from this object, and why?**
 
 ```js
 const source = {
@@ -749,7 +749,7 @@ All of that happens **silently**; the bug shows up later as `TypeError: clone.wh
 
 ---
 
-**Q24: `structuredClone` copies an object that contains itself. What does the copy's `self` point to, and what happens with a method?**
+**Q24: `structuredClone` copies an object that contains itself. What do the logs print, and what happens with a method? Explain why.**
 
 ```js
 const node = { name: 'root', when: new Date(0), tags: new Set(['a']) };
@@ -789,7 +789,7 @@ DataCloneError
 
 ---
 
-**Q25: The object is frozen, so why could `db.host` be changed while `port` could not?**
+**Q25: The config object is frozen. What do the two attempts to change it print, and why?**
 
 ```js
 'use strict';
@@ -826,7 +826,7 @@ The `'use strict'` line matters. Modules and `class` bodies are always strict; i
 
 ---
 
-**Q26: Why did the getter run once during the spread and never again when reading `copy.stamp`?**
+**Q26: How many times does the getter run, and what do the logs print? Explain why.**
 
 ```js
 let reads = 0;
@@ -877,7 +877,7 @@ console.log(live.stamp, live.stamp); // read #1 read #2
 
 The questions interviewers ask most often of all. Each one comes down to *when* a variable is created and *which* variable a function is looking at.
 
-**Q27: Why do the `var` timers all print 3, while the `let` timers print 0, 1 and 2?**
+**Q27: What do the `var` timers and the `let` timers print, and why?**
 
 ```js
 for (var i = 0; i < 3; i++) {
@@ -904,7 +904,7 @@ The timers run after both loops finish, and each arrow remembers a **variable**,
 
 ---
 
-**Q28: What does `typeof greet` print before and after the assignment, and why does `show()` print `undefined` instead of `1`?**
+**Q28: What does `typeof greet` print before and after the assignment, and what does `show()` print? Explain why.**
 
 ```js
 function hoisting() {
@@ -944,7 +944,7 @@ With `let` the second case would throw instead (Q29), which is the safer failure
 
 ---
 
-**Q29: Why does reading `color` throw inside the block, when there is a perfectly good `color` outside it?**
+**Q29: What does the code inside the block print, and why?**
 
 ```js
 let color = 'red';
@@ -973,7 +973,7 @@ The inner `let color` is hoisted to the top of the block but **not initialised**
 
 ---
 
-**Q30: Why does `read()` print 2, and why do the two counters not share a count?**
+**Q30: What does `read()` print, and what do the two counters return? Explain why.**
 
 ```js
 let count = 1;
@@ -1012,7 +1012,7 @@ The first fact is why closures see fresh values (and keep objects alive, [interv
 
 `this` is decided by **how a function is called**, not where it is written, except in arrow functions, which never have their own. The demo uses `'use strict'` so that plain calls get `undefined` rather than the global object; it does **not** change top-level `this`, which depends on how the file is loaded (see the `user.arrow()` row).
 
-**Q31: Why does `this.name` work in `regular()`, but not in `arrow()`, not after the method is copied into a variable, and not in the inner `function`?**
+**Q31: In strict mode, what does each call return: `regular()`, `arrow()`, the method copied into a variable, and the inner `function` and arrow? Explain why.**
 
 ```js
 'use strict';
@@ -1063,7 +1063,7 @@ The last row is why arrows exist: callbacks inside a method (`array.map(...)`, `
 
 Short puzzles interviewers use as warm-ups. Each one has a single rule behind it.
 
-**Q32: Why is `0.1 + 0.2` not `0.3`, and why does `9007199254740993` print as `9007199254740992`?**
+**Q32: What do these number logs print, and why?**
 
 ```js
 console.log(0.1 + 0.2);
@@ -1101,7 +1101,7 @@ Keep **money** in integer cents (`1999`, not `19.99`), as the Shopping Cart temp
 
 ---
 
-**Q33: What does `typeof` return for `null`, `NaN`, an array, a class, and a variable that was never declared?**
+**Q33: What does `typeof` return for `null`, `NaN`, an array, a class and an undeclared variable, and why?**
 
 ```js
 console.log(typeof null);
@@ -1137,7 +1137,7 @@ Exception: `typeof` **does** throw on a `let`/`const` in its temporal dead zone 
 
 ---
 
-**Q34: Why does `'5' - 2` give 3 but `'5' + 2` give `'52'`, and where does `'baNaNa'` come from?**
+**Q34: What do these string and number expressions print, including `'b' + 'a' + +'a' + 'a'`? Explain why.**
 
 ```js
 console.log('5' - 2);
@@ -1164,7 +1164,7 @@ baNaNa
 
 ---
 
-**Q35: Why does `sort()` put 10 before 3, and why does `map(parseInt)` return `NaN` in the middle?**
+**Q35: What do the two `sort()` calls, `map(parseInt)` and the two array lengths print, and why?**
 
 ```js
 console.log([10, 1, 3, 20].sort().join(', '));
@@ -1198,7 +1198,7 @@ console.log(Array(3).length, Array.of(3).length);
 
 The event-loop questions above are about *order*. These are about *values*: what a promise chain or a generator actually hands you back.
 
-**Q36: The chain starts with a rejection, so why does the second `then` run, and with what value?**
+**Q36: The chain starts with a rejection. Which callbacks run, and what do they print? Explain why.**
 
 ```js
 Promise.reject(new Error('boom'))
@@ -1224,7 +1224,7 @@ The rejection skips `then 1`. A `.catch` that returns normally **recovers** the 
 
 ---
 
-**Q37: Both functions wrap the call in `try/catch`, so why does `withoutAwait` reject while `withAwait` catches the error?**
+**Q37: Both functions wrap the call in `try/catch`. What does each one resolve or reject with, and why?**
 
 ```js
 async function load() {
@@ -1263,7 +1263,7 @@ withoutAwait rejected: network down
 
 ---
 
-**Q38: Why is the first value passed to `next()` ignored, and what does the final `next()` return?**
+**Q38: What does each `next()` call return, and why?**
 
 ```js
 function* conversation() {
@@ -1306,7 +1306,7 @@ This two-way flow is what Redux Saga is built on, and how `async`/`await` was fi
 
 Two rules about how code is *read*, rather than how it runs.
 
-**Q39: Why does passing `name: null` print `null` instead of using the default `'guest'`?**
+**Q39: What does `greet` return for each of the four calls, and why?**
 
 ```js
 function greet({ name = 'guest', greeting = 'Hi' } = {}) {
@@ -1333,7 +1333,7 @@ Destructuring and parameter defaults apply **only to `undefined`**; `null`, `''`
 
 ---
 
-**Q40: Why does `getConfig()` return `undefined`, and why does the second part throw a `TypeError`?**
+**Q40: What does `getConfig()` return, and what happens in the second part? Explain why.**
 
 ```js
 function getConfig() {
@@ -1377,7 +1377,7 @@ Fixes: keep `return {` on one line; in semicolon-free code, prefix a line that s
 
 Puzzles about the order things happen in: which `return` wins, when a class field exists, and when a promise's code actually runs.
 
-**Q41: Which value does each function return when there is a `finally` block, and where did the error in `swallow()` go?**
+**Q41: What does each function return or throw when there is a `finally` block, and why?**
 
 ```js
 function pick() {
@@ -1422,7 +1422,7 @@ finally wins
 
 ---
 
-**Q42: Why does the first `describe()` print `label = undefined`, when `label` is set to `'child'` in the class?**
+**Q42: What does each `describe()` call print, and why?**
 
 ```js
 class Base {
@@ -1457,7 +1457,7 @@ A subclass's fields are initialised **after** `super()` returns. During `new Chi
 
 ---
 
-**Q43: Why does `acc['#balance']` give `undefined`, and why doesn't `#balance` appear in `JSON.stringify` or `Object.keys`?**
+**Q43: What do `acc['#balance']`, `JSON.stringify(acc)`, `Object.keys(acc)` and the static check print, and why?**
 
 ```js
 class Account {
@@ -1507,7 +1507,7 @@ Before ES2022, "private" meant the `_balance` convention, a `WeakMap` or a closu
 
 Values that do not behave like the ones they look like.
 
-**Q44: Why is `0 === -0` true but `Object.is(0, -0)` false, and why does `includes` find `NaN` when `indexOf` does not?**
+**Q44: What do these checks with `0`, `-0` and `NaN` print, and why?**
 
 ```js
 console.log(0 === -0);
@@ -1542,7 +1542,7 @@ That explains the first four lines. The sign of zero is real (`1 / -0` is `-Infi
 
 ---
 
-**Q45: What does `arguments` contain in each function, and why does the arrow function see the outer function's arguments?**
+**Q45: What does each function return from `arguments`, and why?**
 
 ```js
 function regular() {
@@ -1588,7 +1588,7 @@ Prefer `...args`: a real array, works in arrows, and visible in the signature. `
 
 ---
 
-**Q46: What happens to the array when you set `length`, `delete` an item, or assign to index 9?**
+**Q46: What happens to each array when you set `length`, `delete` an item, or assign to index 9? Give the printed output and explain why.**
 
 ```js
 const arr = [1, 2, 3, 4, 5];
@@ -1633,7 +1633,7 @@ console.log(big.length);
 
 ---
 
-**Q47: The object has both `valueOf` and `toString`, so why does `price + 1` use one and `` `${price}` `` use the other?**
+**Q47: The object has both `valueOf` and `toString`. What do `price + 1`, the template literal, `String(price)` and `price * 2` print, and why?**
 
 ```js
 const price = {
@@ -1676,7 +1676,7 @@ The same mechanism lets `date2 - date1` subtract dates while `` `${date}` `` pri
 
 ---
 
-**Q48: Does the executor passed to `new Promise` run now or later, and what happens to the second `resolve` and the `reject`?**
+**Q48: What is the printed order, and what do the second `resolve` and the `reject` do? Explain why.**
 
 ```js
 console.log('1. before');
@@ -1712,7 +1712,7 @@ The executor runs **synchronously**, inside the `new Promise(...)` call; only `.
 
 Small syntax features with one surprising rule each.
 
-**Q49: How far does `?.` short-circuit, and why is `null || undefined ?? 'x'` a syntax error?**
+**Q49: What does each optional-chaining line print, and what happens with `null || undefined ?? 'x'`? Explain why.**
 
 ```js
 const user = { profile: null };
@@ -1757,7 +1757,7 @@ The short-circuit covers only the current chain: `a?.b.c` stops at `a`, but `(a?
 
 ---
 
-**Q50: Why is `fact` usable inside the function but `undefined` outside, and why does assigning to `named` throw?**
+**Q50: What does each line print or throw for the named function expression, and why?**
 
 ```js
 const factorial = function fact(n) {
@@ -1801,7 +1801,7 @@ Naming a function expression lets it refer to itself even if the outer variable 
 
 ---
 
-**Q51: Why is the `Symbol` key missing from `Object.keys` and JSON, and why does the `Map` keep `'1'` and `1` as separate keys?**
+**Q51: What do `Object.keys`, `JSON.stringify` and the `Map` print here, and why?**
 
 ```js
 const id = Symbol('id');
@@ -1845,7 +1845,7 @@ Symbols are how the language adds hooks without breaking old code: `Symbol.itera
 
 Two puzzles from a real interview. The order of the logs is only half the question: the other half is **what value** a shared variable has by the time each callback runs.
 
-**Q52: A timer and a promise both increment `count`. What does each log print, and in what order?**
+**Q52: A timer and a promise both increment `count`. What does each log print, in what order, and why?**
 
 ```js
 let count = 0;
@@ -1879,7 +1879,7 @@ timeout: 2
 
 ---
 
-**Q53: Two timers each increment `count`, while `main` awaits them. What are A, B, C and D?**
+**Q53: Two timers each increment `count` while `main` awaits them. What are A, B, C and D, and why?**
 
 ```js
 let count = 0;
@@ -1942,7 +1942,7 @@ The two usual mistakes: `D` is `1`, because the `count++` runs synchronously bef
 
 ### Timers and Microtasks
 
-**Q54: Two timers, 0 ms and 600 ms, each queue a promise inside their callback. What is the full order?**
+**Q54: Two timers, 0 ms and 600 ms, each queue a promise inside their callback. What is the full printed order, and why?**
 
 ```js
 console.log("top");
@@ -1996,6 +1996,236 @@ The trap is to group the output by kind: all timers, then all promises. The even
 
 ---
 
+**Q55: Two 0 ms timers start together: the first is an `async` callback that awaits and then queues a third timer, the second runs a two-step promise chain. With a `queueMicrotask` at the end, what is the full printed order, and why?**
+
+```js
+setTimeout(async () => {
+  console.log('t1 start');
+  await null;
+  console.log('t1 after await');
+  setTimeout(() => console.log('t3 (queued by t1)'), 0);
+}, 0);
+
+setTimeout(() => {
+  console.log('t2');
+  Promise.resolve()
+    .then(() => console.log('t2 microtask 1'))
+    .then(() => console.log('t2 microtask 2'));
+}, 0);
+
+queueMicrotask(() => console.log('microtask'));
+```
+
+**Output:**
+```text
+microtask
+t1 start
+t1 after await
+t2
+t2 microtask 1
+t2 microtask 2
+t3 (queued by t1)
+```
+
+**Explanation:**
+
+| Step | Prints | Why |
+|---|---|---|
+| after the script | `microtask` | the microtask queue empties before any timer runs |
+| task: first timer | `t1 start` | the callback runs until its `await` |
+| microtask drain | `t1 after await` | the rest of an `async` function is a microtask, so it finishes before the second timer; it also queues `t3` at the back of the timer queue |
+| task: second timer | `t2` | timers due at the same time run in the order they were created |
+| microtask drain | `t2 microtask 1`, `t2 microtask 2` | the drain keeps going until the queue is empty, including callbacks the drain itself queued |
+| task: third timer | `t3 (queued by t1)` | it was queued last, so it runs last |
+
+An `await` inside a timer callback does not wait for "the next timer": its continuation is a microtask that runs right after that callback. → [§11](/javascript/guide#11-the-event-loop)
+
+---
+
+### Node.js Event Loop
+
+These run in Node, not in the browser: `process.nextTick` and `setImmediate` are Node APIs, and each snippet imports what it uses, so there is no Try it button. Node's loop runs in phases: **timers** (`setTimeout`), **poll** (I/O callbacks), then **check** (`setImmediate`). Between every callback it drains two queues, `process.nextTick` first and then promise microtasks. The basic rules are in the [Node.js guide's event-loop questions](/backend/nodejs#event-loop-ordering); these combine them.
+
+---
+
+**Q56: Inside a file-read callback, the code queues a 0 ms timer, a `setImmediate` that queues a promise, a promise and a `process.nextTick`. What is the full printed order, and why?**
+
+```js
+import { readFile } from 'node:fs';
+import process from 'node:process';
+
+// process.argv[1] is this script's own path: any file will do.
+readFile(process.argv[1], () => {
+  console.log('io callback');
+  setTimeout(() => console.log('timeout'), 0);
+  setImmediate(() => {
+    console.log('immediate');
+    Promise.resolve().then(() => console.log('promise in immediate'));
+  });
+  Promise.resolve().then(() => console.log('promise'));
+  process.nextTick(() => console.log('nextTick'));
+});
+
+console.log('sync');
+```
+
+**Output:**
+```text
+sync
+io callback
+nextTick
+promise
+immediate
+promise in immediate
+timeout
+```
+
+**Explanation:**
+
+| Step | Prints | Why |
+|---|---|---|
+| synchronous | `sync` | `readFile` only starts the read |
+| poll phase: the read finishes | `io callback` | the callback queues a timer, an immediate, a promise and a tick |
+| drain after the callback | `nextTick`, then `promise` | the nextTick queue always empties before the promise queue |
+| check phase | `immediate` | after poll comes check, in this same loop iteration |
+| drain after the immediate | `promise in immediate` | every callback is followed by a drain, not just every phase |
+| timers phase, next iteration | `timeout` | the loop has passed the timers phase, so a 0 ms timer waits a full turn |
+
+Inside an I/O callback the order is fixed: `setImmediate` always beats `setTimeout(…, 0)`. At the top level of a script it is a race (Node guide Q1), because the timer may or may not be due when the loop first checks.
+
+---
+
+**Q57: Two 0 ms timers each queue a promise, and the first also queues a `process.nextTick`. What is the full printed order, and why?**
+
+```js
+import process from 'node:process';
+
+setTimeout(() => {
+  console.log('timeout 1');
+  Promise.resolve().then(() => console.log('promise in timeout 1'));
+  process.nextTick(() => console.log('nextTick in timeout 1'));
+}, 0);
+
+setTimeout(() => {
+  console.log('timeout 2');
+  Promise.resolve().then(() => console.log('promise in timeout 2'));
+}, 0);
+```
+
+**Output:**
+```text
+timeout 1
+nextTick in timeout 1
+promise in timeout 1
+timeout 2
+promise in timeout 2
+```
+
+**Explanation:**
+
+Both timers are due in the same timers phase, but Node (since version 11) drains the queues after **each** timer callback, not once after the whole phase. So the first timer's tick and promise run before the second timer starts. Within that drain the tick goes first, even though the promise was queued first: the nextTick queue always empties before the promise queue.
+
+Node 10 and older ran every due timer first and drained afterwards, printing both `timeout` lines before any microtask. You may still see that order in old answers online; it changed so Node matches browsers.
+
+---
+
+**Q58: Two `setImmediate` callbacks are queued. The first queues a promise and a third `setImmediate`. What is the full printed order, and why?**
+
+```js
+import { setImmediate } from 'node:timers';
+
+setImmediate(() => {
+  console.log('immediate 1');
+  Promise.resolve().then(() => console.log('promise in immediate 1'));
+  setImmediate(() => console.log('immediate 3 (queued by 1)'));
+});
+
+setImmediate(() => console.log('immediate 2'));
+```
+
+**Output:**
+```text
+immediate 1
+promise in immediate 1
+immediate 2
+immediate 3 (queued by 1)
+```
+
+**Explanation:**
+
+- **`promise in immediate 1` before `immediate 2`:** the queues drain after each `setImmediate` callback, just as they do after each timer (Q57).
+- **`immediate 3` last:** an immediate queued *during* the check phase waits for the next loop iteration. The check phase runs only the immediates that were queued when it started. That is the difference from `process.nextTick`: a tick queued inside a tick runs in the same drain, so recursive ticks can starve the loop, while recursive immediates can't.
+
+---
+
+**Q59: Inside a timer, a promise chain queues a `process.nextTick`, and a `process.nextTick` queues a promise. What is the full printed order, and why?**
+
+```js
+import process from 'node:process';
+
+setTimeout(() => {
+  Promise.resolve()
+    .then(() => {
+      console.log('promise 1');
+      process.nextTick(() => console.log('nextTick inside promise'));
+    })
+    .then(() => console.log('promise 2'));
+
+  process.nextTick(() => {
+    console.log('nextTick 1');
+    Promise.resolve().then(() => console.log('promise inside nextTick'));
+  });
+}, 0);
+```
+
+**Output:**
+```text
+nextTick 1
+promise 1
+promise inside nextTick
+promise 2
+nextTick inside promise
+```
+
+**Explanation:**
+
+After the timer callback, Node runs a loop: empty the nextTick queue, then empty the promise queue, and repeat while either has work.
+
+| Pass | Queue being emptied | Prints | Queued along the way |
+|---|---|---|---|
+| 1 | nextTick | `nextTick 1` | `promise inside nextTick` (a promise) |
+| 1 | promises | `promise 1` | a tick, and `promise 2` (the next `.then`) |
+| 1 | promises, still draining | `promise inside nextTick`, then `promise 2` | — |
+| 2 | nextTick | `nextTick inside promise` | — |
+
+The tick queued *inside* a promise does not cut in: the promise queue finishes first, and the tick waits for the next pass. "nextTick always runs first" is true only between queue drains, not in the middle of one.
+
+---
+
+**Q60: The same two lines are saved once as `order.mjs` and once as `order.cjs`. What does each file print, and why?**
+
+```text
+// order.mjs and order.cjs: the same two lines in each file
+Promise.resolve().then(() => console.log('promise'));
+process.nextTick(() => console.log('nextTick'));
+```
+
+**Output:**
+```text
+node order.mjs   →  promise, then nextTick
+node order.cjs   →  nextTick, then promise
+```
+
+**Explanation:**
+
+A CommonJS file runs as a plain synchronous script. When it ends, Node drains its queues in the usual order: nextTick first, then promises.
+
+An ES module is evaluated by the module loader, and that evaluation is itself driven by promises: the top-level code runs inside a promise job. When the top-level code finishes, the engine is still draining the **promise** queue, so `promise` prints first, and Node's nextTick queue is only reached after that.
+
+The practical rule: don't rely on `process.nextTick` running before promises at the top level of a module. A project with `"type": "module"` in `package.json` gets the ES module order even in `.js` files. Inside callbacks (timers, I/O, events) both module systems behave the same, as in Q56–Q59.
+
+---
+
 ### Key Rules
 
 ```
@@ -2020,3 +2250,6 @@ Execution Order:
 - `await` pauses the async function and schedules the rest as a microtask
 - `this` depends on the call site, not where the function is defined
 - `var` is function-scoped, `let`/`const` are block-scoped
+- Node drains `process.nextTick` before promises, and does it after **every** timer, immediate and I/O callback
+- Inside an I/O callback, `setImmediate` always runs before `setTimeout(…, 0)`; at the top level the order is a race
+- At the top level of an ES module, promises run before `process.nextTick`

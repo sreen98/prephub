@@ -2,7 +2,7 @@
 
 The language itself: data types, scope and closures, functions, objects and prototypes, async code and the event loop, modules, the DOM, and patterns.
 
-Part of the JavaScript series: **JavaScript Guide** · [JavaScript Interview Questions](/javascript/interview-questions) · [JavaScript Tricky Questions](/javascript/tricky-questions)
+Part of the JavaScript series: **JavaScript Guide** · [JavaScript Interview Questions](/javascript/interview-questions) · [JavaScript Output Questions](/javascript/tricky-questions)
 
 ---
 ## Table of Contents

@@ -169,6 +169,16 @@ silently resolves to a `window` global and typechecks.
   - Content tests read a whole series with `readSeries('react' | 'javascript' | 'typescript')`
     from `src/content/guideSeries.ts`, so a pinned block's marker works in any part.
   - Never renumber or remove a question in a series; append to the end of a sequence.
+- **Renaming a guide renames every question id** (ids are `<guide name>-qN`). Add the pair to
+  `GUIDE_RENAMES` in `src/data/guideSplits.ts`, and point any split's names at the new name;
+  `guideSplitMigration` then moves Daily Review history and quiz bookmarks at start-up. Keep the
+  route. v1.7.30 renamed "JavaScript Tricky Questions" to "JavaScript Output Questions"; its
+  section heading stays `## 16. Tricky Output Questions` (test markers and the moved-anchor map
+  use it).
+- **JavaScript Output questions ask, never tell:** "What does this print, and why?", with the
+  answer only in **Output:**. `javascriptOutputQuestions.test.ts` runs every snippet in its own
+  `node` process and compares stdout with the Output block (Node-only snippets import what they
+  use, so they get no Try it button).
 - **Sidebar groups:** `MenuItem.group` makes a heading. Every category with 4+ items is
   grouped, and heading order follows first appearance in `items`. When a guide set changes,
   update that category's `description` too, because homepage cards don't derive it.
@@ -191,7 +201,7 @@ silently resolves to a `window` global and typechecks.
   `dedupeIds()` suffixes the 2nd+ occurrences. **Never renumber**: ids key SM-2 review
   history. Append new questions at the *end* of a sequence, and rewrite existing ones in place
   so the id is unchanged.
-- Tricky Output sections: 55 guides, 461 questions total. Recount with:
+- Tricky Output sections: 55 guides, 467 questions total. Recount with:
   `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
 - After adding a `**QN:**` marker, run `npm run content:meta`, or the `totalQuestionCount`
   parity test fails and names the guide.

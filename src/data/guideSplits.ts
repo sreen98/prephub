@@ -24,6 +24,16 @@ export interface GuideSplit {
   movedAnchors: Readonly<Record<string, string>>;
 }
 
+/**
+ * Guides renamed after release (same route, new name). Question ids are `<guide name>-qN`, so
+ * a rename moves every id: `<from>-qN` becomes `<to>-qN`. Splits above already point at the
+ * new names, so a pre-split id goes straight there; this covers ids saved under the old name.
+ */
+export const GUIDE_RENAMES: readonly { from: string; to: string }[] = [
+  // v1.7.30: the page asks for the output, so it is labelled by what it practises.
+  { from: 'JavaScript Tricky Questions', to: 'JavaScript Output Questions' },
+];
+
 export const GUIDE_SPLITS: readonly GuideSplit[] = [
   {
     oldName: 'React Guide',
@@ -126,10 +136,10 @@ export const GUIDE_SPLITS: readonly GuideSplit[] = [
     oldRoute: '/javascript/guide',
     qaMax: 45,
     qa: { name: 'JavaScript Interview Questions', route: '/javascript/interview-questions' },
-    tricky: { name: 'JavaScript Tricky Questions', route: '/javascript/tricky-questions' },
+    tricky: { name: 'JavaScript Output Questions', route: '/javascript/tricky-questions' },
     routeNames: {
       '/javascript/interview-questions': 'JavaScript Interview Questions',
-      '/javascript/tricky-questions': 'JavaScript Tricky Questions',
+      '/javascript/tricky-questions': 'JavaScript Output Questions',
     },
     movedAnchors: {
       '15-interview-questions-answers': '/javascript/interview-questions',

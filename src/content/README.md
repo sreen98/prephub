@@ -74,7 +74,7 @@ If you have limited time, this is the list. These twenty topics come up in almos
 
 ### 💻 JavaScript & TypeScript (8 guides)
 
-[JavaScript Guide](/javascript/guide) with [JavaScript Interview Questions](/javascript/interview-questions) and [JavaScript Tricky Questions](/javascript/tricky-questions) (closures, prototypes, the event loop, ES2026 — Temporal, `using`, iterator helpers), [TypeScript Guide](/javascript/typescript) with [TypeScript Interview Questions](/javascript/typescript-interview-questions) and [TypeScript Tricky Questions](/javascript/typescript-tricky-questions) (generics, conditional and mapped types, the Go-native compiler), [Regex Guide](/javascript/regex), [JS Comparisons](/javascript/comparisons)
+[JavaScript Guide](/javascript/guide) with [JavaScript Interview Questions](/javascript/interview-questions) and [JavaScript Output Questions](/javascript/tricky-questions) (closures, prototypes, the event loop, ES2026 — Temporal, `using`, iterator helpers), [TypeScript Guide](/javascript/typescript) with [TypeScript Interview Questions](/javascript/typescript-interview-questions) and [TypeScript Tricky Questions](/javascript/typescript-tricky-questions) (generics, conditional and mapped types, the Go-native compiler), [Regex Guide](/javascript/regex), [JS Comparisons](/javascript/comparisons)
 
 ### ⚙️ Back End (17 guides)
 

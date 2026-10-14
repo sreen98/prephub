@@ -17,13 +17,17 @@ describe('migrateQuestionId', () => {
     ['React Guide-q5-2', 'React Tricky Questions-q5'],
     // JavaScript: deployed Q&A Q1–Q45, Tricky Q1–Q53 — Tricky Q46–Q53 were never suffixed
     ['JavaScript Guide-q45', 'JavaScript Interview Questions-q45'],
-    ['JavaScript Guide-q12-2', 'JavaScript Tricky Questions-q12'],
-    ['JavaScript Guide-q46', 'JavaScript Tricky Questions-q46'],
-    ['JavaScript Guide-q53', 'JavaScript Tricky Questions-q53'],
+    ['JavaScript Guide-q12-2', 'JavaScript Output Questions-q12'],
+    ['JavaScript Guide-q46', 'JavaScript Output Questions-q46'],
+    ['JavaScript Guide-q53', 'JavaScript Output Questions-q53'],
     // TypeScript: deployed Q&A Q1–Q29, Tricky Q1–Q31 — Tricky Q30–Q31 were never suffixed
     ['TypeScript Guide-q29', 'TypeScript Interview Questions-q29'],
     ['TypeScript Guide-q29-2', 'TypeScript Tricky Questions-q29'],
     ['TypeScript Guide-q31', 'TypeScript Tricky Questions-q31'],
+    // v1.7.30 rename: ids saved under the old name move to the new one
+    ['JavaScript Tricky Questions-q12', 'JavaScript Output Questions-q12'],
+    ['JavaScript Tricky Questions-q54', 'JavaScript Output Questions-q54'],
+    ['JavaScript Output Questions-q12', 'JavaScript Output Questions-q12'],
     // untouched
     ['React Interview Questions-q5', 'React Interview Questions-q5'],
     ['React Router-q5', 'React Router-q5'],
@@ -38,8 +42,14 @@ describe('migrateIdKeyedRecord (Daily Review history)', () => {
   it('renames old keys, keeps others, and is idempotent', () => {
     const { next, changed } = migrateIdKeyedRecord({ 'React Guide-q1': 1, 'JavaScript Guide-q50': 2, 'Node.js Guide-q1': 3 });
     expect(changed).toBe(true);
-    expect(next).toEqual({ 'React Interview Questions-q1': 1, 'JavaScript Tricky Questions-q50': 2, 'Node.js Guide-q1': 3 });
+    expect(next).toEqual({ 'React Interview Questions-q1': 1, 'JavaScript Output Questions-q50': 2, 'Node.js Guide-q1': 3 });
     expect(migrateIdKeyedRecord(next)).toEqual({ next, changed: false });
+  });
+
+  it('moves history saved under a renamed guide name', () => {
+    const { next, changed } = migrateIdKeyedRecord({ 'JavaScript Tricky Questions-q7': 'a', 'React Router-q2': 'b' });
+    expect(changed).toBe(true);
+    expect(next).toEqual({ 'JavaScript Output Questions-q7': 'a', 'React Router-q2': 'b' });
   });
 
   it('never overwrites history already stored under the new id', () => {
@@ -51,7 +61,7 @@ describe('migrateIdKeyedRecord (Daily Review history)', () => {
 describe('migrateBookmarks', () => {
   it('moves a quiz bookmark to the new id, bookmark id and guide name', () => {
     const { next } = migrateBookmarks([{ type: 'quiz', id: 'quiz__JavaScript Guide-q3-2', questionId: 'JavaScript Guide-q3-2', questionText: 'x', guideName: 'JavaScript Guide' }]);
-    expect(next[0]).toMatchObject({ id: 'quiz__JavaScript Tricky Questions-q3', questionId: 'JavaScript Tricky Questions-q3', guideName: 'JavaScript Tricky Questions' });
+    expect(next[0]).toMatchObject({ id: 'quiz__JavaScript Output Questions-q3', questionId: 'JavaScript Output Questions-q3', guideName: 'JavaScript Output Questions' });
   });
 
   it('moves a heading bookmark whose section moved, and leaves one that stayed', () => {
@@ -76,7 +86,7 @@ describe('migrateCheckpoints', () => {
       '/javascript/typescript': cp('2-basic-types'),   // stayed on the core page
     });
     expect(Object.keys(next).sort()).toEqual(['/frontend/react-interview-questions', '/javascript/tricky-questions', '/javascript/typescript']);
-    expect(next['/javascript/tricky-questions'].guideName).toBe('JavaScript Tricky Questions');
+    expect(next['/javascript/tricky-questions'].guideName).toBe('JavaScript Output Questions');
   });
 
   it('does not overwrite a checkpoint the new guide already has', () => {
