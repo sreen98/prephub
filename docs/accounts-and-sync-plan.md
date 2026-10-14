@@ -259,7 +259,17 @@ Original plan:
   browser". They must say what is stored, where, for how long, and how to delete it.
 - Google Analytics must never receive the email address or the user ID.
 
-### Phase 5: rollout (about 1 week, mostly waiting)
+### Phase 5: rollout
+
+**Feature flag (built 2026-10-14):** the deploy build reads `VITE_ACCOUNTS` from the GitHub
+repository variable `ACCOUNTS` (Settings → Secrets and variables → Actions → Variables).
+`on` shows sign-in; anything else or unset hides it and drops Firebase from the build. Flip it,
+then Actions → "Deploy to GitHub Pages" → **Run workflow** (`workflow_dispatch`); no commit
+needed. Turning it off is safe: nobody loses anything (progress stays on each device and in
+Firestore), sync simply pauses and resumes from the stored base when it is turned on again.
+`account.test.ts` pins the workflow wiring.
+
+Original plan (about 1 week, mostly waiting):
 - Put sign-in behind a feature flag and use it on two devices for a week.
 - Measure real reads and writes per user, and compare them with the estimates above.
 - Turn it on for everyone, and announce it in What's New.

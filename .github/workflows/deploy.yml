@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  # Lets the ACCOUNTS feature flag be flipped and redeployed without a commit.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -76,8 +78,15 @@ jobs:
       - name: Verify content counts 🔢
         run: npm run verify:counts
 
+      # Feature flag for the optional Google sign-in and progress sync
+      # (src/lib/account.ts). Set the repository variable ACCOUNTS to "on" to show
+      # it, anything else (or unset) to hide it: Settings → Secrets and variables →
+      # Actions → Variables, then run this workflow again ("Run workflow" below).
+      # Turning it off leaves everyone's progress on their devices and in Firestore.
       - name: Build 🏗️
         run: npm run build
+        env:
+          VITE_ACCOUNTS: ${{ vars.ACCOUNTS }}
 
       # `cname` writes a CNAME file into gh-pages on every deploy. Each deploy
       # replaces the branch, so without it GitHub would drop the custom domain

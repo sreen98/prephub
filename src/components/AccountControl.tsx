@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Download, LogIn, LogOut, MoreHorizontal, Trash2, X } from 'lucide-react';
 import { useAccount } from '../hooks/useAccount';
 import { useSync } from '../hooks/useSync';
@@ -115,6 +116,13 @@ export default function AccountControl() {
           <LogIn size={16} />
           <span>{state.status === 'checking' ? 'Checking account…' : busy ? 'Signing in…' : 'Sign in with Google'}</span>
         </button>
+      )}
+      {state.status === 'signed-out' && (
+        // The notice at the point of consent (India's DPDP Act, GDPR Art. 13): what is saved, why, and who may sign in.
+        <p className="px-3 pb-1 text-[11px] leading-snug text-muted">
+          Optional. Saves your name, email and a copy of your progress to sync between devices; delete it any time.
+          18+ in India. <Link to="/privacy" className="underline underline-offset-2 hover:text-ink">Privacy</Link>
+        </p>
       )}
       {state.status === 'signed-in' && menuOpen && (
         <ul id="account-options" className="mx-1 mb-1 space-y-0.5">

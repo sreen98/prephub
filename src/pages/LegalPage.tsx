@@ -1,26 +1,45 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ACCOUNTS_ENABLED } from '../lib/account';
+import { ANALYTICS_ENABLED } from '../lib/analytics';
 
 /**
- * Privacy Policy and Terms of Use. Both are DRAFTS: they describe what the site
- * actually does today (static site, no accounts, browser-only storage, Google
- * Analytics, and the optional Google account only in builds where ACCOUNTS_ENABLED
- * shows it), and every fact the code cannot tell us is listed under "Open items"
- * for the owner to settle. Do not add a commitment here that the site does not keep.
+ * Privacy Policy and Terms of Use, written to cover the EU/UK GDPR (controller,
+ * legal bases, rights, transfers, retention), the ePrivacy cookie rules,
+ * California's CalOPPA (effective date, Do Not Track), COPPA (children), and
+ * India's DPDP Act (notice at sign-in in AccountControl, under-18s, grievance
+ * contact, the Data Protection Board).
+ * They describe only what the site actually does: the optional Google account
+ * appears only when ACCOUNTS_ENABLED, and visitor statistics only when
+ * ANALYTICS_ENABLED, so a build can never promise or admit to something it
+ * doesn't do. Facts the code cannot settle stay under "Open items".
+ * Update LAST_UPDATED whenever the wording changes.
  */
 
 type Doc = 'privacy' | 'terms';
 
 interface Section { heading: string; body: ReactNode }
 
+const LAST_UPDATED = '14 October 2026';
+const OWNER = 'Sreenath P';
+const CONTACT_EMAIL = 'developersreenz@gmail.com';
+
+const LINK = 'text-accent underline underline-offset-2 hover:text-accent-strong';
+
 const ext = (href: string, label: string) => (
-  <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2 hover:text-accent-strong">
+  <a href={href} target="_blank" rel="noopener noreferrer" className={LINK}>
     {label}
   </a>
 );
 
-const ISSUES_URL = 'https://github.com/sreen98/prephub/issues';
+/** Only the services this build actually sends data to. */
+const PROCESSORS = new Intl.ListFormat('en', { type: 'conjunction' }).format([
+  'GitHub',
+  ...(ANALYTICS_ENABLED ? ['Cloudflare'] : []),
+  ...(ACCOUNTS_ENABLED ? ['Google'] : []),
+]);
+
+const mail = <a href={`mailto:${CONTACT_EMAIL}`} className={LINK}>{CONTACT_EMAIL}</a>;
 
 const ACCOUNT_SECTION: Section = {
   heading: 'If you sign in with Google',
@@ -42,8 +61,10 @@ const ACCOUNT_SECTION: Section = {
       </ul>
       <p>
         Security rules let only your signed-in account read or change your progress. The site's owner can see the
-        database through the Firebase console. PrepHub does not send your email address or account ID to Google Analytics.
-        Google processes this data under the {ext('https://firebase.google.com/support/privacy', 'Firebase privacy and security terms')}.
+        database through the Firebase console, and looks at it only to run and fix the service. Google acts as our data
+        processor under the {ext('https://cloud.google.com/terms/data-processing-addendum', 'Google Cloud Data Processing Addendum')},
+        which covers Cloud Firestore and Firebase Authentication.
+        Signing in stores a sign-in token in your browser; it exists only because you asked to sign in.
       </p>
       <p>
         It is kept until you delete it. In the account menu, Export my data downloads your progress as a file, and Delete
@@ -54,25 +75,45 @@ const ACCOUNT_SECTION: Section = {
   ),
 };
 
+const STATISTICS_SECTION: Section = {
+  heading: 'Visitor statistics',
+  body: ANALYTICS_ENABLED ? (
+    <p>
+      The site counts visits with {ext('https://www.cloudflare.com/web-analytics/', 'Cloudflare Web Analytics')}. It sets no
+      cookies, stores nothing on your device and does not follow you across sites. Cloudflare sees the page you visit, the
+      page that linked to it, your browser type and your country (from your IP address, which it does not use to identify
+      you), and gives us only totals. Cloudflare handles this under its {ext('https://www.cloudflare.com/privacypolicy/', 'Privacy Policy')}.
+    </p>
+  ) : (
+    <p>The site does not use analytics or any other tracking, and sets no cookies.</p>
+  ),
+};
+
 const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
   title: 'Privacy Policy',
-  openItems: [
-    'Name the person responsible for the site and add a contact email.',
-    'Decide whether visitors from the EU or UK must give consent before Google Analytics loads. It currently loads for everyone.',
-    'Check how long the Google Analytics property keeps data (its data retention setting) and state it here.',
-    'Confirm whether Cloudflare only provides DNS for the domain or also proxies traffic. If it proxies, add it under "Hosting".',
-    ...(ACCOUNTS_ENABLED
-      ? ['Review and accept the Google Cloud data processing terms in the Firebase console, and decide whether EU and UK visitors need more notice before signing in.']
-      : []),
-  ],
+  // Settled 2026-10-14: Cloudflare is DNS-only for prephub.sreenathp.com (not a hosting processor),
+  // and Firestore and Firebase Auth fall under the GCP Terms, which include Google's Cloud Data
+  // Processing Addendum with no separate acceptance. Add a line here when a new fact needs settling.
+  openItems: [],
   sections: [
     {
       heading: 'In short',
       body: (
         <p>
-          {ACCOUNTS_ENABLED
-            ? 'PrepHub works without an account, and your progress stays in your browser. If you choose to sign in with Google, a copy of your progress is stored in your account so it follows you to other devices. The site uses Google Analytics to count page views.'
-            : 'PrepHub has no accounts and no server of its own. Your progress stays in your browser. The site uses Google Analytics to count page views.'}
+          PrepHub works without an account, and your progress stays in your browser.
+          {ACCOUNTS_ENABLED && ' If you choose to sign in with Google, a copy of your progress is stored in your account so it follows you to other devices.'}
+          {ANALYTICS_ENABLED
+            ? ' Visits are counted with Cloudflare Web Analytics, which uses no cookies.'
+            : ' There is no analytics or tracking.'}{' '}
+          Nothing is sold, and there are no ads.
+        </p>
+      ),
+    },
+    {
+      heading: 'Who is responsible',
+      body: (
+        <p>
+          PrepHub is run by {OWNER}, who is the data controller for the personal data described here. Contact: {mail}.
         </p>
       ),
     },
@@ -91,8 +132,9 @@ const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
             <li>preferences such as theme, text size and editor settings</li>
           </ul>
           <p>
-            Because it lives in one browser, it does not follow you to another browser or device
-            {ACCOUNTS_ENABLED ? ' unless you sign in' : ''}. Clearing this site's data in your browser settings deletes it.
+            This storage is needed for the features you use, so it does not require consent. Because it lives in one
+            browser, it does not follow you to another browser or device{ACCOUNTS_ENABLED ? ' unless you sign in' : ''}.
+            Clearing this site's data in your browser settings deletes it.
           </p>
         </>
       ),
@@ -103,10 +145,12 @@ const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
       body: (
         <p>
           The JavaScript, React and Query playgrounds run entirely in your browser, including the PostgreSQL database
-          used by the Query Playground. Your code and queries are not uploaded anywhere.
+          used by the Query Playground. Your code and queries are not uploaded anywhere
+          {ACCOUNTS_ENABLED ? ', except playground drafts saved to your account if you sign in' : ''}.
         </p>
       ),
     },
+    STATISTICS_SECTION,
     {
       heading: 'Offline copy',
       body: (
@@ -114,22 +158,6 @@ const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
           A service worker stores the site's files in your browser so that pages load quickly and work offline. It holds
           no personal information.
         </p>
-      ),
-    },
-    {
-      heading: 'Google Analytics',
-      body: (
-        <>
-          <p>
-            The site uses Google Analytics 4 to see which pages are visited. Google sets cookies for this and receives
-            information such as the pages you view, your approximate location, and your device and browser type. Google
-            processes it under the {ext('https://policies.google.com/privacy', 'Google Privacy Policy')}.
-          </p>
-          <p>
-            You can opt out with the {ext('https://tools.google.com/dlpage/gaoptout', 'Google Analytics opt-out add-on')}{' '}
-            or a content blocker. PrepHub works the same without it.
-          </p>
-        </>
       ),
     },
     {
@@ -143,8 +171,65 @@ const PRIVACY: { title: string; openItems: string[]; sections: Section[] } = {
       ),
     },
     {
-      heading: 'Questions',
-      body: <p>Open an issue on the {ext(ISSUES_URL, 'PrepHub GitHub repository')}.</p>,
+      heading: 'Legal bases (EU and UK)',
+      body: (
+        <ul>
+          {ACCOUNTS_ENABLED && <li>Your account and synced progress: to provide the service you asked for by signing in (contract).</li>}
+          {ANALYTICS_ENABLED && <li>Cookieless visitor statistics: our legitimate interest in knowing which pages are useful.</li>}
+          <li>Hosting logs: our legitimate interest in keeping the site running and secure.</li>
+          <li>Everything else stays on your device and is not processed by us.</li>
+        </ul>
+      ),
+    },
+    {
+      heading: 'Where data is processed',
+      body: (
+        <p>
+          The services above are run by {PROCESSORS}, which may process data in the United States and other countries
+          outside the EU and UK. They protect these transfers with the European Commission's Standard Contractual Clauses
+          and, where they are certified, the EU-U.S. Data Privacy Framework.
+        </p>
+      ),
+    },
+    {
+      heading: 'Your rights',
+      body: (
+        <>
+          <p>
+            You can ask to see, correct, delete or receive a copy of your personal data, object to its use, restrict it,
+            or withdraw your consent.{ACCOUNTS_ENABLED && ' Signed-in users can export and delete everything themselves from the account menu; deleting the account withdraws consent.'}{' '}
+            For anything else, or a complaint, email {mail}; it is the contact for questions and grievances about your
+            data, and you will get an answer within one month.
+          </p>
+          <p>
+            You can also complain to your data protection authority: in the EU your national authority, in the UK the
+            Information Commissioner's Office, in India the Data Protection Board of India, and in Brazil the ANPD.
+          </p>
+        </>
+      ),
+    },
+    {
+      heading: 'Children',
+      body: (
+        <p>
+          PrepHub is a study tool for developers and is not directed at children under 13. We do not knowingly collect
+          personal data from them, and the site does no behavioural tracking or advertising.
+          {ACCOUNTS_ENABLED && ' Using PrepHub without an account is fine at any age, because nothing leaves your browser. To sign in, you must be 18 or older if you are in India. Elsewhere, if you are under the age of digital consent where you live (13 to 16 in the EU), sign in only with a parent\'s permission.'}
+        </p>
+      ),
+    },
+    {
+      heading: 'Do Not Track',
+      body: (
+        <p>
+          PrepHub does not track you across other sites{ANALYTICS_ENABLED ? ' and its statistics use no cookies' : ''}, so
+          it treats every visitor the same whether or not the browser sends a Do Not Track signal.
+        </p>
+      ),
+    },
+    {
+      heading: 'Changes',
+      body: <p>If this policy changes, the date below changes too, and important changes are announced in What's New.</p>,
     },
   ],
 };
@@ -153,7 +238,6 @@ const TERMS: typeof PRIVACY = {
   title: 'Terms of Use',
   openItems: [
     'Choose a licence for the guides and code. The repository has no LICENSE file, so reuse rights are currently undefined.',
-    'Name the person responsible for the site and add a contact email.',
     'Decide which country\'s law governs these terms, if you want to state one.',
   ],
   sections: [
@@ -161,7 +245,7 @@ const TERMS: typeof PRIVACY = {
       heading: 'Using PrepHub',
       body: (
         <p>
-          PrepHub is free to use for your own study. You do not need an account.
+          PrepHub is run by {OWNER} and is free to use for your own study. You do not need an account.
           {ACCOUNTS_ENABLED && ' Signing in with Google is optional, and you can delete your account at any time from the account menu.'}
         </p>
       ),
@@ -185,6 +269,15 @@ const TERMS: typeof PRIVACY = {
       ),
     },
     {
+      heading: 'Open-source software',
+      body: (
+        <p>
+          PrepHub is built with open-source libraries such as React, Monaco and PGlite. Their licences and copyright
+          notices are listed in <a href={`${import.meta.env.BASE_URL}licenses.txt`} className={LINK}>licenses.txt</a>.
+        </p>
+      ),
+    },
+    {
       heading: 'Other sites and names',
       body: (
         <p>
@@ -198,14 +291,14 @@ const TERMS: typeof PRIVACY = {
       body: (
         <p>
           The site and these terms may change or stop at any time. Your saved progress lives in your browser
-          {ACCOUNTS_ENABLED ? ' (and, if you signed in, in your account)' : ''}, so it is not affected by changes to these terms. See the <Link to="/privacy" className="text-accent underline underline-offset-2 hover:text-accent-strong">Privacy Policy</Link> for
-          what the site stores.
+          {ACCOUNTS_ENABLED ? ' (and, if you signed in, in your account)' : ''}, so it is not affected by changes to these terms.
+          See the <Link to="/privacy" className={LINK}>Privacy Policy</Link> for what the site stores.
         </p>
       ),
     },
     {
-      heading: 'Questions',
-      body: <p>Open an issue on the {ext(ISSUES_URL, 'PrepHub GitHub repository')}.</p>,
+      heading: 'Contact',
+      body: <p>Email {mail}.</p>,
     },
   ],
 };
@@ -214,17 +307,20 @@ export default function LegalPage({ doc }: { doc: Doc }) {
   const { title, openItems, sections } = doc === 'privacy' ? PRIVACY : TERMS;
   return (
     <article className="px-6 py-12 md:px-12 max-w-2xl mx-auto text-ink">
-      <h1 className="font-display text-4xl font-semibold tracking-tight mb-6">{title}</h1>
+      <h1 className="font-display text-4xl font-semibold tracking-tight mb-2">{title}</h1>
+      <p className="text-sm text-muted mb-6">Last updated {LAST_UPDATED}</p>
 
-      <section aria-labelledby="draft-heading" className="mb-10 border border-line bg-surface rounded-md p-5">
-        <h2 id="draft-heading" className="text-sm font-semibold mb-2">Draft for review</h2>
-        <p className="text-sm text-muted mb-2">
-          This page describes how the site works today. These details still need to be settled:
-        </p>
-        <ul className="list-disc pl-5 space-y-1 text-sm text-muted">
-          {openItems.map((item) => <li key={item}>{item}</li>)}
-        </ul>
-      </section>
+      {openItems.length > 0 && (
+        <section aria-labelledby="draft-heading" className="mb-10 border border-line bg-surface rounded-md p-5">
+          <h2 id="draft-heading" className="text-sm font-semibold mb-2">Still to settle</h2>
+          <p className="text-sm text-muted mb-2">
+            This page describes how the site works today. These details are still open:
+          </p>
+          <ul className="list-disc pl-5 space-y-1 text-sm text-muted">
+            {openItems.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </section>
+      )}
 
       <div className="space-y-8 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_p+p]:mt-3 [&_p+ul]:mt-3 [&_ul+p]:mt-3">
         {sections.map(({ heading, body }) => (

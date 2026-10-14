@@ -28,6 +28,3 @@ interface ImportMetaEnv {
   readonly VITE_ACCOUNTS?: string;
 }
 
-interface Window {
-  gtag: (...args: unknown[]) => void;
-}

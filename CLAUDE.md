@@ -83,7 +83,8 @@ The numbering is referenced from code comments, so keep it stable.
    **Firebase (optional Google sign-in) is reached only through `import()` in `lib/account.ts`**;
    elsewhere `import type` only (`account.test.ts`). It loads on Sign in or when `account-hint`
    says this device was signed in, never for a guest. Visible only when `ACCOUNTS_ENABLED`
-   (dev, or `VITE_ACCOUNTS=on`) until sync ships. Sync: `lib/syncEngine.ts` (+
+   (dev, or `VITE_ACCOUNTS=on`); production sets it from the repository variable `ACCOUNTS`
+   in `deploy.yml` (a feature flag: flip the variable, re-run the workflow). Sync: `lib/syncEngine.ts` (+
    `firestoreRemote.ts`, also `import()` only). A synced key's hook calls `useSyncedReload`.
    **Never remove synced keys while the engine runs** (it would push the removal as deletions);
    stop it first, as `AccountControl` does. `firestore.rules` repeats `SYNCED_KEYS`
@@ -411,8 +412,15 @@ so use the inline `GithubIcon`.
 - **Focus:** a global `:focus-visible` ring in the accent. An input with `outline-none` needs a
   visible focus style on itself or its container.
 - **Active links are marked `aria-current="page"`**, which is also what `Sidebar.test.tsx` checks.
-- `/privacy` and `/terms` (`LegalPage.tsx`) are drafts with an "Open items" list. Describe only
-  what the site does (localStorage, GA4, GitHub Pages); never add a commitment it doesn't keep.
+- `/privacy` and `/terms` (`LegalPage.tsx`) cover GDPR, ePrivacy, CalOPPA and COPPA, with a
+  "Still to settle" list. Describe only what the site does (localStorage, GitHub Pages, and
+  cookieless Cloudflare Web Analytics when `CLOUDFLARE_BEACON_TOKEN` in `lib/analytics.ts` is set);
+  never add a commitment it doesn't keep. **No cookie-setting analytics (no GA)**: EU/UK consent
+  rules; `LegalPage.test.tsx` fails on a GA tag. Bump `LAST_UPDATED` in `LegalPage.tsx` when the
+  wording changes. India's DPDP Act: the notice under "Sign in with Google" (`AccountControl`)
+  and "18+ in India" must stay. `thirdPartyLicenses()` in `vite.config.js` writes
+  `dist/licenses.txt` (packages that actually render into a chunk), linked from the Terms; the
+  service worker's `navigateFallbackDenylist` keeps that link from serving the app shell.
   The Google-account wording is shown only when `ACCOUNTS_ENABLED`, so a build without sign-in
   never describes it.
 

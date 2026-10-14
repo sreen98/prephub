@@ -19,6 +19,20 @@ describe('Firebase stays off the first-paint path', () => {
   });
 });
 
+describe('the production feature flag', () => {
+  // Sign-in is switched on and off in production by the repository variable
+  // ACCOUNTS, with no code change; losing either line silently removes the switch.
+  const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8').replace(/\r\n/g, '\n');
+
+  it('the deploy build reads VITE_ACCOUNTS from the ACCOUNTS repository variable', () => {
+    expect(workflow).toMatch(/run: npm run build\n\s+env:\n\s+VITE_ACCOUNTS: \$\{\{ vars\.ACCOUNTS \}\}/);
+  });
+
+  it('the deploy can be re-run by hand after flipping the variable', () => {
+    expect(workflow).toMatch(/\n\s+workflow_dispatch:/);
+  });
+});
+
 describe('describeSignInError', () => {
   it('says nothing when the reader closed the Google window themselves', () => {
     expect(describeSignInError({ code: 'auth/popup-closed-by-user' })).toBeNull();

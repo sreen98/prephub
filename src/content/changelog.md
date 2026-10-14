@@ -4,6 +4,8 @@
 
 - **A tidier sidebar.** The "View on GitHub" and "Admin" links are gone from the bottom of the sidebar, leaving the version and the Privacy and Terms links.
 - The home page now says "no account needed" rather than "no account".
+- **No more Google Analytics.** It set cookies before asking, which EU and UK rules don't allow. PrepHub now sets no tracking cookies at all; visits may be counted with Cloudflare Web Analytics, which uses no cookies and stores nothing on your device.
+- **A complete Privacy Policy.** It now says who runs the site and how to reach them, the legal basis for each use of data, where data is processed, your rights (see, correct, delete, export, complain), the policy on children and Do Not Track, and when it was last updated. It also covers India's data protection law and Brazil's (how to complain to each country's authority). The Terms name the owner and a contact email, and link a list of the open-source software PrepHub is built with and its licences.
 
 ## v1.7.30 (October 2026)
 
