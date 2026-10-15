@@ -998,18 +998,19 @@ Type quickly and the two lines diverge; stop and they converge. The counter rise
 
 ---
 
-**Q55: Explain CSR, SSR and SSG — when would you use each?**
+**Q55: Explain CSR, SSR, SSG, ISR and streaming SSR — when would you use each?**
 
 **Short answer:** they differ in **when the HTML is generated**, and everything else follows.
 
-| Strategy | HTML built | Cost per request | First paint | Data freshness |
-|---|---|---|---|---|
-| **CSR** | in the browser, after JS loads | none (a static file) | slowest | always live |
-| **SSR** | on the server, per request | highest | fast, personalised | live |
-| **SSG** | at build time | none (served from a CDN) | fastest | as old as the last build |
-| **ISR** | at build, then regenerated in the background | amortised | fastest | stale up to the revalidate window |
+| Approach | When HTML is made | What the user gets | Good for |
+|---|---|---|---|
+| **CSR** — Client-Side Rendering | In the browser, after JavaScript loads | Often an initially sparse page, then the app renders | Interactive apps behind login; pages where SEO and instant first display matter less |
+| **SSR** — Server-Side Rendering | On the server for each request | HTML with that request's data | Frequently changing or personalized pages |
+| **SSG** — Static Site Generation | Ahead of time, usually during a build | A ready-made HTML file served quickly | Content that changes infrequently, such as docs or marketing pages |
+| **ISR** — Incremental Static Regeneration | Initially ahead of time, then regenerated after a set interval or trigger | Fast static pages that can refresh over time | Large content sites where rebuilding everything for each update is impractical |
+| **Streaming SSR** | On the server, in chunks as parts become ready | The page can begin displaying before all server-rendered content is ready | Pages with slow or independent sections, when showing the shell early helps |
 
-**CSR** fits apps behind a login, where SEO is irrelevant and long sessions amortise the slow first load. **SSR** fits pages that are public *and* personalised or fast-changing (live stock, search results), at the cost of server work and a TTFB that includes data fetching. **SSG** is the default for marketing pages, docs and blogs, and **ISR** covers content that changes hourly. Frameworks mix them per route.
+The trade-off behind the table is **cost and freshness**: CSR and SSG cost nothing per request (static files from a CDN) but SSG is only as fresh as the last build; SSR pays server work on every request and its TTFB includes the data fetch; ISR amortises that work and is stale for at most its revalidate window; streaming SSR keeps SSR's cost but stops the slowest query from holding back the whole page. Frameworks mix them per route.
 
 Worth volunteering: SSR alone doesn't make an app fast, since the JavaScript still ships and hydrates (Q65), and Server Components are a different axis (Q13).
 

@@ -1,5 +1,9 @@
 # What's New
 
+## v1.7.32 (October 2026)
+
+- **Rendering strategies side by side.** React interview question 55 now compares CSR, SSR, SSG, ISR and streaming SSR in one table: when the HTML is made, what the user gets, and what each is good for, followed by the cost and freshness trade-off behind them.
+
 ## v1.7.31 (October 2026)
 
 - **A tidier sidebar.** The "View on GitHub" and "Admin" links are gone from the bottom of the sidebar, leaving the version and the Privacy and Terms links.
