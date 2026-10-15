@@ -388,16 +388,6 @@ html {
   @apply mb-4 leading-relaxed;
 }
 
-/* A readable measure on a wide sheet: running text stops at ~75 characters, while code,
-   tables and diagrams keep the sheet's full width. */
-.prose-container > p,
-.prose-container > ul,
-.prose-container > ol,
-.prose-container > blockquote,
-.prose-container > .callout {
-  max-width: 75ch;
-}
-
 .prose-container > ul,
 .prose-container > ol {
   @apply mb-6 pl-6;

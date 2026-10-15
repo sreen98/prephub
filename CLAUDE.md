@@ -413,7 +413,7 @@ so use the inline `GithubIcon`.
   `.card-stack`, `.leader`, `.flash-face` (Quiz/Review/Simulator cards) and `.page-title`.
   Empty states use `components/EmptyNote.tsx`; dialogs and search are `.index-card`s, the
   toast an ink chip. No uppercase kickers anywhere outside the playgrounds: a label is
-  sentence-case mono. Guide running text stops at 75ch (code and tables stay full width).
+  sentence-case mono. Guide text runs the full sheet width (no `ch` cap: the owner wants no empty strip on a wide monitor), at the S/M/L sizes only (window-scaled text was tried and rejected).
   `html`/`body` are `overflow-x: clip`, never `hidden` (that breaks `position: sticky`).
   `design.md` has the page map. `rule` and
   `margin` tokens are decoration only, never text. The teal accent is 4.73:1 on cream

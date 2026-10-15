@@ -69,7 +69,7 @@ const REACT_TRACKS: Omit<ChallengeTrack, 'tag'>[] = [
     id: 'react-data',
     title: 'Data Fetching & Lists',
     idea: 'Loading data, showing its loading, empty and error states, and keeping long lists fast.',
-    names: ['Display Data from a JSON Prop', 'Fetch Users from an API', 'JSON → API → React fetch', 'Pagination', 'Product List Sort & Filter', 'Data Table (sort + filter + paginate)', 'Infinite Scroll', 'Image Gallery + Lazy Load', 'Responsive Images (srcset / AVIF)', 'Client Cache (stale-while-revalidate)', 'Suspense + Lazy (Code Splitting)'],
+    names: ['Display Data from a JSON Prop', 'Fetch Users from an API', 'JSON → API → React fetch', 'Pagination', 'Fetch + Paginate Posts', 'Product List Sort & Filter', 'Data Table (sort + filter + paginate)', 'Infinite Scroll', 'Image Gallery + Lazy Load', 'Responsive Images (srcset / AVIF)', 'Client Cache (stale-while-revalidate)', 'Suspense + Lazy (Code Splitting)'],
   },
   {
     id: 'react-overlays',

@@ -1019,6 +1019,272 @@ export const reactChecks: Record<string, ReactCheck[]> = {
       ]
     }
   ],
+  "Fetch + Paginate Posts": [
+    {
+      "label": "shows a loading state while the posts are fetched",
+      "fetch": {
+        "delayMs": 600,
+        "body": [
+          {
+            "id": 1,
+            "title": "Post A01"
+          },
+          {
+            "id": 2,
+            "title": "Post A02"
+          },
+          {
+            "id": 3,
+            "title": "Post A03"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "expectText": "Loading"
+        },
+        {
+          "expectText": "Post A01"
+        },
+        {
+          "expectNoText": "Loading"
+        }
+      ]
+    },
+    {
+      "label": "the first page shows 10 posts with Prev disabled",
+      "fetch": {
+        "body": [
+          {
+            "id": 1,
+            "title": "Post A01"
+          },
+          {
+            "id": 2,
+            "title": "Post A02"
+          },
+          {
+            "id": 3,
+            "title": "Post A03"
+          },
+          {
+            "id": 4,
+            "title": "Post A04"
+          },
+          {
+            "id": 5,
+            "title": "Post A05"
+          },
+          {
+            "id": 6,
+            "title": "Post A06"
+          },
+          {
+            "id": 7,
+            "title": "Post A07"
+          },
+          {
+            "id": 8,
+            "title": "Post A08"
+          },
+          {
+            "id": 9,
+            "title": "Post A09"
+          },
+          {
+            "id": 10,
+            "title": "Post A10"
+          },
+          {
+            "id": 11,
+            "title": "Post A11"
+          },
+          {
+            "id": 12,
+            "title": "Post A12"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "expectText": "Post A10"
+        },
+        {
+          "expect": {
+            "role": "listitem"
+          },
+          "count": 10
+        },
+        {
+          "expectNoText": "Post A11"
+        },
+        {
+          "expectText": "Page 1 of 2"
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Prev"
+          },
+          "disabled": true
+        }
+      ]
+    },
+    {
+      "label": "Next shows the remainder on the last page, with Next disabled",
+      "fetch": {
+        "body": [
+          {
+            "id": 1,
+            "title": "Post A01"
+          },
+          {
+            "id": 2,
+            "title": "Post A02"
+          },
+          {
+            "id": 3,
+            "title": "Post A03"
+          },
+          {
+            "id": 4,
+            "title": "Post A04"
+          },
+          {
+            "id": 5,
+            "title": "Post A05"
+          },
+          {
+            "id": 6,
+            "title": "Post A06"
+          },
+          {
+            "id": 7,
+            "title": "Post A07"
+          },
+          {
+            "id": 8,
+            "title": "Post A08"
+          },
+          {
+            "id": 9,
+            "title": "Post A09"
+          },
+          {
+            "id": 10,
+            "title": "Post A10"
+          },
+          {
+            "id": 11,
+            "title": "Post A11"
+          },
+          {
+            "id": 12,
+            "title": "Post A12"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "click": {
+            "role": "button",
+            "name": "Next"
+          }
+        },
+        {
+          "expectText": "Post A12"
+        },
+        {
+          "expectNoText": "Post A01"
+        },
+        {
+          "expect": {
+            "role": "listitem"
+          },
+          "count": 2
+        },
+        {
+          "expectText": "Page 2 of 2"
+        },
+        {
+          "expect": {
+            "role": "button",
+            "name": "Next"
+          },
+          "disabled": true
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Prev"
+          }
+        },
+        {
+          "expectText": "Post A01"
+        }
+      ]
+    },
+    {
+      "label": "an HTTP error shows an alert and Try again, which refetches",
+      "fetch": [
+        {
+          "status": 500,
+          "body": {
+            "error": "boom"
+          }
+        },
+        {
+          "body": [
+            {
+              "id": 1,
+              "title": "Post A01"
+            },
+            {
+              "id": 2,
+              "title": "Post A02"
+            },
+            {
+              "id": 3,
+              "title": "Post A03"
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "expect": {
+            "role": "alert"
+          }
+        },
+        {
+          "expectText": "500"
+        },
+        {
+          "click": {
+            "role": "button",
+            "name": "Try again"
+          }
+        },
+        {
+          "expectText": "Post A01"
+        },
+        {
+          "expectNoText": "500"
+        }
+      ]
+    },
+    {
+      "label": "an empty response says so instead of rendering nothing",
+      "fetch": {
+        "body": []
+      },
+      "steps": [
+        {
+          "expectText": "No posts"
+        }
+      ]
+    }
+  ],
   "Search Filter": [
     {
       "label": "typing a category filters by category",

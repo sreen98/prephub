@@ -3083,6 +3083,37 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
       "Use item.id as the list key."
     ]
   },
+  "Fetch + Paginate Posts": {
+    "summary": "Fetch every post once from a real API, then page through them in the browser, 10 at a time, with loading, error-with-retry and empty states.",
+    "statement": "Fetch https://jsonplaceholder.typicode.com/posts once when the component mounts. It returns all 100 posts, so paginate in memory: show 10 titles per page in a numbered list (page 2 starts at 11), with Prev and Next buttons and \"Page X of Y\" between them, and a line \"Showing A–B of N\". Prev is disabled on the first page and Next on the last. Work out the total pages and the visible slice during render instead of storing them. While loading show \"Loading posts…\"; if the request fails (fetch does not reject on 404 or 500, so check res.ok) show the error with a \"Try again\" button; if the API returns no posts say \"No posts yet.\". Cancel the request with an AbortController in the effect cleanup, ignore the AbortError it causes, and don't end the loading state from a .finally that also runs for the cancelled request.",
+    "examples": [
+      {
+        "input": "Press Run with a working network.",
+        "output": "\"Loading posts…\", then posts 1 to 10, \"Page 1 of 10\" with Prev disabled, and \"Showing 1–10 of 100\"."
+      },
+      {
+        "input": "Click Next twice.",
+        "output": "Posts 21 to 30, numbered from 21, and \"Page 3 of 10\". No new request is made."
+      },
+      {
+        "input": "The API returns 12 posts and you go to page 2.",
+        "output": "Posts 11 and 12, \"Page 2 of 2\", Next disabled, \"Showing 11–12 of 12\".",
+        "explanation": "totalPages = ceil(12 / 10) = 2, and the last page holds the remainder."
+      },
+      {
+        "input": "The server answers 500, then you click Try again and it succeeds.",
+        "output": "\"Could not load posts: HTTP 500\" with a Try again button; after the click, \"Loading posts…\" and then page 1."
+      }
+    ],
+    "constraints": [
+      "Fetch once; a page change slices the array and makes no request.",
+      "Derive totalPages and the visible slice during render; store only posts and page.",
+      "Disable Prev on the first page and Next on the last; an empty list must not read \"page 1 of 0\".",
+      "Handle four states: loading, error with retry, empty and success.",
+      "Throw on !res.ok, abort in the effect cleanup, and ignore AbortError.",
+      "Use post.id as the list key."
+    ]
+  },
   "Search Filter": {
     "summary": "Filter a product list as the user types, by name or category, with a match count and empty state.",
     "statement": "Given 12 products (name, category, price), filter them as the user types. Matching is case-insensitive, ignores surrounding spaces, and checks both the name and the category. Show \"Showing X of 12 products\" and, when nothing matches, a message like No products match \"xyz\". Compute the filtered list during render rather than storing it in state. Then do the usual follow-up: add a debounced version (useDebouncedValue) that delays the value, not the input, and explain why a 12-item local list does not need debouncing.",

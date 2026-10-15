@@ -3040,7 +3040,11 @@ the measurements behind them:
   callouts and `/admin` moved onto the system; the last uppercase kickers (sidebar groups,
   "Tools", "On this page", callout labels) became sentence-case mono or Fraunces. Running
   text in a guide is capped at 75ch (`.prose-container > p` etc.); code, tables and diagrams
-  keep the full sheet. `html`/`body` use `overflow-x: clip`, not `hidden`, which makes the
+  keep the full sheet. v2.0.1 removed the cap: on a 27" 1080p monitor (1920px viewport) it
+  left the 16px Medium text at 647px of a ~1200px sheet, and the owner wanted no empty strip
+  (a 90ch cap was tried and rejected). Scaling the S/M/L sizes with the window (Medium 20px
+  at 1920px) was tried in the same pass and also rejected: the owner wanted the width
+  filled, not bigger text. `html`/`body` use `overflow-x: clip`, not `hidden`, which makes the
   element a scroll container and can stop `position: sticky` from sticking.
 - **Guard gap: `<motion.button>`.** axe found the back-to-top button (a framer-motion
   `motion.button`) with no name. Check #13 searched for `<button` only, so it never saw it.

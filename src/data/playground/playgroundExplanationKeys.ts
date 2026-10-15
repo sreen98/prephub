@@ -173,7 +173,7 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   // ===== Class design =====
   'Car Parking Lot',
 
-  // ===== React Machine Coding (36) — build-order walkthroughs =====
+  // ===== React Machine Coding (50) — build-order walkthroughs =====
   'Responsive Images (srcset / AVIF)',
   'Protected Route (Auth + RBAC)',
   'Mini Redux Store',
@@ -185,6 +185,7 @@ export const playgroundExplanationKeys: ReadonlySet<string> = new Set([
   'JSON → API → React fetch',
   'Fetch Users from an API',
   'Pagination',
+  'Fetch + Paginate Posts',
   'Search Filter',
   'Chat App',
   'Modal Component',

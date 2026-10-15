@@ -1,5 +1,10 @@
 # What's New
 
+## v2.0.1 (October 2026)
+
+- **New React challenge: Fetch + Paginate Posts.** Fetch 100 posts from a real API once, then page through them 10 at a time in the browser, with loading, error-with-retry and empty states, safe Prev/Next at the edges and a build-order walkthrough. It also shows why ending the loading state in a `.finally` is a bug: it runs for the cancelled request too.
+- **Guide text uses the whole page.** Paragraphs and lists now run the full width of the sheet instead of stopping at about 75 characters, so a wide monitor no longer leaves an empty strip on the right.
+
 ## v2.0.0 (October 2026)
 
 - **A new look: a study notebook.** The sidebar is now a deep-teal notebook cover with cream text, and the page you are on is marked in highlighter amber. Pages sit on cream paper, and dark mode is a green-black chalkboard. On the home page, the headline is written on a ruled sheet with a red margin line, and the sample question is a real index card. Each category is its own index card, listing its guides on ruled lines with dotted leaders to the reading time. The practice tools are sticky notes. Guides are a sheet of paper on the desk, with a margin line and each chapter starting on a ruled line with a teal tab. Headings are set in Fraunces, a warm book serif, and key words carry a highlighter mark. A new visitor sees a plain note about where their progress will appear instead of an empty bar.

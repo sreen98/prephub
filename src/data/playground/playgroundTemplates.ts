@@ -7143,6 +7143,120 @@ function Pagination() {
 render(<Pagination />);`,
       },
       {
+        name: 'Fetch + Paginate Posts',
+        jsx: true,
+        code: `const API = 'https://jsonplaceholder.typicode.com/posts';
+const PAGE_SIZE = 10;
+
+function Posts() {
+  // One status field: the screen is in exactly one of these at a time.
+  const [status, setStatus] = useState('loading');   // loading | error | done
+  const [posts, setPosts] = useState([]);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [attempt, setAttempt] = useState(0);         // bump to refetch
+
+  useEffect(() => {
+    const ac = new AbortController();
+    setStatus('loading');
+    setError(null);
+
+    fetch(API, { signal: ac.signal })
+      .then(res => {
+        // fetch resolves on 404 and 500; only a network failure rejects.
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        setPosts(data);
+        setPage(1);
+        setStatus('done');
+      })
+      .catch(err => {
+        // Our own cleanup aborting the request is not a failure.
+        if (err.name === 'AbortError') return;
+        setError(err.message);
+        setStatus('error');
+      });
+    // No .finally(() => setLoading(false)) here: it would also run for an
+    // ABORTED request and end the loading state while the next one is still
+    // in flight (StrictMode's mount, unmount, mount does exactly that).
+
+    return () => ac.abort();
+  }, [attempt]);
+
+  // Everything about pages is derived during render, never stored.
+  // Math.max(1, ...) so an empty list is "page 1 of 1", not "page 1 of 0".
+  const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
+  const start = (page - 1) * PAGE_SIZE;
+  const visible = posts.slice(start, start + PAGE_SIZE);
+
+  const box = { fontFamily: 'system-ui', border: '1px solid #ccc', borderRadius: 8, padding: 16, maxWidth: 560 };
+  const btn = { padding: '6px 12px', border: '1px solid #999', borderRadius: 6, background: '#fff', color: '#222' };
+
+  if (status === 'loading') {
+    return <div style={box}><p>Loading posts…</p></div>;
+  }
+
+  if (status === 'error') {
+    return (
+      <div style={box}>
+        <p role="alert" style={{ color: '#b91c1c', margin: 0 }}>Could not load posts: {error}</p>
+        <button onClick={() => setAttempt(n => n + 1)} style={{ ...btn, marginTop: 10 }}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (posts.length === 0) {
+    return <div style={box}><p>No posts yet.</p></div>;
+  }
+
+  return (
+    <div style={box}>
+      {/* start keeps the numbering running across pages: page 2 begins at 11 */}
+      <ol start={start + 1} style={{ listStyle: 'decimal', margin: 0, paddingLeft: 28 }}>
+        {visible.map(p => (
+          <li key={p.id} style={{ marginBottom: 6 }}>{p.title}</li>
+        ))}
+      </ol>
+
+      <nav aria-label="Pagination" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 14 }}>
+        <button disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))} style={btn}>
+          Prev
+        </button>
+        <span aria-live="polite">Page {page} of {totalPages}</span>
+        <button disabled={page === totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} style={btn}>
+          Next
+        </button>
+      </nav>
+      <p style={{ color: '#555', fontSize: 13, marginBottom: 0 }}>
+        Showing {start + 1}–{start + visible.length} of {posts.length}
+      </p>
+    </div>
+  );
+}
+
+render(<Posts />);
+
+// ===== WHAT'S BEING GRADED =====
+// 1. Fetch once, paginate in memory. The API returns all 100 posts, so a
+//    page change is a slice, not a request. Say when you would switch to
+//    server-side paging: when the full list is too big to download.
+// 2. The page values are DERIVED. totalPages, the slice and the "Showing"
+//    line are computed from posts and page during render; storing any of
+//    them is how the highlight and the content drift apart.
+// 3. Boundaries: Prev disabled on page 1, Next on the last page, and the
+//    handlers clamp as well. An empty list must not produce "page 1 of 0"
+//    with Next enabled.
+// 4. Four request states: loading, error with Try again, empty, success.
+// 5. AbortController in the cleanup with AbortError ignored, and no
+//    .finally that turns loading off for the aborted request.
+// 6. The controls sit in a nav labelled "Pagination", and the page line is
+//    aria-live, so a screen reader hears the page change.`,
+      },
+      {
         name: 'Search Filter',
         jsx: true,
         code: `// BOTH versions are below, side by side, with counters. Type in each and watch

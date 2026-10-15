@@ -95,7 +95,7 @@ mid-transition colours.
 Tailwind's 4-point scale. Sections differ in rhythm on purpose (hero `mb-16`, stats `mb-10`,
 index sections `mb-20`); don't pad every section the same. Hairlines, not boxes. Grid tracks
 that hold text use `minmax(0, 1fr)`; no horizontal scroll at 320 / 375 / 414 / 768 px.
-Running text in a guide stops at 75ch; code, tables and diagrams use the sheet's full width.
+Running text in a guide uses the sheet's full width, like code, tables and diagrams (v2.0.1 dropped the 75ch cap at the owner's request: it left an empty strip on a wide monitor).
 
 ## Motion
 Quiet. The reduced-motion block in `index.css` and `<MotionConfig reducedMotion="user">` stay.

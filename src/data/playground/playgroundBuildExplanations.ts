@@ -593,6 +593,31 @@ const pagination: BuildExplanation = {
   ],
 };
 
+const fetchPaginatePosts: BuildExplanation = {
+  kind: 'build',
+  problem: 'Fetch + Paginate Posts',
+  problemStatement:
+    'Fetch a real list once (jsonplaceholder.typicode.com/posts, a free public test API that returns 100 posts) and page through it in the browser, 10 at a time. This is client-side pagination: the request happens once and a page change is just a different slice. What is being watched is that the page values are derived, the edges are safe, and the request states are all handled.',
+  buildOrder: [
+    { title: 'Store only what you cannot work out', excerpt: { from: "const [status, setStatus] = useState('loading');", lines: 5 }, detail: 'The request needs one status field ("loading", "error" or "done") plus its data and error. Pagination needs exactly one more value, the page the user is on. `attempt` is a counter whose only job is to re-run the effect for a retry.', pitfall: 'Separate loading and error booleans can both be true, which is how a spinner and an error end up on screen together.' },
+    { title: 'Fetch once, on mount and on retry', excerpt: { from: 'const ac = new AbortController();', lines: 3 }, detail: 'The effect depends only on `attempt`, not on `page`, so moving between pages never fetches. Each run makes a fresh AbortController (the browser object that cancels a fetch) and resets to loading, so a retry shows the loading text again instead of the old error.' },
+    { title: 'Check res.ok, because fetch will not', excerpt: { from: 'fetch(API, { signal: ac.signal })', lines: 6 }, detail: 'fetch rejects only on a network failure. A 404 or a 500 resolves with `ok === false`, so the code throws to send it to the catch. res.json() is a second asynchronous step and is returned to the next .then.', pitfall: 'Without the check, a 500 error page is parsed as JSON and the reader sees an error about an unexpected token "<".' },
+    { title: 'Store the posts, or the error, and ignore your own abort', excerpt: { from: '.then(data => {', lines: 11 }, detail: 'On success the posts are stored, the page goes back to 1 (a retry could otherwise land on a page the new data does not have), and status becomes "done". An AbortError means the cleanup cancelled the request, which is not a failure, so it returns without touching state.' },
+    { title: 'Do not end loading in a .finally', excerpt: { from: '// No .finally(() => setLoading(false)) here: it would also run for an', lines: 3 }, detail: 'A common version of this component ends with `.finally(() => setLoading(false))`. The finally runs for the cancelled request too. In development, StrictMode mounts, unmounts and mounts again: the first request is aborted, the second starts, and then the first one\'s finally switches loading off while the second is still in flight, so the page briefly renders an empty list. Setting the state in the success and error paths, and returning early on AbortError, avoids it.' },
+    { title: 'Abort in the cleanup', excerpt: { from: 'return () => ac.abort();', lines: 2 }, detail: 'React runs the cleanup on unmount and before the effect runs again for a retry. Aborting there stops a response from landing in a component that has gone, and stops a slow old response from overwriting a newer one.' },
+    { title: 'Derive the page values during render', excerpt: { from: 'const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));', lines: 3 }, detail: 'totalPages, where the page starts, and the slice of posts to show are all worked out from `posts` and `page` on every render, so they can never disagree. 100 posts at 10 a page is 10 pages; page 3 starts at index 20 and shows indexes 20 to 29.', pitfall: 'Without `Math.max(1, ...)` an empty list has 0 pages. Next is disabled only when `page === totalPages`, and 1 is not 0, so Next is enabled and leads to "page 2 of 0".' },
+    { title: 'Render loading, error and empty before the list', excerpt: { from: "if (status === 'loading') {", lines: 3 }, detail: 'Each state returns early, so the success render at the bottom can assume there are posts. The error branch has a role="alert" message and a Try again button that bumps `attempt`; the empty branch says "No posts yet." rather than showing a blank box.' },
+    { title: 'Keep the numbering running across pages', excerpt: { from: "<ol start={start + 1} style={{ listStyle: 'decimal', margin: 0, paddingLeft: 28 }}>", lines: 5 }, detail: 'An ordered list with `start` set to the first post\'s position numbers page 2 from 11, so the reader can tell where they are. The list style is set explicitly because a CSS reset (the preview pane has one) removes list numbers. Each item is keyed by the post\'s id from the data.' },
+    { title: 'Guard the edges in the button and in the handler', excerpt: { from: '<nav aria-label="Pagination"', lines: 7 }, detail: 'Prev is disabled on page 1 and Next on the last page, and each handler also clamps with Math.max or Math.min, so a double click or a keyboard repeat cannot step past the ends. The controls sit in a nav labelled "Pagination", and the "Page X of Y" text is aria-live, so a screen reader announces the new page after each click.' },
+  ],
+  graded: [
+    { point: 'You can say why this is client-side pagination', why: 'The API returns the whole list, so one request and an in-memory slice is right. The follow-up is when to switch to server-side paging (the Pagination challenge): when the full list is too big to download, or changes too often to cache.' },
+    { point: 'Page values are derived, not stored', why: 'Only posts and page are state. Storing totalPages or the visible slice as well is how the counter and the content drift apart.' },
+    { point: 'The edges are safe', why: 'Disabled buttons, clamping handlers, a page reset after a refetch, and no "page 1 of 0" for an empty list. Each one closes a route to an empty or impossible page.' },
+    { point: 'All four request states, and no .finally race', why: 'Loading, error with a retry, empty and success each need their own screen, and ending the loading state from a .finally that also runs for an aborted request is a bug that only shows up in development, which is where it should be caught.' },
+  ],
+};
+
 const searchFilter: BuildExplanation = {
   kind: 'build',
   problem: 'Search Filter',
@@ -2211,6 +2236,7 @@ export const playgroundBuildExplanations: Record<string, BuildExplanation> = {
   'JSON → API → React fetch': jsonApiFetch,
   'Fetch Users from an API': fetchUsersApi,
   'Pagination': pagination,
+  'Fetch + Paginate Posts': fetchPaginatePosts,
   'Search Filter': searchFilter,
   'Chat App': chatApp,
   'Modal Component': modalComponent,
