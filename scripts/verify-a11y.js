@@ -7,7 +7,7 @@
  * needs no build. No Puppeteer: Node's global WebSocket speaks CDP directly,
  * which keeps the only new dependency axe-core itself.
  *
- * The v1.7.33 redesign found eleven sub-AA status colours and an unnamed
+ * The v2.0.0 redesign found eleven sub-AA status colours and an unnamed
  * back-to-top button this way, all of which had shipped. A one-off scan proves
  * nothing a week later; this keeps it proved.
  *

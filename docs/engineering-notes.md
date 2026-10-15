@@ -3006,7 +3006,7 @@ the measurements behind them:
   centring demo stretches the child to full height (the default is `stretch`), it doesn't
   move it to the top.
 
-## Hallmark redesign: study notebook, one web font (v1.7.33)
+## Hallmark redesign: study notebook, one web font (v2.0.0)
 
 - **Why the look changed.** A Hallmark audit (branch `design/hallmark-refresh`) scored the
   v1.7.30 "Study notebook" palette as restrained but signature-less: warm paper, a serif and
@@ -3024,7 +3024,7 @@ the measurements behind them:
 - **CRLF in `stripMarkdownToc`.** The pattern matched `\n` only. On a Windows checkout
   (`core.autocrlf=true`) the guides are CRLF in dev, so the inline Table of Contents stayed
   on the page next to the live one. Production builds on Linux were never affected.
-- **Pass 2: the remaining pages (v1.7.33).** Quiz, Daily Review, Interview Simulator,
+- **Pass 2: the remaining pages (v2.0.0).** Quiz, Daily Review, Interview Simulator,
   Last-minute, Cheat Sheets, Bookmarks, Checkpoints and the legal pages moved onto the
   notebook system. An axe-core scan of every page in both themes found status text in the 600
   shades (emerald 3.4:1, amber 2.9:1, red 4.2:1 on the cream page) on quiz scores, difficulty
@@ -3035,7 +3035,7 @@ the measurements behind them:
   can fail used an inline colour, in light mode (the iframe otherwise loads the saved theme,
   where the same amber passes). Ruled lines behind free-size text on the Last-minute cards
   read as strikethrough and were removed.
-- **Pass 3: overlays and leftovers (v1.7.33).** Search, the account dialogs (`ModalShell`),
+- **Pass 3: overlays and leftovers (v2.0.0).** Search, the account dialogs (`ModalShell`),
   the streak note, the toast, the error screen, the contents rail, "Continue learning", the
   callouts and `/admin` moved onto the system; the last uppercase kickers (sidebar groups,
   "Tools", "On this page", callout labels) became sentence-case mono or Fraunces. Running
@@ -3046,7 +3046,7 @@ the measurements behind them:
   `motion.button`) with no name. Check #13 searched for `<button` only, so it never saw it.
   The check now scans both tags; probed by deleting the new label (it failed on
   `App.tsx:168`, then passed with the label restored).
-- **`verify:a11y` (v1.7.33).** The one-off axe scans became a gate: `scripts/verify-a11y.js`
+- **`verify:a11y` (v2.0.0).** The one-off axe scans became a gate: `scripts/verify-a11y.js`
   starts Vite, launches headless Chrome/Edge, and speaks the DevTools Protocol over Node's
   global `WebSocket` (no Puppeteer; axe-core is the only new dev dependency, pinned). Traps
   met while building it: (1) reduced motion alone still let a headless tab measure the old

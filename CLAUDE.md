@@ -405,7 +405,7 @@ so use the inline `GithubIcon`.
   not raw slate/indigo, so a palette change is one edit. **`pop` is a fill: never put text on it.**
   Text goes on `highlight` instead (the `.hl` band: ink on it is 12.5:1 light, 6.2:1 dark).
   No purple, no rainbow category tags. Status colours (emerald/amber/red) are the only other hues.
-- **The design system is locked in `design.md`** (Hallmark, v1.7.33): read it before restyling
+- **The design system is locked in `design.md`** (Hallmark, v2.0.0): read it before restyling
   any page. Signature marks, all in `index.css`: `.cover` (the sidebar; re-points the tokens
   inside it, so plain `bg-surface`/`text-muted` utilities recolour to cream on teal),
   `.ruled-sheet`, `.paper-sheet`, `.index-card`, `.sticky-note` (not `.sticky`: that is

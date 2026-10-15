@@ -527,7 +527,7 @@ check('icon-only buttons carry an aria-label', () => {
     if (extname(f) !== '.tsx' || f.includes('.test.')) continue;
     const src = read(f);
     // <motion.button> too: the back-to-top button was one, and slipped past a
-    // `<button`-only scan until axe flagged it (v1.7.33).
+    // `<button`-only scan until axe flagged it (v2.0.0).
     for (const tag of ['button', 'motion.button']) {
     let i = 0;
     while ((i = src.indexOf(`<${tag}`, i)) !== -1) {

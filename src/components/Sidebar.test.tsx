@@ -112,7 +112,7 @@ describe('Sidebar', () => {
     expect(reduxLink.slice(0, 400)).toMatch(/pl-5/);
 
     // And the heading carries its own typographic treatment: a sentence-case mono
-    // label (v1.7.33 dropped the uppercase kicker, design.md).
+    // label (v2.0.0 dropped the uppercase kicker, design.md).
     expect(html).toMatch(/<p class="[^"]*font-mono[^"]*">Global State Management<\/p>/);
     expect(html).not.toMatch(/<p class="[^"]*uppercase[^"]*">Global State Management/);
   });

@@ -1,6 +1,6 @@
 # Design — PrepHub
 
-A locked design system for this app (Hallmark, v1.7.33). Every page restyle reads this file
+A locked design system for this app (Hallmark, v2.0.0). Every page restyle reads this file
 first. Do not pick a new look per page: extend or amend this file when the system needs to
 grow. Token values live in `src/index.css` (`:root` and `.dark`) and are mapped to Tailwind
 names in `tailwind.config.js`; this file names them, it does not duplicate them.

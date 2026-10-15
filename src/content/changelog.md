@@ -1,6 +1,6 @@
 # What's New
 
-## v1.7.33 (October 2026)
+## v2.0.0 (October 2026)
 
 - **A new look: a study notebook.** The sidebar is now a deep-teal notebook cover with cream text, and the page you are on is marked in highlighter amber. Pages sit on cream paper, and dark mode is a green-black chalkboard. On the home page, the headline is written on a ruled sheet with a red margin line, and the sample question is a real index card. Each category is its own index card, listing its guides on ruled lines with dotted leaders to the reading time. The practice tools are sticky notes. Guides are a sheet of paper on the desk, with a margin line and each chapter starting on a ruled line with a teal tab. Headings are set in Fraunces, a warm book serif, and key words carry a highlighter mark. A new visitor sees a plain note about where their progress will appear instead of an empty bar.
 - **The practice pages match.** Quiz, Daily Review and the Interview Simulator show each question on an index card, which turns to an answer card with a green rule. The Simulator's settings sit on an exam sheet. Last-minute cards are index cards with the deck written on the red rule. Cheat Sheets is a contents page on a sheet of paper. Bookmarks and Checkpoints are index cards, and empty pages are a sticky note. The Privacy Policy and Terms are a sheet of paper like the guides. Search, dialogs, notifications and the guide callouts match too.
