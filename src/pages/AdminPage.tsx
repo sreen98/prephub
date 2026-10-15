@@ -77,12 +77,12 @@ export default function AdminPage() {
   if (content === null) {
     return (
       <div className="flex items-center justify-center min-h-[80vh] px-6">
-        <div className="w-full max-w-sm">
+        <div className="index-card w-full max-w-sm p-6">
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-lg bg-accent-soft text-accent mb-4">
-              <Lock size={26} />
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-sm bg-accent-soft text-accent mb-4">
+              <Lock size={26} aria-hidden="true" />
             </div>
-            <h1 className="text-xl font-bold mb-1">Admin Area</h1>
+            <h1 className="font-display text-3xl font-semibold mb-1">Admin area</h1>
             <p className="text-sm text-muted">
               Enter the passphrase to view this section.
             </p>
@@ -115,7 +115,7 @@ export default function AdminPage() {
               </button>
             </div>
             {error && (
-              <p role="alert" className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
+              <p role="alert" className="text-sm text-red-700 dark:text-red-400 text-center">{error}</p>
             )}
             <button
               type="submit"
@@ -131,14 +131,10 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="px-6 py-12 md:px-12 max-w-4xl mx-auto">
+    <div className="paper-sheet px-5 py-8 md:pl-[4.5rem] md:pr-12 md:py-12 md:m-6 md:rounded-sm max-w-5xl md:mx-auto">
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-line">
         <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-medium">
-            <Lock size={11} />
-            Admin
-          </span>
-          <span className="text-muted">Personal interview prep</span>
+          <span className="font-mono text-muted">Admin / Personal interview prep</span>
         </div>
         <button
           onClick={lock}

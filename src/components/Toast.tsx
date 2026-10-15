@@ -19,12 +19,14 @@ export default function Toast({ message, onClose, duration = 2000 }: ToastProps)
     <AnimatePresence>
       {message && (
         <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.95 }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 rounded-md bg-slate-900 text-white text-sm font-medium shadow-xl flex items-center gap-2"
+          role="status"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 8 }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 rounded-[3px] bg-ink text-canvas text-sm font-medium shadow-[0_14px_24px_-14px_rgb(0_0_0/0.5)] flex items-center gap-2"
         >
-          <Check size={14} className="text-emerald-400 dark:text-emerald-600" />
+          {/* The chip is ink-coloured: near-black in light mode, cream in dark. */}
+          <Check size={14} aria-hidden="true" className="text-emerald-400 dark:text-emerald-700" />
           {message}
         </motion.div>
       )}

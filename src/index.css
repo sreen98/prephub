@@ -1,6 +1,27 @@
+/* Hallmark · genre: editorial · macrostructure: Index-First (home) + Long Document (guides)
+ * design-system: design.md · designed-as-app · theme: custom "study notebook"
+ * display: Fraunces Variable 600 · body: system sans · mono: system mono
+ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ==================== Display font ==================== */
+
+/*
+ * The ONE web font: Fraunces (SIL OFL), headings and the wordmark only. Latin subset of
+ * the weight axis, 36 KB, self-hosted from @fontsource-variable/fraunces so the PWA works
+ * offline. `swap` means first paint never waits on it: headings show in the system serif
+ * fallback and change face when it lands. Body text stays on the system stack.
+ */
+@font-face {
+  font-family: 'Fraunces Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 /* ==================== Base ==================== */
 
@@ -14,11 +35,14 @@
  * never put text on it.
  */
 :root {
-  --canvas: 247 245 240;        /* page background (warm paper) */
-  --surface: 255 254 251;       /* cards and panels */
-  --ink: 28 25 23;              /* body text and headings */
-  --muted: 87 83 78;            /* secondary text */
-  --line: 231 226 216;          /* borders and dividers */
+  --canvas: 244 238 222;        /* page background: the cream desk (muted on it 6.3:1) */
+  --surface: 255 253 246;       /* sheets, index cards and panels */
+  --ink: 31 28 25;              /* body text and headings */
+  --muted: 92 86 76;            /* secondary text */
+  --line: 224 214 192;          /* borders and dividers */
+  --rule: 196 212 228;          /* blue ruled lines on a sheet or card (decoration only) */
+  --margin: 222 120 108;        /* the red margin line (decoration only, never text) */
+  --cover: 18 45 42;            /* the notebook cover: the sidebar, in both themes */
   --accent: 15 118 110;         /* links, the primary action, focus */
   --accent-strong: 17 94 89;    /* accent on hover */
   --accent-soft: 230 242 239;   /* tinted background for an active item */
@@ -26,6 +50,7 @@
   --pop: 245 184 61;            /* highlighter amber: progress bars, streaks (fill only) */
   --pop-ink: 146 64 14;         /* amber as text */
   --pop-soft: 253 241 214;      /* amber tint */
+  --highlight: 250 214 120;     /* highlighter band behind ink text (.hl): ink on it is 12.5:1 */
 
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
@@ -35,13 +60,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark: a true near-black page (not charcoal grey), cards one step lighter, warm text. */
+/* Dark: a chalkboard. Green-black page, sheets one step lighter, chalk-white text. */
 .dark {
-  --canvas: 10 10 9;
-  --surface: 20 19 17;
-  --ink: 240 236 229;
-  --muted: 166 160 151;
-  --line: 44 41 37;
+  --canvas: 17 24 22;
+  --surface: 25 34 31;
+  --ink: 236 233 222;
+  --muted: 163 172 164;         /* 7.6:1 on canvas, 7.0:1 on surface */
+  --line: 46 60 55;
+  --rule: 38 52 56;
+  --margin: 120 62 56;
+  --cover: 10 16 15;
   --accent: 94 196 182;
   --accent-strong: 138 219 208;
   --accent-soft: 16 44 41;
@@ -49,6 +77,189 @@
   --pop: 242 181 68;
   --pop-ink: 246 199 107;
   --pop-soft: 46 36 14;
+  --highlight: 110 80 22;       /* a dimmer band, so light ink on it stays 6.2:1 */
+}
+
+/* ==================== Notebook marks ==================== */
+
+/*
+ * The highlighter: a band across the lower part of the line, behind ink-coloured text.
+ * It is the system's emphasis (never italic in a heading). Use it on one or two words
+ * per screen, or it stops meaning anything.
+ */
+.hl {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 56%,
+    rgb(var(--highlight)) 56%,
+    rgb(var(--highlight)) 90%,
+    transparent 90%
+  );
+  padding-inline: 0.08em;
+  margin-inline: -0.08em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/*
+ * An index card resting on a second one: the card behind is the same surface, turned a
+ * couple of degrees. Static (no hover motion), and it never shifts layout.
+ */
+.card-stack {
+  position: relative;
+  isolation: isolate;
+}
+.card-stack::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  border: 1px solid rgb(var(--line));
+  background: rgb(var(--surface));
+  transform: rotate(2deg) translate(6px, 4px);
+}
+
+/* A dotted leader between a name and its figure, as in a book's contents page. */
+.leader {
+  flex: 1 1 1.5rem;
+  min-width: 1.5rem;
+  align-self: flex-end;
+  margin-bottom: 0.4em;
+  border-bottom: 1.5px dotted rgb(var(--ink) / 0.22);
+}
+
+/*
+ * The notebook cover (the sidebar). It re-points the tokens inside it, so every
+ * bg-surface / text-muted / bg-accent-soft utility already in the sidebar recolours
+ * itself: cream ink on deep teal, with the highlighter amber as the active colour.
+ * Pairs: ink 13.6:1, muted 7.5:1, accent (amber) 10.9:1 on the cover.
+ */
+.cover {
+  --surface: var(--cover);
+  --canvas: 12 34 31;
+  --ink: 240 233 214;
+  --muted: 170 190 184;
+  --line: 40 78 72;
+  --accent: 250 214 120;
+  --accent-strong: 255 232 170;
+  --accent-soft: 30 70 64;
+  --accent-contrast: 18 45 42;
+  --highlight: 120 92 30;       /* a dark amber band, so cream ink on it stays 5.2:1 */
+  color: rgb(var(--ink));
+}
+.dark .cover {
+  --canvas: 6 11 10;
+  --line: 30 48 45;
+  --accent-soft: 24 44 41;
+}
+
+/* A ruled sheet: blue lines every 2rem and a red margin line (from md up). */
+.ruled-sheet {
+  position: relative;
+  background-color: rgb(var(--surface));
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(2rem - 1px),
+    rgb(var(--rule)) calc(2rem - 1px),
+    rgb(var(--rule)) 2rem
+  );
+  background-position: 0 1.25rem;
+}
+.ruled-sheet::before,
+.paper-sheet::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2.75rem;
+  width: 1.5px;
+  background: rgb(var(--margin));
+  display: none;
+}
+@media (min-width: 768px) {
+  .ruled-sheet::before,
+  .paper-sheet::before {
+    display: block;
+  }
+}
+
+/* A plain sheet of paper on the desk, with the margin line: the guide page. */
+.paper-sheet {
+  position: relative;
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--line));
+  box-shadow: 0 1px 0 rgb(var(--line)), 0 12px 32px -18px rgb(var(--ink) / 0.25);
+}
+
+/* An index card: red header rule, blue ruled lines under each entry. */
+.index-card {
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--line));
+  border-radius: 3px;
+  box-shadow: 0 10px 24px -18px rgb(var(--ink) / 0.35);
+}
+.index-card-head {
+  border-bottom: 2px solid rgb(var(--margin));
+}
+.index-card-line {
+  border-bottom: 1px solid rgb(var(--rule));
+}
+
+/*
+ * Flashcards (Quiz, Daily Review, Interview Simulator): an index card per face.
+ * The question face carries the red header rule; the answer face swaps it for a
+ * green one, so the turn reads at a glance without a coloured box.
+ */
+/* No min-height here: these classes come after Tailwind's utilities, so one set here would
+   override a min-h-* on the element. Each page sets its own. */
+.flash-face {
+  @apply flex flex-col p-6 sm:p-8;
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--line));
+  border-radius: 3px;
+  box-shadow: 0 10px 24px -18px rgb(var(--ink) / 0.35);
+}
+.flash-head {
+  @apply flex flex-wrap items-baseline gap-x-3 gap-y-1 pb-3 mb-5;
+  border-bottom: 2px solid rgb(var(--margin));
+}
+.flash-face-answer .flash-head {
+  border-bottom-color: rgb(4 120 87);     /* emerald-700 */
+}
+.dark .flash-face-answer .flash-head {
+  border-bottom-color: rgb(52 211 153);   /* emerald-400 */
+}
+.flash-label {
+  @apply font-display text-xl font-semibold text-ink;
+}
+.flash-face-answer .flash-label {
+  @apply text-emerald-700 dark:text-emerald-400;
+}
+.flash-meta {
+  @apply font-mono text-xs text-muted;
+}
+.flash-hint {
+  @apply font-mono text-xs text-muted mt-6 text-center;
+}
+
+/* Page masthead for the practice pages: a big Fraunces title over a quiet line. */
+.page-title {
+  @apply font-display text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.05];
+}
+
+/* A sticky note: amber tint, a slight turn alternating left and right. Static. */
+.sticky-note {
+  background: rgb(var(--pop-soft));
+  box-shadow: 0 14px 20px -16px rgb(var(--ink) / 0.45);
+  transform: rotate(-1deg);
+}
+.sticky-note:nth-child(even) {
+  transform: rotate(1.1deg);
+}
+.sticky-note:nth-child(3n) {
+  transform: rotate(-0.4deg);
 }
 
 /* Smooth anchor scrolling only for people who have not asked for less motion. */
@@ -83,11 +294,13 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
+/* clip, not hidden: hidden makes the element a scroll container, which can stop
+   position: sticky descendants from sticking to the viewport. */
 html {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 @layer base {
@@ -134,7 +347,8 @@ html {
 }
 
 .prose-container h1 {
-  @apply font-display text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.1] text-ink mb-6 mt-12 pb-5 border-b border-line;
+  @apply font-display text-[2.5rem] sm:text-[3.5rem] font-semibold tracking-tight leading-[1.04] text-ink mb-6 mt-12;
+  overflow-wrap: anywhere;
 }
 
 .prose-container h1:first-child {
@@ -142,15 +356,15 @@ html {
 }
 
 .prose-container h2 {
-  @apply font-display text-[1.75rem] sm:text-[2.1rem] font-semibold tracking-tight leading-tight text-ink mb-4 mt-10 pt-5;
+  @apply font-display text-[1.85rem] sm:text-[2.35rem] font-semibold tracking-tight leading-tight text-ink mb-5 mt-14 pt-6 border-t border-line;
   position: relative;
 }
 
-/* A short accent bar above each section heading: the page's chapter marks. */
+/* A short accent tab sitting on the hairline above each section heading: the chapter marks. */
 .prose-container h2::before {
   content: '';
   position: absolute;
-  top: 0;
+  top: -2px;
   left: 0;
   width: 2.5rem;
   height: 3px;
@@ -172,6 +386,16 @@ html {
 
 .prose-container p {
   @apply mb-4 leading-relaxed;
+}
+
+/* A readable measure on a wide sheet: running text stops at ~75 characters, while code,
+   tables and diagrams keep the sheet's full width. */
+.prose-container > p,
+.prose-container > ul,
+.prose-container > ol,
+.prose-container > blockquote,
+.prose-container > .callout {
+  max-width: 75ch;
 }
 
 .prose-container > ul,
@@ -212,13 +436,14 @@ html {
    scoped to .prose-container, because Quiz and Review render the same answers. Status
    colours are the only hues besides the tokens; each label shade is an AA pair per theme. */
 .callout {
-  @apply my-6 rounded-md border border-l-4 px-4 py-3 text-ink;
+  @apply my-6 rounded-[3px] border border-l-4 px-4 py-3 text-ink;
 }
 .callout p:last-child {
   @apply mb-0;
 }
+/* A mono label in sentence case, like the guide's path label: no capitalised kickers. */
 .callout-label {
-  @apply flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide;
+  @apply flex items-center gap-1.5 font-mono text-xs font-semibold;
   margin-bottom: 0.5rem !important;
 }
 .callout-followup {
@@ -694,7 +919,9 @@ kbd {
   min-width: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  @apply rounded-2xl border border-line bg-surface text-ink shadow-sm transition-colors;
+  /* An index card, like the home page's: square-ish corners and a soft drop. */
+  @apply rounded-[3px] border border-line bg-surface text-ink transition-colors;
+  box-shadow: 0 14px 28px -20px rgb(var(--ink) / 0.4);
 }
 .flip-card-back {
   transform: rotateY(180deg);

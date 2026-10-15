@@ -41,7 +41,7 @@ export interface SidebarProps {
 }
 
 /** The one active-link style, shared by Home, guides and tools. */
-const ACTIVE = 'bg-accent-soft text-accent font-semibold shadow-[inset_2px_0_0_rgb(var(--accent))]';
+const ACTIVE = 'bg-accent-soft text-accent font-semibold shadow-[inset_3px_0_0_rgb(var(--accent))]';
 /** Inactive links: muted text that darkens on hover. */
 const INACTIVE = 'text-muted hover:text-ink hover:bg-ink/5';
 
@@ -63,7 +63,7 @@ const TOOLS: {
 }[] = [
   { to: '/quiz', Icon: Zap, label: 'Quiz Mode' },
   { to: '/review', Icon: RotateCcw, label: 'Daily Review',
-    badge: (c) => countBadge(c.dueCount, 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold') },
+    badge: (c) => countBadge(c.dueCount, 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold') },
   { to: '/interview', Icon: GraduationCap, label: 'Interview Sim' },
   { to: '/last-minute', Icon: Timer, label: 'Last-Minute Cards' },
   { to: '/playground', Icon: Terminal, label: 'JavaScript Playground' },
@@ -94,17 +94,14 @@ export default function Sidebar({
 
   return (
         <aside className={cn(
-          "fixed top-0 left-0 h-screen w-72 bg-surface border-r border-line z-[70] transition-all duration-300 flex flex-col",
+          "cover fixed top-0 left-0 h-screen w-72 bg-surface z-[70] transition-all duration-300 flex flex-col",
           !isSidebarOpen && "-translate-x-full",
           isSidebarCollapsed ? "md:-translate-x-full" : "md:translate-x-0"
         )}>
           <div className="p-5 border-b border-line">
             <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center gap-2.5 group">
-                <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-                  <BookOpen size={16} className="text-accent-contrast" />
-                </div>
-                <span className="font-display text-xl font-semibold tracking-tight">PrepHub</span>
+              <Link to="/" className="font-display text-2xl font-semibold tracking-tight leading-none">
+                <span className="hl">Prep</span>Hub
               </Link>
               <div className="flex items-center gap-1">
                 <button onClick={cycleFontSize} className="hidden md:flex p-2 hover:bg-ink/5 rounded-lg transition-colors relative" title={`Font size: ${fontSize}`}>
@@ -128,7 +125,7 @@ export default function Sidebar({
               className="mt-4 w-full flex items-center gap-3 px-3 py-2.5 rounded-md bg-canvas border border-line text-sm text-muted hover:text-ink hover:border-ink/30 transition-colors"
             >
               <Search size={14} />
-              <span className="flex-1 text-left">Search...</span>
+              <span className="flex-1 text-left">Search…</span>
               <kbd className="hidden sm:inline-flex text-[10px] px-1.5 py-0.5 rounded bg-surface border border-line font-mono">⌘K</kbd>
             </button>
           </div>
@@ -186,7 +183,7 @@ export default function Sidebar({
                               className={cn(bucket.label && bucketIndex > 0 && "mt-2 pt-2 border-t border-line")}
                             >
                               {bucket.label && (
-                                <p className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                                <p className="px-3 pt-1 pb-1 font-mono text-[11px] text-muted">
                                   {bucket.label}
                                 </p>
                               )}
@@ -246,7 +243,7 @@ export default function Sidebar({
 
             {/* Tools */}
             <div className="pt-4 mt-2 border-t border-line">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted px-3">Tools</span>
+              <span className="font-mono text-[11px] text-muted px-3">Tools</span>
               <div className="mt-2 space-y-0.5">
                 {TOOLS.map(({ to, Icon, label, badge }) => (
                   <Link

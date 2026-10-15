@@ -297,7 +297,12 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
     <>
       <div
         key={filePath}
-        className={cn("animate-rise-in px-6 py-8 md:px-12 md:py-12", !isTocCollapsed && "xl:mr-64")}
+        className={cn(
+          // The sheet fills the desk with an even 1.5rem gutter; with the contents rail open
+          // (w-60, 15rem) the right gutter starts at the rail's edge.
+          "animate-rise-in paper-sheet px-5 py-8 md:pl-[4.5rem] md:pr-12 md:py-12 md:m-6 md:rounded-sm",
+          !isTocCollapsed && "xl:mr-[16.5rem]",
+        )}
       >
         {/* Search highlight banner */}
         {searchQuery && highlightCount > 0 && (
@@ -314,6 +319,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
           </div>
         )}
 
+        <GuideEyebrow filePath={filePath} />
         <div className="flex items-center gap-3 mb-4 text-sm text-muted flex-wrap">
           <span className="inline-flex items-center gap-1.5">
             <Clock size={14} />
@@ -330,7 +336,7 @@ export const ContentPage = ({ filePath, guidePath, guideName }: { filePath: stri
           )}
         </div>
 
-        <OfficialDocsBar filePath={filePath} /><GuideEyebrow filePath={filePath} />
+        <OfficialDocsBar filePath={filePath} />
 
         {checkpoint && guidePath && (
           <div

@@ -63,4 +63,9 @@ node scripts/verify-architecture.js > /dev/null || fail "the architecture check"
 echo "pre-push: code blocks…"
 node scripts/verify-code-blocks.js > /dev/null || fail "the code-block check" "verify:blocks"
 
+# axe-core in headless Chrome/Edge, every page template in both themes: contrast,
+# names and labels that jsdom cannot see. About 30 s. See scripts/verify-a11y.js
+echo "pre-push: accessibility…"
+node scripts/verify-a11y.js > /dev/null || fail "the accessibility check" "verify:a11y"
+
 echo "pre-push: all checks passed."

@@ -78,6 +78,12 @@ jobs:
       - name: Verify content counts 🔢
         run: npm run verify:counts
 
+      # axe-core on every page template in light and dark, in the runner's
+      # preinstalled Chrome (contrast needs a real browser; jsdom has no layout).
+      # The script starts its own Vite dev server, so it needs no build.
+      - name: Verify accessibility ♿
+        run: npm run verify:a11y
+
       # Feature flag for the optional Google sign-in and progress sync
       # (src/lib/account.ts). Set the repository variable ACCOUNTS to "on" to show
       # it, anything else (or unset) to hide it: Settings → Secrets and variables →

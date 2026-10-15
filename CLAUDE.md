@@ -18,10 +18,15 @@ npm run verify       # THE GATE. Run it before calling any task done.
 npm run content:meta      # after adding/removing a **QN:** marker or a guide
 npm run playground:index  # after changing playground templates
 ```
-`verify` runs six checks in order, and the pre-push hook and the deploy workflow run the same six:
+`verify` runs seven checks in order, and the pre-push hook and the deploy workflow run the same seven:
 `typecheck` (tsc) → `lint` (type-aware ESLint over all of `src/`) → `test` (Vitest) →
 `verify:counts` (figures in prose + in-page anchors) → `verify:arch` (repo invariants ESLint
-cannot express) → `verify:blocks` (every runnable guide code block parses).
+cannot express) → `verify:blocks` (every runnable guide code block parses) → `verify:a11y`
+(axe-core in headless Chrome/Edge on one route per page template, light and dark; ~30 s).
+`verify:a11y` needs Chrome, Edge or Chromium installed (or `CHROME_PATH`); it starts its own
+Vite server. A new page template goes in its `PAGES` list. `--probe` plants a 3.1:1 colour
+on every page and fails unless axe catches it. axe skips one-character text (a score of "0"),
+so probe a contrast change with a longer label.
 Pre-commit runs `verify:arch` and `verify:counts` (a second or two). If a gate blocks you, fix the code. Do **not**
 disable the rule, widen a ratchet or add a cast.
 **Gates must pass on a Windows checkout too** (`core.autocrlf=true` gives CRLF files and `\`
@@ -119,7 +124,7 @@ The numbering is referenced from code comments, so keep it stable.
      `text-slate-600 dark:text-slate-400` (small labels). `text-slate-400 dark:text-slate-600`
      is inverted. The playground surfaces are always dark and exempt.
    - **9e.** Icon-only buttons need an `aria-label`. State-dependent labels must flip with the
-     state.
+     state. Check #13 scans `<button>` and `<motion.button>`; another wrapper needs adding there.
    - **9f.** `isBuildExplanation` lives in `explanationKind.ts`. Importing it from
      `playgroundExplanations.ts` pulls 10k lines into the playground chunk. Type imports are
      fine.
@@ -398,14 +403,36 @@ so use the inline `GithubIcon`.
   progress, streaks, "say this" callouts, plus `-ink`/`-soft`) are RGB triples on `:root` and
   `.dark` in `index.css`, mapped in `tailwind.config.js`. UI code uses tokens (`bg-surface text-ink`),
   not raw slate/indigo, so a palette change is one edit. **`pop` is a fill: never put text on it.**
+  Text goes on `highlight` instead (the `.hl` band: ink on it is 12.5:1 light, 6.2:1 dark).
   No purple, no rainbow category tags. Status colours (emerald/amber/red) are the only other hues.
-- **Type:** headings use `font-display`, a serif system stack (Iowan/Charter on Apple,
-  Sitka/Cambria on Windows), body text the system sans. Hierarchy comes from size, weight and
+- **The design system is locked in `design.md`** (Hallmark, v1.7.33): read it before restyling
+  any page. Signature marks, all in `index.css`: `.cover` (the sidebar; re-points the tokens
+  inside it, so plain `bg-surface`/`text-muted` utilities recolour to cream on teal),
+  `.ruled-sheet`, `.paper-sheet`, `.index-card`, `.sticky-note` (not `.sticky`: that is
+  Tailwind's position utility), `.hl` (highlighter band; a heading's emphasis, never italic),
+  `.card-stack`, `.leader`, `.flash-face` (Quiz/Review/Simulator cards) and `.page-title`.
+  Empty states use `components/EmptyNote.tsx`; dialogs and search are `.index-card`s, the
+  toast an ink chip. No uppercase kickers anywhere outside the playgrounds: a label is
+  sentence-case mono. Guide running text stops at 75ch (code and tables stay full width).
+  `html`/`body` are `overflow-x: clip`, never `hidden` (that breaks `position: sticky`).
+  `design.md` has the page map. `rule` and
+  `margin` tokens are decoration only, never text. The teal accent is 4.73:1 on cream
+  `canvas`: AA, with no headroom, so never lighten it. **Status text is 700 in light, 400 in
+  dark** (`text-emerald-700 dark:text-emerald-400`, `text-amber-800`, `text-red-700`): the 600
+  shades fail AA on cream. Custom classes in `index.css` come after Tailwind's utilities, so a
+  property set there beats a utility on the same element: keep sizes (`min-h-*`) out of them.
+- **Type:** headings and the wordmark use `font-display`, **Fraunces** (the one web font), body
+  text the system sans, labels and figures `font-mono`. Hierarchy comes from size, weight and
   space, not boxes: prefer hairline dividers and plain lists to grids of identical cards.
   No gradients, glow shadows or `backdrop-blur`. The playground and query playground surfaces
   stay always-dark and use fixed warm near-black hexes and `stone` greys (no violet-navy, no `slate`), not tokens: a token's light-mode value
   would be dark-on-dark there.
-- **Font is a system stack.** No web font, so nothing blocks first paint. Don't reintroduce Inter.
+- **One web font, nothing else.** Fraunces, latin subset of the weight axis (36 KB), self-hosted
+  from `@fontsource-variable/fraunces` via one `@font-face` in `index.css` with
+  `font-display: swap`, so first paint never waits on it. Headings only; body stays on the
+  system stack. Don't import Fontsource's CSS (it would precache every subset), don't add a
+  second family, and don't reintroduce Inter. `thirdPartyLicenses()` lists emitted assets as
+  well as chunks, so the font's OFL notice is in `dist/licenses.txt`.
 - **Motion:** `<MotionConfig reducedMotion="user">` in `main.tsx` and the
   `prefers-reduced-motion` block in `index.css` must stay. No entrance animations on content, no
   hover lifts.

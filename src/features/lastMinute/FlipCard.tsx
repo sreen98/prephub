@@ -15,8 +15,9 @@ interface FlipCardProps {
 /** Swipes that start on something that scrolls sideways (code, tables) belong to that element. */
 const SCROLLS_SIDEWAYS = 'pre, .overflow-x-auto';
 
+/** The deck name sits on the card's red header rule, like a topic written on an index card. */
 const DeckChip = ({ name }: { name: string }) => (
-  <span className="inline-block rounded-full bg-accent-soft text-accent text-xs font-semibold px-2.5 py-1">{name}</span>
+  <span className="index-card-head block w-full pb-2.5 font-mono text-xs text-muted">{name}</span>
 );
 
 /**
@@ -70,14 +71,14 @@ export default function FlipCard({ card, deckName, flipped, onFlip, onSwipe }: F
           className="flip-card-face flex flex-col items-start justify-between gap-6 text-left min-h-[16rem] sm:min-h-[20rem] p-5 sm:p-8 hover:border-accent"
         >
           <DeckChip name={deckName} />
-          <span className="font-display text-3xl sm:text-4xl font-semibold tracking-tight leading-snug"><InlineText text={card.question} /></span>
-          <span className="inline-flex items-center gap-1.5 text-sm text-muted">
+          <span className="font-display text-3xl sm:text-[2.6rem] font-semibold tracking-tight leading-[1.15]"><InlineText text={card.question} /></span>
+          <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted">
             <RotateCw size={14} aria-hidden="true" /> Tap to see the answer
           </span>
         </button>
 
         <div inert={!flipped} aria-hidden={!flipped} className="flip-card-face flip-card-back p-5 sm:p-7">
-          <div className="flex flex-wrap items-center gap-2 mb-3"><DeckChip name={deckName} /></div>
+          <div className="mb-3"><DeckChip name={deckName} /></div>
           <h2 ref={backRef} tabIndex={-1} className="font-display text-xl font-semibold leading-snug mb-4 focus-visible:outline-none">
             <InlineText text={card.question} />
           </h2>

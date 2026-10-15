@@ -40,13 +40,14 @@ export default function QuizToolbar({
           <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors mb-2">
             <ArrowLeft size={14} /> Back
           </Link>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Quiz Mode</h1>
+          <h1 className="page-title">Quiz Mode</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <select
             value={selectedGuide}
             onChange={(e) => onGuideChange(e.target.value)}
-            className="text-sm px-3 py-2 rounded-md border border-line bg-surface outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+            aria-label="Guide"
+            className="min-w-0 flex-1 sm:flex-none sm:max-w-[18rem] text-sm px-3 py-2 rounded-md border border-line bg-surface outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
           >
             {guideOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -54,14 +55,17 @@ export default function QuizToolbar({
           </select>
           <button
             onClick={onToggleShuffle}
-            className={`p-2 rounded-md border transition-colors ${isShuffled ? 'bg-accent-soft border-accent/30 text-accent' : 'border-line text-muted hover:text-ink'}`}
+            aria-pressed={isShuffled}
+            aria-label="Shuffle questions"
+            className={`p-2 rounded-md border transition-colors ${isShuffled ? 'bg-accent-soft border-accent/30 text-accent' : 'border-line bg-surface text-muted hover:text-ink'}`}
             title="Shuffle questions"
           >
             <Shuffle size={16} />
           </button>
           <button
             onClick={onReset}
-            className="p-2 rounded-md border border-line text-muted hover:text-ink transition-colors"
+            aria-label="Reset progress"
+            className="p-2 rounded-md border border-line bg-surface text-muted hover:text-ink transition-colors"
             title="Reset progress"
           >
             <RotateCcw size={16} />
@@ -69,13 +73,14 @@ export default function QuizToolbar({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex flex-wrap items-center gap-2 mb-6">
         <span className="text-xs text-muted mr-1">Difficulty:</span>
-        <div className="flex items-center gap-1 bg-ink/5 rounded-md p-0.5">
+        <div className="flex flex-wrap items-center gap-1 bg-ink/5 rounded-md p-0.5">
           {DIFFICULTIES.map((level) => (
             <button
               key={level}
               onClick={() => onDifficultyChange(level)}
+              aria-pressed={difficulty === level}
               className={[
                 'px-2.5 py-1 rounded-lg text-xs font-medium transition-colors capitalize',
                 difficulty === level
@@ -90,16 +95,16 @@ export default function QuizToolbar({
       </div>
 
       <div className="mb-8">
-        <div className="flex justify-between text-sm text-muted mb-2">
-          <span>{currentIndex + 1} of {total}</span>
+        <div className="flex justify-between font-mono text-xs text-muted mb-2">
+          <span className="tabular-nums">{currentIndex + 1} of {total}</span>
           <span className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-emerald-600"><ThumbsUp size={12} /> {score.knew}</span>
-            <span className="flex items-center gap-1 text-amber-600"><ThumbsDown size={12} /> {score.learning}</span>
+            <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><ThumbsUp size={12} /> {score.knew}<span className="sr-only"> knew</span></span>
+            <span className="flex items-center gap-1 text-amber-800 dark:text-amber-400"><ThumbsDown size={12} /> {score.learning}<span className="sr-only"> to review</span></span>
           </span>
         </div>
-        <div className="h-2 bg-ink/5 rounded-full overflow-hidden">
+        <div className="h-2 bg-ink/10 rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full transition-all duration-300 bg-accent"
+            className="h-full rounded-full transition-all duration-300 bg-pop"
             style={{ width: `${progress}%` }}
           />
         </div>

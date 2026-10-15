@@ -9,6 +9,7 @@ import { getAllQuestions, type Question } from '../data';
 import { useSpacedRepetition } from '../hooks/useSpacedRepetition';
 import { useStudyStats } from '../hooks/useStudyStats';
 import { calloutComponents } from '../components/calloutComponents';
+import EmptyNote, { NoteLink } from '../components/EmptyNote';
 
 export default function ReviewPage() {
   const { getDueQuestions, recordReview } = useSpacedRepetition();
@@ -70,26 +71,18 @@ export default function ReviewPage() {
   // All done
   if (total === 0 || currentIndex >= total) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-        <CalendarCheck size={48} className="text-emerald-400 mb-4" />
-        <h2 className="text-xl font-bold mb-2">
-          {total === 0 ? 'All Caught Up!' : 'Review Complete!'}
-        </h2>
-        <p className="text-muted mb-6 max-w-md">
-          {total === 0
-            ? 'No questions due for review today. Great job staying on top of your studies!'
-            : `You reviewed ${reviewed} question${reviewed !== 1 ? 's' : ''}. Keep it up!`
-          }
-        </p>
-        <div className="flex gap-3">
-          <Link to="/" className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-ink/5 text-sm font-medium hover:bg-ink/10 transition-colors">
-            <ArrowLeft size={16} /> Home
-          </Link>
-          <Link to="/quiz" className="px-4 py-2 rounded-md bg-accent text-accent-contrast text-sm font-medium hover:bg-accent-strong transition-colors">
-            Practice More
-          </Link>
-        </div>
-      </div>
+      <EmptyNote
+        Icon={CalendarCheck}
+        title={total === 0 ? 'All caught up' : 'Review complete'}
+        actions={<>
+          <NoteLink to="/"><ArrowLeft size={16} /> Home</NoteLink>
+          <NoteLink to="/quiz" primary>Practise more</NoteLink>
+        </>}
+      >
+        {total === 0
+          ? 'No questions are due for review today. Great job staying on top of your studies.'
+          : `You reviewed ${reviewed} question${reviewed !== 1 ? 's' : ''}. Keep it up!`}
+      </EmptyNote>
     );
   }
 
@@ -99,26 +92,26 @@ export default function ReviewPage() {
   if (!current) return null;
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8 md:py-12">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
           <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors mb-2">
             <ArrowLeft size={14} /> Back
           </Link>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Daily Review</h1>
-          <p className="text-sm text-muted mt-1">{total} question{total !== 1 ? 's' : ''} due today</p>
+          <h1 className="page-title">Daily Review</h1>
+          <p className="text-muted mt-2">{total} question{total !== 1 ? 's' : ''} due today</p>
         </div>
       </div>
 
       {/* Progress */}
       <div className="mb-8">
-        <div className="flex justify-between text-sm text-muted mb-2">
-          <span>{currentIndex + 1} of {total}</span>
-          <span>{reviewed} reviewed</span>
+        <div className="flex justify-between font-mono text-xs text-muted mb-2">
+          <span className="tabular-nums">{currentIndex + 1} of {total}</span>
+          <span className="tabular-nums">{reviewed} reviewed</span>
         </div>
-        <div className="h-2 bg-ink/5 rounded-full overflow-hidden">
+        <div className="h-2 bg-ink/10 rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full transition-all duration-300 bg-accent"
+            className="h-full rounded-full transition-all duration-300 bg-pop"
             style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
           />
         </div>
@@ -140,23 +133,26 @@ export default function ReviewPage() {
               transition={{ duration: 0.25 }}
             >
               {!isFlipped ? (
-                <div className="min-h-[250px] p-8 rounded-lg border border-line bg-surface shadow-sm flex flex-col">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xs font-bold uppercase tracking-wider text-accent bg-accent-soft px-2.5 py-1 rounded-lg">Question</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-ink/5 text-muted">{current.guide}</span>
+                <div className="flash-face min-h-[18rem]">
+                  <div className="flash-head">
+                    <span className="flash-label">Question</span>
+                    <span className="flash-meta">{current.guide}</span>
                   </div>
-                  <div className="flex-1 quiz-markdown">
+                  <div className="flex-1 quiz-markdown text-lg">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>{current.question}</ReactMarkdown>
                   </div>
-                  <p className="text-xs text-muted mt-4 text-center">Tap to reveal answer</p>
+                  <p className="flash-hint">Tap to reveal the answer</p>
                 </div>
               ) : (
-                <div className="min-h-[250px] p-8 rounded-lg border border-emerald-200 dark:border-emerald-800/50 shadow-sm flex flex-col bg-accent-soft">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg mb-4 self-start">Answer</span>
+                <div className="flash-face flash-face-answer min-h-[18rem]">
+                  <div className="flash-head">
+                    <span className="flash-label">Answer</span>
+                    <span className="flash-meta">{current.guide}</span>
+                  </div>
                   <div className="flex-1 quiz-markdown overflow-auto max-h-[50vh]">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>{current.answer}</ReactMarkdown>
                   </div>
-                  <p className="text-xs text-muted mt-4 text-center">Tap to see question</p>
+                  <p className="flash-hint">Tap to see the question</p>
                 </div>
               )}
             </motion.div>

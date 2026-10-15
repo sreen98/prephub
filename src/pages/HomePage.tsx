@@ -9,6 +9,8 @@ import { formatReadTime } from '../lib/formatReadTime';
 import { LAST_MINUTE_CARDS } from '../data/lastMinuteCards';
 import { cardsFor, readingMinutes } from '../lib/cardSet';
 
+// Hallmark · design-system: design.md · macrostructure: Index-First (study notebook)
+
 const CORE_CARDS = cardsFor(LAST_MINUTE_CARDS, 'core').length;
 
 // Narrow type-guard so categories that have items keep that fact in TS.
@@ -36,15 +38,15 @@ function pickRandom<T>(list: T[]): T {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-/** A real question from the JavaScript guide, answerable right here. */
+/** A real question from the JavaScript guide, answerable right here, on an index card. */
 function SampleQuestion() {
   const [open, setOpen] = useState(false);
   return (
-    <figure className="rounded-lg border border-line bg-surface p-6">
-      <figcaption className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
-        Try one
+    <figure className="card-stack index-card p-6 sm:p-7 lg:-rotate-2">
+      <figcaption className="index-card-head flex items-baseline justify-between gap-3 pb-3 mb-4">
+        <span className="font-display text-xl font-semibold">What does this return?</span>
+        <span className="shrink-0 font-mono text-xs text-muted">JS · Q46</span>
       </figcaption>
-      <p className="font-display text-xl font-semibold mb-4">What does this return?</p>
       <pre className="rounded-md bg-[#22272e] text-[#e6edf3] text-sm px-4 py-3 overflow-x-auto">
         <code>{"['1', '2', '3'].map(parseInt)"}</code>
       </pre>
@@ -73,8 +75,8 @@ function SampleQuestion() {
   );
 }
 
-/** One category: its name and size on the left, its guides as a plain list on the right. */
-function CategoryRow({ cat, getStatus, done }: {
+/** One category as an index card: its name on the red header rule, its guides on the ruled lines. */
+function CategoryCard({ cat, getStatus, done }: {
   cat: CategoryWithItems;
   getStatus: (path: string) => string;
   done: number;
@@ -86,49 +88,47 @@ function CategoryRow({ cat, getStatus, done }: {
   const listId = `guides-${cat.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
 
   return (
-    <article className="grid gap-4 md:grid-cols-[16rem_1fr] md:gap-10 py-8 border-t border-line">
-      <div>
-        <h3 className="font-display text-2xl font-semibold tracking-tight">{cat.name}</h3>
-        <p className="mt-1 text-sm text-muted">
-          {cat.items.length} {cat.items.length === 1 ? 'guide' : 'guides'} · {formatReadTime(readTime)}
-          {done > 0 && <span className="text-pop-ink font-semibold"> · {done} finished</span>}
-        </p>
-        <p className="mt-3 text-sm text-muted leading-relaxed line-clamp-3">{cat.description}</p>
-      </div>
-      <div>
-        <ul id={listId} className="grid gap-x-8 sm:grid-cols-2">
-          {shown.map(item => {
-            const status = getStatus(item.path);
-            return (
-              <li key={item.path}>
-                <Link
-                  to={item.path}
-                  className="group flex items-baseline gap-2 py-2 border-b border-line/70 hover:border-accent transition-colors"
-                >
-                  {status === 'completed' && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 shrink-0 self-center" />}
-                  {status === 'in-progress' && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-pop shrink-0 self-center" />}
-                  <span className="font-medium group-hover:text-accent transition-colors">{item.name}</span>
-                  {status === 'completed' && <span className="sr-only">(finished)</span>}
-                  {status === 'in-progress' && <span className="sr-only">(in progress)</span>}
-                  <span className="ml-auto shrink-0 text-xs text-muted tabular-nums">{formatReadTime(readMinFor(item.file))}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        {hidden > 0 && (
-          <button
-            type="button"
-            onClick={() => setExpanded(e => !e)}
-            aria-expanded={expanded}
-            aria-controls={listId}
-            className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent hover:text-accent-strong"
-          >
-            {expanded ? 'Show fewer' : `Show all ${cat.items.length} guides`}
-            <ChevronDown size={15} aria-hidden="true" className={expanded ? 'rotate-180' : undefined} />
-          </button>
-        )}
-      </div>
+    <article className="index-card mb-8 break-inside-avoid px-5 pt-5 pb-4 sm:px-6">
+      <header className="index-card-head pb-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="font-display text-[1.65rem] font-semibold tracking-tight leading-tight">{cat.name}</h3>
+          <p className="shrink-0 font-mono text-xs text-muted">
+            {cat.items.length} · {formatReadTime(readTime)}
+          </p>
+        </div>
+        <p className="mt-1.5 text-sm text-muted leading-snug line-clamp-2">{cat.description}</p>
+        {done > 0 && <p className="mt-1 text-xs font-semibold text-pop-ink">{done} finished</p>}
+      </header>
+      <ul id={listId}>
+        {shown.map(item => {
+          const status = getStatus(item.path);
+          return (
+            <li key={item.path} className="index-card-line min-w-0">
+              <Link to={item.path} title={item.name} className="group flex items-baseline gap-2 py-2">
+                {status === 'completed' && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 shrink-0 self-center" />}
+                {status === 'in-progress' && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-pop shrink-0 self-center" />}
+                <span className="min-w-0 truncate font-medium decoration-accent/40 underline-offset-4 group-hover:text-accent group-hover:underline transition-colors">{item.name}</span>
+                {status === 'completed' && <span className="sr-only">(finished)</span>}
+                {status === 'in-progress' && <span className="sr-only">(in progress)</span>}
+                <span aria-hidden="true" className="leader" />
+                <span className="shrink-0 font-mono text-xs text-muted tabular-nums">{formatReadTime(readMinFor(item.file))}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+          aria-expanded={expanded}
+          aria-controls={listId}
+          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent hover:text-accent-strong"
+        >
+          {expanded ? 'Show fewer' : `Show all ${cat.items.length} guides`}
+          <ChevronDown size={15} aria-hidden="true" className={expanded ? 'rotate-180' : undefined} />
+        </button>
+      )}
     </article>
   );
 }
@@ -153,114 +153,125 @@ export default function HomePage() {
   };
 
   return (
-    <div className="px-6 py-12 md:px-12 md:py-16 max-w-6xl mx-auto text-ink">
-      {/* Introduction, next to a working sample of the product */}
-      <section className="grid gap-10 lg:grid-cols-[1fr_24rem] lg:items-center mb-14">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-4">
-            Free · no account needed · runs in your browser
-          </p>
-          <h1 className="font-display text-5xl sm:text-6xl font-semibold tracking-tight leading-[1.05] mb-6">
-            Interview prep for <em className="text-accent">full-stack</em> developers
-          </h1>
-          <p className="text-lg text-muted leading-relaxed max-w-xl mb-8">
-            From React and Node.js to system design. Read a topic, test yourself on it, and come back to what you missed.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            {continueGuide ? (
-              <Link to={continueGuide.path} className="inline-flex items-center gap-2 px-5 py-3 rounded-md bg-accent text-accent-contrast text-sm font-semibold hover:bg-accent-strong transition-colors">
-                Continue: {continueGuide.name} <ArrowRight size={16} />
+    <div className="text-ink">
+      {/* The masthead: a ruled sheet with a margin line, next to a working sample on an index card */}
+      <section className="ruled-sheet border-b border-line">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 md:pl-20 md:pr-12 py-12 md:py-20 grid gap-14 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-center">
+          <div className="min-w-0">
+            <h1 className="font-display text-[2.9rem] sm:text-[4rem] lg:text-[5rem] font-semibold tracking-tight leading-[1] mb-7 [overflow-wrap:anywhere]">
+              Interview prep for <span className="hl">full-stack</span> developers
+            </h1>
+            <p className="text-lg sm:text-xl text-muted leading-relaxed max-w-xl mb-8">
+              From React and Node.js to system design. Read a topic, test yourself on it, and come back to what you missed.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              {continueGuide ? (
+                <Link to={continueGuide.path} className="inline-flex items-center gap-2 px-5 py-3 rounded-md bg-accent text-accent-contrast text-sm font-semibold hover:bg-accent-strong transition-colors">
+                  Continue: {continueGuide.name} <ArrowRight size={16} />
+                </Link>
+              ) : (
+                <a href="#guides" className="inline-flex items-center gap-2 px-5 py-3 rounded-md bg-accent text-accent-contrast text-sm font-semibold hover:bg-accent-strong transition-colors">
+                  Start studying <ArrowRight size={16} />
+                </a>
+              )}
+              <Link to="/quiz" className="px-5 py-3 rounded-md border border-line bg-surface text-sm font-semibold hover:border-accent hover:text-accent transition-colors">
+                Take a quiz
               </Link>
-            ) : (
-              <a href="#guides" className="inline-flex items-center gap-2 px-5 py-3 rounded-md bg-accent text-accent-contrast text-sm font-semibold hover:bg-accent-strong transition-colors">
-                Start studying <ArrowRight size={16} />
-              </a>
-            )}
-            <Link to="/quiz" className="px-5 py-3 rounded-md border border-line bg-surface text-sm font-semibold hover:border-accent hover:text-accent transition-colors">
-              Take a quiz
-            </Link>
-          </div>
-        </div>
-        <SampleQuestion />
-      </section>
-
-      {/* The size of the library, as plain numbers rather than a feature grid */}
-      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-6 mb-14">
-        {[
-          [allGuides.length, 'study guides'],
-          [totalQuestionCount, 'interview questions'],
-          [LAST_MINUTE_CARDS.length, 'last-minute cards'],
-          [cheatSheets.length, 'cheat sheets'],
-        ].map(([n, label]) => (
-          <div key={label} className="border-l border-line pl-5">
-            <dt className="sr-only">{label}</dt>
-            <dd className="font-display text-4xl sm:text-5xl font-semibold tracking-tight tabular-nums">{n.toLocaleString('en-US')}</dd>
-            <dd className="mt-1 text-sm text-muted">{label}</dd>
-          </div>
-        ))}
-      </dl>
-
-      {/* Progress, from this browser's own data: one quiet strip, not a card */}
-      <section aria-labelledby="progress-heading" className="border-y border-line py-5 mb-16">
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-          <h2 id="progress-heading" className="text-sm font-semibold uppercase tracking-wider text-muted">Your progress</h2>
-          <div className="flex-1 min-w-[12rem]">
-            <div
-              className="h-1.5 rounded-full bg-ink/10 overflow-hidden"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={overallStats.total}
-              aria-valuenow={overallStats.completed}
-              aria-label="Guides finished"
-            >
-              <div className="h-full rounded-full bg-pop" style={{ width: `${Math.max(percent, overallStats.completed ? 2 : 0)}%` }} />
             </div>
+            <p className="mt-5 text-sm text-muted">Free, no account needed, and it all runs in your browser.</p>
           </div>
-          <p className="text-sm text-muted">
-            <span className="font-semibold text-ink tabular-nums">{overallStats.completed}</span> of {overallStats.total} guides finished
-          </p>
-          <p className="text-sm text-muted">
-            <span className="font-semibold text-ink tabular-nums">{studyStats.totalQuestionsReviewed}</span> questions reviewed
-          </p>
-          {studyStats.currentStreak > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-pop-soft text-pop-ink px-2.5 py-1 text-sm font-semibold">
-              <Flame size={14} aria-hidden="true" /> {studyStats.currentStreak}-day streak
-            </span>
-          )}
+          <SampleQuestion />
         </div>
       </section>
 
-      {/* Guides first: reading is the point; the tools come after */}
-      <section id="guides" aria-labelledby="guides-heading" className="scroll-mt-20 mb-16">
-        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-6">
-          <h2 id="guides-heading" className="font-display text-3xl sm:text-4xl font-semibold tracking-tight">Study guides</h2>
-          <button type="button" onClick={handleRandomTopic} className="text-sm font-semibold text-accent hover:text-accent-strong">
-            Open a random guide
-          </button>
-        </div>
-        {categories.map(cat => (
-          <CategoryRow key={cat.name} cat={cat} getStatus={getStatus} done={getCategoryStats(cat.items).completed} />
-        ))}
-      </section>
-
-      {/* Practice tools: a plain list with dividers, not a grid of identical cards */}
-      <section aria-labelledby="tools-heading">
-        <h2 id="tools-heading" className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mb-6">Practise</h2>
-        <ul className="grid gap-x-10 md:grid-cols-2 border-t border-line">
-          {TOOLS.map(({ to, name, Icon, what }) => (
-            <li key={to}>
-              <Link to={to} className="group flex items-start gap-4 py-5 border-b border-line">
-                <Icon size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-muted group-hover:text-accent transition-colors" />
-                <span className="flex-1">
-                  <span className="block font-semibold group-hover:text-accent transition-colors">{name}</span>
-                  <span className="block text-sm text-muted leading-snug mt-1">{what}</span>
-                </span>
-                <ArrowRight size={16} aria-hidden="true" className="mt-1 shrink-0 text-muted group-hover:text-accent transition-colors" />
-              </Link>
-            </li>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-12 py-12 md:py-16">
+        {/* The size of the library, as plain numbers rather than a feature grid */}
+        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-y-6 mb-10">
+          {[
+            [allGuides.length, 'study guides'],
+            [totalQuestionCount, 'interview questions'],
+            [LAST_MINUTE_CARDS.length, 'last-minute cards'],
+            [cheatSheets.length, 'cheat sheets'],
+          ].map(([n, label]) => (
+            <div key={label} className="border-l-2 border-accent/50 pl-4">
+              <dt className="sr-only">{label}</dt>
+              <dd className="font-display text-5xl sm:text-6xl font-semibold tracking-tight tabular-nums leading-none">{n.toLocaleString('en-US')}</dd>
+              <dd className="mt-2 font-mono text-xs text-muted">{label}</dd>
+            </div>
           ))}
-        </ul>
-      </section>
+        </dl>
+
+        {/* Progress, from this browser's own data: one quiet strip, not a card */}
+        <section aria-labelledby="progress-heading" className="mb-20 border-y border-line py-4">
+          {overallStats.completed === 0 && studyStats.totalQuestionsReviewed === 0 ? (
+            <p className="text-sm text-muted">
+              <span id="progress-heading" className="font-semibold text-ink">Your progress</span> fills in here as you finish guides
+              and review questions. It is kept in this browser.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+              <h2 id="progress-heading" className="font-display text-lg font-semibold">Your progress</h2>
+              <div className="flex-1 min-w-[12rem]">
+                <div
+                  className="h-2 rounded-full bg-ink/10 overflow-hidden"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={overallStats.total}
+                  aria-valuenow={overallStats.completed}
+                  aria-label="Guides finished"
+                >
+                  <div className="h-full rounded-full bg-pop" style={{ width: `${Math.max(percent, overallStats.completed ? 2 : 0)}%` }} />
+                </div>
+              </div>
+              <p className="text-sm text-muted">
+                <span className="font-semibold text-ink tabular-nums">{overallStats.completed}</span> of {overallStats.total} guides finished
+              </p>
+              <p className="text-sm text-muted">
+                <span className="font-semibold text-ink tabular-nums">{studyStats.totalQuestionsReviewed}</span> questions reviewed
+              </p>
+              {studyStats.currentStreak > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-pop-soft text-pop-ink px-2.5 py-1 text-sm font-semibold">
+                  <Flame size={14} aria-hidden="true" /> {studyStats.currentStreak}-day streak
+                </span>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Guides first: reading is the point; the tools come after */}
+        <section id="guides" aria-labelledby="guides-heading" className="scroll-mt-20 mb-20">
+          <div className="flex flex-wrap items-baseline justify-between gap-3 mb-8">
+            <h2 id="guides-heading" className="font-display text-5xl sm:text-6xl font-semibold tracking-tight">Study guides</h2>
+            <button type="button" onClick={handleRandomTopic} className="text-sm font-semibold text-accent hover:text-accent-strong">
+              Open a random guide
+            </button>
+          </div>
+          <div className="lg:columns-2 lg:gap-8">
+            {categories.map(cat => (
+              <CategoryCard key={cat.name} cat={cat} getStatus={getStatus} done={getCategoryStats(cat.items).completed} />
+            ))}
+          </div>
+        </section>
+
+        {/* Practice tools as sticky notes on the desk */}
+        <section aria-labelledby="tools-heading">
+          <div className="flex flex-wrap items-baseline justify-between gap-3 mb-8">
+            <h2 id="tools-heading" className="font-display text-5xl sm:text-6xl font-semibold tracking-tight">Practise</h2>
+            <p className="text-sm text-muted">Reading is half of it. These make you answer.</p>
+          </div>
+          <ul className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {TOOLS.map(({ to, name, Icon, what }) => (
+              <li key={to} className="sticky-note min-w-0">
+                <Link to={to} className="group flex h-full flex-col p-5 pb-6">
+                  <Icon size={20} aria-hidden="true" className="text-pop-ink" />
+                  <span className="mt-3 font-display text-xl font-semibold leading-tight group-hover:text-accent group-hover:underline decoration-accent/40 underline-offset-4">{name}</span>
+                  <span className="mt-2 text-sm text-muted leading-snug">{what}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
     </div>
   );
 }

@@ -40,13 +40,13 @@ export default function StreakCelebration({ milestone, onClose }: StreakCelebrat
         exit={{ opacity: 0 }}
         className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[301] w-80 max-w-[90vw]"
       >
-        <div className="relative bg-surface rounded-md p-7 border border-line shadow-xl text-ink">
+        <div className="relative sticky-note rounded-sm p-7 text-ink">
           <button onClick={onClose} aria-label="Dismiss" className="absolute top-3 right-3 p-1.5 rounded-md text-muted hover:text-ink hover:bg-ink/5 transition-colors">
             <X size={16} />
           </button>
 
-          <p className="text-4xl font-bold tabular-nums text-accent mb-1">{milestone}</p>
-          <h2 id="streak-title" className="text-lg font-bold mb-2">day streak</h2>
+          <p className="font-display text-6xl font-semibold tabular-nums leading-none mb-1">{milestone}</p>
+          <h2 id="streak-title" className="font-display text-xl font-semibold mb-2"><span className="hl">day streak</span></h2>
           <p className="text-muted text-sm mb-6">
             {describe(milestone)} Your review schedule keeps bringing back the questions you found hard.
           </p>

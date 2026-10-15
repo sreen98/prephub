@@ -16,10 +16,12 @@ function thirdPartyLicenses() {
     apply: 'build',
     generateBundle(_options, bundle) {
       // Only modules that actually render into a chunk: tree-shaken packages (Firebase
-      // when sign-in is off) ship nothing, so they owe no notice.
-      const shipped = Object.values(bundle)
-        .filter((out) => out.type === 'chunk')
-        .flatMap((chunk) => Object.entries(chunk.modules).filter(([, m]) => m.renderedLength > 0).map(([id]) => id))
+      // when sign-in is off) ship nothing, so they owe no notice. Emitted assets count
+      // too: the Fraunces woff2 is an asset, and the OFL asks for its notice to go with it.
+      const shipped = Object.values(bundle).flatMap((out) => out.type === 'chunk'
+        ? Object.entries(out.modules).filter(([, m]) => m.renderedLength > 0).map(([id]) => id)
+        // Asset names are root-relative ('node_modules/…'); the package match below wants a separator before node_modules.
+        : (out.originalFileNames ?? []).map((f) => join(process.cwd(), f)))
       const dirs = new Set()
       for (const id of shipped) {
         // The LAST node_modules segment is the package that owns the file (nested installs).

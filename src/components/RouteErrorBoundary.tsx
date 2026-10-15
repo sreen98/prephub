@@ -49,8 +49,8 @@ export default class RouteErrorBoundary extends React.Component<Props, State> {
 
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
-        <AlertTriangle size={44} className="text-amber-500 mb-4" />
-        <h2 className="text-xl font-bold mb-2">
+        <AlertTriangle size={44} aria-hidden="true" className="text-amber-700 dark:text-amber-400 mb-4" />
+        <h2 className="font-display text-3xl font-semibold mb-3">
           {isChunkError ? 'This page needs a refresh' : 'Something went wrong'}
         </h2>
         <p className="text-sm text-muted max-w-md mb-6">

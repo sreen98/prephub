@@ -1,5 +1,12 @@
 # What's New
 
+## v1.7.33 (October 2026)
+
+- **A new look: a study notebook.** The sidebar is now a deep-teal notebook cover with cream text, and the page you are on is marked in highlighter amber. Pages sit on cream paper, and dark mode is a green-black chalkboard. On the home page, the headline is written on a ruled sheet with a red margin line, and the sample question is a real index card. Each category is its own index card, listing its guides on ruled lines with dotted leaders to the reading time. The practice tools are sticky notes. Guides are a sheet of paper on the desk, with a margin line and each chapter starting on a ruled line with a teal tab. Headings are set in Fraunces, a warm book serif, and key words carry a highlighter mark. A new visitor sees a plain note about where their progress will appear instead of an empty bar.
+- **The practice pages match.** Quiz, Daily Review and the Interview Simulator show each question on an index card, which turns to an answer card with a green rule. The Simulator's settings sit on an exam sheet. Last-minute cards are index cards with the deck written on the red rule. Cheat Sheets is a contents page on a sheet of paper. Bookmarks and Checkpoints are index cards, and empty pages are a sticky note. The Privacy Policy and Terms are a sheet of paper like the guides. Search, dialogs, notifications and the guide callouts match too.
+- **Comfortable line length in guides.** On a wide screen, paragraphs now stop at about 75 characters a line instead of stretching across the sheet. Code blocks and tables still use the full width.
+- **Easier to read and use:** every text colour meets the WCAG AA contrast level in both themes, checked with axe on every page. Several green, amber and red labels (quiz scores, difficulty tags, the interview results, "Clear all", the Daily Review count) were too faint on the light background and are now darker. The delete buttons on Bookmarks and Checkpoints no longer hide until you hover, so you can reach them from the keyboard and on a phone. The quiz's guide picker has a label for screen readers, and its buttons no longer run off the screen on a phone. The back-to-top button now has a name for screen readers.
+
 ## v1.7.32 (October 2026)
 
 - **Rendering strategies side by side.** React interview question 55 now compares CSR, SSR, SSG, ISR and streaming SSR in one table: when the HTML is made, what the user gets, and what each is good for, followed by the cost and freshness trade-off behind them.

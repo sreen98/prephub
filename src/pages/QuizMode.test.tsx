@@ -59,8 +59,9 @@ describe('QuizToolbar', () => {
   it('shows a 1-based position and both scores', () => {
     const html = wrap(<QuizToolbar {...props} />);
     expect(html).toContain('3 of 10');                    // currentIndex 2 → "3 of 10"
-    expect(html).toMatch(/text-emerald-600[\s\S]*?<\/svg> 3</);  // knew, beside the thumbs-up
-    expect(html).toMatch(/text-amber-600[\s\S]*?<\/svg> 1</);    // learning, beside the thumbs-down
+    // The 700/800 shades: the 600s were 3.4:1 and 2.9:1 on the cream page (v1.7.33 axe pass).
+    expect(html).toMatch(/text-emerald-700[\s\S]*?<\/svg> 3</);  // knew, beside the thumbs-up
+    expect(html).toMatch(/text-amber-800[\s\S]*?<\/svg> 1</);    // learning, beside the thumbs-down
   });
 
   it('reflects the progress percentage in the bar width', () => {

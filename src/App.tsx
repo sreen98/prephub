@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore, lazy
 import { Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import 'highlight.js/styles/github-dark-dimmed.min.css';
 import {
-  Menu, X, Sun, Moon, ChevronDown, BookOpen,
+  Menu, X, Sun, Moon, ChevronDown,
   Monitor, Braces, Server, Layers, Search, Sparkles,
   Copy, Check, ArrowUp, Play, Zap, Terminal, List,
   PanelLeftClose, PanelLeftOpen, ExternalLink, Type, Clock,
@@ -162,6 +162,8 @@ const BackToTop = () => {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+          title="Back to top"
           className="fixed bottom-6 right-6 p-3 rounded-full bg-surface shadow-lg border border-line transition-all z-50"
         >
           <ArrowUp size={18} />
@@ -343,11 +345,8 @@ export default function App() {
         <button onClick={() => setIsSidebarOpen(true)} aria-label="Open navigation" className="p-2 rounded-lg hover:bg-ink/5 transition-colors">
           <Menu size={20} />
         </button>
-        <Link to="/" className="flex items-center gap-2 font-bold">
-          <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center">
-            <BookOpen size={14} className="text-accent-contrast" />
-          </div>
-          <span className="text-base">PrepHub</span>
+        <Link to="/" className="font-display text-xl font-semibold tracking-tight leading-none">
+          <span className="hl">Prep</span>Hub
         </Link>
         <div className="flex items-center gap-1">
           <button onClick={() => setIsSearchOpen(true)} aria-label="Search guides" className="p-2 rounded-lg hover:bg-ink/5 transition-colors">

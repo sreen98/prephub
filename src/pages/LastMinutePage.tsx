@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Timer } from 'lucide-react';
 import { LAST_MINUTE_CARDS } from '../data/lastMinuteCards';
 import { CARD_SET_MODES, cardsFor, readingMinutes, type CardSetMode } from '../lib/cardSet';
 import { getEnum, safeSet } from '../lib/storage';
@@ -22,10 +21,10 @@ export default function LastMinutePage() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-12 text-ink">
       <header className="mb-6">
-        <h1 className="flex items-center gap-2.5 font-display text-3xl sm:text-4xl font-semibold tracking-tight">
-          <Timer size={26} className="text-accent shrink-0" aria-hidden="true" /> Last-minute cards
+        <h1 className="page-title">
+          Last-minute <span className="hl">cards</span>
         </h1>
-        <p className="text-muted mt-2 leading-relaxed">
+        <p className="text-lg text-muted mt-3 leading-relaxed">
           {cards.length} cards, about {readingMinutes(cards.length)} minutes. Say the answer to yourself, then flip the card to check.
           <span className="hidden sm:inline"> Use ← → to move and Space to flip.</span>
           <span className="sm:hidden"> Swipe to move between cards.</span>

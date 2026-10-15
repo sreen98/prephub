@@ -1,0 +1,12 @@
+[
+  {
+    "date": "2026-10-15",
+    "scope": "app",
+    "macrostructure": "Index-First (home) + Long Document (guides)",
+    "theme": "custom",
+    "theme_axes": "light / high-contrast-serif / cool (teal) + amber highlighter",
+    "vibe": "study notebook, highlighter, index cards, contents page",
+    "enrichment": "none (typography only)",
+    "brief": "PrepHub redesign pass 1: shell, home, guides"
+  }
+]

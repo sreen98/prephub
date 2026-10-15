@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -14,6 +13,7 @@ import { useStudyStats } from '../hooks/useStudyStats';
 import { useBookmarks } from '../hooks/useBookmarks';
 import QuizToolbar from '../features/quiz/QuizToolbar';
 import { calloutComponents } from '../components/calloutComponents';
+import EmptyNote, { NoteLink, NoteButton } from '../components/EmptyNote';
 
 interface GuideOption {
   value: string;
@@ -160,36 +160,23 @@ export default function QuizMode() {
 
   if (total === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
-        <BookOpen size={48} className="text-slate-300 mb-4" />
-        <h2 className="text-xl font-bold mb-2">No Quiz Questions Found</h2>
-        <p className="text-muted mb-6 max-w-md">
-          {selectedGuide === 'all'
-            ? 'No interview questions could be extracted from the guides.'
-            : `No questions found in "${selectedGuide}". Try a different guide.`}
-        </p>
-        <div className="flex gap-3">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-ink/5 text-sm font-medium hover:bg-ink/10 transition-colors"
-          >
-            <ArrowLeft size={16} /> Back Home
-          </Link>
-          {selectedGuide !== 'all' && (
-            <button
-              onClick={() => handleGuideChange('all')}
-              className="px-4 py-2 rounded-md bg-accent text-accent-contrast text-sm font-medium hover:bg-accent-strong transition-colors"
-            >
-              Try All Guides
-            </button>
-          )}
-        </div>
-      </div>
+      <EmptyNote
+        Icon={BookOpen}
+        title="No questions found"
+        actions={<>
+          <NoteLink to="/"><ArrowLeft size={16} /> Back home</NoteLink>
+          {selectedGuide !== 'all' && <NoteButton primary onClick={() => handleGuideChange('all')}>Try all guides</NoteButton>}
+        </>}
+      >
+        {selectedGuide === 'all'
+          ? 'No interview questions could be extracted from the guides.'
+          : `No questions found in "${selectedGuide}". Try a different guide.`}
+      </EmptyNote>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8 md:py-12">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-12">
       <QuizToolbar
         guideOptions={guideOptions}
         selectedGuide={selectedGuide}
@@ -224,7 +211,7 @@ export default function QuizMode() {
               >
                 {!isFlipped ? (
                   /* Question Side */
-                  <div className="min-h-[280px] p-8 rounded-lg border border-line bg-surface shadow-sm flex flex-col relative">
+                  <div className="flash-face min-h-[18rem] relative">
                     {/* Bookmark button */}
                     <button
                       aria-label={isBookmarked(`quiz__${currentQuestion.id}`) ? 'Remove bookmark' : 'Bookmark this question'}
@@ -236,51 +223,39 @@ export default function QuizMode() {
                     >
                       {isBookmarked(`quiz__${currentQuestion.id}`) ? <BookmarkCheck size={18} className="text-amber-500 fill-amber-500" /> : <Bookmark size={18} />}
                     </button>
-                    <div className="flex items-center gap-2 mb-6 flex-wrap">
-                      <span className="text-xs font-bold uppercase tracking-wider text-accent bg-accent-soft px-2.5 py-1 rounded-lg">
-                        Question
-                      </span>
-                      {currentQuestion.guide && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-ink/5 text-muted">
-                          {currentQuestion.guide}
-                        </span>
-                      )}
+                    <div className="flash-head pr-8">
+                      <span className="flash-label">Question</span>
+                      {currentQuestion.guide && <span className="flash-meta">{currentQuestion.guide}</span>}
                       {currentQuestion.difficulty && (
                         <span className={[
-                          "text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize",
-                          currentQuestion.difficulty === 'beginner' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400" :
-                          currentQuestion.difficulty === 'intermediate' ? "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400" :
-                          "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400"
+                          "text-[11px] px-2 py-0.5 rounded-full font-semibold capitalize",
+                          currentQuestion.difficulty === 'beginner' ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400" :
+                          currentQuestion.difficulty === 'intermediate' ? "bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-400" :
+                          "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400"
                         ].join(' ')}>
                           {currentQuestion.difficulty}
                         </span>
                       )}
                     </div>
-                    <div className="flex-1 quiz-markdown">
+                    <div className="flex-1 quiz-markdown text-lg">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>
                         {currentQuestion.question}
                       </ReactMarkdown>
                     </div>
-                    <p className="text-xs text-muted mt-6 text-center">
-                      Tap to reveal answer
-                    </p>
+                    <p className="flash-hint">Tap to reveal the answer</p>
                   </div>
                 ) : (
                   /* Answer Side */
-                  <div className="min-h-[280px] p-8 rounded-lg border border-emerald-200 dark:border-emerald-800/50 shadow-sm flex flex-col bg-accent-soft">
-                    <div className="flex items-center gap-2 mb-6">
-                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg">
-                        Answer
-                      </span>
+                  <div className="flash-face flash-face-answer min-h-[18rem]">
+                    <div className="flash-head">
+                      <span className="flash-label">Answer</span>
                     </div>
                     <div className="flex-1 quiz-markdown overflow-auto max-h-[50vh]">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={calloutComponents}>
                         {currentQuestion.answer}
                       </ReactMarkdown>
                     </div>
-                    <p className="text-xs text-muted mt-6 text-center">
-                      Tap to see question
-                    </p>
+                    <p className="flash-hint">Tap to see the question</p>
                   </div>
                 )}
               </motion.div>
@@ -330,13 +305,13 @@ export default function QuizMode() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-8 p-6 rounded-lg border border-accent/30 text-center bg-accent-soft"
+          className="sticky-note mt-10 p-7 text-center"
         >
-          <h3 className="text-lg font-bold mb-2">Quiz Complete!</h3>
+          <h3 className="font-display text-2xl font-semibold mb-2">Quiz complete</h3>
           <p className="text-muted mb-4">
             You reviewed all {total} questions.
-            <span className="text-emerald-600 font-semibold"> {score.knew} knew</span>,
-            <span className="text-amber-600 font-semibold"> {score.learning} to review</span>.
+            <span className="text-emerald-700 dark:text-emerald-400 font-semibold"> {score.knew} knew</span>,
+            <span className="text-amber-800 dark:text-amber-400 font-semibold"> {score.learning} to review</span>.
           </p>
           <button
             onClick={handleReset}

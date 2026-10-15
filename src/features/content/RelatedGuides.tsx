@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, Clock } from 'lucide-react';
 import { readMinFor, menuStructure } from '../../data';
 import type { MenuItem } from '../../data';
 
@@ -16,11 +15,8 @@ export default function RelatedGuides({ guides }: { guides: MenuItem[] }) {
 
   return (
     <div className="mt-12 pt-8 border-t border-line">
-      <h3 className="text-sm font-bold uppercase tracking-wider text-muted mb-4 flex items-center gap-2">
-        <BookOpen size={14} />
-        Continue Learning
-      </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <h3 className="font-display text-2xl font-semibold text-ink mb-5">Continue learning</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {guides.map((guide) => {
           const readTime = readMinFor(guide.file);
           const category = menuStructure.find((s) => s.items?.some((i) => i.path === guide.path));
@@ -28,21 +24,13 @@ export default function RelatedGuides({ guides }: { guides: MenuItem[] }) {
             <Link
               key={guide.path}
               to={guide.path}
-              className="group p-4 rounded-md border border-line bg-surface hover:border-ink/30 transition-all duration-200"
+              className="group index-card block px-4 pt-3 pb-4 hover:border-ink/30 transition-colors"
             >
-              <div className="text-sm font-semibold text-ink group-hover:text-accent-strong transition-colors">
+              <div className="index-card-head pb-2 mb-2 font-display text-lg font-semibold leading-snug text-ink group-hover:text-accent transition-colors">
                 {guide.name}
               </div>
-              <div className="flex items-center gap-2 mt-1.5">
-                {category && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/5 text-muted">
-                    {category.name}
-                  </span>
-                )}
-                <span className="text-[10px] text-muted flex items-center gap-1">
-                  <Clock size={10} />
-                  ~{readTime}m
-                </span>
+              <div className="font-mono text-xs text-muted">
+                {category ? `${category.name} · ` : ''}~{readTime} min
               </div>
             </Link>
           );

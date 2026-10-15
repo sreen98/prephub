@@ -22,9 +22,9 @@ export default function ModalShell({ titleId, title, onClose, children }: ModalS
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === 'Escape' && onClose()}
-        className="w-full max-w-md rounded-xl border border-line bg-surface p-5 text-ink shadow-2xl"
+        className="index-card w-full max-w-md p-5 text-ink"
       >
-        <h2 id={titleId} className="font-display text-lg font-semibold">{title}</h2>
+        <h2 id={titleId} className="index-card-head pb-2 mb-1 font-display text-xl font-semibold">{title}</h2>
         {children}
       </div>
     </div>,

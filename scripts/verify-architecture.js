@@ -79,9 +79,12 @@ check('ESLint covers every src .ts/.tsx file', () => {
 // ---------------------------------------------------------------------------
 check('pre-push hook runs every gate', () => {
   const hook = read('.githooks/pre-push');
-  for (const gate of ['typecheck', 'lint', 'test', 'verify:counts', 'verify:blocks']) {
+  for (const gate of ['typecheck', 'lint', 'test', 'verify:counts', 'verify:blocks', 'verify:a11y']) {
     assert(hook.includes(gate), `.githooks/pre-push is missing the '${gate}' gate`);
   }
+  // The accessibility gate is the one most tempting to drop from CI (it needs a browser).
+  const deploy = read('.github/workflows/deploy.yml');
+  assert(deploy.includes('npm run verify:a11y'), 'deploy.yml no longer runs verify:a11y');
   return 'all gates present';
 });
 
@@ -523,9 +526,13 @@ check('icon-only buttons carry an aria-label', () => {
   for (const f of srcFiles) {
     if (extname(f) !== '.tsx' || f.includes('.test.')) continue;
     const src = read(f);
+    // <motion.button> too: the back-to-top button was one, and slipped past a
+    // `<button`-only scan until axe flagged it (v1.7.33).
+    for (const tag of ['button', 'motion.button']) {
     let i = 0;
-    while ((i = src.indexOf('<button', i)) !== -1) {
-      const close = src.indexOf('</button>', i);
+    while ((i = src.indexOf(`<${tag}`, i)) !== -1) {
+      if (!/[\s>]/.test(src[i + tag.length + 1] ?? '')) { i += tag.length + 1; continue; }
+      const close = src.indexOf(`</${tag}>`, i);
       if (close === -1) break;
       const el = src.slice(i, close);
       // The opening tag does NOT end at the first `>`: an arrow function in a
@@ -541,16 +548,18 @@ check('icon-only buttons carry an aria-label', () => {
         else if (ch === '}') depth--;
         else if (ch === '>' && depth === 0) { gt = k; break; }
       }
-      if (gt === -1) { i = close + 9; continue; }
+      const end = close + tag.length + 3;   // past `</tag>`
+      if (gt === -1) { i = end; continue; }
       const openTag = el.slice(0, gt + 1);
       const inner = el
         .slice(gt + 1)
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')     // JSX comments
         .replace(/<[A-Za-z][^>]*\/>/g, '')        // <Icon />
         .replace(/\s+/g, '');
-      i = close + 9;
+      i = end;
       if (/aria-label|aria-labelledby|title=/.test(openTag)) continue;
       if (inner === '') offenders.push(`${f}:${src.slice(0, i).split('\n').length}`);
+    }
     }
   }
   assert(

@@ -87,14 +87,14 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -10 }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
             className="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-xl z-[201] px-4"
           >
-            <div className="bg-surface rounded-lg shadow-2xl border border-line overflow-hidden">
-              <div className="flex items-center gap-3 px-5 py-4 border-b border-line">
+            <div role="dialog" aria-modal="true" aria-label="Search guides" className="index-card overflow-hidden">
+              <div className="index-card-head flex items-center gap-3 px-5 py-4">
                 <Search size={18} className="text-muted shrink-0" />
                 <input
                   ref={inputRef}
@@ -104,6 +104,7 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                     if (e.key === 'Escape') onClose();
                     if (e.key === 'Enter' && results.length > 0) handleSelect(results[0].path);
                   }}
+                  aria-label="Search guides"
                   placeholder="Search guides and content..."
                   className="flex-1 bg-transparent outline-none text-base placeholder:text-muted"
                 />
@@ -120,7 +121,7 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                        "genuinely nothing matched" — otherwise every first
                        search reads as a miss. */
                     <div className="px-4 py-8 text-center text-muted flex items-center justify-center gap-2">
-                      <span className="h-4 w-4 rounded-full border-2 border-line border-t-teal-400 animate-spin" />
+                      <span className="h-4 w-4 rounded-full border-2 border-line border-t-accent animate-spin" />
                       Loading search index…
                     </div>
                   ) : results.length === 0 ? (
@@ -133,16 +134,14 @@ export const SearchModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                         key={item.path}
                         onClick={() => handleSelect(item.path)}
                         className={cn(
-                          "w-full text-left px-4 py-3 rounded-md transition-colors",
+                          "w-full text-left px-4 py-3 rounded-sm transition-colors",
                           "hover:bg-ink/5",
                           i === 0 && "bg-canvas"
                         )}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{item.name}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-ink/5 text-muted">
-                            {item.category}
-                          </span>
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <span className="font-display font-semibold">{item.name}</span>
+                          <span className="font-mono text-xs text-muted">{item.category}</span>
                         </div>
                         {item.snippet && (
                           <p className="text-xs text-muted mt-1 line-clamp-2">{item.snippet}</p>

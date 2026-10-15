@@ -306,13 +306,14 @@ const TERMS: typeof PRIVACY = {
 export default function LegalPage({ doc }: { doc: Doc }) {
   const { title, openItems, sections } = doc === 'privacy' ? PRIVACY : TERMS;
   return (
-    <article className="px-6 py-12 md:px-12 max-w-2xl mx-auto text-ink">
-      <h1 className="font-display text-4xl font-semibold tracking-tight mb-2">{title}</h1>
-      <p className="text-sm text-muted mb-6">Last updated {LAST_UPDATED}</p>
+    // A sheet of paper on the desk, like a guide (design.md: reading pages are Long Document).
+    <article className="paper-sheet text-ink px-5 py-8 md:pl-[4.5rem] md:pr-12 md:py-12 md:m-6 md:rounded-sm max-w-4xl xl:mx-auto">
+      <h1 className="page-title mb-3">{title}</h1>
+      <p className="font-mono text-xs text-muted mb-8">Last updated {LAST_UPDATED}</p>
 
       {openItems.length > 0 && (
-        <section aria-labelledby="draft-heading" className="mb-10 border border-line bg-surface rounded-md p-5">
-          <h2 id="draft-heading" className="text-sm font-semibold mb-2">Still to settle</h2>
+        <section aria-labelledby="draft-heading" className="sticky-note mb-10 p-5">
+          <h2 id="draft-heading" className="font-display text-lg font-semibold mb-2">Still to settle</h2>
           <p className="text-sm text-muted mb-2">
             This page describes how the site works today. These details are still open:
           </p>
@@ -322,10 +323,10 @@ export default function LegalPage({ doc }: { doc: Doc }) {
         </section>
       )}
 
-      <div className="space-y-8 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_p+p]:mt-3 [&_p+ul]:mt-3 [&_ul+p]:mt-3">
+      <div className="max-w-[46rem] space-y-8 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_p+p]:mt-3 [&_p+ul]:mt-3 [&_ul+p]:mt-3">
         {sections.map(({ heading, body }) => (
           <section key={heading}>
-            <h2 className="text-lg font-semibold mb-2">{heading}</h2>
+            <h2 className="font-display text-2xl font-semibold mb-2">{heading}</h2>
             {body}
           </section>
         ))}

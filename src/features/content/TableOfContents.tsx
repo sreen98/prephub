@@ -48,6 +48,7 @@ export const TableOfContents = ({ content, isCollapsed, onToggle }: { content: s
         onClick={onToggle}
         className="hidden xl:flex fixed top-1/2 -translate-y-1/2 right-0 z-[55] py-3 px-1 rounded-l-lg bg-ink/10 border border-r-0 border-line hover:bg-ink/15 hover:px-2 transition-all"
         title="Show table of contents"
+        aria-label="Show table of contents"
       >
         <PanelLeftOpen size={14} className="text-muted rotate-180" />
       </button>
@@ -60,10 +61,10 @@ export const TableOfContents = ({ content, isCollapsed, onToggle }: { content: s
     <aside className="hidden xl:block w-60 fixed top-0 right-0 h-screen overflow-y-auto pt-8 pb-40 pl-5 pr-4 sidebar-scroll bg-canvas border-l border-line">
       <div className="border-l-2 border-line pl-4">
         <div className="flex items-center justify-between mb-4">
-          <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted">
+          <h4 className="font-display text-base font-semibold text-ink">
             On this page
           </h4>
-          <button onClick={onToggle} className="p-1 rounded hover:bg-ink/10 transition-colors" title="Hide table of contents">
+          <button onClick={onToggle} className="p-1 rounded hover:bg-ink/10 transition-colors" title="Hide table of contents" aria-label="Hide table of contents">
             <PanelLeftClose size={12} className="text-muted rotate-180" />
           </button>
         </div>

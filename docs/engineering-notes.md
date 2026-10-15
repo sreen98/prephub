@@ -3005,3 +3005,55 @@ the measurements behind them:
   the readout read back. That caught one wrong sentence: removing `align-items` from a flex
   centring demo stretches the child to full height (the default is `stretch`), it doesn't
   move it to the top.
+
+## Hallmark redesign: study notebook, one web font (v1.7.33)
+
+- **Why the look changed.** A Hallmark audit (branch `design/hallmark-refresh`) scored the
+  v1.7.30 "Study notebook" palette as restrained but signature-less: warm paper, a serif and
+  one teal accent is the default "tasteful" look, and nothing on screen looked like a
+  notebook. Two named tells: an italic word inside the home headline, and uppercase
+  eyebrows on most sections. The system is now written down in `design.md`.
+- **Why a web font after v1.7.13 removed them.** On Windows the system serif stack lands on
+  Cambria or Sitka, which read as a Word document; it was the single biggest "basic" signal.
+  Fraunces' latin weight-axis file is 36 KB (the full-axes file is 121 KB, and Fontsource's
+  CSS declares every subset, which the PWA's `woff2` precache glob would all pick up). It
+  loads with `font-display: swap`, so first paint is unchanged; only headings reflow.
+- **Licence notice.** `thirdPartyLicenses()` only looked at JS chunks, so a font (an emitted
+  asset) owed an OFL notice that was never written. Rollup gives asset names root-relative
+  (`node_modules/...`), so they are joined to the cwd before the package match.
+- **CRLF in `stripMarkdownToc`.** The pattern matched `\n` only. On a Windows checkout
+  (`core.autocrlf=true`) the guides are CRLF in dev, so the inline Table of Contents stayed
+  on the page next to the live one. Production builds on Linux were never affected.
+- **Pass 2: the remaining pages (v1.7.33).** Quiz, Daily Review, Interview Simulator,
+  Last-minute, Cheat Sheets, Bookmarks, Checkpoints and the legal pages moved onto the
+  notebook system. An axe-core scan of every page in both themes found status text in the 600
+  shades (emerald 3.4:1, amber 2.9:1, red 4.2:1 on the cream page) on quiz scores, difficulty
+  chips, interview results and "Clear all"; all moved to 700/800 in light. Two traps found on
+  the way: (1) a scan in a background tab measures colours frozen mid-transition, so disable
+  transitions before scanning; (2) a probe written with a Tailwind class that no source file
+  uses is never generated, so it "passes" by inheriting ink. The probe that proved the scan
+  can fail used an inline colour, in light mode (the iframe otherwise loads the saved theme,
+  where the same amber passes). Ruled lines behind free-size text on the Last-minute cards
+  read as strikethrough and were removed.
+- **Pass 3: overlays and leftovers (v1.7.33).** Search, the account dialogs (`ModalShell`),
+  the streak note, the toast, the error screen, the contents rail, "Continue learning", the
+  callouts and `/admin` moved onto the system; the last uppercase kickers (sidebar groups,
+  "Tools", "On this page", callout labels) became sentence-case mono or Fraunces. Running
+  text in a guide is capped at 75ch (`.prose-container > p` etc.); code, tables and diagrams
+  keep the full sheet. `html`/`body` use `overflow-x: clip`, not `hidden`, which makes the
+  element a scroll container and can stop `position: sticky` from sticking.
+- **Guard gap: `<motion.button>`.** axe found the back-to-top button (a framer-motion
+  `motion.button`) with no name. Check #13 searched for `<button` only, so it never saw it.
+  The check now scans both tags; probed by deleting the new label (it failed on
+  `App.tsx:168`, then passed with the label restored).
+- **`verify:a11y` (v1.7.33).** The one-off axe scans became a gate: `scripts/verify-a11y.js`
+  starts Vite, launches headless Chrome/Edge, and speaks the DevTools Protocol over Node's
+  global `WebSocket` (no Puppeteer; axe-core is the only new dev dependency, pinned). Traps
+  met while building it: (1) reduced motion alone still let a headless tab measure the old
+  theme's ink on the new paper (1.19:1 on every sidebar link), so the script injects
+  `transition: none`; (2) framer-motion keeps opacity fades under reduced motion, so the quiz
+  card read 1.4:1 mid-fade until the script waited for inline opacities to hold still; (3)
+  axe reports one-character text ("0" in the quiz score) as incomplete, not a violation, so
+  reverting the score to emerald-600 was NOT caught. Probes that were caught: `--probe` (an
+  inline 3.1:1 grey on every page) and the quiz difficulty tag reverted to the 500 shades
+  (2.4:1).
