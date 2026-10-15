@@ -177,4 +177,4 @@ Push to `main` branch triggers automatic deployment via GitHub Actions:
 
 ---
 
-Built for learning. Good luck with your interviews!
+Built and maintained by [Sreenath P](https://sreenathp.com/) ([GitHub](https://github.com/sreen98), [LinkedIn](https://www.linkedin.com/in/sree-nath-p)). Missing something? Request it at [developersreenz@gmail.com](mailto:developersreenz@gmail.com). Good luck with your interviews!

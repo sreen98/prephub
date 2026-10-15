@@ -65,7 +65,7 @@ Status colours (emerald, amber, red) are the only other hues. No purple, no grad
 ## Page map
 | Page | Treatment |
 | --- | --- |
-| Home | Ruled-sheet masthead, index-card categories, sticky-note tools |
+| Home | Ruled-sheet masthead, index-card categories, sticky-note tools, "Who built this" developer index card + a request sticky note |
 | Guides, changelog, cheat sheets, Privacy, Terms | `.paper-sheet` with the margin line |
 | Cheat Sheets index | Contents list on a `.paper-sheet` |
 | Quiz, Daily Review, Simulator | `.flash-face` cards; Simulator setup on a `.paper-sheet` |

@@ -1,5 +1,10 @@
 # What's New
 
+## v2.0.2 (October 2026)
+
+- **Who built this.** The bottom of the home page now introduces the developer, Sreenath P, with links to the portfolio site, GitHub and LinkedIn.
+- **Request what's missing.** Can't find a topic, a guide or a question you were asked? The home page now has a note with an email address, developersreenz@gmail.com, where you can request it.
+
 ## v2.0.1 (October 2026)
 
 - **New React challenge: Fetch + Paginate Posts.** Fetch 100 posts from a real API once, then page through them 10 at a time in the browser, with loading, error-with-retry and empty states, safe Prev/Next at the edges and a build-order walkthrough. It also shows why ending the loading state in a `.finally` is a bug: it runs for the cancelled request too.

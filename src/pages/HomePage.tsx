@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap, RotateCcw, Terminal, Atom, Database, GraduationCap, ScrollText, ArrowRight, Flame, Timer, ChevronDown } from 'lucide-react';
+import { Zap, RotateCcw, Terminal, Atom, Database, GraduationCap, ScrollText, ArrowRight, Flame, Timer, ChevronDown, Globe, BriefcaseBusiness } from 'lucide-react';
+import { GithubIcon } from '../components/GithubIcon';
 import type { MenuSection, MenuItem } from '../data';
 import { menuStructure, cheatSheets, readMinFor, totalQuestionCount } from '../data';
 import { useProgress } from '../hooks/useProgress';
@@ -27,6 +28,16 @@ const TOOLS = [
   { to: '/last-minute', name: 'Last-Minute Cards', Icon: Timer, what: `${CORE_CARDS} flip cards to refresh the essentials in about ${readingMinutes(CORE_CARDS)} minutes, or all ${LAST_MINUTE_CARDS.length}.` },
   { to: '/cheatsheets', name: 'Cheat Sheets', Icon: ScrollText, what: `${cheatSheets.length} one-page references, from Git to Big-O.` },
 ];
+
+// lucide has no brand marks in this version: GitHub is the inline GithubIcon, LinkedIn a briefcase.
+const DEVELOPER_LINKS = [
+  { href: 'https://sreenathp.com/', label: 'Portfolio', Icon: Globe },
+  { href: 'https://github.com/sreen98', label: 'GitHub', Icon: GithubIcon },
+  { href: 'https://www.linkedin.com/in/sree-nath-p', label: 'LinkedIn', Icon: BriefcaseBusiness },
+];
+
+const REQUEST_EMAIL = 'developersreenz@gmail.com';
+const REQUEST_MAILTO = `mailto:${REQUEST_EMAIL}?subject=${encodeURIComponent('PrepHub request')}`;
 
 /** Guides shown per category before "Show all": enough to see what is inside, not a wall. */
 const PREVIEW_COUNT = 6;
@@ -270,6 +281,39 @@ export default function HomePage() {
               </li>
             ))}
           </ul>
+        </section>
+
+        {/* The developer, as an index card signed at the bottom of the notebook */}
+        <section aria-labelledby="developer-heading" className="mt-20">
+          <h2 id="developer-heading" className="font-display text-5xl sm:text-6xl font-semibold tracking-tight mb-8">Who built this</h2>
+          <div className="index-card max-w-2xl px-6 pt-4 pb-6">
+            <p className="index-card-head pb-3 mb-4 font-display text-2xl font-semibold">Sreenath P</p>
+            <p className="text-ink leading-relaxed">
+              PrepHub is built and maintained by Sreenath P, a frontend software engineer with 5+ years of
+              building responsive interfaces in React and TypeScript.
+            </p>
+            <ul className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold">
+              {DEVELOPER_LINKS.map(({ href, label, Icon }) => (
+                <li key={href}>
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-accent hover:text-accent-strong hover:underline underline-offset-4">
+                    <Icon size={15} aria-hidden="true" />
+                    {label}
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="sticky-note max-w-2xl mt-8 p-5">
+            <h3 className="font-display text-xl font-semibold">Can't find what you need?</h3>
+            <p className="mt-2 text-sm text-ink leading-relaxed">
+              Missing a topic, a guide or a question you were asked in an interview? Drop a request at{' '}
+              <a href={REQUEST_MAILTO} className="font-semibold text-accent hover:text-accent-strong underline underline-offset-4 [overflow-wrap:anywhere]">
+                {REQUEST_EMAIL}
+              </a>.
+            </p>
+          </div>
         </section>
       </div>
     </div>
