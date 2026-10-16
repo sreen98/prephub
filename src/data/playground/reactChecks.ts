@@ -1343,33 +1343,24 @@ export const reactChecks: Record<string, ReactCheck[]> = {
       ]
     },
     {
-      "label": "the debounced input updates instantly but filters only after a pause",
+      "label": "the input updates instantly but the list filters only after a pause",
       "steps": [
         {
           "fill": {
             "role": "textbox",
-            "nth": 1
+            "nth": 0
           },
           "text": "phones"
         },
         {
           "expect": {
             "role": "textbox",
-            "nth": 1
+            "nth": 0
           },
           "value": "phones"
         },
         {
-          "expect": {
-            "text": "Showing 12 of 12"
-          },
-          "count": 2
-        },
-        {
-          "expect": {
-            "text": "Showing 12 of 12"
-          },
-          "count": 1
+          "expectText": "searching"
         },
         {
           "expectText": "Showing 3 of 12"

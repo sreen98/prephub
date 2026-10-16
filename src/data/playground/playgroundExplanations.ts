@@ -178,6 +178,13 @@ export interface GradedPoint {
   why: string;
 }
 
+/** One titled list in the Tips dialog ("Follow-ups interviewers ask", "Try it"). */
+export interface TipSection {
+  title: string;
+  /** One point per entry, rendered through RichText. */
+  points: string[];
+}
+
 export interface BuildExplanation {
   kind: 'build';
   problem: string;
@@ -185,6 +192,12 @@ export interface BuildExplanation {
   problemStatement: string;
   buildOrder: BuildStep[];
   graded: GradedPoint[];
+  /**
+   * The notes that used to be long comment blocks in the template: design
+   * choices, follow-ups, things to try. The Tips dialog shows them under the
+   * graded points, so the editor holds code and only code-level comments.
+   */
+  tips?: TipSection[];
 }
 
 export type AnyExplanation = Explanation | BuildExplanation;

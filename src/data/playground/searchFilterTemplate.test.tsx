@@ -6,13 +6,12 @@ import { transform } from '@babel/standalone';
 import { templateCategories } from './playgroundTemplates';
 
 /**
- * The template's notes make a measurable claim — "the debounced panel runs the
- * filter fewer times" — and a teaching claim is only worth making if it is
- * true. This pins both halves: the debounced value lags, and the INPUT does
- * not (debouncing the input itself is the mistake the template warns about).
+ * The template debounces the value that drives the filter, not the input. This
+ * pins both halves: the list waits for a pause (and says so), and the INPUT
+ * does not lag (debouncing the input itself is the mistake the Tips warn about).
  */
-describe('Search Filter — both options behave as documented', () => {
-  it('instant filters per keystroke; debounced waits for quiet', async () => {
+describe('Search Filter — the debounced value lags, the input does not', () => {
+  it('filters once typing pauses, and flags the stale list meanwhile', async () => {
     vi.useFakeTimers();
     // @ts-expect-error test flag
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -35,7 +34,7 @@ describe('Search Filter — both options behave as documented', () => {
     await act(async () => { fn(...Object.values(scope)); await Promise.resolve(); });
 
     const inputs = [...host.querySelectorAll('input')];
-    expect(inputs, 'two panels').toHaveLength(2);
+    expect(inputs, 'one search box').toHaveLength(1);
 
     const type = async (el: HTMLInputElement, text: string) => {
       for (const ch of text) {
@@ -53,28 +52,20 @@ describe('Search Filter — both options behave as documented', () => {
       }
     };
 
-    const runsOf = (i: number) => {
-      const panel = host.querySelectorAll('div[style]')[0].children[i] as HTMLElement;
-      const m = /filters run (\d+)/.exec(panel.textContent ?? '');
-      return m ? Number(m[1]) : -1;
-    };
+    const count = () => /Showing (\d+) of 12/.exec(host.textContent ?? '')?.[1];
 
     await type(inputs[0], 'phone');
-    await type(inputs[1], 'phone');
-    const instantRuns = runsOf(0);
-    const debouncedBefore = runsOf(1);
-
-    // Nothing has settled yet on the debounced side.
+    const midType = { count: count(), stale: host.textContent?.includes('searching') };
     await act(async () => { await vi.advanceTimersByTimeAsync(500); });
-    const debouncedAfter = runsOf(1);
+    const settled = { count: count(), stale: host.textContent?.includes('searching') };
 
-    console.log('instant filter runs      :', instantRuns);
-    console.log('debounced runs, mid-type :', debouncedBefore);
-    console.log('debounced runs, settled  :', debouncedAfter);
-    console.log('input value still live   :', JSON.stringify(inputs[1].value));
+    console.log('mid-type :', midType);
+    console.log('settled  :', settled);
+    console.log('input    :', JSON.stringify(inputs[0].value));
 
-    expect(instantRuns).toBeGreaterThan(debouncedBefore);
-    expect(inputs[1].value).toBe('phone');       // the INPUT never lagged
+    expect(midType).toEqual({ count: '12', stale: true });   // still the old list, flagged
+    expect(settled).toEqual({ count: '3', stale: false });
+    expect(inputs[0].value).toBe('phone');                     // the INPUT never lagged
     vi.useRealTimers();
   }, 30000);
 });

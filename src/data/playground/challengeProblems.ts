@@ -1941,6 +1941,7 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
   },
   "Find Maximum in Array": {
     "summary": "Return the largest number in the array, or null if the array is empty.",
+    "warmUpFor": "Find Min and Max",
     "statement": "Given an array of numbers nums, findMax(nums) returns the largest value in it. Do it in a single pass, keeping the biggest value seen so far. If the array is empty there is no maximum, so return null. Be careful with all-negative arrays: starting the running maximum at 0 would wrongly return 0.",
     "examples": [
       {
@@ -2131,6 +2132,7 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
   },
   "Batch Promises by Concurrency": {
     "summary": "Run async tasks with at most N in flight at once, and return their results in the original order.",
+    "warmUpFor": "Task Runner with Concurrency Control",
     "statement": "You are given tasks, an array of functions that each return a promise, and a number concurrency. Write batchPromises(tasks, concurrency) that runs the tasks so that no more than concurrency of them are running at the same moment, and resolves to an array of their results in the same order as tasks. Start the next task as soon as any running one finishes (an always-N-in-flight pool), rather than waiting for a whole fixed batch to finish. An empty task list resolves to [].",
     "examples": [
       {
@@ -3032,6 +3034,7 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
   },
   "Fetch Users from an API": {
     "summary": "Fetch users from a real API and render loading, error-with-retry, empty and success states.",
+    "warmUpFor": "JSON → API → React fetch",
     "statement": "Fetch https://jsonplaceholder.typicode.com/users when the component mounts and list each user's name, @username, email and company name, with a total count at the top. Track one status field (loading, error, done). fetch does not reject on 404 or 500, so check res.ok and throw. On failure show the error and a \"Try again\" button that refetches; cancel an in-flight request with an AbortController on unmount or before a retry, without showing that cancellation as an error.",
     "examples": [
       {
@@ -3115,8 +3118,9 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
     ]
   },
   "Search Filter": {
-    "summary": "Filter a product list as the user types, by name or category, with a match count and empty state.",
-    "statement": "Given 12 products (name, category, price), filter them as the user types. Matching is case-insensitive, ignores surrounding spaces, and checks both the name and the category. Show \"Showing X of 12 products\" and, when nothing matches, a message like No products match \"xyz\". Compute the filtered list during render rather than storing it in state. Then do the usual follow-up: add a debounced version (useDebouncedValue) that delays the value, not the input, and explain why a 12-item local list does not need debouncing.",
+    "summary": "Filter a product list as the user types, by name or category, debounced, with a match count and empty state.",
+    "warmUpFor": "Search with Debounce + Cancel",
+    "statement": "Given 12 products (name, category, price), filter them as the user types. Matching is case-insensitive, ignores surrounding spaces, and checks both the name and the category. Show \"Showing X of 12 products\" and, when nothing matches, a message like No products match \"xyz\". Debounce the filtering with a useDebouncedValue hook: the input updates on every keystroke, and the list updates once the user pauses. Compute the filtered list during render rather than storing it in state.",
     "examples": [
       {
         "input": "Type \"phones\"",
@@ -3137,10 +3141,9 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
       "Case-insensitive match across name AND category; an empty query shows all products.",
       "Derive the filtered list during render (useMemo is fine); do not keep it in state.",
       "Show a match count and a real empty state.",
-      "When debouncing, debounce the value that drives the work; the input stays controlled and instant.",
+      "Debounce the value that drives the work; the input stays controlled and instant.",
       "The effect cleanup (clearTimeout) is what implements the debounce.",
-      "Show that the list is stale while the debounced value lags behind the query.",
-      "For expensive local work prefer useDeferredValue; debounce belongs where a keystroke triggers something costly like a network request."
+      "Show that the list is stale while the debounced value lags behind the query."
     ]
   },
   "Chat App": {
@@ -3174,6 +3177,7 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
   },
   "Modal Component": {
     "summary": "Build one reusable Modal that different buttons open with different content.",
+    "warmUpFor": "Modal (Portal + Focus Trap)",
     "statement": "Build a Modal component with the props isOpen, onClose, title and children, then use it three times: an info message, a small contact form, and a delete confirmation. The modal renders nothing when isOpen is false. It closes on the x button, on a click on the dark backdrop, and on the Escape key, but a click inside the dialog box must not close it. It animates in with a fade and a slide.",
     "examples": [
       {
@@ -3326,6 +3330,7 @@ export const challengeProblems: Record<string, ChallengeProblem> = {
   },
   "Notifications": {
     "summary": "Build a toast notification system with four types, auto-dismiss after 3 seconds and manual close.",
+    "warmUpFor": "Toast / Snackbar",
     "statement": "Build a useNotifications hook that returns notifications, add(message, type, duration) and dismiss(id), and render the notifications as a stack of toasts. There are four types (success, error, warning, info), each with its own colour and icon. A toast disappears on its own after duration milliseconds (3000 by default), a duration of 0 means it stays until closed, and every toast has an x button. The demo also pushes three notifications on its own, one every 4 seconds, to simulate real-time events.",
     "examples": [
       {

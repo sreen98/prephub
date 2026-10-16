@@ -2,6 +2,7 @@ import React from 'react';
 import { Play, Trash2, Loader2, BookOpen, Target, Lightbulb, Sparkles, RotateCcw, CheckCircle2, XCircle, GitCompare, FlaskConical } from 'lucide-react';
 import type { RunSummary } from '../../lib/challengeJudge';
 import { CompleteToggle } from './ChallengeProgress';
+import TipsButton from './ChallengeTips';
 import type { usePlaygroundProgress } from '../../hooks/usePlaygroundProgress';
 import type { FlatTemplateMeta } from '../../data/playground/templateIndex';
 
@@ -17,6 +18,8 @@ export interface PlaygroundActionsProps {
   progress: ReturnType<typeof usePlaygroundProgress>['progress'];
   onSetSolved: (name: string, solved: boolean) => void;
   hasExplanation: boolean;
+  /** A React machine-coding challenge's name, for the Tips button. */
+  tipsFor?: string | null;
   isLoadingExplain: boolean;
   onExplain: () => void;
   hasSolution: boolean;
@@ -121,6 +124,8 @@ function SummaryPill({ summary: raw }: { summary: RunSummary | null }) {
 function AnswerButtons(p: PlaygroundActionsProps) {
   return (
     <>
+      {p.tipsFor && <TipsButton key={p.tipsFor} name={p.tipsFor} />}
+
       {p.hasExplanation && (
         <button
           onClick={p.onExplain}

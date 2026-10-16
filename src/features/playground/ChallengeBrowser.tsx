@@ -5,6 +5,7 @@ import { allTemplates, type FlatTemplateMeta } from '../../data/playground/templ
 import { challengeTracks, type ChallengeTrack } from '../../data/playground/challengeTracks';
 import type { ProgressEntry } from '../../hooks/usePlaygroundProgress';
 import { useChallengeProblems } from '../../hooks/useChallengeProblems';
+import { warmUpOf } from '../../data/playground/challengeProblemIndex';
 import { bestSolvedMs, formatClock, readHistory } from '../../hooks/useInterviewMode';
 
 // The Challenges browser: challenges grouped into study tracks, so problems that
@@ -89,8 +90,10 @@ function TrackList({ tracks, activeId, onSelect, solvedIn }: {
   );
 }
 
-function ChallengeRow({ t, position, summary, status, current, onClick, bestMs }: {
+function ChallengeRow({ t, position, summary, pair, status, current, onClick, bestMs }: {
   t: FlatTemplateMeta; position: number | null; summary: string | undefined; bestMs: number | null;
+  /** A near-duplicate pairing, so the two read as steps rather than repeats. */
+  pair: { warmUpFor: string } | { warmUp: string } | null;
   status: ProgressEntry['status'] | undefined; current: boolean; onClick: () => void;
 }) {
   return (
@@ -115,6 +118,11 @@ function ChallengeRow({ t, position, summary, status, current, onClick, bestMs }
             )}
           </span>
           {summary && <span className="block mt-0.5 text-xs text-muted line-clamp-2">{summary}</span>}
+          {pair && (
+            <span className="block mt-0.5 text-xs text-muted">
+              {'warmUpFor' in pair ? <>Warm-up for <span className="text-ink">{pair.warmUpFor}</span></> : <>Warm-up: <span className="text-ink">{pair.warmUp}</span></>}
+            </span>
+          )}
         </span>
       </button>
     </li>
@@ -129,6 +137,13 @@ export default function ChallengeBrowser({ open, onClose, selectedName, getEntry
   const [search, setSearch] = useState('');
   const [focusSearch] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(min-width: 640px)').matches);
   const problems = useChallengeProblems();
+  const pairFor = (n: string) => {
+    if (!problems) return null;
+    const next = problems[n]?.warmUpFor;
+    if (next) return { warmUpFor: next };
+    const prev = warmUpOf(problems, n);
+    return prev ? { warmUp: prev } : null;
+  };
   // Read once per open (the component remounts each time it opens).
   const [history] = useState(readHistory);
 
@@ -222,7 +237,7 @@ export default function ChallengeBrowser({ open, onClose, selectedName, getEntry
                   {names.map((n, i) => {
                     const t = byName.get(n);
                     return t ? (
-                      <ChallengeRow key={n} t={t} position={track ? i + 1 : null} summary={problems?.[n]?.summary} bestMs={bestSolvedMs(n, history)}
+                      <ChallengeRow key={n} t={t} position={track ? i + 1 : null} summary={problems?.[n]?.summary} pair={pairFor(n)} bestMs={bestSolvedMs(n, history)}
                         status={status(n)} current={n === selectedName} onClick={() => onPick(t, track?.id ?? null)} />
                     ) : null;
                   })}

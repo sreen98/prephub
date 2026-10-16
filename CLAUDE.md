@@ -330,7 +330,9 @@ silently resolves to a `window` global and typechecks.
   README + Introduction counts, and the changelog. A TypeScript challenge instead needs its stub
   to have ≥1 diagnostic and its solution 0.
 - **Adding a React Machine Coding template:** template, a `playgroundBuildExplanations.ts`
-  walkthrough, `playgroundExplanationKeys.ts`, ≥3 checks in `reactChecks.ts`, the challenge
+  walkthrough (its `graded` points and optional `tips` sections are the header's Tips dialog,
+  `ChallengeTips.tsx`; interview prose such as the design choice, follow-ups and "Try it" goes
+  there, never in comment blocks, and `challengeTips.test.ts` fails on those headings in the code), `playgroundExplanationKeys.ts`, ≥3 checks in `reactChecks.ts`, the challenge
   track (`challengeTracks.ts`), `EXPECTED` counts, and prose counts. Rebuild existing templates
   in place (same name) so progress keys survive.
 - Then run `npm run playground:index && npm run content:meta && npm run verify`.

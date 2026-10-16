@@ -1,5 +1,11 @@
 # What's New
 
+## v2.0.3 (October 2026)
+
+- **Tips for every React challenge.** A new Tips button in the playground header opens what an interviewer grades for the challenge you have open, plus the design choices, follow-up questions and things to try. These used to be long comment blocks at the top and bottom of the code; the editor now opens on code. Tips stay hidden during interview mode, like Explain and the solution.
+- **Search Filter is now the debounced answer.** The challenge asks for a search box that filters as you pause typing, and the reference code is one debounced version instead of two side-by-side panels. The list says "searching…" while it waits. When a debounce is not needed (a short local list) is covered in Tips.
+- **Look-alike challenges are now marked as warm-ups.** Six challenges cover the same core as a fuller one: Modal Component, Notifications, Fetch Users from an API, Search Filter, Batch Promises by Concurrency and Find Maximum in Array. Each now says "Warm-up for …" in the Challenges list, its partner says which warm-up it has, and the Problem panel links the two. The warm-up always comes first in its track (Notifications now comes before Toast / Snackbar). Nothing was removed, so your progress on both is kept.
+
 ## v2.0.2 (October 2026)
 
 - **Who built this.** The bottom of the home page now introduces the developer, Sreenath P, with links to the portfolio site, GitHub and LinkedIn.

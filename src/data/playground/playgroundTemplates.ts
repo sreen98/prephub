@@ -5970,28 +5970,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. srcset vs sizes — the one people get wrong. srcset lists CANDIDATES with
-//    their intrinsic widths (400w); sizes tells the browser how wide the image
-//    will actually DISPLAY. Omit sizes and the browser assumes 100vw and
-//    downloads something far too large. It chooses before CSS applies, so it
-//    cannot infer the layout.
-// 2. srcset+sizes = resolution switching (same image). <picture>+type =
-//    format or art-direction switching. Different jobs; know which you need.
-// 3. width + height attributes (or aspect-ratio) to reserve space. Without
-//    them the image is 0px tall until it loads and everything below jumps —
-//    that is CLS.
-// 4. NEVER lazy-load the LCP image. loading="lazy" on the hero directly
-//    regresses LCP; use loading="eager" + fetchpriority="high", and preload it
-//    if it is discovered late (a CSS background or JS-inserted <img> is
-//    invisible to the preload scanner).
-// 5. decoding="async" keeps decode off the main thread.
-// 6. AVIF ~50% smaller than JPEG, WebP ~30%, both with wide support in 2026 —
-//    but always keep a fallback in the <img>.
-// 7. alt text describes the image's PURPOSE. Decorative images take alt=""
-//    so screen readers skip them — not a missing alt attribute.`,
+render(<App />);`,
       },
       {
         name: 'Protected Route (Auth + RBAC)',
@@ -6027,15 +6006,8 @@ function AuthProvider({ children }) {
 
 const useAuth = () => React.useContext(AuthContext);
 
-// ---------- redirecting is a SIDE EFFECT ----------
-// Calling the parent's setState from inside Protected's render is what produces
-// "Cannot update a component (App) while rendering a different component
-// (Protected)". React is part-way through rendering one component; scheduling
-// an update to another one is not something it can honour there.
-//
-// The fix is to RENDER the redirect rather than perform it. This is exactly why
-// react-router gives you <Navigate to="/login" replace /> as a COMPONENT
-// instead of a navigate() you call inline — it runs in an effect, after commit.
+// Redirecting is a side effect: RENDER it (like react-router's <Navigate />),
+// never call the parent's setState during render.
 function Redirect({ to, onRedirect }) {
   const fired = React.useRef(false);
   React.useEffect(() => {
@@ -6127,23 +6099,7 @@ function App() {
 }
 
 function Root() { return <AuthProvider><App /></AuthProvider>; }
-render(<Root />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. THE LOADING STATE. Treating "not yet known" as "logged out" redirects
-//    every user to login on refresh. This is the single most common bug here.
-// 2. 401 vs 403: unauthenticated → login; authenticated-but-wrong-role → a
-//    forbidden page. Don't send an authorized user back to login.
-// 3. Remember the intended destination and return there after login.
-// 4. THE SECURITY POINT, and say it unprompted: this is UX only. Anyone can
-//    edit client state, so every protected route must be backed by
-//    server-side authorization on the API. A hidden button is not a
-//    permission — see the Web Security and OAuth guides.
-// 5. Don't put the role check in fifty components; one declarative gate.
-// 6. A redirect is a side effect. Calling the parent's setState during render
-//    warns "Cannot update a component while rendering a different component",
-//    and it is why react-router's answer is <Navigate /> — a component that
-//    navigates in an effect — rather than a function you call inline.`,
+render(<Root />);`,
       },
       {
         name: 'Mini Redux Store',
@@ -6252,24 +6208,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. The three-method contract: getState, dispatch, subscribe. The reducer is
-//    PURE — same input, same output, no side effects, no mutation.
-// 2. useSyncExternalStore, not useState + useEffect. It is the purpose-built
-//    primitive and it prevents TEARING under concurrent rendering.
-// 3. SELECTOR ISOLATION is the real answer to "why not just Context?".
-//    A Context value change re-renders EVERY consumer; a selector re-renders
-//    only components whose slice actually changed. That is why Redux/Zustand
-//    exist alongside Context.
-// 4. Middleware is dispatch wrapping: store => next => action. That signature
-//    is how thunk, saga and the devtools all hook in.
-// 5. Selectors returning a NEW object each call (s => ({...})) defeat the
-//    equality check and re-render every time — hence reselect / useShallow.
-// 6. When asked what you would actually use: Redux Toolkit for large shared
-//    client state, Zustand for something lighter, and TanStack Query for
-//    SERVER state — which is most of what people wrongly put in Redux.`,
+render(<App />);`,
       },
       {
         name: 'Client Cache (stale-while-revalidate)',
@@ -6363,21 +6302,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. STALE-WHILE-REVALIDATE: render the cached value immediately AND refetch.
-//    Showing a spinner over data you already have is the thing to avoid.
-// 2. REQUEST DE-DUPLICATION via the inflight map — two components mounting
-//    with the same key must share one request. Forgetting this is why naive
-//    hooks fire N requests for N consumers.
-// 3. Initialise state FROM the cache, not to null, or you flash a loader on
-//    every revisit even though the data was already there.
-// 4. Cancellation, so a fast second switch cannot be overwritten by a slow
-//    first response landing late (the out-of-order race).
-// 5. Know what you are NOT building: TanStack Query adds retries, window-focus
-//    revalidation, garbage collection, pagination helpers and devtools. Say
-//    that rather than claiming a 40-line hook replaces it.`,
+render(<App />);`,
       },
       {
         name: 'WebSocket Live Feed',
@@ -6487,30 +6412,12 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. CLEANUP on unmount, and a flag so your own close() doesn't trigger the
-//    reconnect path. Without it you leak a socket per mount and reconnect
-//    forever after navigating away — the classic version of this bug.
-// 2. RECONNECT with exponential backoff and FULL JITTER, capped. No jitter
-//    means every client retries in lockstep and DDoSes your own server.
-// 3. Reset the attempt counter on a successful open, or backoff grows forever.
-// 4. A BOUNDED buffer. Real feeds run for hours; an unbounded array is a leak.
-// 5. Visible connection status with aria-live, so the state is not colour-only.
-// 6. Beyond this: heartbeats to detect a half-open connection (TCP can stay
-//    "open" with nothing flowing), message sequence numbers to detect gaps and
-//    replay after a reconnect, and batching high-frequency updates into rAF so
-//    1000 messages/sec doesn't cause 1000 renders.`,
+render(<App />);`,
       },
       {
         name: 'Optimistic UI Updates',
         jsx: true,
-        code: `// Two implementations below: React 19's useOptimistic, and the manual
-// rollback you would write in React 18. Know both — interviewers ask why
-// useOptimistic exists.
-
-// Fake server: rejects anything containing "fail" so you can test the sad path.
+        code: `// Fake server: rejects anything containing "fail" so you can test the sad path.
 function saveTodo(text) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -6622,19 +6529,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. THE ROLLBACK. Anyone can render early; the question is what happens on
-//    failure. Snapshot before mutating, restore on catch.
-// 2. Replace the temp item by id — appending the server response leaves a
-//    duplicate, which is the most common bug in the manual version.
-// 3. A visible pending state, so the UI is honest about what isn't saved.
-// 4. useOptimistic must be called inside a transition or form action; outside
-//    one React warns and drops the update.
-// 5. Don't be optimistic about everything. It suits high-success, low-stakes
-//    actions (likes, todos, reordering). For a payment, show real pending
-//    state — a rolled-back charge is far worse than a spinner.`,
+render(<App />);`,
       },
       {
         name: 'Suspense + Lazy (Code Splitting)',
@@ -6733,31 +6628,12 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. Suspense handles the PENDING state only. A failed chunk load throws, so
-//    you need an error boundary — and a retry, because a chunk can fail from
-//    a network blip or a deploy that removed the old file (ChunkLoadError).
-// 2. React.lazy needs a module with a DEFAULT export. A named export means
-//    () => import('./x').then(m => ({ default: m.Named })).
-// 3. Split at ROUTE boundaries first — that is where the payoff is. Splitting
-//    a small component adds a request for almost no saving.
-// 4. Don't put the Suspense boundary so high that the whole page blanks; place
-//    it around the part that is actually loading.
-// 5. useTransition avoids showing the fallback at all when you would rather
-//    keep the old UI visible during an update.`,
+render(<App />);`,
       },
       {
         name: 'Display Data from a JSON Prop',
         jsx: true,
-        code: `// WHAT INTERVIEWERS ACTUALLY CHECK
-//   - a stable \`key\` that is NOT the array index
-//   - destructuring props rather than \`props.data.members\`
-//   - defensive access: the shape may not be what you assume
-//   - the empty state, which most candidates forget
-
-// ---- the "JSON file" you were given ----
+        code: `// ---- the "JSON file" you were given ----
 const data = {
   team: 'Platform',
   members: [
@@ -6807,19 +6683,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== FOLLOW-UPS THEY USUALLY ASK =====
-// Q: Why not use the array index as a key?
-//    On reorder/insert/delete React reuses the wrong DOM node and component
-//    state sticks to the wrong row (a typed input value follows the index).
-//
-// Q: What if the JSON is nested deeper?
-//    Optional chaining all the way down, or normalise it once at the boundary
-//    rather than scattering \`?.\` through the JSX.
-//
-// Q: Where would this data normally come from?
-//    A fetch — see the "JSON -> API -> React fetch" template for that version.`,
+render(<App />);`,
       },
       {
         name: 'JSON → API → React fetch',
@@ -6920,20 +6784,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. THREE states, not one: loading / error / empty / success. Most candidates
-//    render only the success path.
-// 2. A single \`status\` field beats three booleans — isLoading + isError can
-//    represent impossible combinations.
-// 3. \`if (!res.ok) throw\` — fetch only rejects on network failure, so a 500
-//    resolves happily and you'd render garbage.
-// 4. AbortController cleanup, and treating AbortError as NOT an error. Without
-//    it you get a state update after unmount and a race where a slow first
-//    response overwrites a fast second one.
-// 5. In production this belongs in TanStack Query, which gives you caching,
-//    retries, dedup and stale-while-revalidate for free — say so.`,
+render(<App />);`,
       },
       {
         name: 'Fetch Users from an API',
@@ -7029,32 +6880,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. FOUR states, not one: loading / error / empty / success. Rendering only
-//    the success path is the most common omission in this exercise, and it is
-//    what an interviewer checks by throttling the network in devtools.
-// 2. \`if (!res.ok) throw\`. fetch rejects only on a network failure, so a 404
-//    or a 500 resolves with ok === false. Not knowing this is the single most
-//    common misconception about the API, and the symptom is a confusing error
-//    about an unexpected token "<" when you try to parse the error page.
-// 3. ONE status field rather than isLoading + isError. Separate booleans can
-//    be true at the same time, which is how a spinner and an error message end
-//    up on screen together.
-// 4. AbortController in the effect cleanup, with AbortError excluded from the
-//    error path. It fixes the update-after-unmount warning and the out-of-order
-//    race at once — and aborting without the guard is worse than neither,
-//    because every navigation then flashes a failure.
-// 5. A stable key from the data. \`u.id\` is right there in the response;
-//    falling back to the index breaks as soon as the list is sorted or
-//    filtered.
-// 6. A retry path. A failed request the user cannot retry means a reload is
-//    the only way out.
-// 7. What you would do in production: this belongs behind TanStack Query,
-//    which adds caching, de-duplication, retries with backoff and
-//    stale-while-revalidate — the things a hand-rolled hook gets wrong as it
-//    accumulates requirements.`,
+render(<App />);`,
       },
       {
         name: 'Pagination',
@@ -7238,32 +7064,12 @@ function Posts() {
   );
 }
 
-render(<Posts />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. Fetch once, paginate in memory. The API returns all 100 posts, so a
-//    page change is a slice, not a request. Say when you would switch to
-//    server-side paging: when the full list is too big to download.
-// 2. The page values are DERIVED. totalPages, the slice and the "Showing"
-//    line are computed from posts and page during render; storing any of
-//    them is how the highlight and the content drift apart.
-// 3. Boundaries: Prev disabled on page 1, Next on the last page, and the
-//    handlers clamp as well. An empty list must not produce "page 1 of 0"
-//    with Next enabled.
-// 4. Four request states: loading, error with Try again, empty, success.
-// 5. AbortController in the cleanup with AbortError ignored, and no
-//    .finally that turns loading off for the aborted request.
-// 6. The controls sit in a nav labelled "Pagination", and the page line is
-//    aria-live, so a screen reader hears the page change.`,
+render(<Posts />);`,
       },
       {
         name: 'Search Filter',
         jsx: true,
-        code: `// BOTH versions are below, side by side, with counters. Type in each and watch
-// the numbers — then read WHAT'S BEING GRADED, because for a local array the
-// debounced one is measurably WORSE, and saying so is the stronger answer.
-
-const PRODUCTS = [
+        code: `const PRODUCTS = [
   { id: 1, name: "MacBook Pro", category: "Laptops", price: 1999 },
   { id: 2, name: "iPhone 15", category: "Phones", price: 999 },
   { id: 3, name: "AirPods Pro", category: "Audio", price: 249 },
@@ -7278,7 +7084,7 @@ const PRODUCTS = [
   { id: 12, name: "Kindle Paperwhite", category: "Tablets", price: 139 },
 ];
 
-// Shared predicate, so the two versions differ only in WHEN they run it.
+// A pure function of the query, so the component can derive the list from it.
 function filterProducts(query) {
   const q = query.toLowerCase().trim();
   if (!q) return PRODUCTS;
@@ -7288,112 +7094,52 @@ function filterProducts(query) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// OPTION 1 — instant. Derive during render. No timer, no extra state.
-// ---------------------------------------------------------------------------
-function SearchFilter() {
-  const [query, setQuery] = useState("");
-  const [keystrokes, setKeystrokes] = useState(0);
-  const runs = useRef(0);                    // instrumentation only
-
-  const filtered = useMemo(() => {
-    runs.current += 1;
-    return filterProducts(query);
-  }, [query]);
-
-  return (
-    <Panel
-      title="1 · Instant"
-      subtitle="filters on every keystroke"
-      query={query}
-      onChange={(v) => { setQuery(v); setKeystrokes(n => n + 1); }}
-      keystrokes={keystrokes}
-      runs={runs.current}
-      filtered={filtered}
-      stale={false}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// OPTION 2 — debounced. The VALUE lags; the input never does.
-// ---------------------------------------------------------------------------
+// Returns a copy of value that only catches up after delay ms without a change.
 function useDebouncedValue(value, delay) {
   const [debounced, setDebounced] = useState(value);
 
   useEffect(() => {
     const id = setTimeout(() => setDebounced(value), delay);
-    // THIS cleanup is the debounce: each new keystroke cancels the pending
-    // timer, so the value only settles after \`delay\` of quiet.
+    // This cleanup is the debounce: each keystroke cancels the pending timer,
+    // so only the last one in a burst survives.
     return () => clearTimeout(id);
   }, [value, delay]);
 
   return debounced;
 }
 
-function SearchFilterDebounced({ delay = 400 }) {
-  const [query, setQuery] = useState("");           // drives the INPUT — instant
-  const [keystrokes, setKeystrokes] = useState(0);
-  const debounced = useDebouncedValue(query, delay); // drives the WORK — lagged
-  const runs = useRef(0);
-
-  const filtered = useMemo(() => {
-    runs.current += 1;
-    return filterProducts(debounced);
-  }, [debounced]);
+function SearchFilter({ delay = 300 }) {
+  const [query, setQuery] = useState("");            // drives the INPUT: instant
+  const debounced = useDebouncedValue(query, delay); // drives the WORK: after a pause
+  const filtered = useMemo(() => filterProducts(debounced), [debounced]);
+  const stale = query !== debounced;                 // the list is for an older query
 
   return (
-    <Panel
-      title={"2 · Debounced (" + delay + "ms)"}
-      subtitle="filters only after you pause"
-      query={query}
-      onChange={(v) => { setQuery(v); setKeystrokes(n => n + 1); }}
-      keystrokes={keystrokes}
-      runs={runs.current}
-      filtered={filtered}
-      // The list on screen belongs to an OLDER query. Saying so is part of the
-      // feature — a stale list presented as current is a small lie.
-      stale={query !== debounced}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// One presentation component, so the comparison is honest
-// ---------------------------------------------------------------------------
-function Panel({ title, subtitle, query, onChange, keystrokes, runs, filtered, stale }) {
-  return (
-    <div style={{ flex: 1, minWidth: 300, fontFamily: "system-ui" }}>
-      <h3 style={{ margin: "0 0 2px" }}>{title}</h3>
-      <p style={{ margin: "0 0 10px", fontSize: 12, color: "#666" }}>{subtitle}</p>
-
+    <div style={{ maxWidth: 480, padding: 20, fontFamily: "system-ui" }}>
       <input
         value={query}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => setQuery(e.target.value)}
         placeholder="Search by name or category..."
+        aria-label="Search products"
         style={{
           width: "100%", padding: "10px 14px", borderRadius: 8,
           border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box",
         }}
       />
 
-      <p style={{ fontSize: 12, color: "#666", margin: "8px 0" }}>
-        keystrokes <b>{keystrokes}</b> · filters run <b>{runs}</b>
-        {stale && <span style={{ color: "#d97706" }}> · waiting…</span>}
-      </p>
-
-      <p style={{ fontSize: 13, color: "#666", margin: "8px 0" }}>
+      <p aria-live="polite" style={{ fontSize: 13, color: "#666", margin: "8px 0" }}>
         Showing {filtered.length} of {PRODUCTS.length} products
+        {stale && <span style={{ color: "#b45309" }}> · searching…</span>}
       </p>
 
       {filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: 24, color: "#666" }}>
-          No products match "{query}"
+          No products match "{debounced.trim()}"
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
           {filtered.map(p => (
-            <div key={p.id} style={{
+            <li key={p.id} style={{
               padding: "8px 12px", background: "#f8f8f8", borderRadius: 8,
               border: "1px solid #eee", display: "flex", justifyContent: "space-between",
             }}>
@@ -7402,71 +7148,20 @@ function Panel({ title, subtitle, query, onChange, keystrokes, runs, filtered, s
                 <div style={{ fontSize: 12, color: "#666" }}>{p.category}</div>
               </div>
               <span style={{ fontWeight: 600, color: "#4f46e5" }}>\${p.price}</span>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
 }
 
-function App() {
-  return (
-    <div style={{ display: "flex", gap: 24, padding: 20, flexWrap: "wrap" }}>
-      <SearchFilter />
-      <SearchFilterDebounced delay={400} />
-    </div>
-  );
-}
-
-render(<App />);
-
-// ===== WHAT'S BEING GRADED =====
-// 1. THE FILTERED LIST IS DERIVED, NEVER STORED. Both versions compute during
-//    render. Keeping a \`filtered\` array in state needs an effect to resync it,
-//    gives you one render where the list and the query disagree, and goes stale
-//    when the source data changes without the query changing.
-//
-// 2. WHEN ASKED TO DEBOUNCE, DEBOUNCE THE VALUE — NOT THE INPUT. The field stays
-//    controlled by \`query\` so typing is never laggy; only \`debounced\`, which
-//    drives the work, trails behind. Debouncing the input itself is the version
-//    that makes a search box feel broken.
-//
-// 3. THE CLEANUP IS THE ALGORITHM. \`return () => clearTimeout(id)\` is not
-//    tidy-up — it is what cancels the pending timer on each keystroke so only
-//    the last one survives. Without it every keystroke fires after \`delay\`.
-//
-// 4. SAY THAT THIS LIST DOES NOT NEED IT, AND WHY. Filtering 12 local objects
-//    costs ~0.0025 ms; a frame is 16.67 ms. A 400 ms debounce adds 400 ms of
-//    lag to save a fraction of a microsecond. Watch the counters: the debounced
-//    panel runs the filter fewer times and feels slower, because the work it
-//    skipped was free. Debouncing belongs where a keystroke costs something you
-//    do not control — a network request, most often.
-//
-// 5. FOR EXPENSIVE LOCAL WORK, THE ANSWER IS useDeferredValue, NOT DEBOUNCE.
-//    It keeps the input responsive while the list catches up, and it yields
-//    based on actual work rather than a timer you guessed. Reach for it when
-//    rendering the results is the cost (tens of thousands of rows), not when
-//    computing them is.
-//
-// 6. DEBOUNCING DOES NOT FIX OUT-OF-ORDER RESPONSES. It reduces how many
-//    requests you send; it says nothing about the order they return in. A slow
-//    response for "re" can still land after a fast one for "react" and
-//    overwrite it. That needs an AbortController — see the
-//    "Search with Debounce + Cancel" template.`,
+render(<SearchFilter />);`,
       },
       {
         name: 'Chat App',
         jsx: true,
-        code: `// WEBSOCKET OR POLLING?
-//   Polling (ask "anything new?" every few seconds) is simple and works through
-//   every proxy, but messages arrive late and most requests return nothing.
-//   A WebSocket keeps one connection open in both directions, so the server
-//   pushes messages and typing events the moment they happen. Chat needs the
-//   client to send often too (messages, typing), which is exactly what a
-//   WebSocket is for. Real apps still keep polling as a fallback.
-//
-// The playground has no server, so FakeSocket below behaves like one: it
+        code: `// The playground has no server, so FakeSocket below behaves like one: it
 // confirms your messages, and "Alex" types and replies. Swap in
 // new WebSocket(url) and send/onmessage keep the same shape.
 
@@ -7667,18 +7362,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - Reconnecting: after a dropped connection, reconnect with backoff and ask
-//     for everything after the last message id you have, or messages sent
-//     while offline are lost. See the "WebSocket Live Feed" template.
-//   - Offline sending: keep unsent messages in an outbox (IndexedDB) and send
-//     them in order when the connection returns.
-//   - Long histories: load older messages when scrolling up, and keep the
-//     scroll position still while they are inserted above.
-//   - Auto-scroll only when the user is already near the bottom. If they have
-//     scrolled up to read, show a "New messages" button instead.`,
+render(<App />);`,
       },
       {
         name: 'Modal Component',
@@ -8500,18 +8184,7 @@ render(<App />);`,
       {
         name: 'Tabs',
         jsx: true,
-        code: `// WHICH ANIMATION TOOL?
-//   CSS transitions + keyframes (used here): a slide and a fade need nothing
-//     else, and cost zero bytes of JavaScript.
-//   Framer Motion (now called Motion): worth it for EXIT animations (the old
-//     panel fading out before it unmounts) and for layout animation, where
-//     layoutId moves the underline between tabs without measuring anything.
-//     It adds a few tens of KB.
-//   react-transition-group (CSSTransition): adds enter/exit class names at the
-//     right moments so plain CSS can animate a component that is unmounting.
-//   Rule of thumb: CSS until you need exit or layout animations.
-
-const INITIAL_TABS = [
+        code: `const INITIAL_TABS = [
   { id: "profile", label: "Profile", content: "Your name, photo and contact details." },
   { id: "security", label: "Security", content: "Password, two-factor login and active sessions." },
   { id: "billing", label: "Billing", content: "Plan, invoices and payment methods." },
@@ -8637,33 +8310,12 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - Keep hidden panels mounted? Unmounting (done here) resets their state and
-//     keeps the DOM small. If a panel holds a half-filled form, keep it mounted
-//     with the hidden attribute, or use React 19's <Activity mode="hidden">.
-//   - The URL: store the active tab in the query string (?tab=billing) so it
-//     survives a refresh and can be linked to.
-//   - Resizing: the underline is measured once per change. If tab widths can
-//     change (fonts loading, window resize), re-measure with a ResizeObserver.`,
+render(<App />);`,
       },
       {
         name: 'Accordion',
         jsx: true,
-        code: `// SINGLE OR MULTIPLE?
-//   Single-open keeps a long page short and suits FAQs, where people read one
-//   answer. Multi-open suits settings or filters, where people compare
-//   sections. Support both with one prop; the only difference is one line in
-//   toggle(). Storing the open ids in a Set makes both cases the same code.
-//
-// THE NATIVE OPTION
-//   <details><summary> gives you open/close, keyboard support and
-//   screen-reader state with no JavaScript, and several <details> sharing a
-//   name="..." attribute behave as single-open. Use it when you do not need a
-//   custom animation.
-
-function Accordion({ items, allowMultiple = false, defaultOpenIds = [] }) {
+        code: `function Accordion({ items, allowMultiple = false, defaultOpenIds = [] }) {
   const [openIds, setOpenIds] = React.useState(() => new Set(defaultOpenIds));
   const base = React.useId();
   const headerRefs = React.useRef([]);
@@ -8768,16 +8420,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - Controlled version: accept openIds + onChange props so a parent can open
-//     a section from outside (for example from a URL hash). Fall back to the
-//     internal state when they are not passed.
-//   - Search inside closed sections: hidden="until-found" lets the browser's
-//     find-in-page open a section that contains the match (Chromium only).
-//   - Heavy panels: mounting them only when first opened, then keeping them,
-//     saves work on a long FAQ.`,
+render(<App />);`,
       },
       {
         name: 'OTP Input',
@@ -9368,16 +9011,7 @@ render(<AutoComplete />);`,
       {
         name: 'Toast / Snackbar',
         jsx: true,
-        code: `// CONTEXT, REDUX OR AN EVENT SYSTEM?
-//   Context   works, but toast() can only be called from inside a component,
-//             and every consumer re-renders whenever the list changes.
-//   Redux     works, but it puts timers and throwaway UI into the global store.
-//   A tiny store (used here): a plain object with subscribe + getSnapshot.
-//             Anything can call it, and only the <Toaster> re-renders.
-//             React reads it with useSyncExternalStore. Libraries such as
-//             react-hot-toast and sonner are built the same way.
-
-const MAX_VISIBLE = 3;
+        code: `const MAX_VISIBLE = 3;
 
 // ---------- the store: plain JavaScript, no React ----------
 function createToastStore() {
@@ -9521,17 +9155,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - Where does <Toaster> go? Once, near the root, so it is never unmounted
-//     by a page change.
-//   - Errors: a second region with role="alert" (assertive) interrupts the
-//     screen reader, which is right for an error and wrong for "Saved".
-//   - Actions ("Undo"): give the toast a button and an onAction callback, and
-//     keep it on screen longer. A toast that needs a decision should not
-//     disappear on its own.
-//   - Position and stacking are CSS. The queue is what stops overlap.`,
+render(<App />);`,
       },
       {
         name: 'Carousel / Slider',
@@ -9636,16 +9260,7 @@ render(<App />);`,
       {
         name: 'Todo List (localStorage + memo)',
         jsx: true,
-        code: `// The four techniques, and why each one matters:
-//   1. Isolate the input's state in its own component, so keystrokes
-//      re-render ONE component instead of the whole list.
-//   2. React.memo on the row, so unchanged rows bail out.
-//   3. Stable callback identity (useCallback), or memo() is defeated —
-//      a new function prop every render fails the shallow compare.
-//   4. Functional setState updates, so the callbacks don't need
-//      \`todos\` in their dependency array and stay stable forever.
-
-// ---------------------------------------------------------------------
+        code: `// ---------------------------------------------------------------------
 // 1. The input owns its own draft state. The parent never re-renders
 //    while you type — it only hears about it on submit.
 // ---------------------------------------------------------------------
@@ -9889,17 +9504,7 @@ render(<TodoApp />);`,
       {
         name: 'Counter (optimized re-renders)',
         jsx: true,
-        code: `// The five things they're actually checking:
-//   1. FUNCTIONAL UPDATES — setCount(c => c + 1), not setCount(count + 1).
-//      Batched updates and stale closures both break the second form.
-//   2. useCallback with an EMPTY dep array — only possible because of (1).
-//   3. React.memo on children, so a re-render of the parent doesn't
-//      cascade. Pointless without (2), since a fresh function prop
-//      fails memo's shallow compare every time.
-//   4. Bounds / step as props, and the disabled states that follow.
-//   5. The stale-closure trap in setInterval.
-
-// ---------------------------------------------------------------------
+        code: `// ---------------------------------------------------------------------
 // A memoized child. Watch its render counter: it should stay at 1 while
 // the count changes, because none of ITS props change.
 // ---------------------------------------------------------------------
@@ -10017,14 +9622,7 @@ render(<Counter initial={0} step={1} min={-10} max={10} />);`,
       {
         name: 'Search with Debounce + Cancel',
         jsx: true,
-        code: `//   type "re"  → request A starts (slow)
-//   type "rea" → request B starts (fast) → renders results for "rea"
-//   request A finally resolves          → OVERWRITES with results for "re"
-//
-// The UI now shows stale results for a query the user already changed.
-// This is the single most common real-world search bug.
-
-// ---------------------------------------------------------------------
+        code: `// ---------------------------------------------------------------------
 // The custom hook they want to see you extract.
 // ---------------------------------------------------------------------
 function useDebouncedValue(value, delay = 300) {
@@ -10166,18 +9764,7 @@ render(<SearchBox />);`,
       {
         name: 'Modal (Portal + Focus Trap)',
         jsx: true,
-        code: `// The FIVE things a correct modal must do, and the order matters:
-//   1. Render in a portal (or the top layer) so an ancestor's
-//      overflow:hidden or transform can't clip it.
-//   2. Move focus INTO the modal on open.
-//   3. TRAP focus — Tab from the last element wraps to the first.
-//   4. RETURN focus to the trigger on close. Most-forgotten step.
-//   5. Escape to close, aria-modal, and lock background scroll.
-//
-// Two implementations below: the hand-rolled portal version (what they
-// ask for) and the <dialog> version (what you should actually ship).
-
-function Modal({ isOpen, onClose, title, children }) {
+        code: `function Modal({ isOpen, onClose, title, children }) {
   const panelRef = React.useRef(null);
   const openerRef = React.useRef(null);
 
@@ -10369,13 +9956,7 @@ render(<App />);`,
       {
         name: 'Form with Validation',
         jsx: true,
-        code: `// The UX rule that matters most: DON'T validate on every keystroke from
-// the start. Telling someone their email is invalid after they've typed
-// "a" is hostile. Validate on BLUR, then live-update once the field has
-// been touched. That single decision is what interviewers are listening
-// for, more than the regex.
-
-const validators = {
+        code: `const validators = {
   name: (v) => (!v.trim() ? "Name is required" : v.trim().length < 2 ? "Name is too short" : ""),
   email: (v) =>
     !v.trim() ? "Email is required"
@@ -10863,14 +10444,7 @@ render(<Wizard />);`,
       {
         name: 'Theme Switcher (dark/light)',
         jsx: true,
-        code: `// THREE states, not two. This is the part most implementations get wrong:
-//   'light'  — user explicitly chose light
-//   'dark'   — user explicitly chose dark
-//   'system' — follow the OS, and KEEP following it if the OS changes
-// A boolean isDark cannot represent "system", so the user's explicit
-// choice gets lost the moment their OS switches at sunset.
-
-const STORAGE_KEY = "theme-preference";
+        code: `const STORAGE_KEY = "theme-preference";
 
 // ---------------------------------------------------------------------
 // THE FOUC FIX. In a real app this goes in index.html as a BLOCKING
@@ -11217,35 +10791,12 @@ function Demo() {
   );
 }
 
-render(<Demo />);
-
-// WHAT AN INTERVIEWER IS LISTENING FOR
-//   - "variant and size are closed sets" — a union type, resolved by lookup.
-//     The TS version is Record<Variant, CSSProperties>, so adding a variant
-//     without styling it is a compile error rather than a silent default.
-//   - ...rest and ref, so the component is a drop-in for <button>. A Button
-//     that cannot take data-testid or onMouseEnter gets forked within a month.
-//   - loading is not disabled. Announce it with aria-busy, keep the label
-//     stable, and do not let the width jump when the spinner appears.
-//   - type="button" by default.
-//   - The polymorphic escape hatch: a link is a link. Production libraries
-//     use asChild (Radix) or a render prop rather than "as", because "as"
-//     cannot merge props onto a component the consumer already built.`,
+render(<Demo />);`,
       },
       {
         name: 'Nested Comments (recursive replies)',
         jsx: true,
-        code: `// THE KEY DECISION IS THE DATA SHAPE.
-//   Nested (replies inside replies): easy to render, painful to update. Adding
-//     a reply means copying every object on the path down to it, and finding a
-//     comment by id means searching the whole tree.
-//   Flat, keyed by id (used here, often called "normalised"):
-//     byId:    { c1: { id, author, text, parentId, childIds: ["c2"] }, ... }
-//     rootIds: ["c1", "c4"]
-//   Adding a reply touches exactly two entries: the new comment and its parent.
-//   Servers usually send comments flat with a parentId anyway.
-
-// What an API typically returns: a flat list, each with its parent's id.
+        code: `// What an API typically returns: a flat list, each with its parent's id.
 const FROM_SERVER = [
   { id: "c1", parentId: null, author: "Asha",  text: "Should the design system ship its own icons?" },
   { id: "c2", parentId: "c1", author: "Ravi",  text: "Yes, one set keeps every product consistent." },
@@ -11392,31 +10943,12 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - Very deep threads: stop at a depth and show "Continue this thread",
-//     which loads that branch on its own page (what Reddit does).
-//   - Thousands of comments: load replies on demand ("Show 24 replies" fetches
-//     them), and virtualise the top level.
-//   - Optimistic posting: add the reply with a temporary id and a "sending"
-//     state, then swap in the server id. See the Optimistic UI template.
-//   - Recursion limit: rendering is recursive, but the data is not. A cycle in
-//     the data (a comment that is its own ancestor) would recurse forever, so
-//     validate parentIds when normalising.`,
+render(<App />);`,
       },
       {
         name: 'Sidebar Navigation (responsive + submenus)',
         jsx: true,
-        code: `// CSS OR JAVASCRIPT FOR "RESPONSIVE"?
-//   Layout (widths, hiding, stacking) belongs in CSS media queries.
-//   Use a JavaScript media query only where BEHAVIOUR differs: here, the
-//   drawer has open/closed state, a backdrop and Escape handling that the
-//   desktop sidebar does not need. With server rendering, remember the server
-//   cannot know the screen width, so render the desktop version by default
-//   and let the client switch after mounting.
-//
-// The preview pane is narrower than your window, so use the toggle at the top
+        code: `// The preview pane is narrower than your window, so use the toggle at the top
 // to see the mobile layout.
 
 const NAV = [
@@ -11657,14 +11189,7 @@ render(<App />);`,
       {
         name: 'Data Table (sort + filter + paginate)',
         jsx: true,
-        code: `// CLIENT-SIDE OR SERVER-SIDE?
-//   Client-side (used here): every row is already in the browser, up to a few
-//     thousand. Filter, then sort, then slice out one page, all in useMemo.
-//   Server-side: too many rows to send. Keep the SAME state object, but turn it
-//     into query parameters (?q=ali&status=active&sort=name&dir=asc&page=2&size=10)
-//     and let the server return one page plus the total count. The header,
-//     rows and pagination components do not change at all. The request that
-//     server-side mode would send is printed under the table.
+        code: `// The request that server-side mode would send is printed under the table.
 
 const NAMES = ["Asha", "Ravi", "Meera", "Sam", "Lena", "Omar", "Priya", "Chen", "Ines", "Tom", "Yuki", "Kofi"];
 const TEAMS = ["Design", "Platform", "Payments", "Growth"];
@@ -11850,38 +11375,12 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - 10,000+ rows in the browser: paginating keeps the DOM small, but if you
-//     must show one long list, virtualise it (render only the visible rows).
-//   - Typing lag on a big dataset: wrap the query in useDeferredValue so the
-//     input stays responsive while the filter catches up, or debounce it.
-//     In server-side mode, debounce AND cancel stale requests (see the
-//     "Search with Debounce + Cancel" template).
-//   - Put the state in the URL so a filtered, sorted page can be shared and
-//     survives a refresh.
-//   - Sorting by several columns: sort becomes an array of { key, dir }, and
-//     the comparator walks it until one key breaks the tie.`,
+render(<App />);`,
       },
       {
         name: 'Like Button (optimistic + rollback)',
         jsx: true,
-        code: `// NUMBER 3 IS THE TRAP.
-//   The naive version sends one request per click. Three clicks means three
-//   requests, which can come back in ANY order, so an old response can
-//   overwrite a newer click, and a failed old request can "roll back" a change
-//   the user made after it.
-//   The fix here: at most ONE request in flight. Clicks made while it is
-//   running just change what the user WANTS. When the request finishes, if
-//   the server state still differs from what they want, send one more.
-//   Five fast clicks become at most two requests, and they cannot overtake
-//   each other.
-//
-//   Also: send the STATE (liked: true), not the action ("toggle"). Repeating
-//   "set liked to true" is harmless; repeating "toggle" flips it back.
-
-// ---------- a fake server: 600 ms per request, can be told to fail ----------
+        code: `// ---------- a fake server: 600 ms per request, can be told to fail ----------
 const api = {
   state: { liked: false, count: 41 },
   failNext: false,
@@ -11983,39 +11482,12 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - React 19 has useOptimistic for this: the optimistic value is shown while
-//     an action runs and is dropped automatically when it ends, so there is no
-//     manual rollback. See the "Optimistic UI Updates" template.
-//   - With TanStack Query: onMutate saves the old cache value and writes the
-//     new one, onError puts the saved value back, onSettled refetches.
-//   - The count others see: after success we show the SERVER's count, which
-//     includes other people's likes, rather than trusting our own arithmetic.
-//   - Leaving the page mid-request: the request still completes on the server.
-//     Nothing to undo, and React ignores state updates after unmount.`,
+render(<App />);`,
       },
       {
         name: 'Rate-Limited Button (throttle vs lock)',
         jsx: true,
-        code: `// WHICH TOOL FOR A BUTTON?
-//   Debounce: waits until the clicks STOP, then runs once. Right for a search
-//     box. Wrong for a button: the first click appears to do nothing, so people
-//     click again.
-//   Throttle: runs on the first click, then ignores clicks for a fixed time.
-//     Right for "Refresh" or "Load more", where repeating is fine but not
-//     ten times a second.
-//   In-flight lock: runs on the first click and ignores clicks until THAT
-//     request finishes. Right for Submit, Pay, Save: the goal is "exactly once",
-//     and no fixed time window can promise that, because the request may take
-//     longer than the window.
-//
-// lodash or custom? lodash's throttle/debounce are fine, but in React you must
-//   create them ONCE (useMemo or useRef), or every render makes a new throttled
-//   function with a fresh timer, which throttles nothing. Cancel them on unmount.
-
-// A fake API that takes 800 ms and counts every call it receives.
+        code: `// A fake API that takes 800 ms and counts every call it receives.
 function createApi() {
   let calls = 0;
   return {
@@ -12118,30 +11590,12 @@ function App() {
   );
 }
 
-render(<App />);
-
-// THE PART THAT IS NOT A FRONTEND PROBLEM
-//   Every guard above lives in one browser tab. Two tabs, a retry after a
-//   timeout, or a slow network that resends can still deliver the same
-//   request twice. For anything that must happen once (payments, orders),
-//   send an idempotency key: a unique id generated once per user action and
-//   sent with every retry, so the server can recognise a repeat and return
-//   the first result instead of charging twice. The frontend guard is for the
-//   user's experience; the idempotency key is the guarantee.`,
+render(<App />);`,
       },
       {
         name: 'Shopping Cart (reducer + derived totals)',
         jsx: true,
-        code: `// THREE DECISIONS THAT MAKE IT CORRECT
-//   Store only { productId, quantity }. Never store the price or the total:
-//     prices change, and a total you store is a total that can disagree with
-//     the items. Look the price up from the catalogue and COMPUTE the totals.
-//   Work in cents (whole numbers). 0.1 + 0.2 is 0.30000000000000004 in
-//     JavaScript, and money must never drift by a cent.
-//   One reducer owns every change, so the rules (max stock, no quantity 0)
-//     live in one place instead of in every button.
-
-// The catalogue. In a real app this comes from the API.
+        code: `// The catalogue. In a real app this comes from the API.
 const PRODUCTS = {
   p1: { id: "p1", name: "Wireless Mouse", priceCents: 1999, stock: 5 },
   p2: { id: "p2", name: "Mechanical Keyboard", priceCents: 8950, stock: 2 },
@@ -12329,38 +11783,14 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - Logged-in users: keep the cart on the server so it follows them across
-//     devices. A guest cart in localStorage is MERGED into the server cart at
-//     login, rather than one silently replacing the other.
-//   - Prices change while the item sits in the cart: the server recalculates
-//     the total at checkout and the UI shows "the price of X changed".
-//     The client total is a preview; the server's total is the one charged.
-//   - Several tabs: listen for the "storage" event to pick up changes made in
-//     another tab.
-//   - Why Context and not Redux here: one cart, a handful of consumers, and a
-//     reducer already holds the rules. The same reducer moves into a Redux
-//     slice or a Zustand store unchanged if the app grows.`,
+render(<App />);`,
       },
       {
         name: 'File Upload (progress + cancel)',
         jsx: true,
-        code: `// WHY XMLHttpRequest AND NOT fetch?
-//   fetch has no upload progress events. XMLHttpRequest does:
-//   xhr.upload.onprogress fires with how many bytes have been SENT so far
-//   (event.loaded) out of the total (event.total). axios uses XHR in the
-//   browser, which is why its onUploadProgress works.
-//
-// The playground has no server, so FakeXHR below behaves like one: it
+        code: `// The playground has no server, so FakeXHR below behaves like one: it
 // reports progress in steps and fails files with "fail" in the name. Swap in
 // the real XMLHttpRequest (the default for createXHR) and nothing else changes.
-//
-// SPRING BOOT SIDE: the controller takes @RequestParam("file") MultipartFile.
-// Its defaults are 1 MB per file and 10 MB per request
-// (spring.servlet.multipart.max-file-size / max-request-size). A bigger file
-// is rejected, so raise both, and handle 413 Payload Too Large in the UI.
 
 const MAX_BYTES = 5 * 1024 * 1024;                        // 5 MB, matching the server limit
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "application/pdf"];
@@ -12540,34 +11970,12 @@ function App() {
   );
 }
 
-render(<App />);
-
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - Very large files (hundreds of MB): split them into chunks and upload
-//     each separately, so a dropped connection only retries one chunk, and the
-//     upload can resume. Or upload straight to storage with a pre-signed URL
-//     (S3, GCS) so the file never passes through your Spring Boot service.
-//   - Many files at once: limit how many upload at the same time (two or three)
-//     and queue the rest, or they compete for bandwidth and all finish late.
-//   - Validation on the client is for the user's convenience only. The server
-//     must check type and size again, and should check the file's contents,
-//     not trust its name or the type the browser reported.
-//   - Progress reaching 100% means the bytes were SENT, not that the server
-//     finished processing them. Show "Processing…" until the response arrives.`,
+render(<App />);`,
       },
       {
         name: 'Dropdown (keyboard + click outside)',
         jsx: true,
-        code: `// A DROPDOWN THAT OPENS AND PICKS A VALUE IS THE EASY HALF. The interview is
-// everything around it: can I use it with only a keyboard? Does it close when
-// I click outside? What if the list is empty, or 45 items long, or one option
-// is unavailable? Build it, then try to break it the way a user would.
-//
-// The pattern is the WAI-ARIA "select-only combobox". DOM focus never leaves
-// the trigger. aria-activedescendant names the highlighted option, so a screen
-// reader announces it while the keyboard keeps working on the trigger.
-
-const FRUITS = [
+        code: `const FRUITS = [
   { value: "apple", label: "Apple" },
   { value: "banana", label: "Banana" },
   { value: "cherry", label: "Cherry" },
@@ -12848,34 +12256,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// TRY TO BREAK IT
-//   - Keyboard only: Tab in, Enter, arrows, Enter. Then reopen it: it starts on
-//     the value you chose, not back at the top.
-//   - Open Fruit and press Escape: the value does not change.
-//   - Open Fruit, then click the heading, or the Country dropdown: it closes.
-//   - Arrow past Cherry: Durian is skipped. Click it: nothing happens.
-//   - Open Country and keep pressing the down arrow: the list scrolls with you.
-//   - Open Assignee: it says why there is nothing to pick.
-//
-// FOLLOW-UPS INTERVIEWERS ASK
-//   - "Why not a native select?" Often you should: it is accessible, works
-//     with forms, and gives phones their own picker. Build a custom one only
-//     for what a select cannot do (icons, two-line options, custom styling of
-//     the open list), and add a hidden input with a name if it sits in a form.
-//   - Searchable dropdown: that is a combobox with a text input and
-//     aria-autocomplete. See the Auto-Complete template.
-//   - Thousands of options: render only the visible rows (virtualisation), and
-//     give each option aria-setsize and aria-posinset, because most of them
-//     are no longer in the DOM for a screen reader to count.
-//   - Inside a container with overflow: hidden, or a modal: the absolute list
-//     gets clipped. Render it in a portal and position it from the trigger's
-//     getBoundingClientRect (or use Floating UI).
-//   - Multi-select: aria-multiselectable on the listbox, Space toggles an
-//     option, and the list stays open between picks.
-//   - In production, Radix Select, React Aria's useSelect or Headless UI's
-//     Listbox already handle the screen-reader edge cases this one skips.`,
+render(<App />);`,
       },
       {
         name: 'Move Boxes (swap with neighbour)',
@@ -12981,18 +12362,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// TRY IT
-//   - A right: A and B swap. Then B right: they swap back.
-//   - A up: nothing is above A.
-//   - C up: C is 4 wide, so in A's place it would cover B. Refused.
-//
-// FOLLOW-UPS
-//   - Two boxes touch that side: this takes the one at the corner. The
-//     alternative is the one sharing the longest edge.
-//   - Only the two moved boxes can clash, so checking just them is O(n)
-//     instead of comparing every pair.`,
+render(<App />);`,
       },
       {
         name: 'Product CRUD (add, edit, delete)',
@@ -13109,23 +12479,7 @@ function App() {
   );
 }
 
-render(<App />);
-
-// TRY IT
-//   - Add "Monitor" at 199: it appears at the end of the list.
-//   - Press Add product with an empty name: the error shows, nothing is added.
-//   - Edit Keyboard, change the price, Save changes: the row updates in place.
-//   - Edit Mouse, then delete Mouse: the form goes back to adding.
-//
-// FOLLOW-UPS
-//   - Why a key of p.id, not the index? Deleting a row shifts every index, so
-//     React would reuse the wrong row's DOM and state.
-//   - Why the updater form, setProducts((list) => ...)? It always starts from
-//     the latest list, even if two updates land in the same render.
-//   - Backed by an API: call it, then update state from the response, or
-//     update first and roll back on failure (optimistic UI).
-//   - Bigger forms: useReducer for the state, or a form library.
-//   - Delete confirmation: an undo toast is kinder than a confirm dialog.`,
+render(<App />);`,
       },
     ],
   },

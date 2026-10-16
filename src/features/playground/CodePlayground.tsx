@@ -864,7 +864,7 @@ export default function CodePlayground({ flavor = 'js' }: { flavor?: PlaygroundF
           runSummary={runSummary} onClear={handleClear} onRun={() => void runCode()} isRunning={isRunning} locked={interview.locked}
           interviewSlot={<InterviewControl interview={interview} name={selectedName} isChallenge={currentTemplate?.kind === 'challenge'} onGoTo={openChallengeByName} />}
           onCompare={currentTemplate ? () => setCompareOpen(true) : undefined}
-          onCheck={currentTemplate?.kind === 'challenge' && currentTemplate.tag === 'React' ? () => void reactCheck.check(currentTemplate.name) : undefined} isChecking={reactCheck.checking}
+          onCheck={currentTemplate?.kind === 'challenge' && currentTemplate.tag === 'React' ? () => void reactCheck.check(currentTemplate.name) : undefined} isChecking={reactCheck.checking} tipsFor={currentTemplate?.kind === 'challenge' && currentTemplate.tag === 'React' && hasExplanation ? currentTemplate.name : null}
         />
       </div>
 

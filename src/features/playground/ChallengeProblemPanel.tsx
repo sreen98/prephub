@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, FileText, X } from 'lucide-react';
 import { useChallengeProblems } from '../../hooks/useChallengeProblems';
 import type { ActiveTrack } from '../../hooks/useChallengeTrack';
+import { warmUpOf } from '../../data/playground/challengeProblemIndex';
 
 // The problem statement for the open challenge: what to build, sample input with
 // the expected output, and the constraints. It used to sit above the editor and
@@ -51,6 +52,7 @@ export function ProblemButton({ onClick }: { onClick: () => void }) {
 export default function ChallengeProblemPanel({ name, isReact, active, onGo, open, onClose }: ChallengeProblemPanelProps) {
   const problems = useChallengeProblems();
   const problem = problems?.[name];
+  const warmUp = problems ? warmUpOf(problems, name) : null;
   const startRef = useRef<HTMLButtonElement>(null);
 
   // Escape closes; focus lands on "Start coding" so Enter dismisses it too.
@@ -87,6 +89,15 @@ export default function ChallengeProblemPanel({ name, isReact, active, onGo, ope
           {problem && (
             <>
               <p className="text-[15px] text-stone-100">{problem.statement}</p>
+              {(problem.warmUpFor || warmUp) && (
+                <p className="mt-2 text-xs text-stone-400">
+                  {problem.warmUpFor ? 'This is the warm-up for ' : 'Its warm-up, with fewer requirements, is '}
+                  <button onClick={() => onGo(problem.warmUpFor ?? warmUp ?? name)} className="font-medium text-teal-300 underline underline-offset-2 hover:text-teal-200">
+                    {problem.warmUpFor ?? warmUp}
+                  </button>
+                  {problem.warmUpFor ? ', which asks for more on the same core.' : '.'}
+                </p>
+              )}
               <div className="mt-4 grid gap-2 md:grid-cols-2">
                 {problem.examples.map((ex, i) => (
                   <div key={i} className="rounded-lg border border-[#262421] bg-[#1a1917] p-3 font-mono text-[12.5px]">

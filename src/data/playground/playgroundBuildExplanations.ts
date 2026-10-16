@@ -76,6 +76,16 @@ const responsiveImages: BuildExplanation = {
     { point: 'You never lazy-load the LCP image, and you say so unprompted', why: 'It is a one-attribute regression to the metric you are being judged on, and volunteering it shows you think about loading order rather than reciting attributes.' },
     { point: 'alt text describes purpose, and decorative images get alt=""', why: 'An empty alt tells a screen reader to skip the image; a missing alt makes many screen readers read out the file name instead. They are opposites, not degrees of the same thing.' },
   ],
+  tips: [
+    {
+      title: 'Also worth saying',
+      points: [
+        '`decoding="async"` lets the browser decode the image off the main thread.',
+        'AVIF is roughly 50% smaller than the same JPEG and WebP roughly 30%, both widely supported, but always keep a JPEG or PNG fallback in the `<img>`.',
+        'A hero image the preload scanner cannot see (a CSS background, or an `<img>` inserted by JavaScript) needs `<link rel="preload" as="image">` in the head.',
+      ],
+    },
+  ],
 };
 
 const protectedRoute: BuildExplanation = {
@@ -153,6 +163,16 @@ const protectedRoute: BuildExplanation = {
     { point: 'You volunteer that this is UX only, not security', why: 'Anyone with devtools can edit client state, so a hidden button is not a permission. Every protected route must be backed by the server checking authorization on each API call; saying it unprompted is the senior signal here.' },
     { point: 'The policy lives in one component', why: 'Role checks duplicated across pages drift, and when the rule changes you cannot list every place to update. One gate is also the thing you can test.' },
   ],
+  tips: [
+    {
+      title: 'Also worth saying',
+      points: [
+        'Remember where the user was going, and send them there after login.',
+        'Say it unprompted: this is UX only. Anyone can edit client state, so every protected route must be backed by authorization on the server. A hidden button is not a permission (see the Web Security and OAuth guides).',
+        'Calling the parent\'s setState during render warns "Cannot update a component while rendering a different component". That is why react-router gives you `<Navigate />`, a component that navigates in an effect, rather than a function you call inline.',
+      ],
+    },
+  ],
 };
 
 const miniReduxStore: BuildExplanation = {
@@ -228,6 +248,16 @@ const miniReduxStore: BuildExplanation = {
     { point: 'Selector isolation is your answer to "why not Context?"', why: 'Context re-renders every consumer on any change; a selector re-renders only the components whose slice changed. That single difference is the reason this whole category of library exists, and it is what the question is really probing.' },
     { point: 'You know what you would actually reach for', why: 'Redux Toolkit for large shared client state, Zustand for something lighter, TanStack Query for server state (data fetched from an API), which is most of what people wrongly keep in Redux. Building it by hand is the exercise, not the recommendation.' },
   ],
+  tips: [
+    {
+      title: 'Also worth saying',
+      points: [
+        'Middleware is dispatch wrapping: `store => next => action`. That signature is how thunk, saga and the devtools all hook in.',
+        'A selector that returns a new object on every call (`s => ({ ... })`) defeats the equality check and re-renders every time. That is what reselect and `useShallow` are for.',
+        'What you would actually use: Redux Toolkit for large shared client state, Zustand for something lighter, and TanStack Query for server state, which is most of what people wrongly put in Redux.',
+      ],
+    },
+  ],
 };
 
 const clientCache: BuildExplanation = {
@@ -289,6 +319,15 @@ const clientCache: BuildExplanation = {
     { point: 'Request de-duplication via an inflight map', why: 'It is the difference between one request and one per consumer. Naive hooks that fire N requests for N components are a very common production bug, and this map is the fix.' },
     { point: 'State initialised from the cache during render', why: 'Filling it in an effect guarantees a loading flash on every revisit, which defeats the cache visually even though it technically worked.' },
     { point: 'The out-of-order response race is handled', why: 'Any component that refetches on a changing key has this bug latent in it. Interviewers probe by asking what happens if you switch fast.' },
+  ],
+  tips: [
+    {
+      title: 'Know what you are not building',
+      points: [
+        'TanStack Query adds retries, revalidation when the window regains focus, garbage collection, pagination helpers and devtools. Say that, rather than claiming a 40-line hook replaces it.',
+        'Initialise state from the cache, not to null, or you flash a loader on every revisit even though the data was already there.',
+      ],
+    },
   ],
 };
 
@@ -354,6 +393,17 @@ const webSocketFeed: BuildExplanation = {
     { point: 'The buffer is bounded', why: 'It shows you are thinking about a session that lasts hours rather than a demo that lasts a minute. Unbounded accumulation is the most common React memory leak after listeners that are never removed.' },
     { point: 'You can name what comes next', why: 'Heartbeats (a small ping every few seconds) to detect a half-open connection, where the network still thinks it is fine but nothing flows; sequence numbers on messages to detect gaps and replay after a reconnect; and batching high-frequency messages into one update per animation frame (requestAnimationFrame) so 1000 messages a second is not 1000 renders.' },
   ],
+  tips: [
+    {
+      title: 'What comes next',
+      points: [
+        'Heartbeats, to detect a half-open connection: TCP can stay "open" with nothing flowing.',
+        'Message sequence numbers, to detect gaps and replay what was missed after a reconnect.',
+        'Batch high-frequency updates into one `requestAnimationFrame`, so 1,000 messages a second do not cause 1,000 renders.',
+        'No jitter on the backoff means every client retries in lockstep and floods your own server when it comes back.',
+      ],
+    },
+  ],
 };
 
 const optimisticUI: BuildExplanation = {
@@ -416,6 +466,21 @@ const optimisticUI: BuildExplanation = {
     { point: 'Pending state is visible', why: 'Otherwise the UI claims work is saved when it is not, and the user closes the tab. Honesty about in-flight state is part of the feature, not decoration.' },
     { point: 'You know when NOT to be optimistic', why: 'The judgement is the senior part of the answer. Applying it to a payment flow is a worse outcome than never using it at all.' },
   ],
+  tips: [
+    {
+      title: 'Why two versions',
+      points: [
+        'The template has React 19\'s `useOptimistic` and the manual rollback you would write in React 18. Know both: interviewers ask why `useOptimistic` exists.',
+      ],
+    },
+    {
+      title: 'Also worth saying',
+      points: [
+        '`useOptimistic` must be called inside a transition or a form action. Outside one, React warns and drops the update.',
+        'Optimism suits high-success, low-stakes actions (likes, todos, reordering). For a payment, show a real pending state: a rolled-back charge is far worse than a spinner.',
+      ],
+    },
+  ],
 };
 
 const suspenseLazy: BuildExplanation = {
@@ -476,6 +541,17 @@ const suspenseLazy: BuildExplanation = {
     { point: 'The boundary is scoped, and the fallback is sized', why: 'A root-level boundary makes one lazy panel blank the page; a fallback of the wrong size trades a loading state for a layout shift.' },
     { point: 'You know the default-export requirement', why: 'It is the first thing that breaks when someone adopts React.lazy in a codebase full of named exports, and the fix is not obvious from the error message.' },
   ],
+  tips: [
+    {
+      title: 'Also worth saying',
+      points: [
+        'A chunk can fail to load from a network blip or a deploy that removed the old file (`ChunkLoadError`), so the error boundary should offer a retry.',
+        'React.lazy needs a module with a default export. For a named export: `() => import(\'./x\').then(m => ({ default: m.Named }))`.',
+        'Splitting a small component adds a request for almost no saving. Route boundaries are where the payoff is.',
+        '`useTransition` keeps the old UI on screen instead of showing the fallback during an update.',
+      ],
+    },
+  ],
 };
 
 const displayJsonProp: BuildExplanation = {
@@ -524,6 +600,16 @@ const displayJsonProp: BuildExplanation = {
     { point: 'The empty state exists', why: 'Most candidates render only the happy path. Handling empty unprompted signals you think about what the user sees when the data is not there.' },
     { point: 'Counts are derived, not stored', why: 'Duplicating derivable data in state is the root of a whole class of out-of-sync bugs, and it is the same instinct that leads to storing filtered lists in state later on.' },
   ],
+  tips: [
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**Why not use the array index as a key?** On reorder, insert or delete, React reuses the wrong DOM node, and component state sticks to the wrong row (a typed input value follows the index).',
+        '**What if the JSON is nested deeper?** Optional chaining all the way down, or normalise it once at the boundary rather than scattering `?.` through the JSX.',
+        '**Where would this data normally come from?** A fetch. See the "JSON → API → React fetch" challenge for that version.',
+      ],
+    },
+  ],
 };
 
 const jsonApiFetch: BuildExplanation = {
@@ -545,6 +631,15 @@ const jsonApiFetch: BuildExplanation = {
     { point: 'You know fetch does not reject on HTTP errors', why: 'It is the most common misconception about fetch, and it means a 500 renders as success. The `if (!res.ok) throw` line is the whole fix.' },
     { point: 'AbortController on cleanup, with AbortError excluded', why: 'It fixes the out-of-order race and the state-update-after-unmount problem at once. Half the implementation (aborting, but reporting the abort as an error) is worse than neither.' },
     { point: 'You say this belongs in TanStack Query in production', why: 'Caching, de-duplication, retries and stale-while-revalidate (showing cached data while refetching behind it) are exactly the things a hand-rolled hook gets wrong over time. Writing it by hand is the exercise; shipping it by hand is the mistake.' },
+  ],
+  tips: [
+    {
+      title: 'Also worth saying',
+      points: [
+        'A single `status` field beats three booleans: `isLoading` and `isError` together can represent impossible combinations.',
+        'Without the abort you get a state update after unmount, and a race where a slow first response overwrites a fast second one.',
+      ],
+    },
   ],
 };
 
@@ -568,6 +663,18 @@ const fetchUsersApi: BuildExplanation = {
     { point: 'You know fetch resolves on 4xx and 5xx', why: 'It is the defining gotcha of the API and the reason `if (!res.ok) throw` exists. Someone who omits it has usually only called endpoints that worked.' },
     { point: 'A failed request is recoverable without a page reload', why: 'A retry button is the difference between a dead end and a temporary problem. Routing it through the same effect keeps cancellation intact.' },
     { point: 'A stable key from the data', why: 'Falling back to the array index in a list that will later be sorted or filtered is the habit this exercise is watching for.' },
+  ],
+  tips: [
+    {
+      title: 'Also worth saying',
+      points: [
+        'An interviewer checks the four states by throttling the network in devtools.',
+        'Forgetting `res.ok` shows up as a confusing error about an unexpected token "<": the code is parsing the HTML error page as JSON.',
+        'One status field rather than `isLoading` plus `isError`. Separate booleans can be true at the same time, which is how a spinner and an error end up on screen together.',
+        'Aborting without excluding AbortError is worse than not aborting: every navigation then flashes a failure.',
+        'In production this belongs behind TanStack Query, which adds caching, de-duplication, retries with backoff and stale-while-revalidate.',
+      ],
+    },
   ],
 };
 
@@ -616,29 +723,53 @@ const fetchPaginatePosts: BuildExplanation = {
     { point: 'The edges are safe', why: 'Disabled buttons, clamping handlers, a page reset after a refetch, and no "page 1 of 0" for an empty list. Each one closes a route to an empty or impossible page.' },
     { point: 'All four request states, and no .finally race', why: 'Loading, error with a retry, empty and success each need their own screen, and ending the loading state from a .finally that also runs for an aborted request is a bug that only shows up in development, which is where it should be caught.' },
   ],
+  tips: [
+    {
+      title: 'Also worth saying',
+      points: [
+        'Say when you would switch to server-side paging: when the full list is too big to download.',
+        'The controls sit in a nav labelled "Pagination", and the page line is aria-live, so a screen reader hears the page change.',
+      ],
+    },
+  ],
 };
 
 const searchFilter: BuildExplanation = {
   kind: 'build',
   problem: 'Search Filter',
   problemStatement:
-    'Filter a list as the user types, then answer the follow-up every interviewer asks: "now add debouncing" (waiting until the user pauses typing before doing the work). The template shows both side by side with counters, because the honest answer is that this list does not need it.',
+    'Filter a product list as the user types, with debouncing (waiting until the user pauses typing before doing the work), a match count and an empty state. The input must stay instant; only the filtering waits.',
   buildOrder: [
-    { title: 'Write the filter as one shared pure function', excerpt: { from: 'function filterProducts(query) {', lines: 8 }, detail: 'filterProducts lower-cases and trims the query, returns every product for an empty query, and otherwise keeps products whose name or category contains it. Both versions call this same function, so they differ only in when they run it.' },
-    { title: 'Store the query, derive the results', excerpt: { from: 'const runs = useRef(0);                    // instrumentation only', lines: 6 }, detail: 'The filtered list is a function of the query and the data, so it is computed during render rather than stored. useMemo re-runs the filter only when the query changes; `runs` is a ref (a value that persists across renders without causing one) used purely to count how often that happens.', pitfall: 'Calling setFiltered inside a useEffect that watches query is the classic "you did not need an effect" mistake: it renders twice per keystroke, and for one of those renders the list and the query disagree.' },
-    { title: 'Count keystrokes next to filter runs', excerpt: { from: 'title="1 · Instant"', lines: 4 }, detail: 'Each change updates the query and bumps a keystroke counter. Panel shows both numbers, so you can see that the instant version runs the filter once per keystroke that changes the query.' },
-    { title: 'When asked to debounce, debounce the value in a hook', excerpt: { from: 'function useDebouncedValue(value, delay) {', lines: 2 }, detail: 'useDebouncedValue returns a copy of `value` that only catches up after `delay` milliseconds without a change. It starts equal to the value, so the first render is not empty.' },
+    { title: 'Write the filter as a pure function', excerpt: { from: 'function filterProducts(query) {', lines: 8 }, detail: 'filterProducts lower-cases and trims the query, returns every product for an empty query, and otherwise keeps products whose name or category contains it. It depends only on its argument, so the component can derive the list from the query instead of storing it.' },
+    { title: 'Debounce the value in a hook', excerpt: { from: 'function useDebouncedValue(value, delay) {', lines: 2 }, detail: 'useDebouncedValue returns a copy of `value` that only catches up after `delay` milliseconds without a change. It starts equal to the value, so the first render shows every product rather than an empty list.' },
     { title: 'The cleanup is the debounce', excerpt: { from: 'useEffect(() => {', lines: 5 }, detail: 'Each new value starts a timer that will copy it into `debounced`. Before the effect runs again for the next keystroke, React runs the cleanup, which cancels the previous timer. So only the last keystroke of a burst survives long enough to fire.', pitfall: 'Without the cleanup every keystroke fires after the delay, which just postpones the work instead of reducing it.' },
-    { title: 'Let the input use the live query, and the work use the debounced one', excerpt: { from: 'const [query, setQuery] = useState("");           // drives the INPUT', lines: 3 }, detail: '`query` controls the text box, so typing is never laggy. `debounced` trails behind it and is the only thing the filter\'s useMemo depends on, so the expensive part waits for a pause.', pitfall: 'Debouncing the state that drives the input itself makes the text box drop or delay characters, which is the version that makes a search box feel broken.' },
-    { title: 'Say when the list on screen is out of date', excerpt: { from: 'stale={query !== debounced}', lines: 1 }, detail: 'While the debounce is pending, the list belongs to an older query. When the two differ, Panel shows a "waiting…" hint rather than presenting old results as current.' },
-    { title: 'Render both versions through one presentation component', excerpt: { from: 'function Panel({ title, subtitle, query, onChange, keystrokes, runs, filtered, stale }) {', lines: 1 }, detail: 'Panel draws the input, the counters, the result count, the list, and an empty message ("No products match …"). Both versions use it, so any difference you see comes from the logic, not the markup.' },
-    { title: 'Say why this list does not need a debounce', detail: 'Filtering twelve local objects takes well under a microsecond (about 0.4 µs measured in Node on a laptop), and one frame at 60 frames per second is 16.67 ms. A 400 ms debounce adds 400 ms of lag to save almost nothing, and the counters make that visible. Debouncing belongs where a keystroke costs something you do not control, usually a network request.', pitfall: 'For expensive local rendering (tens of thousands of rows) the answer is useDeferredValue, not a debounce: React renders the list at lower priority and keeps the input responsive, based on the real work rather than a guessed timer.' },
+    { title: 'The input reads the live query; the work reads the debounced one', excerpt: { from: 'const [query, setQuery] = useState("");            // drives the INPUT', lines: 3 }, detail: '`query` controls the text box, so typing is never laggy. `debounced` trails behind it and is the only thing the useMemo depends on, so the filter runs once per pause instead of once per keystroke. The filtered list is computed during render, never stored.', pitfall: 'Debouncing the state that drives the input itself makes the text box drop or delay characters. That is the version that makes a search box feel broken.' },
+    { title: 'Say when the list on screen is out of date', excerpt: { from: 'const stale = query !== debounced;', lines: 1 }, detail: 'While the timer is pending, the list belongs to an older query. When the two differ the count line adds "searching…", rather than presenting old results as current.' },
+    { title: 'Render the count, the list and the empty state', excerpt: { from: '<p aria-live="polite"', lines: 8 }, detail: 'The count line is aria-live, so a screen reader hears "Showing 3 of 12 products" when the results change. An empty result gets its own message naming the query, and each row is keyed by the product id.' },
   ],
   graded: [
-    { point: 'The filtered list is derived, never stored', why: 'This is the real subject of the question. Storing it is the mistake that generalises into a whole category of out-of-sync bugs, and the React docs call it out explicitly.' },
-    { point: 'You debounce the value and not the input', why: 'It is what keeps typing instant. Debouncing the state the text box reads makes the component feel worse than no debounce at all.' },
-    { point: 'You can say when debouncing is NOT warranted', why: 'Applying it to a local filter shows pattern-matching; explaining that it belongs where the keystroke costs a request shows judgement, which is what the follow-up is testing.' },
-    { point: 'Debouncing is not confused with cancellation', why: 'It reduces how many requests you send and says nothing about the order they return in. A slow response for an earlier query can still overwrite a later one; that needs an AbortController.' },
+    { point: 'The filtered list is derived, never stored', why: 'Keeping a `filtered` array in state needs an effect to resync it, gives you one render where the list and the query disagree, and goes stale when the data changes without the query changing. The React docs call this out explicitly.' },
+    { point: 'You debounce the value and not the input', why: 'The field stays controlled by `query`, so typing is instant; only `debounced`, which drives the work, trails behind.' },
+    { point: 'The cleanup is the algorithm', why: '`return () => clearTimeout(id)` is not tidy-up. It is what cancels the pending timer on each keystroke, so only the last one survives.' },
+    { point: 'The UI is honest while it waits', why: 'A "searching…" hint while the debounced value lags, a match count read out by aria-live, and a real empty state instead of a blank list.' },
+  ],
+  tips: [
+    {
+      title: 'When the debounce is not needed, say so',
+      points: [
+        'Filtering 12 local objects takes well under a microsecond, and a frame is 16.67 ms. Here the debounce adds 300 ms of lag to save almost nothing. Saying that, and that you added it because a real search usually hits a server, shows judgement rather than pattern-matching.',
+        'Debouncing belongs where a keystroke costs something you do not control: most often a network request.',
+        'For expensive local work (rendering tens of thousands of rows), the answer is `useDeferredValue`, not a debounce. React renders the list at lower priority and keeps the input responsive, based on the real work rather than a guessed timer.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        'Debouncing does not fix out-of-order responses. It reduces how many requests you send, not the order they return in: a slow response for "re" can land after a fast one for "react" and overwrite it. That needs an AbortController. See the "Search with Debounce + Cancel" challenge.',
+        'Why 300 ms? Long enough to cover the gap between keystrokes of a normal typist, short enough not to feel slow. 200 to 500 ms is the usual range.',
+        'Put the query in the URL (`?q=pro`) so a search survives a refresh and can be shared.',
+      ],
+    },
   ],
 };
 
@@ -733,6 +864,24 @@ const chatApp: BuildExplanation = {
     { point: 'Messages have a lifecycle: sending, sent, failed', why: 'Message state management is the core of the question. A client id, a status and a retry that reuses the bubble show you have handled real network failure.' },
     { point: 'Nothing is shown twice', why: 'Merging by id handles the race between history and pushed messages and makes replays after a reconnect safe. Interviewers probe it with "what if the history loads after a new message arrives?".' },
     { point: 'Typing status is throttled going out and expires coming in', why: 'Both halves are small and both are usually missed. Together they show you think about bandwidth and about events that never arrive.' },
+  ],
+  tips: [
+    {
+      title: 'WebSocket or polling?',
+      points: [
+        'Polling (asking "anything new?" every few seconds) is simple and works through every proxy, but messages arrive late and most requests return nothing.',
+        'A WebSocket keeps one connection open in both directions, so the server pushes messages and typing events the moment they happen. Chat needs the client to send often too, which is exactly what a WebSocket is for. Real apps still keep polling as a fallback.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**Reconnecting:** after a dropped connection, reconnect with backoff and ask for everything after the last message id you have, or messages sent while offline are lost. See the "WebSocket Live Feed" challenge.',
+        '**Offline sending:** keep unsent messages in an outbox (IndexedDB) and send them in order when the connection returns.',
+        '**Long histories:** load older messages when scrolling up, and keep the scroll position still while they are inserted above.',
+        '**Auto-scroll** only when the user is already near the bottom. If they have scrolled up to read, show a "New messages" button instead.',
+      ],
+    },
   ],
 };
 
@@ -976,6 +1125,25 @@ const tabs: BuildExplanation = {
     { point: 'The underline is measured before paint and moved with transform', why: 'It shows you know why useLayoutEffect exists and which CSS properties are cheap to animate, which is more interesting than the animation itself.' },
     { point: 'Tabs are data, keyed by id', why: 'Dynamic tab rendering is part of the question. Being able to add and remove tabs, with a correct fallback, is the proof.' },
   ],
+  tips: [
+    {
+      title: 'Which animation tool?',
+      points: [
+        '**CSS transitions and keyframes** (used here): a slide and a fade need nothing else, and cost no JavaScript.',
+        '**Framer Motion** (now called Motion): worth it for exit animations (the old panel fading out before it unmounts) and layout animation, where `layoutId` moves the underline between tabs without measuring anything. It adds a few tens of KB.',
+        '**react-transition-group** (`CSSTransition`): adds enter and exit class names at the right moments, so plain CSS can animate a component that is unmounting.',
+        'Rule of thumb: CSS until you need exit or layout animations.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**Keep hidden panels mounted?** Unmounting (done here) resets their state and keeps the DOM small. If a panel holds a half-filled form, keep it mounted with the `hidden` attribute, or use React 19\'s `<Activity mode="hidden">`.',
+        '**The URL:** store the active tab in the query string (`?tab=billing`) so it survives a refresh and can be linked to.',
+        '**Resizing:** the underline is measured once per change. If tab widths can change (fonts loading, window resize), re-measure with a ResizeObserver.',
+      ],
+    },
+  ],
 };
 
 const accordion: BuildExplanation = {
@@ -1033,6 +1201,29 @@ const accordion: BuildExplanation = {
     { point: 'The height animates without measuring', why: 'Transition effects are part of the question. Knowing why height: auto cannot animate, and the grid-rows technique that avoids it, is a strong answer.' },
     { point: 'Closed panels are out of the Tab order', why: 'Being able to Tab into a closed panel and lose focus is the most common failure of animated accordions; the Accessibility guide\'s tricky Q2 is exactly this bug.' },
     { point: 'You mention <details> as the native alternative', why: 'It gives open and close, keyboard support and screen-reader state for free. Knowing when not to build the component is a senior signal.' },
+  ],
+  tips: [
+    {
+      title: 'Single or multiple open?',
+      points: [
+        'Single-open keeps a long page short and suits FAQs, where people read one answer. Multi-open suits settings or filters, where people compare sections.',
+        'Support both with one prop: the only difference is one line in `toggle()`. Storing the open ids in a Set makes both cases the same code.',
+      ],
+    },
+    {
+      title: 'The native option',
+      points: [
+        '`<details><summary>` gives you open and close, keyboard support and screen-reader state with no JavaScript, and several `<details>` sharing a `name` attribute behave as single-open. Use it when you do not need a custom animation.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**Controlled version:** accept `openIds` and `onChange` props so a parent can open a section from outside (for example from a URL hash), and fall back to internal state when they are not passed.',
+        '**Search inside closed sections:** `hidden="until-found"` lets the browser\'s find-in-page open a section that contains the match (Chromium only).',
+        '**Heavy panels:** mount them only when first opened, then keep them. That saves work on a long FAQ.',
+      ],
+    },
   ],
 };
 
@@ -1213,6 +1404,25 @@ const toastSnackbar: BuildExplanation = {
     { point: 'Timers are owned by the visible toast and cleaned up', why: 'It shows you think about the lifecycle: nothing expires unseen, hover pauses rather than resets, and no timeout fires after its toast is gone.' },
     { point: 'The live region exists before the first toast', why: 'It is the accessibility detail that separates a component that passes review from one that is actually announced, and interviewers rarely hear it volunteered.' },
   ],
+  tips: [
+    {
+      title: 'Context, Redux or a store?',
+      points: [
+        '**Context** works, but `toast()` can only be called from inside a component, and every consumer re-renders whenever the list changes.',
+        '**Redux** works, but it puts timers and throwaway UI into the global store.',
+        '**A tiny store** (used here): a plain object with `subscribe` and `getSnapshot`. Anything can call it, only the `<Toaster>` re-renders, and React reads it with `useSyncExternalStore`. react-hot-toast and sonner are built the same way.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**Where does `<Toaster>` go?** Once, near the root, so a page change never unmounts it.',
+        '**Errors:** a second region with `role="alert"` (assertive) interrupts the screen reader, which is right for an error and wrong for "Saved".',
+        '**Actions ("Undo"):** give the toast a button and an `onAction` callback, and keep it on screen longer. A toast that needs a decision should not disappear on its own.',
+        'Position and stacking are CSS. The queue is what stops overlap.',
+      ],
+    },
+  ],
 };
 
 const carousel: BuildExplanation = {
@@ -1260,6 +1470,17 @@ const todoList: BuildExplanation = {
     { point: 'Functional updates so the dependency arrays stay empty', why: 'It is the mechanism that makes the callbacks stable. Depending on todos looks equivalent and quietly re-creates every handler on every change.' },
     { point: 'You can say what you would do at 10,000 rows', why: 'None of this changes the fact that every row is in the DOM. Virtualisation (rendering only the rows on screen) is the next step, and the React Compiler, which inserts memoisation automatically, removes the need for the manual memo and useCallback. Both are the right follow-up answers.' },
   ],
+  tips: [
+    {
+      title: 'The four techniques, and why each one matters',
+      points: [
+        '1. Isolate the input\'s state in its own component, so keystrokes re-render one component instead of the whole list.',
+        '2. `React.memo` on the row, so unchanged rows bail out.',
+        '3. Stable callback identity (`useCallback`), or memo is defeated: a new function prop every render fails the shallow compare.',
+        '4. Functional setState updates, so the callbacks do not need `todos` in their dependency array and stay stable forever.',
+      ],
+    },
+  ],
 };
 
 const counterOptimized: BuildExplanation = {
@@ -1280,6 +1501,18 @@ const counterOptimized: BuildExplanation = {
     { point: 'useCallback and memo are described as one mechanism', why: 'Either alone does nothing. Candidates who list them as separate optimisations usually have not watched a memoised child re-render because of an inline arrow.' },
     { point: 'You can explain the setInterval stale closure', why: 'It is one of the most commonly hit React bugs, and the two available fixes have different costs. Knowing both, and which you would pick, is the senior signal.' },
     { point: 'You mention the React Compiler', why: 'It memoises automatically and makes most of this manual work unnecessary, but only for components that follow the Rules of React, and it silently skips components that do not.' },
+  ],
+  tips: [
+    {
+      title: 'The five things they are checking',
+      points: [
+        '1. **Functional updates:** `setCount(c => c + 1)`, not `setCount(count + 1)`. Batched updates and stale closures both break the second form.',
+        '2. `useCallback` with an empty dependency array, which is only possible because of (1).',
+        '3. `React.memo` on children, so a parent re-render does not cascade. It is pointless without (2), since a fresh function prop fails memo\'s shallow compare every time.',
+        '4. Bounds and step as props, and the disabled states that follow.',
+        '5. The stale-closure trap in `setInterval`.',
+      ],
+    },
   ],
 };
 
@@ -1302,6 +1535,15 @@ const searchDebounceCancel: BuildExplanation = {
     { point: 'The input is not debounced, only the query', why: 'It is what keeps typing instant. Debouncing the state the text box reads makes the component feel worse than no debounce at all.' },
     { point: 'AbortError is excluded from the error path', why: 'Your own cleanup is not a failure. Without the guard, every continued keystroke flashes an error message.' },
     { point: 'The UI is honest while results are stale', why: 'Showing an old list under a new query with no indication is a small lie the user acts on. A pending indicator costs one boolean.' },
+  ],
+  tips: [
+    {
+      title: 'The race this fixes',
+      points: [
+        'Type "re" and request A starts (slow). Type "rea" and request B starts (fast), so the results for "rea" render. Then request A finally resolves and overwrites them with the results for "re".',
+        'The UI now shows stale results for a query the user already changed. This is the most common real-world search bug, and a debounce alone does not prevent it: only cancelling (or ignoring) the older request does.',
+      ],
+    },
   ],
 };
 
@@ -1327,6 +1569,19 @@ const modalPortalFocusTrap: BuildExplanation = {
     { point: 'You can say what the portal is for', why: 'Not "it renders elsewhere" but specifically: it escapes overflow and transform ancestors, while context and event bubbling still follow the React tree. That second half is what people get wrong.' },
     { point: 'You mention the native <dialog>', why: 'It solves most of this in the platform. Knowing when the custom implementation is still justified is the judgement being assessed.' },
   ],
+  tips: [
+    {
+      title: 'The five things a correct modal must do',
+      points: [
+        '1. Render in a portal (or the top layer), so an ancestor\'s `overflow: hidden` or `transform` cannot clip it.',
+        '2. Move focus into the modal on open.',
+        '3. Trap focus: Tab from the last element wraps to the first.',
+        '4. Return focus to the trigger on close. This is the most-forgotten step.',
+        '5. Escape to close, `aria-modal`, and lock the background scroll.',
+        'The template has two versions: the hand-rolled portal (what interviewers ask for) and `<dialog>` (what you should actually ship).',
+      ],
+    },
+  ],
 };
 
 const formValidation: BuildExplanation = {
@@ -1351,6 +1606,14 @@ const formValidation: BuildExplanation = {
     { point: 'aria-invalid, aria-describedby and role="alert"', why: 'Without them the error exists only as colour and position. This is the half of form work that is invisible in a screenshot and obvious with a screen reader.' },
     { point: 'Submit reveals everything and focuses the first error', why: 'It is what turns a failed submit into something actionable. A disabled submit button instead is the anti-pattern interviewers probe for.' },
   ],
+  tips: [
+    {
+      title: 'The UX rule that matters most',
+      points: [
+        'Do not validate on every keystroke from the start: telling someone their email is invalid after they have typed "a" is hostile. Validate on blur, then update live once the field has been touched. That decision is what interviewers listen for, more than the regex.',
+      ],
+    },
+  ],
 };
 
 const themeSwitcher: BuildExplanation = {
@@ -1374,6 +1637,15 @@ const themeSwitcher: BuildExplanation = {
     { point: 'The blocking inline script, and why it must be inline', why: 'The flash of the wrong theme is the visible bug here, and it cannot be fixed from inside React because React runs too late. Knowing that is the point of the question.' },
     { point: 'CSS variables rather than a theme object in context', why: 'One attribute change re-themes the page with no re-render. Threading a theme object through context re-renders every consumer on every toggle.' },
     { point: 'The media query is listened to, not just read', why: 'Without the listener, "follow the system" works until the system actually changes, which is the one moment it was supposed to handle.' },
+  ],
+  tips: [
+    {
+      title: 'Three states, not two',
+      points: [
+        '`light` and `dark` are explicit choices; `system` follows the OS and keeps following it when the OS changes.',
+        'A boolean `isDark` cannot represent "system", so the user\'s choice is lost the moment their OS switches at sunset.',
+      ],
+    },
   ],
 };
 
@@ -1503,6 +1775,17 @@ const buttonVariants: BuildExplanation = {
     { point: 'loading and disabled are different states', why: 'Collapsing them loses the distinction between "unavailable" and "in progress", which matters to every screen-reader user and is the moment to mention aria-busy without being prompted.' },
     { point: 'You can say why "as" is a compromise', why: 'Radix and friends use asChild or a render prop instead, because as cannot merge props onto a component the consumer already built. Naming that limit shows you know the pattern rather than having copied it.' },
   ],
+  tips: [
+    {
+      title: 'What an interviewer listens for',
+      points: [
+        'Variant and size are closed sets: a union type, resolved by lookup. In TypeScript that is `Record<Variant, CSSProperties>`, so adding a variant without styling it is a compile error rather than a silent default.',
+        '`...rest` and `ref`, so the component is a drop-in for `<button>`. A Button that cannot take `data-testid` or `onMouseEnter` gets forked within a month.',
+        'Loading is not disabled. Announce it with `aria-busy`, keep the label stable, and do not let the width jump when the spinner appears.',
+        'The polymorphic escape hatch: a link is a link. Libraries use `asChild` (Radix) or a render prop rather than `as`, because `as` cannot merge props onto a component the consumer already built.',
+      ],
+    },
+  ],
 };
 
 const nestedComments: BuildExplanation = {
@@ -1574,6 +1857,25 @@ const nestedComments: BuildExplanation = {
     { point: 'Only the changed branch re-renders', why: 'The question asks how you would optimise rendering. Per-comment subscriptions plus memo, and being able to prove it with a render log, is a far stronger answer than "wrap it in React.memo". The proof also catches the trap of a recursive component that refers to itself rather than to its memo wrapper.' },
     { point: 'Keys are stable ids, with the reason', why: 'The question asks about unique keys directly. The graded part is the failure: local state jumping between comments when an index shifts.' },
     { point: 'You mention the depth and size limits', why: 'Depth caps, loading replies on demand and virtualising the top level (rendering only what is on screen) show you have thought past the demo to a thread with thousands of comments.' },
+  ],
+  tips: [
+    {
+      title: 'The key decision is the data shape',
+      points: [
+        '**Nested** (replies inside replies): easy to render, painful to update. Adding a reply means copying every object on the path down to it, and finding a comment by id means searching the whole tree.',
+        '**Flat, keyed by id** (used here, often called "normalised"): `byId: { c1: { id, author, text, parentId, childIds: ["c2"] } }` plus `rootIds: ["c1", "c4"]`. Adding a reply touches exactly two entries: the new comment and its parent.',
+        'Servers usually send comments flat with a `parentId` anyway.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**Very deep threads:** stop at a depth and show "Continue this thread", which loads that branch on its own page (what Reddit does).',
+        '**Thousands of comments:** load replies on demand ("Show 24 replies" fetches them), and virtualise the top level.',
+        '**Optimistic posting:** add the reply with a temporary id and a "sending" state, then swap in the server id. See the Optimistic UI challenge.',
+        '**Cycles:** a comment that is its own ancestor would recurse forever, so validate `parentId`s when normalising.',
+      ],
+    },
   ],
 };
 
@@ -1669,6 +1971,16 @@ const sidebarNavigation: BuildExplanation = {
     { point: 'The active route drives both the highlight and the open submenu', why: 'Route linking is part of the question. Deriving both from the current path, and opening sections in the event rather than an effect, shows you understand where state belongs.' },
     { point: 'Animations respect reduced motion', why: 'prefers-reduced-motion is an operating-system setting for people who find animation uncomfortable. Turning the transitions off for them is a one-line media query, and it shows the animation was designed for everyone rather than bolted on.' },
   ],
+  tips: [
+    {
+      title: 'CSS or JavaScript for "responsive"?',
+      points: [
+        'Layout (widths, hiding, stacking) belongs in CSS media queries.',
+        'Use a JavaScript media query only where behaviour differs: here, the drawer has open and closed state, a backdrop and Escape handling that the desktop sidebar does not need.',
+        'With server rendering, the server cannot know the screen width, so render the desktop version by default and let the client switch after mounting.',
+      ],
+    },
+  ],
 };
 
 const dataTable: BuildExplanation = {
@@ -1746,6 +2058,24 @@ const dataTable: BuildExplanation = {
     { point: 'The pipeline order and memoisation are deliberate', why: 'Filter before sort, memoise each stage on its own inputs, copy before sorting. Each is small, and together they show you know where the cost is.' },
     { point: 'Header, rows and pagination are modular', why: 'The question asks for it explicitly. Props-in, events-out components that do not know the data source are what "modular" actually means.' },
   ],
+  tips: [
+    {
+      title: 'Client-side or server-side?',
+      points: [
+        '**Client-side** (used here): every row is already in the browser, up to a few thousand. Filter, then sort, then slice out one page, all in `useMemo`.',
+        '**Server-side:** too many rows to send. Keep the same state object, but turn it into query parameters (`?q=ali&status=active&sort=name&dir=asc&page=2&size=10`) and let the server return one page plus the total count. The header, rows and pagination components do not change.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**10,000+ rows in the browser:** paginating keeps the DOM small, but if you must show one long list, virtualise it (render only the visible rows).',
+        '**Typing lag on a big dataset:** wrap the query in `useDeferredValue` so the input stays responsive while the filter catches up, or debounce it. In server-side mode, debounce and cancel stale requests (see the "Search with Debounce + Cancel" challenge).',
+        'Put the state in the URL, so a filtered, sorted page can be shared and survives a refresh.',
+        '**Sorting by several columns:** sort becomes an array of `{ key, dir }`, and the comparator walks it until one key breaks the tie.',
+      ],
+    },
+  ],
 };
 
 const likeButton: BuildExplanation = {
@@ -1799,6 +2129,25 @@ const likeButton: BuildExplanation = {
     { point: 'Rapid clicks cannot produce the wrong final state', why: 'This is where interviewers push. Serialising requests, or at least ignoring stale responses, is what separates a demo from something you could ship.' },
     { point: 'The request is idempotent', why: 'Sending the desired state rather than "toggle" makes retries safe, and naming idempotency here shows you connect frontend state to backend behaviour.' },
   ],
+  tips: [
+    {
+      title: 'Rapid clicks are the trap',
+      points: [
+        'The naive version sends one request per click. Three clicks means three requests, which can come back in any order, so an old response can overwrite a newer click, and a failed old request can "roll back" a change the user made after it.',
+        'The fix here: at most one request in flight. Clicks made while it runs just change what the user wants. When it finishes, if the server state still differs from that, send one more. Five fast clicks become at most two requests, and they cannot overtake each other.',
+        'Send the state (`liked: true`), not the action ("toggle"). Repeating "set liked to true" is harmless; repeating "toggle" flips it back.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**React 19** has `useOptimistic` for this: the optimistic value shows while an action runs and is dropped automatically when it ends, so there is no manual rollback. See the "Optimistic UI Updates" challenge.',
+        '**With TanStack Query:** `onMutate` saves the old cache value and writes the new one, `onError` puts the saved value back, `onSettled` refetches.',
+        '**The count others see:** after success, show the server\'s count, which includes other people\'s likes, rather than trusting your own arithmetic.',
+        '**Leaving the page mid-request:** the request still completes on the server. There is nothing to undo, and React ignores state updates after unmount.',
+      ],
+    },
+  ],
 };
 
 const rateLimitedButton: BuildExplanation = {
@@ -1846,7 +2195,6 @@ const rateLimitedButton: BuildExplanation = {
     },
     {
       title: 'Back it up on the server with an idempotency key',
-      excerpt: { from: '// THE PART THAT IS NOT A FRONTEND PROBLEM', lines: 9 },
       detail:
         'Every guard here lives in one tab. Two tabs, a retry after a timeout or a flaky network can still send the same request twice. An idempotency key, generated once per user action and resent on every retry, lets the server recognise the repeat and return the first result.',
     },
@@ -1856,6 +2204,24 @@ const rateLimitedButton: BuildExplanation = {
     { point: 'The lock uses a ref and explains why', why: 'Two clicks in one tick is the edge that breaks the obvious state-based guard, and knowing that React state updates are not immediate is the underlying concept being tested.' },
     { point: 'Throttled functions are stable across renders', why: 'Recreating lodash.throttle on every render is one of the most common React bugs with these utilities, and naming it earns credit on the "lodash or custom" part of the question.' },
     { point: 'The server is the real guarantee', why: 'Saying the frontend guard is for experience and the idempotency key is the guarantee shows you think about the whole system, which is what a senior answer sounds like.' },
+  ],
+  tips: [
+    {
+      title: 'Which tool for a button?',
+      points: [
+        '**Debounce** waits until the clicks stop, then runs once. Right for a search box, wrong for a button: the first click appears to do nothing, so people click again.',
+        '**Throttle** runs on the first click, then ignores clicks for a fixed time. Right for "Refresh" or "Load more", where repeating is fine but not ten times a second.',
+        '**In-flight lock** runs on the first click and ignores clicks until that request finishes. Right for Submit, Pay and Save: the goal is "exactly once", and no fixed time window can promise that, because the request may take longer than the window.',
+        '**lodash or custom?** lodash\'s throttle and debounce are fine, but in React create them once (`useMemo` or `useRef`), or every render makes a new throttled function with a fresh timer, which throttles nothing. Cancel them on unmount.',
+      ],
+    },
+    {
+      title: 'The part that is not a frontend problem',
+      points: [
+        'Every guard here lives in one browser tab. Two tabs, a retry after a timeout, or a slow network that resends can still deliver the same request twice.',
+        'For anything that must happen once (payments, orders), send an idempotency key: a unique id generated once per user action and sent with every retry, so the server can recognise a repeat and return the first result instead of charging twice. The frontend guard is for the user\'s experience; the idempotency key is the guarantee.',
+      ],
+    },
   ],
 };
 
@@ -1920,7 +2286,6 @@ const shoppingCart: BuildExplanation = {
     },
     {
       title: 'Treat the client total as a preview',
-      excerpt: { from: '//   - Prices change while the item sits in the cart: the server recalculates', lines: 3 },
       detail:
         'The browser can be edited by anyone, so the price actually charged must be calculated by the server at checkout. The client total is there so the user knows roughly what to expect, and the UI should say so when the server total differs.',
     },
@@ -1930,6 +2295,25 @@ const shoppingCart: BuildExplanation = {
     { point: 'Money is handled in integer cents', why: 'Interviewers ask about floating point here on purpose. Knowing that 0.1 + 0.2 is not 0.3, and designing around it, is an expected senior detail.' },
     { point: 'All rules live in one reducer', why: 'Stock limits, merging duplicate adds and removal become testable pure functions, and no button can bypass them. This is also why the same reducer moves to Redux unchanged.' },
     { point: 'Persistence is safe and the server is the authority', why: 'Validated, try/catch-wrapped storage, plus the merge-at-login and recalculate-at-checkout follow-ups, show you have thought past the demo to a real store.' },
+  ],
+  tips: [
+    {
+      title: 'Three decisions that make it correct',
+      points: [
+        'Store only `{ productId, quantity }`. Never store the price or the total: prices change, and a stored total can disagree with the items. Look the price up from the catalogue and compute the totals.',
+        'Work in cents (whole numbers). `0.1 + 0.2` is `0.30000000000000004` in JavaScript, and money must never drift by a cent.',
+        'One reducer owns every change, so the rules (max stock, no quantity 0) live in one place instead of in every button.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**Logged-in users:** keep the cart on the server so it follows them across devices. Merge a guest cart from localStorage into the server cart at login, rather than one silently replacing the other.',
+        '**Prices change while the item sits in the cart:** the server recalculates the total at checkout and the UI shows "the price of X changed". The client total is a preview; the server\'s total is the one charged.',
+        '**Several tabs:** listen for the `storage` event to pick up changes made in another tab.',
+        '**Why Context and not Redux here:** one cart, a handful of consumers, and a reducer already holds the rules. The same reducer moves into a Redux slice or a Zustand store unchanged if the app grows.',
+      ],
+    },
   ],
 };
 
@@ -2008,6 +2392,29 @@ const fileUpload: BuildExplanation = {
     { point: 'Uploads can be cancelled and retried', why: 'Using the AbortController pattern shows consistency with the rest of the data layer, and treating cancellation as its own outcome avoids a false error message.' },
     { point: 'Validation happens first and again on the server', why: 'Instant feedback for the user plus the statement that the server is the real check is the balanced answer interviewers look for.' },
     { point: 'You mention the backend limits and large-file strategies', why: 'Spring Boot\'s 1 MB default, 413 handling, chunked uploads and pre-signed URLs show you have shipped uploads against a real server, not just a demo.' },
+  ],
+  tips: [
+    {
+      title: 'Why XMLHttpRequest and not fetch?',
+      points: [
+        '`fetch` has no upload progress events. XMLHttpRequest does: `xhr.upload.onprogress` fires with how many bytes have been sent so far (`event.loaded`) out of the total (`event.total`). axios uses XHR in the browser, which is why its `onUploadProgress` works.',
+      ],
+    },
+    {
+      title: 'The Spring Boot side',
+      points: [
+        'The controller takes `@RequestParam("file") MultipartFile`. Its defaults are 1 MB per file and 10 MB per request (`spring.servlet.multipart.max-file-size` and `max-request-size`). A bigger file is rejected, so raise both, and handle 413 Payload Too Large in the UI.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**Very large files** (hundreds of MB): split them into chunks and upload each separately, so a dropped connection only retries one chunk and the upload can resume. Or upload straight to storage with a pre-signed URL (S3, GCS), so the file never passes through your service.',
+        '**Many files at once:** limit how many upload at the same time (two or three) and queue the rest, or they compete for bandwidth and all finish late.',
+        '**Validation on the client** is for the user\'s convenience only. The server must check type and size again, and should check the file\'s contents rather than trust its name or the type the browser reported.',
+        '**Progress reaching 100%** means the bytes were sent, not that the server finished processing them. Show "Processing…" until the response arrives.',
+      ],
+    },
   ],
 };
 
@@ -2108,6 +2515,37 @@ const dropdown: BuildExplanation = {
     { point: 'The edge cases have answers: empty, long, disabled, near the bottom of the screen', why: 'These are the "what if" questions the interviewer asks next. Having handled them before being asked is what turns a working component into a good answer.' },
     { point: 'You know when not to build one', why: 'A native select is accessible, works in forms and gives phones their own picker. Saying you would build a custom one only for what a select cannot do, or use Radix or React Aria in production, is the senior answer.' },
   ],
+  tips: [
+    {
+      title: 'Opening and picking is the easy half',
+      points: [
+        'The interview is everything around it: can you use it with only a keyboard? Does it close when you click outside? What if the list is empty, or 45 items long, or one option is unavailable? Build it, then try to break it the way a user would.',
+        'The pattern is the WAI-ARIA "select-only combobox". DOM focus never leaves the trigger; `aria-activedescendant` names the highlighted option, so a screen reader announces it while the keyboard keeps working on the trigger.',
+      ],
+    },
+    {
+      title: 'Try to break it',
+      points: [
+        'Keyboard only: Tab in, Enter, arrows, Enter. Then reopen it: it starts on the value you chose, not back at the top.',
+        'Open Fruit and press Escape: the value does not change.',
+        'Open Fruit, then click the heading or the Country dropdown: it closes.',
+        'Arrow past Cherry: Durian is skipped. Click it: nothing happens.',
+        'Open Country and keep pressing the down arrow: the list scrolls with you.',
+        'Open Assignee: it says why there is nothing to pick.',
+      ],
+    },
+    {
+      title: 'Follow-ups interviewers ask',
+      points: [
+        '**"Why not a native select?"** Often you should: it is accessible, works with forms, and gives phones their own picker. Build a custom one only for what a select cannot do (icons, two-line options, custom styling of the open list), and add a hidden input with a name if it sits in a form.',
+        '**Searchable dropdown:** that is a combobox with a text input and `aria-autocomplete`. See the Auto-Complete challenge.',
+        '**Thousands of options:** render only the visible rows (virtualisation), and give each option `aria-setsize` and `aria-posinset`, because most of them are no longer in the DOM for a screen reader to count.',
+        '**Inside `overflow: hidden` or a modal:** the absolute list gets clipped. Render it in a portal and position it from the trigger\'s `getBoundingClientRect()` (or use Floating UI).',
+        '**Multi-select:** `aria-multiselectable` on the listbox, Space toggles an option, and the list stays open between picks.',
+        'In production, Radix Select, React Aria\'s `useSelect` or Headless UI\'s Listbox already handle the screen-reader edge cases this one skips.',
+      ],
+    },
+  ],
 };
 
 const moveBoxes: BuildExplanation = {
@@ -2167,6 +2605,23 @@ const moveBoxes: BuildExplanation = {
     { point: 'Overlapping swaps are refused before they render', why: 'Different-sized boxes are the edge case the interviewer is waiting for.' },
     { point: 'State is updated immutably', why: 'A new array with new objects is what lets React see the change. Mutating x and y in place renders nothing.' },
   ],
+  tips: [
+    {
+      title: 'Try it',
+      points: [
+        'A right: A and B swap. Then B right: they swap back.',
+        'A up: nothing is above A.',
+        'C up: C is 4 wide, so in A\'s place it would cover B. Refused.',
+      ],
+    },
+    {
+      title: 'Follow-ups',
+      points: [
+        'When two boxes touch that side, this takes the one at the corner. The alternative is the one sharing the longest edge.',
+        'Only the two moved boxes can clash, so checking just them is O(n) instead of comparing every pair.',
+      ],
+    },
+  ],
 };
 
 const productCrud: BuildExplanation = {
@@ -2219,6 +2674,27 @@ const productCrud: BuildExplanation = {
     { point: 'Keys are ids, not indexes', why: 'Interviewers often ask about this straight after a delete. Explaining what goes wrong with index keys shows you know how React matches rows.' },
     { point: 'One form handles add and edit cleanly', why: 'An editingId that is null while adding keeps the two modes in one place, and the edge case of deleting the product being edited is handled.' },
     { point: 'Bad input is refused with a message', why: 'An empty name or a negative price should not reach the list. A short validation message is a small touch that interviewers notice.' },
+  ],
+  tips: [
+    {
+      title: 'Try it',
+      points: [
+        'Add "Monitor" at 199: it appears at the end of the list.',
+        'Press Add product with an empty name: the error shows, and nothing is added.',
+        'Edit Keyboard, change the price, Save changes: the row updates in place.',
+        'Edit Mouse, then delete Mouse: the form goes back to adding.',
+      ],
+    },
+    {
+      title: 'Follow-ups',
+      points: [
+        '**Why a key of `p.id`, not the index?** Deleting a row shifts every index, so React would reuse the wrong row\'s DOM and state.',
+        '**Why the updater form, `setProducts((list) => ...)`?** It always starts from the latest list, even if two updates land in the same render.',
+        '**Backed by an API:** call it, then update state from the response, or update first and roll back on failure (optimistic UI).',
+        '**Bigger forms:** `useReducer` for the state, or a form library.',
+        '**Delete confirmation:** an undo toast is kinder than a confirm dialog.',
+      ],
+    },
   ],
 };
 

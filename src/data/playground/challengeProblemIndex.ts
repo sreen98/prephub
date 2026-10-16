@@ -23,6 +23,12 @@ export interface ChallengeExample {
 
 export interface ChallengeProblem {
   summary: string;
+  /**
+   * The fuller challenge this one is a warm-up for: same core, fewer
+   * requirements. Shown on both in the Challenges list and the Problem panel,
+   * so a near-duplicate reads as step one of two.
+   */
+  warmUpFor?: string;
   statement: string;
   examples: ChallengeExample[];
   constraints?: string[];
@@ -38,6 +44,11 @@ export function loadChallengeProblems(): Promise<Record<string, ChallengeProblem
     return cache;
   });
   return pending;
+}
+
+/** The warm-up whose `warmUpFor` names this challenge, if there is one. */
+export function warmUpOf(problems: Record<string, ChallengeProblem>, name: string): string | null {
+  return Object.keys(problems).find((n) => problems[n].warmUpFor === name) ?? null;
 }
 
 /** Synchronous read once loaded, so a re-render never flashes a loading state. */
