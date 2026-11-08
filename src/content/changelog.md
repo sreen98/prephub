@@ -1,5 +1,9 @@
 # What's New
 
+## v2.0.4 (November 2026)
+
+- **Privacy Policy: page-load timing.** The Visitor statistics section now also says that Cloudflare Web Analytics measures how long a page took to load. Nothing about what the site collects has changed; the policy now lists it in full.
+
 ## v2.0.3 (October 2026)
 
 - **Tips for every React challenge.** A new Tips button in the playground header opens what an interviewer grades for the challenge you have open, plus the design choices, follow-up questions and things to try. These used to be long comment blocks at the top and bottom of the code; the editor now opens on code. Tips stay hidden during interview mode, like Explain and the solution.

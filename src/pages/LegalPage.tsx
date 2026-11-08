@@ -20,7 +20,7 @@ type Doc = 'privacy' | 'terms';
 
 interface Section { heading: string; body: ReactNode }
 
-const LAST_UPDATED = '14 October 2026';
+const LAST_UPDATED = '8 November 2026';
 const OWNER = 'Sreenath P';
 const CONTACT_EMAIL = 'developersreenz@gmail.com';
 
@@ -81,8 +81,8 @@ const STATISTICS_SECTION: Section = {
     <p>
       The site counts visits with {ext('https://www.cloudflare.com/web-analytics/', 'Cloudflare Web Analytics')}. It sets no
       cookies, stores nothing on your device and does not follow you across sites. Cloudflare sees the page you visit, the
-      page that linked to it, your browser type and your country (from your IP address, which it does not use to identify
-      you), and gives us only totals. Cloudflare handles this under its {ext('https://www.cloudflare.com/privacypolicy/', 'Privacy Policy')}.
+      page that linked to it, how long the page took to load, your browser type and your country (from your IP address,
+      which it does not use to identify you), and gives us only totals. Cloudflare handles this under its {ext('https://www.cloudflare.com/privacypolicy/', 'Privacy Policy')}.
     </p>
   ) : (
     <p>The site does not use analytics or any other tracking, and sets no cookies.</p>
