@@ -2,7 +2,7 @@
 
 A comprehensive collection of guides covering everything a full-stack developer gets asked in interviews — from JavaScript fundamentals to frontend architecture, accessibility, security and AI engineering.
 
-**86 guides across 10 categories, plus 14 cheat sheets and an interactive Code Playground.**
+**88 guides across 10 categories, plus 14 cheat sheets and an interactive Code Playground.**
 
 ---
 
@@ -76,15 +76,15 @@ If you have limited time, this is the list. These twenty topics come up in almos
 
 [JavaScript Guide](/javascript/guide) with [JavaScript Interview Questions](/javascript/interview-questions) and [JavaScript Output Questions](/javascript/tricky-questions) (closures, prototypes, the event loop, ES2026 — Temporal, `using`, iterator helpers), [TypeScript Guide](/javascript/typescript) with [TypeScript Interview Questions](/javascript/typescript-interview-questions) and [TypeScript Tricky Questions](/javascript/typescript-tricky-questions) (generics, conditional and mapped types, the Go-native compiler), [Regex Guide](/javascript/regex), [JS Comparisons](/javascript/comparisons)
 
-### ⚙️ Back End (17 guides)
+### ⚙️ Back End (19 guides)
 
 **Runtime & Frameworks** — [Node.js](/backend/nodejs) (event loop, streams, Node 24/26), [Express.js](/backend/expressjs), [Python](/backend/python) (the GIL, asyncio, decorators, and Python for LLM services), [FastAPI](/backend/fastapi) (`async def` vs `def`, dependency injection, streaming), [MongoDB](/backend/mongodb)
 
-**API & Data** — [API Design](/backend/api-design), [GraphQL](/backend/graphql) (schema design, the N+1 problem and DataLoader, why HTTP caching breaks, cost limits), [SQL & Relational DBs](/backend/sql) (joins, indexes, query plans, transactions and isolation, the N+1 problem), [PostgreSQL](/backend/postgresql) (MVCC and VACUUM, pooling, replication, pgvector), [MySQL](/backend/mysql) (the clustered index, gap locks, online DDL), [Database Schema](/backend/database-schema), [CORS](/backend/cors)
+**API & Data** — [API Design](/backend/api-design), [GraphQL](/backend/graphql) (schema design, the N+1 problem and DataLoader, why HTTP caching breaks, cost limits), [SQL & Relational DBs](/backend/sql) (joins, indexes, query plans, transactions and isolation, the N+1 problem), [PostgreSQL](/backend/postgresql) (MVCC and VACUUM, pooling, replication, pgvector), [MySQL](/backend/mysql) (the clustered index, gap locks, online DDL), [Redis](/backend/redis) (data structures, caching strategies, eviction, persistence, distributed locks, Cluster), [Database Schema](/backend/database-schema), [CORS](/backend/cors)
 
 **Security & Identity** — [Web Security](/backend/web-security) (XSS, CSP, CSRF, token theft, supply chain, injection), [OAuth & SSO](/backend/oauth-sso)
 
-**Architecture & Delivery** — [Microservices](/backend/microservices), [Docker, K8s & CI/CD](/backend/docker-kubernetes) (images and layers, orchestration, pipelines, deployment strategies), [Stripe Integration](/backend/stripe)
+**Architecture & Delivery** — [Microservices](/backend/microservices), [Message Brokers: Kafka & RabbitMQ](/backend/message-brokers) (partitions, consumer groups and offsets, delivery guarantees, exchanges and routing, acks, dead-letter queues, which to choose), [Docker, K8s & CI/CD](/backend/docker-kubernetes) (images and layers, orchestration, pipelines, deployment strategies), [Stripe Integration](/backend/stripe)
 
 ### ✨ AI Engineering (6 guides)
 

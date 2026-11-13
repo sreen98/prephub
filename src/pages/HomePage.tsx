@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Zap, RotateCcw, Terminal, Atom, Database, GraduationCap, ScrollText, ArrowRight, Flame, Timer, ChevronDown, Globe, BriefcaseBusiness } from 'lucide-react';
 import { GithubIcon } from '../components/GithubIcon';
 import type { MenuSection, MenuItem } from '../data';
@@ -146,6 +146,11 @@ function CategoryCard({ cat, getStatus, done }: {
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { hash } = useLocation();
+  // Router links don't scroll to a hash (e.g. the sidebar's "/#request"), so do it here.
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
+  }, [hash]);
   const categories = menuStructure.filter(hasItems);
   const allGuides: MenuItem[] = menuStructure.flatMap(s => s.items || []);
   const { getOverallStats, getCategoryStats, getStatus, progress } = useProgress();
@@ -305,7 +310,7 @@ export default function HomePage() {
             </ul>
           </div>
 
-          <div className="sticky-note max-w-2xl mt-8 p-5">
+          <div id="request" className="sticky-note max-w-2xl mt-8 p-5 scroll-mt-20">
             <h3 className="font-display text-xl font-semibold">Can't find what you need?</h3>
             <p className="mt-2 text-sm text-ink leading-relaxed">
               Missing a topic, a guide or a question you were asked in an interview? Drop a request at{' '}

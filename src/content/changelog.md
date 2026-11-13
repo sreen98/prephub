@@ -1,5 +1,12 @@
 # What's New
 
+## v2.1.0 (November 2026)
+
+- **New Back End guide: Redis.** Data structures and when to use each, keys and expiry, caching strategies (cache-aside, write-through, write-behind) and the three classic cache failures (stampede, avalanche, penetration), eviction policies, RDB and AOF persistence and what a crash loses, transactions, pipelining and Lua, Pub/Sub vs Streams, distributed locking with Redlock and fencing tokens, rate limiters, replication, Sentinel and Cluster, and the performance traps. Includes 14 interview questions and 10 tricky questions.
+- **New Back End guide: Message Brokers: Kafka & RabbitMQ.** The queue vs log models, Kafka partitions, keys and ordering, consumer groups, offsets and rebalancing, replication and `acks`, delivery guarantees and what "exactly once" really covers, retention and compaction, Kafka 4.2's share groups, RabbitMQ exchanges, bindings and routing keys, acknowledgements, prefetch and quorum queues, retries and dead-letter queues, and when to choose each. Includes 14 interview questions and 11 tricky questions.
+- **Request a topic from anywhere.** The sidebar now has a "Can't find what you need?" link at the bottom. It takes you to the note on the home page with the email address for requesting a missing topic, guide or interview question.
+- **More room for guides in the sidebar.** Sign-in and the request link now sit in a folded "Account & help" section at the bottom of the sidebar, so the guide list gets more of the height. Click it to open.
+
 ## v2.0.4 (November 2026)
 
 - **Privacy Policy: page-load timing.** The Visitor statistics section now also says that Cloudflare Web Analytics measures how long a page took to load. Nothing about what the site collects has changed; the policy now lists it in full.

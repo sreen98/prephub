@@ -5,7 +5,7 @@ import {
   X, Sun, Moon, ChevronDown, BookOpen, Search, Megaphone, Type, Flame,
   GraduationCap, Bookmark, Flag, ScrollText, PanelLeftClose, FileText,
   CheckCircle, Circle, Zap, Terminal, List, Braces, Server, Layers, Monitor,
-  RotateCcw, Database, Atom, Timer,
+  RotateCcw, Database, Atom, Timer, Mail, LifeBuoy,
 } from 'lucide-react';
 import AccountControl from './AccountControl';
 import { ACCOUNTS_ENABLED } from '../lib/account';
@@ -44,6 +44,12 @@ export interface SidebarProps {
 const ACTIVE = 'bg-accent-soft text-accent font-semibold shadow-[inset_3px_0_0_rgb(var(--accent))]';
 /** Inactive links: muted text that darkens on hover. */
 const INACTIVE = 'text-muted hover:text-ink hover:bg-ink/5';
+
+const requestLink = (
+  <Link to="/#request" className={cn('flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors', INACTIVE)}>
+    <Mail size={16} /> Can't find what you need?
+  </Link>
+);
 
 interface ToolCounts { dueCount: number; bookmarksCount: number; checkpointsCount: number; hasUnreadChangelog: boolean }
 
@@ -264,8 +270,21 @@ export default function Sidebar({
           </nav>
 
           <div className="p-4 border-t border-line space-y-0.5">
-            {ACCOUNTS_ENABLED && <AccountControl />}
             {/* /admin has no link on purpose: it is reached by typing the URL (AdminPage.tsx). */}
+            {ACCOUNTS_ENABLED ? (
+              // Folded by default so the guide list gets the height; the sign-in notice
+              // still sits directly under the button once it is opened.
+              <details className="group">
+                <summary className={cn('flex cursor-pointer list-none items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors [&::-webkit-details-marker]:hidden', INACTIVE)}>
+                  <LifeBuoy size={16} /> <span className="flex-1">Account &amp; help</span>
+                  <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="mt-1">
+                  <AccountControl />
+                  {requestLink}
+                </div>
+              </details>
+            ) : requestLink}
 
             {/* Which build is being served. Useful when a cached service worker
                 is still handing out an older bundle than the latest deploy. */}

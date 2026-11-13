@@ -162,8 +162,8 @@ silently resolves to a `window` global and typechecks.
 ## Content and data
 - **`data.ts` is the source of truth.** It holds `menuStructure` (categories → items), the
   `cheatSheets` array, and the loaders. Current counts: 10 categories (Front End 31, JS & TS 8,
-  Back End 17, AI Engineering 6, AI-Augmented Development 1, DevOps 15, Git 2, DSA 1,
-  Behavioral 1, System Design 4) = 86 guides, plus the Introduction, plus 14 cheat sheets.
+  Back End 19, AI Engineering 6, AI-Augmented Development 1, DevOps 15, Git 2, DSA 1,
+  Behavioral 1, System Design 4) = 88 guides, plus the Introduction, plus 14 cheat sheets.
   Recount guides by counting `{ name: '` inside each `items: [...]`.
 - **Routes are a compatibility contract** (deep links, bookmarks, checkpoints, SEO). Category
   membership and URL are independent. AWS guides stay at `/aws/*` under DevOps, Docker/K8s at
@@ -219,7 +219,7 @@ silently resolves to a `window` global and typechecks.
   `dedupeIds()` suffixes the 2nd+ occurrences. **Never renumber**: ids key SM-2 review
   history. Append new questions at the *end* of a sequence, and rewrite existing ones in place
   so the id is unchanged.
-- Tricky Output sections: 55 guides, 467 questions total. Recount with:
+- Tricky Output sections: 57 guides, 488 questions total. Recount with:
   `for f in $(grep -rl --include="*.md" -i '^## .*Tricky' src/content); do awk '/^## .*[Tt]ricky/{flag=1} flag' "$f" | grep -c '^\*\*Q[0-9]*:'; done`
 - After adding a `**QN:**` marker, run `npm run content:meta`, or the `totalQuestionCount`
   parity test fails and names the guide.

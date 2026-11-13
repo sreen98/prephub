@@ -250,7 +250,7 @@ export const menuStructure: MenuSection[] = [
   {
     name: 'Back End',
     icon: Server,
-    description: 'Node.js, Express, Python, FastAPI, MongoDB, SQL, PostgreSQL, MySQL, API Design, GraphQL, CORS, Web Security, OAuth & SSO, Microservices & Stripe',
+    description: 'Node.js, Express, Python, FastAPI, MongoDB, SQL, PostgreSQL, MySQL, Redis, Kafka & RabbitMQ, API Design, GraphQL, CORS, Web Security, OAuth & SSO, Microservices & Stripe',
     items: [
       { name: 'Node.js Guide', path: '/backend/nodejs', group: 'Runtimes & Frameworks', file: './content/back-end/nodejs-guide.md', officialDocs: [{ label: 'Node.js', url: 'https://nodejs.org/docs/latest/api' }] },
       { name: 'Express.js Guide', path: '/backend/expressjs', group: 'Runtimes & Frameworks', file: './content/back-end/expressjs-guide.md', officialDocs: [{ label: 'Express.js', url: 'https://expressjs.com' }] },
@@ -265,9 +265,11 @@ export const menuStructure: MenuSection[] = [
       { name: 'SQL & Relational DBs', path: '/backend/sql', group: 'Databases', file: './content/back-end/sql-relational-databases-guide.md', officialDocs: [{ label: 'PostgreSQL Docs', url: 'https://www.postgresql.org/docs/current/' }, { label: 'Use The Index, Luke!', url: 'https://use-the-index-luke.com' }, { label: 'PG Transaction Isolation', url: 'https://www.postgresql.org/docs/current/transaction-iso.html' }] },
       { name: 'PostgreSQL', path: '/backend/postgresql', group: 'Databases', file: './content/back-end/postgresql-guide.md', officialDocs: [{ label: 'PostgreSQL Docs', url: 'https://www.postgresql.org/docs/current/' }, { label: 'pgvector', url: 'https://github.com/pgvector/pgvector' }] },
       { name: 'MySQL', path: '/backend/mysql', group: 'Databases', file: './content/back-end/mysql-guide.md', officialDocs: [{ label: 'MySQL 8.0 Manual', url: 'https://dev.mysql.com/doc/refman/8.0/en/' }, { label: 'InnoDB Locking', url: 'https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-transaction-model.html' }] },
+      { name: 'Redis', path: '/backend/redis', group: 'Databases', file: './content/back-end/redis-guide.md', officialDocs: [{ label: 'Redis Docs', url: 'https://redis.io/docs/latest/' }, { label: 'Valkey', url: 'https://valkey.io/' }] },
       { name: 'Web Security', path: '/backend/web-security', group: 'Security & Auth', file: './content/back-end/web-security-guide.md', officialDocs: [{ label: 'OWASP Top 10', url: 'https://owasp.org/www-project-top-ten/' }, { label: 'OWASP Cheat Sheets', url: 'https://cheatsheetseries.owasp.org/' }, { label: 'web.dev — Strict CSP', url: 'https://web.dev/articles/strict-csp' }] },
       { name: 'OAuth & SSO', path: '/backend/oauth-sso', group: 'Security & Auth', file: './content/back-end/oauth-sso-guide.md', officialDocs: [{ label: 'OAuth 2.0', url: 'https://oauth.net/2/' }, { label: 'OpenID Connect', url: 'https://openid.net/connect/' }, { label: 'RFC 6749', url: 'https://datatracker.ietf.org/doc/html/rfc6749' }] },
       { name: 'Microservices', path: '/backend/microservices', group: 'Architecture', file: './content/back-end/microservices-guide.md', officialDocs: [{ label: 'microservices.io', url: 'https://microservices.io' }, { label: 'Martin Fowler — Microservices', url: 'https://martinfowler.com/articles/microservices.html' }] },
+      { name: 'Message Brokers: Kafka & RabbitMQ', path: '/backend/message-brokers', group: 'Architecture', file: './content/back-end/message-brokers-guide.md', officialDocs: [{ label: 'Apache Kafka', url: 'https://kafka.apache.org/documentation/' }, { label: 'RabbitMQ', url: 'https://www.rabbitmq.com/docs' }] },
       { name: 'Backend Comparisons', path: '/backend/comparisons', group: 'Architecture', file: './content/back-end/backend-comparisons.md', officialDocs: [] },
     ]
   },
